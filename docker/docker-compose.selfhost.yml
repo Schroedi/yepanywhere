@@ -1,0 +1,49 @@
+## Self-hosted Yep Anywhere: relay + remote frontend
+##
+## Usage (local, from repo root):
+##   docker compose --project-directory . -f docker/docker-compose.selfhost.yml up -d --build
+##
+## Two independent services, each meant to sit behind your reverse proxy
+## (Coolify/Traefik, etc.) on its own domain:
+##   - relay    — the WebSocket relay. Expose on its own domain; clients and
+##                your yepanywhere server connect to it at /ws.
+##   - frontend — static remote web client (SPA). Expose on its own domain.
+##                It does NOT proxy the relay; the browser connects to the
+##                relay directly.
+##
+## Set RELAY_ALLOWED_ORIGINS to the frontend's domain (comma-separated for
+## multiple), e.g. RELAY_ALLOWED_ORIGINS=https://yep.example.com
+##
+## Then point your yepanywhere server at the relay (note the /ws path):
+##   yepanywhere --relay wss://relay.example.com/ws
+
+services:
+  relay:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.relay
+    restart: unless-stopped
+    expose:
+      - "4400"
+    volumes:
+      - relay-data:/data
+    environment:
+      - RELAY_PORT=4400
+      - RELAY_DATA_DIR=/data
+      - RELAY_LOG_TO_FILE=true
+      - RELAY_TELEMETRY_ENABLED=${RELAY_TELEMETRY_ENABLED:-true}
+      # Browser origins allowed to open the relay websocket. Must include the
+      # domain your remote web UI is served from, e.g. https://yepanywhere.mydomain.com.
+      # Comma-separated for multiple; "*" allows any origin.
+      - RELAY_ALLOWED_ORIGINS=${RELAY_ALLOWED_ORIGINS:-}
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+
+volumes:
+  relay-data:
