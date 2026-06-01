@@ -5,7 +5,6 @@
  */
 
 import {
-  DEFAULT_RELAY_URL,
   DEFAULT_YA_CLIENT_BASE_URL,
   buildYaClientRelayLoginUrl,
   normalizeRelayUrl,
@@ -15,8 +14,12 @@ import { type ReactNode, useEffect, useState } from "react";
 import { useServerSettings } from "../hooks/useServerSettings";
 import { type RelayStatus, useRemoteAccess } from "../hooks/useRemoteAccess";
 import { useI18n } from "../i18n";
+import { getDefaultRelayUrl } from "../lib/defaultRelayUrl";
 import { parseUserAgent } from "../lib/deviceDetection";
 import { QRCode } from "./QRCode";
+
+/** Deployment default relay URL (honors VITE_DEFAULT_RELAY_URL at build time). */
+const DEFAULT_RELAY_URL = getDefaultRelayUrl();
 
 export interface RemoteAccessSetupProps {
   /** Custom title (default: "Remote Access") */
