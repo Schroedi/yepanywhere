@@ -1,6 +1,5 @@
 import styles from "./PublicSharePage.module.css";
 import {
-  DEFAULT_RELAY_URL,
   sanitizeSessionTitle,
   type PublicSessionSharePublicMetadata,
   type PublicSessionShareMode,
@@ -28,6 +27,7 @@ import { SessionMetadataProvider } from "../contexts/SessionMetadataContext";
 import { StreamingMarkdownProvider } from "../contexts/StreamingMarkdownContext";
 import { ToastProvider } from "../contexts/ToastContext";
 import { useI18n } from "../i18n";
+import { getDefaultRelayUrl } from "../lib/defaultRelayUrl";
 import {
   fetchPublicShareV2ViaRelay,
   fetchPublicShareViaRelay,
@@ -35,6 +35,8 @@ import {
 } from "../lib/publicShareRelay";
 import type { Message } from "../types";
 
+/** Deployment default relay URL (honors VITE_DEFAULT_RELAY_URL at build time). */
+const DEFAULT_RELAY_URL = getDefaultRelayUrl();
 const LIVE_POLL_MS = 2000;
 const RETRY_POLL_MS = 2000;
 const PUBLIC_SHARE_VIEWER_ID_KEY = "yep-anywhere-public-share-viewer-id";
