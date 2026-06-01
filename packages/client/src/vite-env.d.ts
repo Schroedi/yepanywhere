@@ -5,7 +5,7 @@ interface ImportMetaEnv {
   readonly VITE_ENABLE_SW?: string;
   /** Set to true in remote client build (requires SecureConnection for all API calls) */
   readonly VITE_IS_REMOTE_CLIENT?: boolean;
-  /** Remote-client default relay URL override for static hosted deployments. */
+  /** Override the default relay URL baked into the build (default: wss://relay.yepanywhere.com/ws) */
   readonly VITE_DEFAULT_RELAY_URL?: string;
   /** Enables Playwright-only source transport smoke helpers. */
   readonly VITE_E2E_SOURCE_TRANSPORT_SMOKE?: string;
