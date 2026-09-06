@@ -4,9 +4,11 @@
 > keeping the composer attached to the main session, with explicit save or
 > discard of the question and answer.
 
-Status: proposal and source investigation only; not implemented or approved
-for implementation. The keyboard and touch behavior below records the design
-discussion, not shipped behavior.
+Status: v1 implemented. The [canonical topic](provider-agnostic-btw-asides.md)
+owns the current observable contract. The original proposal and investigation
+below remain design history; their future-tense implementation questions are
+superseded by that contract and [conversation-context delivery](synthetic-turn-injection.md).
+Candidates explicitly marked v2 remain proposals.
 
 Canonical topic: [provider-agnostic /btw asides](provider-agnostic-btw-asides.md).
 Related: [message controls](message-control-steer-queue-btw-later-interrupt.md),
@@ -100,6 +102,30 @@ is another possible later UI direction; its usefulness remains open. Neither
 possibility changes the agreed one-shot v1 or makes ordinary typing enter the
 fork implicitly.
 
+## Possible v2: double-question-mark entry
+
+An alternative entry gesture would let a first terminal `?` suggest that
+typing a second `?` requests an immediate aside answer card. This addresses
+users accustomed to typing `?` then Enter quickly, without pausing to notice
+the preview. Under that alternative, a single `?` followed by Enter would
+retain ordinary main-session delivery.
+
+This is a candidate, not a change to v1's exact terminal-`?` trigger. Whether
+the second `?` itself submits or arms Enter/Send, and whether it remains in
+the question text, are unresolved. Idle-session questions remain ordinary
+turns. The one-question/one-answer card and explicit save/discard decision
+would stay the same.
+
+## Possible v2: sidebar child-work tree
+
+The sidebar's expandable subagent tree could expose in-flight question work
+under its main session. V1 instead archives helper clones and keeps progress
+in the answer card, without adding the continuing `/btw` relationship. A later
+tree integration should distinguish temporary question work from provider
+subagents and preserve the explicit save/discard decision. Restart/crash
+persistence is not required for this interaction. A dedicated atomic server
+route is also not required: client fork orchestration follows existing `/btw`.
+
 ## What saving means
 
 Prefer preserving the user's question and the fork's subsequent assistant
@@ -136,7 +162,7 @@ That operation provides the missing history insertion; it does not generate
 the aside answer. The existing provider fork and session-start mechanisms
 remain the starting point for isolated answer generation.
 
-YA's current `AgentSession` in `packages/server/src/sdk/providers/types.ts`
+At proposal time, `AgentSession` in `packages/server/src/sdk/providers/types.ts`
 exposes `steer` and its ordinary user-message queue, but no history-append
 method. `AgentProvider.forkSession` supplies a separate fork primitive.
 Following [provider abstraction](provider-abstraction.md), propose an optional
@@ -197,7 +223,8 @@ The facility selected above is `thread/inject_items` for retaining Q+A, not
 ## Provider findings
 
 Source inspection on 2026-09-06; Contributing-model: 6-Astra. These are
-interface findings, not live injection or latency tests.
+original interface findings. The canonical topic records the later live
+insertion probe and its limits; no latency comparison is claimed.
 
 ### Codex TUI and app-server
 
@@ -276,6 +303,6 @@ fallback, and preserving real fork output does not remove that API limitation.
   retaining the exchange as context.
 
 Automatic question diversion would be configurable and default-off under
-[vanilla defaults](vanilla-defaults.md). This proposal changes no existing
-send behavior, `/btw` contract, provider protocol, roadmap priority, or runtime
-setting. Implementation and its compatibility review require a later request.
+[vanilla defaults](vanilla-defaults.md). The implementation request does not
+change `/btw` or roadmap priority. The required server compatibility review
+precedes changes to its wire contract.

@@ -1929,6 +1929,36 @@ export class CodexProvider implements AgentProvider {
           runtimeState.goalStatus,
         );
       },
+      appendConversationContext: async (turns) => {
+        if (!activeClient || !runtimeState.threadId) {
+          throw new Error("Codex session is not ready for history insertion");
+        }
+        try {
+          await activeClient.request("thread/inject_items", {
+            threadId: runtimeState.threadId,
+            items: turns.map(({ role, text }) => ({
+              type: "message",
+              role,
+              content: [
+                {
+                  type: role === "assistant" ? "output_text" : "input_text",
+                  text,
+                },
+              ],
+            })),
+          });
+          return true;
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            "jsonRpcCode" in error &&
+            error.jsonRpcCode === -32601
+          ) {
+            return false;
+          }
+          throw error;
+        }
+      },
       steer: async (message) => {
         if (!activeClient) return false;
         if (!runtimeState.threadId || !runtimeState.activeTurnId) return false;

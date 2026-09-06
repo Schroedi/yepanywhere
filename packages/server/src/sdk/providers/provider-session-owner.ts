@@ -79,6 +79,7 @@ export interface ProviderSessionReadyMetadata {
     refreshPromptCache: boolean;
     publishAgentctlSessionId: boolean;
     steer: boolean;
+    appendConversationContext?: boolean;
     setMaxThinkingTokens: boolean;
     setEffort: boolean;
     effortUpdatesActiveTurn?: boolean;
@@ -235,6 +236,7 @@ export class ProviderSessionOwner {
         refreshPromptCache: Boolean(session.refreshPromptCache),
         publishAgentctlSessionId: Boolean(session.publishAgentctlSessionId),
         steer: Boolean(session.steer),
+        appendConversationContext: Boolean(session.appendConversationContext),
         setMaxThinkingTokens: Boolean(session.setMaxThinkingTokens),
         setEffort: Boolean(session.setEffort),
         effortUpdatesActiveTurn: session.effortUpdatesActiveTurn === true,
@@ -738,6 +740,14 @@ export class ProviderSessionOwner {
           throw new Error("A provider-host session turn is already active");
         }
         return await session.steer?.(args[0] as UserMessage);
+      case "appendConversationContext":
+        return session.appendConversationContext
+          ? await session.appendConversationContext(
+              args[0] as Parameters<
+                NonNullable<AgentSession["appendConversationContext"]>
+              >[0],
+            )
+          : false;
       case "setMaxThinkingTokens":
         return await session.setMaxThinkingTokens?.(args[0] as number | null);
       case "setEffort":

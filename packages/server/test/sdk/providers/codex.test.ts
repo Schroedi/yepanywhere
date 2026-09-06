@@ -330,6 +330,60 @@ describe("CodexProvider", () => {
       );
     });
 
+    it("appends user and assistant history through app-server without starting a turn", async () => {
+      const tempDir = mkdtempSync(join(tmpdir(), "codex-context-"));
+      const logPath = join(tempDir, "requests.jsonl");
+      const codexPath = createFakeCodexCommand(
+        tempDir,
+        "fake-codex-context",
+        buildFakeCodexAppServer(logPath),
+      );
+      const session = await new CodexProvider({ codexPath }).startSession({
+        cwd: tempDir,
+      });
+      try {
+        await session.iterator.next();
+        await expect(
+          session.appendConversationContext?.([
+            { role: "user", text: " Why?\n" },
+            { role: "assistant", text: "Because.\n" },
+          ]),
+        ).resolves.toBe(true);
+        const requests = readFileSync(logPath, "utf8")
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+        expect(
+          requests.find((request) => request.method === "thread/inject_items")
+            ?.params,
+        ).toEqual({
+          threadId: "thread-1",
+          items: [
+            {
+              type: "message",
+              role: "user",
+              content: [{ type: "input_text", text: " Why?\n" }],
+            },
+            {
+              type: "message",
+              role: "assistant",
+              content: [{ type: "output_text", text: "Because.\n" }],
+            },
+          ],
+        });
+        expect(
+          requests.some(
+            (request) =>
+              request.method === "turn/start" ||
+              request.method === "turn/steer",
+          ),
+        ).toBe(false);
+      } finally {
+        await session.abort();
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+
     it("runs goal control through thread goal RPCs without a model turn", async () => {
       const tempDir = mkdtempSync(join(tmpdir(), "codex-goal-commands-"));
       const logPath = join(tempDir, "fake-codex-requests.jsonl");

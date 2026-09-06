@@ -4029,20 +4029,25 @@ export const MessageList = memo(function MessageList({
     };
   }, [inert, stopFollowingForUserScroll]);
 
-  // Use ResizeObserver to detect content height changes (handles async markdown rendering)
+  // Follow both content changes and space reserved by composer-adjacent panels.
   useEffect(() => {
     const container = containerRef.current?.parentElement;
     if (!container) return;
 
     const scrollContainer = container;
     lastHeightRef.current = scrollContainer.scrollHeight;
+    let lastViewportHeight = scrollContainer.clientHeight;
 
     const resizeObserver = new ResizeObserver(() => {
       const newHeight = scrollContainer.scrollHeight;
       const heightChanged = newHeight !== lastHeightRef.current;
+      const viewportHeight = scrollContainer.clientHeight;
+      const viewportChanged = viewportHeight !== lastViewportHeight;
+      lastViewportHeight = viewportHeight;
+      const sizeChanged = heightChanged || viewportChanged;
 
       const pendingInitialRestore = pendingInitialScrollRestoreRef.current;
-      if (heightChanged && pendingInitialRestore) {
+      if (sizeChanged && pendingInitialRestore) {
         isProgrammaticScrollRef.current = true;
         restoreRetainedScrollPosition(pendingInitialRestore);
         requestAnimationFrame(() => {
@@ -4055,7 +4060,7 @@ export const MessageList = memo(function MessageList({
       // the streaming case; a *shrink* is turn completion collapsing the
       // bounded thinking preview and recent-activity rows out of the flow,
       // which used to strand a following reader slightly above the new bottom.
-      if (heightChanged && shouldAutoScrollRef.current) {
+      if (sizeChanged && shouldAutoScrollRef.current) {
         scrollToBottom(scrollContainer);
       } else {
         // A size change must never *start* following — only continue it (the
@@ -4065,7 +4070,8 @@ export const MessageList = memo(function MessageList({
       }
     });
 
-    // Observe the inner container (message-list) since that's what changes size
+    resizeObserver.observe(scrollContainer);
+    // Content can grow without changing the scroll viewport's dimensions.
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
     }

@@ -47,6 +47,7 @@ interface WorkerCapabilities {
   refreshPromptCache: boolean;
   publishAgentctlSessionId: boolean;
   steer: boolean;
+  appendConversationContext?: boolean;
   setMaxThinkingTokens: boolean;
   setEffort: boolean;
   effortUpdatesActiveTurn?: boolean;
@@ -1120,6 +1121,12 @@ class HostedAgentSession {
       },
       ...(capabilities.steer
         ? { steer: (message) => this.rpc("steer", [message]) }
+        : {}),
+      ...(capabilities.appendConversationContext
+        ? {
+            appendConversationContext: (turns) =>
+              this.rpc<boolean>("appendConversationContext", [turns]),
+          }
         : {}),
       ...(capabilities.setMaxThinkingTokens
         ? {

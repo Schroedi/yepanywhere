@@ -59,6 +59,7 @@ export const UI_KEYS = {
   floatingActionButtonEnabled: "yep-anywhere-floating-action-button-enabled",
   keepMobileKeyboardOpenAfterDelivery:
     "yep-anywhere-keep-mobile-keyboard-open-after-delivery",
+  questionAsides: "yep-anywhere-question-asides",
   developerMode: "yep-anywhere-developer-mode",
   conversationView: "yep-anywhere-conversation-view-enabled",
   conversationViewTurnLimit: "yep-anywhere-conversation-view-turn-limit",

@@ -14,6 +14,7 @@ import type {
 } from "@yep-anywhere/shared";
 import {
   CODEX_STREAM_DURABLE_ID_ALIGNMENT_CAPABILITY,
+  SESSION_CONVERSATION_CONTEXT_CAPABILITY,
   PROJECT_SESSION_DEFAULTS_CAPABILITY,
   PROJECT_CODE_NAMES_CAPABILITY,
   PUBLIC_SHARE_MANAGEMENT_CAPABILITY,
@@ -58,6 +59,9 @@ import { HostIdentityMarker } from "../components/HostIdentityMarker";
 import { getForkSummaryAutoOpen } from "../hooks/useForkSummaryAutoOpen";
 import { PendingToolWarning } from "../components/PendingToolWarning";
 import { ProviderChildSessionControl } from "../components/ProviderChildSessionControl";
+import { useQuestionAside } from "../hooks/useQuestionAside";
+import { useQuestionAsideSetting } from "../hooks/useQuestionAsideSetting";
+import { QuestionAsideCard } from "../components/QuestionAsideCard";
 import type {
   FullPaneComposerControls,
   UploadProgress,
@@ -882,6 +886,23 @@ function SessionPageContent({
     messageId: string;
     originalText: string;
   } | null>(null);
+  const { questionAsidesEnabled } = useQuestionAsideSetting();
+  const questionAside = useQuestionAside({
+    projectId,
+    sessionId: actualSessionId,
+    sourceApi,
+    provider: effectiveProvider,
+    model: effectiveModelConfig?.model ?? session?.model,
+    executor: session?.executor,
+    nativeContextRoute: serverHasCapability(
+      versionInfo,
+      SESSION_CONVERSATION_CONTEXT_CAPABILITY,
+    ),
+    showToast,
+    onSaved: () => {
+      void fetchNewMessages();
+    },
+  });
   const [forkSummaryDraft, setForkSummaryDraft] = useState<{
     sourceMessageId: string;
   } | null>(null);
@@ -5796,6 +5817,16 @@ function SessionPageContent({
                 </>
               )}
 
+            {questionAside.aside && (
+              <QuestionAsideCard
+                {...questionAside.aside}
+                onSave={() => {
+                  void questionAside.save();
+                }}
+                onDiscard={questionAside.discard}
+              />
+            )}
+
             {/* No pending approval: show full message input */}
             {!(
               pendingInputRequest &&
@@ -5803,6 +5834,31 @@ function SessionPageContent({
               !isAskUserQuestion
             ) && (
               <MessageInput
+                questionAside={
+                  !mainComposerForAside && !forkSummaryDraft
+                    ? {
+                        canAsk:
+                          questionAsidesEnabled &&
+                          supportsBtwAsides &&
+                          !questionAside.aside &&
+                          (processState === "in-turn" ||
+                            processState === "waiting-input"),
+                        onAsk: (rawText) =>
+                          (processState === "in-turn" ||
+                            processState === "waiting-input") &&
+                          questionAside.ask(rawText),
+                        onSave:
+                          questionAside.aside?.status === "complete"
+                            ? () => {
+                                void questionAside.save();
+                              }
+                            : undefined,
+                        onDismiss: questionAside.aside
+                          ? questionAside.discard
+                          : undefined,
+                      }
+                    : undefined
+                }
                 completionRenderItems={activityRenderItems}
                 onSend={
                   mainComposerForAside

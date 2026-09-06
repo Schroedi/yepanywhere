@@ -1,6 +1,7 @@
 // Provider abstraction types for multi-provider support
 import type {
   ClaudeSteerBackgroundBashSettings,
+  ConversationContextTurn,
   ModelInfo,
   PermissionMode,
   PromptCacheKeepaliveProviderInfo,
@@ -326,6 +327,10 @@ export interface AgentSession {
    * Returns true when steered immediately, false when caller should enqueue instead.
    */
   steer?: (message: UserMessage) => Promise<boolean>;
+  /** Append role-preserving history without a new turn; false means unavailable. */
+  appendConversationContext?: (
+    turns: ConversationContextTurn[],
+  ) => Promise<boolean>;
   /**
    * Change max thinking tokens without restarting the session.
    * Pass null to disable thinking mode.

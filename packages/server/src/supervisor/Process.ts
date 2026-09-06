@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type {
   DurableRecapMessage,
+  ConversationContextTurn,
   DurableLocalCommandMessage,
   EffortLevel,
   ModelInfo,
@@ -888,6 +889,9 @@ export interface ProcessConstructorOptions extends ProcessOptions {
    * Returns false when steering is unavailable and caller should enqueue.
    */
   steerFn?: (message: UserMessage) => Promise<boolean>;
+  appendConversationContextFn?: (
+    turns: ConversationContextTurn[],
+  ) => Promise<boolean>;
   /** Function to get supported models (SDK 0.2.7+) */
   supportedModelsFn?: () => Promise<ModelInfo[]>;
   /** Function to get supported slash commands (SDK 0.2.7+) */
@@ -1059,6 +1063,7 @@ export class Process {
   private interruptFn: (() => Promise<undefined | boolean>) | null;
   /** Function to steer an active turn (provider-specific, currently Codex app-server) */
   private steerFn: ((message: UserMessage) => Promise<boolean>) | null;
+  private appendConversationContextFn: ProcessConstructorOptions["appendConversationContextFn"];
 
   /** Function to get supported models (SDK 0.2.7+) */
   private supportedModelsFn: (() => Promise<ModelInfo[]>) | null;
@@ -1218,6 +1223,7 @@ export class Process {
     this.effortUpdatesActiveTurn = options.effortUpdatesActiveTurn === true;
     this.interruptFn = options.interruptFn ?? null;
     this.steerFn = options.steerFn ?? null;
+    this.appendConversationContextFn = options.appendConversationContextFn;
     this.supportedModelsFn = options.supportedModelsFn ?? null;
     this.supportedCommandsFn = options.supportedCommandsFn ?? null;
     this.onCommandsObserved = options.onCommandsObserved;
@@ -2329,6 +2335,14 @@ export class Process {
 
   get supportsNativeCommands(): boolean {
     return this.runProviderCommandFn !== null;
+  }
+
+  async appendConversationContext(
+    turns: ConversationContextTurn[],
+  ): Promise<boolean> {
+    if (!this.appendConversationContextFn) return false;
+    await this.waitForSessionId();
+    return this.appendConversationContextFn(turns);
   }
 
   /**

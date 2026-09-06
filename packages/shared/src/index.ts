@@ -1,3 +1,10 @@
+export {
+  formatConversationContextTurn,
+  type ConversationContextTurn,
+  type ConversationContextRequest,
+  type ConversationContextReceipt,
+} from "./conversation-context.js";
+
 export type {
   ProjectFileCompletionEntry,
   ProjectFileCompletionResult,
@@ -560,6 +567,7 @@ export {
   GIT_LIVE_WORKTREE_SETTING_CAPABILITY,
   GIT_WORKING_TREE_FILES_CAPABILITY,
   PROJECT_FILE_COMPLETION_CAPABILITY,
+  SESSION_CONVERSATION_CONTEXT_CAPABILITY,
   GIT_WORKING_TREE_SECTIONS_CAPABILITY,
   GIT_WORKING_TREE_COMPLETE_SCAN_CAPABILITY,
   GLOSSARY_TOOLTIPS_CAPABILITY,

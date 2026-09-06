@@ -111,6 +111,7 @@ import { createGitProjectionRoutes } from "./routes/git-projections.js";
 import { createGitStatusRoutes } from "./routes/git-status.js";
 import { createGitWorkingTreeFilesRoutes } from "./routes/git-working-tree-files.js";
 import { createProjectFileCompletionRoutes } from "./routes/project-file-completion.js";
+import { createConversationContextRoutes } from "./routes/conversation-context.js";
 import { createGlossaryArtifactRoutes } from "./routes/glossary-artifacts.js";
 import { createGlobalSessionsRoutes } from "./routes/global-sessions.js";
 import { createReviewCommentsRoutes } from "./routes/review-comments.js";
@@ -1966,6 +1967,7 @@ export function createApp(options: AppOptions): AppResult {
     createGitBrowseRoutes({ scanner, storagePolicy: projectStoragePolicy }),
   );
   app.route("/api/projects", createGitFileRevisionRoutes({ scanner }));
+  app.route("/api/projects", createConversationContextRoutes({ supervisor }));
 
   // Current-content inventory and last-fetched incoming history.
   app.route(

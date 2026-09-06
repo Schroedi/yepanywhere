@@ -788,6 +788,67 @@ describe("MessageInput", () => {
     vi.restoreAllMocks();
   });
 
+  it("routes a terminal question aside before trimming and preserves the space escape", () => {
+    const onAsk = vi.fn(() => true);
+    const onSend = vi.fn();
+    const textarea = renderMessageInput(undefined, {
+      onSend,
+      questionAside: { canAsk: true, onAsk },
+    });
+    fireEvent.change(textarea, { target: { value: "Why?" } });
+    expect(screen.getByText("questionAsideHintDesktop")).toBeTruthy();
+    expect(onAsk).not.toHaveBeenCalled();
+    fireEvent.change(textarea, { target: { value: "Why? " } });
+    expect(screen.queryByText("questionAsideHintDesktop")).toBeNull();
+    expect(onSend).not.toHaveBeenCalled();
+    fireEvent.keyDown(textarea, { key: "Enter" });
+    expect(onAsk).not.toHaveBeenCalled();
+    expectSubmission(onSend, "Why?", "direct");
+    fireEvent.change(textarea, { target: { value: "  Why?" } });
+    fireEvent.keyDown(textarea, { key: "Enter" });
+    expect(onAsk).toHaveBeenCalledWith("  Why?");
+    expect(onSend).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps idle questions ordinary and dismisses a card only on main submission", () => {
+    const onAsk = vi.fn(() => true);
+    const onDismiss = vi.fn();
+    const onSend = vi.fn();
+    const textarea = renderMessageInput(undefined, {
+      onSend,
+      questionAside: { canAsk: false, onAsk, onDismiss },
+    });
+    fireEvent.change(textarea, { target: { value: "Another question?" } });
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(screen.queryByText("questionAsideHintDesktop")).toBeNull();
+    fireEvent.keyDown(textarea, { key: "Enter" });
+    expect(onAsk).not.toHaveBeenCalled();
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expectSubmission(onSend, "Another question?", "direct");
+  });
+
+  it("saves an answer with a fresh empty Enter or Send, but not IME or held Enter", () => {
+    const onSave = vi.fn();
+    const onDismiss = vi.fn();
+    const onStop = vi.fn();
+    const textarea = renderMessageInput(undefined, {
+      isRunning: true,
+      isThinking: true,
+      onStop,
+      questionAside: { canAsk: false, onAsk: vi.fn(), onSave, onDismiss },
+    });
+    fireEvent.keyDown(textarea, { key: "Enter", repeat: true });
+    fireEvent.keyDown(textarea, { key: "Enter", isComposing: true });
+    expect(onSave).not.toHaveBeenCalled();
+    fireEvent.keyDown(textarea, { key: "Enter" });
+    expect(onSave).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "questionAsideSave" }));
+    expect(onSave).toHaveBeenCalledTimes(2);
+    fireEvent.keyDown(textarea, { key: "Escape" });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onStop).not.toHaveBeenCalled();
+  });
+
   it("starts @ discovery only after two characters; arrows and space never accept", async () => {
     versionState.version.capabilities.push("project-file-completion");
     const fetch = vi

@@ -360,6 +360,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "project-file-completion",
     introducedIn: "0.8.2",
   },
+  sessionConversationContext: {
+    id: 57,
+    direction: "server",
+    name: "session-conversation-context",
+    introducedIn: "0.8.2",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [
