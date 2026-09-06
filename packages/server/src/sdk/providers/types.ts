@@ -308,6 +308,12 @@ export interface AgentSession {
   /** Session ID if available immediately (some providers provide later via messages) */
   sessionId?: string;
   /**
+   * Canonical id the provider already reported through its init message to
+   * an earlier owner. Set only for a reattached reload-safe runtime, whose
+   * iterator will never replay that init.
+   */
+  initializedSessionId?: string;
+  /**
    * Publish the provider's canonical session id into any child-process
    * environment bridge the provider installed before startup.
    */

@@ -235,7 +235,11 @@ failure.
 
 Native slash commands use the same provider dispatch for live sends, deferred
 sends, and session startup or resume. YA waits for provider initialization
-before dispatching a startup command. Codex `/compact` calls
+before dispatching a startup command. A reload-safe runtime reattached after
+a server restart already initialized in an earlier server generation and never
+replays its init message; the worker's attach handshake reports the provider
+id it saw, so native commands dispatch immediately instead of waiting for an
+init that cannot arrive. Codex `/compact` calls
 `thread/compact/start`; it never becomes model-visible text or a deferred
 model turn. Providers that handle slash commands through their ordinary input
 queue retain that delivery path. Acceptance emits a local command receipt

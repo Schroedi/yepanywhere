@@ -7,6 +7,7 @@ import type {
   SessionMetadataService,
 } from "../src/metadata/index.js";
 import { getLogger } from "../src/logging/logger.js";
+import { dispatchProviderCommand } from "../src/supervisor/provider-command.js";
 import type { NotificationService } from "../src/notifications/index.js";
 import { MockClaudeSDK, createMockScenario } from "../src/sdk/mock.js";
 import type { AgentProvider } from "../src/sdk/providers/types.js";
@@ -313,6 +314,52 @@ describe("Supervisor", () => {
       expect(process).toMatchObject({ sessionId: "provider-session-id" });
       expect(consumedMessages).toHaveLength(1);
       expect(providerSupervisor.getAllProcesses()).toEqual([process]);
+    });
+
+    it("dispatches native commands to a reattached runtime without a replayed init", async () => {
+      const runProviderCommand = vi.fn(async () => ({ handled: true }));
+      const provider = testProvider(async () => {
+        const queue = new MessageQueue();
+        let aborted = false;
+        // A retained worker consumed and acknowledged the provider's init in
+        // an earlier server generation; the new owner never sees it again.
+        async function* iterator() {
+          for await (const message of queue) {
+            if (aborted) return;
+            yield {
+              type: "assistant" as const,
+              message: { content: `unexpected turn for ${message.text}` },
+            };
+          }
+        }
+        return {
+          iterator: iterator(),
+          queue,
+          abort: () => {
+            aborted = true;
+            queue.push({ text: "__abort__" });
+          },
+          initializedSessionId: "retained-session",
+          runProviderCommand,
+        };
+      });
+      const providerSupervisor = new Supervisor({ provider });
+
+      const process = await providerSupervisor.reactivateSession(
+        "/tmp/test",
+        "retained-session",
+      );
+      const result = await dispatchProviderCommand(
+        process,
+        { name: "goal", argument: "" },
+        undefined,
+        undefined,
+      );
+
+      expect(result.handled).toBe(true);
+      expect(result.error).toBeUndefined();
+      expect(runProviderCommand).toHaveBeenCalledWith("goal", "");
+      await providerSupervisor.abortProcess(process.id);
     });
 
     it("classifies create-only provider startup rejection as retryable", async () => {

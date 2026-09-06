@@ -847,6 +847,12 @@ export interface ProcessConstructorOptions extends ProcessOptions {
   abortFn?: () => void | Promise<void>;
   /** Release a reload-safe proxy without terminating its provider session. */
   detachForServerReloadFn?: () => void | Promise<void>;
+  /**
+   * Canonical session id the provider reported in an earlier server
+   * generation. A reattached reload-safe runtime never replays that init
+   * message, so provider identity settles at construction instead.
+   */
+  initializedSessionId?: string;
   /** Check if underlying CLI process is still alive (for stale detection) */
   isProcessAlive?: () => boolean;
   /** Return true when an idle process should stay owned for an explicit feature. */
@@ -1248,6 +1254,11 @@ export class Process {
       this.rejectProviderSessionIdSettlement = reject;
     });
     void this.providerSessionIdSettlement.catch(() => undefined);
+    if (options.initializedSessionId) {
+      this._sessionId = options.initializedSessionId;
+      this.sessionIdResolved = true;
+      this.resolveProviderSessionId(options.initializedSessionId);
+    }
 
     const viewerLifecycleOptions: ProcessViewerLifecycleOptions = {
       processId: this.id,

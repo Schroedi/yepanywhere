@@ -127,6 +127,11 @@ export interface ProviderSessionAttachedState {
   providerActivity: ProviderActivitySnapshot;
   providerRetention: ProviderRetentionSnapshot;
   appliedPermissionMode?: PermissionMode;
+  /**
+   * Canonical id the provider reported in its init message. A controller
+   * attaching after that event was acknowledged never sees it replayed.
+   */
+  providerSessionId?: string;
 }
 
 export function providerSessionErrorMessage(error: unknown): string {
@@ -153,6 +158,7 @@ export class ProviderSessionOwner {
     reasons: [],
   };
   private appliedPermissionMode: PermissionMode | undefined;
+  private providerSessionId: string | undefined;
   private shuttingDown: Promise<void> | null = null;
   private unsubscribeQueueDepth: (() => void) | null = null;
   private unsubscribeQueueRemoved: (() => void) | null = null;
@@ -371,6 +377,7 @@ export class ProviderSessionOwner {
       providerActivity: this.providerActivity,
       providerRetention: this.providerRetention,
       appliedPermissionMode: this.appliedPermissionMode,
+      providerSessionId: this.providerSessionId,
     };
   }
 
@@ -408,6 +415,13 @@ export class ProviderSessionOwner {
   }
 
   private bufferEvent(message: SDKMessage): void {
+    if (
+      message.type === "system" &&
+      message.subtype === "init" &&
+      typeof message.session_id === "string"
+    ) {
+      this.providerSessionId = message.session_id;
+    }
     const sequence = ++this.sequence;
     const bytes = Buffer.byteLength(JSON.stringify(message));
     this.events.push({
