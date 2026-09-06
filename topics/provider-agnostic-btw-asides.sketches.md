@@ -32,15 +32,18 @@ escape before deciding the route; afterward preserve the normal provider-text
 contract rather than silently stripping the escape as a command token.
 
 While the user is still composing, show a card placeholder as soon as the busy
-session's raw draft ends in `?`: `Enter for a quick answer · Space to send
-normally`. Place it above the composer, in a similar location to the eventual
+session's raw draft ends in `?`: `Enter: quick answer · Space: keep typing`.
+Place it above the composer, in a similar location to the eventual
 answer card; it need not share the answer card's size or full layout. This
 previews the route before submission, on desktop and mobile.
 The mobile copy can name Send as the equivalent action. Enter or tapping Send
 submits the question; the fork must not start merely because the placeholder
-appeared. Typing Space appends a real space, removes the placeholder, and
-restores ordinary sending. Any edit that removes the final `?` also removes
-the placeholder. Recheck busy state and the raw draft at submission.
+appeared. Space only inserts a space; it never submits or commits a routing
+choice. The user can continue writing any number of sentences in the same
+draft. Any edit that removes the final `?` removes the placeholder; ending
+the draft in `?` again restores it. Recheck busy state and the entire raw
+draft at Enter/Send. A space still present after the final `?` at that point
+selects ordinary main-session delivery.
 
 The first version is explicitly one question, one answer, then the user's
 decision to retain the exchange or not. The answer appears as a card on both
@@ -57,7 +60,7 @@ initial question has been routed. Typing never starts a follow-up in the fork.
 | State / action | Proposed outcome |
 | --- | --- |
 | Question placeholder, draft ending in `?`, Enter or Send | Submit for one quick answer. |
-| Question placeholder, type Space | Append the escape space and restore normal sending; do not submit. |
+| Question placeholder, type Space | Insert a space and keep composing; hide the placeholder, do not submit. |
 | Completed answer, empty composer, Enter | Save Q+A into main context and dismiss the answer card. |
 | Same state, tap the composer send button | Exactly the same save-and-dismiss action; expose a `Save Q+A` label or accessible name. |
 | Tap Discard on the answer card, or press Esc while its dismissal action owns the key | Dismiss without adding the exchange to main context. |
