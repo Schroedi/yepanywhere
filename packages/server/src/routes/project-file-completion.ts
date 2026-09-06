@@ -6,9 +6,10 @@ import { resolveProjectPath } from "./projectParam.js";
 export function createProjectFileCompletionRoutes(deps: {
   scanner: ProjectScanner;
   dataDir: string;
+  service?: ProjectFileCompletion;
 }): Hono {
   const routes = new Hono();
-  const service = new ProjectFileCompletion(deps.dataDir);
+  const service = deps.service ?? new ProjectFileCompletion(deps.dataDir);
   routes.get("/:projectId/file-completion", async (c) => {
     const project = await resolveProjectPath(c, deps.scanner);
     if (typeof project !== "string") return project;

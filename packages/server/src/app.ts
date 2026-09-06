@@ -111,6 +111,7 @@ import { createGitProjectionRoutes } from "./routes/git-projections.js";
 import { createGitStatusRoutes } from "./routes/git-status.js";
 import { createGitWorkingTreeFilesRoutes } from "./routes/git-working-tree-files.js";
 import { createProjectFileCompletionRoutes } from "./routes/project-file-completion.js";
+import { ProjectFileCompletion } from "./services/projectFileCompletion.js";
 import { createConversationContextRoutes } from "./routes/conversation-context.js";
 import { createGlossaryArtifactRoutes } from "./routes/glossary-artifacts.js";
 import { createGlobalSessionsRoutes } from "./routes/global-sessions.js";
@@ -735,6 +736,9 @@ export function createApp(options: AppOptions): AppResult {
         })
       : null;
   const readerCache = new Map<string, ISessionReader>();
+  const projectFileCompletion = new ProjectFileCompletion(effectiveDataDir, {
+    eventBus: options.eventBus,
+  });
   const maxReaderCacheSize = 500;
   const closeReader = async (
     key: string,
@@ -748,6 +752,7 @@ export function createApp(options: AppOptions): AppResult {
     }
   };
   const disposeSessionReaders = async (): Promise<void> => {
+    await projectFileCompletion.dispose();
     await bangCommandService?.dispose();
     const entries = Array.from(readerCache.entries());
     readerCache.clear();
@@ -1972,7 +1977,11 @@ export function createApp(options: AppOptions): AppResult {
   // Current-content inventory and last-fetched incoming history.
   app.route(
     "/api/projects",
-    createProjectFileCompletionRoutes({ scanner, dataDir: effectiveDataDir }),
+    createProjectFileCompletionRoutes({
+      scanner,
+      dataDir: effectiveDataDir,
+      service: projectFileCompletion,
+    }),
   );
   app.route(
     "/api/projects",

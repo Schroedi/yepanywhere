@@ -80,7 +80,7 @@ caches that one edge as absent and claims nothing about its siblings; a present
 edge likewise implies nothing about unobserved siblings.
 
 **A live watcher is what makes a cached fact trustworthy.** Each hydrated
-directory carries a non-recursive `fs.watch`, and facts under a directory with
+directory carries a non-recursive shared watch lease, and facts under a directory with
 no watcher are never read from cache. So a cache hit costs zero `stat`, and
 losing — or never obtaining — a watch makes an answer re-probe rather than go
 wrong: a directory that cannot be watched still answers correctly, just from
@@ -476,6 +476,26 @@ motivated the feature — while the server only ever answers about text it is
 currently rendering. So the mandate against a project-wide crawl stands
 unamended.
 
+## Shared directory observation
+
+YA's path index, glossary monitor, live-worktree monitor, focused-session
+monitor, provider transcript watcher, and development source watcher acquire
+independent leases from `SharedDirectoryWatcher`. One `fs.watch` registration
+serves each canonical watched directory, including symlink aliases. Closing one
+lease does not close another consumer's observation; the final release closes
+the native watcher. The native watch keeps the event loop alive only while a
+remaining lease requests that behavior.
+
+Recursive and non-recursive requests for the same directory share one native
+registration. Changing required coverage closes the old registration before
+opening its replacement and invalidates the old leases' observation gap.
+Non-recursive consumers receive only direct-child events. Acquiring a path whose
+directory inode changed also replaces the old native registration. Native
+failure invalidates every lease so each consumer can use its existing fallback.
+The registry admits at most 1,024 native registrations; existing consumers'
+stricter admission rules and platform restrictions still apply. Recursive roots
+may cover descendants internally according to the platform's native backend.
+
 ## Composer path completion
 
 Typing `@` followed by at least two nonspace characters in a focused session
@@ -521,20 +541,49 @@ untracked enumeration fills the requested inventory afterward; an open menu
 polls only while that request remains pending. Subsequent queries search the
 retained inventory. Candidate ignore rules and existence are checked again
 before each response, so cached or recently mentioned paths cannot bypass an
-ignore change. Additions become searchable after the next requested refresh;
-inventories expire after 60 seconds and rebuild only on use.
+ignore change. Cached candidates remain available while an on-demand refresh
+builds a replacement; switching among projects does not discard their inventories.
 
-Retention is bounded to four projects, 200,000 file/directory candidates and
-32 MiB of accounted path storage per project, with at most two simultaneous
-scans and eight concurrent distinct queries; identical in-flight queries share
-one computation. Git commands have a 10-second
-timeout and 32-MiB output ceiling. Responses contain at most 30 items, selected
-from at most 100 matching candidates for current eligibility checks. A visible
-truncation notice invites a narrower query when any budget cuts the result.
+Freshness is independent of cache retention or persistence. Existing path-index
+and worktree filesystem observers invalidate an affected completion inventory
+without allocating another watcher or starting a crawl. Completion also consumes
+the existing end-of-turn activity hint used by Git status. Each warm request
+checks project-root and root-ignore metadata plus the shared Git metadata
+fingerprint, including HEAD, index, refs, and repository excludes. A checkout
+therefore requests a refresh even when no filesystem observer is active.
+Unobserved nested changes have a 60-second freshness backstop, checked on the
+next completion request. An open, settled menu does not poll for new changes.
+An invalidation or fingerprint change during enumeration prevents the result
+from being marked fresh; the next request reconciles again. Failed scans have
+a 60-second retry cooldown rather than an immediate retry loop.
+
+Each project retains at most 1,000,000 file/directory candidates and 128 MiB of
+accounted path storage. There is no project-count eviction limit: 100 recently
+used project inventories can coexist. Inventories unused for more than a week
+are removed on the next completion request, with no dormant timer. These are
+per-project accounting limits, not a process-wide heap guarantee; aggregate
+retention grows with the projects actually used. Cache state need not survive
+a server restart. Optional disk persistence is deferred in
+`gaps/project-file-completion-persistence.md`.
+
+At most two scans and eight distinct queries run simultaneously; identical
+in-flight queries share one computation. Git enumeration is streamed as NUL
+records, with at most 16 KiB of partial-record storage and bounded diagnostics.
+Reaching either inventory budget kills the read-only Git child immediately and
+waits for it to close before releasing the scan slot. A truncated initial phase
+starts no subsequent enumeration. Full command output, split-path arrays, and
+an unbounded ignored-path set are never accumulated. Git commands time out after
+10 seconds; query-time ignore checks retain their 32-MiB output ceiling.
+Candidate selection keeps only bounded recent and lexical matches instead of
+sorting a copy of the full inventory on each keystroke. Responses contain at
+most 30 items, selected from at most 100 matches for current eligibility checks.
+A visible truncation notice reports when a budget cuts the result; narrowing
+the query filters the retained corpus, without expanding its enumeration budget.
 Scan or Git failures make the menu unavailable rather than returning ignored
 fallback paths. All inventory state and auxiliary Git metadata stay outside
 selected projects. Closing or dismissing the menu cancels client polling;
-already requested server scans remain bounded and finish without a retry loop.
+already requested server scans remain bounded. Server disposal aborts and reaps
+enumeration children and releases completion's passive event subscriptions.
 
 `GET /api/projects/:projectId/file-completion` is gated by permanent capability
 `project-file-completion` (ID 56, version-implied from 0.8.2, advertised explicitly
