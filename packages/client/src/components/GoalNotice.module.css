@@ -43,7 +43,9 @@
   color: color-mix(in srgb, var(--success-color) 75%, var(--text-secondary));
 }
 
-.flag[data-goal-status="paused"] {
+.flag[data-goal-status="paused"],
+.flag[data-goal-status="blocked"],
+.flag[data-goal-status="usageLimited"] {
   color: color-mix(in srgb, var(--warning-color) 75%, var(--text-secondary));
 }
 

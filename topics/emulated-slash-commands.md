@@ -113,8 +113,9 @@ provider observation replaces it. Changes made outside YA while no worker is
 observing become visible when the provider is attached and queried again.
 Historical receipts are never used to infer current provider state.
 When inventory includes `providerDetails.codex.goalStatus`, the outlined flag
-uses subtle green for active and yellow for paused, and its tooltip names the
-actual status. Click, tap, or keyboard activation pauses an active goal or
+uses subtle green for active and yellow for every resumable state (paused,
+blocked, usage-limited), and its tooltip names the actual status. Click, tap,
+or keyboard activation pauses an active goal or
 resumes a paused, blocked, or usage-limited goal. Complete, budget-limited, and
 unknown states remain inspectable without a toggle. While a request is pending,
 the tooltip says so and duplicate activation is ignored. The flag changes only
