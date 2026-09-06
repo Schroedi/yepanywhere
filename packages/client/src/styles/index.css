@@ -5276,17 +5276,6 @@ a.sidebar-nav-item {
   margin-bottom: var(--space-3);
 }
 
-.deferred-message-bubble {
-  opacity: 0.7;
-  border-left: 3px solid var(--attention-color);
-  padding-left: var(--space-2);
-  white-space: pre-wrap;
-}
-
-.project-queue-inline-message-bubble {
-  border-left-color: var(--project-queue-action-bg);
-}
-
 .project-queue-inline-message-status {
   color: var(--project-queue-action-bg);
 }

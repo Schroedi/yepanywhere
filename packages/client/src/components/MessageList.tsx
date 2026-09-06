@@ -139,6 +139,7 @@ import {
 } from "./UserTurnNavigator";
 import { CopyTextButton } from "./ui/CopyTextButton";
 import { LinkifiedText } from "./ui/LinkifiedText";
+import styles from "./MessageList.module.css";
 
 const EMPTY_TRANSCRIPT_DISPLAY_OBJECTS: readonly TranscriptDisplayObject[] = [];
 const PROGRESSIVE_INITIAL_RENDER_ITEM_TARGET = 120;
@@ -4694,7 +4695,9 @@ export const MessageList = memo(function MessageList({
                 } ${showAgeByDefault ? "is-message-age-visible" : ""}`}
               >
                 <div className="message-render-content">
-                  <div className="message-user-prompt deferred-message-bubble project-queue-inline-message-bubble">
+                  <div
+                    className={`message-user-prompt ${styles.queuedBubble} ${styles.projectQueueBubble}`}
+                  >
                     <LinkifiedText text={projectQueue.content} />
                   </div>
                   {projectQueue.attachments?.length ? (
@@ -4817,7 +4820,7 @@ export const MessageList = memo(function MessageList({
               } ${showAgeByDefault ? "is-message-age-visible" : ""}`}
             >
               <div className="message-render-content">
-                <div className="message-user-prompt deferred-message-bubble">
+                <div className={`message-user-prompt ${styles.queuedBubble}`}>
                   <LinkifiedText text={deferred.content} />
                 </div>
                 {deferred.attachments?.length ? (
