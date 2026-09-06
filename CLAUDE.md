@@ -143,28 +143,11 @@ browser setup or discovery reports that no browser is available, or the browser
 inventory is empty, do not stop or keep retrying a desktop-only backend.
 Immediately fall back to YA's installed Playwright dependency.
 
-For a one-shot screenshot of the live local server:
-
-```bash
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-ARTIFACT_DIR="$REPO_ROOT/.artifacts/ui-testing"
-mkdir -p "$ARTIFACT_DIR"
-pnpm --filter @yep-anywhere/client exec playwright screenshot \
-  --ignore-https-errors \
-  --block-service-workers \
-  --wait-for-timeout 500 \
-  --viewport-size "1000,600" \
-  https://localhost:3400/ \
-  "$ARTIFACT_DIR/ya-desktop.png"
-```
-
-Use `--viewport-size "375,812"` for a mobile-width capture. For multi-step
-interaction testing, add or run a focused `@playwright/test` case under
-`packages/client/e2e/`. A missing in-app browser backend is not a blocker while
-the repository Playwright command is available. Default capture-confirmation
-requirements for UI tweak requests (final result at 1000×600 + phone width,
-inspected sequentially one image at a time before claiming completion), including
-visual-review exception, are in `topics/ui-testing.md`.
+Before browser verification, read `topics/ui-testing.md` for the fresh isolated
+server launch, Playwright commands, desktop/phone captures, and user-owned
+visual-review exception. Do not use the shared live server for final captures.
+For multi-step interaction testing, add or run a focused `@playwright/test`
+case under `packages/client/e2e/`.
 
 ## ChromeOS Debugging
 
@@ -250,7 +233,9 @@ Anything not on this list is untriaged — treat a new advisory as actionable.
 
 ## Git Commits
 
-Never mention Claude, AI, or any AI assistant in commit messages. Write commit messages as if a human developer wrote them.
+Do not add assistant co-author trailers or generated-with banners. Preserve
+explicitly required provenance such as `Contributing-model:` when applicable;
+that trailer is not a generated-with banner.
 
 ## Releasing to npm
 
