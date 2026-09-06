@@ -1,4 +1,9 @@
 {
+  "fileCompletionLabel": "Project files and directories",
+  "fileCompletionSearching": "Searching project paths…",
+  "fileCompletionUnavailable": "File completion is unavailable.",
+  "fileCompletionEmpty": "No matching paths",
+  "fileCompletionMore": "More matches — keep typing to narrow the list",
   "pageTitleProjects": "Projects",
   "pageTitleSettings": "Settings",
   "workstreamsTitle": "Workstreams",

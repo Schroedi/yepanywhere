@@ -39,6 +39,7 @@ import {
 } from "../../lib/speechProviders/methods";
 import { setBrowserXaiSttApiKey } from "../../lib/speechProviders/xaiCredentials";
 import { MessageInput } from "../MessageInput";
+import { getSourceRuntimeRegistry } from "../../lib/sourceRuntime";
 import {
   MessageInputToolbarView,
   type MessageInputToolbarViewProps,
@@ -785,6 +786,88 @@ describe("MessageInput", () => {
     restoreDefaultMatchMedia();
     vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("starts @ discovery only after two characters; arrows and space never accept", async () => {
+    versionState.version.capabilities.push("project-file-completion");
+    const fetch = vi
+      .spyOn(
+        getSourceRuntimeRegistry().getCurrentSourceRuntime().transport,
+        "fetch",
+      )
+      .mockResolvedValue({
+        entries: [
+          { path: "src/writing.ts", kind: "file" },
+          { path: "docs/writing/", kind: "directory" },
+        ],
+        pending: false,
+        truncated: false,
+      });
+    const textarea = renderMessageInput(undefined, {
+      projectId: "completion-trigger",
+    }) as HTMLTextAreaElement;
+    fireEvent.focus(textarea);
+    fireEvent.change(textarea, { target: { value: "@" } });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    fireEvent.change(textarea, { target: { value: "@w" } });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.change(textarea, { target: { value: "@wr" } });
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(2));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(textarea, { key: "ArrowDown" });
+    fireEvent.keyDown(textarea, { key: " " });
+    fireEvent.change(textarea, { target: { value: "@wr " } });
+    expect(textarea.value).toBe("@wr ");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("Tab finishes a directory and Enter removes its provisional separator before newline", async () => {
+    versionState.version.capabilities.push("project-file-completion");
+    vi.spyOn(
+      getSourceRuntimeRegistry().getCurrentSourceRuntime().transport,
+      "fetch",
+    ).mockResolvedValue({
+      entries: [{ path: "docs/writing/", kind: "directory" }],
+      pending: false,
+      truncated: false,
+    });
+    const textarea = renderMessageInput(undefined, {
+      projectId: "completion-tab",
+    }) as HTMLTextAreaElement;
+    fireEvent.focus(textarea);
+    fireEvent.change(textarea, { target: { value: "Read @wr" } });
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(1));
+    fireEvent.keyDown(textarea, { key: "Tab" });
+    expect(textarea.value).toBe("Read docs/writing/ ");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    fireEvent.keyDown(textarea, { key: "Enter", shiftKey: true });
+    expect(textarea.value).toBe("Read docs/writing/");
+    fireEvent.change(textarea, { target: { value: "Read docs/writing/\n" } });
+    expect(textarea.value).toBe("Read docs/writing/\n");
+    fireEvent.change(textarea, { target: { value: "@" } });
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(1));
+  });
+
+  it("makes no completion request to a server without the capability", async () => {
+    const fetch = vi.spyOn(
+      getSourceRuntimeRegistry().getCurrentSourceRuntime().transport,
+      "fetch",
+    );
+    const textarea = renderMessageInput(undefined, {
+      projectId: "completion-old-server",
+    });
+    fireEvent.focus(textarea);
+    fireEvent.change(textarea, { target: { value: "@writing" } });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.queryByRole("listbox")).toBeNull();
   });
 
   it("grows the expanded composer until the draft reaches half the viewport", () => {

@@ -132,6 +132,9 @@ import {
   type VoiceInputButtonRef,
 } from "./VoiceInputButton";
 import styles from "./MessageInput.module.css";
+import { useProjectFileCompletion } from "../hooks/useProjectFileCompletion";
+import type { RenderItem } from "../types/renderItems";
+import { ProjectFileCompletionMenu } from "./ProjectFileCompletionMenu";
 
 /** Progress info for an in-flight upload */
 export interface UploadProgress {
@@ -273,6 +276,7 @@ interface Props {
   providerRuntimeStatus?: ProviderRuntimeStatus;
   /** Project ID for uploads (required to enable attach button) */
   projectId?: string;
+  completionRenderItems?: RenderItem[];
   /** Session ID for uploads (required to enable attach button) */
   sessionId?: string;
   /** Completed file attachments */
@@ -429,6 +433,7 @@ export function MessageInput({
   sessionLiveness,
   providerRuntimeStatus,
   projectId,
+  completionRenderItems,
   sessionId,
   attachments = [],
   onAttach,
@@ -1082,6 +1087,16 @@ export function MessageInput({
     }),
     [controls, replaceDraftRangeUndoably],
   );
+
+  const fileCompletion = useProjectFileCompletion({
+    projectId,
+    text,
+    textarea: textareaRef,
+    setText,
+    replace: replaceDraftRangeUndoably,
+    items: completionRenderItems,
+    disabled: disabled || collapsed || !!interimTranscript,
+  });
 
   // Provide controls to parent via callback
   useEffect(() => {
@@ -2334,6 +2349,7 @@ export function MessageInput({
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
+    if (fileCompletion.onKeyDown(e)) return;
     if (isFullPaneComposerShortcut(e)) {
       e.preventDefault();
       e.stopPropagation();
@@ -3447,7 +3463,7 @@ export function MessageInput({
                 };
               }}
               onChange={(e) => {
-                const nextText = e.target.value;
+                const nextText = fileCompletion.normalizeInput(e.target.value);
                 const pendingInput = pendingDraftInputRef.current;
                 pendingDraftInputRef.current = null;
                 noteDraftTextChange(
@@ -3513,18 +3529,23 @@ export function MessageInput({
                 }
               }}
               onBlur={() => {
+                fileCompletion.onBlur();
                 cancelRecallDrawer();
                 controls.flushDraft();
                 setTextareaFocused(false);
               }}
               onFocus={() => {
+                fileCompletion.onFocus();
                 keyboardViewportBaselineRef.current =
                   getComposerViewportHeight();
                 setTextareaFocused(true);
                 revealCollapsedTextareaCursor();
               }}
               onKeyDown={handleKeyDown}
-              onSelect={handleTextareaSelectionTarget}
+              onSelect={() => {
+                handleTextareaSelectionTarget();
+                fileCompletion.onSelect();
+              }}
               onPointerUp={handleTextareaSelectionTarget}
               onClick={handleTextareaClickTarget}
               onKeyUp={handleTextareaSelectionTarget}
@@ -3558,6 +3579,7 @@ export function MessageInput({
           )}
         </div>
 
+        <ProjectFileCompletionMenu completion={fileCompletion} />
         {(showBangChip || showBangEscapedChip) && (
           <div
             className={`bang-composer-chip${

@@ -884,6 +884,32 @@ export const SERVER_CAPABILITIES = {
         "Hosted clients can outpace installed servers, and older servers have no per-file revision metadata route.",
     },
   },
+  projectFileCompletion: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectFileCompletion.id,
+    name: "project-file-completion",
+    kind: "permanent",
+    area: "localAccess",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Requested project path completion with progressive, ignore-filtered inventory and mention ordering.",
+    clientFallback:
+      "Leave @ text literal and make no completion request when the server cannot verify path eligibility.",
+    serverContract: {
+      routes: ["GET /api/projects/:projectId/file-completion"],
+      routeModules: ["packages/server/src/routes/project-file-completion.ts"],
+      responseFields: [
+        "fileCompletion.entries",
+        "fileCompletion.pending",
+        "fileCompletion.truncated",
+      ],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers lack ignore-filtered completion for filesystem-only projects.",
+    },
+  },
   gitWorkingTreeFiles: {
     id: CAPABILITY_ID_ALLOCATIONS.gitWorkingTreeFiles.id,
     name: "git-working-tree-files",
@@ -2205,6 +2231,8 @@ export const GIT_FILE_REVISION_CAPABILITY =
   SERVER_CAPABILITIES.gitFileRevision.name;
 export const GIT_WORKING_TREE_FILES_CAPABILITY =
   SERVER_CAPABILITIES.gitWorkingTreeFiles.name;
+export const PROJECT_FILE_COMPLETION_CAPABILITY =
+  SERVER_CAPABILITIES.projectFileCompletion.name;
 export const GIT_WORKING_TREE_SECTIONS_CAPABILITY =
   SERVER_CAPABILITIES.gitWorkingTreeSections.name;
 export const GIT_WORKING_TREE_COMPLETE_SCAN_CAPABILITY =

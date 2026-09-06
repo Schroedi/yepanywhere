@@ -1,3 +1,8 @@
+export type {
+  ProjectFileCompletionEntry,
+  ProjectFileCompletionResult,
+} from "./project-file-completion.js";
+
 export {
   isIdeMetadata,
   stripIdeMetadata,
@@ -554,6 +559,7 @@ export {
   GIT_INCOMING_COMMITS_CAPABILITY,
   GIT_LIVE_WORKTREE_SETTING_CAPABILITY,
   GIT_WORKING_TREE_FILES_CAPABILITY,
+  PROJECT_FILE_COMPLETION_CAPABILITY,
   GIT_WORKING_TREE_SECTIONS_CAPABILITY,
   GIT_WORKING_TREE_COMPLETE_SCAN_CAPABILITY,
   GLOSSARY_TOOLTIPS_CAPABILITY,

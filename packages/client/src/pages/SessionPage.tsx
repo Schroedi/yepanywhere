@@ -5803,6 +5803,7 @@ function SessionPageContent({
               !isAskUserQuestion
             ) && (
               <MessageInput
+                completionRenderItems={activityRenderItems}
                 onSend={
                   mainComposerForAside
                     ? (text) => handleFocusedBtwSend(text, "main")

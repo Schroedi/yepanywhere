@@ -54,6 +54,10 @@ rather than granting a share a path or file-existence capability.
 
 ## The index
 
+Composer `@` completion has a separate, explicitly requested inventory; see
+[Composer path completion](#composer-path-completion). Its ignore-filtered
+corpus does not change exact file-link membership or start a linkifier crawl.
+
 `packages/server/src/projects/projectPathIndex.ts` holds one demand-driven
 cache per project. The filesystem is authoritative; Git is never consulted, so
 ignored files need no special case. The cache is rebuildable app state: it
@@ -471,6 +475,73 @@ history rules out on correctness, since it omits the ignored run outputs that
 motivated the feature — while the server only ever answers about text it is
 currently rendering. So the mandate against a project-wide crawl stands
 unamended.
+
+## Composer path completion
+
+Typing `@` followed by at least two nonspace characters in a focused session
+or new-session composer requests project path discovery. Merely opening a
+composer, typing ordinary text, `@`, or a one-character query does not request
+an inventory. Accepting a completion remembers enablement for that server and
+project in browser storage; subsequent `@` tokens can query immediately. Even
+enabled projects acquire no inventory on composer mount and retain no periodic
+scan or watcher.
+
+Matching is case-insensitive substring matching over project-relative paths,
+including parent directories. The menu distinguishes `dir` and `file`, shows
+the basename and parent, and ranks eligible candidates by most recent mention
+first, then deterministic path order. Recency uses confirmed links and causal
+basename aliases from the loaded transcript, independently of the basename-link
+appearance preference. It preserves distinct paths with the same basename;
+there is no hidden history fetch. At most 100 recent paths, within a 4-KiB
+encoded request budget, affect ranking.
+
+Tab or a row click inserts the whole project-relative path and ends completion,
+including for directories. Paths needing quotes are double-quoted. Arrows only
+move the highlight. Space and Enter never accept a candidate. Acceptance adds
+a provisional trailing space: an immediately following Space consumes it before
+inserting one typed space; an immediately following Enter consumes it before
+the composer's normal submit/newline handling. Other input makes the separator
+ordinary text. No file contents are injected, and the provider's skill/plugin
+invocation vocabulary is unchanged.
+
+Tracked and untracked files are eligible; ignored paths are not, even if
+recently mentioned. Git owns ignore semantics, including nested `.gitignore`,
+negation, repository excludes, and configured global excludes. Non-Git projects
+also honor nested `.gitignore`: the enumerator uses an empty Git directory under
+YA app data with the project as its read-only working tree. Git must therefore
+be installed for completion in either project type. `.git` is excluded,
+symlinks are not traversed, and paths containing control characters are omitted.
+Directories come from eligible descendant files, or from the initial collapsed
+directory probe. Empty directories are not inventoried. The retired `.yepignore`
+facility is not restored.
+
+The first Git response uses the tracked index, without a full filesystem stat
+pass. A non-Git project first receives a collapsed directory probe. A shared
+untracked enumeration fills the requested inventory afterward; an open menu
+polls only while that request remains pending. Subsequent queries search the
+retained inventory. Candidate ignore rules and existence are checked again
+before each response, so cached or recently mentioned paths cannot bypass an
+ignore change. Additions become searchable after the next requested refresh;
+inventories expire after 60 seconds and rebuild only on use.
+
+Retention is bounded to four projects, 200,000 file/directory candidates and
+32 MiB of accounted path storage per project, with at most two simultaneous
+scans and eight concurrent distinct queries; identical in-flight queries share
+one computation. Git commands have a 10-second
+timeout and 32-MiB output ceiling. Responses contain at most 30 items, selected
+from at most 100 matching candidates for current eligibility checks. A visible
+truncation notice invites a narrower query when any budget cuts the result.
+Scan or Git failures make the menu unavailable rather than returning ignored
+fallback paths. All inventory state and auxiliary Git metadata stay outside
+selected projects. Closing or dismissing the menu cancels client polling;
+already requested server scans remain bounded and finish without a retry loop.
+
+`GET /api/projects/:projectId/file-completion` is gated by permanent capability
+`project-file-completion` (ID 56, version-implied from 0.8.2, advertised explicitly
+by earlier source builds). Stable 0.8.0 and 0.8.1 lack it. Older servers retain
+literal `@` text and receive no completion requests: their transcript-only paths
+cannot establish the required ignore eligibility. Existing capability meanings
+and file-link behavior are unchanged.
 
 ## Replacement evidence
 

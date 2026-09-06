@@ -110,6 +110,7 @@ import { createGitIncomingCommitsRoutes } from "./routes/git-incoming-commits.js
 import { createGitProjectionRoutes } from "./routes/git-projections.js";
 import { createGitStatusRoutes } from "./routes/git-status.js";
 import { createGitWorkingTreeFilesRoutes } from "./routes/git-working-tree-files.js";
+import { createProjectFileCompletionRoutes } from "./routes/project-file-completion.js";
 import { createGlossaryArtifactRoutes } from "./routes/glossary-artifacts.js";
 import { createGlobalSessionsRoutes } from "./routes/global-sessions.js";
 import { createReviewCommentsRoutes } from "./routes/review-comments.js";
@@ -1967,6 +1968,10 @@ export function createApp(options: AppOptions): AppResult {
   app.route("/api/projects", createGitFileRevisionRoutes({ scanner }));
 
   // Current-content inventory and last-fetched incoming history.
+  app.route(
+    "/api/projects",
+    createProjectFileCompletionRoutes({ scanner, dataDir: effectiveDataDir }),
+  );
   app.route(
     "/api/projects",
     createGitWorkingTreeFilesRoutes({

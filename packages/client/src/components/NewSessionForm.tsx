@@ -38,6 +38,8 @@ import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
 import { useToastContext } from "../contexts/ToastContext";
 import { useBrowserXaiSttApiKey } from "../hooks/useBrowserXaiSttApiKey";
 import { useDraftPersistence } from "../hooks/useDraftPersistence";
+import { useProjectFileCompletion } from "../hooks/useProjectFileCompletion";
+import { ProjectFileCompletionMenu } from "./ProjectFileCompletionMenu";
 import { createNewSessionDraftKey } from "../hooks/useDrafts";
 import {
   getModelSetting,
@@ -1133,6 +1135,13 @@ export function NewSessionForm({
     !hasCustomProjectPath && normalizedProjectInput && currentProjectSelection
       ? currentProjectSelection.id
       : null;
+  const fileCompletion = useProjectFileCompletion({
+    projectId: projectQueueTargetProjectId,
+    text: message,
+    textarea: textareaRef,
+    setText: setMessage,
+    disabled: isStarting || composerMuted || !!interimTranscript,
+  });
   const projectQueueProjectIds = useMemo(
     () => (projectQueueTargetProjectId ? [projectQueueTargetProjectId] : []),
     [projectQueueTargetProjectId],
@@ -2607,6 +2616,7 @@ export function NewSessionForm({
   }, []);
 
   const handleKeyDown = (e: KeyboardEvent) => {
+    if (fileCompletion.onKeyDown(e)) return;
     if (isFullPaneComposerShortcut(e)) {
       e.preventDefault();
       e.stopPropagation();
@@ -3144,7 +3154,7 @@ export function NewSessionForm({
             data-composer-input
             value={message}
             onChange={(e) => {
-              const nextMessage = e.target.value;
+              const nextMessage = fileCompletion.normalizeInput(e.target.value);
               clearPendingSpeechFinal();
               if (speechInsertionRangesRef.current.size > 0) {
                 const nextRanges = new Map<string, SpeechInsertionRange>();
@@ -3179,7 +3189,12 @@ export function NewSessionForm({
               setMessage(nextMessage);
             }}
             onKeyDown={handleKeyDown}
-            onSelect={handleSpeechSelectionTarget}
+            onFocus={fileCompletion.onFocus}
+            onBlur={fileCompletion.onBlur}
+            onSelect={() => {
+              handleSpeechSelectionTarget();
+              fileCompletion.onSelect();
+            }}
             onPointerUp={handleSpeechSelectionTarget}
             onClick={handleSpeechSelectionClick}
             onKeyUp={handleSpeechSelectionTarget}
@@ -3211,6 +3226,7 @@ export function NewSessionForm({
           </div>
         )}
       </div>
+      <ProjectFileCompletionMenu completion={fileCompletion} />
       <div className="new-session-form-toolbar">
         <div className="new-session-form-toolbar-left">
           {allowAttachments && (
