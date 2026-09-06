@@ -1,4 +1,4 @@
-# Codex asynchronous questions lack dedicated answer controls
+# Codex asynchronous questions lack pending-question visibility
 
 Priority: high (P1), explicitly requested by the maintainer.
 
@@ -68,29 +68,49 @@ Result: 2 tests passed, 155 deselected. This is a source-backed missing-client-
 path finding with normalization checks, not a live browser/provider round-trip
 reproduction. No runtime source was changed for this investigation.
 
-## Required closure
+## Minimum delivery requested by the maintainer
 
-1. Present each async question with its supplied choices and a free-text reply
-   on desktop and mobile; support questions without choices and multiple
-   questions in one message. A suggested/default selection must never submit
-   automatically. Keep the source question identifiable while later agent
-   output continues.
-2. Submit the answer as an ordinary user message associated in visible content
-   with the question being answered. Use existing main-session send/steering
-   semantics, including the case where the originating turn has already ended.
-   Do not respond to a nonexistent input-request RPC or mark the agent blocked
-   merely because an async question is unanswered.
-3. Preserve a usable pending/submitted interaction across continued output and
-   reload. Do not duplicate live and durable question copies, lose a draft on
-   subsequent output, or report submission as provider consumption. Decide
-   dismissal, multi-question batching, and response association at the owning
-   UI boundary before implementing.
-4. Exercise the real client path with an async agent-message fixture while
-   subsequent work streams, then answer and verify the ordinary-message
-   request. Cover free text, choices, multiple questions, reload, and a late
-   answer after turn completion. Confirm ordinary blocking questions and
-   approvals retain their separate behavior. Run a bounded real-provider smoke
-   before claiming complete support.
+The minimum is an indication of how many unanswered questions the user has
+not yet seen, especially recent questions that have scrolled away during
+continued agent output. A small count near the bottom of the composer or at
+the top center of the view could provide it; exact placement remains open.
+The count should lead to the questions and their source context, with both
+keyboard and tappable access. Rich option-selection forms are not a
+prerequisite for this first delivery.
+
+Keep unseen and unanswered distinct. Receiving or rendering a message does
+not mean the user saw it; scrolling it offscreen does not mean it was
+answered. Dismissing the floating list does not resolve its questions. An
+optional presentation such as `3 pending · 2 unseen` could expose both counts,
+but the minimum must make the unseen pending subset noticeable.
+
+Define seen detection, the scope of "recent", and state across reloads or
+multiple viewers before implementation. A proposed seen signal is actual
+visibility of the question or its contextual preview, not merely DOM mounting
+or receipt while a tab is hidden. Count individual questions, not message
+envelopes. Ordinary free-form replies do not carry a provider answer id, so
+answered-state association needs an explicit design; a random subsequent user
+message must not clear every pending question.
+
+## Minimum verification and subsequent coverage
+
+1. Exercise the real client path with async questions arriving while later
+   work streams. Verify the count for offscreen/unseen questions, discovery
+   through the indicator, and separate seen versus answered state. Include
+   multiple questions in one message, live/durable deduplication, reload, and
+   desktop/mobile access.
+2. Preserve normal agent progress and the main composer. Do not create a
+   blocking input request merely to obtain an unanswered-question indicator.
+   Ordinary blocking questions and approvals retain their separate behavior.
+3. Any question-specific reply action submits an ordinary user message with
+   the question identified, using steering while busy and ordinary sending
+   after turn completion. Do not respond to a nonexistent input-request RPC
+   or label a sent reply as proven provider consumption. Verify a late reply
+   as well as an active-turn reply when adding that action.
+4. Before claiming complete rich-answer support, cover supplied choices,
+   free-text-only questions, multiple questions, retained drafts during output,
+   and no automatic submission of a suggested/default selection. Run a bounded
+   real-provider smoke; passing normalization tests alone is insufficient.
 
 ## Candidate interaction, not a settled layout
 
@@ -100,6 +120,10 @@ question's transcript context. A corresponding tappable toggle would make
 the same list available on mobile. Dismissing the floating view need not
 answer or discard its questions. Exact placement, shortcut, grouping, and
 whether pending state is shared across viewers remain design choices.
+
+Selectable choices and free-text answer controls remain useful follow-on
+possibilities. Prioritize the requested unseen-pending indication and access
+to context over requiring the full question form before shipping any benefit.
 
 An answer can be a formal text reply beginning with the question's tag and
 enough of its title/context to identify the referent, delivered as steering
