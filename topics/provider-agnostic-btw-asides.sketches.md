@@ -126,6 +126,65 @@ is visible Q+A text with source attribution, not tool execution replay or a
 general branch merge. Whether referenced evidence must accompany an answer
 is an investigation question.
 
+## Proposed provider surface for saving context
+
+Use Codex's native `thread/inject_items` for the save action when available.
+That operation provides the missing history insertion; it does not generate
+the aside answer. The existing provider fork and session-start mechanisms
+remain the starting point for isolated answer generation.
+
+YA's current `AgentSession` in `packages/server/src/sdk/providers/types.ts`
+exposes `steer` and its ordinary user-message queue, but no history-append
+method. `AgentProvider.forkSession` supplies a separate fork primitive.
+Following [provider abstraction](provider-abstraction.md), propose an optional
+`AgentSession.appendConversationContext(...)` method for the missing action.
+The name and precise types remain design candidates; the required behavior is:
+
+- Accept an ordered, bounded sequence of text messages with explicit user or
+  assistant roles, plus the source aside and fork boundary. Keep provider-native
+  raw Responses items inside the Codex adapter rather than exposing them to
+  the generic route or browser.
+- Append the exchange to model-visible context without submitting a new user
+  request, starting an idle turn, or interrupting active work. Active work sees
+  it when the harness next consumes pending context. Acceptance is distinct
+  from proof that the model has already read it.
+- Route through the incumbent provider-session owner, including the existing
+  provider-host proxy/worker path. Do not open a second writer to the parent
+  or mutate its transcript files behind the live harness.
+- Return an explicit acknowledgement or failure. The save coordinator owns
+  duplicate prevention and must not show Saved on a failed or ambiguous
+  append. Provider acceptance, persistence, and visible transcript updates
+  need a real-path probe before their receipt semantics are finalized.
+- Treat an absent method as unsupported, never as successful no-op or an
+  implicit call to `steer`. Capability must reflect the running harness and
+  version, not merely the provider's name or `supportsSteering` flag.
+
+For Codex, map text messages into `ResponseItem::Message` items and use
+`thread/inject_items`. Prefer preserving the actual fork answer text and roles
+over flattening them into user input. Fork provenance remains explicit even
+when roles are preserved, since main has continued independently.
+
+Claude's attributed user-input envelope remains an investigated alternative,
+not an implementation of this role-preserving surface by assertion. If needed,
+give a proven weaker representation an explicit capability and product
+contract. Initially limit native Save Q+A to providers that satisfy the
+required contract; decide whether an unsupported provider offers a clearly
+different manual transfer or omits this flow before implementation. Browser
+support must also follow the ordinary server-capability compatibility review.
+
+### Separate facility: assistant asks the user asynchronously
+
+Kyle's motivating report concerned an assistant asking a question and then
+continuing work that does not depend on the reply. That description matches
+Codex's `request_user_input_async`, whose source is in
+`codex-rs/core/src/tools/handlers/request_user_input_async.rs`. It runs in the
+opposite direction from this user-initiated question card. YA support for
+rendering those requests and routing the user's reply is a separate, unverified
+question; existing `/btw` support does not establish it.
+
+The facility selected above is `thread/inject_items` for retaining Q+A, not
+`request_user_input_async` for generating the user's quick answer.
+
 ## Provider findings
 
 Source inspection on 2026-09-06; Contributing-model: 6-Astra. These are
