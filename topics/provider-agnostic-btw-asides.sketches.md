@@ -114,10 +114,13 @@ histories interchangeable. Save provides context; it is not approval to carry
 out suggestions in the answer and should not ask main to answer the same
 question again. The provider delivery mechanism must preserve that distinction.
 
-Native user/assistant history items are desirable when the harness supports
-them. Otherwise, an explicitly attributed verbatim Q+A envelope in a supported
-context-input channel may preserve the content. This is different from
-pretending that the entire answer was authored or instructed by the user.
+Use native user/assistant history items when the harness supports them.
+Otherwise, report the limitation and template the verbatim Q+A bundle into
+a normal user turn. The capability describes how delivery happens rather
+than simply allowing or denying Save. The template attributes the answer to
+the aside and identifies the question as already answered; it does not pretend
+that the entire answer was authored or instructed by the user. Ordinary-turn
+delivery can produce another assistant response under normal send semantics.
 
 Do not assume raw fork suffixes are portable just because their text is
 verbatim. Tool calls need their matching results, and provider reasoning or
@@ -138,16 +141,20 @@ exposes `steer` and its ordinary user-message queue, but no history-append
 method. `AgentProvider.forkSession` supplies a separate fork primitive.
 Following [provider abstraction](provider-abstraction.md), propose an optional
 `AgentSession.appendConversationContext(...)` method for the missing action.
-The name and precise types remain design candidates; the required behavior is:
+The name and precise types remain design candidates. Expose delivery semantics
+such as native history insertion versus an attributed normal user turn; absence
+of the native method selects the latter when ordinary input is supported.
+The required behavior is:
 
 - Accept an ordered, bounded sequence of text messages with explicit user or
   assistant roles, plus the source aside and fork boundary. Keep provider-native
   raw Responses items inside the Codex adapter rather than exposing them to
   the generic route or browser.
-- Append the exchange to model-visible context without submitting a new user
-  request, starting an idle turn, or interrupting active work. Active work sees
-  it when the harness next consumes pending context. Acceptance is distinct
-  from proof that the model has already read it.
+- Native history insertion does not submit a new user request, start an idle
+  turn, or interrupt active work. Active work sees it when the harness next
+  consumes pending context. The normal-user-turn capability instead uses the
+  ordinary parent delivery controls and may start a turn or steer active work.
+  Acceptance is distinct from proof that the model has already read it.
 - Route through the incumbent provider-session owner, including the existing
   provider-host proxy/worker path. Do not open a second writer to the parent
   or mutate its transcript files behind the live harness.
@@ -155,22 +162,23 @@ The name and precise types remain design candidates; the required behavior is:
   duplicate prevention and must not show Saved on a failed or ambiguous
   append. Provider acceptance, persistence, and visible transcript updates
   need a real-path probe before their receipt semantics are finalized.
-- Treat an absent method as unsupported, never as successful no-op or an
-  implicit call to `steer`. Capability must reflect the running harness and
-  version, not merely the provider's name or `supportsSteering` flag.
+- Never turn an absent native method into successful no-op. Declare and show
+  the normal-user-turn limitation, then deliver its templated bundle through
+  the usual send path. Capability must reflect the running harness and version,
+  not merely the provider's name or `supportsSteering` flag.
 
 For Codex, map text messages into `ResponseItem::Message` items and use
 `thread/inject_items`. Prefer preserving the actual fork answer text and roles
 over flattening them into user input. Fork provenance remains explicit even
 when roles are preserved, since main has continued independently.
 
-Claude's attributed user-input envelope remains an investigated alternative,
-not an implementation of this role-preserving surface by assertion. If needed,
-give a proven weaker representation an explicit capability and product
-contract. Initially limit native Save Q+A to providers that satisfy the
-required contract; decide whether an unsupported provider offers a clearly
-different manual transfer or omits this flow before implementation. Browser
-support must also follow the ordinary server-capability compatibility review.
+For providers without native insertion, ordinary user-turn delivery is the
+user-selected fallback, not a reason to omit Save or require a manual copy.
+Native role preservation and no-new-turn behavior must not be advertised for
+that fallback. Claude's `shouldQuery: false` may offer a future intermediate
+capability after verification, but is not required to use the ordinary-turn
+fallback. Browser support must also follow the ordinary server-capability
+compatibility review.
 
 ### Separate facility: assistant asks the user asynchronously
 
@@ -178,9 +186,10 @@ Kyle's motivating report concerned an assistant asking a question and then
 continuing work that does not depend on the reply. That description matches
 Codex's `request_user_input_async`, whose source is in
 `codex-rs/core/src/tools/handlers/request_user_input_async.rs`. It runs in the
-opposite direction from this user-initiated question card. YA support for
-rendering those requests and routing the user's reply is a separate, unverified
-question; existing `/btw` support does not establish it.
+opposite direction from this user-initiated question card. YA preserves readable
+questions and structured metadata but currently lacks dedicated answer controls;
+see the high-priority [async question UI gap](../gaps/codex-async-question-answer-ui.md).
+Existing `/btw` support does not establish support for that interaction.
 
 The facility selected above is `thread/inject_items` for retaining Q+A, not
 `request_user_input_async` for generating the user's quick answer.
