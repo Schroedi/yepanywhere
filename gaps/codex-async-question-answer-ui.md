@@ -10,9 +10,9 @@ cannot select its supplied choices, answer through a question-specific control,
 or see question-specific pending/submitted state.
 
 The maintainer reports seeing `Q1:` questions and reasonably reading them as
-plain text. That observation is consistent with this fallback, but no specific
-observed message was correlated to async metadata; the prefix alone does not
-identify the tool that produced it.
+plain text. The September 7 observation below now correlates a displayed
+question with a confirmed async tool invocation; the prefix alone still does
+not identify the tool that produced it.
 
 Related contracts: [provider output](../topics/provider-output-contract.md),
 [provider refresh](../topics/provider-refresh.md), and
@@ -68,15 +68,43 @@ Result: 2 tests passed, 155 deselected. This is a source-backed missing-client-
 path finding with normalization checks, not a live browser/provider round-trip
 reproduction. No runtime source was changed for this investigation.
 
-## Minimum delivery requested by the maintainer
+## Confirmed live observation, 2026-09-07
+
+Contributing-model: 6-Astra.
+
+In Codex session `01a07aa1-1062-7342-ab8e-7781f81da6cc`, the agent called
+`request_user_input_async` with a question about waiting for another YA session
+or coordinating a handoff, and the options `Wait for it to finish` and
+`Coordinate the handoff`. The tool immediately returned `accepted: true`.
+The maintainer supplied a screenshot showing the question and both choices as
+an ordinary Markdown bullet list without visible answer controls, then asked
+whether the message was marked as an async question. The `Q:` prefix was
+agent-authored text, not the structured discriminator.
+
+The maintainer explicitly requested clickable choices: "it would be useful
+in multi-choice for me to click the one i want". Treat supplied-choice controls
+as requested delivery alongside pending-question visibility; do not leave
+them indefinitely behind a count-only implementation. Preserve free-text
+replies and the nonblocking lifecycle. An initial suggested selection must
+never submit itself. The interaction may use click-to-send or explicit submit,
+but must make sending intentional and preserve the answered question's context.
+
+Current checkout `84891372f` still declares `AgentMessage.delivery` and
+`questions` in the generated Codex protocol and preserves their normalized
+fields in `CodexProvider`. This is a confirmed tool-call/screenshot correlation,
+not a captured browser network trace or a verified answer round trip. The
+screenshot remains in the originating session attachments; its readable
+content and reproduction inputs are recorded here for a fresh checkout.
+
+## Delivery requested by the maintainer
 
 The minimum is an indication of how many unanswered questions the user has
 not yet seen, especially recent questions that have scrolled away during
 continued agent output. A small count near the bottom of the composer or at
 the top center of the view could provide it; exact placement remains open.
 The count should lead to the questions and their source context, with both
-keyboard and tappable access. Rich option-selection forms are not a
-prerequisite for this first delivery.
+keyboard and tappable access. A count-only first delivery can be incremental,
+but does not close the September 7 request for clickable supplied choices.
 
 Keep unseen and unanswered distinct. Receiving or rendering a message does
 not mean the user saw it; scrolling it offscreen does not mean it was
@@ -121,9 +149,9 @@ the same list available on mobile. Dismissing the floating view need not
 answer or discard its questions. Exact placement, shortcut, grouping, and
 whether pending state is shared across viewers remain design choices.
 
-Selectable choices and free-text answer controls remain useful follow-on
-possibilities. Prioritize the requested unseen-pending indication and access
-to context over requiring the full question form before shipping any benefit.
+Selectable supplied choices and free-text answer controls are requested
+alongside the unseen-pending indication and access to context. They can land
+incrementally; neither requires an elaborate generic form system.
 
 An answer can be a formal text reply beginning with the question's tag and
 enough of its title/context to identify the referent, delivered as steering
