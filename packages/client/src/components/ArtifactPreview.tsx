@@ -21,6 +21,10 @@ interface Props {
   projectId?: string;
   title: string;
   className?: string;
+  /** Start only when the owning viewer received an explicit preview click. */
+  autoStart?: boolean;
+  /** The owning viewer may supply the source/preview toggle in its header. */
+  showControls?: boolean;
 }
 
 export function ArtifactPreview(props: Props) {
@@ -34,18 +38,32 @@ export function ArtifactPreview(props: Props) {
     config && share === null && serverHasCapability(version, "artifact-viewer")
       ? artifactOrigin(config, audience, window.location.href)
       : undefined;
-  const [attempt, setAttempt] = useState(0);
+  const [attempt, setAttempt] = useState(props.autoStart ? 1 : 0);
   const [grant, setGrant] = useState<ArtifactViewerGrant | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [frameBlocked, setFrameBlocked] = useState(false);
 
   useEffect(() => {
     setGrant(null);
     setFailed(false);
     setBusy(false);
+    setFrameBlocked(false);
     if (!attempt || !origin) return;
     let cancelled = false;
     let admitted: ArtifactViewerGrant | undefined;
+    const onPolicyViolation = (event: SecurityPolicyViolationEvent) => {
+      if (
+        admitted &&
+        event.disposition === "enforce" &&
+        event.effectiveDirective === "frame-src" &&
+        (event.blockedURI === origin ||
+          event.blockedURI.startsWith(`${origin}/`))
+      ) {
+        setFrameBlocked(true);
+      }
+    };
+    document.addEventListener("securitypolicyviolation", onPolicyViolation);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2500);
     setBusy(true);
@@ -91,12 +109,16 @@ export function ArtifactPreview(props: Props) {
       controller.abort();
       clearTimeout(timer);
       if (admitted) revoke(admitted.id);
+      document.removeEventListener(
+        "securitypolicyviolation",
+        onPolicyViolation,
+      );
     };
   }, [attempt, origin, audience, props.path, props.projectId, runtime]);
 
   return (
     <div className={`${styles.preview} ${props.className ?? ""}`}>
-      {origin && (
+      {origin && (props.showControls !== false || failed) && (
         <div className={styles.toolbar}>
           <button
             type="button"
@@ -118,7 +140,24 @@ export function ArtifactPreview(props: Props) {
           {failed && <span role="status">{t("artifactUnavailable")}</span>}
         </div>
       )}
-      {grant ? (
+      {props.showControls === false && busy && (
+        <div className={styles.notice} role="status">
+          {t("artifactChecking")}
+        </div>
+      )}
+      {props.autoStart && !origin && (
+        <div className={styles.notice} role="status">
+          {t("artifactUnavailable")}
+        </div>
+      )}
+      {grant && frameBlocked ? (
+        <div className={styles.notice} role="alert">
+          <p>{t("artifactFrameBlocked")}</p>
+          <a href={grant.url} target="_blank" rel="noopener noreferrer">
+            {t("artifactOpenTab")}
+          </a>
+        </div>
+      ) : grant ? (
         <iframe
           key={grant.id}
           className={styles.frame}

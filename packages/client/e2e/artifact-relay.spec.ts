@@ -243,12 +243,14 @@ test("opens original interactive files through relay grants and a separate HTTPS
     `${clientOrigin}/-/relay/${username}/projects/${projectId}/file?path=index.html`,
   );
   expect(await fileResponse?.text()).toContain("/src/remote-main.tsx");
-  await page.getByRole("button", { name: "Raw source", exact: true }).click();
+  expect(artifactRequests).toEqual([]);
+  await page
+    .locator(".file-viewer-header")
+    .getByRole("button", { name: "Raw source", exact: true })
+    .click();
   await expect(
     page.getByRole("button", { name: "Run interactive preview" }),
-  ).toBeVisible();
-  expect(artifactRequests).toEqual([]);
-  await page.getByRole("button", { name: "Run interactive preview" }).click();
+  ).toHaveCount(0);
   const frame = page.frameLocator("iframe");
   await expect(frame.getByRole("status")).toHaveText("3 sample notes");
   const child = page
@@ -304,7 +306,7 @@ test("opens original interactive files through relay grants and a separate HTTPS
   await expect(
     frame.getByRole("heading", { name: "Project details" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Stop interactive preview" }).click();
+  await page.getByRole("button", { name: "Raw source", exact: true }).click();
   await expect
     .poll(
       async () => (await instance.artifactServer.app.request(grantUrl)).status,
@@ -373,7 +375,6 @@ test("runs the generated YA mockup through the hosted relay viewer", async ({
     `${clientOrigin}/-/relay/${username}/projects/${projectId}/file?path=mockup/index.html`,
   );
   await page.getByRole("button", { name: "Raw source", exact: true }).click();
-  await page.getByRole("button", { name: "Run interactive preview" }).click();
   await expect(
     page
       .frameLocator("iframe")
@@ -429,10 +430,44 @@ test("runs the generated YA mockup through the hosted relay viewer", async ({
   expect(directGrants).toEqual([]);
   expect(problems).toEqual([]);
   const grantUrl = child.url();
-  await page.getByRole("button", { name: "Stop interactive preview" }).click();
+  await page.getByRole("button", { name: "Raw source", exact: true }).click();
   await expect
     .poll(
       async () => (await instance.artifactServer.app.request(grantUrl)).status,
+    )
+    .toBe(404);
+  // Reproduce the stale localhost document policy, then exercise the real
+  // top-level fallback without changing or weakening either origin's CSP.
+  await page.evaluate(() => {
+    const policy = document.createElement("meta");
+    policy.httpEquiv = "Content-Security-Policy";
+    policy.content = "frame-src 'self'";
+    document.head.append(policy);
+  });
+  await page.getByRole("button", { name: "Raw source", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("browser policy blocked");
+  await expect(page.locator("iframe")).toHaveCount(0);
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await page.screenshot({
+      path: join(captures, `blocked-${viewport.name}.png`),
+    });
+  }
+  const opened = page.waitForEvent("popup");
+  await page
+    .getByRole("link", { name: "Open interactive preview in a new tab" })
+    .click();
+  const popup = await opened;
+  await popup.setViewportSize(viewports[0]!);
+  await checkMockup(popup, "default");
+  expect(await popup.evaluate(() => window.opener === null)).toBe(true);
+  const fallbackUrl = popup.url();
+  await popup.close();
+  await page.getByRole("button", { name: "Raw source", exact: true }).click();
+  await expect
+    .poll(
+      async () =>
+        (await instance.artifactServer.app.request(fallbackUrl)).status,
     )
     .toBe(404);
 });

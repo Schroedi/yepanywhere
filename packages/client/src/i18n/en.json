@@ -1,5 +1,7 @@
 {
   "artifactRun": "Run interactive preview",
+  "artifactFrameBlocked": "This YA tab’s browser policy blocked the embedded preview. Open it in a separate tab, or reload YA after its frontend has restarted. Switching back to source closes this preview and revokes its link.",
+  "artifactOpenTab": "Open interactive preview in a new tab",
   "artifactStop": "Stop interactive preview",
   "artifactChecking": "Checking access…",
   "artifactRetry": "Retry interactive preview",

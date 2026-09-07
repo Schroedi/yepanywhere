@@ -122,8 +122,9 @@ parent YA tab cannot embed it. Keep the grant's directory limited to the
 export, and never substitute a URL on YA's authenticated application origin.
 The URL grants access until expiry or revocation; do not commit it into docs.
 
-Open `index.html` in YA's file viewer, select Preview, then **Run interactive
-preview**. Interactive HTML artifacts must be enabled in Local Access, with
+Open `index.html` in YA's file viewer and click the top-row source/preview
+toggle once. It starts interactive HTML directly; switching back to source
+stops it. Interactive HTML artifacts must be enabled in Local Access, with
 a reachable separate artifact origin. Local access can use
 `artifacts.localhost` on the forwarded YA port; hosted clients need a configured
 public HTTPS artifact address. The exact configuration, grant, expiry, and
@@ -144,6 +145,9 @@ Vite process may still serve `default-src 'self'` without the current
 That policy blocks the separate artifact host even when its health check and
 grant work. It requires an operator-owned frontend restart and a page reload;
 ordinary module hot reload does not establish that the HTML policy is current.
+The viewer now replaces an enforced frame-policy failure with an explanation
+and a link to open the granted document in a separate tab. That link remains
+owned by the viewer and is revoked when it is stopped or closed.
 
 The automated export check compares source and relocated production output
 pixel-for-pixel at equal fonts, theme, state, and viewport, after waiting for

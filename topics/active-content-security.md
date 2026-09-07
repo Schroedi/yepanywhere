@@ -330,6 +330,21 @@ action; there is no polling, grant request, or interactive frame on failure.
 The client rejects a selected origin sharing YA's hostname and refuses mixed
 HTTPS-page/HTTP-frame configuration.
 
+In the full file viewer, the existing top-row source/preview toggle starts
+interactive HTML directly when clicked from source; no second Run button is
+needed. Switching back to source unmounts the preview and revokes its grant.
+The context menu's explicit Preview action uses the same path. Merely opening
+a file, restoring a source view, or receiving a link does not request a grant.
+An initially requested scriptless presentation retains its explicit Run action.
+Older/disabled servers retain scriptless viewing without unsupported requests.
+
+A browser-enforced parent `frame-src` violation replaces the broken frame with
+an explanation and an **Open interactive preview in a new tab** link to the
+same grant. The new tab has no opener or referrer; stopping/closing the owning
+viewer still revokes that grant. The viewer never relaxes the browser policy.
+A stale frontend policy requires an operator-owned restart and page reload
+for embedding to work; the separate artifact tab can be used independently.
+
 The granted directory supports relative stylesheets, images/SVG, webfonts,
 classic scripts, modules/dynamic imports, JSON fetches, and linked HTML files.
 Root-relative paths address the artifact host itself and are not mapped to a

@@ -572,6 +572,9 @@ export const FileViewer = memo(function FileViewer({
   const publicShareContext = usePublicShareContext();
   const viewIdentity = `${projectId}\0${filePath}\0${diffMode ?? "source"}`;
   const [showPreview, setShowPreview] = useState(false);
+  const [interactivePreviewIdentity, setInteractivePreviewIdentity] = useState<
+    string | null
+  >(null);
   const explicitSourceIdentityRef = useRef<string | null>(null);
   const [storedView, setStoredView] = useState<{
     identity: string;
@@ -586,6 +589,7 @@ export const FileViewer = memo(function FileViewer({
       if (view === "source") {
         explicitSourceIdentityRef.current = viewIdentity;
         setShowPreview(false);
+        setInteractivePreviewIdentity(null);
       }
       setStoredView({ identity: viewIdentity, view });
     },
@@ -1461,11 +1465,14 @@ export const FileViewer = memo(function FileViewer({
       if (showPreview && hasHtmlPreview) {
         return (
           <ArtifactPreview
+            key={viewIdentity}
             html={content}
             path={filePath}
             projectId={projectId}
             className={viewerStyles.htmlPreviewFrame}
             title={fileName}
+            autoStart={interactivePreviewIdentity === viewIdentity}
+            showControls={interactivePreviewIdentity !== viewIdentity}
           />
         );
       }
@@ -1706,7 +1713,12 @@ export const FileViewer = memo(function FileViewer({
             aria-label={t("fileViewerRawSource" as never)}
             aria-pressed={!showPreview}
             title={t("fileViewerRawSource" as never)}
-            onClick={() => setShowPreview((visible) => !visible)}
+            onClick={() => {
+              setInteractivePreviewIdentity(
+                !showPreview && hasHtmlPreview ? viewIdentity : null,
+              );
+              setShowPreview((visible) => !visible);
+            }}
           >
             <RawSourceIcon />
           </button>
@@ -1865,12 +1877,18 @@ export const FileViewer = memo(function FileViewer({
           onOpen={handleOpenInNewTab}
           onOpenSource={
             supportsSourceAndPreview(filePath)
-              ? () => setShowPreview(false)
+              ? () => {
+                  setInteractivePreviewIdentity(null);
+                  setShowPreview(false);
+                }
               : undefined
           }
           onOpenPreview={
             supportsSourceAndPreview(filePath) && hasFilePreview
-              ? () => setShowPreview(true)
+              ? () => {
+                  setInteractivePreviewIdentity(viewIdentity);
+                  setShowPreview(true);
+                }
               : undefined
           }
           onStartNewSession={startNewSession}
