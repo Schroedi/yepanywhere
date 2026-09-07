@@ -2,6 +2,7 @@
 import type {
   AgentStatus as AgentStatusType,
   AppContentBlock,
+  AppMessageExtensions,
   ProviderName,
   ToolResultMedia,
 } from "@yep-anywhere/shared";
@@ -90,6 +91,8 @@ export type ContentBlock = AppContentBlock;
  * - Backward compatibility with existing code
  */
 export interface Message {
+  codexAgentMessageDelivery?: AppMessageExtensions["codexAgentMessageDelivery"];
+  codexAsyncQuestions?: AppMessageExtensions["codexAsyncQuestions"];
   /** Legacy message identifier (may not be present - use getMessageId() helper) */
   id?: string;
   /** SDK message identifier (prefer this for lookups) */

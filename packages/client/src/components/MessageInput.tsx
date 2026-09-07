@@ -1119,7 +1119,7 @@ export function MessageInput({
   const draftControls = useMemo<DraftControls>(
     () => ({
       ...controls,
-      focus: () => textareaRef.current?.focus(),
+      focus: (options) => textareaRef.current?.focus(options),
       setSelectionRange: (start, end) =>
         textareaRef.current?.setSelectionRange(start, end),
       replaceDraftRangeUndoably,

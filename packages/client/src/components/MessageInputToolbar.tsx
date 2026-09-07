@@ -14,6 +14,8 @@ import {
   serverHasCapability,
 } from "@yep-anywhere/shared";
 import type { CSSProperties, MouseEvent, RefObject, TouchEvent } from "react";
+import { useAsyncQuestions } from "../contexts/AsyncQuestionsContext";
+import { AsyncQuestionsButton } from "./AsyncQuestions";
 import {
   type Dispatch,
   type SetStateAction,
@@ -1314,6 +1316,10 @@ export function MessageInputToolbarView({
   actionsControl,
   hidePrimaryDeliveryActions = false,
 }: MessageInputToolbarViewProps) {
+  const asyncQuestions = useAsyncQuestions();
+  const hasAsyncQuestions =
+    (asyncQuestions?.questions.length ?? 0) > 0 &&
+    asyncQuestions?.reminderTurns !== 0;
   const tooltipMode = useTooltipMode();
   const [hidePopover, setHidePopover] =
     useState<ToolbarHidePopoverState | null>(null);
@@ -1687,6 +1693,7 @@ export function MessageInputToolbarView({
     );
   };
   const hasBottomOverflowControls = !!(
+    hasAsyncQuestions ||
     (visibility.modeSelector &&
       modeControl &&
       isPriorityCollapsible("modeSelector")) ||
@@ -1802,14 +1809,23 @@ export function MessageInputToolbarView({
     alternate: !hidePrimaryDeliveryActions && !!actionsControl.send?.alternate,
     stop: showStopButton,
     pending: pendingApproval?.type ?? "off",
-  })}|fileViewer:${fileViewerController ? "on" : "off"}`;
+  })}|fileViewer:${fileViewerController ? "on" : "off"}|questions:${hasAsyncQuestions}`;
   const [bottomOverflowOpen, setBottomOverflowOpen] = useState(false);
+  const questionMenuWasOpen = useRef(false);
+  useEffect(() => {
+    if (questionMenuWasOpen.current && !asyncQuestions?.menuOpen)
+      setBottomOverflowOpen(false);
+    questionMenuWasOpen.current = asyncQuestions?.menuOpen === true;
+  }, [asyncQuestions?.menuOpen]);
   const { tier: bottomOverflowTier, setToolbarRef } =
     useMeasuredComposerOverflow({
       layoutKey: bottomOverflowLayoutKey,
       hasControls: hasBottomOverflowControls,
       refs,
     });
+  const showBottomOverflow =
+    hasBottomOverflowControls &&
+    (bottomOverflowTier !== "none" || hasAsyncQuestions);
   const shortcutsLongPressTimerRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -2197,9 +2213,9 @@ export function MessageInputToolbarView({
           : "composer-status-ages",
         refs?.status,
       )}
-      {hasBottomOverflowControls && bottomOverflowTier !== "none" && (
+      {showBottomOverflow && (
         <div
-          className={`composer-bottom-overflow ${
+          className={`${toolbarModuleStyles.overflow} composer-bottom-overflow ${
             bottomOverflowOpen ? "is-open" : ""
           }`}
         >
@@ -2474,11 +2490,13 @@ export function MessageInputToolbarView({
                   )}
                 {renderProjectQueueButtons(true)}
               </div>
+              <AsyncQuestionsButton overflow />
             </div>
           )}
         </div>
       )}
       <div ref={refs?.actions} className="message-input-actions">
+        <AsyncQuestionsButton compact={bottomOverflowTier} />
         {pendingApproval && (
           <button
             type="button"

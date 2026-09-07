@@ -101,6 +101,7 @@ import {
 import { useDeveloperMode } from "../hooks/useDeveloperMode";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import type { DraftControls } from "../hooks/useDraftPersistence";
+import { AsyncQuestionsProvider } from "../contexts/AsyncQuestionsContext";
 import { useEngagementTracking } from "../hooks/useEngagementTracking";
 import { useBtwAsides } from "../hooks/useBtwAsides";
 import { useGeneratedTitleEnabled } from "../hooks/useGeneratedTitleEnabled";
@@ -2276,7 +2277,11 @@ function SessionPageContent({
   const handleSend = async (
     text: string,
     metadata?: MessageSubmissionMetadata,
-    options: { preserveComposer?: boolean; localControl?: boolean } = {},
+    options: {
+      preserveComposer?: boolean;
+      preserveScroll?: boolean;
+      localControl?: boolean;
+    } = {},
   ): Promise<boolean> => {
     const prepared: PreparedComposerSubmission | null = options.localControl
       ? { outgoingText: text }
@@ -2330,7 +2335,7 @@ function SessionPageContent({
     );
     if (!localControl) {
       setProcessState("in-turn"); // Optimistic: show processing indicator immediately
-      setScrollTrigger((prev) => prev + 1); // Force scroll to bottom
+      if (!options.preserveScroll) setScrollTrigger((prev) => prev + 1);
     }
     logSessionUiTrace("composer-send-start", {
       sessionId,
@@ -4917,7 +4922,7 @@ function SessionPageContent({
       }
     : thinkingOptionToConfig(getThinkingSetting());
 
-  return (
+  const content = (
     <MainContent isWideScreen={isWideScreen}>
       <header className="session-header">
         <div className="session-header-inner">
@@ -6110,5 +6115,31 @@ function SessionPageContent({
         </footer>
       </div>
     </MainContent>
+  );
+  return (
+    <AsyncQuestionsProvider
+      key={`${clientSummarySourceKey}:${sessionId}`}
+      storageKey={`yep-async-questions:${clientSummarySourceKey}:${sessionId}`}
+      draftSignal={composerDraftSignal}
+      send={(text) =>
+        handleSendRef.current(
+          text,
+          {
+            composition: {},
+            deliveryIntent:
+              processState === "in-turn" || processState === "waiting-input"
+                ? "steer"
+                : "direct",
+          },
+          { preserveComposer: true, preserveScroll: true },
+        )
+      }
+      quote={insertQuotedSelection}
+      focusComposer={() =>
+        draftControlsRef.current?.focus?.({ preventScroll: true })
+      }
+    >
+      {content}
+    </AsyncQuestionsProvider>
   );
 }

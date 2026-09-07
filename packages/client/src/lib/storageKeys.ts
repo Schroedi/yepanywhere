@@ -60,6 +60,7 @@ export const UI_KEYS = {
   keepMobileKeyboardOpenAfterDelivery:
     "yep-anywhere-keep-mobile-keyboard-open-after-delivery",
   questionAsides: "yep-anywhere-question-asides",
+  questionReminderTurns: "yep-anywhere-question-reminder-turns",
   developerMode: "yep-anywhere-developer-mode",
   conversationView: "yep-anywhere-conversation-view-enabled",
   workflowTags: "yep-anywhere-workflow-tags-enabled",

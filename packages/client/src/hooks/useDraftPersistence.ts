@@ -43,7 +43,7 @@ export interface DraftControls {
   /** Restore from localStorage (call on failure) */
   restoreFromStorage: () => void;
   /** Focus the textarea that owns this draft, if it is mounted. */
-  focus?: () => void;
+  focus?: (options?: FocusOptions) => void;
   /** Place the textarea caret/selection, if it is mounted. */
   setSelectionRange?: (start: number, end: number) => void;
 }

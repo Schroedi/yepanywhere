@@ -168,6 +168,89 @@ Persisted normalization reads the canonical `item_completed` record whose
 Ordinary completed agent items and legacy `agent_message` events remain
 suppressed because they duplicate full response items.
 
+#### Answering and discovering questions
+
+The web client renders structured async questions as answerable transcript
+content by default. It never guesses controls from arbitrary Markdown lists.
+Servers without the two optional fields retain ordinary readable text; the
+client uses existing message submission and steering routes and introduces no
+endpoint or capability requirement. This optional-field compatibility plan and
+the default-on behavior were explicitly approved by the maintainer on
+2026-09-07. Blocking questions and approvals keep their separate lifecycle.
+
+Each supplied option is a clickable, wrapping bullet row. A deliberate click
+sends that exact option; no suggested selection submits itself. Selecting a
+question from its menu reveals the original transcript context, highlights
+the question, opens a separate inline free-form composer, and focuses it once.
+Focus remains free to leave. Stream updates and transcript virtualization
+preserve the inline draft and the main composer's independent draft.
+
+Choice and inline free-form replies send the complete question as a Markdown
+blockquote followed by the exact answer, using steering during an active turn
+and ordinary input after it ends. Source message id plus question index identify
+the local question; neither a `Q:` prefix nor a random subsequent user turn
+establishes answer identity. Successful submission shows **Reply sent**, which
+does not assert provider consumption. Failure retains the draft and pending
+state. **Quote reply in main composer** is a secondary action: reveal the
+question, insert its full quote through the existing composer insertion/undo
+path, preserve existing text, and focus the main composer. This editable quote
+does not itself mark a question sent or attempt to classify later manual text.
+
+Before visiting a question, save the reading anchor, offset, and Follow intent.
+Navigating among questions retains that first return destination. Successful
+inline submission, or **Return to previous position**, restores the saved
+anchor with Follow off, or the current live bottom with Follow restored, then
+focuses the main composer without browser-induced scrolling. Failure does not
+perform this transition. New navigation, focus movement, or pointer/wheel
+interaction while submission is pending takes precedence over stale return
+state. A render row without connected, measurable geometry is not a completed
+navigation target; reveal it through the transcript's normal bounded path.
+
+The persistent composer toolbar, including its collapsed form, offers a muted
+amber outlined speech-bubble/question-mark button. With room it reads
+**3 questions · 1 turn ago**, using the youngest counted question's age.
+Actual toolbar space removes the age first and then the noun, retaining the
+icon and count with a full accessible label. There is no pulse or focus theft.
+The wider, viewport-capped menu opens upward and may cover the composer.
+Oldest questions appear at the top, newest at the bottom. Each ellipsized,
+single-line preview has an outlined background, a bare muted turn-age numeral
+outside its left edge, a right-side **×**, and a separator between rows.
+Opening focuses the newest row; arrow keys navigate and Escape closes.
+
+**×** silently dismisses a reminder without navigating, deleting transcript
+content, or asserting an answer. Right-click or long-press opens a one-action
+dismiss menu; holding alone deletes nothing. **Show dismissed** permits
+recovery. Opening or closing the menu resolves nothing. An unseen dot clears
+only after at least 60% of the actual question title is visible in an active
+tab. Seen and sent are independent states.
+
+#### Reminder duration and local state
+
+One searchable **Question reminders** slider lives in **Toolbar** settings.
+It ranges from 0 through 12 and defaults to 3. Zero hides both dedicated and
+overflow reminder controls; transcript answering remains available. There is
+no separate feature-enable setting. For a positive value `n`:
+
+- The count and amber emphasis disappear per question after `n` subsequent
+  user turns or `round(n × 160 / 3)` main-composer text changes.
+- The quiet **Questions** button moves to ordinary toolbar overflow after
+  `ceil(n × 8 / 3)` turns or `n × 200` text changes. At the default these two
+  stages are 3 turns / 160 edits and 8 turns / 600 edits.
+- A text change counts once; unchanged notifications and clearing to empty
+  do not count. Inline answer typing does not age reminders. Whichever turn
+  or edit threshold arrives first governs each stage.
+- A focused button or open menu is not retired underneath the interaction.
+  New questions restore visibility without reviving old aged/dismissed counts.
+
+The menu covers loaded transcript history only, without background history
+fetches. Aging affects reminders, never answer state or transcript content.
+Per-question drafts, seen/sent/dismissed state, and edit ages are browser-local,
+keyed by source, session, message id, and question index. Reloads retain them;
+storage events synchronize tabs on the same browser origin. Other devices are
+independent. When browser storage is unavailable, the current visit still
+works in memory. Receiving the live and durable copy of one question must not
+create duplicate controls or duplicate replies.
+
 ### Standalone tool output
 
 A provider output that has no call id is visible context, but it is not a

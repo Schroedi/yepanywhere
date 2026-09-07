@@ -73,6 +73,15 @@ adding chrome; visible narrowing tiers also show its toolbar button.
 
 ## Known Exceptions
 
+Structured Codex async questions and their toolbar reminders ship default-on,
+explicitly authorized by graehl on 2026-09-07. They make an existing provider
+question answerable without blocking ongoing work. Clickable choices and the
+inline reply composer send only after a deliberate user action. One searchable
+**Question reminders** slider in Toolbar settings scales both reminder-aging
+stages; zero hides toolbar reminders while transcript answering remains
+available. There is no separate enable setting. See
+[provider-output-contract](provider-output-contract.md#asynchronous-codex-questions).
+
 [provider-runtime-status](provider-runtime-status.md) gives Codex
 `serverOverloaded` turns a built-in, bounded same-model retry. Codex itself
 ends these turns, but the failure is transient and the recovery adds no new

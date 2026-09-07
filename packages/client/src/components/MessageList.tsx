@@ -20,6 +20,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
+import { useAsyncQuestions } from "../contexts/AsyncQuestionsContext";
 import { getShowThinkingSetting } from "../hooks/useModelSettings";
 import {
   QueuedEffortBadge,
@@ -2322,6 +2323,11 @@ export const MessageList = memo(function MessageList({
   // trailing measurement; it never scans the transcript DOM on the hot path.
   const displayRenderItemsRef = useRef(displayRenderItems);
   displayRenderItemsRef.current = displayRenderItems;
+  const asyncQuestions = useAsyncQuestions();
+  const observeAsyncQuestions = asyncQuestions?.observe;
+  useLayoutEffect(() => {
+    if (!inert) observeAsyncQuestions?.(displayRenderItems);
+  }, [displayRenderItems, inert, observeAsyncQuestions]);
   const turnGroupsRef = useRef(turnGroups);
   turnGroupsRef.current = turnGroups;
   const restoreRetainedScrollPosition = useCallback(
@@ -2711,7 +2717,13 @@ export const MessageList = memo(function MessageList({
     getRowTargetIds: getTimelineRowTargetIds,
     getRowWeight: getTimelineRowRenderWeight,
     pinnedRenderId: renderWindowPinnedId,
-    retainedRenderIds: anchoredRenderIds,
+    retainedRenderIds: useMemo(
+      () => [
+        ...anchoredRenderIds,
+        ...(asyncQuestions?.retainedRenderIds ?? []),
+      ],
+      [anchoredRenderIds, asyncQuestions?.retainedRenderIds],
+    ),
     rows: chunkedTimelinePrepend.rows,
   });
   const firstPromptActionId = useMemo(() => {
@@ -3289,6 +3301,7 @@ export const MessageList = memo(function MessageList({
       behavior: ScrollBehavior,
       align: "start" | "center" = "start",
       showMotionCue = false,
+      questionId?: string,
     ) => {
       const messageList = containerRef.current;
       const scrollContainer = messageList?.parentElement;
@@ -3299,10 +3312,15 @@ export const MessageList = memo(function MessageList({
       const scrollMountedRow = (withMotionCue: boolean): boolean => {
         const currentList = containerRef.current;
         const currentContainer = currentList?.parentElement;
-        const row = findRenderRow(currentList, id);
-        if (!currentContainer || !row) return false;
+        const row = questionId
+          ? currentList?.querySelector<HTMLElement>(
+              `[data-async-question-reply="${CSS.escape(questionId)}"]`,
+            )
+          : findRenderRow(currentList, id);
+        if (!currentContainer || !row?.isConnected) return false;
         const scrollRect = currentContainer.getBoundingClientRect();
         const rowRect = row.getBoundingClientRect();
+        if (rowRect.width === 0 && rowRect.height === 0) return false;
         const offset =
           align === "center"
             ? Math.max(0, (currentContainer.clientHeight - rowRect.height) / 2)
@@ -3312,6 +3330,10 @@ export const MessageList = memo(function MessageList({
           currentContainer.scrollTop + rowRect.top - scrollRect.top - offset,
         );
         if (Math.abs(nextTop - currentContainer.scrollTop) < 1) {
+          if (questionId)
+            row
+              .querySelector<HTMLTextAreaElement>("textarea")
+              ?.focus({ preventScroll: true });
           return true;
         }
         if (withMotionCue) {
@@ -3324,6 +3346,10 @@ export const MessageList = memo(function MessageList({
         } else {
           currentContainer.scrollTop = nextTop;
         }
+        if (questionId)
+          row
+            .querySelector<HTMLTextAreaElement>("textarea")
+            ?.focus({ preventScroll: true });
         return true;
       };
 
@@ -3365,8 +3391,62 @@ export const MessageList = memo(function MessageList({
     ],
   );
 
+  const questionNavigation = asyncQuestions?.navigation;
+  const questionJumpFrameRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (!questionNavigation || inert) return;
+    const navigation = {
+      capture: () => {
+        const content = containerRef.current;
+        const container = content?.parentElement;
+        return content && container
+          ? captureScrollSnapshot(container, content)
+          : null;
+      },
+      jump: (id: string, questionId: string) => {
+        stopFollowingForUserScroll(containerRef.current?.parentElement);
+        if (questionJumpFrameRef.current !== null)
+          cancelAnimationFrame(questionJumpFrameRef.current);
+        questionJumpFrameRef.current = requestAnimationFrame(() => {
+          questionJumpFrameRef.current = null;
+          scrollToRenderId(id, "auto", "center", true, questionId);
+        });
+      },
+      restore: (snapshot: SessionRouteScrollSnapshot) => {
+        if (questionJumpFrameRef.current !== null)
+          cancelAnimationFrame(questionJumpFrameRef.current);
+        questionJumpFrameRef.current = null;
+        if (snapshot.following) {
+          forceScrollToCurrent(undefined, { allowThinkingDeltas: true });
+          return;
+        }
+        stopFollowingForUserScroll(containerRef.current?.parentElement);
+        pendingInitialScrollRestoreRef.current = snapshot;
+        if (snapshot.anchor)
+          transcriptRenderWindow.revealRenderId(snapshot.anchor.id);
+        restoreRetainedScrollPosition(snapshot);
+      },
+    };
+    questionNavigation.current = navigation;
+    return () => {
+      if (questionNavigation.current === navigation)
+        questionNavigation.current = null;
+    };
+  }, [
+    questionNavigation,
+    inert,
+    captureScrollSnapshot,
+    stopFollowingForUserScroll,
+    scrollToRenderId,
+    forceScrollToCurrent,
+    restoreRetainedScrollPosition,
+    transcriptRenderWindow.revealRenderId,
+  ]);
+
   useEffect(
     () => () => {
+      if (questionJumpFrameRef.current !== null)
+        cancelAnimationFrame(questionJumpFrameRef.current);
       if (revealRenderTargetFrameRef.current !== null) {
         cancelAnimationFrame(revealRenderTargetFrameRef.current);
         revealRenderTargetFrameRef.current = null;

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useTextTooltipAttributes } from "../hooks/useTooltipAppearance";
 import { useI18n } from "../i18n";
+import { AsyncQuestionMessage } from "./AsyncQuestions";
 import {
   MESSAGE_STALE_THRESHOLD_MS,
   getEarliestMessageTimestampMs,
@@ -1055,15 +1056,20 @@ export const RenderItemComponent = memo(function RenderItemComponent({
     switch (item.type) {
       case "text":
         return (
-          <TextBlock
-            text={item.text}
-            isStreaming={item.isStreaming}
-            augmentHtml={item.augmentHtml}
-            projectPathLinks={item.projectPathLinks}
-            renderItemId={item.id}
-            onQuoteBlock={onQuoteTextBlock}
-            alwaysShowQuoteCircle={alwaysShowQuoteCircle}
-            paragraphQuoteCirclesEnabled={paragraphQuoteCirclesEnabled}
+          <AsyncQuestionMessage
+            renderId={item.id}
+            fallback={
+              <TextBlock
+                text={item.text}
+                isStreaming={item.isStreaming}
+                augmentHtml={item.augmentHtml}
+                projectPathLinks={item.projectPathLinks}
+                renderItemId={item.id}
+                onQuoteBlock={onQuoteTextBlock}
+                alwaysShowQuoteCircle={alwaysShowQuoteCircle}
+                paragraphQuoteCirclesEnabled={paragraphQuoteCirclesEnabled}
+              />
+            }
           />
         );
 

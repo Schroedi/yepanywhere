@@ -4271,16 +4271,6 @@ a.sidebar-nav-item {
   outline: none;
 }
 
-.composer-bottom-overflow {
-  position: relative;
-  display: none;
-  width: var(--composer-control-size);
-  height: var(--composer-control-size);
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-}
-
 .composer-bottom-overflow-button {
   position: relative;
   z-index: 72;
@@ -4420,12 +4410,6 @@ a.sidebar-nav-item {
 .composer-bottom-overflow-menu-group .composer-bottom-overflow-medium,
 .composer-bottom-overflow-menu-group .composer-bottom-overflow-late {
   display: none;
-}
-
-.message-input-toolbar.overflow-tier-early .composer-bottom-overflow,
-.message-input-toolbar.overflow-tier-medium .composer-bottom-overflow,
-.message-input-toolbar.overflow-tier-late .composer-bottom-overflow {
-  display: inline-flex;
 }
 
 .message-input-toolbar.overflow-tier-early
