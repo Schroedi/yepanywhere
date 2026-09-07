@@ -17,6 +17,7 @@ import { isZstdJsonlSupported } from "../../src/utils/jsonl.js";
 const ROOT_ID = "11111111-1111-7111-8111-111111111111";
 const CHILD_ID = "22222222-2222-7222-8222-222222222222";
 const NESTED_ID = "33333333-3333-7333-8333-333333333333";
+const REPLACEMENT_ID = "44444444-4444-7444-8444-444444444444";
 const PROJECT_ID = "lineage-project" as UrlProjectId;
 const PROJECT_PATH = "/test/lineage-project";
 
@@ -109,6 +110,17 @@ function prefixPosition(
 
 function rolloutPath(root: string, rolloutId: string, suffix = ".jsonl") {
   return join(root, `rollout-2026-09-03T00-00-00-${rolloutId}${suffix}`);
+}
+
+function replacementRolloutPath(
+  root: string,
+  threadId: string,
+  rolloutId: string,
+) {
+  return join(
+    root,
+    `rollout-2026-09-03T00-01-00-${threadId}_${rolloutId}.jsonl`,
+  );
 }
 
 describe("Codex reference-backed rollout lineage", () => {
@@ -213,6 +225,99 @@ describe("Codex reference-backed rollout lineage", () => {
       appended?.data.session.entries.map((entry) => entry.ordinal),
     ).toEqual([3, 1, 2, 4]);
     expect(appended?.summary.messageCount).toBe(3);
+  });
+
+  it("selects and loads the newest physical rollout for a reverted thread", async () => {
+    const rootPrefix = [
+      sessionMeta({ id: ROOT_ID, ordinal: 0 }),
+      userMessage(1, "Retained root prompt"),
+      assistantMessage(2, "Retained root answer"),
+    ];
+    await writeFile(rolloutPath(sessionsDir, ROOT_ID), jsonl(rootPrefix));
+
+    const replacementPath = replacementRolloutPath(
+      sessionsDir,
+      ROOT_ID,
+      REPLACEMENT_ID,
+    );
+    await writeFile(
+      replacementPath,
+      jsonl([
+        sessionMeta({
+          id: ROOT_ID,
+          ordinal: 3,
+          historyBase: prefixPosition(ROOT_ID, rootPrefix),
+        }),
+        userMessage(4, "Replacement prompt"),
+        assistantMessage(5, "Replacement answer"),
+      ]),
+    );
+
+    const reader = new CodexSessionReader({
+      sessionsDir,
+      projectPath: PROJECT_PATH,
+    });
+    const summaries = await reader.listSessions(PROJECT_ID);
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]).toMatchObject({
+      id: ROOT_ID,
+      title: "Retained root prompt",
+      messageCount: 4,
+    });
+    await expect(reader.getSessionFilePath(ROOT_ID)).resolves.toBe(
+      replacementPath,
+    );
+
+    const loaded = await reader.getSession(ROOT_ID, PROJECT_ID);
+    expect(loaded?.data.session.entries.map((entry) => entry.ordinal)).toEqual([
+      3, 1, 2, 4, 5,
+    ]);
+  });
+
+  it("loads a fork whose inherited lineage includes a reverted rollout", async () => {
+    const rootPrefix = [
+      sessionMeta({ id: ROOT_ID, ordinal: 0 }),
+      userMessage(1, "Root prompt"),
+      assistantMessage(2, "Root answer"),
+    ];
+    await writeFile(rolloutPath(sessionsDir, ROOT_ID), jsonl(rootPrefix));
+
+    const replacementEntries = [
+      sessionMeta({
+        id: ROOT_ID,
+        ordinal: 3,
+        historyBase: prefixPosition(ROOT_ID, rootPrefix),
+      }),
+      userMessage(4, "Replacement prompt"),
+      assistantMessage(5, "Replacement answer"),
+    ];
+    await writeFile(
+      replacementRolloutPath(sessionsDir, ROOT_ID, REPLACEMENT_ID),
+      jsonl(replacementEntries),
+    );
+    await writeFile(
+      rolloutPath(sessionsDir, CHILD_ID),
+      jsonl([
+        sessionMeta({
+          id: CHILD_ID,
+          ordinal: 6,
+          forkedFromId: ROOT_ID,
+          historyBase: prefixPosition(REPLACEMENT_ID, replacementEntries),
+        }),
+      ]),
+    );
+
+    const reader = new CodexSessionReader({ sessionsDir });
+    const loaded = await reader.getSession(CHILD_ID, PROJECT_ID);
+    expect(loaded?.summary).toMatchObject({
+      id: CHILD_ID,
+      title: "Root prompt",
+      messageCount: 4,
+      forkedFromSessionId: ROOT_ID,
+    });
+    expect(loaded?.data.session.entries.map((entry) => entry.ordinal)).toEqual([
+      6, 1, 2, 4, 5,
+    ]);
   });
 
   it("retains an in-progress leaf record across incremental reads", async () => {
