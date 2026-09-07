@@ -26,7 +26,10 @@ export function createArtifactRoutes(options: {
       return c.json({ error: "Artifact configuration is being updated" }, 409);
     let config: ArtifactConfig;
     try {
-      config = validateArtifactConfig(await c.req.json());
+      config = validateArtifactConfig(
+        await c.req.json(),
+        options.server.config.expiryHours,
+      );
       const requestHost = new URL(
         `http://${c.req.header("Host") ?? new URL(c.req.url).host}`,
       ).hostname;

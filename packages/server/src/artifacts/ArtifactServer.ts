@@ -12,10 +12,9 @@ import {
   type createLocalResourcePathPolicy,
 } from "../routes/local-resource-policy.js";
 import { openMutableFileSnapshot } from "../routes/mutable-file-cache.js";
-import type { ArtifactConfig } from "./config.js";
+import { validateArtifactConfig, type ArtifactConfig } from "./config.js";
 import { registerArtifactOrigins } from "../middleware/allowed-hosts.js";
 
-const GRANT_LIFETIME_MS = 24 * 60 * 60 * 1000;
 const MAX_GRANTS = 256;
 const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const ARTIFACT_CSP = [
@@ -50,6 +49,7 @@ export class ArtifactServer {
     public config: ArtifactConfig,
     private readonly policy: ReturnType<typeof createLocalResourcePathPolicy>,
   ) {
+    this.config = validateArtifactConfig(config);
     registerArtifactOrigins([config.localOrigin, config.publicOrigin]);
     this.app.use("*", async (c, next) => {
       if (!this.matchesHost(c.req.header("Host") ?? new URL(c.req.url).host))
@@ -173,15 +173,23 @@ export class ArtifactServer {
   }
 
   async configure(config: ArtifactConfig): Promise<void> {
+    config = validateArtifactConfig(config, this.config.expiryHours);
     const previous = this.config;
+    const deliveryChanged =
+      config.port !== previous.port ||
+      config.localOrigin !== previous.localOrigin ||
+      config.publicOrigin !== previous.publicOrigin;
     const wasListening = this.listening;
-    if (config.port !== previous.port || !config.publicOrigin)
+    if (
+      config.port !== previous.port ||
+      (this.listening && !config.publicOrigin)
+    )
       await this.close();
     this.config = config;
     registerArtifactOrigins([config.localOrigin, config.publicOrigin]);
     try {
       if (!this.listening && config.publicOrigin) await this.start();
-      this.grants.clear();
+      if (deliveryChanged) this.grants.clear();
     } catch (error) {
       this.listener = undefined;
       this.config = previous;
@@ -249,7 +257,7 @@ export class ArtifactServer {
       token,
       root: dirname(allowed.file.resolvedPath),
       entry: basename(allowed.file.resolvedPath),
-      expiresAt: now + GRANT_LIFETIME_MS,
+      expiresAt: now + this.config.expiryHours! * 60 * 60 * 1000,
       files: new Set(),
     };
     this.grants.set(token, grant);

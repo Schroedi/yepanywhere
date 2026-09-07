@@ -20,7 +20,7 @@
   align-items: center;
 }
 
-.fields input:not([type="checkbox"]) {
+.fields > label > input:not([type="checkbox"]) {
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
@@ -36,6 +36,12 @@
   margin: -4px 0 4px;
   color: var(--text-secondary);
   font-size: 13px;
+}
+
+.expiry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .fields button {

@@ -30,8 +30,16 @@ dispatch tests, lint, and CSS/console checks pass. The follow-up browser check
 for configuration saving and public-listener enable/disable also passes.
 After the operator's restart, the live public HTTPS demo passed Chromium
 font/module/mock-data/menu/save checks; local same-port serving returned 200.
-Full server type checking is blocked in concurrent Project Queue
-and async-question changes; the artifact files report no type errors.
+The expiry follow-up adds the standard slider with a numeric field, defaults to
+24 hours, and preserves existing links when only expiry changes. Its server
+expiry tests, three Chromium scenarios, and full workspace type checking pass.
+At the expiry checkpoint, full `pnpm format:check` still reports concurrent,
+actively claimed edits in `QuestionAsideCard.tsx`, `blocks/TextBlock.tsx`,
+`blocks/ToolCallRow.tsx`, `hooks/useQuestionAside.ts`, `pages/SessionPage.tsx`,
+`pages/settings/AppearanceSettings.tsx` (all below `packages/client/src`), plus
+`packages/server/src/app.ts` and `packages/shared/src/server-capabilities.ts`.
+Their owners must finish formatting those edits; the artifact files pass their
+scoped formatter check, and full lint is warning-free.
 The existing global CSS around these viewers/settings remains coupled to other
 owners (3–56 shared-rule edges), so this change adds only component CSS Modules.
 Contributing-model: 6-Astra

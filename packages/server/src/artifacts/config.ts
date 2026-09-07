@@ -2,12 +2,25 @@ export interface ArtifactConfig {
   port: number;
   localOrigin?: string;
   publicOrigin?: string;
+  expiryHours?: number;
 }
 
-export function validateArtifactConfig(value: unknown): ArtifactConfig {
+export function validateArtifactConfig(
+  value: unknown,
+  defaultExpiryHours = 24,
+): ArtifactConfig {
   if (!value || typeof value !== "object")
     throw new Error("Artifact configuration must be an object");
   const input = value as Record<string, unknown>;
+  const expiryHours =
+    input.expiryHours === undefined ? defaultExpiryHours : input.expiryHours;
+  if (
+    typeof expiryHours !== "number" ||
+    !Number.isInteger(expiryHours) ||
+    expiryHours < 1 ||
+    expiryHours > 168
+  )
+    throw new Error("Artifact expiry must be whole hours from 1 to 168");
   if (
     typeof input.port !== "number" ||
     !Number.isInteger(input.port) ||
@@ -26,7 +39,7 @@ export function validateArtifactConfig(value: unknown): ArtifactConfig {
   };
   const config = readArtifactConfig(env);
   if (!config) throw new Error("Artifact port must be from 1 to 65535");
-  return config;
+  return { ...config, expiryHours };
 }
 
 export function readArtifactConfig(

@@ -15,6 +15,8 @@
   "artifactPublicHint": "Leave blank to disable hosted access. Use HTTPS and route this hostname to the artifact listener below. Artifact bytes travel outside YA’s encrypted relay connection.",
   "artifactPort": "Artifact listener port",
   "artifactPortHint": "Loopback listener for a tunnel or reverse proxy. Local access can use YA’s existing port with a separate hostname.",
+  "artifactExpiryLabel": "Link expiry (hours)",
+  "artifactExpiryHint": "1–168 hours. Applies to new links; existing links keep their original expiry.",
   "artifactSave": "Save artifact settings",
   "artifactSaved": "Artifact settings saved",
   "artifactSaving": "Saving…",

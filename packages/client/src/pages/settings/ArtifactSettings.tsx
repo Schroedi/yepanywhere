@@ -1,5 +1,6 @@
 import type { ArtifactViewerStatus } from "@yep-anywhere/shared";
-import { useState } from "react";
+import { useId, useState } from "react";
+import { CommittedRangeNumberInput } from "../../components/ui/CommittedRangeNumberInput";
 import { useCurrentSourceRuntime } from "../../contexts/SourceRuntimeContext";
 import { useVersion } from "../../hooks/useVersion";
 import { useI18n } from "../../i18n";
@@ -28,12 +29,14 @@ function ArtifactSettingsForm({
 }) {
   const { t } = useI18n();
   const { transport } = useCurrentSourceRuntime();
+  const expiryId = useId();
   const [localEnabled, setLocalEnabled] = useState(!!status.localOrigin);
   const [localOrigin, setLocalOrigin] = useState(
     status.localOrigin ?? status.defaultLocalOrigin,
   );
   const [publicOrigin, setPublicOrigin] = useState(status.publicOrigin ?? "");
   const [port, setPort] = useState(String(status.port));
+  const [expiryHours, setExpiryHours] = useState(status.expiryHours);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -57,6 +60,7 @@ function ArtifactSettingsForm({
           port: Number(port),
           localOrigin: localEnabled ? localOrigin.trim() : "",
           publicOrigin: publicOrigin.trim(),
+          expiryHours,
         }),
       });
       setMessage(t("artifactSaved"));
@@ -112,6 +116,23 @@ function ArtifactSettingsForm({
           />
         </label>
         <p>{t("artifactPortHint")}</p>
+        {expiryHours !== undefined && (
+          <>
+            <div className={styles.expiry}>
+              <label htmlFor={expiryId}>{t("artifactExpiryLabel")}</label>
+              <CommittedRangeNumberInput
+                id={expiryId}
+                min={1}
+                max={168}
+                step={1}
+                value={expiryHours}
+                ariaLabel={t("artifactExpiryLabel")}
+                onCommit={setExpiryHours}
+              />
+            </div>
+            <p>{t("artifactExpiryHint")}</p>
+          </>
+        )}
         <button type="button" onClick={() => void save()}>
           {t(saving ? "artifactSaving" : "artifactSave")}
         </button>

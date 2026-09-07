@@ -167,7 +167,7 @@ test("loads the bundle through the same port, preserves scripts, and denies YA a
     .toBe(404);
 });
 
-test("shows configurable artifact addresses and port", async ({
+test("saves artifact expiry without revoking links, alongside addresses and port", async ({
   page,
 }, testInfo) => {
   await page.setViewportSize({ width: 1000, height: 600 });
@@ -178,6 +178,42 @@ test("shows configurable artifact addresses and port", async ({
   await expect(
     page.getByLabel("Local artifact address", { exact: true }),
   ).toHaveValue(instance.artifactServer.config.localOrigin!);
+  const original = await instance.artifactServer.createGrant(entry, "local");
+  const slider = page.getByRole("slider", { name: "Link expiry (hours)" });
+  await expect(slider).toHaveValue("24");
+  await slider.focus();
+  await slider.press("Home");
+  await slider.press("ArrowRight");
+  await expect(slider).toHaveValue("2");
+  const numeric = page.getByRole("spinbutton", { name: "Link expiry (hours)" });
+  await expect(numeric).toHaveValue("2");
+  await numeric.fill("12");
+  await numeric.press("Tab");
+  await expect(slider).toHaveValue("12");
+  const saved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/artifacts/config") &&
+      response.request().method() === "PUT",
+  );
+  await page.getByRole("button", { name: "Save artifact settings" }).click();
+  expect((await saved).ok()).toBe(true);
+  await expect.poll(() => instance.artifactServer.config.expiryHours).toBe(12);
+  const persisted = new ServerSettingsService({
+    dataDir: join(directory, "data"),
+  });
+  await persisted.initialize();
+  expect(persisted.getSetting("artifactViewer")?.expiryHours).toBe(12);
+  expect(
+    (
+      await instance.artifactServer.app.request(original.url, {
+        method: "HEAD",
+      })
+    ).status,
+  ).toBe(200);
+  const start = Date.now();
+  const shorter = await instance.artifactServer.createGrant(entry, "local");
+  expect(shorter.expiresAt).toBeGreaterThanOrEqual(start + 12 * 3600_000);
+  expect(shorter.expiresAt).toBeLessThanOrEqual(Date.now() + 12 * 3600_000);
   const artifacts = resolve(
     clientRoot,
     "../../.artifacts/ui-testing/2026-09-07-artifact-viewer",
@@ -226,4 +262,36 @@ test("shows configurable artifact addresses and port", async ({
   await page.getByLabel("Enable local artifact access").uncheck();
   await page.getByRole("button", { name: "Save artifact settings" }).click();
   await expect.poll(() => instance.artifactServer.available).toBe(false);
+});
+
+test("omits expiry controls and writes when older metadata lacks the field", async ({
+  page,
+}) => {
+  await instance.artifactServer.configure({
+    ...instance.artifactServer.config,
+    expiryHours: 48,
+  });
+  await page.route("**/api/version*", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    delete body.artifactViewer.expiryHours;
+    await route.fulfill({ response, json: body });
+  });
+  await page.goto(`${base}/e2e/fixtures/artifact-viewer.html?settings`);
+  await expect(
+    page.getByRole("button", { name: "Save artifact settings" }),
+  ).toBeVisible();
+  await expect(page.getByRole("slider")).toHaveCount(0);
+  await expect(
+    page.getByRole("spinbutton", { name: "Link expiry (hours)" }),
+  ).toHaveCount(0);
+  const write = page.waitForRequest(
+    (request) =>
+      request.url().endsWith("/api/artifacts/config") &&
+      request.method() === "PUT",
+  );
+  await page.getByRole("button", { name: "Save artifact settings" }).click();
+  expect((await write).postDataJSON()).not.toHaveProperty("expiryHours");
+  await expect(page.getByRole("status")).toHaveText("Artifact settings saved");
+  expect(instance.artifactServer.config.expiryHours).toBe(48);
 });

@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { ArtifactServer } from "../../src/artifacts/ArtifactServer.js";
 import { createLocalResourcePathPolicy } from "../../src/routes/local-resource-policy.js";
 import { createApp } from "../setup/create-app.js";
@@ -20,6 +20,7 @@ import { getRequestListener } from "@hono/node-server";
 
 let directory: string;
 afterEach(async () => {
+  vi.restoreAllMocks();
   if (directory) await rm(directory, { recursive: true });
   directory = "";
 });
@@ -166,6 +167,50 @@ it("routes the artifact Host on YA's actual HTTP port before YA APIs", async () 
       listener.close((error) => (error ? reject(error) : resolve())),
     );
     await instance.disposeSessionReaders();
+  }
+});
+
+it("expires each link at its original lifetime after an expiry-only settings change", async () => {
+  directory = await mkdtemp(join(tmpdir(), "ya-artifact-expiry-"));
+  const entry = join(directory, "index.html");
+  await writeFile(entry, "<h1>Expires</h1>");
+  const now = Date.now();
+  const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+  const server = new ArtifactServer(
+    { port: 4402, localOrigin: "http://artifacts.localhost:3400" },
+    createLocalResourcePathPolicy({ allowedPaths: [directory] }),
+  );
+  const original = await server.createGrant(entry, "local");
+  expect(original.expiresAt).toBe(now + 24 * 3600_000);
+  await server.configure({ ...server.config, expiryHours: 2 });
+  const shorter = await server.createGrant(entry, "local");
+  expect(shorter.expiresAt).toBe(now + 2 * 3600_000);
+  clock.mockReturnValue(shorter.expiresAt - 1);
+  expect(
+    (await server.app.request(shorter.url, { method: "HEAD" })).status,
+  ).toBe(200);
+  clock.mockReturnValue(shorter.expiresAt);
+  expect((await server.app.request(shorter.url)).status).toBe(404);
+  expect(
+    (await server.app.request(original.url, { method: "HEAD" })).status,
+  ).toBe(200);
+  await server.configure({ ...server.config, port: 4403 });
+  expect((await server.app.request(original.url)).status).toBe(404);
+  await server.close();
+});
+
+it("validates whole expiry hours and preserves the current setting for legacy writes", () => {
+  expect(validateArtifactConfig({ port: 4402 }).expiryHours).toBe(24);
+  expect(validateArtifactConfig({ port: 4402 }, 48).expiryHours).toBe(48);
+  for (const expiryHours of [1, 168]) {
+    expect(
+      validateArtifactConfig({ port: 4402, expiryHours }).expiryHours,
+    ).toBe(expiryHours);
+  }
+  for (const expiryHours of [0, 169, 1.5, "24", null, NaN]) {
+    expect(() => validateArtifactConfig({ port: 4402, expiryHours })).toThrow(
+      "whole hours",
+    );
   }
 });
 

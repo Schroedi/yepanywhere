@@ -309,7 +309,7 @@ install DNS records or change the tunnel configuration.
 persisted settings; `0` overrides them and disables serving. Positive ports
 must be 1–65535. Origins must be bare HTTP(S) origins with separate hostnames;
 public origins require HTTPS. The public listener starts only when a public
-origin is configured. Configuration changes revoke outstanding grants.
+origin is configured. Address or listener-port changes revoke outstanding grants.
 Failed listener binding or settings persistence restores the previous
 configuration; a failed startup is reported rather than quietly changing ports.
 
@@ -373,12 +373,22 @@ legacy origin allowance. Native named Tauri origins keep their existing rules.
 Admission authorizes the selected HTML file's containing directory, subject to
 the current file-access allow-set on every read. Relative traversal, hidden
 path components, and symlinks escaping that directory are rejected. A random
-256-bit bearer URL permits reads for 24 hours or until revocation/reconfiguration;
+256-bit bearer URL permits reads for the configured lifetime or until revocation
+or delivery reconfiguration;
 the application can disclose that URL, so it is not a secret from the artifact.
 Limits are 256 live grants, 1,024 distinct files per grant, and 64 MiB per file.
 Responses are streamed, range-capable, and marked `no-store`. Closing/stopping
 the preview revokes its grant; offline revocation falls back to expiry. This
 does not erase files already read or artifact-origin local storage.
+
+The saved **Link expiry (hours)** slider and paired numeric field accept whole
+hours from 1 through 168, defaulting to 24 hours. The lifetime is fixed when
+each grant is created.
+Changing only expiry preserves existing grants and their original deadlines;
+it affects newly created links. Saving unchanged settings likewise preserves
+grants. An older client that omits `expiryHours` preserves the saved lifetime.
+Server restart still discards all grants. Manual inventory/revocation controls
+remain deferred in [the revocation UI gap](../gaps/artifact-grant-revocation-ui.md).
 
 The frame remains in the existing viewer owner while parked; no cooperative
 suspension or CPU/memory containment is claimed. Dedicated HTML viewport,
@@ -393,6 +403,12 @@ reviewed optional-feature corpus was v0.8.0 (2026-08-31) and v0.8.1
 source/scriptless viewing and never POST or DELETE grants. New servers expose
 `version.artifactViewer` configuration metadata even while disabled; its
 presence independently gates PUT `/api/artifacts/config` and the settings UI.
+The optional `version.artifactViewer.expiryHours` field additionally gates
+the expiry slider and its write field. Earlier artifact-capable servers omit
+it, so clients retain their existing settings UI and fixed 24-hour expiry.
+The same v0.8.0/v0.8.1 corpus lacks artifact configuration entirely; the
+maintainer approved this additive metadata gate on 2026-09-07. The existing
+`artifact-viewer` capability is not broadened to imply configurable expiry.
 Public shares never request private artifact grants. Existing capability
 meanings and transport formats do not change.
 
