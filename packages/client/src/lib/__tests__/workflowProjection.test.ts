@@ -12,6 +12,7 @@ import {
   simulatedPublish,
 } from "../../../test-fixtures/workflow";
 import { buildSessionDetailRenderItems } from "../sessionDetail/renderItems";
+import { readWorkflowSchema } from "../transcriptProjection/workflowTags";
 
 describe("workflow tag projection", () => {
   it.each(["text", "command", "settled"] as const)(
@@ -436,8 +437,24 @@ describe("workflow tag projection", () => {
       containsTags: true,
       expected: ["[build]", "[build][extra]", "[INFO]", "[workflow][end]"],
     },
-    { containsTags: true, whitelist: ["[build]"], expected: ["[build]"] },
-    { containsTags: true, whitelist: [], expected: [] },
+    {
+      containsTags: true,
+      whitelist: ["[build]"],
+      expected: ["[build]", "[build][extra]", "[INFO]", "[workflow][end]"],
+    },
+    {
+      containsTags: true,
+      whitelist: [],
+      expected: ["[build]", "[build][extra]", "[INFO]", "[workflow][end]"],
+    },
+    {
+      containsTags: true,
+      closed: true,
+      whitelist: ["[build]"],
+      expected: ["[build]"],
+    },
+    { containsTags: true, closed: true, whitelist: [], expected: [] },
+    { containsTags: true, closed: true, expected: [] },
     { containsTags: false, expected: [] },
   ])(
     "honors tool policy $containsTags / $whitelist",
@@ -475,6 +492,127 @@ describe("workflow tag projection", () => {
             ?.title,
         ).toBe("Publish YA › Verify the source change › build");
       }
+    },
+  );
+
+  it("keeps closed descendants and additive extras relative to each captured stage", () => {
+    const schema = {
+      type: "tagged-stages/1",
+      id: "closed/1",
+      key: "work",
+      title: "Work",
+      toolOutput: { containsTags: true, closed: true, whitelist: ["[INFO]"] },
+      stages: [
+        {
+          key: "client",
+          children: [
+            { key: "build", children: [{ key: "types" }] },
+            { key: "copy" },
+            { key: "open", toolOutput: { containsTags: true } },
+            { key: "off", toolOutput: { closed: true, whitelist: ["[INFO]"] } },
+          ],
+        },
+      ],
+    };
+    const messages = [
+      assistant(
+        "activate",
+        "@@visualization-schema/1 /closed.json\n[workflow][start] id=c schema=closed/1\n[work][client] Start.",
+      ),
+      call("client"),
+      assistant("build", "[work][client][build] Nested."),
+      call("build"),
+      assistant("copy", "[work][client][copy] Advance."),
+      result(
+        "client",
+        "[build] Parent.\n[build][types] Child.\n[build][other] Unknown.\n[INFO] Extra.\n[copy] Copy.",
+      ),
+      result(
+        "build",
+        "[types] Child.\n[build][types] Wrong base.\n[copy] Sibling.\n[INFO] Extra.",
+      ),
+      assistant("open", "[work][client][open] Replacement."),
+      call("open"),
+      result("open", "[unknown] Open."),
+      assistant("off", "[work][client][off] Disabled."),
+      call("off"),
+      result("off", "[INFO] Ordinary."),
+    ];
+    const compile = (input: Message[]) =>
+      buildSessionDetailRenderItems({
+        messages: input,
+        workflowTagsEnabled: true,
+        workflowSchemaFiles: { "/closed.json": JSON.stringify(schema) },
+      });
+    const items = compile(messages);
+    const paths = (id: string) =>
+      items
+        .find((item) => item.id === id)
+        ?.workflow?.markers.map((marker) => marker.path);
+    expect(paths("client")).toEqual([
+      "[work][client][build]",
+      "[work][client][build][types]",
+      "[work][client][INFO]",
+      "[work][client][copy]",
+    ]);
+    expect(paths("build")).toEqual([
+      "[work][client][build][types]",
+      "[work][client][build][INFO]",
+    ]);
+    expect(paths("open")).toEqual(["[work][client][open][unknown]"]);
+    expect(paths("off")).toEqual([]);
+    expect(compile(JSON.parse(JSON.stringify(messages)))).toEqual(items);
+    expect(items.find((item) => item.id === "client")).toMatchObject({
+      toolResult: {
+        content: expect.stringContaining("[build][other] Unknown."),
+      },
+    });
+  });
+
+  it("normalizes presentation defaults without inheriting or reordering them", () => {
+    const schema = {
+      ...publishSchema,
+      presentation: { collect: true, order: -1 },
+      stages: [
+        { key: "A" },
+        { key: "B", presentation: { collect: false, order: 0 } },
+      ],
+    };
+    const parsed = readWorkflowSchema(JSON.stringify(schema), "/schema.json");
+    expect(parsed?.stages.get("[publish]")?.presentation).toEqual({
+      collect: true,
+      order: -1,
+    });
+    expect(parsed?.stages.get("[publish][A]")?.presentation).toEqual({
+      collect: false,
+      order: 0,
+    });
+    expect(parsed?.stages.get("[publish][B]")?.presentation).toEqual({
+      collect: false,
+      order: 0,
+    });
+    expect([...parsed!.stages.keys()]).toEqual([
+      "[publish]",
+      "[publish][A]",
+      "[publish][B]",
+    ]);
+  });
+
+  it.each([
+    { toolOutput: { containsTags: true, closed: "true" } },
+    { presentation: { collect: "true" } },
+    { presentation: { order: null } },
+    { presentation: { order: "0" } },
+    { stages: [{ key: "A", presentation: { collect: 1 } }] },
+  ])(
+    "rejects malformed optional fields in $toolOutput / $presentation / $stages",
+    (fields) => {
+      expect(
+        readWorkflowSchema(
+          JSON.stringify({ ...publishSchema, ...fields }),
+          "/schema.json",
+        ),
+      ).toBeUndefined();
     },
   );
 

@@ -226,11 +226,9 @@ export function simulatedNestedTool(
             ...stage,
             toolOutput: {
               containsTags: mode !== "self-announced",
+              closed: true,
               view: mode === "matching-lines" ? "matching-lines" : "spans",
-              whitelist:
-                mode === "matching-lines"
-                  ? ["[inherited]"]
-                  : ["[build][types]", "[copy]"],
+              whitelist: mode === "matching-lines" ? ["[inherited]"] : [],
             },
           }
         : stage,
@@ -239,7 +237,7 @@ export function simulatedNestedTool(
   const output =
     mode === "inherited"
       ? ""
-      : '[INFO] Before the script declaration.\n[copy] Before activation.\n@@visualization-schema/1 [["build","types"],"copy"]\n';
+      : '[INFO] Before the script declaration.\n[unlisted] Before activation.\n@@visualization-schema/1 [["build","types"],"copy"]\n';
   return [
     {
       id: "nested-user",

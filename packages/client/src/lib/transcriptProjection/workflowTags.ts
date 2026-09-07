@@ -24,6 +24,7 @@ export interface WorkflowAnnotation {
 
 interface ToolPolicy {
   containsTags: boolean;
+  closed?: boolean;
   view?: "spans" | "matching-lines";
   whitelist?: string[];
 }
@@ -31,6 +32,7 @@ interface ToolPolicy {
 interface Stage {
   title: string;
   policy: ToolPolicy;
+  presentation: { collect: boolean; order: number };
 }
 
 interface Schema {
@@ -48,8 +50,9 @@ interface Cursor {
 }
 
 const ACTIVATION = "@@visualization-schema/1 ";
-const NO_TAGS: ToolPolicy = { containsTags: false };
+const NO_TAGS: ToolPolicy = { containsTags: false, closed: false };
 const INLINE_POLICY: ToolPolicy = { containsTags: true, view: "spans" };
+const SEPARATE: Stage["presentation"] = { collect: false, order: 0 };
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -75,7 +78,13 @@ function parseJson(text: string): unknown {
 
 function policy(value: unknown, inherited: ToolPolicy): ToolPolicy | undefined {
   if (value === undefined) return inherited;
-  if (!record(value) || typeof value.containsTags !== "boolean") return;
+  if (
+    !record(value) ||
+    (value.containsTags !== undefined &&
+      typeof value.containsTags !== "boolean") ||
+    (value.closed !== undefined && typeof value.closed !== "boolean")
+  )
+    return;
   if (
     value.view !== undefined &&
     value.view !== "spans" &&
@@ -91,10 +100,23 @@ function policy(value: unknown, inherited: ToolPolicy): ToolPolicy | undefined {
   )
     return;
   return {
-    containsTags: value.containsTags,
+    containsTags: value.containsTags ?? false,
+    closed: value.closed ?? false,
     view: value.view,
     whitelist: value.whitelist as string[] | undefined,
   };
+}
+
+function presentation(value: unknown): Stage["presentation"] | undefined {
+  if (value === undefined) return SEPARATE;
+  if (
+    !record(value) ||
+    (value.collect !== undefined && typeof value.collect !== "boolean") ||
+    (value.order !== undefined &&
+      (typeof value.order !== "number" || !Number.isFinite(value.order)))
+  )
+    return;
+  return { collect: value.collect ?? false, order: value.order ?? 0 };
 }
 
 function parseSchema(value: unknown): Schema | undefined {
@@ -111,10 +133,15 @@ function parseSchema(value: unknown): Schema | undefined {
   )
     return;
   const rootPolicy = policy(value.toolOutput, NO_TAGS);
-  if (!rootPolicy) return;
+  const rootPresentation = presentation(value.presentation);
+  if (!rootPolicy || !rootPresentation) return;
   const stages = new Map<string, Stage>();
   const root = `[${value.key}]`;
-  stages.set(root, { title: value.title, policy: rootPolicy });
+  stages.set(root, {
+    title: value.title,
+    policy: rootPolicy,
+    presentation: rootPresentation,
+  });
   function children(
     values: unknown[],
     parent: string,
@@ -132,10 +159,18 @@ function parseSchema(value: unknown): Schema | undefined {
         return false;
       const path = `${parent}[${child.key}]`;
       const childPolicy = policy(child.toolOutput, inherited.policy);
-      if (stages.has(path) || stages.size >= 512 || !childPolicy) return false;
+      const childPresentation = presentation(child.presentation);
+      if (
+        stages.has(path) ||
+        stages.size >= 512 ||
+        !childPolicy ||
+        !childPresentation
+      )
+        return false;
       const stage = {
         title: `${inherited.title} › ${child.title ?? child.key}`,
         policy: childPolicy,
+        presentation: childPresentation,
       };
       stages.set(path, stage);
       if (
@@ -210,6 +245,7 @@ function stage(cursor: Cursor): Stage {
     cursor.schema.stages.get(cursor.path) ?? {
       title: cursor.path.replace(/\]\[/g, " › ").replace(/^\[|\]$/g, ""),
       policy: cursor.schema.inline ? INLINE_POLICY : NO_TAGS,
+      presentation: SEPARATE,
     }
   );
 }
@@ -231,7 +267,9 @@ function matchesTool(path: string, cursor: Cursor): boolean {
   const effective = stage(cursor).policy;
   return (
     effective.containsTags &&
-    (effective.whitelist === undefined || effective.whitelist.includes(path))
+    (!effective.closed ||
+      cursor.schema.stages.has(`${cursor.path}${path}`) ||
+      effective.whitelist?.includes(path) === true)
   );
 }
 

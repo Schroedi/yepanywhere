@@ -68,9 +68,14 @@ No provider messages, turns, commands, or completion events are synthesized.
 - Tool calls capture their parent stage and effective output policy when
   launched. Results are interpreted in source-message arrival order, so an
   agent's later stage does not adopt an earlier call's output. Enabled tool
-  tags are relative to that captured parent; exact whitelists, absent versus
-  empty whitelists, policy inheritance, `spans`, and `matching-lines` follow
-  the producer convention below. Tool lifecycle-looking tags are only data.
+  tags are relative to that captured parent. `closed: true` admits declared
+  descendants (including intermediate paths) plus exact whitelist entries;
+  the whitelist is always additive. Open matching admits every valid path,
+  with or without a whitelist. An empty closed set matches nothing. A child
+  either inherits the whole tool policy or replaces it, with omitted Boolean
+  fields defaulting false. Descendants are resolved at the captured calling
+  stage, not the ancestor that declared the policy. Tool lifecycle-looking
+  tags are only data. Both `spans` and `matching-lines` use the same matching.
 - A script's own inline activation is independent of `containsTags`. When
   the call already has a workflow context, its new whitelist applies locally
   beneath that captured parent, preserving the parent's declared title. It
@@ -107,9 +112,12 @@ skill-metadata activation, whole-history prefix snapshots, correlated async
 wait handles, and a collapsible/reordered outline remain future work.
 The direct skill-file metadata requirement is tracked in
 [skill metadata activation](../gaps/workflow-skill-metadata-activation.md).
-The shared producer specification now defines `closed` matching and additive
-whitelists; migration of this renderer's older restrictive-whitelist policy is
-pending. Collecting presentation remains unimplemented.
+The single `tagged-stages/1` prototype now implements `closed` matching and
+additive whitelists without a version bump. Schema loading also validates and
+retains `presentation.collect` (Boolean, default false) and
+`presentation.order` (finite number, default zero). These fields do not inherit
+and do not reorder the current linear display. A collecting renderer remains
+unimplemented; its contract is defined by the shared producer specification.
 
 ## Design decisions
 
@@ -273,8 +281,9 @@ titles expand shorthand keys, with the key itself as fallback. Following agent
 activity belongs to that path until the next recognized prefix.
 
 The schema can describe substeps inside one tool invocation and explicitly
-enable tool-output tags. Without a whitelist, every start-of-line bracketed
-path matches; with one, only the exact listed paths match. Tool paths inherit
+enable tool-output tags. Open matching accepts every start-of-line bracketed
+path. Closed matching accepts declared descendants plus exact whitelist
+entries; an omitted or empty whitelist adds nothing. Tool paths inherit
 the calling stage as their parent. A tool view can either show matching lines
 only in its compact presentation or split the full output into spans ending
 at the next match. Both retain the original output in detail view.
@@ -324,10 +333,14 @@ activation. The original producer proposal calls this the v0 prototype.
 A later collapsible linear outline would retain segment chronology:
 `[A]`, `[B]`, `[A]` still produces three segments.
 
-A later view can collect both A segments under one A node, retaining their
-original positions as source links and preserving chronology within that
-group. This is a separate projection from the linear outline; the canonical
-transcript stays available. It can use the same schema and emitted paths.
+A later collecting view gathers both A segments only with `collect: true` and
+matching parent/producer context. `collect: false` preserves separate
+instances. Siblings sort by `order` (omitted equals zero), then declaration
+order; undeclared zero-order paths follow declared zero-order siblings in
+first-appearance order. Separate parents and distinct tool invocations retain
+their boundaries. Source links and within-stage chronology survive, and the
+original linear display stays available. The same prototype schema and paths
+serve both views; adding these fields does not implement that renderer.
 
 ## Candidate richer declaration and updates
 
@@ -471,7 +484,7 @@ Parse only designated structured output envelopes, including explicitly
 selected producer results. Quoted examples, file contents, logs, and arbitrary
 nested JSON are not independent workflow declarations. Enabled tool-output
 tags use their declared matching policy, including unrestricted start-of-line
-matching when no whitelist is present. Unknown envelope versions or
+matching when `closed` is false or omitted. Unknown envelope versions or
 invalid hierarchy retain their ordinary readable output. A known generic
 envelope with an unknown domain schema can still show its basic outline.
 
