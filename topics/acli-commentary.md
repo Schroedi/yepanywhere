@@ -59,6 +59,12 @@ shaped captures retain a common starting edge. Automatic gallery grouping is
 only a [low-priority proposal](acli-commentary.sketches.md), not required for
 this handoff.
 
+Workflow tag highlighting currently classifies original output before this
+commentary projection. Tags inside commentary JSON are not recognized, and
+mixing tagged raw progress with stripped metadata can leave stale display
+offsets or re-expose metadata. This [composition defect](../gaps/acli-workflow-composition.md)
+must be resolved before advertising a combined tagged-commentary transport.
+
 Classification happens before publishing a record. Once an invocation has
 published ordinary output without a declaration, it keeps that presentation
 for the mounted invocation even if a banner arrives later. This avoids
