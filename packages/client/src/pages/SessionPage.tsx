@@ -905,6 +905,8 @@ function SessionPageContent({
     onSaved: () => {
       void fetchNewMessages();
     },
+    sendToMain: (text) =>
+      handleSendRef.current(text, undefined, { preserveComposer: true }),
   });
   const [forkSummaryDraft, setForkSummaryDraft] = useState<{
     sourceMessageId: string;
@@ -2283,9 +2285,10 @@ function SessionPageContent({
       localControl?: boolean;
     } = {},
   ): Promise<boolean> => {
-    const prepared: PreparedComposerSubmission | null = options.localControl
-      ? { outgoingText: text }
-      : prepareComposerSubmission(text);
+    const prepared: PreparedComposerSubmission | null =
+      options.localControl || options.preserveComposer
+        ? { outgoingText: text }
+        : prepareComposerSubmission(text);
     if (!prepared) {
       return false;
     }
@@ -5895,6 +5898,9 @@ function SessionPageContent({
                   void questionAside.save();
                 }}
                 onDiscard={questionAside.discard}
+                onSteer={() => {
+                  void questionAside.steer();
+                }}
               />
             )}
 

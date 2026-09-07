@@ -55,6 +55,13 @@ existing delivery remains unchanged until enabled.
   stops unfinished child work; it never stops main. Saving already in progress
   cannot be dismissed or submitted twice. Failure is visible and does not
   automatically retry an operation whose acceptance may be uncertain.
+- A failed card offers **Steer** to send the original question verbatim as an
+  ordinary main-session message. It uses normal steering (or resumes main if
+  idle), without starting another fork or including the aside instructions,
+  answer, or error. A separate composer draft, quoted context, correction, and
+  attachments stay untouched and are not included. The card closes only after
+  send succeeds; on failure it remains available. Steer and Discard are disabled
+  while sending. The card never automatically resubmits a failed steer.
 
 Save preserves question and assistant text verbatim, with a separate provenance
 message naming the child YA session and snapshot-request time. Main may have

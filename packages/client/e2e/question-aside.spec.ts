@@ -29,6 +29,8 @@ test("question cards use existing forks, keep main typing, and save on empty", a
   let nativeSaves = 0;
   let ordinarySaves = 0;
   let archived = false;
+  let failStartup = false;
+  const steers: Record<string, unknown>[] = [];
   let publishState: (() => void) | undefined;
   const deferredMessages = [
     {
@@ -125,6 +127,14 @@ test("question cards use existing forks, keep main typing, and save on empty", a
     async (route) => {
       if (route.request().method() === "POST") {
         questionPrompt = route.request().postDataJSON().message;
+        if (failStartup)
+          return route.fulfill({
+            status: 503,
+            json: {
+              error:
+                "Provider session startup did not settle: Provider session completed before reporting a session id",
+            },
+          });
         return route.fulfill({
           json: {
             processId: "aside-child-process",
@@ -163,6 +173,12 @@ test("question cards use existing forks, keep main typing, and save on empty", a
       });
     },
   );
+  await page.route(`**/api/sessions/${sessionId}/messages`, async (route) => {
+    steers.push(route.request().postDataJSON());
+    await route.fulfill({
+      json: { queued: true, serverTimestamp: Date.now() },
+    });
+  });
   await page.route(`**/api/sessions/${childId}/metadata`, async (route) => {
     archived = route.request().postDataJSON().archived === true;
     await route.fulfill({ json: { updated: true } });
@@ -310,8 +326,39 @@ test("question cards use existing forks, keep main typing, and save on empty", a
           .getByRole("button", { name: "Save Q+A", exact: true })
           .click();
       await expect(card).toHaveCount(0);
+      failStartup = true;
+      const question = "  Why did the question fail?";
+      await composer.fill(question);
+      if (native) await composer.press("Enter");
+      else
+        await page
+          .locator(".message-input-wrapper")
+          .getByRole("button", { name: "Quick answer", exact: true })
+          .click();
+      await expect(card.getByRole("alert")).toContainText(
+        "Provider session startup did not settle",
+      );
+      await expect(card.getByRole("button", { name: "Save Q+A" })).toHaveCount(
+        0,
+      );
+      const steer = card.getByRole("button", { name: "Steer", exact: true });
+      await expect(steer).toBeEnabled();
+      await composer.fill("Keep my separate main draft");
+      if (captureDir)
+        await page.screenshot({
+          path: join(captureDir, `${viewport.name}-failed.png`),
+        });
+      await steer.click();
+      await expect(card).toHaveCount(0);
+      await expect(composer).toHaveValue("Keep my separate main draft");
+      expect(steers.at(-1)?.message).toBe(question);
+      expect(steers.at(-1)?.attachments).toBeUndefined();
+      expect(steers.at(-1)?.deferred).toBeUndefined();
+      await composer.fill("");
+      failStartup = false;
     }
-    expect(forks).toBe(2);
+    expect(forks).toBe(4);
+    expect(steers).toHaveLength(2);
     expect(nativeSaves).toBe(1);
     expect(ordinarySaves).toBe(1);
     busy = false;

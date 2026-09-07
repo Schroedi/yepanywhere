@@ -51,6 +51,7 @@ export function useQuestionAside(options: {
   nativeContextRoute: boolean;
   showToast: (text: string, kind?: "success" | "error" | "info") => void;
   onSaved: () => void;
+  sendToMain: (question: string) => Promise<boolean>;
 }) {
   const { t } = useI18n();
   const [aside, setAside] = useState<QuestionAside | null>(null);
@@ -67,7 +68,8 @@ export function useQuestionAside(options: {
 
   const discard = useCallback(() => {
     const abandoned = current.current;
-    if (abandoned?.status === "saving") return;
+    if (abandoned?.status === "saving" || abandoned?.status === "sending")
+      return;
     clearTimeout(timer.current);
     update(null);
     resumePoll.current = null;
@@ -267,5 +269,21 @@ export function useQuestionAside(options: {
     }
   }, [t, update]);
 
-  return { aside, ask, save, discard };
+  const steer = useCallback(async () => {
+    const value = current.current;
+    if (value?.status !== "failed") return;
+    update({ ...value, status: "sending" });
+    try {
+      const sent = await latest.current.sendToMain(value.question);
+      if (current.current?.id === value.id) update(sent ? null : value);
+    } catch (error) {
+      if (current.current?.id === value.id)
+        update({
+          ...value,
+          error: t("sessionSendFailed", { message: String(error) }),
+        });
+    }
+  }, [t, update]);
+
+  return { aside, ask, save, discard, steer };
 }

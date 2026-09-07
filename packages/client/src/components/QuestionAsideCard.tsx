@@ -5,10 +5,11 @@ import styles from "./QuestionAsideCard.module.css";
 export interface QuestionAsideCardProps {
   question: string;
   answers: readonly string[];
-  status: "starting" | "running" | "complete" | "failed" | "saving";
+  status: "starting" | "running" | "complete" | "failed" | "saving" | "sending";
   error?: string;
   onSave: () => void;
   onDiscard: () => void;
+  onSteer: () => void;
 }
 
 export function QuestionAsideHint({ mobile }: { mobile: boolean }) {
@@ -27,12 +28,15 @@ export function QuestionAsideCard({
   error,
   onSave,
   onDiscard,
+  onSteer,
 }: QuestionAsideCardProps) {
   const { t } = useI18n();
   const [helpOpen, setHelpOpen] = useState(false);
   const helpId = useId();
   const complete = status === "complete" && answers.length > 0;
   const saving = status === "saving";
+  const sending = status === "sending";
+  const showSteer = status === "failed" || sending;
   return (
     <section
       className={styles.card}
@@ -68,22 +72,38 @@ export function QuestionAsideCard({
         )}
       </div>
       <footer className={styles.actions}>
-        <button
-          className={styles.save}
-          type="button"
-          aria-label={t(saving ? "questionAsideSaving" : "questionAsideSave")}
-          disabled={!complete || saving}
-          onClick={onSave}
-          title={t("questionAsideSaveShortcut")}
-        >
-          {t(saving ? "questionAsideSaving" : "questionAsideSave")}
-        </button>
-        <kbd title={t("questionAsideSaveShortcut")}>↵</kbd>
+        {showSteer ? (
+          <button
+            className={styles.save}
+            type="button"
+            disabled={sending}
+            onClick={onSteer}
+            title={t("toolbarShortcutSteerCurrentTurn")}
+          >
+            {t(sending ? "asyncQuestionSending" : "toolbarSteerShortLabel")}
+          </button>
+        ) : (
+          <>
+            <button
+              className={styles.save}
+              type="button"
+              aria-label={t(
+                saving ? "questionAsideSaving" : "questionAsideSave",
+              )}
+              disabled={!complete || saving}
+              onClick={onSave}
+              title={t("questionAsideSaveShortcut")}
+            >
+              {t(saving ? "questionAsideSaving" : "questionAsideSave")}
+            </button>
+            <kbd title={t("questionAsideSaveShortcut")}>↵</kbd>
+          </>
+        )}
         <button
           className={styles.discard}
           type="button"
           aria-label={t("questionAsideDiscard")}
-          disabled={saving}
+          disabled={saving || sending}
           onClick={onDiscard}
         >
           {t("questionAsideDiscard")}

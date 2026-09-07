@@ -83,6 +83,7 @@ describe("one-shot question aside", () => {
             nativeContextRoute,
             showToast,
             onSaved: vi.fn(),
+            sendToMain: vi.fn(),
           }),
         { wrapper: I18nProvider },
       );
@@ -135,6 +136,67 @@ describe("one-shot question aside", () => {
     },
   );
 
+  it("steers a failed question once, preserves it on send failure, and closes on success", async () => {
+    const clone = vi
+      .spyOn(api, "cloneSession")
+      .mockRejectedValue(new Error("Provider session startup did not settle"));
+    let finishSend!: (sent: boolean) => void;
+    const sendToMain = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishSend = resolve;
+        }),
+    );
+    const { result } = renderHook(
+      () =>
+        useQuestionAside({
+          projectId: "project",
+          sessionId: "parent",
+          sourceApi: { getSession: vi.fn(), getSessionMetadata: vi.fn() },
+          provider: "codex",
+          model: undefined,
+          executor: undefined,
+          nativeContextRoute: false,
+          showToast: vi.fn(),
+          onSaved: vi.fn(),
+          sendToMain,
+        }),
+      { wrapper: I18nProvider },
+    );
+    await act(async () => {
+      result.current.ask("  Why did this fail?");
+    });
+    expect(result.current.aside?.status).toBe("failed");
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.steer();
+      void result.current.steer();
+      result.current.discard();
+    });
+    expect(result.current.aside?.status).toBe("sending");
+    expect(sendToMain).toHaveBeenCalledTimes(1);
+    expect(sendToMain).toHaveBeenCalledWith("  Why did this fail?");
+    await act(async () => {
+      finishSend(false);
+      await pending;
+    });
+    expect(result.current.aside?.status).toBe("failed");
+    expect(result.current.aside?.question).toBe("  Why did this fail?");
+    sendToMain.mockRejectedValueOnce(new Error("Network unavailable"));
+    await act(async () => {
+      await result.current.steer();
+    });
+    expect(result.current.aside?.status).toBe("failed");
+    expect(result.current.aside?.error).toContain("Network unavailable");
+    sendToMain.mockResolvedValueOnce(true);
+    await act(async () => {
+      await result.current.steer();
+    });
+    expect(result.current.aside).toBeNull();
+    expect(sendToMain).toHaveBeenCalledTimes(3);
+    expect(clone).toHaveBeenCalledTimes(1);
+  });
+
   it("cancels a dismissed child even when its launch finishes afterward", async () => {
     vi.spyOn(api, "cloneSession").mockResolvedValue({
       sessionId: "child",
@@ -172,6 +234,7 @@ describe("one-shot question aside", () => {
           nativeContextRoute: false,
           showToast: vi.fn(),
           onSaved: vi.fn(),
+          sendToMain: vi.fn(),
         }),
       { wrapper: I18nProvider },
     );
