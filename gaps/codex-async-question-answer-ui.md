@@ -220,15 +220,16 @@ and focus movement during submission.
 The small toolbar rectangle uses an outlined speech bubble containing `?`,
 muted warm amber (`#D8B477` in the mockup), a faint amber fill, and a subdued
 border. It should be noticeable but ignorable: no pulse, warning banner, or
-focus theft. With room, show `3 unaddressed · latest 1 turn ago`; the age is
+focus theft. With room, show `3 questions · latest 1 turn ago`; the age is
 that of the most recent question still counted. Drop the age first, then the
-word `unaddressed`, retaining the icon and count at compact widths. Preserve
+word `questions`, retaining the icon and count at compact widths. Preserve
 an informative accessible label regardless of visible text. Keep the indicator
 in the persistent composer toolbar when the input itself is compact/collapsed;
 composer expansion is not a prerequisite for discovering questions. Available
 width controls label detail; reminder aging controls visibility.
 
-The preview menu opens upward and may temporarily cover the composer without
+Use `Questions` as the menu heading and quiet button label. The preview menu
+opens upward and may temporarily cover the composer without
 altering its draft. It can be wider than the button, aligned to its right edge
 and capped by the viewport. List oldest questions at the top and newest at the
 bottom, nearest the trigger. Each row shows a muted bare turn-age number in
@@ -262,7 +263,7 @@ aged-out or dismissed questions as new again. Aging only changes reminder
 visibility, never answered state or transcript content.
 
 Exact decay thresholds, what counts as a turn or meaningful composer typing,
-the quiet button's final label, shortcut, seen detection, and state persistence
+shortcut, seen detection, and state persistence
 across reloads/viewers remain implementation decisions. Avoid retiring a
 control while its menu is open or focused. Verify both decay stages, arrival
 of a new question, explicit dismissal and recovery, chronological ordering,
