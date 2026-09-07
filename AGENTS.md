@@ -278,6 +278,9 @@ meaning or older capable fallback changes. Pause for maintainer approval. An
 originating request that already states and approves those decisions satisfies
 the pause; do not ask twice.
 
+Use an available structured async or blocking question form for this approval.
+Use plain text only when neither question form is available.
+
 Never expand an already-advertised capability to cover a contract older servers
 do not provide. A new client must not call a new endpoint until its gate is
 known present. Passing a support horizon permits human review only; it never
