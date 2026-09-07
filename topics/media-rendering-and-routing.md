@@ -259,8 +259,11 @@ every byte source is a file:
 
 Markdown image references remain compact prose while tool images remain
 ordered activity rows with tool identity and status. Their disclosure control
-size, filename/suffix treatment, preview border/background/containment, and
-full-screen viewer behavior are aligned without flattening those two roles.
+uses the same compact, status-colored gutter `+`/`−` as Ran and other tool
+rows. Each stored image owns its own expansion state; an unavailable image
+does not show an expand control. Filename/suffix treatment, preview
+border/background/containment, and full-screen viewer behavior remain aligned
+with Markdown image references without flattening those two roles.
 
 ### Composer and new-session
 

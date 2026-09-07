@@ -270,8 +270,11 @@ for (const viewport of [
     expect(
       await page.locator("[data-workflow-boundary]").allTextContents(),
     ).toEqual(before);
-    await tool.getByText("Original output", { exact: true }).click();
-    await expect(tool.locator("details[open]")).toContainText(
+    await tool.getByRole("button", { name: "Expand original output" }).click();
+    await expect(
+      tool.getByRole("button", { name: "Collapse original output" }),
+    ).toHaveText("−");
+    await expect(tool.locator("[data-workflow-original]")).toContainText(
       "[build][extra] Not whitelisted.",
     );
     for (const mode of [
@@ -321,8 +324,10 @@ for (const viewport of [
         });
       } else if (mode === "matching-lines") {
         await expect(preview).not.toContainText("Before activation.");
-        await script.getByText("Original output", { exact: true }).click();
-        await expect(script.locator("details[open]")).toContainText(
+        await script
+          .getByRole("button", { name: "Expand original output" })
+          .click();
+        await expect(script.locator("[data-workflow-original]")).toContainText(
           "Before activation.",
         );
       }

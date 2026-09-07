@@ -1,10 +1,11 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ReactNode, useId, useState } from "react";
 import { useI18n } from "../i18n";
 import type {
   WorkflowAnnotation,
   WorkflowMarker,
 } from "../lib/transcriptProjection/workflowTags";
 import styles from "./WorkflowOutput.module.css";
+import { TimelineDisclosure } from "./TimelineDisclosure";
 
 function Boundary({ marker }: { marker: WorkflowMarker }) {
   const { t } = useI18n();
@@ -76,6 +77,8 @@ export function WorkflowOutput({
   original?: ReactNode;
 }) {
   const { t } = useI18n();
+  const [originalExpanded, setOriginalExpanded] = useState(false);
+  const originalId = useId();
   const content: ReactNode[] = [];
   let markerIndex = 0;
   for (const range of workflow.visibleRanges ?? [
@@ -98,12 +101,25 @@ export function WorkflowOutput({
     content.push(text.slice(offset, range.end));
   }
   return (
-    <div className={styles.root} data-workflow-output="true">
+    <div className={`${styles.root} timeline-item`} data-workflow-output="true">
+      <TimelineDisclosure
+        expanded={originalExpanded}
+        label={t(
+          originalExpanded ? "workflowHideOriginal" : "workflowShowOriginal",
+        )}
+        controls={originalId}
+        onClick={() => setOriginalExpanded((value) => !value)}
+      />
       <pre className={styles.content}>{content}</pre>
-      <details className={styles.original}>
-        <summary>{t("workflowOriginalOutput")}</summary>
-        {original ?? <pre className={styles.content}>{text}</pre>}
-      </details>
+      {originalExpanded && (
+        <div
+          className={styles.original}
+          id={originalId}
+          data-workflow-original="true"
+        >
+          {original ?? <pre className={styles.content}>{text}</pre>}
+        </div>
+      )}
     </div>
   );
 }

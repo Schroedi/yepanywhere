@@ -272,6 +272,8 @@
   "appearanceWorkflowTagsTitle": "Workflow tag highlighting",
   "appearanceWorkflowTagsDescription": "Show stage boundaries and labels for explicitly declared workflows. Original messages and tool output remain available.",
   "workflowOriginalOutput": "Original output",
+  "workflowShowOriginal": "Expand original output",
+  "workflowHideOriginal": "Collapse original output",
   "workflowSchemaUnresolved": "Workflow schema unresolved",
   "workflowSchemaActivated": "Workflow schema · {title}",
   "appearanceWiderActivityPreviewsDescription": "In Conversation view, move thinking to the right to make room for longer activity previews.",

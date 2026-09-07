@@ -52,6 +52,7 @@ import { HiddenContentBadge } from "../ui/HiddenContentBadge";
 import type { WorkflowAnnotation } from "../../lib/transcriptProjection/workflowTags";
 import { WorkflowOutput } from "../WorkflowOutput";
 import { ToolCommentaryBoundary } from "../ToolCommentaryBoundary";
+import { TimelineDisclosure } from "../TimelineDisclosure";
 import styles from "./ToolCallRow.module.css";
 
 interface Props {
@@ -1078,6 +1079,13 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
         : dotExpanded
           ? "Collapse inline view"
           : "Expand inline view";
+  const disclosureExpanded = !isNonExpandable
+    ? expanded
+    : hasPreviewToggle
+      ? previewExpanded
+      : hasSummaryDotToggle
+        ? summaryExpanded
+        : dotExpanded;
 
   useLayoutEffect(() => {
     if (
@@ -1130,11 +1138,11 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
       className={`tool-row timeline-item ${expanded ? "expanded" : "collapsed"} status-${status} ${isNonExpandable ? "interactive" : ""} ${shouldHydrateRichContent ? "" : "rich-deferred"} ${isBashTool ? "ran-tool-row" : ""}`}
     >
       {showDotBtn && (
-        <button
-          type="button"
-          className="timeline-dot-btn"
+        <TimelineDisclosure
           onClick={handleDotClick}
-          aria-label={dotAriaLabel}
+          label={dotAriaLabel}
+          expanded={disclosureExpanded}
+          status={status}
         />
       )}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: interactive header has role, tabIndex, and keyboard handlers when enabled */}
@@ -1346,16 +1354,6 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
           <ToolHeaderCopyButton text={headerCommand} label="Copy command" />
         )}
 
-        {!isNonExpandable && (
-          <span className="expand-chevron" aria-hidden="true">
-            {expanded ? "▾" : "▸"}
-          </span>
-        )}
-        {hasHeaderDotToggle && (
-          <span className="expand-chevron" aria-hidden="true">
-            {dotExpanded ? "▾" : "▸"}
-          </span>
-        )}
         {showBashCommandTarget &&
           !bashCommandExpanded &&
           bashCommandPreview.hiddenCount && (

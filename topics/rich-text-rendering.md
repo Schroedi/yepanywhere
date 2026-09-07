@@ -308,14 +308,25 @@ no reliable file extension.
 
 ## Summary affordances
 
+Tool activity uses one compact, unboxed gutter control: `+` when its detail
+is collapsed and `−` when expanded. Ran, ordinary tool results, and captured
+Exec/View Image media use the same control and tap target. Status color remains
+independent of expansion: green for success, red for failure, and the existing
+pending/interrupted colors. The marker occupies the timeline dot's position;
+there is no second boxed toggle or trailing disclosure chevron. Keyboard and
+pointer activation update the visible marker and `aria-expanded` together.
+The connector is centered on the glyph, uses lower contrast than the status
+color, and leaves three pixels clear above and below its visible strokes.
+Hover brightens the same control without adding a box.
+
 Long one-line summaries keep the row tail visible by reserving result/count
 columns and applying normal end-ellipsis only to the variable expression. Grep
-uses the left timeline dot as its outline affordance: clicking the dot expands
+uses the left gutter control as its outline affordance: clicking it expands
 the full search expression under the clipped header while keeping the match count
 visible. The clipped pattern text is also clickable as a secondary target, but the
-dot is the stable control.
+gutter marker is the stable control.
 
-Bash/Ran rows keep the left dot and row middle for the existing output-preview
+Bash/Ran rows keep the gutter control and row middle for the existing output-preview
 show/hide behavior. The command text itself is a separate click target; clicking
 it expands the full command inline with wrapping, so a huge command can be
 inspected without collapsing the output preview accidentally. The expanded

@@ -89,9 +89,11 @@ No provider messages, turns, commands, or completion events are synthesized.
   Earlier output retains its previous interpretation, including lines hidden
   by `matching-lines` before the script switches to inline `spans`.
 - Highlighted assistant blocks show their literal source with tag/title
-  boundaries. **Original output** exposes the existing rich message renderer
-  and its copy/quote controls. Tagged tool previews likewise retain the full
-  original output, including lines omitted by `matching-lines`. Opaque tools
+  boundaries. A compact first-line gutter control expands the original output
+  underneath, including the existing rich message renderer and its copy/quote
+  controls. It shows `+` while the original is hidden and `−` while visible;
+  there is no separate **Original output** label row. Tagged tool previews retain
+  the full original output, including lines omitted by `matching-lines`. Opaque tools
   keep their ordinary renderer beneath the captured stage label; declared but
   unobserved children produce no progress rows. Conversation View still
   controls whether routine tool activity is expanded.
