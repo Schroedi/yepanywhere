@@ -101,10 +101,10 @@ become user messages, approval, or authority over another session.
 
 The reusable `tagged-stages/1` contract is owned by
 `~/agents/topics/workflow-tags.md` and adopted by this checkout's local publish
-instructions. A rare `@@visualization-schema/1` activation marker followed by
-a JSON declaration or explicit pointer must first be surfaced in agent output
-or a tool result. A resolved invocation or observed read of skill content can
-instead activate through the string-valued `metadata.visualization-schema`
+instructions. A one-line `@@visualization-schema/1 <schema-path>` activation
+must first be surfaced in agent output or a tool result. A resolved invocation
+or observed read of skill content can instead activate through the string-valued
+`metadata.visualization-schema`
 frontmatter field. Skill discovery and ordinary bracketed text do not activate
 the view. The declaration's `type` selects from a fixed supported inventory,
 initially `tagged-stages/1`, leaving room for explicitly added visualization
@@ -140,7 +140,8 @@ the `skills/list` metadata, and `createCodexUserInputs` in
 provider-reported paths. The shared `SlashCommandInvocation` menu metadata
 does not currently carry a skill-definition path. A future activation resolver
 should use the retained server-side inventory and invocation, or an observed
-file-read path or explicit `skillFile` pointer when native provenance is absent.
+file-read path when native provenance is absent. An explicit schema path can
+activate without resolving a skill file.
 It should not infer a filesystem location from a skill name.
 
 Follow [skill invocation](skill-invocation.md): definition paths remain
