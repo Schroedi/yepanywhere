@@ -12,3 +12,9 @@ then give this external-runtime contract an evidence-backed deadline or move
 the version probe out of the suite's peak contention window.
 
 Found 2026-09-04 while running full-suite verification.
+
+Reproduced 2026-09-07 during UI mockup export verification: workspace `pnpm
+test` failed the installed Pi `--version` probe; the focused Pi contract passed
+on rerun. The 10-second non-Windows deadline remains unchanged. This is a
+suite-load-dependent failure, not evidence of a mockup export defect.
+Contributing-model: 6-Astra

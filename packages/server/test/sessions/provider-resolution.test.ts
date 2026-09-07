@@ -190,6 +190,7 @@ describe("provider resolution", () => {
       provider: "codex",
       model: "late-model",
       lastAgentText: "Complete tail",
+      asyncQuestions: { questions: [], omitted: false },
     };
     const reader = makeReader(null);
     reader.listSessionFiles = vi.fn(async () => [
@@ -250,6 +251,7 @@ describe("provider resolution", () => {
         fullTitle: "Cached full title",
         updatedAt: "2026-06-01T00:02:00.000Z",
         provider: "codex",
+        asyncQuestions: { questions: [], omitted: false },
       },
     ]);
     expect(reader.getSessionListSummary).toHaveBeenCalledTimes(1);
