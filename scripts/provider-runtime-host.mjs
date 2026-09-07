@@ -695,7 +695,7 @@ export class ProviderRuntimeHost {
         sessionId:
           request.target.yaSessionId ?? request.target.providerSessionId,
         options: {
-          ...(launch.options ?? {}),
+          ...launch.options,
           cwd: launch.projectPath,
           resumeSessionId: request.target.providerSessionId,
         },
