@@ -3,6 +3,7 @@ import { hostname } from "node:os";
 import { join } from "node:path";
 import type { Message } from "../src/types";
 import {
+  asCodeMode,
   simulatedInline,
   simulatedNestedTool,
   simulatedPublish,
@@ -81,7 +82,11 @@ for (const viewport of [
         content: `@@visualization-schema/1 ${reference}\n`,
       },
     ]);
-    const projectId = saveTranscript(sessionId, messages);
+    const codeModeFormat = viewport.name === "desktop" ? "command" : "settled";
+    const projectId = saveTranscript(
+      sessionId,
+      asCodeMode(messages, codeModeFormat),
+    );
     const fileRequests: string[] = [];
     page.on("request", (request) => {
       const requested = new URL(request.url());
@@ -227,7 +232,10 @@ for (const viewport of [
     ).toHaveText("Workflow schema · Updated publish");
 
     const inlineSessionId = `workflow-inline-${viewport.name}`;
-    saveTranscript(inlineSessionId, simulatedInline());
+    saveTranscript(
+      inlineSessionId,
+      asCodeMode(simulatedInline(), codeModeFormat),
+    );
     const inlineUrl = `${baseURL}/projects/${projectId}/sessions/${inlineSessionId}`;
     await page.goto(inlineUrl);
     const tool = page.locator('[data-render-id="inline-tool"]');
@@ -272,7 +280,10 @@ for (const viewport of [
       "matching-lines",
     ] as const) {
       const nestedId = `workflow-nested-${mode}-${viewport.name}`;
-      saveTranscript(nestedId, simulatedNestedTool(mode));
+      saveTranscript(
+        nestedId,
+        asCodeMode(simulatedNestedTool(mode), codeModeFormat),
+      );
       await page.goto(`${baseURL}/projects/${projectId}/sessions/${nestedId}`);
       const script = page.locator('[data-render-id="nested-script"]');
       await expect(

@@ -1,3 +1,4 @@
+import { decodeCodeModeOutput } from "@yep-anywhere/shared";
 import type { Message } from "../../types";
 import type { RenderItem, ToolCallItem } from "../../types/renderItems";
 
@@ -234,8 +235,17 @@ function matchesTool(path: string, cursor: Cursor): boolean {
   );
 }
 
-function toolOutputText(item: ToolCallItem): string {
+function toolOutputParts(item: ToolCallItem): string[] {
   const result = item.toolResult?.structured;
+  if (item.toolName === "Exec") {
+    const decoded = decodeCodeModeOutput(result ?? item.toolResult?.content);
+    if (decoded) {
+      const parts = decoded.parts
+        .filter((part) => part.kind !== "script-status")
+        .map((part) => part.text);
+      return parts.length ? parts : [""];
+    }
+  }
   if (
     item.toolName === "Read" &&
     record(result) &&
@@ -243,9 +253,9 @@ function toolOutputText(item: ToolCallItem): string {
     record(result.file) &&
     typeof result.file.content === "string"
   ) {
-    return result.file.content;
+    return [result.file.content];
   }
-  return item.toolResult?.content ?? "";
+  return [item.toolResult?.content ?? ""];
 }
 
 /** Preserve invocation-time context while visiting results in arrival order. */
@@ -464,13 +474,47 @@ export function annotateWorkflowTags(
         } else {
           const call = calls.get(item);
           if (call?.turn === turn && item.toolResult) {
-            const text = toolOutputText(item);
-            const annotation = scan(
-              text,
-              call.cursor,
-              true,
-              item.status === "pending",
-            );
+            const parts = toolOutputParts(item);
+            const text = parts.join("\n");
+            const annotation: WorkflowAnnotation = { markers: [] };
+            const visibleRanges: NonNullable<
+              WorkflowAnnotation["visibleRanges"]
+            > = [];
+            let offset = 0;
+            for (const part of parts) {
+              // Each result owns its fences and local activation. Joining
+              // first would let one command reinterpret a sibling's stdout.
+              const current = scan(
+                part,
+                call.cursor,
+                true,
+                item.status === "pending",
+              );
+              annotation.parent = current.parent;
+              if (current.view) annotation.view = current.view;
+              annotation.markers.push(
+                ...current.markers.map((marker) => ({
+                  ...marker,
+                  start: marker.start + offset,
+                  end: marker.end + offset,
+                })),
+              );
+              for (const range of current.visibleRanges ?? [
+                { start: 0, end: part.length },
+              ]) {
+                visibleRanges.push({
+                  start: range.start + offset,
+                  end: range.end + offset,
+                });
+              }
+              if (offset + part.length < text.length)
+                visibleRanges.push({
+                  start: offset + part.length,
+                  end: offset + part.length + 1,
+                });
+              offset += part.length + 1;
+            }
+            if (annotation.view) annotation.visibleRanges = visibleRanges;
             if (annotation.view && text !== item.toolResult.content)
               annotation.outputText = text;
             annotations.set(item, annotation);

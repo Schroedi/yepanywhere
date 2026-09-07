@@ -37,6 +37,14 @@ No provider messages, turns, commands, or completion events are synthesized.
   declarations, partial responses, and fetched text over 1,048,576 characters
   remain ordinary output with an unresolved marker. Unbased paths and web URLs
   are not fetched. Skill metadata alone does not activate this renderer.
+- Exec output uses the same shared `decodeCodeModeOutput` contract as its
+  ordinary renderer. Typed text arrays, including serialized arrays and the
+  recognized single-command/fulfilled-result envelopes, expose their actual
+  stdout to workflow parsing. Each decoded part is parsed separately: fences,
+  embedded declarations, and nested activations do not cross result boundaries.
+  Script-status headers are excluded. Unknown or mixed-media envelopes remain
+  literal, and stdout is a leaf rather than recursively decoded JSON. Original
+  input remains available in the ordinary renderer's raw detail.
 - Fetched declarations have a five-minute TTL, with a tab-local cache keyed by
   source, project, session, and reference. After expiration, the next render
   use, return to a visible tab, or source-ready notification revalidates using
@@ -97,6 +105,11 @@ shared `WorkflowOutput` renderer. It adds no server route, capability, server
 persistence, filesystem writer, or provider adapter requirement. Automatic
 skill-metadata activation, whole-history prefix snapshots, correlated async
 wait handles, and a collapsible/reordered outline remain future work.
+The direct skill-file metadata requirement is tracked in
+[skill metadata activation](../gaps/workflow-skill-metadata-activation.md).
+The shared producer specification now defines `closed` matching and additive
+whitelists; migration of this renderer's older restrictive-whitelist policy is
+pending. Collecting presentation remains unimplemented.
 
 ## Design decisions
 
@@ -121,6 +134,9 @@ Nested script traces cover inherited policies, self-announced inline tags
 under an opaque parent, and a mid-output change from `matching-lines` to
 inline spans. Each verifies the assistant can continue and explicitly finish
 the outer workflow after the script returns.
+Code-mode variants wrap these outputs in the observed typed-text,
+single-command, and fulfilled-result forms. Tests also isolate sibling result
+boundaries and reject activation hidden in arbitrary JSON or fenced examples.
 
 `workflowProjection.test.ts` exercises both through the production transcript
 projection, plus default-off behavior, exact matching, malformed/quoted
@@ -128,8 +144,9 @@ markers, streaming lines, lifecycle, inherited tool context, and reload.
 `e2e/workflow-tags.spec.ts` loads simulated persisted sessions through the real
 server and browser, toggles the Appearance setting, checks both views and
 original output, and captures desktop/phone layouts. The file-only fixture's
-tool result contains just the announcement: the schema exists separately as
-an actual JSON file on desktop and fenced Markdown file on phone. The browser
+decoded tool stdout contains just the announcement: the schema exists separately as
+an actual JSON file on desktop and fenced Markdown file on phone. Both browser
+traces use code-mode envelopes, including a fulfilled result on phone. The browser
 test observes the real raw response, verifies no read before enabling the
 setting or within the TTL, then advances the client cache clock to exercise
 an unchanged `304` and a changed file's `200` and new labels. Inline and nested

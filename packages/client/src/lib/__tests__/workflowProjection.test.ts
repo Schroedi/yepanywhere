@@ -3,6 +3,7 @@ import type { Message } from "../../types";
 import { compileTranscriptProjection } from "../transcriptProjection/compiler";
 import {
   assistant,
+  asCodeMode,
   call,
   result,
   publishSchema,
@@ -13,6 +14,185 @@ import {
 import { buildSessionDetailRenderItems } from "../sessionDetail/renderItems";
 
 describe("workflow tag projection", () => {
+  it.each(["text", "command", "settled"] as const)(
+    "resolves file announcements from code-mode %s envelopes",
+    (format) => {
+      const reference = "/schema.json#ya-publish/1";
+      const messages = asCodeMode(simulatedPublish(reference), format);
+      const raw = JSON.stringify(messages);
+      const unresolved = buildSessionDetailRenderItems({
+        messages,
+        workflowTagsEnabled: true,
+      });
+      expect(
+        unresolved.find((item) => item.id === "schema")?.workflow?.markers,
+      ).toEqual([
+        expect.objectContaining({ kind: "unresolved", schemaRef: reference }),
+      ]);
+      const items = buildSessionDetailRenderItems({
+        messages,
+        workflowTagsEnabled: true,
+        workflowSchemaFiles: { [reference]: JSON.stringify(publishSchema) },
+      });
+      expect(
+        items.find((item) => item.id === "publish-client-0")?.workflow
+          ?.markers[0]?.path,
+      ).toBe("[publish][client]");
+      expect(items.at(-1)?.workflow?.markers[0]?.kind).toBe("end");
+      expect(JSON.stringify(messages)).toBe(raw);
+    },
+  );
+
+  it.each(["text", "command", "settled"] as const)(
+    "keeps nested inline activation inside code-mode %s envelopes",
+    (format) => {
+      const messages = asCodeMode(
+        simulatedNestedTool("self-announced"),
+        format,
+      );
+      const items = buildSessionDetailRenderItems({
+        messages,
+        workflowTagsEnabled: true,
+      });
+      const script = items.find((item) => item.id === "nested-script");
+      expect(script?.workflow?.markers.map((marker) => marker.kind)).toEqual([
+        "activation",
+        "stage",
+        "stage",
+      ]);
+      expect(script?.workflow?.markers[1]?.path).toBe(
+        "[publish][client][build][types]",
+      );
+      expect(script?.workflow?.outputText).toContain(
+        "\n@@visualization-schema/1",
+      );
+      expect(items.at(-1)?.workflow?.markers[0]?.kind).toBe("end");
+      expect(
+        buildSessionDetailRenderItems({ messages }).every(
+          (item) => !item.workflow,
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it("keeps fences and nested activations within their decoded result part", () => {
+    const output = JSON.stringify(
+      [
+        "```text\nAn unfinished example fence.",
+        '@@visualization-schema/1 ["child"]\n[child] Local stage.',
+        "[child] Ordinary sibling output.\n[parent] Inherited stage.",
+      ].map((text) => ({ type: "input_text", text })),
+    );
+    const messages = [
+      assistant(
+        "start",
+        '@@visualization-schema/1 ["parent"]\n[parent] Start.',
+      ),
+      call("parts", "Exec"),
+      result("parts", output),
+      assistant("after", "[parent] Continue."),
+    ];
+    const items = compileTranscriptProjection(messages, { workflowTags: true });
+    const tool = items.find((item) => item.id === "parts");
+    expect(tool?.workflow?.markers.map((marker) => marker.kind)).toEqual([
+      "activation",
+      "stage",
+      "stage",
+    ]);
+    expect(tool?.workflow?.markers.map((marker) => marker.path)).toEqual([
+      undefined,
+      "[parent][child]",
+      "[parent][parent]",
+    ]);
+    for (const marker of tool?.workflow?.markers ?? []) {
+      expect(tool?.workflow?.outputText?.slice(marker.start, marker.end)).toBe(
+        marker.prefix,
+      );
+    }
+    expect(items.at(-1)?.workflow?.markers[0]?.path).toBe("[parent]");
+    expect(tool).toMatchObject({ toolResult: { content: output } });
+    expect(
+      tool?.workflow?.visibleRanges
+        ?.map(({ start, end }) => tool.workflow?.outputText?.slice(start, end))
+        .join(""),
+    ).toContain("Local stage.\n[child] Ordinary sibling output.");
+  });
+
+  it("retains the calling stage when code-mode output contains only status", () => {
+    const items = compileTranscriptProjection(
+      [
+        assistant(
+          "start",
+          '@@visualization-schema/1 ["parent"]\n[parent] Start.',
+        ),
+        call("status", "Exec"),
+        result(
+          "status",
+          JSON.stringify([
+            {
+              type: "input_text",
+              text: "Script completed\nWall time 0 seconds\nOutput:\n",
+            },
+          ]),
+        ),
+      ],
+      { workflowTags: true },
+    );
+    expect(items.at(-1)?.workflow?.parent?.path).toBe("[parent]");
+    expect(items.at(-1)?.workflow?.markers).toEqual([]);
+  });
+
+  it("does not borrow a sibling result's embedded declaration", () => {
+    const reference = "/separate.json#ya-publish/1";
+    const items = compileTranscriptProjection(
+      [
+        call("parts", "Exec"),
+        result(
+          "parts",
+          JSON.stringify([
+            {
+              type: "input_text",
+              text: `@@visualization-schema/1 ${reference}`,
+            },
+            {
+              type: "input_text",
+              text: `\`\`\`json\n${JSON.stringify(publishSchema)}\n\`\`\``,
+            },
+          ]),
+        ),
+        assistant("start", "[workflow][start] id=x schema=ya-publish/1"),
+      ],
+      { workflowTags: true },
+    );
+    expect(items[0]?.workflow?.markers).toEqual([
+      expect.objectContaining({ kind: "unresolved", schemaRef: reference }),
+    ]);
+    expect(items.at(-1)?.workflow).toBeUndefined();
+  });
+
+  it("does not activate JSON data or fenced examples inside command stdout", () => {
+    const messages = asCodeMode(
+      [
+        call("data"),
+        result(
+          "data",
+          JSON.stringify({
+            example: '@@visualization-schema/1 ["build"]\n[build] Data.',
+          }),
+        ),
+        call("quote"),
+        result("quote", '```text\n@@visualization-schema/1 ["build"]\n```'),
+        assistant("after", "[build] No workflow was activated."),
+      ],
+      "command",
+    );
+    const items = buildSessionDetailRenderItems({
+      messages,
+      workflowTagsEnabled: true,
+    });
+    expect(items.every((item) => !item.workflow)).toBe(true);
+  });
+
   it.each(["inherited", "self-announced", "matching-lines"] as const)(
     "nests %s script tags without replacing the outer workflow",
     (mode) => {

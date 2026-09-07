@@ -78,6 +78,58 @@ function stdout(text: string): string {
   );
 }
 
+// Shapes observed in Codex custom_tool_call_output, including this publish's
+// Promise.allSettled wrapper. The fixture's underlying tools remain inert.
+export function asCodeMode(
+  messages: Message[],
+  format: "text" | "command" | "settled",
+): Message[] {
+  return messages.map((message) => ({
+    ...message,
+    content: Array.isArray(message.content)
+      ? message.content.map((block) => {
+          if (block.type === "tool_use") {
+            return {
+              ...block,
+              name: "Exec",
+              input: {
+                calls: [{ toolName: "exec_command", input: block.input }],
+                source: "// Inert recorded code-mode fixture",
+              },
+            };
+          }
+          if (block.type !== "tool_result") return block;
+          const command = {
+            chunk_id: "workflow-fixture",
+            wall_time_seconds: 0,
+            exit_code: 0,
+            output: block.content,
+          };
+          return {
+            ...block,
+            content: JSON.stringify([
+              {
+                type: "input_text",
+                text: "Script completed\nWall time 0 seconds\nOutput:\n",
+              },
+              {
+                type: "input_text",
+                text:
+                  format === "text"
+                    ? block.content
+                    : JSON.stringify(
+                        format === "command"
+                          ? command
+                          : { i: 0, status: "fulfilled", value: command },
+                      ),
+              },
+            ]),
+          };
+        })
+      : message.content,
+  }));
+}
+
 export function simulatedPublish(schemaReference?: string): Message[] {
   const declaration = schemaReference
     ? `@@visualization-schema/1 ${schemaReference}\n`
