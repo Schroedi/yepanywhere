@@ -1,5 +1,6 @@
 import {
   serverHasCapability,
+  SERVER_CAPABILITIES,
   type ArtifactViewerGrant,
 } from "@yep-anywhere/shared";
 import { useEffect, useState } from "react";
@@ -35,7 +36,9 @@ export function ArtifactPreview(props: Props) {
   const config = version?.artifactViewer;
   const audience = artifactAudience(window.location.hostname);
   const origin =
-    config && share === null && serverHasCapability(version, "artifact-viewer")
+    config &&
+    share === null &&
+    serverHasCapability(version, SERVER_CAPABILITIES.artifactViewer.name)
       ? artifactOrigin(config, audience, window.location.href)
       : undefined;
   const [attempt, setAttempt] = useState(props.autoStart ? 1 : 0);
