@@ -17,6 +17,20 @@ already-planned work. Read and cite matches before defining a new task. A gap
 is not generic authorization to expand scope; follow `gaps/README.md`,
 including deleting an entry in the commit that closes it.
 
+## UI Design And Mockup Proposals
+
+For requests about proposed UI appearance or interaction, including "thoughts
+on the UI for X", or requests to author/export a mockup, read
+[topics/ui-design.md](topics/ui-design.md) before choosing the fixture,
+rendering, or export commands. It supplies the project component/style owners
+and verified facility. Present the resulting artifact with a clickable
+absolute local file path that YA's file viewer can open. When interactive
+delivery is available, also provide a verified grant URL on the configured
+artifact domain, usable in its own tab; include its expiry and a screenshot
+fallback. The topic owns delivery and any required preview setting. A source
+file or dev-server URL alone is not a viewable mockup handoff. Respect explicit
+prose-only requests and the user's visual-verification handoff.
+
 ## Cross-Platform Behavior And Tests
 
 Treat Linux, macOS, and Windows as supported development targets. Code and

@@ -8,6 +8,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { createServer as createViteServer } from "vite";
+import { checkMockup } from "./fixtures/mockup-checks";
+import { viewports } from "../mockups/export";
 import { createRelayServer } from "../../relay/src/server";
 import { AuthService } from "../../server/src/auth/AuthService";
 import { ensureSelfSignedCertificate } from "../../server/src/https/self-signed";
@@ -323,4 +325,114 @@ test("opens original interactive files through relay grants and a separate HTTPS
     expect(request.headers.referer).toBeUndefined();
   }
   expect(problems).toEqual([]);
+});
+
+test("runs the generated YA mockup through the hosted relay viewer", async ({
+  page,
+}) => {
+  const bundle = join(directory, "bundle", "mockup");
+  const built = spawnSync(
+    process.execPath,
+    [
+      join(dirname(serverRequire.resolve("vite/package.json")), "bin/vite.js"),
+      "build",
+      "--config",
+      "vite.config.mockup.ts",
+      "--outDir",
+      bundle,
+    ],
+    {
+      cwd: clientRoot,
+      env: { ...process.env, NODE_ENV: "production" },
+      encoding: "utf8",
+    },
+  );
+  expect(
+    built.status,
+    built.error?.message ?? built.stdout + built.stderr,
+  ).toBe(0);
+  const problems: string[] = [];
+  const directGrants: string[] = [];
+  const requestStart = artifactRequests.length;
+  page.on("pageerror", (error) => problems.push(error.message));
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/artifacts"))
+      directGrants.push(request.url());
+  });
+  await page.goto(clientOrigin);
+  await page.getByTestId("relay-mode-button").click();
+  await page.getByTestId("relay-username-input").fill(username);
+  await page.getByTestId("srp-password-input").fill(password);
+  await page.getByText("Show Advanced Options", { exact: true }).click();
+  await page.getByTestId("custom-relay-url-input").fill(relayUrl);
+  await page.getByTestId("login-button").click();
+  await expect(page.getByTestId("relay-login-form")).not.toBeVisible({
+    timeout: 15000,
+  });
+  await page.goto(
+    `${clientOrigin}/-/relay/${username}/projects/${projectId}/file?path=mockup/index.html`,
+  );
+  await page.getByRole("button", { name: "Raw source", exact: true }).click();
+  await page.getByRole("button", { name: "Run interactive preview" }).click();
+  await expect(
+    page
+      .frameLocator("iframe")
+      .getByRole("heading", { name: "Project review", exact: true }),
+  ).toBeVisible();
+  const child = page
+    .frames()
+    .find((frame) => frame.url().startsWith(`${artifactOrigin}/a/`));
+  if (!child) throw new Error("Missing mockup frame");
+  await page.setViewportSize(viewports[0]!);
+  await checkMockup(child, "default");
+  await child
+    .getByRole("button", { name: "Project settings", exact: true })
+    .first()
+    .click();
+  await child.getByRole("menuitem", { name: "Project settings" }).click();
+  await expect(child.getByRole("status")).toHaveText(
+    "Settings selected: Yep Anywhere",
+  );
+  const captures = resolve(
+    clientRoot,
+    "../../.artifacts/mockups/captures/projects",
+  );
+  await mkdir(captures, { recursive: true });
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await checkMockup(child, "selected");
+    await page.screenshot({
+      path: join(captures, `relay-${viewport.name}.png`),
+    });
+  }
+  await child
+    .getByRole("button", { name: "New session", exact: true })
+    .first()
+    .click();
+  await expect(child.getByRole("status")).toContainText(
+    "Preview navigation: /new-session?projectId=fixture-0",
+  );
+  const requests = artifactRequests.slice(requestStart);
+  expect(
+    requests.some((request) =>
+      /\/inter-latin-400-normal-.*\.woff2$/.test(request.path),
+    ),
+  ).toBe(true);
+  expect(
+    requests.some((request) => /\/react-runtime-.*\.js$/.test(request.path)),
+  ).toBe(true);
+  for (const request of requests) {
+    expect(request.headers.cookie).toBeUndefined();
+    expect(request.headers.authorization).toBeUndefined();
+    expect(request.headers.referer).toBeUndefined();
+  }
+  expect(directGrants).toEqual([]);
+  expect(problems).toEqual([]);
+  const grantUrl = child.url();
+  await page.getByRole("button", { name: "Stop interactive preview" }).click();
+  await expect
+    .poll(
+      async () => (await instance.artifactServer.app.request(grantUrl)).status,
+    )
+    .toBe(404);
 });
