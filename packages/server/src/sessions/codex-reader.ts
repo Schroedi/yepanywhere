@@ -91,6 +91,7 @@ import {
   CodexRolloutWindowReader,
 } from "./codex-rollout-window.js";
 import { SummaryParserClient } from "./summary-parser-worker-client.js";
+import { readCodexAsyncQuestions } from "./codex-async-questions.js";
 import type {
   SummaryParserWorkerMode,
   SummaryParserWorkerRequest,
@@ -1998,13 +1999,16 @@ export class CodexSessionReader implements ISessionReader {
       stats,
       options?.readMode ?? "full",
     );
-    return this.buildSessionSummaryFromState(
+    const summary = this.buildSessionSummaryFromState(
       sessionId,
       projectId,
       filePath,
       stats,
       read.state,
     );
+    if (summary)
+      summary.asyncQuestions = await readCodexAsyncQuestions(filePath);
+    return summary;
   }
 
   private async getCoalescedFullSessionSummary(

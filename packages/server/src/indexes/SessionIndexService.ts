@@ -66,6 +66,7 @@ export interface CachedSessionSummary {
   forkedFromSessionId?: string;
   /** Capped excerpt of the most recent visible agent turn or provider recap. */
   lastAgentText?: string;
+  asyncQuestions?: SessionSummary["asyncQuestions"];
 }
 
 export interface SessionIndexState {
@@ -825,6 +826,7 @@ export class SessionIndexService implements ISessionIndexService {
       parentSessionKind: cached.parentSessionKind,
       forkedFromSessionId: cached.forkedFromSessionId,
       lastAgentText: cached.lastAgentText,
+      asyncQuestions: cached.asyncQuestions,
     };
   }
 
@@ -848,6 +850,7 @@ export class SessionIndexService implements ISessionIndexService {
       parentSessionKind: summary.parentSessionKind,
       forkedFromSessionId: summary.forkedFromSessionId,
       lastAgentText: summary.lastAgentText,
+      asyncQuestions: summary.asyncQuestions,
     };
   }
 
@@ -2056,6 +2059,7 @@ export class SessionIndexService implements ISessionIndexService {
         contextUsage: cached.contextUsage,
         model: cached.model,
         lastAgentText: cached.lastAgentText,
+        asyncQuestions: cached.asyncQuestions,
         timestamp,
       });
     }

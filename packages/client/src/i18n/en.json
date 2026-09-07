@@ -18,6 +18,8 @@
   "artifactLocked": "Artifact settings are controlled at launch.",
   "artifactSeparateHost": "Use a different hostname from YA for artifacts.",
   "asyncQuestionsTitle": "Questions",
+  "asyncQuestionsEarlierOmitted": "Earlier questions may be omitted here. Open the transcript to see more.",
+  "asyncQuestionSessionFallback": "Session",
   "asyncQuestionReminderSetting": "Question reminders",
   "asyncQuestionReminderDescription": "Fade the count after {countTurns} later turns or {countEdits} composer edits. Move the button to overflow after {overflowTurns} turns or {overflowEdits} edits. One slider scales both; 0 hides the reminder. Questions remain answerable in the transcript.",
   "asyncQuestionReminderHidden": "Toolbar reminders are hidden. Questions remain answerable in the transcript. Raise the slider to show reminders again.",

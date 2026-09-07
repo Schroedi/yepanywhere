@@ -6120,6 +6120,11 @@ function SessionPageContent({
     <AsyncQuestionsProvider
       key={`${clientSummarySourceKey}:${sessionId}`}
       storageKey={`yep-async-questions:${clientSummarySourceKey}:${sessionId}`}
+      target={
+        navState.asyncQuestion
+          ? { ...navState.asyncQuestion, token: location.key ?? "keyless" }
+          : undefined
+      }
       draftSignal={composerDraftSignal}
       send={(text) =>
         handleSendRef.current(

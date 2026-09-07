@@ -242,6 +242,19 @@ if (import.meta.env.DEV && window.location.port === String(__VITE_DEV_PORT__)) {
   // Remove trailing slash for BrowserRouter basename
   const basename = import.meta.env.BASE_URL.replace(/\/$/, "") || undefined;
 
+  const initialPath = basename
+    ? window.location.pathname.slice(basename.length)
+    : window.location.pathname;
+  if (/^\/settings(?:\/|$)/.test(initialPath)) {
+    // Start independent downloads before lazy ancestors can serialize them.
+    // React.lazy retains ownership of any import failure's route error UI.
+    void Promise.allSettled([
+      import("./App"),
+      import("./layouts"),
+      import("./pages/settings"),
+    ]);
+  }
+
   createRoot(rootElement).render(
     <Wrapper>
       <ErrorBoundary>

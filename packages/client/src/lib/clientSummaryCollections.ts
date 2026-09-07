@@ -58,6 +58,7 @@ export interface SessionCollectionRecord {
   initialPrompt?: string;
   executor?: string;
   lastAgentText?: string;
+  asyncQuestions?: GlobalSessionItem["asyncQuestions"];
   providerChildren?: ProviderChildSessionSummary[];
   observedAt: number;
   snapshotObservedAt?: number;

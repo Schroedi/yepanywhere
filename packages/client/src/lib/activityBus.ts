@@ -151,6 +151,7 @@ export interface SessionUpdatedEvent {
   model?: string;
   /** Capped excerpt of the most recent regular agent turn (hover card). */
   lastAgentText?: string;
+  asyncQuestions?: SessionSummary["asyncQuestions"];
   timestamp: string;
 }
 

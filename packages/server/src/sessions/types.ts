@@ -17,7 +17,7 @@ import type { Message, SessionSummary } from "../supervisor/types.js";
 
 /**
  * Bounded session facts for collection routes that only need identity, title,
- * and recency. Transcript-tail fields intentionally do not belong here.
+ * and recency, with independently bounded question previews when observed.
  */
 export interface SessionListSummary {
   id: SessionSummary["id"];
@@ -29,6 +29,7 @@ export interface SessionListSummary {
   customTitle?: SessionSummary["customTitle"];
   isArchived?: SessionSummary["isArchived"];
   isStarred?: SessionSummary["isStarred"];
+  asyncQuestions?: SessionSummary["asyncQuestions"];
 }
 
 /**
@@ -56,6 +57,7 @@ export function toSessionListSummary(
     | "customTitle"
     | "isArchived"
     | "isStarred"
+    | "asyncQuestions"
   >,
 ): SessionListSummary {
   return {
@@ -65,6 +67,9 @@ export function toSessionListSummary(
     fullTitle: summary.fullTitle,
     updatedAt: summary.updatedAt,
     provider: summary.provider,
+    ...(summary.asyncQuestions !== undefined
+      ? { asyncQuestions: summary.asyncQuestions }
+      : {}),
     ...(summary.customTitle !== undefined
       ? { customTitle: summary.customTitle }
       : {}),

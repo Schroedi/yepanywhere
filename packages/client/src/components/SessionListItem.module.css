@@ -1,6 +1,14 @@
 .compactLink {
   column-gap: var(--space-2);
 }
+.questions {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-inline-end: 4px;
+}
+.questions:empty {
+  display: none;
+}
 
 .providerChildrenBadge {
   display: inline-flex;

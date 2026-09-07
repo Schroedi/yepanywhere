@@ -10,6 +10,17 @@ Topic: server-capabilities
 
 ## Source Of Truth
 
+`session-async-questions` (permanent ID 60, version-implied from 0.8.2)
+owns the optional bounded `asyncQuestions` projection on session lists, Inbox,
+and session-updated events. The approved optional-feature corpus is v0.8.0
+(2026-08-31) and v0.8.1 (2026-09-05), the latest two stable releases and all
+stable releases in the preceding 14 days on 2026-09-07. Both lack this field.
+Without the capability, hide collection counts and menus while retaining
+existing transcript answering when its structured fields are present. Add no
+unsupported request, reply route, or new meaning to an older capability.
+See [question discovery](provider-output-contract.md#discovery-from-inbox-and-session-navigation)
+for preview bounds, omission semantics, and local reminder state.
+
 The permanent global ID ledger lives in
 `packages/shared/src/capability-ids.ts`. The server registry in
 `packages/shared/src/server-capabilities.ts` adds lifecycle, advertisement,

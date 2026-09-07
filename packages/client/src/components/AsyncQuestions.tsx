@@ -1,4 +1,6 @@
 import {
+  Fragment,
+  type CSSProperties,
   type ReactNode,
   useEffect,
   useLayoutEffect,
@@ -6,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import type { ComposerOverflowTier } from "../hooks/useMessageInputToolbarLayout";
 import { useAsyncQuestions } from "../contexts/AsyncQuestionsContext";
 import { useI18n } from "../i18n";
@@ -34,14 +37,26 @@ function QuestionIcon() {
   );
 }
 
+export type AsyncQuestionsMenuState = Pick<
+  NonNullable<ReturnType<typeof useAsyncQuestions>>,
+  | "questions"
+  | "records"
+  | "reminderTurns"
+  | "open"
+  | "update"
+  | "menuOpen"
+  | "setMenuOpen"
+>;
+
 function QuestionMenuRow({
   question,
   showDismissed,
+  state,
 }: {
   question: AsyncQuestion;
   showDismissed: boolean;
+  state: AsyncQuestionsMenuState;
 }) {
-  const state = useAsyncQuestions()!;
   const { t } = useI18n();
   const [contextOpen, setContextOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -139,11 +154,18 @@ function QuestionMenuRow({
 export function AsyncQuestionsButton({
   overflow = false,
   compact = "none",
+  inventory,
+  groupTitles,
+  omitted = false,
 }: {
   overflow?: boolean;
   compact?: ComposerOverflowTier;
+  inventory?: AsyncQuestionsMenuState;
+  groupTitles?: ReadonlyMap<string, { id: string; title: string }>;
+  omitted?: boolean;
 }) {
-  const state = useAsyncQuestions();
+  const context = useAsyncQuestions();
+  const state = inventory ?? context;
   const { t } = useI18n();
   const button = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -151,7 +173,7 @@ export function AsyncQuestionsButton({
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
-  const [position, setPosition] = useState({
+  const [position, setPosition] = useState<CSSProperties>({
     left: 8,
     bottom: 0,
     width: 360,
@@ -183,7 +205,11 @@ export function AsyncQuestionsButton({
         state?.reminderTurns,
       ) === "retired",
   );
-  const newest = recent[recent.length - 1];
+  const newest = recent.reduce<AsyncQuestion | undefined>(
+    (youngest, question) =>
+      !youngest || question.age <= youngest.age ? question : youngest,
+    undefined,
+  );
   const setMenuOpen = state?.setMenuOpen;
   const close = () => {
     setOpen(false);
@@ -196,20 +222,28 @@ export function AsyncQuestionsButton({
       const rect = button.current?.getBoundingClientRect();
       if (!rect) return;
       const width = Math.min(520, window.innerWidth - 16);
+      const below =
+        Boolean(inventory) &&
+        window.innerHeight - rect.bottom > Math.min(280, rect.top);
+      const available = below
+        ? window.innerHeight - rect.bottom - 14
+        : rect.top - 16;
       setPosition({
         left: Math.max(
           8,
           Math.min(rect.right - width, window.innerWidth - width - 8),
         ),
-        bottom: window.innerHeight - rect.top + 6,
+        ...(below
+          ? { top: rect.bottom + 6 }
+          : { bottom: window.innerHeight - rect.top + 6 }),
         width,
-        maxHeight: Math.max(100, rect.top - 16),
+        maxHeight: Math.max(100, Math.min(400, available)),
       });
     };
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [open]);
+  }, [open, inventory]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -277,6 +311,12 @@ export function AsyncQuestionsButton({
           setOpen(!open);
           setMenuOpen?.(!open);
         }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen(true);
+          setMenuOpen?.(true);
+        }}
       >
         <QuestionIcon />
         {newest && !overflow ? (
@@ -307,67 +347,88 @@ export function AsyncQuestionsButton({
           <span>{t("asyncQuestionsTitle")}</span>
         )}
       </button>
-      {open && (
-        <div
-          ref={panel}
-          className={styles.menu}
-          style={position}
-          role="dialog"
-          aria-label={t("asyncQuestionsTitle")}
-          onKeyDown={(event) => {
-            if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-            const targets = [
-              ...(panel.current?.querySelectorAll<HTMLButtonElement>(
-                `button.${styles.preview}`,
-              ) ?? []),
-            ];
-            const current = targets.indexOf(
-              document.activeElement as HTMLButtonElement,
-            );
-            if (!targets.length) return;
-            event.preventDefault();
-            targets[
-              (current +
-                (event.key === "ArrowDown" ? 1 : -1) +
-                targets.length) %
-                targets.length
-            ]?.focus();
-          }}
-        >
-          <div className={styles.menuHeading}>
-            <strong>{t("asyncQuestionsTitle")}</strong>
+      {open &&
+        createPortal(
+          <div
+            ref={panel}
+            className={styles.menu}
+            style={position}
+            role="dialog"
+            aria-label={t("asyncQuestionsTitle")}
+            onKeyDown={(event) => {
+              if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+              const targets = [
+                ...(panel.current?.querySelectorAll<HTMLButtonElement>(
+                  `button.${styles.preview}`,
+                ) ?? []),
+              ];
+              const current = targets.indexOf(
+                document.activeElement as HTMLButtonElement,
+              );
+              if (!targets.length) return;
+              event.preventDefault();
+              targets[
+                (current +
+                  (event.key === "ArrowDown" ? 1 : -1) +
+                  targets.length) %
+                  targets.length
+              ]?.focus();
+            }}
+          >
+            <div className={styles.menuHeading}>
+              <strong>{t("asyncQuestionsTitle")}</strong>
+              <button
+                type="button"
+                className={styles.dismiss}
+                aria-label={t("asyncQuestionCloseMenu")}
+                onClick={close}
+              >
+                ×
+              </button>
+            </div>
+            <ul ref={list} className={styles.questionList}>
+              {visible.map((question, index) => (
+                <Fragment key={question.id}>
+                  {groupTitles?.has(question.id) &&
+                    (index === 0 ||
+                      groupTitles.get(visible[index - 1]!.id)?.id !==
+                        groupTitles.get(question.id)?.id) && (
+                      <li className={styles.groupHeading}>
+                        {groupTitles.get(question.id)?.title}
+                      </li>
+                    )}
+                  <QuestionMenuRow
+                    question={question}
+                    showDismissed={showDismissed}
+                    state={{
+                      ...state,
+                      open: (selected) => {
+                        close();
+                        state.open(selected);
+                      },
+                    }}
+                  />
+                </Fragment>
+              ))}
+            </ul>
+            {visible.length === 0 && <p>{t("asyncQuestionsNone")}</p>}
+            {omitted && (
+              <p className={styles.hint}>{t("asyncQuestionsEarlierOmitted")}</p>
+            )}
             <button
               type="button"
-              className={styles.dismiss}
-              aria-label={t("asyncQuestionCloseMenu")}
-              onClick={close}
+              className={styles.secondary}
+              onClick={() => setShowDismissed(!showDismissed)}
             >
-              ×
+              {t(
+                showDismissed
+                  ? "asyncQuestionHideDismissed"
+                  : "asyncQuestionShowDismissed",
+              )}
             </button>
-          </div>
-          <ul ref={list} className={styles.questionList}>
-            {visible.map((question) => (
-              <QuestionMenuRow
-                key={question.id}
-                question={question}
-                showDismissed={showDismissed}
-              />
-            ))}
-          </ul>
-          {visible.length === 0 && <p>{t("asyncQuestionsNone")}</p>}
-          <button
-            type="button"
-            className={styles.secondary}
-            onClick={() => setShowDismissed(!showDismissed)}
-          >
-            {t(
-              showDismissed
-                ? "asyncQuestionHideDismissed"
-                : "asyncQuestionShowDismissed",
-            )}
-          </button>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
@@ -479,10 +540,24 @@ function InlineQuestion({ question }: { question: AsyncQuestion }) {
               <div className={styles.replyActions}>
                 <button
                   type="button"
-                  className={styles.secondary}
+                  className={`${styles.secondary} ${styles.iconAction}`}
                   onClick={state.returnToPrevious}
+                  aria-label={t("asyncQuestionBack")}
+                  title={t("asyncQuestionBack")}
                 >
-                  {t("asyncQuestionBack")}
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m10 5-7 7 7 7M3 12h18" />
+                  </svg>
                 </button>
                 <button
                   type="submit"
@@ -496,10 +571,25 @@ function InlineQuestion({ question }: { question: AsyncQuestion }) {
           )}
           <button
             type="button"
-            className={styles.secondary}
+            className={`${styles.secondary} ${styles.iconAction}`}
             onClick={() => state.quote(question)}
+            aria-label={t("asyncQuestionQuoteMain")}
+            title={t("asyncQuestionQuoteMain")}
           >
-            {t("asyncQuestionQuoteMain")}
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="m10 8 4 4-4 4" />
+            </svg>
           </button>
         </>
       )}

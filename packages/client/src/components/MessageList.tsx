@@ -3410,6 +3410,7 @@ export const MessageList = memo(function MessageList({
 
   const questionNavigation = asyncQuestions?.navigation;
   const questionJumpFrameRef = useRef<number | null>(null);
+  const questionNavigationTarget = asyncQuestions?.navigationTarget;
   useLayoutEffect(() => {
     if (!questionNavigation || inert) return;
     const navigation = {
@@ -3458,6 +3459,22 @@ export const MessageList = memo(function MessageList({
     forceScrollToCurrent,
     restoreRetainedScrollPosition,
     transcriptRenderWindow.revealRenderId,
+  ]);
+
+  useLayoutEffect(() => {
+    // Initial hydration hides transcript rows. Wait for their reveal before
+    // consuming navigation, so scrolling and textarea focus can take effect.
+    if (!inert && !progressiveRevealActive && questionNavigationTarget) {
+      questionNavigation?.current?.jump(
+        questionNavigationTarget.renderId,
+        questionNavigationTarget.questionId,
+      );
+    }
+  }, [
+    inert,
+    progressiveRevealActive,
+    questionNavigation,
+    questionNavigationTarget,
   ]);
 
   useEffect(

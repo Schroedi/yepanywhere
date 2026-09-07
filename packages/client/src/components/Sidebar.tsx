@@ -27,6 +27,7 @@ import { useSidebarDuplicateHiding } from "../hooks/useSidebarDuplicateHiding";
 import { useSidebarSessionFeeds } from "../hooks/useSidebarSessionFeeds";
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "../hooks/useSidebarWidth";
 import { useVersion } from "../hooks/useVersion";
+import { SessionAsyncQuestionsButton } from "./SessionAsyncQuestionsButton";
 import { useI18n } from "../i18n";
 import { useToastContext } from "../contexts/ToastContext";
 import { bangHistoryViewEnabled } from "../lib/bangCommandAvailability";
@@ -1039,6 +1040,12 @@ export function Sidebar({
               icon={SidebarIcons.inbox}
               label={t("sidebarInbox")}
               badge={inboxCount}
+              accessory={
+                <SessionAsyncQuestionsButton
+                  basePath={basePath}
+                  onNavigate={onNavigate}
+                />
+              }
               onClick={onNavigate}
               basePath={basePath}
             />

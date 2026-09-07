@@ -481,7 +481,14 @@ async function listSessionListSummariesForSource(
                   source.reader,
                 )
               : null;
-          if (cached) {
+          if (
+            cached &&
+            !(
+              (cached.provider === "codex" ||
+                cached.provider === "codex-oss") &&
+              cached.asyncQuestions === undefined
+            )
+          ) {
             return toSessionListSummary(cached);
           }
           return listReader.call(source.reader, entry.sessionId, project.id);
@@ -570,7 +577,14 @@ export async function findSessionListSummaryAcrossProviders(
             source.reader,
           )
         : null;
-      if (cachedSummary) {
+      if (
+        cachedSummary &&
+        !(
+          (cachedSummary.provider === "codex" ||
+            cachedSummary.provider === "codex-oss") &&
+          cachedSummary.asyncQuestions === undefined
+        )
+      ) {
         return {
           source,
           summary: toSessionListSummary(cachedSummary),

@@ -251,6 +251,7 @@ export interface SessionUpdatedEvent {
   model?: string;
   /** Capped excerpt of the most recent visible agent turn or provider recap. */
   lastAgentText?: string;
+  asyncQuestions?: SessionSummary["asyncQuestions"];
   timestamp: string;
 }
 

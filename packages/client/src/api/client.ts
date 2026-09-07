@@ -1,4 +1,5 @@
 import type {
+  AppSessionSummary,
   AgentActivity,
   AgentContextHints,
   CacheMissBillingRecord,
@@ -109,6 +110,7 @@ export interface PaginationInfo {
  * An item in the inbox representing a session that may need attention.
  */
 export interface InboxItem {
+  asyncQuestions?: AppSessionSummary["asyncQuestions"];
   sessionId: string;
   projectId: string;
   projectName: string;
@@ -137,6 +139,7 @@ export interface InboxResponse {
  * An item in the global sessions list.
  */
 export interface GlobalSessionItem {
+  asyncQuestions?: AppSessionSummary["asyncQuestions"];
   id: string;
   title: string | null;
   fullTitle: string | null;

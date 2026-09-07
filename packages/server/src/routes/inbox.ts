@@ -63,6 +63,7 @@ export interface InboxDeps {
 }
 
 export interface InboxItem {
+  asyncQuestions?: SessionListSummary["asyncQuestions"];
   sessionId: string;
   projectId: string;
   projectName: string;
@@ -319,6 +320,7 @@ export function createInboxRoutes(deps: InboxDeps): Hono {
       pendingInputType: item.pendingInputType,
       activity: item.activity,
       hasUnread: item.hasUnread,
+      asyncQuestions: item.session.asyncQuestions,
     });
 
     // Tier 1: needsAttention - sessions with pending input

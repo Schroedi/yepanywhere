@@ -170,6 +170,7 @@ const REMAP_MERGE_GROUPS = {
     "model",
     "initialPrompt",
     "lastAgentText",
+    "asyncQuestions",
     "providerChildren",
   ],
   metadataObservedAt: [
@@ -1034,6 +1035,7 @@ function upsertInboxItemRecord(
     record,
     {
       title: item.sessionTitle,
+      asyncQuestions: item.asyncQuestions,
       updatedAt: item.updatedAt,
     },
     observation,
@@ -1163,6 +1165,7 @@ function withContentFields(
     model?: string;
     initialPrompt?: string;
     lastAgentText?: string;
+    asyncQuestions?: GlobalSessionItem["asyncQuestions"];
     providerChildren?: ProviderChildSessionSummary[];
   },
   observation: SessionCollectionObservation,
@@ -1215,6 +1218,13 @@ function withContentFields(
       isFresh,
     )
       ? { providerChildren: fields.providerChildren }
+      : {}),
+    ...(canApplyObservedField(
+      record.asyncQuestions,
+      fields.asyncQuestions,
+      isFresh,
+    )
+      ? { asyncQuestions: fields.asyncQuestions }
       : {}),
     ...(isFresh ? { contentObservedAt: observation.observedAt } : {}),
     observedAt: Math.max(record.observedAt, observation.observedAt),
@@ -1459,6 +1469,7 @@ function upsertSnapshotRecord(
       model: row.model,
       initialPrompt: row.initialPrompt,
       lastAgentText: row.lastAgentText,
+      asyncQuestions: row.asyncQuestions,
       providerChildren: row.providerChildren,
     },
     observation,
@@ -1996,6 +2007,7 @@ export function applySessionCollectionCreated(
       model: session.model,
       initialPrompt: session.initialPrompt,
       lastAgentText: session.lastAgentText,
+      asyncQuestions: session.asyncQuestions,
       providerChildren: session.providerChildren,
     },
     observation,
@@ -2060,6 +2072,7 @@ export function applySessionCollectionUpdated(
       messageCount: event.messageCount,
       model: event.model,
       lastAgentText: event.lastAgentText,
+      asyncQuestions: event.asyncQuestions,
     },
     observation,
   );

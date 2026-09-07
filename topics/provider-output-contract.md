@@ -178,7 +178,10 @@ endpoint or capability requirement. This optional-field compatibility plan and
 the default-on behavior were explicitly approved by the maintainer on
 2026-09-07. Blocking questions and approvals keep their separate lifecycle.
 
-Each supplied option is a clickable, wrapping bullet row. A deliberate click
+Each supplied option is a clickable, wrapping bullet row with a filled,
+bordered button treatment and hover feedback matching the blocking interview
+panel. Async options send immediately; they are not multi-select checkboxes.
+A deliberate click
 sends that exact option; no suggested selection submits itself. Selecting a
 question from its menu reveals the original transcript context, highlights
 the question, opens a separate inline free-form composer, and focuses it once.
@@ -195,6 +198,8 @@ state. **Quote reply in main composer** is a secondary action: reveal the
 question, insert its full quote through the existing composer insertion/undo
 path, preserve existing text, and focus the main composer. This editable quote
 does not itself mark a question sent or attempt to classify later manual text.
+Return uses a back-arrow icon and Quote uses a circled right chevron, with
+accessible action labels and tooltips.
 
 Before visiting a question, save the reading anchor, offset, and Follow intent.
 Navigating among questions retains that first return destination. Successful
@@ -205,6 +210,8 @@ perform this transition. New navigation, focus movement, or pointer/wheel
 interaction while submission is pending takes precedence over stale return
 state. A render row without connected, measurable geometry is not a completed
 navigation target; reveal it through the transcript's normal bounded path.
+Initial progressive transcript loading must finish revealing the rows before
+the question jump consumes its scroll and focus request.
 
 The persistent composer toolbar, including its collapsed form, offers a muted
 amber outlined speech-bubble/question-mark button. With room it reads
@@ -242,7 +249,7 @@ no separate feature-enable setting. For a positive value `n`:
 - A focused button or open menu is not retired underneath the interaction.
   New questions restore visibility without reviving old aged/dismissed counts.
 
-The menu covers loaded transcript history only, without background history
+The transcript menu covers loaded history only, without background history
 fetches. Aging affects reminders, never answer state or transcript content.
 Per-question drafts, seen/sent/dismissed state, and edit ages are browser-local,
 keyed by source, session, message id, and question index. Reloads retain them;
@@ -250,6 +257,48 @@ storage events synchronize tabs on the same browser origin. Other devices are
 independent. When browser storage is unavailable, the current visit still
 works in memory. Receiving the live and durable copy of one question must not
 create duplicate controls or duplicate replies.
+
+#### Discovery from Inbox and session navigation
+
+With `session-async-questions`, Inbox rows and sidebar session rows show the
+same local unanswered count as the transcript reminder. Inbox's toolbar and
+sidebar navigation entry also expose aggregate counts. These controls are
+default-on and share the existing reminder slider; zero hides them. Ordinary
+unread-session counts remain separate. Unknown question inventories never
+masquerade as a known zero.
+
+Click or right-click a count to open previews directly. Aggregate menus group
+questions by session, with the most recently updated session last; questions
+within each group remain oldest-first. Compact counts retain an icon and
+accessible description. Menus may be wider than the button and choose the
+available space above or below it. Dismissal and successful inline submission
+update all mounted surfaces in the same tab, including sessions whose
+transcripts have never been opened. Draft typing does not redraw every count.
+
+The additive `asyncQuestions` list/Inbox/activity projection carries source
+message id, question index, preview title, subsequent-user-turn age, and an
+`omitted` flag. The current Codex reader scans at most the final 2 MiB of an
+uncompressed rollout, retains at most 128 questions younger than 32 user turns,
+and clips preview titles to 320 characters. Canonical completed async items
+define identity; duplicate items do not create duplicate previews. Compressed
+rollouts or an observation invalidated by a concurrent file change leave the
+field absent. An `omitted` inventory tells the menu that earlier questions may
+be missing and directs the user to the transcript. This bounded recent window
+is not a complete historical question count.
+
+Selecting a preview opens the source session with the existing 32-turn tail
+request and resolves the exact question in that transcript. Replies always use
+the full source title, never its clipped preview. Cross-session submission or
+Return resumes Follow at the live bottom and focuses the main composer;
+ordinary in-transcript visits retain their saved-position behavior. A missing
+source question is not replaced by guessed text or an unrelated question.
+
+This optional contract uses permanent capability ID 60, version-implied from
+0.8.2 and explicitly advertised by source builds before that release. The
+maintainer approved the plan on 2026-09-07 against v0.8.0 and v0.8.1, both of
+which lack this projection. Without the capability, omit collection counts and
+menus, retain existing transcript controls when structured fields are present,
+and issue no new request. No reply route or older capability meaning changes.
 
 ### Standalone tool output
 

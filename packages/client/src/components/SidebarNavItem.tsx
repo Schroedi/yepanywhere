@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ThinkingIndicator } from "./ThinkingIndicator";
+import styles from "./SidebarNavItem.module.css";
 
 /**
  * Common SVG icons used in sidebar navigation.
@@ -185,6 +186,7 @@ export const SidebarIcons = {
 };
 
 export interface SidebarNavItemProps {
+  accessory?: ReactNode;
   /** Route path to navigate to */
   to: string;
   /** Icon to display (use SidebarIcons or custom ReactNode) */
@@ -214,6 +216,7 @@ export interface SidebarNavItemProps {
  * Provides consistent styling across NavigationSidebar and Sidebar.
  */
 export function SidebarNavItem({
+  accessory,
   to,
   icon,
   label,
@@ -234,7 +237,7 @@ export function SidebarNavItem({
   const isActive =
     location.pathname === fullPathname || location.pathname === targetPathname;
 
-  return (
+  const link = (
     <Link
       to={fullPath}
       className={`sidebar-nav-item ${isActive ? "active" : ""}`}
@@ -254,6 +257,14 @@ export function SidebarNavItem({
         </span>
       )}
     </Link>
+  );
+  return accessory ? (
+    <div className={styles.row}>
+      {link}
+      {accessory}
+    </div>
+  ) : (
+    link
   );
 }
 

@@ -101,6 +101,7 @@ export default defineConfig(({ command }) => ({
       output: {
         manualChunks: {
           "react-runtime": ["react", "react-dom/client"],
+          katex: ["katex"],
         },
       },
     },

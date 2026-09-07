@@ -1,0 +1,13 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-inline-size: 0;
+}
+.row > a {
+  flex: 1;
+  min-inline-size: 0;
+}
+:global(.sidebar-collapsed) .row {
+  flex-direction: column;
+}

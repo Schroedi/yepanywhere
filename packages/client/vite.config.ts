@@ -42,6 +42,7 @@ export default defineConfig(({ command }) => ({
         // growth does not rebuild one near-limit entry chunk.
         manualChunks: {
           "react-runtime": ["react", "react-dom/client"],
+          katex: ["katex"],
         },
       },
     },

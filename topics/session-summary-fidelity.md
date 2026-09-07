@@ -31,6 +31,8 @@ decorations:
 - `fullTitle`;
 - `updatedAt`;
 - `provider`;
+- `asyncQuestions` when independently observed within its bounded recent
+  window, including an explicit indication of omitted history;
 - `customTitle`, `isArchived`, and `isStarred` when an upstream enrichment
   already supplied them.
 
@@ -53,6 +55,17 @@ A provider that implements a lightweight list-summary reader must bound its
 work independently of transcript tail size. Reading enough head data to find
 stable metadata and the first user title is allowed; scanning to EOF merely to
 populate fields outside `SessionListSummary` is not.
+
+Codex question previews add an independent read of at most the final 2 MiB,
+not a full parse. They stop at 128 questions or 32 subsequent user turns and
+retain only 320-character preview titles. A process-wide, source-versioned
+single-flight cache retains at most 8 MiB of preview results and rejects a
+result when the rollout's stat version changes during the read. Compressed
+rollouts leave this optional projection unknown. An old indexed Codex row
+without the projection may use the lightweight reader to acquire it. Neither
+this acquisition nor its cache advances complete-summary freshness. The
+observable discovery and omission semantics live in
+[`provider-output-contract.md`](provider-output-contract.md#discovery-from-inbox-and-session-navigation).
 
 The persisted session-summary index remains a complete-summary cache:
 
@@ -87,7 +100,8 @@ not spread a list projection over a complete summary and must not copy values
 from a compatibility-shaped head result into complete-summary event fields.
 
 `ExternalSessionTracker` follows the same rule. Codex file changes use the
-bounded list reader and may emit title plus `updatedAt`; they do not emit
+bounded list reader and may emit title, `updatedAt`, and observed question
+previews; they do not emit
 message count, model, context usage, or recent-agent text. The owned Codex SDK
 and later complete-summary reads remain authoritative for those fields.
 Providers whose tracker read is complete may continue emitting their exact
@@ -118,5 +132,5 @@ complete index path.
 | Area | Current compatibility | Desired direction | Trigger |
 | --- | --- | --- | --- |
 | Head reads | Production bounded consumers use `SessionListSummary`; Codex retains `readMode: "head"` only inside its typed adapter and direct parser tests. | Retire the compatibility-shaped reader option when no external/internal test contract needs it. | Changing the Codex summary reader API. |
-| Activity events | Codex external tracking now emits only list-known title/recency fields; complete index and non-Codex tracker events retain exact fields. | Use dedicated discovery/list events if another producer cannot provide the complete `session-created` shape. | Adding a partial session-creation producer. |
+| Activity events | Codex external tracking emits only list-known title/recency and bounded question previews; complete index and non-Codex tracker events retain exact fields. | Use dedicated discovery/list events if another producer cannot provide the complete `session-created` shape. | Adding a partial session-creation producer. |
 | Client freshness | Content fields currently share a coarse observation timestamp. | Split freshness by field or fidelity if independent producers begin updating overlapping content fields at materially different precision. | Evidence of a newer partial field blocking a valid richer update. |

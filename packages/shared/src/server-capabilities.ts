@@ -159,6 +159,27 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  sessionAsyncQuestions: {
+    id: CAPABILITY_ID_ALLOCATIONS.sessionAsyncQuestions.id,
+    name: "session-async-questions",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Bounded recent async question previews on session collections and activity updates.",
+    clientFallback:
+      "Keep transcript question controls; omit cross-session counts and menus and make no new request.",
+    serverContract: {
+      responseFields: ["session.asyncQuestions", "inboxItem.asyncQuestions"],
+      events: ["session-updated"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Question discovery across sessions requires server-owned previews without loading every transcript in the browser.",
+    },
+  },
   artifactViewer: {
     id: CAPABILITY_ID_ALLOCATIONS.artifactViewer.id,
     name: "artifact-viewer",
@@ -2276,6 +2297,8 @@ export const TOOL_RESULT_MEDIA_PRESERVATION_POLICY_CAPABILITY =
   SERVER_CAPABILITIES.toolResultMediaPreservationPolicy.name;
 export const PROGRESSIVE_SESSION_CATALOG_CAPABILITY =
   SERVER_CAPABILITIES.progressiveSessionCatalog.name;
+export const SESSION_ASYNC_QUESTIONS_CAPABILITY =
+  SERVER_CAPABILITIES.sessionAsyncQuestions.name;
 export const PROJECT_QUEUE_CAPABILITY = SERVER_CAPABILITIES.projectQueue.name;
 export const PROJECT_QUEUE_ATTACHMENT_EDITING_CAPABILITY =
   SERVER_CAPABILITIES.projectQueueAttachmentEditing.name;

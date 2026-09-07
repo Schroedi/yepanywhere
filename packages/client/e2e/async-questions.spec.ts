@@ -52,6 +52,7 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
     messageMetadata: { deliveryIntent: string };
   }> = [];
   let emit: ((eventType: string, data: object) => void) | undefined;
+  let emitActivity: ((data: object) => void) | undefined;
   const questions = [
     {
       title: "Q: Should I wait for the other session or coordinate a handoff?",
@@ -169,7 +170,21 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
           permissionMode: "default",
           modeVersion: 1,
         });
-      } else upstream.send(message);
+      } else {
+        if (data.type === "subscribe" && data.channel === "activity") {
+          emitActivity = (payload) =>
+            socket.send(
+              JSON.stringify({
+                type: "event",
+                subscriptionId: data.subscriptionId,
+                eventType: "session-updated",
+                eventId: `question-activity-${Date.now()}`,
+                data: payload,
+              }),
+            );
+        }
+        upstream.send(message);
+      }
     });
   });
   try {
@@ -365,7 +380,10 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
         { name: "phone", width: 375, height: 812 },
       ]) {
         await page.setViewportSize(viewport);
-        await slider.scrollIntoViewIfNeeded();
+        await expect(async () => {
+          await slider.scrollIntoViewIfNeeded();
+          await expect(slider).toBeVisible();
+        }).toPass({ timeout: 5_000 });
         await page.screenshot({
           path: join(captures, `${viewport.name}-settings.png`),
         });
@@ -375,7 +393,9 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
     await slider.press("Home");
     await expect(slider).toHaveValue("0");
     await page.goto(`${origin}/projects/${projectId}/sessions/${sessionId}`);
-    await expect(page.locator("[data-composer-input]")).toBeVisible();
+    await expect(page.locator("[data-composer-input]")).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(
       page
         .locator(".message-input-actions")
@@ -495,9 +515,235 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
     await expect(composer).toHaveValue(/> A new question\?/);
     await expect(question).toBeInViewport();
 
+    const now = new Date().toISOString();
+    const peerId = "unopened-question-session";
+    const peerQuestion = "Q: Which color should the secondary badge use?";
+    const projection = {
+      omitted: false,
+      questions: questions.map((question, index) => ({
+        messageId: "async-source",
+        index,
+        title: question.title,
+        age: 0,
+      })),
+    };
+    const rows = [
+      { id: sessionId, title: "Alpha questions", asyncQuestions: projection },
+      {
+        id: peerId,
+        title: "Beta questions",
+        asyncQuestions: {
+          omitted: false,
+          questions: [
+            {
+              messageId: "async-source",
+              index: 0,
+              title: peerQuestion,
+              age: 0,
+            },
+          ],
+        },
+      },
+    ].map((row) => ({
+      ...row,
+      projectId,
+      projectName: "client",
+      fullTitle: row.title,
+      provider: "codex",
+      createdAt: now,
+      updatedAt: now,
+      messageCount: 3,
+      ownership: { owner: "none" },
+      hasUnread: true,
+    }));
+    await page.route(
+      (url) => url.pathname === "/api/sessions",
+      (route) =>
+        route.fulfill({
+          json: {
+            sessions: rows,
+            hasMore: false,
+            total: 2,
+            stats: {
+              totalCount: 2,
+              unreadCount: 2,
+              starredCount: 0,
+              archivedCount: 0,
+            },
+          },
+        }),
+    );
+    await page.route(
+      (url) => url.pathname === "/api/inbox",
+      (route) =>
+        route.fulfill({
+          json: {
+            needsAttention: [],
+            active: [],
+            unread8h: [],
+            unread24h: [],
+            recentActivity: rows.map((row) => ({
+              sessionId: row.id,
+              projectId,
+              projectName: "client",
+              sessionTitle: row.title,
+              updatedAt: now,
+              hasUnread: true,
+              asyncQuestions: row.asyncQuestions,
+            })),
+          },
+        }),
+    );
+    for (const viewport of [
+      { name: "desktop", width: 1000, height: 600 },
+      { name: "phone", width: 375, height: 812 },
+    ]) {
+      await cdp.send("Emulation.setTouchEmulationEnabled", {
+        enabled: viewport.name === "phone",
+      });
+      await page.setViewportSize(viewport);
+      await page.evaluate(() => {
+        for (const key of Object.keys(localStorage))
+          if (key.startsWith("yep-async-questions:"))
+            localStorage.removeItem(key);
+        localStorage.setItem("yep-anywhere-question-reminder-turns", "3");
+      });
+      await page.goto(`${origin}/inbox`);
+      const inbox = page.locator("main.page-scroll-container");
+      const alpha = inbox
+        .locator("li.session-list-item")
+        .filter({ hasText: "Alpha questions" });
+      await expect(
+        alpha.getByRole("button", { name: /^3 questions/ }),
+      ).toBeVisible();
+      const beta = inbox
+        .locator("li.session-list-item")
+        .filter({ hasText: "Beta questions" });
+      await expect(
+        beta.getByRole("button", { name: /^1 question/ }),
+      ).toBeVisible();
+      if (captures)
+        await page.screenshot({
+          path: join(captures, `${viewport.name}-inbox.png`),
+        });
+      await alpha
+        .getByRole("button", { name: /^3 questions/ })
+        .click({ button: "right" });
+      await expect(menu).toBeVisible();
+      await menu
+        .getByRole("button", { name: questions[1]!.title, exact: true })
+        .click();
+      const inline = page.getByRole("textbox", {
+        name: `Reply to: ${questions[1]!.title}`,
+      });
+      await expect(inline).toBeFocused();
+      await inline.fill("Cross-session answer");
+      await page
+        .getByRole("button", { name: "Send reply", exact: true })
+        .click();
+      await expect(page.locator("[data-composer-input]")).toBeFocused();
+      await expect
+        .poll(() =>
+          page
+            .locator("main.session-messages")
+            .evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight),
+        )
+        .toBeLessThan(3);
+      await page.goto(`${origin}/inbox`);
+      await expect(
+        alpha.getByRole("button", { name: /^2 questions/ }),
+      ).toBeVisible();
+      await expect(
+        beta.getByRole("button", { name: /^1 question/ }),
+      ).toBeVisible();
+      const sidebarToggle = page.getByRole("button", {
+        name: "Open sidebar",
+        exact: true,
+      });
+      if (!(await page.locator(".sidebar-nav-section").first().isVisible()))
+        await sidebarToggle.click();
+      const aggregate = page
+        .locator(".sidebar-nav-section")
+        .getByRole("button", { name: /^3 questions/ });
+      await aggregate.click({ button: "right" });
+      await expect(
+        menu.getByText("Alpha questions", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        menu.getByText("Beta questions", { exact: true }),
+      ).toBeVisible();
+      if (captures)
+        await page.screenshot({
+          path: join(captures, `${viewport.name}-grouped-menu.png`),
+        });
+      await menu
+        .getByRole("button", {
+          name: `Dismiss question: ${peerQuestion}`,
+          exact: true,
+        })
+        .click();
+      await page.keyboard.press("Escape");
+      await expect(aggregate).toHaveCount(0);
+      await expect(
+        page
+          .locator(".sidebar-nav-section")
+          .getByRole("button", { name: /^2 questions/ }),
+      ).toBeVisible();
+      // A question arrives in an unopened session through the real activity
+      // transport. Its count appears without loading that transcript.
+      await expect.poll(() => Boolean(emitActivity)).toBe(true);
+      emitActivity!({
+        type: "session-updated",
+        sessionId: peerId,
+        projectId,
+        updatedAt: new Date().toISOString(),
+        timestamp: new Date().toISOString(),
+        asyncQuestions: {
+          omitted: false,
+          questions: [
+            {
+              messageId: "new-live-question",
+              index: 0,
+              title: "Continue the other review?",
+              age: 0,
+            },
+          ],
+        },
+      });
+      await expect(
+        page
+          .locator(".sidebar-nav-section")
+          .getByRole("button", { name: /^3 questions/ }),
+      ).toBeVisible();
+    }
+
+    // A populated additive field alone cannot enable a new capability.
+    await page.route("**/api/version*", async (route) => {
+      const response = await route.fetch();
+      await route.fulfill({
+        json: {
+          ...(await response.json()),
+          current: "0.8.1",
+          capabilities: [],
+          capabilityBits: [],
+        },
+      });
+    });
+    await page.goto(`${origin}/inbox`);
+    await expect(
+      page.getByText("Alpha questions", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^\d+ questions?/ }),
+    ).toHaveCount(0);
+    await page.goto(`${origin}/projects/${projectId}/sessions/${sessionId}`);
+    await expect(page.locator("[data-async-question-reply]")).not.toHaveCount(
+      0,
+    );
+
     // Plain Markdown from an older server never acquires guessed controls.
     structured = false;
-    await page.reload();
+    await page.goto(`${origin}/projects/${projectId}/sessions/${sessionId}`);
     await expect(composer).toBeVisible();
     await expect(page.locator("[data-async-question-reply]")).toHaveCount(0);
     await expect(

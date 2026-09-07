@@ -138,8 +138,11 @@ vi.mock("../../hooks/useSidebarSessionFeeds", () => ({
   }),
 }));
 
-vi.mock("../../lib/clientSummaryStore", () => {
+vi.mock("../../lib/clientSummaryStore", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../lib/clientSummaryStore")>();
   return {
+    ...actual,
     useDraftSessionIds: () => new Set<string>(),
     useInboxCounts: () => ({
       needsAttention: 0,

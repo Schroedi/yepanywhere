@@ -180,7 +180,10 @@ function NavigationLayoutFrame({ sessionElement }: NavigationLayoutProps) {
     toggleExpanded,
     minimizeToFloatingToggle,
     restoreCollapsedSidebar,
-  } = useSidebarPreference(forceExpandedSidebar);
+  } = useSidebarPreference(
+    forceExpandedSidebar,
+    /^(?:\/-\/relay\/[^/]+)?\/settings(?:\/|$)/.test(location.pathname),
+  );
   const {
     width: sidebarWidth,
     setWidth: setSidebarWidth,

@@ -5432,6 +5432,7 @@ export class Supervisor {
       contextUsage: summary.contextUsage,
       model: summary.model,
       lastAgentText: summary.lastAgentText,
+      asyncQuestions: summary.asyncQuestions,
       timestamp: new Date().toISOString(),
     };
     this.eventBus.emit(event);

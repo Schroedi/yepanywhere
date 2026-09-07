@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import { SessionAsyncQuestionsButton } from "./SessionAsyncQuestionsButton";
 import type { AgentActivity } from "../hooks/useFileActivity";
 import { useHoverCardSettings } from "../hooks/useHoverCardAppearance";
 import { useSessionHoverCardController } from "../hooks/useSessionHoverCardController";
@@ -985,6 +986,13 @@ export function SessionListItem({
       )}
 
       {/* Only show menu when provider is available (required for clone) */}
+      <span className={styles.questions}>
+        <SessionAsyncQuestionsButton
+          sessionId={sessionId}
+          basePath={basePath}
+          onNavigate={onNavigate}
+        />
+      </span>
       {provider && (
         <SessionMenu
           sessionId={sessionId}

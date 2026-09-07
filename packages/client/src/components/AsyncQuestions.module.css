@@ -45,6 +45,11 @@
   justify-content: space-between;
   padding-inline-start: 6px;
 }
+.groupHeading {
+  padding: 10px 6px 2px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
 .questionList {
   list-style: none;
   padding: 0;
@@ -156,6 +161,8 @@
   font-size: 0.8rem;
 }
 .options {
+  display: grid;
+  gap: 6px;
   list-style: none;
   margin-block: 4px;
   padding: 0;
@@ -166,16 +173,26 @@
   gap: 0.8em;
   inline-size: 100%;
   color: var(--text-primary);
-  background: transparent;
-  border: 0;
-  padding: 6px;
+  background: var(--bg-code);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
   text-align: start;
   font: inherit;
   cursor: pointer;
   overflow-wrap: anywhere;
 }
-.options button:hover {
+.options button:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--text-secondary);
   text-decoration: underline;
+}
+.iconAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 36px;
+  min-block-size: 36px;
 }
 .options button:disabled {
   cursor: default;

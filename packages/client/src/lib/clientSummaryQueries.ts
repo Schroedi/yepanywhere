@@ -247,6 +247,7 @@ function sessionRecordToInboxItem(
     activity: record.activity,
     activityInferredFromInboxTier: record.activityInferredFromInboxTier,
     hasUnread: record.hasUnread,
+    asyncQuestions: record.asyncQuestions,
   };
 }
 

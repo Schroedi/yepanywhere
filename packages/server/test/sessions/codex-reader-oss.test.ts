@@ -168,6 +168,56 @@ describe("CodexSessionReader - OSS Support", () => {
     );
   };
 
+  it("discovers recent async questions without loading transcript history", async () => {
+    const sessionId = "questions-without-open-transcript";
+    await createSessionFile(sessionId, "openai", "gpt-6-astra");
+    const filePath = join(testDir, `${sessionId}.jsonl`);
+    const event = (payload: object) =>
+      JSON.stringify({
+        type: "event_msg",
+        timestamp: new Date().toISOString(),
+        payload,
+      });
+    const question = event({
+      type: "item_completed",
+      item: {
+        type: "AgentMessage",
+        id: "question-source",
+        delivery: "async",
+        content: [{ type: "Text", text: "Which path?" }],
+        questions: [{ title: "Which path?", options: ["First", "Second"] }],
+      },
+    });
+    await appendFile(
+      filePath,
+      `\n${event({ type: "agent_message", message: "x".repeat(2 * 1024 * 1024) })}\n${question}\n`,
+    );
+    const projectId = "test-project" as UrlProjectId;
+    const first = await reader.getSessionListSummary(sessionId, projectId);
+    expect(first?.asyncQuestions).toEqual({
+      questions: [
+        {
+          messageId: "question-source",
+          index: 0,
+          title: "Which path?",
+          age: 0,
+        },
+      ],
+      omitted: true,
+    });
+    expect(first).not.toHaveProperty("messageCount");
+    expect(reader.getEntryCacheStats().entries).toBe(0);
+    await appendFile(
+      filePath,
+      `${event({ type: "user_message", message: "Keep working" })}\n`,
+    );
+    const next = await reader.getSessionListSummary(sessionId, projectId);
+    expect(next?.asyncQuestions?.questions[0]?.age).toBe(1);
+    expect(first?.asyncQuestions?.questions[0]?.age).toBe(0);
+    const full = await reader.getSessionSummary(sessionId, projectId);
+    expect(full?.asyncQuestions).toEqual(next?.asyncQuestions);
+  });
+
   it("identifies session as codex-oss when model_provider is ollama", async () => {
     const sessionId = "oss-session-1";
     await createSessionFile(sessionId, "ollama", "mistral");
@@ -832,6 +882,7 @@ describe("CodexSessionReader - OSS Support", () => {
       title: "cheap summary title",
     });
     expect(Object.keys(listSummary ?? {}).sort()).toEqual([
+      "asyncQuestions",
       "fullTitle",
       "id",
       "projectId",

@@ -204,6 +204,58 @@ function projectQueueStatus(
 }
 
 describe("clientSummaryState", () => {
+  it("preserves question previews across partial updates and projects known empty results", () => {
+    const asyncQuestions = {
+      omitted: false,
+      questions: [
+        { messageId: "question", index: 0, title: "Continue?", age: 1 },
+      ],
+    };
+    let state = applySessionCollectionUpdated(
+      createEmptyClientSummaryState(),
+      {
+        type: "session-updated",
+        sessionId: "session",
+        projectId: PROJECT_ID,
+        timestamp: RECENT,
+        updatedAt: RECENT,
+        asyncQuestions,
+      },
+      100,
+    );
+    state = applySessionCollectionUpdated(
+      state,
+      {
+        type: "session-updated",
+        sessionId: "session",
+        projectId: PROJECT_ID,
+        timestamp: RECENT,
+        updatedAt: RECENT,
+        title: "New title",
+      },
+      200,
+    );
+    expect(
+      selectSessionCollectionRecord(state, "session")?.asyncQuestions,
+    ).toEqual(asyncQuestions);
+    state = applySessionCollectionUpdated(
+      state,
+      {
+        type: "session-updated",
+        sessionId: "session",
+        projectId: PROJECT_ID,
+        timestamp: RECENT,
+        updatedAt: RECENT,
+        asyncQuestions: { omitted: false, questions: [] },
+      },
+      300,
+    );
+    expect(
+      selectSessionCollectionRecord(state, "session")?.asyncQuestions
+        ?.questions,
+    ).toEqual([]);
+  });
+
   it("merges a provisional session ID into every canonical projection", () => {
     const temporaryId = "temporary-session";
     const canonicalId = "canonical-session";
