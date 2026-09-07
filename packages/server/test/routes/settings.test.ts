@@ -110,6 +110,72 @@ describe("Settings Routes", () => {
   });
 
   describe("PUT /", () => {
+    it("saves or disables the readiness executable and notifies after saving", async () => {
+      const changed = vi.fn(() =>
+        expect(settings.projectQueueReadinessCheck).toEqual(command),
+      );
+      let command: ServerSettings["projectQueueReadinessCheck"] = {
+        executable: "/usr/bin/agentctl",
+        args: ["others", "--text"],
+      };
+      const routes = createSettingsRoutes({
+        serverSettingsService: mockServerSettingsService,
+        onProjectQueueReadinessChanged: changed,
+      });
+      for (const next of [command, null]) {
+        command = next;
+        const response = await routes.request("/", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectQueueReadinessCheck: command }),
+        });
+        expect(response.status).toBe(200);
+        expect(
+          (await response.json()).settings.projectQueueReadinessCheck,
+        ).toEqual(command);
+      }
+      expect(changed).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([
+      "agentctl others",
+      {},
+      { executable: "", args: [] },
+      { executable: "agentctl", args: "others" },
+      { executable: "agentctl", args: [42] },
+      { executable: "agentctl", args: ["bad\0arg"] },
+      { executable: "agentctl", args: Array(129).fill("x") },
+    ])("rejects malformed readiness config: %j", async (command) => {
+      const routes = createSettingsRoutes({
+        serverSettingsService: mockServerSettingsService,
+      });
+      const response = await routes.request("/", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectQueueReadinessCheck: command }),
+      });
+      expect(response.status).toBe(400);
+      expect(mockServerSettingsService.updateSettings).not.toHaveBeenCalled();
+    });
+
+    it("bounds readiness arguments by UTF-8 bytes", async () => {
+      const routes = createSettingsRoutes({
+        serverSettingsService: mockServerSettingsService,
+      });
+      const response = await routes.request("/", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectQueueReadinessCheck: {
+            executable: "agentctl",
+            args: ["é".repeat(8193)],
+          },
+        }),
+      });
+      expect(response.status).toBe(400);
+      expect(mockServerSettingsService.updateSettings).not.toHaveBeenCalled();
+    });
+
     it("persists the default-off session wake gate", async () => {
       const routes = createSettingsRoutes({
         serverSettingsService: mockServerSettingsService,

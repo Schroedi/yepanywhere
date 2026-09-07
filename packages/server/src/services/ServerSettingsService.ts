@@ -22,6 +22,7 @@ import type {
   HostAwakeMode,
   NewSessionDefaults,
   PromptCacheKeepaliveSettings,
+  ProjectQueueReadinessCommand,
   SessionToolbarPresenceClientDefaults,
   SubagentMaxDepth,
   ToolbarControlPresence,
@@ -236,6 +237,8 @@ export interface ServerSettings {
    * Queue promotes one item. Range 0-300, default 30.
    */
   projectQueueQuietSeconds?: number;
+  /** Optional server-wide executable gate; null disables it. */
+  projectQueueReadinessCheck?: ProjectQueueReadinessCommand | null;
 }
 
 export const CODEX_UPDATE_POLICIES = ["auto", "notify", "off"] as const;

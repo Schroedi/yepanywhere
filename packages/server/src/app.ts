@@ -790,6 +790,7 @@ export function createApp(options: AppOptions): AppResult {
     }
   };
   const disposeSessionReaders = async (): Promise<void> => {
+    await projectQueueScheduler?.dispose();
     await artifactServer.close();
     await projectFileCompletion.dispose();
     await bangCommandService?.dispose();
@@ -1423,6 +1424,10 @@ export function createApp(options: AppOptions): AppResult {
         (clampProjectQueueQuietSeconds(
           options.serverSettingsService?.getSetting("projectQueueQuietSeconds"),
         ) ?? DEFAULT_PROJECT_QUEUE_QUIET_SECONDS) * 1000,
+      getReadinessCommand: () =>
+        options.serverSettingsService?.getSetting(
+          "projectQueueReadinessCheck",
+        ) ?? null,
       getEffectiveProcessProjectId: (process) =>
         options.sessionMetadataService?.getMetadata(process.sessionId)
           ?.workingProjectId ?? process.projectId,
@@ -2230,6 +2235,9 @@ export function createApp(options: AppOptions): AppResult {
         },
         onHeartbeatSettingsChanged: () => {
           supervisor.notifyHeartbeatScheduleChanged();
+        },
+        onProjectQueueReadinessChanged: () => {
+          projectQueueScheduler?.readinessSettingsChanged();
         },
         onOllamaSystemPromptChanged: (prompt) => {
           ClaudeOllamaProvider.setSystemPrompt(prompt);

@@ -530,6 +530,10 @@ export type {
   UpdateProjectQueueItemRequest,
 } from "./project-queue.js";
 export {
+  type ProjectQueueReadinessCommand,
+  isProjectQueueReadinessCommand,
+} from "./project-queue-readiness.js";
+export {
   DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
   MAX_PROJECT_QUEUE_QUIET_SECONDS,
   clampProjectQueueQuietSeconds,
@@ -604,6 +608,7 @@ export {
   PROGRESSIVE_SESSION_CATALOG_CAPABILITY,
   PROJECT_QUEUE_CAPABILITY,
   PROJECT_QUEUE_ATTACHMENT_EDITING_CAPABILITY,
+  PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
   ATTACHMENT_ONLY_SESSION_MESSAGES_CAPABILITY,
   PROJECT_QUEUE_NEW_SESSION_SHORTCUT_SETTING_CAPABILITY,
   PROJECT_CODE_NAMES_CAPABILITY,

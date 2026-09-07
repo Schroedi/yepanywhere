@@ -27,6 +27,21 @@ describe("ServerSettingsService", () => {
     expect(service.getSetting("heartbeatTurnText")).toBe("continue");
   });
 
+  it("preserves server-wide readiness configuration and explicit disabling across reloads", async () => {
+    const service = new ServerSettingsService({ dataDir: testDir });
+    await service.initialize();
+    expect(service.getSetting("projectQueueReadinessCheck")).toBeUndefined();
+    const command = { executable: "agentctl", args: ["others", "--text"] };
+    await service.updateSettings({ projectQueueReadinessCheck: command });
+    const reloaded = new ServerSettingsService({ dataDir: testDir });
+    await reloaded.initialize();
+    expect(reloaded.getSetting("projectQueueReadinessCheck")).toEqual(command);
+    await reloaded.updateSettings({ projectQueueReadinessCheck: null });
+    const disabled = new ServerSettingsService({ dataDir: testDir });
+    await disabled.initialize();
+    expect(disabled.getSetting("projectQueueReadinessCheck")).toBeNull();
+  });
+
   it("denies the Claude Gateway Agent tool by default", async () => {
     const service = new ServerSettingsService({ dataDir: testDir });
 

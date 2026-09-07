@@ -1899,6 +1899,28 @@ export const SERVER_CAPABILITIES = {
         "Project Queue availability remains a server feature boundary for older servers and hosted remote clients.",
     },
   },
+  projectQueueReadinessCheck: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectQueueReadinessCheck.id,
+    name: "project-queue-readiness-check",
+    kind: "permanent",
+    area: "projectQueue",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Server persists an optional global executable that gates Project Queue readiness, with bounded polling and Force start bypass.",
+    clientFallback:
+      "Hide the readiness executable setting and omit its field from settings updates.",
+    serverContract: {
+      routes: ["GET /api/settings", "PUT /api/settings"],
+      requestFields: ["settings.projectQueueReadinessCheck"],
+      responseFields: ["settings.projectQueueReadinessCheck"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers cannot persist or execute an external Project Queue readiness command.",
+    },
+  },
   projectQueueAttachmentEditing: {
     id: CAPABILITY_ID_ALLOCATIONS.projectQueueAttachmentEditing.id,
     name: "project-queue-attachment-editing",
@@ -2300,6 +2322,8 @@ export const PROGRESSIVE_SESSION_CATALOG_CAPABILITY =
 export const SESSION_ASYNC_QUESTIONS_CAPABILITY =
   SERVER_CAPABILITIES.sessionAsyncQuestions.name;
 export const PROJECT_QUEUE_CAPABILITY = SERVER_CAPABILITIES.projectQueue.name;
+export const PROJECT_QUEUE_READINESS_CHECK_CAPABILITY =
+  SERVER_CAPABILITIES.projectQueueReadinessCheck.name;
 export const PROJECT_QUEUE_ATTACHMENT_EDITING_CAPABILITY =
   SERVER_CAPABILITIES.projectQueueAttachmentEditing.name;
 

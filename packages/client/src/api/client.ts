@@ -35,6 +35,7 @@ import type {
   ProjectQueuePromoteNowRequest,
   ProjectQueuePromoteNowResponse,
   ProjectQueueResponse,
+  ProjectQueueReadinessCommand,
   ProjectSessionDefaultsResponse,
   ProjectWorkstreamsResponse,
   PublicFileShareListResponse,
@@ -1998,6 +1999,8 @@ export interface ServerSettings {
   turnTimestamps?: "off" | "before" | "after";
   /** Seconds Project Queue waits after whole-project idle before promotion. */
   projectQueueQuietSeconds?: number;
+  /** Optional server-wide executable gate; null disables it. */
+  projectQueueReadinessCheck?: ProjectQueueReadinessCommand | null;
 }
 
 export type RelayClientStatus =

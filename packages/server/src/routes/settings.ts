@@ -19,6 +19,7 @@ import {
   isCodexReasoningSummary,
   isCodexPlanToolMode,
   isSubagentMaxDepth,
+  isProjectQueueReadinessCommand,
   normalizeYaClientBaseUrl,
   normalizeYaClientBaseUrlFromShareViewerUrl,
   normalizeIdleReapHours,
@@ -95,6 +96,7 @@ export interface SettingsRoutesDeps {
   onOllamaUrlChanged?: (url: string | undefined) => void;
   /** Callback to re-plan heartbeat deadlines when the global quiet period moves. */
   onHeartbeatSettingsChanged?: () => void;
+  onProjectQueueReadinessChanged?: () => void;
   /** Callback to apply Ollama system prompt changes at runtime */
   onOllamaSystemPromptChanged?: (prompt: string | undefined) => void;
   /** Callback to apply Ollama full system prompt toggle at runtime */
@@ -370,6 +372,26 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
             {
               error:
                 "deferredJoinWindowSeconds must be a non-negative number of seconds (0 = never join)",
+            },
+            400,
+          );
+        }
+      }
+      if ("projectQueueReadinessCheck" in body) {
+        if (body.projectQueueReadinessCheck === null) {
+          updates.projectQueueReadinessCheck = null;
+        } else if (
+          isProjectQueueReadinessCommand(body.projectQueueReadinessCheck)
+        ) {
+          updates.projectQueueReadinessCheck = {
+            executable: body.projectQueueReadinessCheck.executable,
+            args: [...body.projectQueueReadinessCheck.args],
+          };
+        } else {
+          return c.json(
+            {
+              error:
+                "projectQueueReadinessCheck must be null or an executable with string args (up to 128 args and 16 KiB total)",
             },
             400,
           );
@@ -965,6 +987,9 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
           : undefined;
 
       // Apply allowedHosts change to middleware at runtime
+      if ("projectQueueReadinessCheck" in updates) {
+        deps.onProjectQueueReadinessChanged?.();
+      }
       if ("allowedHosts" in updates && onAllowedHostsChanged) {
         onAllowedHostsChanged(settings.allowedHosts);
       }
