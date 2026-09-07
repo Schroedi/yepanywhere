@@ -70,6 +70,28 @@ server capability. Older capable servers still answer cards through their
 existing clone/resume/read routes, and Save uses their ordinary resume route.
 No new endpoint is called when the capability is absent.
 
+Codex and Codex OSS `/clone` requests use the provider's native `thread/fork`
+adapter, including while the parent is working. YA reads bounded source
+metadata but does not copy or parse the full inherited transcript to create
+the child. Paginated Codex forks retain provider-owned history references;
+provider context initialization still occurs. The clone inherits the source
+sandbox boundary, leaves the parent running, and starts no question turn until
+the existing resume request submits it. Native failure is reported directly;
+YA never falls back to a handwritten Codex rollout copy. Claude retains its
+existing storage-clone path.
+
+The legacy `/clone` response keeps `messageCount` as a conservative inherited
+prefix offset. For native Codex forks it is `Number.MAX_SAFE_INTEGER`, so old
+`/btw` clients display no inherited messages before the marked aside prompt
+arrives. Once that marker exists, it determines the child transcript boundary
+regardless of the offset. This field must not be displayed as an exact count;
+obtaining an exact inherited count must not cause a full-history scan. Quick
+question cards already require their unique prompt marker to extract answers.
+
+**Use native Codex forks instead of repairing copied filenames:** the provider
+owns both resumable identity and paginated lineage. Renaming a handwritten
+copy would retain the full-transcript cost and duplicate that ownership.
+
 The browser owns this transient flow. Helper clones are archived before their
 question starts, so normal session lists stay clear; they remain archived
 sessions, not deleted transcripts. They have ordinary fork provenance and no
@@ -86,6 +108,12 @@ Verification covers real composer submission, the SessionPage browser flow at
 and Codex app-server message insertion. A live Codex 0.153.4 probe persisted
 user/assistant text without starting a turn; active-turn consumption timing and
 live Claude fork generation were not exercised by that probe.
+
+A 2026-09-07 live Codex 0.153.4 check exercised the corrected `/clone` route
+and resumed its native child from the reported 179 MB parent. The child used a
+24 KB paginated rollout and resumed successfully; it was archived without a
+model turn. The reported storage clone failed the same provider resume check
+because its rollout filename was not canonical.
 
 ## `/btw` contracts
 

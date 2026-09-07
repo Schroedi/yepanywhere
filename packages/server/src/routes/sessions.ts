@@ -61,7 +61,7 @@ import type { SessionQueuePersistenceService } from "../services/SessionQueuePer
 import type { WorkstreamService } from "../services/WorkstreamService.js";
 import { initializeSessionHeartbeatDefaults } from "../services/sessionHeartbeatDefaults.js";
 import { CodexSessionReader } from "../sessions/codex-reader.js";
-import { cloneClaudeSession, cloneCodexSession } from "../sessions/fork.js";
+import { cloneClaudeSession } from "../sessions/fork.js";
 import type { GeminiSessionReader } from "../sessions/gemini-reader.js";
 import { GrokSessionReader } from "../sessions/grok-reader.js";
 import type { PiSessionReader } from "../sessions/pi-reader.js";
@@ -7460,6 +7460,13 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       let cloneProvider: ProviderName =
         originalResolution?.source.provider ?? project.provider;
 
+      const originalMetadata =
+        deps.sessionMetadataService?.getMetadata?.(sessionId);
+      const originalTitle =
+        originalMetadata?.customTitle ?? originalSession?.title;
+      const cloneTitle =
+        body.title ?? (originalTitle ? `${originalTitle} [cloned]` : undefined);
+
       let result: { newSessionId: string; entries: number };
 
       const shouldCloneFromCodex =
@@ -7473,33 +7480,41 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         if (!codexReader) {
           return c.json({ error: "Codex session reader not available" }, 500);
         }
-        const filePath = await codexReader.getSessionFilePath(sessionId);
-        if (!filePath) {
-          return c.json({ error: "Session file not found" }, 404);
-        }
-
         cloneProvider =
           originalResolution?.source.provider ??
           body.provider ??
           (isCodexProviderName(project.provider) ? project.provider : "codex");
-        result = await cloneCodexSession(filePath);
+        const forkProjectPath =
+          originalMetadata?.sandboxLevel === "project-write"
+            ? (originalMetadata.sandboxProjectPath ?? project.path)
+            : project.path;
+        const fork = await deps.supervisor.forkSession({
+          sessionId,
+          projectPath: forkProjectPath,
+          providerName: cloneProvider,
+          title: cloneTitle,
+          ...inheritedSandboxSettings(originalMetadata),
+        });
+        if (originalMetadata?.sandboxLevel === "project-write") {
+          await deps.sessionMetadataService?.setSessionSandbox(fork.sessionId, {
+            level: originalMetadata.sandboxLevel,
+            networkFirewall: persistedSandboxNetworkFirewall(originalMetadata),
+            stateKey: fork.sandboxStateKey ?? originalMetadata.sandboxStateKey,
+            projectPath: forkProjectPath,
+            projectId:
+              originalMetadata.workingProjectId ?? (projectId as UrlProjectId),
+          });
+        }
+        result = {
+          newSessionId: fork.sessionId,
+          // Older /btw clients use this offset only until their prompt marker
+          // arrives. A conservative bound hides inherited text without a scan.
+          entries: Number.MAX_SAFE_INTEGER,
+        };
         codexReader.invalidateCache();
         deps.codexScanner?.invalidateCache();
       } else {
         result = await cloneClaudeSession(sessionDir, sessionId);
-      }
-
-      // Build clone title: use provided title, or derive from original
-      let cloneTitle = body.title;
-      if (!cloneTitle && deps.sessionMetadataService) {
-        // Check for custom title first, then fall back to auto-generated title
-        const originalMetadata =
-          deps.sessionMetadataService.getMetadata(sessionId);
-        const originalTitle =
-          originalMetadata?.customTitle ?? originalSession?.title;
-        if (originalTitle) {
-          cloneTitle = `${originalTitle} [cloned]`;
-        }
       }
 
       // Set clone metadata. /btw asides pass parentSessionId so the child

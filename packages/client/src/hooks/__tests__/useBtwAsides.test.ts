@@ -96,6 +96,26 @@ describe("useBtwAsides helpers", () => {
     ).toBe("Thinking: Thinking about a route split\nUsing Grep: btw");
   });
 
+  it("hides native-fork history until the aside prompt arrives", () => {
+    const messages: Message[] = [
+      { id: "inherited", type: "assistant", content: "An old parent answer" },
+    ];
+    const inheritedPrefixBound = Number.MAX_SAFE_INTEGER;
+    expect(getBtwTranscriptTurns(messages, inheritedPrefixBound)).toEqual([]);
+    messages.push(
+      {
+        id: "question",
+        type: "user",
+        content: buildBtwAsideInitialPrompt("Why?"),
+      },
+      { id: "answer", type: "assistant", content: "The aside answer" },
+    );
+    expect(getBtwTranscriptTurns(messages, inheritedPrefixBound)).toEqual([
+      { id: "question-user", role: "user", text: "Why?" },
+      { id: "answer-assistant", role: "assistant", text: "The aside answer" },
+    ]);
+  });
+
   it("normalizes and truncates preview text", () => {
     expect(truncateBtwPreview("  one\n\n two\tthree  ")).toBe("one two three");
     expect(truncateBtwPreview("x".repeat(710))).toHaveLength(700);

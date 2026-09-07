@@ -19,7 +19,35 @@ describe("Codex clone route", () => {
   let project: Project;
   let reader: CodexSessionReader;
 
+  const forkSession = vi.fn(async () => {
+    const sessionId = randomUUID();
+    await writeFile(
+      join(
+        testDir,
+        "2026",
+        "03",
+        "08",
+        `rollout-2026-03-08T12-00-02-${sessionId}.jsonl`,
+      ),
+      `${JSON.stringify({
+        type: "session_meta",
+        payload: {
+          id: sessionId,
+          cwd: projectPath,
+          timestamp: "2026-03-08T12:00:02.000Z",
+          forked_from_id: "source-session",
+        },
+      })}\n${JSON.stringify({
+        type: "event_msg",
+        timestamp: "2026-03-08T12:00:01.000Z",
+        payload: { type: "user_message", message: "Prime the cache" },
+      })}\n`,
+    );
+    return { sessionId };
+  });
+
   beforeEach(async () => {
+    forkSession.mockClear();
     testDir = join(tmpdir(), `codex-clone-route-${randomUUID()}`);
     const sessionDir = join(testDir, "2026", "03", "08");
     await mkdir(sessionDir, { recursive: true });
@@ -72,6 +100,115 @@ describe("Codex clone route", () => {
     await rm(testDir, { recursive: true, force: true });
   });
 
+  it("uses a native fork without reading or copying the source transcript", async () => {
+    const forkSession = vi.fn(async () => ({ sessionId: "native-fork" }));
+    const getSessionFilePath = vi.spyOn(reader, "getSessionFilePath");
+    const getSession = vi.spyOn(reader, "getSession");
+    const routes = createSessionsRoutes({
+      supervisor: { forkSession } as unknown as SessionsDeps["supervisor"],
+      scanner: {
+        getOrCreateProject: vi.fn(async () => project),
+      } as SessionsDeps["scanner"],
+      readerFactory: vi.fn(() => reader),
+      codexReaderFactory: vi.fn(() => reader),
+    });
+
+    const response = await routes.request(
+      `/projects/${projectId}/sessions/source-session/clone`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Quick answer: why?",
+          provider: "codex",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      sessionId: "native-fork",
+      messageCount: Number.MAX_SAFE_INTEGER,
+    });
+    expect(forkSession).toHaveBeenCalledWith({
+      sessionId: "source-session",
+      projectPath,
+      providerName: "codex",
+      title: "Quick answer: why?",
+    });
+    expect(getSessionFilePath).not.toHaveBeenCalled();
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
+  it("reports native fork failure without creating a storage clone", async () => {
+    const forkSession = vi.fn(async () => {
+      throw new Error("Native fork unavailable");
+    });
+    const getSessionFilePath = vi.spyOn(reader, "getSessionFilePath");
+    const routes = createSessionsRoutes({
+      supervisor: { forkSession } as unknown as SessionsDeps["supervisor"],
+      scanner: {
+        getOrCreateProject: vi.fn(async () => project),
+      } as SessionsDeps["scanner"],
+      readerFactory: vi.fn(() => reader),
+      codexReaderFactory: vi.fn(() => reader),
+    });
+
+    const response = await routes.request(
+      `/projects/${projectId}/sessions/source-session/clone`,
+      { method: "POST" },
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "Native fork unavailable" });
+    expect(getSessionFilePath).not.toHaveBeenCalled();
+  });
+
+  it("keeps a native aside inside the source sandbox on fork and resume", async () => {
+    const forkSession = vi.fn(async () => ({
+      sessionId: "sandbox-fork",
+      sandboxStateKey: "child-state",
+    }));
+    const setSessionSandbox = vi.fn();
+    const routes = createSessionsRoutes({
+      supervisor: { forkSession } as unknown as SessionsDeps["supervisor"],
+      scanner: {
+        getOrCreateProject: vi.fn(async () => project),
+      } as SessionsDeps["scanner"],
+      readerFactory: vi.fn(() => reader),
+      codexReaderFactory: vi.fn(() => reader),
+      sessionMetadataService: {
+        getMetadata: () => ({
+          sandboxLevel: "project-write",
+          sandboxNetworkFirewall: false,
+          sandboxProjectPath: projectPath,
+          sandboxStateKey: "source-state",
+        }),
+        setSessionSandbox,
+        updateMetadata: vi.fn(),
+      } as unknown as SessionsDeps["sessionMetadataService"],
+    });
+    const response = await routes.request(
+      `/projects/${projectId}/sessions/source-session/clone`,
+      { method: "POST" },
+    );
+    expect(response.status).toBe(200);
+    expect(forkSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sandboxLevel: "project-write",
+        sandboxNetworkFirewall: false,
+        sandboxStateKey: "source-state",
+      }),
+    );
+    expect(setSessionSandbox).toHaveBeenCalledWith("sandbox-fork", {
+      level: "project-write",
+      networkFirewall: false,
+      stateKey: "child-state",
+      projectPath,
+      projectId,
+    });
+  });
+
   it("invalidates cached Codex readers so the cloned session opens immediately", async () => {
     const sourceSummary = await reader.getSessionSummary(
       "source-session",
@@ -85,7 +222,7 @@ describe("Codex clone route", () => {
     const updateMetadata = vi.fn(async () => {});
 
     const routes = createSessionsRoutes({
-      supervisor: {} as SessionsDeps["supervisor"],
+      supervisor: { forkSession } as unknown as SessionsDeps["supervisor"],
       scanner: {
         getOrCreateProject: vi.fn(async () => project),
       } as SessionsDeps["scanner"],
@@ -132,7 +269,7 @@ describe("Codex clone route", () => {
     const updateMetadata = vi.fn(async () => {});
 
     const routes = createSessionsRoutes({
-      supervisor: {} as SessionsDeps["supervisor"],
+      supervisor: { forkSession } as unknown as SessionsDeps["supervisor"],
       scanner: {
         getOrCreateProject: vi.fn(async () => project),
       } as SessionsDeps["scanner"],
@@ -178,7 +315,7 @@ describe("Codex clone route", () => {
     } as unknown as ISessionReader;
 
     const routes = createSessionsRoutes({
-      supervisor: {} as SessionsDeps["supervisor"],
+      supervisor: { forkSession } as unknown as SessionsDeps["supervisor"],
       scanner: {
         getOrCreateProject: vi.fn(async () => claudeProject),
       } as SessionsDeps["scanner"],

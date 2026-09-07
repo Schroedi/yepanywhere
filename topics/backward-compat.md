@@ -7,6 +7,14 @@ Topic: backward-compat
 
 ## Decisions
 
+2026-09-07 Codex `/clone` — keep the existing route and response fields while
+using native provider forks. `messageCount` remains a conservative inherited
+prefix offset for older `/btw` clients, using `Number.MAX_SAFE_INTEGER` until
+their prompt marker establishes the real boundary. This prevents inherited
+answer leakage without scanning history for a count. Quick question cards use
+their own marker and ignore the offset. See
+[aside contracts](provider-agnostic-btw-asides.md).
+
 2026-08-17 agent launch markers — renamed `YEP_AGENT_HARNESS`,
 `YEP_AGENT_INITIAL_MODEL`, and `YEP_AGENT_INITIAL_EFFORT` to
 `AGENT_LAUNCH_HARNESS`, `AGENT_LAUNCH_MODEL`, and `AGENT_LAUNCH_EFFORT`, and
