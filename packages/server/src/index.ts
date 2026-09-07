@@ -956,7 +956,9 @@ async function startServer() {
     glossaryIndexService,
     externalTracker,
     resolveAbsoluteFilePaths,
+    artifactServer,
   } = createApp({
+    artifacts: config.artifacts,
     provider: mockProvider,
     realSdk,
     projectsDir: config.claudeProjectsDir,
@@ -1044,6 +1046,7 @@ async function startServer() {
     allowedImagePaths: config.allowedImagePaths,
   });
   markStartup("app created");
+  await artifactServer.configure(artifactServer.config);
   disposeAppForShutdown = disposeSessionReaders;
 
   const focusedSessionWatchManager = new FocusedSessionWatchManager({

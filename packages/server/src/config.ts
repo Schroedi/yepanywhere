@@ -9,6 +9,7 @@ import {
   type CodexPlanToolMode,
 } from "@yep-anywhere/shared";
 import "./startupEnv.js";
+import { readArtifactConfig, type ArtifactConfig } from "./artifacts/config.js";
 import { DEFAULT_IDLE_TIMEOUT_SECONDS } from "./defaults.js";
 import { captureStartupEnvSettings } from "./envSettings.js";
 import { getDefaultCodexSessionsDir } from "./projects/codex-scanner.js";
@@ -51,6 +52,7 @@ export function getDataDir(): string {
  * Server configuration loaded from environment variables.
  */
 export interface Config {
+  artifacts?: ArtifactConfig;
   /** Data directory for yep-anywhere state files (indexes, metadata, uploads, etc.) */
   dataDir: string;
   /** Whether this server was launched by the Tauri desktop app. */
@@ -331,6 +333,7 @@ export function loadConfig(): Config {
 
   return {
     dataDir,
+    artifacts: readArtifactConfig(process.env),
     desktopRuntime,
     codexCliPath,
     codexPlanToolMode: parseCodexPlanToolMode(

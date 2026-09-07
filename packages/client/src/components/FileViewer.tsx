@@ -47,7 +47,7 @@ import { downloadBlob } from "../lib/imageActions";
 import { isMarkdownLikeFile } from "../lib/markdownFiles";
 import { extractMarkdownSnippetsFromSelection } from "../lib/markdownSelectionCopy";
 import { getRenderedFileClipboardPayload } from "../lib/renderedFileClipboard";
-import { createScriptlessHtmlPreviewDocument } from "../lib/scriptlessHtmlPreview";
+import { ArtifactPreview } from "./ArtifactPreview";
 import {
   annotateShikiSourceOffsets,
   compactShikiLineBreaks,
@@ -1460,13 +1460,11 @@ export const FileViewer = memo(function FileViewer({
 
       if (showPreview && hasHtmlPreview) {
         return (
-          <iframe
-            aria-label={fileName}
+          <ArtifactPreview
+            html={content}
+            path={filePath}
+            projectId={projectId}
             className={viewerStyles.htmlPreviewFrame}
-            data-tooltip=""
-            sandbox=""
-            referrerPolicy="no-referrer"
-            srcDoc={createScriptlessHtmlPreviewDocument(content)}
             title={fileName}
           />
         );

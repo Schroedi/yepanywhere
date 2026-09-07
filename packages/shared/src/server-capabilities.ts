@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  artifactViewer: {
+    name: "artifact-viewer",
+    index: CAPABILITY_ID_ALLOCATIONS.artifactViewer.id,
+    introducedIn: "0.8.2",
+  },
   voiceInput: {
     name: "voiceInput",
     index: CAPABILITY_ID_ALLOCATIONS.voiceInput.id,
@@ -154,6 +159,35 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  artifactViewer: {
+    id: CAPABILITY_ID_ALLOCATIONS.artifactViewer.id,
+    name: "artifact-viewer",
+    kind: "permanent",
+    area: "remoteAccess",
+    introducedIn: "0.8.2",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.artifactViewer.id,
+    },
+    description:
+      "An explicitly configured isolated listener serves authorized interactive HTML directories.",
+    clientFallback:
+      "Retain source and scriptless preview; make no artifact grant request. Configuration is separately gated by version.artifactViewer metadata.",
+    serverContract: {
+      routes: [
+        "POST /api/artifacts",
+        "DELETE /api/artifacts/:id",
+        "PUT /api/artifacts/config",
+      ],
+      routeModules: ["packages/server/src/routes/artifacts.ts"],
+      responseFields: ["version.artifactViewer"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Artifact listener availability depends on explicit operator configuration.",
+    },
+  },
   publicShareSessionChunks: {
     name: PUBLIC_SHARE_SESSION_CHUNKS_CAPABILITY,
     kind: "permanent",

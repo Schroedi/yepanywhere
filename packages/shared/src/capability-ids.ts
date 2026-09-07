@@ -372,6 +372,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "turn-effort-modifiers",
     introducedIn: "0.8.2",
   },
+  artifactViewer: {
+    id: 59,
+    direction: "server",
+    name: "artifact-viewer",
+    introducedIn: "0.8.2",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

@@ -81,6 +81,7 @@ import {
   type SessionSandboxAvailability,
 } from "@yep-anywhere/shared";
 import { Hono } from "hono";
+import type { ArtifactViewerStatus } from "@yep-anywhere/shared";
 import { getSessionSandboxAvailability as getLocalSessionSandboxAvailability } from "../session-sandbox.js";
 import type {
   SpeechBackendCapabilities,
@@ -299,6 +300,7 @@ async function getLatestVersion(
 }
 
 export interface VersionInfo {
+  artifactViewer?: ArtifactViewerStatus;
   current: string;
   latest: string | null;
   updateAvailable: boolean;
@@ -421,6 +423,7 @@ export interface DeviceBridgeStatus {
 }
 
 export interface VersionRouteOptions {
+  getArtifactViewerStatus?: () => ArtifactViewerStatus;
   /** Test/service override for the process-generation version snapshot. */
   getCurrentVersionInfo?: () => Promise<CurrentVersionInfo>;
   /** Whether the signed security-client audit routes are mounted. */
@@ -504,6 +507,8 @@ function getCapabilitiesForDeviceBridgeState(
 
 export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   const capabilities: string[] = [...BASE_CAPABILITIES];
+  if (options?.getArtifactViewerStatus?.().available)
+    capabilities.push("artifact-viewer");
   if (options?.sessionSandboxAvailability?.state === "available") {
     capabilities.push(SESSION_SANDBOXING_CAPABILITY);
   }
@@ -621,6 +626,9 @@ export function createVersionRoutes(options?: VersionRouteOptions): Hono {
 
     const info: VersionInfo = {
       current,
+      ...(options?.getArtifactViewerStatus
+        ? { artifactViewer: options.getArtifactViewerStatus() }
+        : {}),
       latest,
       updateAvailable,
       installSource: currentVersionInfo.installSource,

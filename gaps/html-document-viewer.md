@@ -1,13 +1,40 @@
 # HTML viewing loses fidelity and lacks inline drag/pinch inspection
 
-Status: proposed direction, implementation unstarted. This gap owns richer
+Status: isolated interactive serving implemented; advanced HTML inspection
+and the broader verification matrix remain open. This gap owns richer
 display of HTML documents and their assets, including ordinary linked files
 and [project mockup exports](ui-mockup-export-bundle.md). A special bundle must
 not become mandatory for a simple HTML document with neighboring resources.
 
 ## Current limitation and existing owners
 
-`LocalMediaModal.tsx` and `FileViewer.tsx` display HTML through
+As of 2026-09-07, an explicitly enabled artifact origin supports original HTML,
+relative CSS/fonts/media, JavaScript modules, mocked data, and linked documents.
+Local artifact access can share YA's port through hostname dispatch; hosted
+access uses a separate loopback listener. The current contract, configuration,
+limits, and verification are in
+[interactive HTML artifacts](../topics/active-content-security.md#interactive-html-artifacts).
+The operator accepts normal browser background behavior for their own artifacts;
+strict hostile-script CPU isolation and mutually isolated per-artifact storage
+are outside this implementation's promise.
+
+Remaining work is separate layout viewport/zoom, inline drag/pinch inspection,
+viewer-aware document Back, and verification across the complete parked/expanded
+lifecycle and live hosted tunnel. Chromium serving and controls are verified;
+WebKit could not start on this host because required system libraries are absent.
+Contributing-model: 6-Astra
+
+Checkpoint requested 2026-09-07 to release the shared capability registry to
+concurrent work. The core Chromium smoke, client fallback tests, server host
+dispatch tests, lint, and CSS/console checks pass. The latest browser check
+added for configuration saving and public-listener enable/disable still needs
+execution. Full server type checking is blocked in concurrent Project Queue
+and async-question changes; the artifact files report no type errors.
+The existing global CSS around these viewers/settings remains coupled to other
+owners (3–56 shared-rule edges), so this change adds only component CSS Modules.
+Contributing-model: 6-Astra
+
+By default, `LocalMediaModal.tsx` and `FileViewer.tsx` still display HTML through
 `packages/client/src/lib/scriptlessHtmlPreview.ts` inside `sandbox=""`.
 The wrapper permits inline CSS and data/blob images, denies scripts and network
 connections, and has no font allowance. Standalone HTML viewing is constrained
@@ -53,7 +80,7 @@ Use a separate document sandbox rather than inserting richer arbitrary markup
 into YA's trusted transcript DOM. The standard
 [iframe sandbox](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe)
 can permit scripts while withholding same-origin authority and top navigation.
-The trusted client should fetch authorized, bounded resources over existing
+The earlier candidate was for the trusted client to fetch authorized, bounded resources over existing
 direct or encrypted-relay transport and broker them into the document. This
 follows the active-content topic's controlled-bundle option without granting
 YA cookies, storage, APIs, native bridges, or sibling-frame access. Popups,
@@ -64,7 +91,8 @@ and browser differences are the central delivery work. A folder or ZIP is not
 a browser origin, and `srcdoc` supplies no virtual filesystem. Prove the
 supported asset graph in an early spike using established parsers or build-time
 inlining, not regex source rewriting. If an opaque broker cannot support the
-chosen build reliably, use the already-specified isolated content host. Do not
+chosen build reliably, use the already-specified isolated content host (the
+implemented choice for interactive artifacts). Do not
 fall back to execution on an authenticated YA origin.
 
 Static and scripted documents are both part of the target. An initial static

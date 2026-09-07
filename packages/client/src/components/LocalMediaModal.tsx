@@ -27,7 +27,7 @@ import {
   writeClipboardTextLater,
 } from "../lib/clipboard";
 import { downloadBlob, writeClipboardImageLater } from "../lib/imageActions";
-import { createScriptlessHtmlPreviewDocument } from "../lib/scriptlessHtmlPreview";
+import { ArtifactPreview } from "./ArtifactPreview";
 import {
   requireRenderedFileClipboardPayload,
   requireRenderedHtmlClipboardPayload,
@@ -854,13 +854,13 @@ export function LocalFileModal({
           </div>
         )}
         {state.status === "html" && (
-          <iframe
-            aria-label={fileName}
+          <ArtifactPreview
+            html={state.html}
+            path={resource.path}
+            projectId={
+              resource.kind === "project-file" ? resource.projectId : undefined
+            }
             className={styles.fileHtmlFrame}
-            data-tooltip=""
-            sandbox=""
-            referrerPolicy="no-referrer"
-            srcDoc={createScriptlessHtmlPreviewDocument(state.html)}
             title={fileName}
           />
         )}

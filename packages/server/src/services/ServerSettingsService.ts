@@ -6,6 +6,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import type { ArtifactViewerConfig } from "@yep-anywhere/shared";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type {
@@ -89,6 +90,7 @@ export type ToolResultMediaPreservation =
 
 /** Server-wide settings */
 export interface ServerSettings {
+  artifactViewer?: ArtifactViewerConfig;
   /** Where YA writes new project-scoped state. */
   projectDirectoryStorage: ProjectDirectoryStorage;
   /** Whether new live tool-result images receive durable YA-owned copies. */

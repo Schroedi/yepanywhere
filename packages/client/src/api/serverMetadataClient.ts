@@ -1,4 +1,5 @@
 import type {
+  ArtifactViewerStatus,
   CapabilityBitset,
   ClientDefaults,
   OptionalServerCapabilityBitset,
@@ -7,6 +8,7 @@ import type {
 import { fetchJSON } from "./sourceApiFetch";
 
 export interface VersionInfo {
+  artifactViewer?: ArtifactViewerStatus;
   current: string;
   latest: string | null;
   updateAvailable: boolean;

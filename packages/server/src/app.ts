@@ -1,4 +1,14 @@
 import type { HttpBindings } from "@hono/node-server";
+import { ArtifactServer } from "./artifacts/ArtifactServer.js";
+import {
+  validateArtifactConfig,
+  type ArtifactConfig,
+} from "./artifacts/config.js";
+import { createArtifactRoutes } from "./routes/artifacts.js";
+import {
+  isArtifactHost,
+  isArtifactOrigin,
+} from "./middleware/allowed-hosts.js";
 import { RESPONSE_ALREADY_SENT } from "@hono/node-server/utils/response";
 import type {
   AppContentBlock,
@@ -256,6 +266,7 @@ import type { EventBus } from "./watcher/index.js";
 import { LifecycleWebhookService } from "./webhooks/LifecycleWebhookService.js";
 
 export interface AppOptions {
+  artifacts?: ArtifactConfig;
   /** Explicit provider override; null suppresses ambient provider discovery. */
   provider?: AgentProvider | null;
   /** Legacy SDK interface for mock SDK (for testing) */
@@ -423,6 +434,7 @@ export interface AppOptions {
 }
 
 export interface AppResult {
+  artifactServer: ArtifactServer;
   app: Hono<{ Bindings: HttpBindings }>;
   /** Supervisor instance for debug API access */
   supervisor: Supervisor;
@@ -492,6 +504,7 @@ function getPreservedRestartWork(
 }
 
 export function createApp(options: AppOptions): AppResult {
+  let artifactServer: ArtifactServer;
   let supervisor!: Supervisor;
   const isSessionSandboxAuthEnforced = (): boolean =>
     options.authDisabled !== true &&
@@ -562,6 +575,14 @@ export function createApp(options: AppOptions): AppResult {
   const piSessionsDir = options.piSessionsDir ?? PI_SESSIONS_DIR;
 
   const app = new Hono<{ Bindings: HttpBindings }>();
+  app.use("*", async (c, next) => {
+    const host = c.req.header("Host") ?? new URL(c.req.url).host;
+    if (artifactServer?.matchesHost(host))
+      return artifactServer.app.fetch(c.req.raw);
+    if (isArtifactHost(host) || isArtifactOrigin(c.req.header("Origin")))
+      return c.json({ error: "Artifact documents cannot access YA" }, 403);
+    await next();
+  });
   if (options.desktopBootstrapService) {
     app.route(
       "/desktop-bootstrap",
@@ -710,6 +731,23 @@ export function createApp(options: AppOptions): AppResult {
     scanner,
     includeProjects: shouldIncludeProjects,
   });
+  const artifactConfig = options.artifacts ??
+    options.serverSettingsService?.getSetting("artifactViewer") ?? {
+      port: 4402,
+    };
+  artifactServer = new ArtifactServer(
+    validateArtifactConfig(artifactConfig),
+    localResourcePathPolicy,
+  );
+  app.route(
+    "/api/artifacts",
+    createArtifactRoutes({
+      server: artifactServer,
+      scanner,
+      settings: options.serverSettingsService,
+      locked: options.artifacts !== undefined,
+    }),
+  );
   const toolResultMediaStore = new ToolResultMediaStore({
     dataDir: options.dataDir,
     storagePolicy: projectStoragePolicy,
@@ -752,6 +790,7 @@ export function createApp(options: AppOptions): AppResult {
     }
   };
   const disposeSessionReaders = async (): Promise<void> => {
+    await artifactServer.close();
     await projectFileCompletion.dispose();
     await bangCommandService?.dispose();
     const entries = Array.from(readerCache.entries());
@@ -1514,6 +1553,13 @@ export function createApp(options: AppOptions): AppResult {
   app.route(
     "/api/version",
     createVersionRoutes({
+      getArtifactViewerStatus: () => ({
+        ...artifactServer.config,
+        available: artifactServer.available,
+        locked:
+          options.artifacts !== undefined || !options.serverSettingsService,
+        defaultLocalOrigin: `http://artifacts.localhost:${options.serverPort ?? 3400}`,
+      }),
       browserSettingsBackupAvailable: !!options.browserSettingsBackupService,
       securityClientAuditAvailable: !!options.securityClientService,
       getDeviceBridgeState: () => {
@@ -2647,6 +2693,7 @@ export function createApp(options: AppOptions): AppResult {
 
   return {
     app,
+    artifactServer,
     supervisor,
     scanner,
     readerFactory,

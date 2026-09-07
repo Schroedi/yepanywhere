@@ -1,3 +1,8 @@
+export type {
+  ArtifactViewerConfig,
+  ArtifactViewerStatus,
+  ArtifactViewerGrant,
+} from "./artifact-viewer.js";
 export {
   formatConversationContextTurn,
   type ConversationContextTurn,
