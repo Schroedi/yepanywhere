@@ -42,7 +42,8 @@ import type {
 import {
   codexRolloutRepresentation,
   getCodexRolloutActivityTimeMs,
-  getCodexRolloutSessionId,
+  getCodexRolloutFileIdentity,
+  getCodexRolloutId,
   isCompressedCodexRolloutPath,
   isCodexRolloutFileName,
   preferPlainCodexRollouts,
@@ -133,6 +134,33 @@ interface CodexSessionFile {
   mtime: number;
   size: number;
   isSubagent: boolean;
+}
+
+function isNewerCodexSessionFile(
+  candidate: CodexSessionFile,
+  current: CodexSessionFile,
+): boolean {
+  const candidateIdentity = getCodexRolloutFileIdentity(candidate.filePath);
+  const currentIdentity = getCodexRolloutFileIdentity(current.filePath);
+  if (
+    candidateIdentity?.timestamp &&
+    currentIdentity?.timestamp &&
+    candidateIdentity.timestamp !== currentIdentity.timestamp
+  ) {
+    return candidateIdentity.timestamp > currentIdentity.timestamp;
+  }
+  if (
+    candidateIdentity?.timestamp === currentIdentity?.timestamp &&
+    candidateIdentity?.rolloutId !== currentIdentity?.rolloutId
+  ) {
+    return (
+      (candidateIdentity?.rolloutId ?? "") > (currentIdentity?.rolloutId ?? "")
+    );
+  }
+  if (candidate.mtime !== current.mtime) {
+    return candidate.mtime > current.mtime;
+  }
+  return candidate.filePath > current.filePath;
 }
 
 const CODEX_SCAN_CACHE_TTL_MS = 5000;
@@ -1387,7 +1415,7 @@ export class CodexSessionReader implements ISessionReader {
   }
 
   private cacheRolloutPath(filePath: string, overwrite = true): void {
-    const rolloutId = getCodexRolloutSessionId(filePath);
+    const rolloutId = getCodexRolloutId(filePath);
     if (rolloutId && (overwrite || !this.rolloutPathById.has(rolloutId))) {
       this.rolloutPathById.set(rolloutId, filePath);
     }
@@ -1474,12 +1502,12 @@ export class CodexSessionReader implements ISessionReader {
     options?: CodexScanOptions,
     metrics?: CodexSessionReaderScanMetrics,
   ): Promise<CodexSessionFile[]> {
-    const sessions: CodexSessionFile[] = [];
+    const sessionsById = new Map<string, CodexSessionFile>();
     try {
       await stat(this.sessionsDir);
       if (metrics) metrics.sessionsDirExists = true;
     } catch {
-      return sessions;
+      return [];
     }
 
     const files = await this.findJsonlFiles(this.sessionsDir, metrics);
@@ -1489,7 +1517,10 @@ export class CodexSessionReader implements ISessionReader {
       const activeWindowSkipsBefore = metrics?.discovery.activeWindowSkips ?? 0;
       const session = await this.readSessionMeta(filePath, options, metrics);
       if (session) {
-        sessions.push(session);
+        const current = sessionsById.get(session.id);
+        if (!current || isNewerCodexSessionFile(session, current)) {
+          sessionsById.set(session.id, session);
+        }
       } else if (
         metrics &&
         metrics.discovery.activeWindowSkips === activeWindowSkipsBefore
@@ -1499,10 +1530,10 @@ export class CodexSessionReader implements ISessionReader {
     }
     await this.discoveryIndex?.flush();
     if (metrics) {
-      metrics.sessionsParsed = sessions.length;
+      metrics.sessionsParsed = sessionsById.size;
     }
 
-    return sessions;
+    return [...sessionsById.values()];
   }
 
   async getSessionFilePath(sessionId: string): Promise<string | null> {

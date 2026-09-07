@@ -4,7 +4,10 @@ import type {
   CodexSessionMetaEntry,
 } from "@yep-anywhere/shared";
 import { parseCodexSessionEntry } from "@yep-anywhere/shared";
-import { getCodexRolloutSessionId } from "../utils/codexRolloutFiles.js";
+import {
+  getCodexRolloutFileIdentity,
+  getCodexRolloutId,
+} from "../utils/codexRolloutFiles.js";
 import { iterateJsonlLineRecords, readFirstLine } from "../utils/jsonl.js";
 
 const CODEX_META_READ_MAX_BYTES = 1024 * 1024;
@@ -113,7 +116,7 @@ export async function resolveCodexRolloutLineage(options: {
   const segments: CodexRolloutLineageSegment[] = [];
   const seen = new Set<string>();
   let filePath = leafFilePath;
-  let rolloutId = getCodexRolloutSessionId(filePath) ?? requestedSessionId;
+  let rolloutId = getCodexRolloutId(filePath) ?? requestedSessionId;
   let end: CodexHistoryPosition | undefined;
 
   for (;;) {
@@ -122,7 +125,8 @@ export async function resolveCodexRolloutLineage(options: {
     }
     seen.add(rolloutId);
 
-    const fileRolloutId = getCodexRolloutSessionId(filePath);
+    const fileIdentity = getCodexRolloutFileIdentity(filePath);
+    const fileRolloutId = fileIdentity?.rolloutId;
     if (fileRolloutId && fileRolloutId !== rolloutId) {
       throw new CodexRolloutLineageError(
         requestedSessionId,
@@ -134,7 +138,8 @@ export async function resolveCodexRolloutLineage(options: {
       filePath === leafFilePath
         ? canonicalMeta
         : await readCodexSessionMeta(filePath);
-    if (meta.payload.id !== rolloutId) {
+    const metadataOwnerId = fileIdentity?.threadId ?? rolloutId;
+    if (meta.payload.id !== metadataOwnerId) {
       throw new CodexRolloutLineageError(
         requestedSessionId,
         `rollout ${rolloutId} metadata belongs to ${meta.payload.id}`,

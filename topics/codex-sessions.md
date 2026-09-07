@@ -48,6 +48,16 @@ cutoffs. YA treats that chain as the child's logical transcript:
 - later appends to an ancestor never enter an existing child; and
 - ancestors may themselves be reference-backed, archived, or zstd-compressed.
 
+Codex `thread/revert` keeps the logical thread id stable while switching its
+SQLite row to a new immutable physical rollout. The replacement filename is
+`rollout-<timestamp>-<thread-id>_<rollout-id>.jsonl`: `session_meta.id` remains
+the stable thread id before `_`, while `history_base.thread_id` follows the
+physical rollout ids. YA parses and validates both identities, selects the
+newest physical rollout when scanning files for one logical thread, and keeps
+older physical rollouts available as lineage ancestors. A fork may inherit
+through a reverted rollout, so ancestor metadata is validated against the
+stable thread id in its own filename rather than against the fork's id.
+
 The history reference identifies the immutable rollout id encoded in the
 provider filename, not a YA URL id substitution or a stable provider session
 tree id. Resolution searches active and archived Codex roots, prefers the
