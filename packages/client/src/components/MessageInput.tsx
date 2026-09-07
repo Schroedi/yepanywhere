@@ -1,3 +1,4 @@
+import { NewSessionQueueMark } from "./NewSessionQueueMark";
 import {
   DEFAULT_PATIENT_QUEUE_PATIENCE_SECONDS,
   DEFAULT_PROJECT_QUEUE_CTRL_ENTER_ENABLED,
@@ -4186,12 +4187,7 @@ export function MessageInput({
                     )}
                   >
                     <DeliveryGlyph>⇥</DeliveryGlyph>
-                    <span
-                      className="project-queue-new-session-mark"
-                      aria-hidden="true"
-                    >
-                      +
-                    </span>
+                    <NewSessionQueueMark />
                     {manualDeliverySpeechPrefix && (
                       <SpeechPrefixActionCue
                         prefix={manualDeliverySpeechPrefix}
