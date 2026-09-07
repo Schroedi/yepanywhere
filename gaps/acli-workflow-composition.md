@@ -30,6 +30,27 @@ workflow tags against those fragments before Markdown presentation. Keep
 tool-local stages and lifecycle authority distinct from assistant commentary,
 preserve original output, and never apply offsets across different projections.
 
+Two producer conventions remain open for that design:
+
+- **Extract commentary first.** A decoded commentary text may begin with a
+  schema tag prefix, such as `[build][types] Checked the types.`. Workflow
+  matching can then classify/group that prose while preserving its Markdown,
+  original record, and context bullet. Its tool provenance must remain intact:
+  it cannot acquire the assistant's ability to close the calling workflow.
+- **JSONL records as logical lines.** Define which JSONL parts supply tag text
+  or a structured stage path and which data belongs to that segment. One
+  physical JSONL line can contain escaped newlines or several commentary
+  items, so record boundaries, decoded text-line boundaries, ordering, and
+  whether a stage carries into following records need an explicit contract.
+  Do not infer tag meaning from arbitrary string fields or prefix serialized
+  JSON with raw tags that would invalidate JSONL.
+
+These are compatible directions, not implemented promises. The official
+workflow topic should own their framing and matching rules; the ACLI topic
+should cross-reference them while retaining valid JSONL output. Test both
+feature switches independently and together, complete and streaming records,
+original-output recovery, and separate invocation/stream contexts.
+
 See [ACLI commentary](../topics/acli-commentary.md) and
 [workflow view](../topics/workflow-view.md). This is a concrete composition
 defect, separate from optional gallery grouping.
