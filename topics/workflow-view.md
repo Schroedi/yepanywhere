@@ -101,14 +101,24 @@ become user messages, approval, or authority over another session.
 
 The reusable `tagged-stages/1` contract is owned by
 `~/agents/topics/workflow-tags.md` and adopted by this checkout's local publish
-instructions. A one-line `@@visualization-schema/1 <schema-path>` activation
-must first be surfaced in agent output or a tool result. A resolved invocation
+instructions. A one-line `@@visualization-schema/1 <schema-path>` activation,
+or the quick inline list described below, must first be surfaced in agent output
+or a tool result. A resolved invocation
 or observed read of skill content can instead activate through the string-valued
 `metadata.visualization-schema`
 frontmatter field. Skill discovery and ordinary bracketed text do not activate
 the view. The declaration's `type` selects from a fixed supported inventory,
 initially `tagged-stages/1`, leaving room for explicitly added visualization
 types besides tag-based outlines.
+
+Quickly authored output can instead use
+`@@visualization-schema/1 ["build","test","report"]`. The JSON list is distinct
+from an absolute or home-relative path and needs no schema file. Its atoms
+whitelist exact assistant/tool prefixes, titles default to the atoms, and tool
+output uses spans beneath its calling context. A nested array entry denotes an
+exact multi-key path. This generic preset starts at activation and ends at the
+next activation or turn boundary without claiming workflow completion. File
+schemas remain available for richer structure, titles, policy, and outcomes.
 
 Fixed `[A][B]` line prefixes select paths in an outline; declared
 titles expand shorthand keys, with the key itself as fallback. Following agent
@@ -259,14 +269,17 @@ compose with [conversation view](conversation-view.md), retain access to the
 original transcript, and leave unassociated activities visible. A user can
 inspect the source update that caused a displayed state.
 
-The declared opening starts the span inside the observed turn. An explicit
-terminal record closes it: an end marker for tags, a final snapshot for the
+For a full declaration, the opening starts the span inside the observed turn.
+An explicit terminal record closes it: an end marker for tags, a final snapshot for the
 richer candidate. Ending or canceling the turn without closure leaves the
 workflow incomplete or interrupted; it does not mark pending parts completed.
 A completed command does not prove completion
 of its containing part. A tool error does not by itself fail the entire
 workflow. The displayed part result is the producer's report, with linked
 evidence available for inspection.
+
+The quick inline form instead has a display-only span bounded by activation
+and the turn, with no task-completion assertion to infer from its end.
 
 Replaying the same source records should yield the same outline as live
 updates. Deduplicate by source identity and retain the last accepted state
