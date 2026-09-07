@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { createServer as createHttpServer } from "node:http";
+import { createServer as createHttpServer, request } from "node:http";
 import { cp, copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -197,11 +197,31 @@ test("shows configurable artifact addresses and port", async ({
   await expect
     .poll(() => instance.artifactServer.config.publicOrigin)
     .toBe("https://artifacts.example.test");
-  const health = await fetch(
-    `http://127.0.0.1:${instance.artifactServer.config.port}/health`,
-    { headers: { Host: "artifacts.example.test" } },
+  const health = await new Promise<{ status: number; body: string }>(
+    (resolve, reject) => {
+      const req = request(
+        {
+          hostname: "127.0.0.1",
+          port: instance.artifactServer.config.port,
+          path: "/health",
+          headers: { Host: "artifacts.example.test" },
+        },
+        (response) => {
+          let body = "";
+          response.setEncoding("utf8");
+          response.on("data", (chunk) => {
+            body += chunk;
+          });
+          response.on("end", () =>
+            resolve({ status: response.statusCode ?? 0, body }),
+          );
+        },
+      );
+      req.on("error", reject);
+      req.end();
+    },
   );
-  expect(await health.json()).toEqual({ artifactViewer: 1 });
+  expect(health).toEqual({ status: 200, body: '{"artifactViewer":1}' });
   await page.getByLabel("Public artifact address (optional)").fill("");
   await page.getByLabel("Enable local artifact access").uncheck();
   await page.getByRole("button", { name: "Save artifact settings" }).click();

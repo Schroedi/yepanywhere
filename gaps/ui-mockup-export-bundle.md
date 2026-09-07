@@ -68,6 +68,47 @@ and realistic fixture data instead of recreating a generic visual theme.
 
 ## First implementation and acceptance
 
+### Viewer checkpoint available for export testing — 2026-09-07
+
+Use commit `59bbb5aaa121a98796ad3ee87468865815664f48` as the viewer
+checkpoint. Its serving/configuration contract is
+[Interactive HTML artifacts](../topics/active-content-security.md#interactive-html-artifacts).
+The shared capability registry has been released for concurrent work.
+
+The existing end-to-end fixture is
+`packages/client/e2e/artifact-viewer.spec.ts`, with an ordinary HTML/CSS/JS/data
+directory at `packages/server/test/fixtures/artifact`. The test copies a real
+bundled KaTeX font into its disposable artifact directory. It starts a fresh
+isolated YA instance and Vite client, exercises same-port artifact-host routing,
+and tears them down. Run the verified Chromium path from the checkout root:
+
+```bash
+pnpm --filter @yep-anywhere/client exec playwright test --config playwright.artifacts.config.ts --project chromium
+```
+
+For a generated export, build an HTML entry with relative asset URLs (`base:
+"./"` for a Vite export). Keep CSS, fonts, media, JavaScript modules, and mocked
+data inside the entry's directory tree. Put no required assets above that root;
+root-relative `/assets/...` URLs are not mapped into the grant. ZIPs must be
+extracted before viewing. Supply any required providers and mocked/real data
+services; YA does not recreate them.
+
+Open the exported HTML in a fresh YA instance, enable Local Access →
+Interactive HTML artifacts, and use its separate `artifacts.localhost` address
+on the same forwarded YA port. Select Preview, then Run interactive preview.
+The current live supervising server needs a user-managed restart before it has
+this checkpoint; do not restart it from an agent session. Adapt the existing
+browser scenario to the export's controls and assert actual fonts/assets and
+interaction state. Passing the stock fixture alone does not verify a new export.
+
+The stock bundle, settings saving, public-listener enable/disable, and
+desktop/phone layout passed in Chromium. Public HTTPS tunnel delivery and
+WebKit remain unverified; WebKit cannot launch with this host's current
+libraries. Keep the remaining acceptance items below open until exercised.
+Contributing-model: 6-Astra
+
+### Export facility acceptance
+
 1. Build one small YA fixture from real components with theme CSS, a bundled
    font/icon, long scrollable content, responsive layout, and a local toggle or
    menu. Export it with the current Vite builder; retain source and screenshots.
