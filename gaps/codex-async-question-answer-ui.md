@@ -220,7 +220,7 @@ and focus movement during submission.
 The small toolbar rectangle uses an outlined speech bubble containing `?`,
 muted warm amber (`#D8B477` in the mockup), a faint amber fill, and a subdued
 border. It should be noticeable but ignorable: no pulse, warning banner, or
-focus theft. With room, show `3 questions · latest 1 turn ago`; the age is
+focus theft. With room, show `3 questions · 1 turn ago`; the age is
 that of the most recent question still counted. Drop the age first, then the
 word `questions`, retaining the icon and count at compact widths. Preserve
 an informative accessible label regardless of visible text. Keep the indicator
