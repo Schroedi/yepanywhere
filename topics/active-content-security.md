@@ -388,5 +388,9 @@ older-server fallback, and failed reachability. The browser fixture in
 mocked JSON, local state, controls, and linked documents with no source dev
 server. Run `pnpm --filter @yep-anywhere/client exec playwright test --config
 playwright.artifacts.config.ts`. Chromium was verified at desktop and phone
-sizes; this host lacks WebKit's required system libraries. Live public tunnel,
-Safari/WebKit, macOS, and Windows verification remain outstanding.
+sizes; this host lacks WebKit's required system libraries. After the operator
+restarted YA on 2026-09-07, a live public HTTPS tunnel served the demo with
+working fonts, modules, mocked JSON, menu, and save interaction in Chromium.
+The same grant also returned HTTP 200 through local same-port Host dispatch.
+The complete hosted-client embedded flow, Safari/WebKit, macOS, and Windows
+verification remain outstanding.

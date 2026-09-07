@@ -102,9 +102,11 @@ browser scenario to the export's controls and assert actual fonts/assets and
 interaction state. Passing the stock fixture alone does not verify a new export.
 
 The stock bundle, settings saving, public-listener enable/disable, and
-desktop/phone layout passed in Chromium. Public HTTPS tunnel delivery and
-WebKit remain unverified; WebKit cannot launch with this host's current
-libraries. Keep the remaining acceptance items below open until exercised.
+desktop/phone layout passed in Chromium. After the operator restarted YA,
+the live public HTTPS demo also passed font/module/mock-data/menu/save checks.
+The complete hosted-client embedded flow and WebKit remain unverified;
+WebKit cannot launch with this host's current libraries. Keep the remaining
+acceptance items below open until exercised.
 Contributing-model: 6-Astra
 
 ### Export facility acceptance

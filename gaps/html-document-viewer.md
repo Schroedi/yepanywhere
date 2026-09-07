@@ -20,7 +20,7 @@ are outside this implementation's promise.
 
 Remaining work is separate layout viewport/zoom, inline drag/pinch inspection,
 viewer-aware document Back, and verification across the complete parked/expanded
-lifecycle and live hosted tunnel. Chromium serving and controls are verified;
+lifecycle and hosted-client embedding. Chromium serving and controls are verified;
 WebKit could not start on this host because required system libraries are absent.
 Contributing-model: 6-Astra
 
@@ -28,6 +28,8 @@ Checkpoint requested 2026-09-07 to release the shared capability registry to
 concurrent work. The core Chromium smoke, client fallback tests, server host
 dispatch tests, lint, and CSS/console checks pass. The follow-up browser check
 for configuration saving and public-listener enable/disable also passes.
+After the operator's restart, the live public HTTPS demo passed Chromium
+font/module/mock-data/menu/save checks; local same-port serving returned 200.
 Full server type checking is blocked in concurrent Project Queue
 and async-question changes; the artifact files report no type errors.
 The existing global CSS around these viewers/settings remains coupled to other
