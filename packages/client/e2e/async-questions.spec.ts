@@ -205,6 +205,14 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
       });
       await page.setViewportSize(viewport);
       await page.goto(`${origin}/projects/${projectId}/sessions/${sessionId}`);
+      if (viewport.name === "desktop") {
+        await page
+          .getByRole("button", { name: "Skip all", exact: true })
+          .click();
+        await expect(
+          page.getByText("Welcome to yepanywhere"),
+        ).not.toBeVisible();
+      }
       await page.evaluate(() => {
         for (const key of Object.keys(localStorage))
           if (key.startsWith("yep-async-questions:"))
@@ -308,6 +316,7 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
         page.getByRole("alert").filter({ hasText: "Reply could not be sent" }),
       ).toBeVisible();
       await expect(freeform).toHaveValue("Include exact test results.");
+      await expect(composer).toHaveValue("Keep my main draft");
       fail = false;
       busy = false;
       emit?.("status", { sessionId, state: "idle" });
@@ -331,6 +340,7 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
           }, previousAnchor),
         )
         .toBeLessThan(3);
+      await expect(composer).toHaveValue("Keep my main draft");
       expect(sends.at(-1)).toMatchObject({
         message: `> ${questions[1]!.title}\n\nInclude exact test results.`,
         messageMetadata: { deliveryIntent: "direct" },
