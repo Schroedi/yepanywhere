@@ -231,10 +231,12 @@ width controls label detail; reminder aging controls visibility.
 The preview menu opens upward and may temporarily cover the composer without
 altering its draft. It can be wider than the button, aligned to its right edge
 and capped by the viewport. List oldest questions at the top and newest at the
-bottom, nearest the trigger. Each row shows actual question text on one line
-with an ellipsis if necessary, a muted turn age, and a thin horizontal
-separator. Selecting the row closes the menu and reveals the full question
-with its inline reply field in transcript context. Answer choices there can
+bottom, nearest the trigger. Each row shows a muted bare turn-age number in
+the left margin (for example, `2`), then actual question text on one line with
+an ellipsis if necessary. Do not add a separate age line or visible `turns ago`
+suffix per row; retain that meaning in the accessible label. Thin horizontal
+rules separate rows. Selecting the row closes the menu and reveals the full
+question with its inline reply field in transcript context. Answer choices there can
 wrap across multiple lines; menu previews are navigation, not answer controls.
 
 The maintainer confirmed `×` for a small dismiss control at each row's right
