@@ -261,6 +261,34 @@ earlier version; the UI should not present it as frozen historical evidence.
 Inline rich content uses the existing approved renderer for that content type.
 The workflow envelope itself contains data, with no executable renderer code.
 
+### Nice to have: follow asynchronous tool output
+
+A background command should keep contributing output and its terminal result
+to the workflow region where it was launched. For example, a Pages publisher
+started under `[publish][client]` may return a running handle, then produce
+output through later wait calls or task notifications. Those records should
+remain under the captured client stage even if the agent advances elsewhere.
+
+Where the harness exposes the association, retain the original invocation's
+workflow, stage, schema policy, and returned task/session handle. Follow that
+operation across output chunks, waits, and completion events without treating
+each observer call as a new publisher. Apply enabled tool tags with the same
+invocation-local cursor across chunks; the observer's current stage must not
+replace the captured parent. Keep source links and chronology, and deduplicate
+replayed output by source identity or stream position rather than text equality.
+Identical log lines can be distinct output.
+
+Show the operation as running until its terminal status arrives; launch
+acknowledgment or silence does not establish completion. An unknown handle
+stays visible in the ordinary transcript rather than being assigned by timing.
+When the adapter cannot correlate output, the session can retain the handle
+and report results under the original stage using the existing text convention.
+
+This is an optional presentation improvement, not a new scheduler or a reason
+to delay the initial outline. Its first scope is output consumed within the
+same turn. Following jobs into later turns requires the explicit cross-turn
+continuity extension below; late output must not silently reopen a closed span.
+
 ## Projection, replay, and lifecycle
 
 The workflow outline is a projection over the conversation. Canonical messages,
