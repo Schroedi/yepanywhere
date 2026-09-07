@@ -86,8 +86,8 @@ in multi-choice for me to click the one i want". Treat supplied-choice controls
 as requested delivery alongside pending-question visibility; do not leave
 them indefinitely behind a count-only implementation. Preserve free-text
 replies and the nonblocking lifecycle. An initial suggested selection must
-never submit itself. The interaction may use click-to-send or explicit submit,
-but must make sending intentional and preserve the answered question's context.
+never submit itself. The chosen interaction below uses deliberate click-to-send
+for supplied choices and explicit submission for free-form replies.
 
 Current checkout `84891372f` still declares `AgentMessage.delivery` and
 `questions` in the generated Codex protocol and preserves their normalized
@@ -100,8 +100,8 @@ content and reproduction inputs are recorded here for a fresh checkout.
 
 The minimum is an indication of how many unanswered questions the user has
 not yet seen, especially recent questions that have scrolled away during
-continued agent output. A small count near the bottom of the composer or at
-the top center of the view could provide it; exact placement remains open.
+continued agent output. The proposed access point is a small count in the
+composer bottom bar, within the content width even on wide screens.
 The count should lead to the questions and their source context, with both
 keyboard and tappable access. A count-only first delivery can be incremental,
 but does not close the September 7 request for clickable supplied choices.
@@ -140,28 +140,94 @@ message must not clear every pending question.
    and no automatic submission of a suggested/default selection. Run a bounded
    real-provider smoke; passing normalization tests alone is insufficient.
 
-## Candidate interaction, not a settled layout
+## Chosen reply interaction, 2026-09-07
 
-The maintainer suggested a pending-questions list toggled by a keystroke,
-with a dismissible floating presentation and an anchor/preview of each
-question's transcript context. A corresponding tappable toggle would make
-the same list available on mobile. Dismissing the floating view need not
-answer or discard its questions. Exact placement, shortcut, grouping, and
-whether pending state is shared across viewers remain design choices.
+Contributing-model: 6-Astra.
 
-Selectable supplied choices and free-text answer controls are requested
-alongside the unseen-pending indication and access to context. They can land
-incrementally; neither requires an elaborate generic form system.
+The maintainer chose a separate in-transcript composer directly beneath the
+question for free-form replies, with return-position and focus restoration on
+submit. This records the design decision; implementation and browser/provider
+verification remain open.
 
-An answer can be a formal text reply beginning with the question's tag and
-enough of its title/context to identify the referent, delivered as steering
-while the agent is busy or ordinary input after it becomes idle. This fits
-the provider's existing ordinary-user-message reply contract. A tag such as
-`Q1:` is text, not a provider answer RPC id; the async schema provides titles
-and options rather than per-question ids. Avoid ambiguity when several
-messages reuse a tag by retaining the source message association and quoting
-the question as needed. Do not require the model to infer the referent from
-a bare choice such as `yes` or `option 2`.
+- Navigate to the original question before answering, including free-form
+  replies. Close the discovery menu, highlight the question, and leave some
+  preceding context visible. The menu locates questions; answers belong at
+  their transcript locations.
+- Render supplied options as clickable bullet rows from `codexAsyncQuestions`,
+  preserving text and order. Codex provides structured `title` and optional
+  `options: string[]` plus generated Markdown fallback text. Do not infer
+  answer controls from arbitrary Markdown lists. Make click-to-send explicit
+  and keyboard accessible; a preselected option never sends itself.
+- Entering the question's reply view opens its separate composer and places
+  keyboard focus in the free-form field, with choices above it. Do not trap
+  focus or repeatedly reclaim it after the user moves elsewhere. Streaming
+  and rerendering must not steal focus or lose the draft. Keyboard opening
+  and layout changes must keep the question visible on phones.
+- The inline draft belongs to the source question and survives menu dismissal
+  and transcript virtualization. Preserve the main composer's existing draft.
+  Merely focusing or filling a field neither submits nor resolves a question.
+- Retain `Quote reply in main composer` as a secondary action, not the primary
+  free-form flow. It navigates to the question, then inserts the quote and
+  focuses the main composer while preserving existing text and undo. The
+  maintainer expects little need for this once inline reply restores position.
+
+Both choice and free-form submission produce an ordinary user turn quoting
+the complete question, followed by the exact chosen option or authored reply:
+
+```markdown
+> Q: Should I wait for the other session or coordinate a handoff?
+
+Coordinate the handoff.
+```
+
+Preserve an existing question tag, but do not depend on tags being unique.
+Associate the reply internally with the source message id and question index;
+keep these identifiers out of ordinary prose. A `Q1:` tag is not a provider
+answer RPC id. Send through steering while busy and ordinary input when idle.
+Show `Reply sent` after successful submission, without claiming provider
+consumption. Failed submission retains the answer/draft and pending status.
+
+### Return position, Follow, and keyboard focus
+
+Capture the former reading anchor and Follow intent before navigating to the
+question. Navigating among questions during that visit must not replace the
+original return destination. Offer an explicit return action during the visit.
+If the question is already in view, capture the current state before entering
+its reply editor.
+
+Every successful choice or free-form submit restores that former state and
+places keyboard focus in the main composer. If Follow was active, return to
+the current live bottom and restore Follow; otherwise restore the saved
+content anchor and offset with Follow off. Return after each answer even if
+other questions in the message remain pending. Their count and navigation
+remain available for another visit.
+
+Focus the main composer without allowing browser focus scrolling to override
+the restored transcript position. A failed send keeps the current position
+and draft; it does not perform the successful-submit focus/return transition.
+If submission completes asynchronously after the user explicitly navigates or
+focuses elsewhere, do not override that newer intent with stale restoration.
+
+The existing send path forces bottom-follow. Implement this reply-specific
+policy through the owning scroll transition, preserving the stability contract
+in [scrollback view stability](../topics/scrollback-view-stability.md), rather
+than jumping to the bottom and then correcting the position afterward. Verify
+both prior regimes, choice/free-form sends, mobile keyboard geometry, failure,
+and focus movement during submission.
+
+### Discovery presentation and remaining decisions
+
+The proposed compact control is `Questions · 3` with an unseen indicator; the
+menu can clarify `3 pending · 2 unseen` and list question titles and ages.
+Count individual questions. Opening or dismissing the menu alone changes
+neither seen nor answered state. Wider screens allow longer previews; narrow
+screens can overlay the menu above the composer. A permanent side panel is
+unnecessary. Retain keyboard and tappable access.
+
+Exact placement, shortcut, seen detection, the scope of recent questions, and
+persistence/sharing across reloads and viewers still need implementation
+decisions. The source-message association specifies reply identity, but does
+not by itself provide durable or cross-viewer answered state.
 
 Likely approach: build an async-question adapter over the already-normalized
 assistant fields and reuse bounded question-control presentation where useful,
