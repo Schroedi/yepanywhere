@@ -385,6 +385,9 @@ describe.skipIf(process.platform !== "linux")("ProviderRuntimeHost", () => {
           "runtime-control",
           "session-turn",
           "session-turn-await",
+          "session-turn-eventual",
+          "session-turn-live-only",
+          "session-turn-idle-timeout",
           "recent-runtime-recovery",
           "provider-session-options",
         ],
@@ -530,6 +533,63 @@ describe.skipIf(process.platform !== "linux")("ProviderRuntimeHost", () => {
       "is not private",
     );
     expect(existsSync(paths.recentRuntimePath)).toBe(false);
+  });
+
+  it("refuses absent live-only targets and retains resumed workers for the requested idle period", async () => {
+    const runtimeRoot = await mkdtemp(
+      join(tmpdir(), "provider-host-live-only-"),
+    );
+    temporaryPaths.push(runtimeRoot);
+    const controlSocketPath = join(runtimeRoot, "host.sock");
+    const host = new ProviderRuntimeHost({
+      runtimeDir: runtimeRoot,
+      controlSocketPath,
+      token: "test",
+      workerPath: fixtureWorker,
+    });
+    await host.start();
+    const connection = {
+      descriptor: { controlSocketPath, hostProtocolVersion: 3 },
+      token: "test",
+    };
+    const request = {
+      op: "sessionTurn",
+      submissionId: "absent",
+      eventual: true,
+      liveOnly: true,
+      resumeRecentRuntime: true,
+      target: { harness: "codex", providerSessionId: "sleeping" },
+      message: { text: "wake" },
+      launch: { providerName: "codex", projectPath: runtimeRoot },
+    };
+    try {
+      const refused = await collectProviderHostStream(connection, request);
+      expect(refused).toEqual([
+        expect.objectContaining({ outcome: "not-alive", accepted: false }),
+      ]);
+      expect(host.runtimes.size).toBe(0);
+      const started = await collectProviderHostStream(connection, {
+        ...request,
+        submissionId: "wake",
+        liveOnly: false,
+      });
+      expect(started.at(-1)).toMatchObject({ outcome: "completed" });
+      const runtime = [...host.runtimes.values()][0];
+      expect(runtime.auxiliaryIdleTimeoutMs).toBe(3_600_000);
+      const custom = await collectProviderHostStream(connection, {
+        ...request,
+        submissionId: "custom",
+        liveOnly: false,
+        target: { harness: "codex", providerSessionId: "custom-idle" },
+        idleTimeoutMs: 1000,
+      });
+      expect(custom.at(-1)).toMatchObject({ outcome: "completed" });
+      expect(host.runtimes.size).toBe(2);
+      await waitUntil(() => host.runtimes.size === 1);
+      expect([...host.runtimes.values()][0].runtimeId).toBe(runtime.runtimeId);
+    } finally {
+      await host.shutdown("live-only test complete");
+    }
   });
 
   it("launches and exchanges a bounded turn without Hono", async () => {

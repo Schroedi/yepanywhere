@@ -36,6 +36,7 @@ const COOPERATIVE_STOP_MS = 5_000;
 const TERM_GRACE_MS = 1_500;
 const KILL_VERIFY_MS = 1_000;
 const DEFAULT_ATTACH_TIMEOUT_MS = 30_000;
+const DEFAULT_AUXILIARY_IDLE_TIMEOUT_MS = 60 * 60_000;
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(scriptDir, "..");
@@ -270,9 +271,11 @@ export class ProviderRuntimeHost {
           });
           return;
         }
+        if (runtime.activeSubmissionId) return;
         this.armAttachDeadline(
           runtime,
           "headless provider runtime stayed idle",
+          runtime.auxiliaryIdleTimeoutMs,
         );
       },
     });
@@ -450,6 +453,9 @@ export class ProviderRuntimeHost {
             "runtime-control",
             "session-turn",
             "session-turn-await",
+            "session-turn-eventual",
+            "session-turn-live-only",
+            "session-turn-idle-timeout",
             "recent-runtime-recovery",
             "provider-session-options",
           ],
@@ -623,6 +629,14 @@ export class ProviderRuntimeHost {
   }
 
   async resolveTurnRuntime(request) {
+    if (
+      request.idleTimeoutMs !== undefined &&
+      (!Number.isFinite(request.idleTimeoutMs) ||
+        request.idleTimeoutMs < 1000 ||
+        request.idleTimeoutMs > 86_400_000)
+    ) {
+      throw new Error("idleTimeoutMs must be between 1000 and 86400000");
+    }
     const matches = this.matchingTurnRuntimes(request.target);
     if (matches.length > 1) {
       throw controlError(
@@ -633,6 +647,12 @@ export class ProviderRuntimeHost {
     if (matches.length === 1) {
       this.forgetRecentRuntime(request.target);
       return matches[0];
+    }
+    if (request.liveOnly === true) {
+      throw controlError(
+        "not-alive",
+        "No live provider worker matches the requested target",
+      );
     }
     if (request.resumeRecentRuntime === true) {
       const recentMatches = this.matchingRecentRuntimes(request.target);
@@ -646,7 +666,10 @@ export class ProviderRuntimeHost {
         const runtime = await this.launchOrClaim(
           {
             target: recentMatches[0].target,
-            launch: recentMatches[0].launch,
+            launch: {
+              ...recentMatches[0].launch,
+              idleTimeoutMs: request.idleTimeoutMs,
+            },
           },
           true,
         );
@@ -658,7 +681,7 @@ export class ProviderRuntimeHost {
     return await this.launchOrClaim(
       {
         target: request.target,
-        launch: request.launch,
+        launch: { ...request.launch, idleTimeoutMs: request.idleTimeoutMs },
       },
       true,
     );
@@ -688,6 +711,7 @@ export class ProviderRuntimeHost {
     const entry = await this.launch(
       {
         auxiliaryOwned: true,
+        auxiliaryIdleTimeoutMs: launch.idleTimeoutMs,
         providerName,
         projectPath: launch.projectPath,
         providerSessionId: request.target.providerSessionId,
@@ -836,6 +860,8 @@ export class ProviderRuntimeHost {
       attachTimer: null,
       terminationPromise: null,
       activeSubmissionId: undefined,
+      auxiliaryIdleTimeoutMs:
+        request.auxiliaryIdleTimeoutMs ?? DEFAULT_AUXILIARY_IDLE_TIMEOUT_MS,
       launchRecipe: {
         providerName,
         projectPath,
@@ -954,7 +980,11 @@ export class ProviderRuntimeHost {
       if (entry.auxiliaryOwned) {
         entry.state = "detached";
         entry.detachedAt = new Date().toISOString();
-        this.armAttachDeadline(entry, "headless provider runtime stayed idle");
+        this.armAttachDeadline(
+          entry,
+          "headless provider runtime stayed idle",
+          entry.auxiliaryIdleTimeoutMs,
+        );
       } else {
         this.armAttachDeadline(
           entry,
@@ -1107,7 +1137,11 @@ export class ProviderRuntimeHost {
       this.clearAttachDeadline(entry);
     } else if (entry.auxiliaryOwned) {
       entry.state = "detached";
-      this.armAttachDeadline(entry, "headless provider runtime stayed idle");
+      this.armAttachDeadline(
+        entry,
+        "headless provider runtime stayed idle",
+        entry.auxiliaryIdleTimeoutMs,
+      );
     } else {
       entry.state = "starting";
       this.armAttachDeadline(
@@ -1259,7 +1293,7 @@ export class ProviderRuntimeHost {
     entry.attachTimer = null;
   }
 
-  armAttachDeadline(entry, reason) {
+  armAttachDeadline(entry, reason, timeoutMs = this.attachTimeoutMs) {
     this.clearAttachDeadline(entry);
     entry.attachTimer = setTimeout(() => {
       void this.terminateRuntime(entry.runtimeId, reason).catch((error) => {
@@ -1267,7 +1301,7 @@ export class ProviderRuntimeHost {
           `[ProviderRuntimeHost] Failed to reap ${entry.runtimeId}: ${errorMessage(error)}\n`,
         );
       });
-    }, this.attachTimeoutMs);
+    }, timeoutMs);
   }
 
   async handleRuntimeExit(runtimeId) {
@@ -1534,6 +1568,9 @@ async function main() {
           "runtime-control",
           "session-turn",
           "session-turn-await",
+          "session-turn-eventual",
+          "session-turn-live-only",
+          "session-turn-idle-timeout",
           "recent-runtime-recovery",
           "provider-session-options",
         ],
