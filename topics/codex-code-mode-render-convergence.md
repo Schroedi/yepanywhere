@@ -296,6 +296,31 @@ The parent call remains the expansion and result owner. Search anchors,
 timestamps, stable IDs, and scroll-height estimates must derive from that
 parent so action summaries do not masquerade as separate executions.
 
+## Grouped execution output and skill reads
+
+The web client presents an `Exec` result's text-block array as ordered readable
+sections, including when an older server sends that array as a JSON string.
+Newlines remain newlines; execution timing is secondary text. Recognized
+command-result records expose their output, exit code, and duration, including
+records printed through `Promise.allSettled`. Nonzero exit codes remain visible.
+Malformed, truncated, or mixed-media arrays retain their original detail.
+
+A literal leading `cat` of a `SKILL.md` file adds the skill path to the parent
+summary. A group consisting entirely of those simple reads is labeled
+`Loading skill` / `Skill load`; compound or mixed calls remain `Exec` and keep
+their call count. Mentioning a skill path in a search, echo, or dynamic shell
+expression does not qualify. This is presentation of a read, not evidence that
+the skill's instructions were executed successfully.
+
+For a skill-reading group, returned skill frontmatter supplies an expandable
+`Skill: <name>` section. Other Markdown documents collapse under their leading
+heading. The complete text stays available inside each section, with wrapping
+and bounded vertical scrolling. The original script and result remain under
+`Raw execution`. Output blocks are not assigned to nested calls by position:
+script print order need not match call
+order. This client-only presentation uses the existing wire contract and does
+not alter transcript identities, grouping, or stored provider records.
+
 ## Implementation plan
 
 ### Phase 0 — pin evidence and upstream source

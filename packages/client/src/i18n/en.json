@@ -1,4 +1,7 @@
 {
+  "codeModeExecSkill": "Skill: {name}",
+  "codeModeExecRaw": "Raw execution",
+  "codeModeExecExitCode": "Exit code: {code}",
   "turnEffortUnavailable": "One-turn effort requires an updated server and a supported provider.",
   "turnEffortQueueOnly": "This effort modifier needs a new turn and will stay queued.",
   "turnEffortOff": "Off",
