@@ -105,6 +105,14 @@ and sidebar tests cover the behavior; this is dependency-order evidence, not
 a device/network performance benchmark. Asset-delivery and the full measurement
 matrix remain outside this Settings fix.
 
+Completion evidence: the Settings changes landed in `602f4d98f` alongside a
+concurrent async-question commit. All 44 focused unit tests and all four
+Settings browser tests passed; both production builds, typecheck, lint, format,
+and the unchanged console budget passed. Captures at 1200×600, 1000×600, and
+375×812 showed the intended sidebar state and no horizontal overflow. CSS
+extraction was deferred because the layout and search rules have coupled
+owners. Step 3 is complete; steps 4–6 retain their existing scope and status.
+
 ## Route module contract
 
 The selected route may evaluate its page module and shared shell dependencies.
