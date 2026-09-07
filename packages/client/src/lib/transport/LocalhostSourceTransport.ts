@@ -3,7 +3,11 @@ import type {
   StagedAttachmentRef,
   UploadedFile,
 } from "@yep-anywhere/shared";
-import { fetchPlainBlob, fetchPlainJSON } from "../../api/plainFetch";
+import {
+  fetchPlainBlob,
+  fetchPlainJSON,
+  fetchPlainResponse,
+} from "../../api/plainFetch";
 import {
   uploadFile,
   uploadStagedFile,
@@ -148,6 +152,11 @@ export class LocalhostSourceTransport implements SourceTransport {
       path,
       isMutableFileBlobPath(path) ? { cache: "no-cache" } : undefined,
     );
+  }
+
+  fetchResponse(path: string, init?: RequestInit): Promise<Response> {
+    this.assertNotDisposed();
+    return fetchPlainResponse(path, init);
   }
 
   upload(

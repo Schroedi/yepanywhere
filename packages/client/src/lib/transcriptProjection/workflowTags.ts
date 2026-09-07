@@ -8,7 +8,10 @@ export interface WorkflowMarker {
   title: string;
   kind: "stage" | "activation" | "unresolved" | "start" | "end";
   path?: string;
+  schemaRef?: string;
 }
+
+export type WorkflowSchemaFiles = Readonly<Record<string, string | null>>;
 
 export interface WorkflowAnnotation {
   markers: WorkflowMarker[];
@@ -164,12 +167,31 @@ function inlineSchema(operand: string): Schema | undefined {
   };
 }
 
-// A v1 file declaration must be surfaced with its activation in tool output.
-// Replaying it never reads a mutable host file or fetches a browser URL.
-function surfacedSchema(text: string, operand: string): Schema | undefined {
+export function workflowSchemaReference(operand: string) {
   if (!/^(?:\/|~\/|[A-Za-z]:[\\/]|\\\\)/.test(operand)) return;
   const fragment = operand.indexOf("#");
-  const id = fragment < 0 ? undefined : operand.slice(fragment + 1);
+  return {
+    path: fragment < 0 ? operand : operand.slice(0, fragment),
+    id: fragment < 0 ? undefined : operand.slice(fragment + 1),
+  };
+}
+
+// Interpret either a JSON file or a document containing fenced declarations.
+// The browser's file resolver supplies bytes separately from transcript text.
+export function readWorkflowSchema(
+  text: string,
+  operand: string,
+): Schema | undefined {
+  const reference = workflowSchemaReference(operand);
+  if (!reference) return;
+  const { id } = reference;
+  const json = parseJson(text);
+  if (record(json)) {
+    const schema = parseSchema(json);
+    return schema && (id === undefined || schema.id === id)
+      ? schema
+      : undefined;
+  }
   const declarations: Schema[] = [];
   for (const match of text.matchAll(/^```json\s*\r?\n([\s\S]*?)^```\s*$/gm)) {
     const value = parseJson(match[1] ?? "");
@@ -230,6 +252,7 @@ function toolOutputText(item: ToolCallItem): string {
 export function annotateWorkflowTags(
   messages: Message[],
   items: RenderItem[],
+  schemaFiles?: WorkflowSchemaFiles,
 ): RenderItem[] {
   const events = new Map<
     Message,
@@ -328,10 +351,14 @@ export function annotateWorkflowTags(
       };
       if (!insideFence && !fenceMatch && line.startsWith(ACTIVATION)) {
         const operand = line.slice(ACTIVATION.length).trim();
+        const reference = workflowSchemaReference(operand);
+        const fileContent = schemaFiles?.[operand];
+        const embedded =
+          reference && tool ? readWorkflowSchema(text, operand) : undefined;
         const schema = operand.startsWith("[")
           ? inlineSchema(operand)
-          : tool
-            ? surfacedSchema(text, operand)
+          : reference
+            ? (embedded ?? readWorkflowSchema(fileContent ?? "", operand))
             : undefined;
         const signature =
           schema && !schema.inline
@@ -340,6 +367,7 @@ export function annotateWorkflowTags(
         const previous = schema && declarations.get(schema.id);
         if (!schema || (previous !== undefined && previous !== signature)) {
           marker("unresolved", line, operand);
+          if (reference) annotation.markers.at(-1)!.schemaRef = operand;
           continue;
         }
         if (signature) declarations.set(schema.id, signature);
@@ -352,6 +380,8 @@ export function annotateWorkflowTags(
         }
         if (tool && schema.inline) annotation.view = "spans";
         marker("activation", line, schema.title);
+        if (reference && !embedded)
+          annotation.markers.at(-1)!.schemaRef = operand;
         continue;
       }
       if (!tool && (insideFence || fenceMatch)) continue;

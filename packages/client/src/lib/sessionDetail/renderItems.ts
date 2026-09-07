@@ -6,6 +6,7 @@ import { insertTranscriptDisplayObjects } from "../transcriptDisplayObjects";
 import type { ActiveToolApproval } from "../transcriptProjection/types";
 import { getCachedWebTranscriptProjection } from "../webTranscriptProjection";
 import type { Message } from "../../types";
+import type { WorkflowSchemaFiles } from "../transcriptProjection/workflowTags";
 import type { MarkdownAugmentMap, SessionDetailState } from "./types";
 
 export interface SessionDetailRenderItemInput {
@@ -17,6 +18,7 @@ export interface SessionDetailRenderItemInput {
   previousRenderItems?: readonly RenderItem[];
   recentProjectPathLinksEnabled?: boolean;
   workflowTagsEnabled?: boolean;
+  workflowSchemaFiles?: WorkflowSchemaFiles;
 }
 
 export interface RenderTurnGroup {
@@ -56,6 +58,7 @@ export function buildSessionDetailRenderItems({
   previousRenderItems = [],
   recentProjectPathLinksEnabled = false,
   workflowTagsEnabled = false,
+  workflowSchemaFiles,
 }: SessionDetailRenderItemInput): RenderItem[] {
   const preprocessed = getCachedWebTranscriptProjection(
     messages,
@@ -63,6 +66,7 @@ export function buildSessionDetailRenderItems({
       markdown: markdownAugments,
       activeToolApproval,
       workflowTags: workflowTagsEnabled,
+      workflowSchemaFiles,
     },
     recentProjectPathLinksEnabled,
   );

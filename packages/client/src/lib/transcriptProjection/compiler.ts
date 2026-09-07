@@ -27,7 +27,7 @@ export function compileTranscriptProjection(
 ): RenderItem[] {
   const projected = projectTranscriptMessages(messages, augments, diagnostics);
   const items = augments?.workflowTags
-    ? annotateWorkflowTags(messages, projected)
+    ? annotateWorkflowTags(messages, projected, augments.workflowSchemaFiles)
     : projected;
   const compactCoalescedItems = coalesceCompactBoundaryItems(items);
   const slashCommandCoalescedItems = coalesceSlashCommandSkillBodies(

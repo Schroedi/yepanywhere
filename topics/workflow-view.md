@@ -22,16 +22,33 @@ No provider messages, turns, commands, or completion events are synthesized.
   from either source; a tool activation applies only from its own marker
   onward. It ends at the next valid activation or user/compaction boundary
   without asserting completion.
-- The file form currently requires the activation line and complete fenced
-  JSON declaration in the **same tool result**, as when a shell prints the
-  local publish-schema document. Native Read results use their structured
-  text-file body, avoiding the provider's display-only line-number prefixes.
-  An absolute, home-relative, drive-qualified,
-  or UNC pointer identifies the declaration; `#id` selects exactly one schema.
-  Only `tagged-stages/1` is supported. The viewer does not open the path or
-  make a network request. A bare pointer whose contents were never surfaced,
-  skill metadata by itself, unknown schema types, invalid field types, and
-  ambiguous declarations remain ordinary output with an unresolved marker.
+- A file-only announcement in assistant text or tool output resolves through
+  the connected YA server's authenticated
+  `GET /api/projects/:projectId/files/raw?path=...` route. The browser parses
+  the returned source text: either a JSON declaration or a document containing
+  a fenced JSON declaration. An absolute, home-relative, drive-qualified, or
+  UNC pointer identifies the file; `#id` selects exactly one schema. Home
+  expansion and filesystem access happen on the server. Local Access path
+  settings govern this read, just as they govern file viewing.
+- A complete declaration already embedded in the announcing tool result takes
+  precedence and needs no file fetch. Native Read results use their structured
+  text-file body, avoiding display-only line-number prefixes. Only
+  `tagged-stages/1` is supported. Missing/denied files, invalid or ambiguous
+  declarations, partial responses, and fetched text over 1,048,576 characters
+  remain ordinary output with an unresolved marker. Unbased paths and web URLs
+  are not fetched. Skill metadata alone does not activate this renderer.
+- Fetched declarations have a five-minute TTL, with a tab-local cache keyed by
+  source, project, session, and reference. After expiration, the next render
+  use, return to a visible tab, or source-ready notification revalidates using
+  `If-None-Match`. The raw-file route's weak ETag includes mtime, ctime, and
+  size. A `304` reuses the cached content and renews its TTL; a changed `200`
+  replaces it and updates the display. A server without a validator receives
+  an ordinary read after expiry. Failed reads stay unresolved and wait five
+  minutes before another demand attempt in the mounted view; a denied
+  revalidation drops cached content. There is no background polling. Disabling
+  the setting or leaving the session releases listeners and aborts direct
+  reads. Relay requests keep their existing bounded request lifetime, but late
+  completions cannot update a disposed view. Browser persistence is optional.
 - A full declaration requires matching assistant `[workflow][start]` and
   schema IDs before stage highlighting begins. Only a matching explicit end
   displays the producer's completed/blocked/failed report. Moving stages or
@@ -65,25 +82,30 @@ No provider messages, turns, commands, or completion events are synthesized.
   keep their ordinary renderer beneath the captured stage label; declared but
   unobserved children produce no progress rows. Conversation View still
   controls whether routine tool activity is expanded.
-- Replay derives the same projection from the same loaded source records;
-  schema changes on disk cannot rewrite that evidence. Projection runs before
+- Replay derives the same projection from the same source records and resolved
+  declarations. Embedded declarations remain historical snapshots. A file-only
+  pointer refers to mutable external content: revalidation can change its
+  labels, and is not frozen historical evidence. Neither form rewrites the
+  canonical announcement or tool output. Projection runs before
   the browser's conversation/render window. If a server history page omits
   the activation, v1 leaves tags ordinary until the earlier source is loaded;
   it does not guess the missing schema. Subagent streams are not activated by
   their parent's declaration.
 
 The implementation lives in `transcriptProjection/workflowTags.ts` and the
-shared `WorkflowOutput` renderer. It adds no server route, capability, persisted
-schema, filesystem writer, or provider adapter requirement. A host resolver,
+shared `WorkflowOutput` renderer. It adds no server route, capability, server
+persistence, filesystem writer, or provider adapter requirement. Automatic
 skill-metadata activation, whole-history prefix snapshots, correlated async
 wait handles, and a collapsible/reordered outline remain future work.
 
 ## Design decisions
 
-- **Use surfaced transcript declarations for v1** (vs. a new host file
-  resolver): the publish procedure already prints its complete declaration,
-  so the small client-only feature works with existing servers and replays
-  historical schema content. Unsurfaced pointers remain explicitly unresolved.
+- **Use the existing raw-file API for explicit file references.** This keeps
+  server-side path authorization and source routing in their existing owners.
+  Stable releases v0.8.0 and v0.8.1 already provide the route, conditional GET,
+  and relay ETag forwarding; the client exposes the existing response metadata
+  without changing the wire protocol. Embedded declarations retain their own
+  content, while external files use the five-minute conditional cache.
 - **Keep boundaries inside existing rows** (vs. splitting turns/tools): this
   preserves source identity, chronology, inspection, and existing activity
   controls while making stage changes visible.
@@ -105,8 +127,19 @@ projection, plus default-off behavior, exact matching, malformed/quoted
 markers, streaming lines, lifecycle, inherited tool context, and reload.
 `e2e/workflow-tags.spec.ts` loads simulated persisted sessions through the real
 server and browser, toggles the Appearance setting, checks both views and
-original output, and captures desktop/phone layouts. These are simulated
-producer traces, not evidence that a live model reliably follows the skill.
+original output, and captures desktop/phone layouts. The file-only fixture's
+tool result contains just the announcement: the schema exists separately as
+an actual JSON file on desktop and fenced Markdown file on phone. The browser
+test observes the real raw response, verifies no read before enabling the
+setting or within the TTL, then advances the client cache clock to exercise
+an unchanged `304` and a changed file's `200` and new labels. Inline and nested
+traces require no file requests. `workflowSchemaFiles.test.ts` also covers
+assistant announcements, source isolation, failure expiry, and cancellation;
+transport tests preserve conditional status and ETags over HTTP and relay.
+These are simulated producer traces, not evidence that a live model reliably
+follows the skill. Native browser/file integration was exercised on Linux;
+Windows and macOS host reads remain unexercised here. Portable path tests cover
+drive-qualified, UNC, home-relative, and literal bracket/space references.
 
 ## Purpose and scope
 
@@ -235,8 +268,9 @@ progress is observable. This producer convention can precede YA UI support.
 
 ## Resolving skill and schema sources
 
-The shared topic owns the pointer grammar and metadata field. In YA, resolution
-belongs on the provider host. Standalone references are absolute or `~/`-relative;
+The shared topic owns the pointer grammar and metadata field. In YA, file reads
+run on the connected server through its raw-file route; the client parses the
+returned declaration. Standalone references are absolute or `~/`-relative;
 `~` is that session owner's home. A relative schema reference inside skill
 metadata is relative to the real source skill file. YA does not implicitly
 search `~/agents` for an unbased path. An explicit reference such as
@@ -255,7 +289,8 @@ It should not infer a filesystem location from a skill name.
 Follow [skill invocation](skill-invocation.md): definition paths remain
 server-side unless already exposed as supported provenance. Deliver the resolved
 declaration and activity/turn binding to the renderer, and preserve that snapshot
-for replay. This metadata reader and activation resolver are proposed work;
+for replay. This automatic skill-metadata reader and activation resolver are
+proposed work;
 existing skill dispatch does not establish that they are implemented.
 
 Both tool and assistant activities can explicitly select a supported

@@ -78,11 +78,12 @@ function stdout(text: string): string {
   );
 }
 
-export function simulatedPublish(): Message[] {
-  const declaration =
-    "@@visualization-schema/1 /simulated/publish-workflow.md#ya-publish/1\n```json\n" +
-    JSON.stringify(publishSchema, null, 2) +
-    "\n```\n";
+export function simulatedPublish(schemaReference?: string): Message[] {
+  const declaration = schemaReference
+    ? `@@visualization-schema/1 ${schemaReference}\n`
+    : "@@visualization-schema/1 /simulated/publish-workflow.md#ya-publish/1\n```json\n" +
+      JSON.stringify(publishSchema, null, 2) +
+      "\n```\n";
   return [
     {
       id: "publish-user",
