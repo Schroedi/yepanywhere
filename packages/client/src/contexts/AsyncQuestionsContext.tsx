@@ -188,6 +188,8 @@ export function AsyncQuestionsProvider({
   }, [draftSignal, persist, reminderTurns]);
 
   useEffect(() => {
+    // A threshold change must publish edits accumulated since the last stage.
+    void reminderTurns;
     setRecords(recordsRef.current);
   }, [reminderTurns]);
 

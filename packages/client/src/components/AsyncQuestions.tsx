@@ -65,6 +65,7 @@ function QuestionMenuRow({
     <li className={styles.menuRow}>
       <span
         className={styles.turnAge}
+        role="img"
         aria-label={t("asyncQuestionTurnsAgo", { count: question.age })}
       >
         {question.age}
@@ -103,6 +104,7 @@ function QuestionMenuRow({
           {!state.records[question.id]?.seen && (
             <span
               className={styles.unseen}
+              role="img"
               aria-label={t("asyncQuestionUnseen")}
             />
           )}
@@ -230,7 +232,7 @@ export function AsyncQuestionsButton({
       setOpen(false);
       setMenuOpen?.(false);
     };
-    const escape = (event: KeyboardEvent) => {
+    const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       setOpen(false);
@@ -238,10 +240,10 @@ export function AsyncQuestionsButton({
       button.current?.focus({ preventScroll: true });
     };
     document.addEventListener("pointerdown", outside);
-    document.addEventListener("keydown", escape);
+    document.addEventListener("keydown", handleEscape);
     return () => {
       document.removeEventListener("pointerdown", outside);
-      document.removeEventListener("keydown", escape);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [open, setMenuOpen]);
 
@@ -423,7 +425,7 @@ function InlineQuestion({ question }: { question: AsyncQuestion }) {
       {question.options.length > 0 && (
         <>
           <p className={styles.hint}>{t("asyncQuestionClickToSend")}</p>
-          <ul className={styles.options} role="list">
+          <ul className={styles.options}>
             {question.options.map((option, index) => (
               <li key={`${index}:${option}`}>
                 <button
