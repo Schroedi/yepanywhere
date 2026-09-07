@@ -159,13 +159,15 @@ class FakeSourceTransportStatus implements SourceTransportStatus {
   }
 
   private emit(): void {
-    for (const listener of [...this.listeners]) {
+    const listeners = [...this.listeners];
+    for (const listener of listeners) {
       listener();
     }
   }
 
   emitVisibilityRestored(): void {
-    for (const listener of [...this.visibilityRestoredListeners]) {
+    const listeners = [...this.visibilityRestoredListeners];
+    for (const listener of listeners) {
       listener();
     }
   }
