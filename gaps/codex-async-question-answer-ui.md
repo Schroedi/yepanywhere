@@ -232,8 +232,11 @@ The preview menu opens upward and may temporarily cover the composer without
 altering its draft. It can be wider than the button, aligned to its right edge
 and capped by the viewport. List oldest questions at the top and newest at the
 bottom, nearest the trigger. Each row shows a muted bare turn-age number in
-the left margin (for example, `2`), then actual question text on one line with
-an ellipsis if necessary. Do not add a separate age line or visible `turns ago`
+the left margin (for example, `2`), outside the question's differently colored,
+outlined box. Align the age with the question text; use muted color with
+legible contrast against the menu background. Keep the dismiss control inside
+the box at the right. Show actual question text on one line with an ellipsis
+if necessary. Do not add a separate age line or visible `turns ago`
 suffix per row; retain that meaning in the accessible label. Thin horizontal
 rules separate rows. Selecting the row closes the menu and reveals the full
 question with its inline reply field in transcript context. Answer choices there can
