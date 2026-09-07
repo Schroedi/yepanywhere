@@ -129,6 +129,7 @@ import {
   useTooltipAppearance,
 } from "../../hooks/useTooltipAppearance";
 import { useWiderConversationActivityPreviews } from "../../hooks/useWiderConversationActivityPreviews";
+import { useWorkflowTags } from "../../hooks/useWorkflowTags";
 import { useSelectionActionPreferences } from "../../hooks/useSelectionActionPreferences";
 import { useGlossaryHints } from "../../hooks/useGlossaryHints";
 import { useProjectCodeNamePreferences } from "../../hooks/useProjectCodeNamePreferences";
@@ -232,6 +233,7 @@ export function AppearanceSettings() {
     setWiderConversationActivityPreviews,
   } = useWiderConversationActivityPreviews();
   const { glossaryHintsEnabled, setGlossaryHintsEnabled } = useGlossaryHints();
+  const { workflowTagsEnabled, setWorkflowTagsEnabled } = useWorkflowTags();
   const { version: versionInfo } = useVersion();
   const glossaryHintsSupported = serverHasCapability(
     versionInfo,
@@ -375,6 +377,7 @@ export function AppearanceSettings() {
       setWiderConversationActivityPreviews,
     ),
     undoEntry(glossaryHintsEnabled, setGlossaryHintsEnabled),
+    undoEntry(workflowTagsEnabled, setWorkflowTagsEnabled),
     undoEntry(tooltipDelayMs, setTooltipDelayMs),
     undoEntry(tooltipMode, setTooltipMode),
     undoEntry(hoverCardMaxHeightPx, setHoverCardMaxHeightPx, (value) =>
@@ -775,6 +778,20 @@ export function AppearanceSettings() {
                 setWiderConversationActivityPreviews(event.target.checked)
               }
               aria-label={t("appearanceWiderActivityPreviewsTitle")}
+            />
+            <span className="toggle-slider" />
+          </label>
+        </SettingsItem>
+        <SettingsItem
+          label={t("appearanceWorkflowTagsTitle")}
+          description={t("appearanceWorkflowTagsDescription")}
+        >
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={workflowTagsEnabled}
+              onChange={(event) => setWorkflowTagsEnabled(event.target.checked)}
+              aria-label={t("appearanceWorkflowTagsTitle")}
             />
             <span className="toggle-slider" />
           </label>

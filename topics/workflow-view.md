@@ -4,11 +4,109 @@
 > and associated activities under a shared workflow ID, initially as a
 > collapsible outline within one agent turn with no workflow input from the user.
 
-Status: Proposal, 2026-09-07; not implemented or scheduled. The first version
-is a display-only, single-turn span. Harness awareness of the workflow ID is
-desirable; the calling session knowing and emitting the ID is sufficient.
-An initial producer convention now exists for local publish instructions;
-the rendering capability remains proposed.
+Status: The simple boundary-creating / tag-highlighting v1 is implemented.
+The collapsible workflow outline and richer views described below remain
+proposals. The first implementation is a display-only, single-turn projection;
+the calling session knowing and emitting the workflow ID is sufficient.
+
+## Implemented v1 contract
+
+**Appearance → Workflow tag highlighting** is a browser-local, default-off
+setting with the pane's normal Undo behavior. When enabled, explicitly
+activated tags create visual boundaries and display declared title paths
+inside existing transcript rows. Repeated paths retain their source order.
+No provider messages, turns, commands, or completion events are synthesized.
+
+- The inline `@@visualization-schema/1 ["build",["check","types"]]` form
+  accepts exact paths in assistant text and tool output. Activation can arrive
+  from either source; a tool activation applies only from its own marker
+  onward. It ends at the next valid activation or user/compaction boundary
+  without asserting completion.
+- The file form currently requires the activation line and complete fenced
+  JSON declaration in the **same tool result**, as when a shell prints the
+  local publish-schema document. Native Read results use their structured
+  text-file body, avoiding the provider's display-only line-number prefixes.
+  An absolute, home-relative, drive-qualified,
+  or UNC pointer identifies the declaration; `#id` selects exactly one schema.
+  Only `tagged-stages/1` is supported. The viewer does not open the path or
+  make a network request. A bare pointer whose contents were never surfaced,
+  skill metadata by itself, unknown schema types, invalid field types, and
+  ambiguous declarations remain ordinary output with an unresolved marker.
+- A full declaration requires matching assistant `[workflow][start]` and
+  schema IDs before stage highlighting begins. Only a matching explicit end
+  displays the producer's completed/blocked/failed report. Moving stages or
+  receiving a successful tool result never supplies a workflow outcome.
+- Assistant fences, quotes, undeclared gates, and ordinary bracketed prose
+  cannot activate or advance a workflow. Invalid activations preserve the
+  previous valid interpretation. A streaming final line is recognized once
+  its newline arrives or the block completes.
+- Tool calls capture their parent stage and effective output policy when
+  launched. Results are interpreted in source-message arrival order, so an
+  agent's later stage does not adopt an earlier call's output. Enabled tool
+  tags are relative to that captured parent; exact whitelists, absent versus
+  empty whitelists, policy inheritance, `spans`, and `matching-lines` follow
+  the producer convention below. Tool lifecycle-looking tags are only data.
+- A script's own inline activation is independent of `containsTags`. When
+  the call already has a workflow context, its new whitelist applies locally
+  beneath that captured parent, preserving the parent's declared title. It
+  does not replace the assistant's schema or stage, or another running call's
+  context. Without a calling context, a tool activation also supplies the
+  schema for subsequent assistant activity. This scopes the producer
+  convention's "subsequent activity" to the invocation when it is nested.
+  For example, a script called under `[publish][client]` can announce
+  `[["build","types"],"copy"]` and produce
+  `[publish][client][build][types]` and `[publish][client][copy]` boundaries.
+  Earlier output retains its previous interpretation, including lines hidden
+  by `matching-lines` before the script switches to inline `spans`.
+- Highlighted assistant blocks show their literal source with tag/title
+  boundaries. **Original output** exposes the existing rich message renderer
+  and its copy/quote controls. Tagged tool previews likewise retain the full
+  original output, including lines omitted by `matching-lines`. Opaque tools
+  keep their ordinary renderer beneath the captured stage label; declared but
+  unobserved children produce no progress rows. Conversation View still
+  controls whether routine tool activity is expanded.
+- Replay derives the same projection from the same loaded source records;
+  schema changes on disk cannot rewrite that evidence. Projection runs before
+  the browser's conversation/render window. If a server history page omits
+  the activation, v1 leaves tags ordinary until the earlier source is loaded;
+  it does not guess the missing schema. Subagent streams are not activated by
+  their parent's declaration.
+
+The implementation lives in `transcriptProjection/workflowTags.ts` and the
+shared `WorkflowOutput` renderer. It adds no server route, capability, persisted
+schema, filesystem writer, or provider adapter requirement. A host resolver,
+skill-metadata activation, whole-history prefix snapshots, correlated async
+wait handles, and a collapsible/reordered outline remain future work.
+
+## Design decisions
+
+- **Use surfaced transcript declarations for v1** (vs. a new host file
+  resolver): the publish procedure already prints its complete declaration,
+  so the small client-only feature works with existing servers and replays
+  historical schema content. Unsurfaced pointers remain explicitly unresolved.
+- **Keep boundaries inside existing rows** (vs. splitting turns/tools): this
+  preserves source identity, chronology, inspection, and existing activity
+  controls while making stage changes visible.
+
+## Verification
+
+`packages/client/test-fixtures/workflow.ts` contains a neutered publish trace
+with the local skill's declaration, stage prefixes, and opaque publisher
+output. Its executable operations only run Node to write fixed stdout;
+they never invoke the publisher, Git, or a network client. A separate inline
+trace includes a tool whose output arrives after the agent changes stages.
+Nested script traces cover inherited policies, self-announced inline tags
+under an opaque parent, and a mid-output change from `matching-lines` to
+inline spans. Each verifies the assistant can continue and explicitly finish
+the outer workflow after the script returns.
+
+`workflowProjection.test.ts` exercises both through the production transcript
+projection, plus default-off behavior, exact matching, malformed/quoted
+markers, streaming lines, lifecycle, inherited tool context, and reload.
+`e2e/workflow-tags.spec.ts` loads simulated persisted sessions through the real
+server and browser, toggles the Appearance setting, checks both views and
+original output, and captures desktop/phone layouts. These are simulated
+producer traces, not evidence that a live model reliably follows the skill.
 
 ## Purpose and scope
 
@@ -168,10 +266,10 @@ than relying on tag-shaped prose or requiring every type to be an outline.
 
 ## Visualization progression
 
-A v0 prototype can simply highlight matching prefixes or add visual
+The implemented v1 highlights matching prefixes and adds visual
 pseudo-boundaries inside the existing turn/tool presentation after schema
-activation. It need not synthesize actual turns or split command invocations.
-V1 builds a collapsible linear outline while retaining segment chronology:
+activation. The original producer proposal calls this the v0 prototype.
+A later collapsible linear outline would retain segment chronology:
 `[A]`, `[B]`, `[A]` still produces three segments.
 
 A later view can collect both A segments under one A node, retaining their
@@ -348,9 +446,10 @@ would be configurable and initially default-off under
 Both are separate proposals. This topic neither activates them nor makes
 their implementation necessary for an outline of agent work.
 
-## What a first implementation would need to demonstrate
+## Acceptance for the later outline
 
-These are proposed acceptance cases, not tests already run:
+These are proposed outline acceptance cases, beyond the verified v1 boundary
+and tag-highlighting contract above:
 
 - One skill-led turn containing several agent messages and tool calls produces
   a coherent nested outline using only session-authored workflow IDs.

@@ -135,6 +135,7 @@ import { MessageAge } from "./MessageAge";
 import { ProcessingIndicator } from "./ProcessingIndicator";
 import type { BangCommandHandlers } from "./BangCommandDisplayObject";
 import { RenderItemComponent } from "./RenderItemComponent";
+import { useWorkflowTags } from "../hooks/useWorkflowTags";
 import { AssistantTurnImageGallery } from "./TurnImageGallery";
 import {
   UserTurnNavigator,
@@ -1499,6 +1500,7 @@ export const MessageList = memo(function MessageList({
   const sessionViewerSessionId = useSessionViewerSessionId();
   useSessionViewerResumeRevision();
   const { recentProjectPathLinksEnabled } = useRecentProjectPathLinks();
+  const { workflowTagsEnabled } = useWorkflowTags();
   const transcriptRenderStartedAtMs = isBrowserDebugPerformanceRecording()
     ? highResolutionNowMs()
     : null;
@@ -1959,6 +1961,7 @@ export const MessageList = memo(function MessageList({
       transcriptDisplayObjects,
       previousRenderItems: previousRenderItemsRef.current,
       recentProjectPathLinksEnabled,
+      workflowTagsEnabled,
     });
     let nextRenderItems = loadedRenderItems;
     if (historySearchWindow) {
@@ -1974,6 +1977,7 @@ export const MessageList = memo(function MessageList({
         transcriptDisplayObjects: historySearchWindow.transcriptDisplayObjects,
         previousRenderItems: previousRenderItemsRef.current,
         recentProjectPathLinksEnabled,
+        workflowTagsEnabled,
       });
       if (historicalRenderItems.length > 0) {
         const gapItems: RenderItem[] =
@@ -2017,6 +2021,7 @@ export const MessageList = memo(function MessageList({
     activeToolApproval,
     transcriptDisplayObjects,
     recentProjectPathLinksEnabled,
+    workflowTagsEnabled,
     t,
   ]);
   useEffect(() => {

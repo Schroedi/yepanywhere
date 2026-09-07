@@ -10,6 +10,7 @@ export type TranscriptProjectionCompiler = (
 const AUGMENT_CACHE_KEY_FIELDS = {
   activeToolApproval: true,
   markdown: true,
+  workflowTags: true,
 } as const satisfies Record<keyof TranscriptProjectionAugments, true>;
 
 const augmentCacheKeys = Object.keys(AUGMENT_CACHE_KEY_FIELDS) as Array<
@@ -17,6 +18,7 @@ const augmentCacheKeys = Object.keys(AUGMENT_CACHE_KEY_FIELDS) as Array<
 >;
 
 interface TranscriptProjectionCacheEntry {
+  workflowTags: boolean | undefined;
   activeToolApproval: boolean | undefined;
   compiler: TranscriptProjectionCompiler;
   items: RenderItem[];
@@ -51,6 +53,7 @@ export function getCachedTranscriptProjection(
   const items = compiler(messages, augments);
   const variants = cachedVariants ?? [];
   variants.push({
+    workflowTags: augments?.workflowTags,
     activeToolApproval,
     compiler,
     items,

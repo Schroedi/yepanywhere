@@ -62,6 +62,7 @@ export const UI_KEYS = {
   questionAsides: "yep-anywhere-question-asides",
   developerMode: "yep-anywhere-developer-mode",
   conversationView: "yep-anywhere-conversation-view-enabled",
+  workflowTags: "yep-anywhere-workflow-tags-enabled",
   conversationViewTurnLimit: "yep-anywhere-conversation-view-turn-limit",
   widerConversationActivityPreviews:
     "yep-anywhere-wider-conversation-activity-previews-enabled",

@@ -16,6 +16,7 @@ export interface SessionDetailRenderItemInput {
   transcriptDisplayObjects?: readonly TranscriptDisplayObject[];
   previousRenderItems?: readonly RenderItem[];
   recentProjectPathLinksEnabled?: boolean;
+  workflowTagsEnabled?: boolean;
 }
 
 export interface RenderTurnGroup {
@@ -54,12 +55,14 @@ export function buildSessionDetailRenderItems({
   transcriptDisplayObjects = [],
   previousRenderItems = [],
   recentProjectPathLinksEnabled = false,
+  workflowTagsEnabled = false,
 }: SessionDetailRenderItemInput): RenderItem[] {
   const preprocessed = getCachedWebTranscriptProjection(
     messages,
     {
       markdown: markdownAugments,
       activeToolApproval,
+      workflowTags: workflowTagsEnabled,
     },
     recentProjectPathLinksEnabled,
   );
