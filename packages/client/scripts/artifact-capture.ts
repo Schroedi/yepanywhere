@@ -1,0 +1,362 @@
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import {
+  basename,
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
+import { fileURLToPath } from "node:url";
+import { chromium, type Browser } from "@playwright/test";
+import type {
+  ArtifactViewerGrant,
+  ArtifactViewerStatus,
+} from "../../shared/src/artifact-viewer";
+import {
+  serverHasCapability,
+  SERVER_CAPABILITIES,
+  type ServerCapabilitySource,
+} from "../../shared/src/server-capabilities";
+
+const serverRequire = createRequire(
+  new URL("../../server/package.json", import.meta.url),
+);
+const { getMimeType } = serverRequire("hono/utils/mime") as {
+  getMimeType(path: string): string | undefined;
+};
+const checkout = fileURLToPath(new URL("../../../", import.meta.url));
+const localOrigin = "http://artifact-capture.invalid";
+export const captureViewports = [
+  { name: "desktop", width: 1000, height: 600 },
+  { name: "phone", width: 375, height: 812 },
+] as const;
+
+export interface CaptureOptions {
+  input: string;
+  out?: string;
+  yaUrl?: string;
+  audience?: "local" | "public";
+  yaHeaders?: Record<string, string>;
+  readySelector?: string;
+  timeoutMs?: number;
+  allowNetwork?: boolean;
+}
+
+export type ArtifactDelivery =
+  | { status: "skipped"; reason: string }
+  | { status: "existing"; url: string; expiresAt: null }
+  | ({ status: "created" } & ArtifactViewerGrant);
+
+function httpUrl(value: string): URL {
+  const url = new URL(value);
+  if (
+    !["http:", "https:"].includes(url.protocol) ||
+    url.username ||
+    url.password
+  )
+    throw new Error("Expected an HTTP(S) URL without embedded credentials");
+  return url;
+}
+
+async function apiJson<T>(
+  options: CaptureOptions,
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const base = httpUrl(options.yaUrl!);
+  if (base.pathname !== "/" || base.search || base.hash)
+    throw new Error(
+      "--ya-url must be a server origin, without a path, query, or fragment",
+    );
+  const response = await fetch(new URL(path, base), {
+    method: body === undefined ? "GET" : "POST",
+    headers: {
+      ...options.yaHeaders,
+      "X-Yep-Anywhere": "true",
+      "Content-Type": "application/json",
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    redirect: "error",
+    signal: AbortSignal.timeout(options.timeoutMs ?? 30000),
+  }).catch(() => {
+    // Fetch errors can contain invalid authentication header values.
+    throw new Error(
+      `YA ${path}: request failed; check origin, headers, and timeout`,
+    );
+  });
+  if (!response.ok) throw new Error(`YA ${path}: HTTP ${response.status}`);
+  return response.json() as Promise<T>;
+}
+
+async function createDelivery(
+  options: CaptureOptions,
+  path: string,
+  browser: Browser,
+): Promise<ArtifactDelivery> {
+  if (!options.yaUrl)
+    return {
+      status: "skipped",
+      reason: "No --ya-url supplied; local capture needs no YA server",
+    };
+  const version = await apiJson<
+    ServerCapabilitySource & { artifactViewer?: ArtifactViewerStatus }
+  >(options, "/api/version");
+  const config = version.artifactViewer;
+  if (!serverHasCapability(version, SERVER_CAPABILITIES.artifactViewer.name))
+    return {
+      status: "skipped",
+      reason: "Server does not advertise interactive artifact delivery",
+    };
+  const audience = options.audience ?? "local";
+  const value =
+    audience === "local" ? config?.localOrigin : config?.publicOrigin;
+  if (!config?.available || !value)
+    return {
+      status: "skipped",
+      reason: `${audience} artifact origin is disabled or unconfigured`,
+    };
+  const origin = httpUrl(value);
+  if (
+    origin.origin !== value ||
+    origin.hostname === httpUrl(options.yaUrl).hostname
+  )
+    throw new Error("Artifact configuration must name an isolated origin");
+  // Use the browser's resolver for configured *.localhost hosts as the viewer does.
+  const probe = await browser.newContext({ serviceWorkers: "block" });
+  try {
+    const healthUrl = new URL("/health", origin).href;
+    await probe.route("**/*", (route) =>
+      route.request().url() === healthUrl
+        ? route.continue()
+        : route.abort("blockedbyclient"),
+    );
+    const page = await probe.newPage();
+    const health = await page.goto(healthUrl, { timeout: 2500 });
+    if (!health?.ok() || (await health.json()).artifactViewer !== 1)
+      throw new Error("Configured artifact origin failed its health check");
+  } finally {
+    await probe.close();
+  }
+  const grant = await apiJson<ArtifactViewerGrant>(options, "/api/artifacts", {
+    path,
+    audience,
+  });
+  if (
+    httpUrl(grant.url).origin !== origin.origin ||
+    !/^\/a\/[A-Za-z0-9_-]+\/.+/.test(new URL(grant.url).pathname) ||
+    typeof grant.id !== "string" ||
+    !Number.isFinite(grant.expiresAt) ||
+    grant.expiresAt <= Date.now()
+  )
+    throw new Error("Server returned an invalid artifact grant");
+  return {
+    status: "created",
+    id: grant.id,
+    url: httpUrl(grant.url).href,
+    expiresAt: grant.expiresAt,
+  };
+}
+
+export function markdownLink(label: string, target: string): string {
+  const destination = target
+    .replaceAll("\\", "/")
+    .replaceAll("%", "%25")
+    .replaceAll("#", "%23")
+    .replaceAll("?", "%3F")
+    .replaceAll("<", "%3C")
+    .replaceAll(">", "%3E")
+    .replaceAll("\n", "%0A")
+    .replaceAll("\r", "%0D");
+  return `[${label}](<${destination}>)`;
+}
+
+/** Capture an existing document; this never builds it or starts/restarts YA. */
+export async function captureArtifact(options: CaptureOptions) {
+  const isUrl = /^https?:\/\//i.test(options.input);
+  const file = isUrl ? null : await realpath(resolve(options.input));
+  if (
+    file &&
+    (![".html", ".htm"].includes(extname(file).toLowerCase()) ||
+      !(await stat(file)).isFile())
+  )
+    throw new Error("Local input must be an existing HTML entry file");
+  const root = file ? dirname(file) : null;
+  const output = resolve(
+    options.out ?? join(checkout, ".artifacts", "captures", randomUUID()),
+  );
+  await mkdir(dirname(output), { recursive: true });
+  // Each capture owns a new directory; existing output is never overwritten.
+  await mkdir(output);
+  const browser = await chromium.launch();
+  const screenshots: {
+    name: string;
+    width: number;
+    height: number;
+    path: string;
+  }[] = [];
+  let delivery: ArtifactDelivery = { status: "skipped", reason: "Not started" };
+  const warnings = new Set<string>();
+  try {
+    delivery = isUrl
+      ? {
+          status: "existing",
+          url: httpUrl(options.input).href,
+          expiresAt: null,
+        }
+      : await createDelivery(options, file!, browser);
+    const url =
+      delivery.status === "skipped"
+        ? `${localOrigin}/${encodeURIComponent(basename(file!))}`
+        : delivery.url;
+    const origin = new URL(url).origin;
+    for (const viewport of captureViewports) {
+      const problems = new Set<string>();
+      const context = await browser.newContext({
+        viewport,
+        serviceWorkers: "block",
+      });
+      try {
+        await context.route("**/*", async (route) => {
+          const request = route.request();
+          const requested = new URL(request.url());
+          if (!options.allowNetwork && requested.origin !== origin) {
+            problems.add(
+              `Blocked external request: ${requested.origin}${requested.pathname}`,
+            );
+            await route.abort("blockedbyclient");
+            return;
+          }
+          if (
+            delivery.status !== "skipped" ||
+            requested.origin !== localOrigin
+          ) {
+            await route.continue();
+            return;
+          }
+          try {
+            if (!["GET", "HEAD"].includes(request.method()))
+              throw new Error("Only static GET/HEAD requests are supported");
+            const target = await realpath(
+              resolve(root!, `.${decodeURIComponent(requested.pathname)}`),
+            );
+            const child = relative(root!, target);
+            if (
+              child === ".." ||
+              child.startsWith(`..${sep}`) ||
+              isAbsolute(child)
+            )
+              throw new Error("File is outside the HTML entry directory");
+            const info = await stat(target);
+            if (!info.isFile() || info.size > 64 * 1024 * 1024)
+              throw new Error("Expected a static file no larger than 64 MiB");
+            await route.fulfill({
+              status: 200,
+              contentType: getMimeType(target) ?? "application/octet-stream",
+              body:
+                request.method() === "HEAD"
+                  ? undefined
+                  : await readFile(target),
+              headers: {
+                "Cache-Control": "no-store",
+                "Referrer-Policy": "no-referrer",
+              },
+            });
+          } catch (error) {
+            problems.add(
+              `Cannot load ${requested.pathname}: ${(error as Error).message}`,
+            );
+            await route.fulfill({
+              status: 404,
+              body: "Artifact file unavailable",
+            });
+          }
+        });
+        const page = await context.newPage();
+        page.setDefaultTimeout(options.timeoutMs ?? 30000);
+        page.setDefaultNavigationTimeout(options.timeoutMs ?? 30000);
+        page.on("pageerror", (error) => problems.add(error.message));
+        page.on("requestfailed", (request) =>
+          problems.add(`Request failed: ${new URL(request.url()).pathname}`),
+        );
+        page.on("response", (response) => {
+          if (response.status() >= 400)
+            problems.add(
+              `HTTP ${response.status()}: ${new URL(response.url()).pathname}`,
+            );
+        });
+        page.on("console", (message) => {
+          if (message.type() === "warning") warnings.add(message.text());
+          if (message.type() === "error") problems.add(message.text());
+        });
+        await page.goto(url, { waitUntil: "networkidle" });
+        if (options.readySelector)
+          await page
+            .locator(options.readySelector)
+            .waitFor({ state: "visible" });
+        await page.waitForFunction(() => document.fonts.status === "loaded");
+        const path = join(output, `${viewport.name}.png`);
+        await page.screenshot({ path, animations: "disabled" });
+        if (problems.size)
+          throw new Error(`${viewport.name}: ${[...problems].join("; ")}`);
+        screenshots.push({ ...viewport, path });
+      } finally {
+        await context.close();
+      }
+    }
+    const lines = [
+      ...(file ? [`Open in YA: ${markdownLink("File viewer", file)}`] : []),
+      ...(delivery.status !== "skipped"
+        ? [
+            `Interactive: [Artifact](<${delivery.url}>) — ${delivery.expiresAt === null ? "expiry unknown (existing URL)" : `expires ${new Date(delivery.expiresAt).toISOString()}`}`,
+          ]
+        : [`Interactive: unavailable — ${delivery.reason}`]),
+      `Captures: ${screenshots.map((item) => markdownLink(`${item.name} ${item.width}×${item.height}`, item.path)).join(" · ")}`,
+      ...(warnings.size
+        ? [`Browser warnings: ${[...warnings].join("; ")}`]
+        : []),
+    ];
+    const result = {
+      kind: "artifact-capture",
+      capturedAt: new Date().toISOString(),
+      input: file ?? url,
+      delivery,
+      screenshots,
+      warnings: [...warnings],
+      markdown: lines.join("\n\n"),
+    };
+    await writeFile(
+      join(output, "capture.json"),
+      `${JSON.stringify(result, null, 2)}\n`,
+    );
+    await writeFile(join(output, "links.md"), `${result.markdown}\n`);
+    return result;
+  } catch (error) {
+    if (delivery.status === "created") {
+      const response = await fetch(
+        new URL(
+          `/api/artifacts/${encodeURIComponent(delivery.id)}`,
+          options.yaUrl,
+        ),
+        {
+          method: "DELETE",
+          headers: { ...options.yaHeaders, "X-Yep-Anywhere": "true" },
+          redirect: "error",
+          signal: AbortSignal.timeout(2500),
+        },
+      );
+      if (!response.ok)
+        throw new Error(
+          `Capture failed and grant revocation returned HTTP ${response.status}`,
+          { cause: error },
+        );
+    }
+    throw error;
+  } finally {
+    await browser.close();
+  }
+}

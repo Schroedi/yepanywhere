@@ -75,6 +75,107 @@ metadata, and behavior assertions. The current adapter is one example, not a
 component catalogue or arbitrary source-to-HTML converter. Production client
 entries do not import it.
 
+## Portable artifact captures
+
+For an already-built HTML entry or an existing HTTP(S) artifact URL, use the
+committed command from the checkout root:
+
+```bash
+pnpm --filter @yep-anywhere/client exec playwright install chromium
+pnpm -s artifact:capture path/to/index.html --text
+pnpm -s artifact:capture path/to/index.html --out .artifacts/captures/review-1 --json
+```
+
+The first command is one-time browser setup after the normal `pnpm install`
+or `pnpm setup:core`. No private dotfiles, `~/agents` checkout, Python, relay
+installation, running YA server, or configured artifact hostname is required.
+The helper uses the existing Node/tsx, Playwright, shared capability code, and
+server MIME table. It is development tooling and is not imported by the app.
+
+The command captures exactly 1000×600 and 375×812 viewport PNGs in fresh browser
+contexts. Local entries use a browser-only HTTP origin rooted at the HTML
+directory; requests for sibling styles, modules, images, and fonts are served
+from disk without a listening port. Canonical paths must stay in that directory,
+including through symlinks. Requests outside the document origin fail unless
+`--allow-network` is explicit. Service workers are blocked; no browser profile,
+YA cookies, or existing tab is reused. This is a static-bundle renderer, not a
+development server or backend API emulator.
+
+It waits for network idle and fonts, and accepts `--ready-selector <css>` for
+an application-specific ready state. Load failures, console errors, missing
+assets, and operation timeouts fail the command. Browser warnings remain visible
+in the JSON `warnings` array and Markdown handoff; captures with warnings do not
+certify a clean page. `--timeout-ms` defaults
+to 30000 per browser/API operation; health probes have a 2500ms deadline.
+Capturing succeeds only after both viewports and the output manifest are
+written. A successful capture does not certify appearance or test interaction:
+the agent must open and inspect both PNGs sequentially before handing them off.
+Behavior checks such as clicking menus remain separate.
+
+Each invocation owns a new directory, defaulting to
+`.artifacts/captures/<unique-id>/` in this checkout. `--out` selects another new
+directory; an existing directory fails rather than overwriting prior captures.
+The helper never edits Git excludes or the input bundle. Output files are
+`desktop.png`, `phone.png`, `capture.json`, and `links.md`. JSON stdout is one
+complete object by default (`--json` makes this explicit); `--text` emits the
+same Markdown as `links.md`. Use `pnpm -s` to keep pnpm banners out of stdout.
+Errors are structured JSON on stderr; exit 0 means complete, 2 means invalid
+arguments, and 3 means a capture/delivery/filesystem failure. Partial PNGs may
+remain after failure, but are not a successful handoff.
+
+### Optional interactive delivery
+
+```bash
+pnpm -s artifact:capture path/to/index.html --ya-url http://localhost:3400 --text
+pnpm -s artifact:capture path/to/index.html --ya-url https://your-ya-host --audience public --ya-headers /private/ya-headers.json --text
+```
+
+`--ya-url` is an explicit YA server origin, not a relay or hosted-client URL.
+The server must see the same absolute HTML path. With no `--ya-url`, there are
+no YA requests. With it, the helper reads `/api/version` once and checks the
+artifact capability, availability, and selected local/public origin. An absent
+capability or disabled/unconfigured selected origin skips both the health probe
+and grant request, and still produces local captures and the file-viewer link.
+It does not guess another audience, enable hosting, or change settings.
+
+For an enabled origin, a credential-free health probe precedes grant creation;
+both PNGs then render the returned artifact URL, verifying that delivery path.
+The success result retains that grant for the user and includes its expiration.
+A failed capture revokes the grant it created. Explicit hosting failures are
+reported rather than silently claimed as working delivery; rerun without
+`--ya-url` when only local captures are needed.
+
+Authentication is optional and explicit: `--ya-headers` reads a private JSON
+object of string request headers, for example a supported session Cookie or
+`X-Desktop-Token`. Keep this file outside the export directory. These headers
+go only to the supplied YA origin, with
+redirects rejected. They never enter artifact probes, browser contexts, logs,
+or the output manifest. TLS verification remains enabled. Existing URL input
+is captured directly, without querying YA or creating/renewing a grant; its
+expiry is reported as unknown.
+
+### Standard handoff
+
+After inspecting both captures, present the emitted lines in this order:
+
+1. **Open in YA** — the absolute HTML file-viewer link, when input was a file.
+2. **Interactive** — the verified artifact URL and expiry, or an explicit
+   reason interactive delivery was skipped.
+3. **Captures** — the desktop and phone PNG file-viewer links.
+
+Keep the local file-viewer link even when an artifact URL is available. A file
+link can be opened weeks later while the file still exists and is authorized;
+starting interactive preview creates a fresh grant with a new expiration.
+An existing grant URL never renews merely because someone opens it, and a
+server restart may invalidate it before its expiry. Captures remain the saved
+pixels, while the file-viewer link opens the file's current contents.
+
+The command and tests use portable Node filesystem/process APIs. Linux Chromium
+is exercised; macOS and Windows execution remain unverified. The tests include
+paths with spaces, Windows-formatted handoff destinations, disabled hosting,
+credential separation, broken loads, traversal rejection, and CLI invocation
+from a different working directory.
+
 ## Export contract
 
 `ya-mockup.json` is version 1 of the `ya-ui-mockup` metadata format. It declares:

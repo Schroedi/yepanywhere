@@ -23,13 +23,16 @@ For requests about proposed UI appearance or interaction, including "thoughts
 on the UI for X", or requests to author/export a mockup, read
 [topics/ui-design.md](topics/ui-design.md) before choosing the fixture,
 rendering, or export commands. It supplies the project component/style owners
-and verified facility. Present the resulting artifact with a clickable
-absolute local file path that YA's file viewer can open. When interactive
-delivery is available, also provide a verified grant URL on the configured
-artifact domain, usable in its own tab; include its expiry and a screenshot
-fallback. The topic owns delivery and any required preview setting. A source
-file or dev-server URL alone is not a viewable mockup handoff. Respect explicit
-prose-only requests and the user's visual-verification handoff.
+and verified facility. For an already-built HTML artifact, use
+`pnpm -s artifact:capture <entry.html> --text`; inspect its desktop and phone
+PNGs sequentially, then present the emitted file-viewer and capture links.
+Supply `--ya-url` only for a known YA server when interactive delivery is
+wanted; disabled/unconfigured hosting skips health and grant requests. Include
+the artifact URL and expiry when the command creates one, retaining the
+file-viewer link for later reopening. The topic owns authentication options,
+delivery, and preview settings. A source file or dev-server URL alone is not
+a viewable mockup handoff. Respect explicit prose-only requests and the user's
+visual-verification handoff.
 
 ## Cross-Platform Behavior And Tests
 
