@@ -27,12 +27,37 @@ part of the public-share contract.
 
 An invocation declares support with `acli: 1 ... +commentary` or
 `acli-capabilities: commentary/1`, optionally prefixed by `#`. Detection reads
-the first 4096 characters of its stdout and stderr, including recognized shell
-provider envelopes. The shared Python producer emits its stderr declaration
-before ordinary output. YA does not infer support from a command name, import,
+only the first line of stdout and stderr, bounded to 4096 characters per
+stream, including recognized shell provider envelopes. The stdout check covers
+wrappers that merge stderr into output. The shared Python producer emits its
+stderr declaration before ordinary output. YA does not infer support from a command name, import,
 or `_acli` key, execute discovery probes, or consult the proposed composer trust
 registry. A quiet producer must supply a declaration in its retained output to
 activate this presentation.
+
+Known code-mode `Exec` content arrays also participate. The existing code-mode
+decoder recognizes text blocks and command-result envelopes, including its
+fulfilled-result wrapper. Each block has separate framing and context; no
+association crosses block boundaries. Commentary stays visible beside the
+collapsed row, while ordinary command data, exit status, and duration remain
+in the output box. Appending another output block preserves existing commentary
+streams without re-rendering their Markdown. A root bullet uses the script
+source as its command tooltip and opens that block's original output.
+Mixed-media or unrecognized envelopes
+retain their ordinary rendering. YA does not guess which source call produced
+an output block or recursively interpret arbitrary string-valued fields.
+
+The [artifact capture command](ui-design.md#portable-artifact-captures) emits
+this metadata by default in JSON, including both generated image captures.
+Its call can fulfill the handoff itself in an enabled, supporting YA client;
+image expansion follows the ordinary inline-media setting. No specification
+or producer library is vendored into YA.
+
+Artifact captures use a normal Markdown table to keep desktop and phone
+previews side by side. Markdown table cells align at the top so differently
+shaped captures retain a common starting edge. Automatic gallery grouping is
+only a [low-priority proposal](acli-commentary.sketches.md), not required for
+this handoff.
 
 Classification happens before publishing a record. Once an invocation has
 published ordinary output without a declaration, it keeps that presentation
@@ -93,7 +118,7 @@ bytes. Its ordered `{html: string[]}` response uses the existing cached
 assistant Markdown renderer and project-path index. At most four requests
 render concurrently per server app. Oversized requests return 413, malformed
 bodies 400, and overload 503. The client sends bounded sequential batches per
-invocation and aborts them on unmount. Failed rendering retains the affected
+output stream and aborts them on unmount. Failed rendering retains the affected
 original records and reports the failure; it never strips unseen commentary.
 
 The producer's standard `--help` briefs agents on verbatim prose, context,

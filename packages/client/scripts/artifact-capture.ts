@@ -45,6 +45,7 @@ export interface CaptureOptions {
   readySelector?: string;
   timeoutMs?: number;
   allowNetwork?: boolean;
+  commentary?: boolean;
 }
 
 export type ArtifactDelivery =
@@ -168,6 +169,7 @@ export function markdownLink(label: string, target: string): string {
     .replaceAll("%", "%25")
     .replaceAll("#", "%23")
     .replaceAll("?", "%3F")
+    .replaceAll("|", "%7C")
     .replaceAll("<", "%3C")
     .replaceAll(">", "%3E")
     .replaceAll("\n", "%0A")
@@ -328,6 +330,22 @@ export async function captureArtifact(options: CaptureOptions) {
       screenshots,
       warnings: [...warnings],
       markdown: lines.join("\n\n"),
+      ...(options.commentary === false
+        ? {}
+        : {
+            _acli: {
+              commentary: [
+                { text: lines.join("\n\n") },
+                {
+                  text: [
+                    `| ${screenshots.map((item) => `${item.name} ${item.width}×${item.height}`).join(" | ")} |`,
+                    `| ${screenshots.map(() => "---").join(" | ")} |`,
+                    `| ${screenshots.map((item) => `!${markdownLink(item.name, item.path)}`).join(" | ")} |`,
+                  ].join("\n"),
+                },
+              ],
+            },
+          }),
     };
     await writeFile(
       join(output, "capture.json"),

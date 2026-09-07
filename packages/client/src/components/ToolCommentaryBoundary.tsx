@@ -3,12 +3,14 @@ import {
   ACLI_COMMENTARY_MAX_TEXTS,
   ACLI_COMMENTARY_RENDERING_CAPABILITY,
   declaresAcliCommentary,
+  decodeCodeModeOutput,
   serverHasCapability,
 } from "@yep-anywhere/shared";
 import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -47,6 +49,158 @@ interface Output {
   stdout: string;
   stderr: string;
   shell: BashResult | null;
+}
+
+type InvocationProps = Props & {
+  projectId: string;
+  runtime: YaSourceRuntime;
+  supported: boolean | null;
+};
+
+interface CodeModePart {
+  index: number;
+  result: ToolResultData;
+  replaceText: (text: string) => { type: string; text: string };
+}
+
+const codeModeResults = new WeakMap<
+  ToolResultData,
+  {
+    source: unknown;
+    blocks: { type: string; text: string }[];
+    parts: CodeModePart[];
+  }
+>();
+
+function firstLineDeclaresCommentary(text: string, pending: boolean) {
+  const prefix = text.slice(0, 4097);
+  const newline = prefix.indexOf("\n");
+  const firstLine = newline < 0 ? prefix : prefix.slice(0, newline);
+  return (
+    (newline >= 0 || !pending) &&
+    firstLine.length <= 4096 &&
+    declaresAcliCommentary(firstLine)
+  );
+}
+
+function CodeModeBoundary(props: InvocationProps) {
+  const source = props.toolResult?.structured ?? props.toolResult?.content;
+  const decoded = useMemo(() => {
+    const cached = props.toolResult
+      ? codeModeResults.get(props.toolResult)
+      : undefined;
+    if (cached?.source === source && props.status !== "pending") return cached;
+    const output = decodeCodeModeOutput(source);
+    if (!output) return null;
+    const selected = output.parts.flatMap((part, index) =>
+      firstLineDeclaresCommentary(part.text, props.status === "pending")
+        ? [{ part, index }]
+        : [],
+    );
+    if (!selected.length) return null;
+    // The shared decoder validates the envelope and recognizes command results.
+    // Only its declared text leaves participate; arbitrary JSON strings do not.
+    const blocks = (
+      typeof source === "string" ? JSON.parse(source) : source
+    ) as {
+      type: string;
+      text: string;
+    }[];
+    const parts: CodeModePart[] = selected.map(({ part, index }) => {
+      const block = blocks[index]!;
+      const envelope =
+        part.kind === "command-output" ? JSON.parse(block.text) : null;
+      return {
+        index,
+        result: {
+          ...props.toolResult,
+          content: part.text,
+          structured: undefined,
+          isError: props.toolResult?.isError ?? false,
+        },
+        replaceText: (text) => ({
+          ...block,
+          text: envelope
+            ? JSON.stringify(
+                envelope.status === "fulfilled"
+                  ? { ...envelope, value: { ...envelope.value, output: text } }
+                  : { ...envelope, output: text },
+              )
+            : part.kind === "script-status"
+              ? block.text
+              : text,
+        }),
+      };
+    });
+    const result = { source, blocks, parts };
+    if (props.toolResult && props.status !== "pending")
+      codeModeResults.set(props.toolResult, result);
+    return result;
+  }, [source, props.toolResult, props.status]);
+  const [projections, setProjections] = useState(
+    () => new Map<number, ToolResultData | undefined>(),
+  );
+  const project = useCallback(
+    (index: number, result: ToolResultData | undefined) => {
+      setProjections((current) => {
+        if (current.has(index) && current.get(index) === result) return current;
+        return new Map(current).set(index, result);
+      });
+    },
+    [],
+  );
+  const input = record(props.toolInput);
+  const leafInput = useMemo(() => ({ cmd: input?.source }), [input?.source]);
+  if (!decoded || props.supported === false)
+    return props.children(props.toolInput, props.toolResult);
+  const blocks = [...decoded.blocks];
+  for (const part of decoded.parts)
+    blocks[part.index] = part.replaceText(
+      projections.get(part.index)?.content ?? "",
+    );
+  return (
+    <>
+      {props.children(props.toolInput, {
+        ...props.toolResult,
+        content: JSON.stringify(blocks),
+        structured: blocks,
+        isError: props.toolResult?.isError ?? false,
+      })}
+      {decoded.parts.map((part) => (
+        <InvocationBoundary
+          {...props}
+          key={part.index}
+          id={`${props.id}:${part.index}`}
+          toolName="Exec output"
+          toolInput={leafInput}
+          toolResult={part.result}
+        >
+          {(_input, result) => (
+            <CodeModeProjection
+              index={part.index}
+              result={result}
+              project={project}
+            />
+          )}
+        </InvocationBoundary>
+      ))}
+    </>
+  );
+}
+
+function CodeModeProjection({
+  index,
+  result,
+  project,
+}: {
+  index: number;
+  result: ToolResultData | undefined;
+  project: (index: number, result: ToolResultData | undefined) => void;
+}) {
+  // Publish cleaned command data before the same paint as its sibling prose.
+  // Stable keyed siblings keep existing streams mounted as new blocks arrive.
+  useLayoutEffect(() => project(index, result), [index, result, project]);
+  return null;
 }
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -92,8 +246,10 @@ export function ToolCommentaryBoundary(props: Props) {
   const version = useRetainedVersionInfo(runtime.sourceKey);
   if (!acliCommentaryEnabled || !metadata || publicShare)
     return props.children(props.toolInput, props.toolResult);
+  const Boundary =
+    props.toolName === "Exec" ? CodeModeBoundary : InvocationBoundary;
   return (
-    <InvocationBoundary
+    <Boundary
       key={`${runtime.sourceKey}:${metadata.projectId}:${metadata.sessionId}:${props.id}`}
       {...props}
       projectId={metadata.projectId}
@@ -107,13 +263,7 @@ export function ToolCommentaryBoundary(props: Props) {
   );
 }
 
-function InvocationBoundary(
-  props: Props & {
-    projectId: string;
-    runtime: YaSourceRuntime;
-    supported: boolean | null;
-  },
-) {
+function InvocationBoundary(props: InvocationProps) {
   const output = useMemo(
     () =>
       readOutput({
@@ -124,10 +274,9 @@ function InvocationBoundary(
     [props.toolResult, props.toolInput, props.toolName],
   );
   const [mode, setMode] = useState<"commentary" | "raw" | null>(null);
-  const declared = [
-    output.stdout.slice(0, 4096),
-    output.stderr.slice(0, 4096),
-  ].some((text) => text.split("\n").some(declaresAcliCommentary));
+  const declared = [output.stdout, output.stderr].some((text) =>
+    firstLineDeclaresCommentary(text, props.status === "pending"),
+  );
   if (mode === null) {
     if (props.supported === false) setMode("raw");
     else if (declared && props.supported) setMode("commentary");

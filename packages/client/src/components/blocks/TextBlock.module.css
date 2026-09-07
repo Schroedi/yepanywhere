@@ -17,6 +17,10 @@
   );
 }
 
+.root td {
+  vertical-align: top;
+}
+
 .root:global(.timeline-item) {
   padding-top: 0;
 }

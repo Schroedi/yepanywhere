@@ -1,3 +1,4 @@
+// acli: 1 +commentary
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,9 +19,10 @@ with: pnpm --filter @yep-anywhere/client exec playwright install chromium
   --timeout-ms <number>   Per-operation deadline, default 30000
   --allow-network        Allow requests outside the document origin; default blocks and reports them
   --format <value>       jsonl (default), json (pretty), or markdown
-  --json, --compact      Explicit compact JSON; takes precedence over --text
+  --json, --compact      Compact JSON with Markdown commentary; takes precedence over --text
   --pretty               Pretty JSON
   --text                 Markdown handoff text
+  --no-commentary        Omit _acli.commentary; keep ordinary result data
   --full                 Results are already complete; accepted for agent callers
   --acli-quiet           Omit the stderr capability banner
   -h, --help             Show this help
@@ -34,11 +36,16 @@ URL input uses that existing URL without creating or renewing a grant.
 YA must see the same absolute file path when requesting a grant.
 
 Duration: seconds, blocking. Stdout: one complete JSON result or Markdown.
-Files: desktop.png, phone.png, capture.json, links.md. Inspect both PNGs before
-presenting links.md; a successful capture does not judge the design or test clicks.
+Files: desktop.png, phone.png, capture.json, links.md. JSON includes commentary
+by default: in YA with Tool commentary enabled and server support, this call
+itself presents the artifact links and both image captures beside its output.
+No separate assistant message repeating those links is needed. Inspect the PNGs
+before claiming visual quality; capture success does not judge design or clicks.
+Other consumers can use the returned paths and Markdown. Emission is not a
+delivery receipt or proof that the user read the result. --text has no metadata.
 Exit: 0 complete; 2 invalid arguments; 3 capture, delivery, or filesystem failure.
 Errors are JSON on stderr. No prompts, shared-server restarts, or browser reuse.
-acli: 1
+acli: 1 +commentary
 `;
 
 export function parseCaptureArgs(argv: string[]) {
@@ -59,6 +66,7 @@ export function parseCaptureArgs(argv: string[]) {
       compact: { type: "boolean" },
       pretty: { type: "boolean" },
       text: { type: "boolean" },
+      "no-commentary": { type: "boolean" },
       full: { type: "boolean" },
       "acli-quiet": { type: "boolean" },
     },
@@ -91,6 +99,7 @@ export function parseCaptureArgs(argv: string[]) {
     readySelector: values["ready-selector"],
     timeoutMs,
     allowNetwork: values["allow-network"],
+    commentary: format !== "markdown" && !values["no-commentary"],
   };
   return {
     help: false as const,
@@ -110,7 +119,7 @@ async function main() {
       return;
     }
     if (!args.quiet && !process.env.ACLI_QUIET)
-      process.stderr.write("# acli: 1\n");
+      process.stderr.write("# acli: 1 +commentary\n");
     if (args.headersFile) {
       const content = await readFile(args.headersFile, "utf8");
       let headers: unknown;

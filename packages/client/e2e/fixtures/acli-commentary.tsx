@@ -16,9 +16,10 @@ function Fixture() {
     projectId: string;
     stdout: string;
     stderr: string;
+    toolName?: string;
   }>();
   useEffect(() => {
-    void fetch("/api/fixture")
+    void fetch(`/api/fixture${window.location.search}`)
       .then((response) => response.json())
       .then(setData);
   }, []);
@@ -34,13 +35,31 @@ function Fixture() {
           <div className="assistant-turn">
             <ToolCallRow
               id="report"
-              toolName="Bash"
-              toolInput={{ command: "report --jsonl" }}
+              toolName={data.toolName ?? "Bash"}
+              toolInput={
+                data.toolName === "Exec"
+                  ? {
+                      calls: [
+                        {
+                          toolName: "exec_command",
+                          input: {
+                            cmd: "pnpm -s artifact:capture index.html --json",
+                          },
+                        },
+                      ],
+                      source:
+                        "text(await tools.exec_command({cmd: 'pnpm -s artifact:capture index.html --json'}))",
+                    }
+                  : { command: "report --jsonl" }
+              }
               status="complete"
               toolResult={{
                 content: data.stdout,
                 isError: false,
-                structured: { ...data, interrupted: false, isImage: false },
+                structured:
+                  data.toolName === "Exec"
+                    ? undefined
+                    : { ...data, interrupted: false, isImage: false },
               }}
             />
           </div>

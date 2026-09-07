@@ -32,6 +32,13 @@ describe("artifact capture command", () => {
     });
     expect(parseCaptureArgs(["index.html", "--text"])).toMatchObject({
       format: "markdown",
+      options: { commentary: false },
+    });
+    expect(parseCaptureArgs(["index.html", "--json"])).toMatchObject({
+      options: { commentary: true },
+    });
+    expect(parseCaptureArgs(["index.html", "--no-commentary"])).toMatchObject({
+      options: { commentary: false },
     });
   });
 
@@ -73,7 +80,32 @@ describe("artifact capture command", () => {
       const data = JSON.parse(result.stdout);
       expect(data.kind).toBe("artifact-capture");
       expect(data.screenshots).toHaveLength(2);
-      expect(result.stderr).toBe("# acli: 1\n");
+      expect(result.stderr).toBe("# acli: 1 +commentary\n");
+      expect(data._acli.commentary).toHaveLength(2);
+      expect(data._acli.commentary[0].text).toBe(data.markdown);
+      expect(data._acli.commentary[1].text).toContain(
+        "| desktop 1000×600 | phone 375×812 |",
+      );
+      for (const capture of data.screenshots) {
+        expect(data._acli.commentary[1].text).toContain(
+          `![${capture.name}](<${capture.path}>)`,
+        );
+      }
+      const suppressed = await exec(
+        process.execPath,
+        [
+          "--import",
+          loader,
+          script,
+          "page with spaces.html",
+          "--out",
+          "data-only",
+          "--no-commentary",
+        ],
+        { cwd: directory },
+      );
+      expect(JSON.parse(suppressed.stdout)._acli).toBeUndefined();
+      expect(JSON.parse(suppressed.stdout).screenshots).toHaveLength(2);
       expect(
         await readFile(join(directory, "captures", "links.md"), "utf8"),
       ).toBe(`${data.markdown}\n`);
@@ -84,7 +116,10 @@ describe("artifact capture command", () => {
         ["--import", loader, script, "--help"],
         { cwd: directory },
       );
-      expect(usage.stdout).toContain("acli: 1");
+      expect(usage.stdout.trim().split("\n").at(-1)).toBe(
+        "acli: 1 +commentary",
+      );
+      expect(usage.stdout).toContain("this call\nitself presents");
       expect(usage.stderr).toBe("");
     } finally {
       await rm(directory, { recursive: true });

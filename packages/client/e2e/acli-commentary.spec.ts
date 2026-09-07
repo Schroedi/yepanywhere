@@ -1,4 +1,6 @@
 import { createServer } from "node:http";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { createRequire } from "node:module";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -17,6 +19,8 @@ let listener: ReturnType<typeof createServer>;
 let directory: string;
 let base: string;
 let requests = 0;
+let artifactOutput: { stdout: string; stderr: string; toolName: string };
+const captureImages = new Map<string, Buffer>();
 const note = (text: string) => ({ _acli: { commentary: [{ text }] } });
 
 test.beforeAll(async () => {
@@ -28,6 +32,45 @@ test.beforeAll(async () => {
   directory = await mkdtemp(join(scratch, "project-"));
   await writeFile(join(directory, "report.md"), "# Result");
   const projectId = toUrlProjectId(directory);
+  const input = join(directory, "index.html");
+  await writeFile(
+    input,
+    '<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Capture result</title><style>body{margin:32px;background:#17232d;color:#f4f7fa;font:20px system-ui}main{max-width:640px}h1{font-size:36px}strong{color:#83d6b4}</style><main><h1>Artifact capture</h1><p>This generated image reaches the transcript through the <strong>capture call itself</strong>.</p></main>',
+  );
+  const cli = await promisify(execFile)(
+    process.execPath,
+    [
+      "--import",
+      createRequire(join(root, "package.json")).resolve("tsx/esm"),
+      join(root, "scripts/capture-artifact.ts"),
+      input,
+      "--out",
+      join(directory, "captures"),
+      "--json",
+    ],
+    { env: { ...process.env, ACLI_QUIET: "" } },
+  );
+  const captured = JSON.parse(cli.stdout) as {
+    screenshots: { path: string }[];
+  };
+  for (const capture of captured.screenshots)
+    captureImages.set(capture.path, await readFile(capture.path));
+  artifactOutput = {
+    toolName: "Exec",
+    stderr: "",
+    stdout: JSON.stringify([
+      { type: "text", text: "Script completed\nWall time: 2s\nOutput:\n" },
+      {
+        type: "text",
+        text: JSON.stringify({
+          chunk_id: "capture",
+          wall_time_seconds: 2,
+          exit_code: 0,
+          output: cli.stderr + cli.stdout,
+        }),
+      },
+    ]),
+  };
   // ACLI_FIXTURE_JSON can supply actual producer output for a local smoke.
   const output = process.env.ACLI_FIXTURE_JSON
     ? (JSON.parse(await readFile(process.env.ACLI_FIXTURE_JSON, "utf8")) as {
@@ -76,15 +119,24 @@ test.beforeAll(async () => {
       requests++;
       req.url = req.url.slice("/api/projects".length);
       void handle(req, res);
+    } else if (req.url?.startsWith("/api/local-image?")) {
+      const path = new URL(req.url, "http://fixture").searchParams.get("path");
+      const bytes = path ? captureImages.get(path) : undefined;
+      res.statusCode = bytes ? 200 : 404;
+      res.setHeader("Content-Type", "image/png");
+      res.end(bytes);
     } else if (
       req.url?.startsWith("/api/version") ||
-      req.url === "/api/fixture"
+      req.url?.startsWith("/api/fixture")
     ) {
       res.setHeader("Content-Type", "application/json");
       res.end(
         JSON.stringify(
-          req.url === "/api/fixture"
-            ? { projectId, ...output }
+          req.url?.startsWith("/api/fixture")
+            ? {
+                projectId,
+                ...(req.url.includes("artifact=1") ? artifactOutput : output),
+              }
             : { current: "0.8.2" },
         ),
       );
@@ -169,4 +221,65 @@ test("renders through the endpoint and keeps context outside transcript geometry
     page.getByRole("button", { name: "Open tool output" }),
   ).toHaveCount(0);
   expect(requests).toBe(before);
+});
+
+test("the capture CLI presents its links and generated images through a code-mode result", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (["warning", "error"].includes(message.type()))
+      errors.push(message.text());
+  });
+  for (const [name, width, height] of [
+    ["desktop", 1000, 600],
+    ["phone", 375, 812],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${base}/e2e/fixtures/acli-commentary.html?artifact=1`);
+    await expect(
+      page.getByRole("link", { name: "File viewer", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Open tool output" }),
+    ).toHaveCount(2);
+    // Ordinary media controls remain collapsed by default. The final two are
+    // the producer's explicit image Markdown; the handoff also has PNG links.
+    const toggles = page.getByRole("button", {
+      name: "Expand image",
+      exact: true,
+    });
+    await expect(toggles).toHaveCount(4);
+    await toggles.nth(2).click();
+    await toggles.nth(2).click();
+    const images = page.locator("main img");
+    await expect(images).toHaveCount(2);
+    await expect
+      .poll(() =>
+        images.evaluateAll((elements) =>
+          elements.every(
+            (image) => (image as HTMLImageElement).naturalWidth > 0,
+          ),
+        ),
+      )
+      .toBe(true);
+    const desktop = await images.nth(0).boundingBox();
+    const phone = await images.nth(1).boundingBox();
+    expect(desktop).not.toBeNull();
+    expect(phone).not.toBeNull();
+    expect(Math.abs(desktop!.y - phone!.y)).toBeLessThan(2);
+    expect(desktop!.x + desktop!.width).toBeLessThanOrEqual(phone!.x);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+    await page.screenshot({
+      path: resolve(
+        root,
+        `../../.artifacts/ui-testing/2026-09-07-acli-commentary/artifact-${name}.png`,
+      ),
+      fullPage: true,
+    });
+  }
+  expect(errors).toEqual([]);
 });

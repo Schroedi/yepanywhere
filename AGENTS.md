@@ -24,8 +24,12 @@ on the UI for X", or requests to author/export a mockup, read
 [topics/ui-design.md](topics/ui-design.md) before choosing the fixture,
 rendering, or export commands. It supplies the project component/style owners
 and verified facility. For an already-built HTML artifact, use
-`pnpm -s artifact:capture <entry.html> --text`; inspect its desktop and phone
-PNGs sequentially, then present the emitted file-viewer and capture links.
+`pnpm -s artifact:capture <entry.html> --json` (acli `+commentary`). With
+Tool commentary enabled on a supporting YA server, the call itself presents
+the file-viewer link, capture links, and image previews beside its output;
+do not repeat that handoff in a separate assistant message. Inspect its desktop
+and phone PNGs sequentially before claiming visual quality. When commentary
+presentation is unavailable, present the returned Markdown links yourself.
 Supply `--ya-url` only for a known YA server when interactive delivery is
 wanted; disabled/unconfigured hosting skips health and grant requests. Include
 the artifact URL and expiry when the command creates one, retaining the

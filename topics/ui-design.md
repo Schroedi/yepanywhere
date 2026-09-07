@@ -82,7 +82,7 @@ committed command from the checkout root:
 
 ```bash
 pnpm --filter @yep-anywhere/client exec playwright install chromium
-pnpm -s artifact:capture path/to/index.html --text
+pnpm -s artifact:capture path/to/index.html --json
 pnpm -s artifact:capture path/to/index.html --out .artifacts/captures/review-1 --json
 ```
 
@@ -119,6 +119,16 @@ The helper never edits Git excludes or the input bundle. Output files are
 `desktop.png`, `phone.png`, `capture.json`, and `links.md`. JSON stdout is one
 complete object by default (`--json` makes this explicit); `--text` emits the
 same Markdown as `links.md`. Use `pnpm -s` to keep pnpm banners out of stdout.
+JSON includes `_acli.commentary` by default: the Markdown handoff followed by
+an ordinary two-column Markdown table containing image references for both
+captures, labeled with their viewport dimensions. Expanding both previews
+shows the sizes side by side; no custom image syntax is required.
+`--no-commentary` omits that metadata while retaining all ordinary result
+fields; `--text` has no structured metadata.
+`--help` and the script header declare `acli: 1 +commentary`; ordinary
+execution emits `# acli: 1 +commentary` on stderr before capture work.
+`--acli-quiet` or nonempty `ACLI_QUIET` suppresses that banner and therefore
+does not activate YA's current output-based commentary recognition.
 Errors are structured JSON on stderr; exit 0 means complete, 2 means invalid
 arguments, and 3 means a capture/delivery/filesystem failure. Partial PNGs may
 remain after failure, but are not a successful handoff.
@@ -126,8 +136,8 @@ remain after failure, but are not a successful handoff.
 ### Optional interactive delivery
 
 ```bash
-pnpm -s artifact:capture path/to/index.html --ya-url http://localhost:3400 --text
-pnpm -s artifact:capture path/to/index.html --ya-url https://your-ya-host --audience public --ya-headers /private/ya-headers.json --text
+pnpm -s artifact:capture path/to/index.html --ya-url http://localhost:3400 --json
+pnpm -s artifact:capture path/to/index.html --ya-url https://your-ya-host --audience public --ya-headers /private/ya-headers.json --json
 ```
 
 `--ya-url` is an explicit YA server origin, not a relay or hosted-client URL.
@@ -156,7 +166,16 @@ expiry is reported as unknown.
 
 ### Standard handoff
 
-After inspecting both captures, present the emitted lines in this order:
+With [Tool commentary](acli-commentary.md) enabled and a supporting YA server,
+the JSON-producing call itself fulfills the artifact handoff: YA presents the
+following links and both image previews beside the tool output, including a
+collapsed code-mode `Exec` row. Image expansion follows the existing inline
+media preference and controls. No separate assistant message repeating these
+links is needed. Inspect both PNGs before claiming visual quality; automatic
+presentation precedes that judgment and is not a delivery/read receipt.
+
+If that presentation is unavailable or disabled, present the returned Markdown
+after inspection. The handoff uses this order:
 
 1. **Open in YA** — the absolute HTML file-viewer link, when input was a file.
 2. **Interactive** — the verified artifact URL and expiry, or an explicit

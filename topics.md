@@ -371,3 +371,4 @@
   cards with explicit save/discard and independent main-session typing.
 - synthetic-turn-injection - General user/assistant context delivery through
   native history insertion or attributed normal user turns.
+- acli-commentary - Declared tool prose and artifact capture handoffs in YA.

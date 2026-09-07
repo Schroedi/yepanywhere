@@ -6,6 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionMetadataProvider } from "../../../contexts/SessionMetadataContext";
 import { SchemaValidationProvider } from "../../../contexts/SchemaValidationContext";
@@ -26,7 +27,11 @@ const banner = "# acli: 1 complete +commentary\n";
 const note = (text: string) =>
   JSON.stringify({ _acli: { commentary: [{ text }] } });
 
-function row(stdout: string, pending = false) {
+function row(
+  stdout: string,
+  pending = false,
+  overrides: Partial<ComponentProps<typeof ToolCallRow>> = {},
+) {
   return (
     <I18nProvider>
       <MemoryRouter>
@@ -53,6 +58,7 @@ function row(stdout: string, pending = false) {
                       isImage: false,
                     },
                   }}
+                  {...overrides}
                 />
               </SessionViewerProvider>
             </SchemaValidationProvider>
@@ -72,6 +78,43 @@ describe("ToolCallRow commentary integration", () => {
     vi.restoreAllMocks();
     localStorage.removeItem(UI_KEYS.acliCommentary);
   });
+
+  it.each([
+    ["# acli: 1 +commentary\n", true],
+    ["# acli-capabilities: commentary/1\n", true],
+    ["# acli: 1 complete +commentary\r\n", true],
+    ["# acli: 1\n", false],
+    ["# acli-capabilities: commentary/2\n", false],
+    ["Diagnostic first\n# acli: 1 +commentary\n", false],
+    [`# acli: 1 ${"x".repeat(4096)} +commentary\n`, false],
+  ])(
+    "matches the spec's first-line declaration: %s",
+    async (stderr, active) => {
+      const fetch = vi
+        .spyOn(
+          getSourceRuntimeRegistry().getOrCreateSourceRuntime(
+            LOCAL_CLIENT_SUMMARY_SOURCE_KEY,
+          ).transport,
+          "fetch",
+        )
+        .mockResolvedValue({ html: ["<p>Declared note</p>"] });
+      render(
+        row("", false, {
+          toolResult: {
+            content: "",
+            isError: false,
+            structured: { stdout: note("Declared note"), stderr },
+          },
+        }),
+      );
+      if (active) await screen.findByText("Declared note");
+      else
+        expect(
+          screen.queryByRole("button", { name: "Open tool output" }),
+        ).toBeNull();
+      expect(fetch).toHaveBeenCalledTimes(active ? 1 : 0);
+    },
+  );
 
   it("keeps old servers and the disabled setting on raw output without requests", () => {
     const fetch = vi.spyOn(
@@ -180,5 +223,102 @@ describe("ToolCallRow commentary integration", () => {
       screen.queryByRole("button", { name: "Open tool output" }),
     ).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("presents code-mode command leaves outside the collapsed row with separate contexts", async () => {
+    const fetch = vi
+      .spyOn(
+        getSourceRuntimeRegistry().getOrCreateSourceRuntime(
+          LOCAL_CLIENT_SUMMARY_SOURCE_KEY,
+        ).transport,
+        "fetch",
+      )
+      .mockImplementation(async (_url, options) => ({
+        html: (JSON.parse(options!.body as string).texts as string[]).map(
+          (text) => `<p>${text}</p>`,
+        ),
+      }));
+    const command = (output: string) => ({
+      chunk_id: "chunk",
+      wall_time_seconds: 0.2,
+      exit_code: 0,
+      output,
+    });
+    const result = {
+      content: JSON.stringify([
+        { type: "text", text: "Script completed\nWall time: 1s\nOutput:\n" },
+        {
+          type: "text",
+          text: JSON.stringify(
+            command(
+              `${banner}${note("First root")}\n{"value":7}\n${note("First context")}\n`,
+            ),
+          ),
+        },
+        {
+          type: "text",
+          text: JSON.stringify({
+            i: 1,
+            status: "fulfilled",
+            value: command(`${banner}${note("Second root")}\n`),
+          }),
+        },
+      ]),
+      isError: false,
+    };
+    const overrides = {
+      toolName: "Exec",
+      toolInput: {
+        calls: [],
+        source: "text(await tools.exec_command({cmd: 'capture'}))",
+      },
+      toolResult: result,
+    };
+    const view = render(
+      row("", true, {
+        ...overrides,
+        toolResult: {
+          ...result,
+          content: JSON.stringify(JSON.parse(result.content).slice(0, 2)),
+        },
+      }),
+    );
+    expect(view.container.textContent).not.toContain("_acli");
+    await screen.findByText("First context");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    view.rerender(row("", false, overrides));
+    await screen.findByText("Second root");
+    expect(
+      screen.getAllByRole("button", { name: "Open tool output" }),
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByRole("button", { name: "Open tool output" })[1]?.title,
+    ).toBe(overrides.toolInput.source);
+    expect(view.container.textContent!.indexOf("First root")).toBeLessThan(
+      view.container.textContent!.indexOf("Second root"),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show commentary context" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Show commentary context" })
+        .textContent,
+    ).toContain('{"value":7}');
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close commentary context" }),
+    );
+    await act(async () => {
+      view.rerender(row("", false, overrides));
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    view.unmount();
+    const replay = render(row("", false, overrides));
+    await screen.findByText("Second root");
+    expect(fetch).toHaveBeenCalledTimes(2);
+    replay.unmount();
+    version.value = { current: "0.8.1" };
+    render(row("", false, overrides));
+    expect(screen.queryByText("First root", { exact: true })).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 });
