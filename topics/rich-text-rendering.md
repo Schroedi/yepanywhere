@@ -318,7 +318,9 @@ dot is the stable control.
 Bash/Ran rows keep the left dot and row middle for the existing output-preview
 show/hide behavior. The command text itself is a separate click target; clicking
 it expands the full command inline with wrapping, so a huge command can be
-inspected without collapsing the output preview accidentally.
+inspected without collapsing the output preview accidentally. The expanded
+command grows its row to its full natural height; it has no separate vertical
+scroll area. The transcript scrollbar remains the way to read long commands.
 
 ## Sigma button placement and scroll preservation
 

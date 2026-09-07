@@ -87,11 +87,16 @@ provider-history rewrite and not deletion.
   changing the button's hit target.
 - Clicking the summary restores every condensed row in its original transcript
   position. The summary remains at the turn end as the one-click collapse
-  control. While reading above the live edge, direct expansion or collapse
-  keeps that clicked summary at the same viewport position even though the
-  document height and scrollbar change. Manual expansion remains sticky while
-  that session view stays mounted. A coarse-pointer browser may enlarge or
-  adjust the target of a nearby tap, but disclosure changes only when the
+  control. Direct expansion or collapse pauses tail-follow and keeps that
+  clicked summary at the same viewport position from the first painted frame,
+  including at the live edge, even though document height and scrollbar change.
+  If that offset is
+  unreachable, scroll position clamps to the new document bounds.
+  New output does not pull the reader away from the disclosed activities;
+  ordinary scrolling to the live edge or **Follow** resumes following.
+  Manual expansion remains sticky while that session view stays mounted.
+  A coarse-pointer browser may enlarge or adjust the target of a nearby tap,
+  but disclosure changes only when the
   initiating touch lies within the summary's rendered bounds; a transcript
   gesture beginning in the neighboring blank area remains a scroll gesture.
 - Switching the whole mode preserves bottom-follow when already at the live

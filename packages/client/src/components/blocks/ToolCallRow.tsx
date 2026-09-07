@@ -51,6 +51,7 @@ import { getToolSummary } from "../tools/summaries";
 import { HiddenContentBadge } from "../ui/HiddenContentBadge";
 import type { WorkflowAnnotation } from "../../lib/transcriptProjection/workflowTags";
 import { WorkflowOutput } from "../WorkflowOutput";
+import styles from "./ToolCallRow.module.css";
 
 interface Props {
   id: string;
@@ -1256,7 +1257,7 @@ export const ToolCallRow = memo(function ToolCallRow({
             className={[
               "tool-summary",
               "tool-summary-command",
-              bashCommandExpanded ? "is-expanded" : "",
+              bashCommandExpanded ? styles.expandedCommand : "",
             ]
               .filter(Boolean)
               .join(" ")}

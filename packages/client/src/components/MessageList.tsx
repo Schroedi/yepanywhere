@@ -3024,6 +3024,13 @@ export const MessageList = memo(function MessageList({
 
   const noopToggleThinkingExpanded = useCallback(() => {}, []);
 
+  const pendingHeightChangeRestoreRef = useRef<(() => void) | null>(null);
+  useLayoutEffect(() => {
+    const restore = pendingHeightChangeRestoreRef.current;
+    pendingHeightChangeRestoreRef.current = null;
+    restore?.();
+  });
+
   const preserveScrollAfterTranscriptHeightChange = useCallback(
     (
       mutate: () => void,
@@ -3056,51 +3063,56 @@ export const MessageList = memo(function MessageList({
             }
           : getFirstVisibleRenderAnchor(messageList, scrollContainer);
 
-      mutate();
+      const restore = () => {
+        const nextMessageList = containerRef.current;
+        const nextScrollContainer =
+          nextMessageList?.parentElement ?? scrollContainer;
+        isProgrammaticScrollRef.current = true;
 
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const nextMessageList = containerRef.current;
-          const nextScrollContainer =
-            nextMessageList?.parentElement ?? scrollContainer;
-          isProgrammaticScrollRef.current = true;
+        if (wasAtBottom) {
+          scrollToBottom(nextScrollContainer);
+          return;
+        }
 
-          if (wasAtBottom) {
-            scrollToBottom(nextScrollContainer);
-            return;
-          }
-
-          let restoredFromAnchor = false;
-          if (anchorBefore && nextMessageList) {
-            const row = findRenderRow(nextMessageList, anchorBefore.id);
-            if (row) {
-              const containerRect = nextScrollContainer.getBoundingClientRect();
-              const rowRect = row.getBoundingClientRect();
-              nextScrollContainer.scrollTop = Math.max(
-                0,
-                nextScrollContainer.scrollTop +
-                  rowRect.top -
-                  containerRect.top -
-                  anchorBefore.topOffset,
-              );
-              restoredFromAnchor = true;
-            }
-          }
-
-          if (!restoredFromAnchor) {
-            const heightDelta =
-              nextScrollContainer.scrollHeight - scrollHeightBefore;
+        let restoredFromAnchor = false;
+        if (anchorBefore && nextMessageList) {
+          const row = findRenderRow(nextMessageList, anchorBefore.id);
+          if (row) {
+            const containerRect = nextScrollContainer.getBoundingClientRect();
+            const rowRect = row.getBoundingClientRect();
             nextScrollContainer.scrollTop = Math.max(
               0,
-              scrollTopBefore + heightDelta,
+              nextScrollContainer.scrollTop +
+                rowRect.top -
+                containerRect.top -
+                anchorBefore.topOffset,
             );
+            restoredFromAnchor = true;
           }
-          lastHeightRef.current = nextScrollContainer.scrollHeight;
-          requestAnimationFrame(() => {
-            isProgrammaticScrollRef.current = false;
-          });
+        }
+
+        if (!restoredFromAnchor) {
+          const heightDelta =
+            nextScrollContainer.scrollHeight - scrollHeightBefore;
+          nextScrollContainer.scrollTop = Math.max(
+            0,
+            scrollTopBefore + heightDelta,
+          );
+        }
+        lastHeightRef.current = nextScrollContainer.scrollHeight;
+        requestAnimationFrame(() => {
+          isProgrammaticScrollRef.current = false;
         });
-      });
+      };
+      if (forcePreferredAnchor) {
+        // Explicit disclosure keeps the clicked row fixed before paint.
+        pendingHeightChangeRestoreRef.current = restore;
+      } else {
+        // Mode/window changes also rebuild the retained transcript window;
+        // let that projection settle before restoring its visible anchor.
+        requestAnimationFrame(() => requestAnimationFrame(restore));
+      }
+      mutate();
     },
     [scrollToBottom],
   );
@@ -3135,19 +3147,24 @@ export const MessageList = memo(function MessageList({
 
   const toggleConversationActivity = useCallback(
     (itemId: string) => {
-      preserveScrollAfterTranscriptHeightChange(() => {
-        setExpandedConversationActivityIds((previous) => {
-          const next = new Set(previous);
-          if (next.has(itemId)) {
-            next.delete(itemId);
-          } else {
-            next.add(itemId);
-          }
-          return next;
-        });
-      }, itemId);
+      stopFollowingForUserScroll(containerRef.current?.parentElement);
+      preserveScrollAfterTranscriptHeightChange(
+        () => {
+          setExpandedConversationActivityIds((previous) => {
+            const next = new Set(previous);
+            if (next.has(itemId)) {
+              next.delete(itemId);
+            } else {
+              next.add(itemId);
+            }
+            return next;
+          });
+        },
+        itemId,
+        true,
+      );
     },
-    [preserveScrollAfterTranscriptHeightChange],
+    [preserveScrollAfterTranscriptHeightChange, stopFollowingForUserScroll],
   );
 
   const toggleThinkingItemsVisible = useCallback(() => {
