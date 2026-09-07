@@ -366,6 +366,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "session-conversation-context",
     introducedIn: "0.8.2",
   },
+  turnEffortModifiers: {
+    id: 58,
+    direction: "server",
+    name: "turn-effort-modifiers",
+    introducedIn: "0.8.2",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

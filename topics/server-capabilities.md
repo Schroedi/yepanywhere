@@ -483,9 +483,10 @@ the same ledger:
 | 55 | server | 0.8.1 | `project-queue-attachment-editing` |
 | 56 | server | 0.8.2 | `project-file-completion` |
 | 57 | server | 0.8.2 | `session-conversation-context` |
+| 58 | server | 0.8.2 | `turn-effort-modifiers` |
 
 The code ledger is authoritative. The next client or server capability takes
-ID 58; retired rows stay in the ledger as reserved IDs.
+ID 59; retired rows stay in the ledger as reserved IDs.
 
 `session-conversation-context` gates the general sequence-of-user/assistant-text
 delivery route; it does not gate question-card fork orchestration. The

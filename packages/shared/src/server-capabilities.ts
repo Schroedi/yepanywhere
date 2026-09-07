@@ -912,6 +912,27 @@ export const SERVER_CAPABILITIES = {
         "Older servers cannot append role-preserving history without a new turn.",
     },
   },
+  turnEffortModifiers: {
+    id: CAPABILITY_ID_ALLOCATIONS.turnEffortModifiers.id,
+    name: "turn-effort-modifiers",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Apply model-aware effort modifiers to one turn without changing normal session settings.",
+    clientFallback:
+      "Hide modifier commands and reject typed modifiers with update guidance; send no turnEffort metadata.",
+    serverContract: {
+      requestFields: ["messageMetadata.turnEffort"],
+      responseFields: ["deferredMessages.metadata.turnEffort"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers cannot preserve one-turn effort through queue delivery.",
+    },
+  },
   projectFileCompletion: {
     id: CAPABILITY_ID_ALLOCATIONS.projectFileCompletion.id,
     name: "project-file-completion",

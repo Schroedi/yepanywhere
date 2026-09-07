@@ -25,6 +25,10 @@ import {
   type ProviderSubscriptionUsage,
   type SlashCommand,
   type SubagentMaxDepth,
+  nativeModelEffort,
+  resolveTurnEffort,
+  thinkingOptionToConfig,
+  type ThinkingOption,
 } from "@yep-anywhere/shared";
 import {
   isCodexCorrelationDebugEnabled,
@@ -426,6 +430,7 @@ interface CodexTurnRuntimeState {
   pendingTurnStart: Promise<string | null> | null;
   activePermissionMode: PermissionMode;
   turnEffortOverride: EffortLevel | null | undefined;
+  activeTurnHasEffortOverride?: boolean;
   workspaceWriteSandboxPolicy: CodexSandboxPolicy | null;
   activeToolCallIds: Set<string>;
   backgroundToolCallIds: Set<string>;
@@ -1621,8 +1626,28 @@ export class CodexProvider implements AgentProvider {
     effort?: import("@yep-anywhere/shared").EffortLevel,
     thinking?: import("@yep-anywhere/shared").ThinkingConfig,
     model?: StartSessionOptions["model"],
-  ): "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | undefined {
+  ): NonNullable<TurnStartParams["effort"]> | undefined {
     if (thinking?.type === "disabled") {
+      const supported = this.modelCache?.models.find(
+        (candidate) => candidate.id === model,
+      )?.supportedReasoningEfforts;
+      if (
+        supported?.length &&
+        !supported.some((item) => item.reasoningEffort === "none")
+      ) {
+        const minimum = [
+          "minimal",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max",
+          "ultra",
+        ].find((level) =>
+          supported.some((item) => item.reasoningEffort === level),
+        );
+        if (minimum) return minimum;
+      }
       const normalizedModel = model?.trim().toLowerCase();
       const hasSparkModelPrefix =
         CODEX_THINKING_OFF_MIN_REASONING_EFFORT_PREFIXES.some((prefix) =>
@@ -1644,8 +1669,16 @@ export class CodexProvider implements AgentProvider {
       case "high":
         return "high";
       case "xhigh":
-      case "max":
         return "xhigh";
+      case "max": {
+        const selectedModel = this.modelCache?.models.find(
+          (candidate) =>
+            candidate.id === model || (!model && candidate.isDefault),
+        );
+        return selectedModel
+          ? nativeModelEffort("max", selectedModel)
+          : "xhigh";
+      }
     }
   }
 
@@ -1713,6 +1746,11 @@ export class CodexProvider implements AgentProvider {
    * Start a new Codex session.
    */
   async startSession(options: StartSessionOptions): Promise<AgentSession> {
+    if (
+      options.effort === "max" ||
+      options.initialMessage?.metadata?.turnEffort
+    )
+      await this.getAvailableModels();
     const installationLease =
       await this.installationCoordinator.acquireRuntimeLease(
         CODEX_INSTALLATION_FAMILY,
@@ -1856,6 +1894,23 @@ export class CodexProvider implements AgentProvider {
         );
       },
       setEffort: async (effort) => {
+        if (effort === "max") await this.getAvailableModels();
+        if (runtimeState.activeTurnHasEffortOverride) {
+          runtimeState.turnEffortOverride = effort ?? null;
+          const model = (await this.getAvailableModels()).find(
+            (candidate) => candidate.id === runtimeState.resolvedModel,
+          );
+          await activeClient?.request("thread/settings/update", {
+            threadId: runtimeState.threadId,
+            effort:
+              this.mapEffortToReasoningEffort(
+                effort,
+                options.thinking,
+                runtimeState.resolvedModel,
+              ) ?? model?.defaultReasoningEffort,
+          });
+          return;
+        }
         if (effort !== undefined) {
           try {
             await updateActiveTurnSettings({
@@ -3177,6 +3232,52 @@ export class CodexProvider implements AgentProvider {
             runtimeState.turnEffortOverride,
             message.uuid,
           );
+          let restoreThreadEffort: (() => Promise<unknown>) | undefined;
+          if (message.turnEffort) {
+            const modelId =
+              runtimeState.turnModelOverride ?? runtimeState.resolvedModel;
+            const model = (await this.getAvailableModels()).find(
+              (candidate) => candidate.id === modelId,
+            );
+            if (!model)
+              throw new Error(`No effort catalog for model ${modelId}`);
+            const normal: ThinkingOption =
+              options.thinking?.type === "disabled"
+                ? "off"
+                : runtimeState.turnEffortOverride
+                  ? `on:${runtimeState.turnEffortOverride}`
+                  : "auto";
+            const selected = thinkingOptionToConfig(
+              resolveTurnEffort(message.turnEffort, normal, model),
+            );
+            const baseline =
+              turnStartParams.effort ??
+              model.defaultReasoningEffort ??
+              threadResult.reasoningEffort;
+            if (!baseline)
+              throw new Error(
+                "Cannot restore the model's unknown normal effort",
+              );
+            turnStartParams.effort = this.mapEffortToReasoningEffort(
+              selected.effort,
+              selected.thinking,
+              modelId,
+            );
+            runtimeState.activeTurnHasEffortOverride = true;
+            restoreThreadEffort = () =>
+              appServer.request("thread/settings/update", {
+                threadId: sessionId,
+                effort:
+                  this.mapEffortToReasoningEffort(
+                    runtimeState.turnEffortOverride ?? undefined,
+                    options.thinking,
+                    modelId,
+                  ) ??
+                  model.defaultReasoningEffort ??
+                  threadResult.reasoningEffort ??
+                  baseline,
+              });
+          }
           let notificationBarrierSequence =
             appServer.lastNotificationReceiptSequence;
           let settlePendingTurnStart: (turnId: string | null) => void =
@@ -3192,6 +3293,7 @@ export class CodexProvider implements AgentProvider {
               turnStartParams,
             );
             runtimeState.activeTurnId = turnResult.turn.id;
+            await restoreThreadEffort?.();
             settlePendingTurnStart(turnResult.turn.id);
           } catch (error) {
             settlePendingTurnStart(null);
@@ -3274,12 +3376,15 @@ export class CodexProvider implements AgentProvider {
               runtimeState.turnModelOverride,
               runtimeState.turnEffortOverride,
             );
+            if (message.turnEffort)
+              retryTurnStartParams.effort = turnStartParams.effort;
             notificationBarrierSequence =
               appServer.lastNotificationReceiptSequence;
             turnResult = await appServer.request<TurnStartResponse>(
               "turn/start",
               retryTurnStartParams,
             );
+            await restoreThreadEffort?.();
             log.info(
               {
                 sessionId,
@@ -3293,6 +3398,7 @@ export class CodexProvider implements AgentProvider {
               "Retried Codex overloaded turn without resending user input",
             );
           }
+          runtimeState.activeTurnHasEffortOverride = false;
         }
       } finally {
         signal.removeEventListener("abort", stopMessageWait);
@@ -4309,14 +4415,7 @@ export class CodexProvider implements AgentProvider {
     model?: string | null,
     requestedModel?: string | null,
     reasoningEffort?: string | null,
-    requestedReasoningEffort?:
-      | "none"
-      | "minimal"
-      | "low"
-      | "medium"
-      | "high"
-      | "xhigh"
-      | undefined,
+    requestedReasoningEffort?: string,
   ): SDKMessage | null {
     const parts: string[] = [];
     const normalizedModel = typeof model === "string" ? model.trim() : "";

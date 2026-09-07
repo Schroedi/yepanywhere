@@ -1321,6 +1321,55 @@ describe("CodexProvider app-server lifecycle", () => {
     }
   });
 
+  it("isolates one-turn effort and maps regular Max to the model's ultra", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "codex-turn-effort-"));
+    const logPath = join(tempDir, "requests.jsonl");
+    const codexPath = createFakeCodexCommand(
+      tempDir,
+      "fake-effort",
+      buildFakeCodexPermissionAppServer(logPath),
+    );
+    const testProvider = new CodexProvider({ codexPath });
+    const session = await testProvider.startSession({
+      cwd: tempDir,
+      model: "gpt-5.4-mini",
+      effort: "high",
+      initialMessage: { text: "careful", metadata: { turnEffort: "slow" } },
+    });
+    try {
+      await consumeCodexTurn(session.iterator);
+      session.queue.push({ text: "ordinary" });
+      await consumeCodexTurn(session.iterator);
+      session.queue.push({
+        text: "maximum",
+        metadata: { turnEffort: "slowest" },
+      });
+      await consumeCodexTurn(session.iterator);
+      session.queue.push({
+        text: "brief",
+        metadata: { turnEffort: "fastest" },
+      });
+      await consumeCodexTurn(session.iterator);
+      await session.setEffort?.("max");
+      session.queue.push({ text: "normal max" });
+      await consumeCodexTurn(session.iterator);
+      const requests = readFakeCodexRequests(logPath);
+      expect(
+        requests
+          .filter((request) => request.method === "turn/start")
+          .map((request) => request.params?.effort),
+      ).toEqual(["xhigh", "high", "ultra", "none", "ultra"]);
+      expect(
+        requests
+          .filter((request) => request.method === "thread/settings/update")
+          .map((request) => request.params?.effort),
+      ).toEqual(["high", "high", "high", "ultra"]);
+    } finally {
+      await session.abort();
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("updates model and effort during a live turn and retains both", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "codex-provider-settings-"));
     const logPath = join(tempDir, "fake-codex-requests.jsonl");
@@ -3319,6 +3368,9 @@ function handleMessage(message) {
   switch (message.method) {
     case "initialize":
       respond(message.id, { userAgent: "fake-codex-policy" });
+      break;
+    case "model/list":
+      respond(message.id, { data: [{ id: "gpt-5.4-mini", model: "gpt-5.4-mini", displayName: "Test model", isDefault: true, defaultReasoningEffort: "high", supportedReasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max", "ultra"].map(reasoningEffort => ({ reasoningEffort, description: reasoningEffort })) }], nextCursor: null });
       break;
     case "skills/list":
       respond(message.id, {

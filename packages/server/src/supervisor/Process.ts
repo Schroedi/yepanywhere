@@ -2063,6 +2063,24 @@ export class Process {
         ...(options?.extraMessages ?? []),
       ];
       if (all.length > 0) {
+        // Effort overrides own a whole turn, including after an interrupt.
+        // Retain order without merging their text into another turn's effort.
+        if (all.some((message) => message.metadata?.turnEffort)) {
+          for (const [index, message] of all.entries()) {
+            this.deferMessage(
+              index === 0
+                ? this.concatMessages([message], {
+                    interrupted: true,
+                    preamble: options?.preamble,
+                  })
+                : message,
+              { promoteIfReady: false },
+            );
+          }
+          if (this._state.type === "idle")
+            this.promoteEligibleDeferredAfterTurn();
+          return true;
+        }
         const combined = this.concatMessages(all, {
           interrupted: true,
           preamble: options?.preamble,
@@ -3532,6 +3550,16 @@ export class Process {
     position?: number;
     error?: string;
   } {
+    if (message.metadata?.turnEffort && this._state.type !== "idle") {
+      return this.deferMessage({
+        ...message,
+        metadata: {
+          ...message.metadata,
+          deliveryIntent: "deferred",
+          steerNow: undefined,
+        },
+      });
+    }
     const acceptedMessage = this.acceptRecapResumeSignal(message);
     return this.queuePreparedMessage(
       this.prepareProviderMessage(acceptedMessage, options?.composeAnchor),
@@ -5117,8 +5145,9 @@ export class Process {
     const group = [entries[0]!];
     const windowMs = joinWindowSeconds * 1000;
     // 0 means never join, even for sends composed in the same millisecond.
-    if (windowMs <= 0) return group;
+    if (windowMs <= 0 || entries[0]!.message.metadata?.turnEffort) return group;
     for (let i = 1; i < entries.length; i++) {
+      if (entries[i]!.message.metadata?.turnEffort) break;
       if (entries[i]!.message.mode !== entries[0]!.message.mode) break;
       const gapMs =
         this.composedAtMsForEntry(entries[i]!) -
@@ -5350,6 +5379,12 @@ export class Process {
     const group = this.deferredQueue
       .slice(0, targetIndex + 1)
       .filter((entry) => entry.message.metadata?.deliveryIntent === "patient");
+    if (group.some((entry) => entry.message.metadata?.turnEffort)) {
+      return {
+        success: false,
+        error: "Effort modifiers require a new turn and remain queued",
+      };
+    }
     const anchors = this.deferredComposeAnchors(group);
     const steerMessages = group.map((entry, index) =>
       this.prepareProviderMessage(

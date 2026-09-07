@@ -27,6 +27,8 @@ import {
   serverHasCapability,
   startsWithSlashCommand,
   thinkingOptionToConfig,
+  SERVER_CAPABILITIES,
+  isTurnEffort,
 } from "@yep-anywhere/shared";
 import {
   type ComponentProps,
@@ -1088,6 +1090,12 @@ function SessionPageContent({
 
   // Inject custom client-side commands alongside SDK-discovered ones.
   // Keep /model last so it stays nearest the slash button in the upward menu.
+  const supportsTurnEffort =
+    serverHasCapability(
+      versionInfo,
+      SERVER_CAPABILITIES.turnEffortModifiers.name,
+    ) &&
+    (effectiveProvider === "codex" || isClaudeProviderName(effectiveProvider));
   const allSlashCommands = useMemo(() => {
     if (status.owner === "external") {
       return [];
@@ -1098,6 +1106,7 @@ function SessionPageContent({
         ? CLIENT_SLASH_COMMANDS.filter(
             (command) =>
               command !== "model" &&
+              (!isTurnEffort(command) || supportsTurnEffort) &&
               (command !== "btw" || supportsBtwAsides) &&
               (command !== "done" ||
                 mainComposerForAside ||
@@ -1148,6 +1157,7 @@ function SessionPageContent({
     supportsBtwAsides,
     supportsManualCompact,
     supportsSyntheticTerminate,
+    supportsTurnEffort,
     syntheticDoneEnabled,
     t,
   ]);
@@ -2078,6 +2088,12 @@ function SessionPageContent({
       return null;
     }
 
+    if (slashTurn.turnEffort && !supportsTurnEffort) {
+      draftControlsRef.current?.setDraft(text);
+      showToast(t("turnEffortUnavailable"), "error");
+      return null;
+    }
+
     const outgoingText = outgoingTextFor(slashTurn.text);
     if (
       outgoingText === null ||
@@ -2090,6 +2106,7 @@ function SessionPageContent({
       outgoingText,
       thinking: slashTurn.thinking,
       slashCommand: slashTurn.command,
+      turnEffort: slashTurn.turnEffort,
     };
   };
 
@@ -2267,6 +2284,19 @@ function SessionPageContent({
     if (!prepared) {
       return false;
     }
+    if (
+      prepared.turnEffort &&
+      (processState === "in-turn" || processState === "waiting-input")
+    ) {
+      return handleQueue(text, metadata);
+    }
+    if (prepared.turnEffort)
+      metadata = {
+        composition: {},
+        deliveryIntent: "direct",
+        ...metadata,
+        turnEffort: prepared.turnEffort,
+      };
     const preserveComposer = options.preserveComposer === true;
     const { outgoingText, slashCommand } = prepared;
     const localControl =
@@ -2780,11 +2810,19 @@ function SessionPageContent({
   const handleQueue = async (
     text: string,
     metadata?: MessageSubmissionMetadata,
-  ) => {
+  ): Promise<boolean> => {
     const prepared = prepareComposerSubmission(text);
     if (!prepared) {
-      return;
+      return false;
     }
+    if (prepared.turnEffort)
+      metadata = {
+        composition: {},
+        ...metadata,
+        deliveryIntent: "deferred",
+        turnEffort: prepared.turnEffort,
+        steerNow: undefined,
+      };
     const { outgoingText, slashCommand } = prepared;
     if (
       requiresAttachmentOnlyServerUpdate({
@@ -2794,7 +2832,7 @@ function SessionPageContent({
       })
     ) {
       showToast(t("attachmentOnlyRequiresServerUpdate"), "error");
-      return;
+      return false;
     }
     const thinking = prepared.thinking ?? getImplicitComposerThinking();
     // Display preference for thinking rows; sent for compatibility while the
@@ -2886,6 +2924,7 @@ function SessionPageContent({
       revokeAttachmentPreviewUrls(currentAttachments);
       setCorrectionDraft(null);
       clearQuoteAnchors();
+      return true;
     } catch (err) {
       console.error("Failed to queue deferred message:", err);
       let finalError: unknown = err;
@@ -2938,7 +2977,7 @@ function SessionPageContent({
           revokeAttachmentPreviewUrls(currentAttachments);
           setCorrectionDraft(null);
           clearQuoteAnchors();
-          return;
+          return true;
         } catch (retryErr) {
           console.error("Failed to resume session:", retryErr);
           finalError = retryErr;
@@ -2968,6 +3007,7 @@ function SessionPageContent({
       } else {
         showToast(t("sessionQueueFailed", { message: errorMsg }), "error");
       }
+      return false;
     }
   };
 
@@ -2979,8 +3019,9 @@ function SessionPageContent({
     [],
   );
   const executeComposerDefer = useCallback(
-    (text: string, metadata?: MessageSubmissionMetadata) =>
-      handleQueueRef.current(text, metadata),
+    async (text: string, metadata?: MessageSubmissionMetadata) => {
+      await handleQueueRef.current(text, metadata);
+    },
     [],
   );
   useEffect(() => {
@@ -3033,6 +3074,14 @@ function SessionPageContent({
     if (!prepared) {
       return;
     }
+    if (prepared.turnEffort)
+      metadata = {
+        composition: {},
+        deliveryIntent: "deferred",
+        ...metadata,
+        turnEffort: prepared.turnEffort,
+        steerNow: undefined,
+      };
     const { outgoingText, slashCommand } = prepared;
     const thinking = prepared.thinking ?? getImplicitComposerThinking();
     const showThinking = getShowThinkingSetting();
@@ -3323,7 +3372,12 @@ function SessionPageContent({
             deferredMessages,
             tempId,
           );
-        restoreQueuedMessageToComposer(message.content, message.attachments);
+        restoreQueuedMessageToComposer(
+          message.metadata?.turnEffort
+            ? `/${message.metadata.turnEffort} ${message.content}`
+            : message.content,
+          message.attachments,
+        );
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         showToast(
@@ -5598,6 +5652,18 @@ function SessionPageContent({
                     scrollToTurnRequest={scrollToTurnRequest}
                     pendingMessages={pendingMessages}
                     deferredMessages={deferredMessages}
+                    queuedEffortContext={(() => {
+                      const model = currentProviderInfo?.models?.find(
+                        (candidate) =>
+                          candidate.id ===
+                          (effectiveModelConfig?.requestedModel ??
+                            liveBadgeModel),
+                      );
+                      const normal = getImplicitComposerThinking();
+                      return model && normal
+                        ? { model, normal, provider: effectiveProvider }
+                        : undefined;
+                    })()}
                     projectQueueMessages={inlineProjectQueueMessages}
                     projectQueueDispatchPaused={
                       projectQueues.dispatchState.status === "paused"

@@ -5,6 +5,15 @@ export {
   type ConversationContextReceipt,
 } from "./conversation-context.js";
 
+export {
+  EFFORT_LEVEL_ORDER,
+  getModelEffortLevels,
+  nativeModelEffort,
+  resolveTurnEffort,
+  isTurnEffort,
+  type TurnEffort,
+} from "./turn-effort.js";
+
 export type {
   ProjectFileCompletionEntry,
   ProjectFileCompletionResult,

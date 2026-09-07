@@ -2319,6 +2319,16 @@ export class Supervisor {
     if (!activeProvider) {
       throw new Error("provider is not available");
     }
+    if (
+      message.metadata?.turnEffort &&
+      !["codex", "claude", "claude-gateway", "claude-ollama"].includes(
+        activeProvider.name,
+      )
+    ) {
+      throw new Error(
+        "This provider does not support one-turn effort modifiers",
+      );
+    }
     if (!resumeSessionId) {
       await this.assertAuthoritativeNewSessionModel(
         activeProvider,

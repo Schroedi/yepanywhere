@@ -63,7 +63,60 @@ as the runtime skills directory.
   for the declared template substitution. Parsing inside the command belongs to
   the skill/provider behavior, not to the generic rewrite layer.
 
-## Design decisions
+## One-turn effort commands
+
+`/fast <message>` (also `/f`) uses one lower selectable effort for that
+message's turn. `/slow <message>` uses one higher; both saturate at the
+model's supported endpoints. `/fastest <message>` disables thinking, or uses
+the provider's minimum when it cannot disable reasoning. `/slowest <message>`
+uses the selected model's highest selectable effort. There are no `/quick`,
+`/quicker`, or `/slower` aliases. These commands change effort, not a paid
+service tier. Their argument is required and becomes the submitted text.
+
+The normal session configuration remains unchanged. A modifier submitted
+during an active turn becomes a deferred queue item automatically. Ordinary
+steers continue the active turn at its effective effort; a modifier cannot
+be steered into that turn. Each modified item owns a separate turn, even
+with a queue join window or after an interrupt. Ordinary queued messages use
+the normal session setting when delivered. Changes to that normal setting
+during a modified turn apply to subsequent work and do not replace the
+active override. Queued-item edits retain the command.
+
+The model catalog defines the ordered choices. UI **Extra High** is native
+`xhigh`; UI **Max** represents the highest supported native choice, preferring
+`ultra`, then `max`, then the model's lower ceiling. Thus models advertising
+both native `max` and `ultra` have one Max UI choice mapped to `ultra`.
+The regular effort selector uses the same mapping as the commands. Auto uses
+the model's advertised default for relative steps; if the default is unknown,
+relative commands fail visibly rather than guessing. Absolute endpoint commands
+do not require a known default, though the provider must be able to restore
+its normal setting.
+
+A queued item may show its resolved effort badge when it differs from the
+present normal setting. Ordinary items and equal-effort modifiers have no
+badge. The badge follows model and normal-setting changes; unknown defaults
+have no guessed badge. Modified items do not offer the Steer action.
+
+These semantics are supported by the Codex and Claude SDK adapters. Specialized
+new-session launch flows without per-message metadata reject modifiers. The
+new client requires permanent capability ID **58**, `turn-effort-modifiers`,
+version-implied from **0.8.2** (explicit numeric advertisement for source-ahead
+builds). The optional-feature compatibility review covered **v0.8.0** and
+**v0.8.1**, the latest two stable releases and all stable releases in the
+preceding 14 days. Both lack `messageMetadata.turnEffort`; without the capability
+the client hides the commands and rejects typed modifiers while retaining the
+draft. It does not use the old `/fast` path that changed normal thinking.
+Existing submission routes and queue metadata carry the optional enum
+`fast | slow | fastest | slowest`; no old capability meaning is expanded.
+The maintainer approved this gate and fallback on 2026-09-07.
+
+Codex restores future thread effort after starting the modified turn; its
+active turn retains the requested override. Claude restores controls before
+publishing the completed-turn boundary, so queued promotion sees normal
+settings. Provider control failures fail visibly and do not silently run at a
+different effort.
+
+## Routing decisions
 
 - **Tag pending YA commands at ingress** (vs. interpreting slash-shaped queued
   text at delivery): explicit routing preserves provider and user skill name

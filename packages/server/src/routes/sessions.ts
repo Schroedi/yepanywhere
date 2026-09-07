@@ -6646,6 +6646,17 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       ),
     };
 
+    if (
+      userMessage.metadata?.turnEffort &&
+      process.provider !== "codex" &&
+      !isClaudeSdkProviderName(process.provider)
+    ) {
+      return c.json(
+        { error: "This provider does not support one-turn effort modifiers" },
+        400,
+      );
+    }
+
     // Check if process is terminated
     if (process.isTerminated) {
       return c.json(
@@ -6693,7 +6704,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
 
     // Deferred messages stay server-side until Process reaches a safe delivery
     // boundary. If the process is already idle, Process can accept them now.
-    if (body.deferred) {
+    if (
+      body.deferred ||
+      (userMessage.metadata?.turnEffort && process.state.type !== "idle")
+    ) {
       if (body.mode) {
         process.setPermissionMode(body.mode);
       }

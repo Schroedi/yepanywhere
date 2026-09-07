@@ -22,6 +22,10 @@ import {
 import { createPortal } from "react-dom";
 import { getShowThinkingSetting } from "../hooks/useModelSettings";
 import {
+  QueuedEffortBadge,
+  type QueuedEffortContext,
+} from "./QueuedEffortBadge";
+import {
   getConversationViewPreference,
   getConversationViewTurnLimit,
   subscribeConversationViewPreference,
@@ -771,6 +775,7 @@ interface Props {
   pendingMessages?: PendingMessage[];
   /** Deferred messages queued server-side (shown as "Queued") */
   deferredMessages?: DeferredMessage[];
+  queuedEffortContext?: QueuedEffortContext;
   /** Project Queue items targeting this session (shown below local queue). */
   projectQueueMessages?: InlineProjectQueueMessage[];
   /** Whether global Project Queue dispatch is paused. */
@@ -1425,6 +1430,7 @@ export const MessageList = memo(function MessageList({
   scrollToTurnRequest = null,
   pendingMessages = [],
   deferredMessages = [],
+  queuedEffortContext,
   projectQueueMessages = [],
   projectQueueDispatchPaused = false,
   projectQueueDispatchMutating = false,
@@ -4852,6 +4858,10 @@ export const MessageList = memo(function MessageList({
                   >
                     {deferredStatus}
                   </span>
+                  <QueuedEffortBadge
+                    modifier={deferred.metadata?.turnEffort}
+                    context={queuedEffortContext}
+                  />
                   {tailRow.showAttachmentCountBadge ? (
                     <span
                       className="deferred-message-attachments"
@@ -4888,7 +4898,9 @@ export const MessageList = memo(function MessageList({
                         showTextLabel
                         onClick={(event) => event.stopPropagation()}
                       />
-                      {recoveredQueueId && onSteerRecoveredDeferred ? (
+                      {recoveredQueueId &&
+                      onSteerRecoveredDeferred &&
+                      !deferred.metadata?.turnEffort ? (
                         <button
                           type="button"
                           className="deferred-message-action deferred-message-action-steer"
@@ -4950,7 +4962,10 @@ export const MessageList = memo(function MessageList({
                           : undefined
                       }
                       onSteer={
-                        tailRow.isPatient && deferred.tempId && onSteerDeferred
+                        tailRow.isPatient &&
+                        deferred.tempId &&
+                        onSteerDeferred &&
+                        !deferred.metadata?.turnEffort
                           ? () => onSteerDeferred(deferred.tempId as string)
                           : undefined
                       }
