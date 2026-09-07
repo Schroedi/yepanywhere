@@ -159,6 +159,28 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  acliCommentaryRendering: {
+    id: CAPABILITY_ID_ALLOCATIONS.acliCommentaryRendering.id,
+    name: "acli-commentary-rendering",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Bounded tool commentary rendering through the assistant Markdown path.",
+    clientFallback:
+      "Keep ordinary raw tool output and make no commentary rendering request.",
+    serverContract: {
+      routes: ["POST /api/projects/:projectId/tool-commentary/render"],
+      routeModules: ["packages/server/src/routes/tool-commentary.ts"],
+      requestFields: ["texts"],
+      responseFields: ["html"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers lack the commentary rendering endpoint.",
+    },
+  },
   sessionAsyncQuestions: {
     id: CAPABILITY_ID_ALLOCATIONS.sessionAsyncQuestions.id,
     name: "session-async-questions",
@@ -2321,6 +2343,8 @@ export const PROGRESSIVE_SESSION_CATALOG_CAPABILITY =
   SERVER_CAPABILITIES.progressiveSessionCatalog.name;
 export const SESSION_ASYNC_QUESTIONS_CAPABILITY =
   SERVER_CAPABILITIES.sessionAsyncQuestions.name;
+export const ACLI_COMMENTARY_RENDERING_CAPABILITY =
+  SERVER_CAPABILITIES.acliCommentaryRendering.name;
 export const PROJECT_QUEUE_CAPABILITY = SERVER_CAPABILITIES.projectQueue.name;
 export const PROJECT_QUEUE_READINESS_CHECK_CAPABILITY =
   SERVER_CAPABILITIES.projectQueueReadinessCheck.name;

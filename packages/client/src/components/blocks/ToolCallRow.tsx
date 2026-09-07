@@ -51,6 +51,7 @@ import { getToolSummary } from "../tools/summaries";
 import { HiddenContentBadge } from "../ui/HiddenContentBadge";
 import type { WorkflowAnnotation } from "../../lib/transcriptProjection/workflowTags";
 import { WorkflowOutput } from "../WorkflowOutput";
+import { ToolCommentaryBoundary } from "../ToolCommentaryBoundary";
 import styles from "./ToolCallRow.module.css";
 
 interface Props {
@@ -534,7 +535,21 @@ function useNearViewportHydration(
   };
 }
 
-export const ToolCallRow = memo(function ToolCallRow({
+export const ToolCallRow = memo(function ToolCallRow(props: Props) {
+  return (
+    <ToolCommentaryBoundary {...props}>
+      {(toolInput, toolResult) => (
+        <ToolCallRowContent
+          {...props}
+          toolInput={toolInput}
+          toolResult={toolResult}
+        />
+      )}
+    </ToolCommentaryBoundary>
+  );
+});
+
+const ToolCallRowContent = memo(function ToolCallRowContent({
   id,
   toolName,
   toolInput,

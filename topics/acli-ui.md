@@ -21,6 +21,10 @@ default-off).
 
 ## Current state
 
+- Tool-output [commentary presentation](acli-commentary.md) recognizes
+  declarations in an invocation's output. It is implemented independently of
+  the composer discovery and registration proposals below.
+
 - The completion server invokes `tool --acli-complete <argv-prefix...>`
   for the last pipeline segment's command, gated on an explicit
   allowlist (`YA_BANG_ACLI_COMPLETERS` env plus the built-in

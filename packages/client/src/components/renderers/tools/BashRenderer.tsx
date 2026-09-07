@@ -61,7 +61,7 @@ const CODEX_NOISE_PATTERNS = [
  * Normalize bash result - handles both structured objects and plain strings
  * SDK may return a plain string for errors instead of { stdout, stderr }
  */
-function normalizeBashResult(
+export function normalizeBashResult(
   result: BashResult | string | undefined,
   isError: boolean,
 ): BashResult {
@@ -144,7 +144,7 @@ function BashSectionHeader({
 /**
  * Modal content for viewing full bash input and output
  */
-function BashModalContent({
+export function BashModalContent({
   input,
   result: rawResult,
   isError,

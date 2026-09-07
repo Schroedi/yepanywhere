@@ -4,6 +4,16 @@ export type {
   ArtifactViewerGrant,
 } from "./artifact-viewer.js";
 export {
+  ACLI_COMMENTARY_MAX_TEXTS,
+  ACLI_COMMENTARY_MAX_BODY_BYTES,
+  AcliRecordFramer,
+  decodeAcliRecord,
+  declaresAcliCommentary,
+  getAcliContext,
+  type AcliRecord,
+  type AcliCommentaryItem,
+} from "./acli-commentary.js";
+export {
   formatConversationContextTurn,
   type ConversationContextTurn,
   type ConversationContextRequest,
@@ -570,6 +580,7 @@ export {
 } from "./codex-plan-tool.js";
 export {
   APPROVAL_AUDIT_LOG_CAPABILITY,
+  ACLI_COMMENTARY_RENDERING_CAPABILITY,
   BANG_COMMANDS_CAPABILITY,
   BROWSER_SETTINGS_BACKUP_CAPABILITY,
   CACHE_MISS_BILLING_EXPECTED_EXPIRY_CAPABILITY,

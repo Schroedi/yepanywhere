@@ -1,6 +1,7 @@
 import {
   memo,
   type MouseEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -89,6 +90,7 @@ interface Props {
   alwaysShowQuoteCircle?: boolean;
   paragraphQuoteCirclesEnabled?: boolean;
   renderItemId?: string;
+  timelineAction?: ReactNode;
 }
 
 export const TextBlock = memo(function TextBlock({
@@ -100,6 +102,7 @@ export const TextBlock = memo(function TextBlock({
   alwaysShowQuoteCircle = false,
   paragraphQuoteCirclesEnabled = true,
   renderItemId,
+  timelineAction,
 }: Props) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -339,6 +342,9 @@ export const TextBlock = memo(function TextBlock({
       className={`${styles.root} text-block text-block-assistant timeline-item${isStreaming ? " streaming" : ""}`}
       data-turn-image-source-id={renderItemId}
     >
+      {timelineAction ? (
+        <span className={styles.timelineAction}>{timelineAction}</span>
+      ) : null}
       {onQuoteBlock ? (
         <ParagraphQuoteRail
           alwaysShowQuoteCircle={alwaysShowQuoteCircle}

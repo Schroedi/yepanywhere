@@ -64,6 +64,7 @@ export const UI_KEYS = {
   developerMode: "yep-anywhere-developer-mode",
   conversationView: "yep-anywhere-conversation-view-enabled",
   workflowTags: "yep-anywhere-workflow-tags-enabled",
+  acliCommentary: "yep-anywhere-acli-commentary-enabled",
   conversationViewTurnLimit: "yep-anywhere-conversation-view-turn-limit",
   widerConversationActivityPreviews:
     "yep-anywhere-wider-conversation-activity-previews-enabled",

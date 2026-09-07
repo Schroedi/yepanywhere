@@ -390,6 +390,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "project-queue-readiness-check",
     introducedIn: "0.8.2",
   },
+  acliCommentaryRendering: {
+    id: 62,
+    direction: "server",
+    name: "acli-commentary-rendering",
+    introducedIn: "0.8.2",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

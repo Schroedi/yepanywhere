@@ -1,4 +1,10 @@
 {
+  "acliCommentarySetting": "Tool commentary",
+  "acliCommentaryDescription": "Show commentary from supported tools as prose alongside their output.",
+  "acliCommentaryContext": "Show commentary context",
+  "acliCommentaryOutput": "Open tool output",
+  "acliCommentaryCloseContext": "Close commentary context",
+  "acliCommentaryUnavailable": "Commentary could not be rendered. Original output is available.",
   "artifactRun": "Run interactive preview",
   "artifactFrameBlocked": "This YA tab’s browser policy blocked the embedded preview. Open it in a separate tab, or reload YA after its frontend has restarted. Switching back to source closes this preview and revokes its link.",
   "artifactOpenTab": "Open interactive preview in a new tab",

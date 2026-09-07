@@ -38,3 +38,10 @@
   font-size: var(--fixed-font-size-sm);
   line-height: var(--source-block-line-height);
 }
+
+.timelineAction {
+  position: absolute;
+  inset-inline-start: -22px;
+  top: calc(var(--first-line-center) - 14px);
+  z-index: 2;
+}
