@@ -169,6 +169,37 @@ metadata refreshes make that a hot path, and a grouping key may contain an
 entire prompt. Duplicate-title behavior remains observable through the UI's
 hidden-count affordance and focused tests.
 
+### Metadata survives server replacement
+
+The archive/title overlay is durable state, not a rebuildable list cache.
+Session metadata saves replace the JSON file atomically from a unique sibling
+temporary file. An interrupted or failed replacement leaves the previous
+complete file readable. Concurrent mutations wait for the coalesced writer to
+finish before reporting success, including an archive racing another save.
+
+Only an absent metadata file initializes an empty store. Invalid JSON or a
+read/migration failure prevents server startup and preserves the existing file
+for recovery; it must never silently become an empty writable store. This
+protects all metadata, including archive status, titles, and session settings.
+Atomic replacement protects against process interruption; it does not promise
+recovery from storage-device failure or provide historical backups. The writer
+uses portable filesystem APIs; replacement failures remain explicit, including
+file-lock failures on Windows.
+
+The September 7, 2026 restart incident loaded 518 metadata records, then a
+subsequent server generation read a truncated JSON string and started fresh.
+Old recap-helper forks consequently appeared under inherited source titles and
+survived browser reloads. The inspected extra transcripts were helper forks
+created before the restart, not evidence of duplicate resumed working agents.
+
+**Decision:** preserve the last complete file and fail startup on corruption
+instead of resetting metadata or hiding same-title sessions. Resetting loses
+user settings; title-based hiding can conceal independently active work.
+
+Regression coverage in `test/metadata/service.test.ts` exercises an interrupted
+write followed by service restart, rejection of corrupt input without changing
+its bytes, and archive acknowledgement during an overlapping save.
+
 ## Non-Goals
 
 - Do not remove duplicate hiding entirely; it remains useful as a decluttering

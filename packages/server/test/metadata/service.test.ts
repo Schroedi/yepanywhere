@@ -158,6 +158,39 @@ describe("SessionMetadataService", () => {
       }
     });
 
+    it("waits for an overlapping helper archive to reach disk", async () => {
+      await service.initialize();
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const write = fs.writeFile;
+      const writes = vi
+        .spyOn(fs, "writeFile")
+        .mockImplementationOnce(async (...args) => {
+          await gate;
+          return write(...args);
+        });
+      const first = service.setTitle("source", "Work");
+      let archived = false;
+      const archive = service.setArchived("helper", true).then(() => {
+        archived = true;
+      });
+      try {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(archived).toBe(false);
+        release();
+        await archive;
+        const restarted = new SessionMetadataService({ dataDir: testDir });
+        await restarted.initialize();
+        expect(restarted.getMetadata("helper")?.isArchived).toBe(true);
+      } finally {
+        release();
+        await Promise.allSettled([first, archive]);
+        writes.mockRestore();
+      }
+    });
+
     it("restores observed goals and clears without inferring from receipts", async () => {
       await service.initialize();
       const goal: SlashCommand = {
@@ -332,26 +365,49 @@ describe("SessionMetadataService", () => {
       expect(persisted.version).toBe(3);
     });
 
-    it("handles corrupted JSON gracefully", async () => {
+    it("preserves corrupted metadata and refuses to initialize", async () => {
       await writeFile(
         join(testDir, "session-metadata.json"),
         "not valid json{{{",
       );
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      await expect(service.initialize()).rejects.toThrow();
+      expect(await readFile(service.getFilePath(), "utf8")).toBe(
+        "not valid json{{{",
+      );
+    });
 
-      // Should not throw
+    it("keeps archived helpers durable when a replacement write is interrupted", async () => {
+      await service.initialize();
+      await service.updateMetadata("helper", {
+        title: "Recap generator",
+        archived: true,
+        forkedFromSessionId: "source",
+      });
+      const previous = await readFile(service.getFilePath(), "utf8");
+      const write = fs.writeFile;
+      const writes = vi
+        .spyOn(fs, "writeFile")
+        .mockImplementationOnce(async (file) => {
+          await write(file, '{"sessions":{"helper":');
+          throw new Error("Interrupted write");
+        });
+      const diagnostic = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
       try {
-        await service.initialize();
-        expect(warnSpy).toHaveBeenCalledWith(
-          "[SessionMetadataService] Failed to load state, starting fresh:",
-          expect.any(SyntaxError),
+        await expect(service.setTitle("source", "New title")).rejects.toThrow(
+          "Interrupted write",
         );
+        expect(diagnostic).toHaveBeenCalledOnce();
+        expect(await readFile(service.getFilePath(), "utf8")).toBe(previous);
+        const restarted = new SessionMetadataService({ dataDir: testDir });
+        await restarted.initialize();
+        expect(restarted.getMetadata("helper")?.isArchived).toBe(true);
+        expect(await fs.readdir(testDir)).toEqual(["session-metadata.json"]);
       } finally {
-        warnSpy.mockRestore();
+        writes.mockRestore();
+        diagnostic.mockRestore();
       }
-
-      // Should start fresh
-      expect(service.getAllMetadata()).toEqual({});
     });
   });
 
