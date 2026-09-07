@@ -104,9 +104,13 @@ interaction state. Passing the stock fixture alone does not verify a new export.
 The stock bundle, settings saving, public-listener enable/disable, and
 desktop/phone layout passed in Chromium. After the operator restarted YA,
 the live public HTTPS demo also passed font/module/mock-data/menu/save checks.
-The complete hosted-client embedded flow and WebKit remain unverified;
-WebKit cannot launch with this host's current libraries. Keep the remaining
-acceptance items below open until exercised.
+The hosted-client embedded flow also passed with an isolated relay and HTTPS
+artifact gateway in checkpoint `0be862b3a`, including desktop/phone sizing,
+credential separation, and revocation. Use `packages/client/e2e/artifact-relay.spec.ts`
+and the [relay verification recipe](../topics/media-rendering-and-routing.md#interactive-artifact-relay-verification)
+to check an export through that path. Export testing can proceed.
+WebKit cannot launch with this host's current libraries. Keep the export
+facility acceptance items below open until the actual generated export passes.
 Contributing-model: 6-Astra
 
 ### Export facility acceptance
