@@ -108,9 +108,9 @@ but does not close the September 7 request for clickable supplied choices.
 
 Keep unseen and unanswered distinct. Receiving or rendering a message does
 not mean the user saw it; scrolling it offscreen does not mean it was
-answered. Dismissing the floating list does not resolve its questions. An
-optional presentation such as `3 pending · 2 unseen` could expose both counts,
-but the minimum must make the unseen pending subset noticeable.
+answered. Closing the floating list does not resolve its questions. The
+chosen unaddressed indicator below makes recent pending questions noticeable;
+aging and explicit dismissal reduce reminders without asserting an answer.
 
 Define seen detection, the scope of "recent", and state across reloads or
 multiple viewers before implementation. A proposed seen signal is actual
@@ -215,19 +215,55 @@ than jumping to the bottom and then correcting the position afterward. Verify
 both prior regimes, choice/free-form sends, mobile keyboard geometry, failure,
 and focus movement during submission.
 
-### Discovery presentation and remaining decisions
+### Chosen indicator, preview menu, and dismissal
 
-The proposed compact control is `Questions · 3` with an unseen indicator; the
-menu can clarify `3 pending · 2 unseen` and list question titles and ages.
-Count individual questions. Opening or dismissing the menu alone changes
-neither seen nor answered state. Wider screens allow longer previews; narrow
-screens can overlay the menu above the composer. A permanent side panel is
-unnecessary. Retain keyboard and tappable access.
+The small toolbar rectangle uses an outlined speech bubble containing `?`,
+muted warm amber (`#D8B477` in the mockup), a faint amber fill, and a subdued
+border. It should be noticeable but ignorable: no pulse, warning banner, or
+focus theft. With room, show `3 unaddressed · latest 1 turn ago`; the age is
+that of the most recent question still counted. Drop the age first, then the
+word `unaddressed`, retaining the icon and count at compact widths. Preserve
+an informative accessible label regardless of visible text. Keep the indicator
+in the persistent composer toolbar when the input itself is compact/collapsed;
+composer expansion is not a prerequisite for discovering questions. Available
+width controls label detail; reminder aging controls visibility.
 
-Exact placement, shortcut, seen detection, the scope of recent questions, and
-persistence/sharing across reloads and viewers still need implementation
-decisions. The source-message association specifies reply identity, but does
-not by itself provide durable or cross-viewer answered state.
+The preview menu opens upward and may temporarily cover the composer without
+altering its draft. It can be wider than the button, aligned to its right edge
+and capped by the viewport. List oldest questions at the top and newest at the
+bottom, nearest the trigger. Each row shows actual question text on one line
+with an ellipsis if necessary, a muted turn age, and a thin horizontal
+separator. Selecting the row closes the menu and reveals the full question
+with its inline reply field in transcript context. Answer choices there can
+wrap across multiple lines; menu previews are navigation, not answer controls.
+
+The maintainer confirmed `×` for a small dismiss control at each row's right
+edge, with a generous mobile tap target. Its click must not also navigate.
+Right-click or long-press opens a one-action `Dismiss` menu; long-press alone
+does not remove an item. Dismiss silently removes that reminder and updates
+the count, without confirmation or toast. It does not delete transcript text
+or mark the question answered. Provide `Show dismissed` in the menu so the
+user can recover dismissed items. Closing the menu alone dismisses nothing.
+
+### Reminder aging and remaining decisions
+
+Use two stages of reduced visibility based on subsequent composer typing or
+conversation turns. First, age questions out of the visible unaddressed count
+and remove the amber emphasis when none remain recent; retain a quiet menu
+button without the count or age. After a longer interval, hide that dedicated
+button entirely. Keep access to older questions through the ordinary overflow
+menu. A new question restores the indicator; it must not silently count old
+aged-out or dismissed questions as new again. Aging only changes reminder
+visibility, never answered state or transcript content.
+
+Exact decay thresholds, what counts as a turn or meaningful composer typing,
+the quiet button's final label, shortcut, seen detection, and state persistence
+across reloads/viewers remain implementation decisions. Avoid retiring a
+control while its menu is open or focused. Verify both decay stages, arrival
+of a new question, explicit dismissal and recovery, chronological ordering,
+and that the full question remains reachable from an ellipsized preview.
+The source-message association specifies reply identity, but does not by
+itself provide durable or cross-viewer answered/dismissed state.
 
 Likely approach: build an async-question adapter over the already-normalized
 assistant fields and reuse bounded question-control presentation where useful,
