@@ -117,8 +117,12 @@ existing `POST /api/artifacts` route for the exported HTML and present its
 returned `url` on the configured artifact domain, with its expiry. Select
 the local/public audience appropriate to the user's connection. Verify that
 URL in a browser, including its assets and an interaction, before calling it
-usable. A top-level artifact tab is an independent viewing surface when the
-parent YA tab cannot embed it. Keep the grant's directory limited to the
+usable. Ordinary taps on configured artifact links inside an authenticated
+session open its [managed viewer](parked-file-viewer.md#interactive-artifact-links),
+keeping the session and composer mounted on mobile as well as desktop. Prefer
+that interaction for review; deliberate browser new-tab gestures remain
+available. A parent policy that blocks embedding requires a frontend restart
+and then a page reload. Keep the grant's directory limited to the
 export, and never substitute a URL on YA's authenticated application origin.
 The URL grants access until expiry or revocation; do not commit it into docs.
 

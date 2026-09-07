@@ -24,6 +24,29 @@ export function artifactOrigin(
   return origin.origin;
 }
 
+/** Only configured, isolated grant URLs are eligible for in-session viewing. */
+export function isArtifactLink(
+  href: string,
+  config: ArtifactViewerStatus | undefined,
+  clientUrl: string,
+): boolean {
+  if (!config) return false;
+  let url: URL;
+  try {
+    url = new URL(href, clientUrl);
+  } catch {
+    return false;
+  }
+  return (
+    !url.username &&
+    !url.password &&
+    /^\/a\/[A-Za-z0-9_-]+\/.+/.test(url.pathname) &&
+    (["local", "public"] as const).some(
+      (audience) => url.origin === artifactOrigin(config, audience, clientUrl),
+    )
+  );
+}
+
 /** No YA transport, credentials, grant token, or referrer crosses this probe. */
 export async function probeArtifactOrigin(
   origin: string,

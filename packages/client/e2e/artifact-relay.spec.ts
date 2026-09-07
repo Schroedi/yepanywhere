@@ -1,6 +1,14 @@
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { cp, copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  cp,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { createServer, request, type IncomingHttpHeaders } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { createRequire } from "node:module";
@@ -41,6 +49,7 @@ let clientOrigin: string;
 let artifactOrigin: string;
 let relayUrl: string;
 let projectId: string;
+let linkedArtifactUrl: string;
 const artifactRequests: { path: string; headers: IncomingHttpHeaders }[] = [];
 
 test.beforeAll(async () => {
@@ -177,6 +186,32 @@ test.beforeAll(async () => {
     port: reserved.port,
     publicOrigin: artifactOrigin,
   });
+  const grantResponse = await instance.app.request("/api/artifacts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Yep-Anywhere": "true" },
+    body: JSON.stringify({ projectId, path: "index.html", audience: "public" }),
+  });
+  expect(grantResponse.status).toBe(200);
+  linkedArtifactUrl = (await grantResponse.json()).url;
+  await appendFile(
+    join(sessionDir, "artifact-session.jsonl"),
+    `${JSON.stringify({
+      type: "assistant",
+      uuid: randomUUID(),
+      sessionId: "artifact-session",
+      cwd: bundle,
+      timestamp: new Date().toISOString(),
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "text",
+            text: `[Open interactive artifact](${linkedArtifactUrl})`,
+          },
+        ],
+      },
+    })}\n`,
+  );
   relayClient.start({
     relayUrl,
     username,
@@ -470,4 +505,147 @@ test("runs the generated YA mockup through the hosted relay viewer", async ({
         (await instance.artifactServer.app.request(fallbackUrl)).status,
     )
     .toBe(404);
+});
+
+test("keeps the mobile session mounted through artifact open, park, and Back", async ({
+  page,
+  context,
+}) => {
+  await page.goto(clientOrigin);
+  await page.getByTestId("relay-mode-button").click();
+  await page.getByTestId("relay-username-input").fill(username);
+  await page.getByTestId("srp-password-input").fill(password);
+  await page.getByText("Show Advanced Options", { exact: true }).click();
+  await page.getByTestId("custom-relay-url-input").fill(relayUrl);
+  await page.getByTestId("login-button").click();
+  await expect(page.getByTestId("relay-login-form")).not.toBeVisible({
+    timeout: 15000,
+  });
+  const sessionUrl = `${clientOrigin}/-/relay/${username}/projects/${projectId}/sessions/artifact-session`;
+  const idleRequests = artifactRequests.length;
+  await page.goto(sessionUrl);
+  const composer = page.getByRole("textbox", {
+    name: "Send a message to resume...",
+    exact: true,
+  });
+  await expect(composer).toBeVisible({ timeout: 30000 });
+  await composer.fill("Keep this draft and mounted session");
+  await expect(page.locator("iframe")).toHaveCount(0);
+  expect(artifactRequests).toHaveLength(idleRequests);
+  const sessionNode = await page.locator(".session-page").elementHandle();
+  const composerNode = await composer.elementHandle();
+  const transcriptNode = await page.locator(".message-list").elementHandle();
+  const problems: string[] = [];
+  page.on("pageerror", (error) => problems.push(error.message));
+  const documents: string[] = [];
+  page.on("request", (request) => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame())
+      documents.push(request.url());
+  });
+  const captures = resolve(
+    clientRoot,
+    "../../.artifacts/ui-testing/2026-09-07-mounted-artifact",
+  );
+  await mkdir(captures, { recursive: true });
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await page
+      .getByRole("link", { name: "Open interactive artifact", exact: true })
+      .click();
+    const viewer = page.getByRole("dialog", {
+      name: "Open interactive artifact",
+    });
+    await expect(viewer).toBeVisible();
+    const frame = page.frameLocator("iframe");
+    await expect(frame.getByRole("status")).toHaveText("3 sample notes");
+    await frame.getByRole("button", { name: "Menu", exact: true }).click();
+    await frame.getByPlaceholder("Write something").fill("Keep artifact state");
+    const iframe = await page.locator("iframe").elementHandle();
+    await viewer.getByRole("button", { name: "Minimize", exact: true }).click();
+    await expect(viewer).not.toBeVisible();
+    await expect(composer).toHaveValue("Keep this draft and mounted session");
+    await page
+      .getByRole("button", {
+        name: "Restore detail view: Open interactive artifact",
+        exact: true,
+      })
+      .click();
+    await expect(viewer).toBeVisible();
+    expect(
+      await iframe?.evaluate(
+        (node) => node === document.querySelector("iframe"),
+      ),
+    ).toBe(true);
+    await expect(frame.getByPlaceholder("Write something")).toHaveValue(
+      "Keep artifact state",
+    );
+    await viewer.getByRole("button", { name: "Minimize", exact: true }).click();
+    await page
+      .getByRole("link", { name: "Open interactive artifact", exact: true })
+      .click();
+    await expect(viewer).toBeVisible();
+    await expect(frame.getByPlaceholder("Write something")).toHaveValue(
+      "Keep artifact state",
+    );
+    const viewerBox = await viewer.boundingBox();
+    const composerBox = await page.locator(".session-input").boundingBox();
+    expect(viewerBox).not.toBeNull();
+    expect(composerBox).not.toBeNull();
+    expect(viewerBox!.y + viewerBox!.height).toBeLessThanOrEqual(
+      composerBox!.y + 1,
+    );
+    await page.screenshot({ path: join(captures, `${viewport.name}.png`) });
+    await viewer.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(viewer).toHaveCount(0);
+    await expect
+      .poll(() => page.evaluate(() => window.history.state?.__artifactViewer))
+      .toBeUndefined();
+    await page
+      .getByRole("link", { name: "Open interactive artifact", exact: true })
+      .click();
+    await expect(viewer).toBeVisible();
+    await page.goBack();
+    await expect(viewer).toHaveCount(0);
+    expect(
+      await sessionNode?.evaluate(
+        (node) => node === document.querySelector(".session-page"),
+      ),
+    ).toBe(true);
+    expect(
+      await composerNode?.evaluate(
+        (node) => node === document.querySelector(".session-input textarea"),
+      ),
+    ).toBe(true);
+    expect(
+      await transcriptNode?.evaluate(
+        (node) => node === document.querySelector(".message-list"),
+      ),
+    ).toBe(true);
+    await expect(composer).toHaveValue("Keep this draft and mounted session");
+    expect(page.url()).toBe(sessionUrl);
+    expect(context.pages()).toHaveLength(1);
+  }
+  expect(documents).toEqual([]);
+  expect(problems).toEqual([]);
+  await page.evaluate(() => {
+    const policy = document.createElement("meta");
+    policy.httpEquiv = "Content-Security-Policy";
+    policy.content = "frame-src 'self'";
+    document.head.append(policy);
+  });
+  await page
+    .getByRole("link", { name: "Open interactive artifact", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("browser policy blocked");
+  await expect(page.locator("iframe")).toHaveCount(0);
+  await page
+    .getByRole("dialog", { name: "Open interactive artifact" })
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await expect(composer).toHaveValue("Keep this draft and mounted session");
+  expect(await sessionNode?.evaluate((node) => node.isConnected)).toBe(true);
+  expect(context.pages()).toHaveLength(1);
+  expect(
+    (await instance.artifactServer.app.request(linkedArtifactUrl)).status,
+  ).toBe(200);
 });
