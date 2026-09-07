@@ -1,4 +1,4 @@
-# Private harness homes can lose instructions and symlink targets
+# Private harness homes omit global instruction files
 
 The requested contract is that a sandboxed project can read its symlinked
 `AGENTS.md` targets and the harness's instruction/configuration directories,
@@ -28,19 +28,19 @@ The unresolved part is reliable discovery through the relocated harness home.
 `bootstrapProviderState` copies a selected set of config, plugin, rule, and
 skill entries once, then `sandboxEnv` redirects `CODEX_HOME` or
 `CLAUDE_CONFIG_DIR`. The copied lists omit `AGENTS.md` and `CLAUDE.md`.
-`copyBootstrapEntry` preserves symlinks while moving them to a different
-parent, which can change the meaning of relative targets. There is no complete
-acceptance test for these instruction/configuration reads across the real
-harness startup and its native sandbox. See also
+There is no complete acceptance test for discovery of these global instruction
+files across real harness startup and its native sandbox. Relative bootstrap
+symlinks already retain their source-parent meaning, including when the
+configured harness home itself is a symlink; their read/write behavior is
+covered through the production Bubblewrap wrapper. See also
 [the virgin-session gap](virgin-new-session-option.md), which concerns choosing
 whether inherited harness instructions should be present at all.
 
 With broad host reads retained as standard, fix private-home construction and
 discovery rather than adding a redundant read allow-list. Prefer automatic
-preservation of the required instruction/configuration entries and symlink
-meaning, or a deliberate read-only projection. Test relative and absolute
-links for project instructions, harness-global instructions, skills, and
-schemas through the real sandboxed harness startup.
+preservation of the required instruction/configuration entries or a deliberate
+read-only projection. Verify that the real sandboxed harness discovers project
+and harness-global instructions, including symlinked instruction sources.
 
 Only if a stricter read policy needs exceptions, offer an optional application
 of the file-reader allow-set or a separate path list. Any manual fallback must
