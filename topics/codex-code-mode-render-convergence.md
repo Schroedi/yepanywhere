@@ -321,6 +321,31 @@ script print order need not match call
 order. This client-only presentation uses the existing wire contract and does
 not alter transcript identities, grouping, or stored provider records.
 
+`decodeCodeModeOutput` in `packages/shared/src/code-mode-output.ts` owns this
+decoding for non-React consumers as well as the Exec renderer. Its result holds
+ordered `parts` with `text` and a `kind` of `text`, `command-output`, or
+`script-status`. Command parts also expose `exitCode`, `durationSeconds`, and
+`sessionId` when present. Consumers should skip script-status parts when
+parsing substantive output, preserve the other block boundaries, and retain
+the original input for raw detail. An `undefined` result means the outer
+value is unrecognized or contains mixed media; it never means empty output.
+
+Only one complete command-result layer is unwrapped, optionally beneath the
+observed `{status: "fulfilled", value}` wrapper with an optional integer `i`.
+Recognition requires a chunk id, output string, finite nonnegative wall time,
+and either an integer exit code or a session id. Unknown fields and malformed
+metadata leave the block unchanged. Stdout is a leaf: JSON inside it, including
+another complete execution record, is never decoded recursively. Arrays of
+settled results, multiple JSON records in one block, and rejected-result
+wrappers also remain unchanged.
+
+Format recognition cannot authenticate origin: a script can print exactly the
+same bytes as an execution envelope. Callers that know a script printed stdout
+directly can pass `{commandResults: "preserve"}` to keep those block texts
+literal. The decoder does not infer print provenance from JavaScript source.
+Workflow activation is a separate consumer integration; extracting this API
+alone does not change how workflow annotations are parsed.
+
 ## Implementation plan
 
 ### Phase 0 — pin evidence and upstream source

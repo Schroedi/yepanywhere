@@ -1,10 +1,8 @@
 import type { ToolRenderer } from "./types";
+import { decodeCodeModeOutput } from "@yep-anywhere/shared";
 import { useI18n } from "../../../i18n";
 import styles from "./CodeModeExecRenderer.module.css";
-import {
-  formatCommandDuration,
-  getCommandResultMeta,
-} from "../../../lib/shellToolOutput";
+import { formatCommandDuration } from "../../../lib/shellToolOutput";
 
 interface CodeModeCall {
   input: unknown;
@@ -73,30 +71,6 @@ function getSkillRead(call: CodeModeCall) {
   return { name, onlyRead: /^\s*;?\s*$/.test(match[4] ?? "") };
 }
 
-function readTextParts(result: unknown): string[] | undefined {
-  let value = result;
-  if (typeof value === "string") {
-    try {
-      value = JSON.parse(value);
-    } catch {
-      return undefined;
-    }
-  }
-  if (!Array.isArray(value) || value.length === 0) return undefined;
-  const parts: string[] = [];
-  for (const item of value) {
-    if (
-      !item ||
-      !["input_text", "output_text", "text"].includes(item.type) ||
-      typeof item.text !== "string"
-    ) {
-      return undefined;
-    }
-    parts.push(item.text);
-  }
-  return parts;
-}
-
 function readSkillDocument(text: string) {
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
   if (!frontmatter) return undefined;
@@ -106,30 +80,6 @@ function readSkillDocument(text: string) {
     frontmatter[1] ?? "",
   )?.[1];
   return { name, description };
-}
-
-function readCommandOutput(text: string) {
-  let value: unknown;
-  try {
-    value = JSON.parse(text);
-  } catch {
-    return undefined;
-  }
-  if (!value || typeof value !== "object") return undefined;
-  if ("status" in value && value.status === "fulfilled" && "value" in value) {
-    value = value.value;
-  }
-  if (
-    !value ||
-    typeof value !== "object" ||
-    !("chunk_id" in value) ||
-    typeof value.chunk_id !== "string" ||
-    !("output" in value) ||
-    typeof value.output !== "string"
-  ) {
-    return undefined;
-  }
-  return { text: value.output, ...getCommandResultMeta(value) };
 }
 
 function ExecOutput({
@@ -144,11 +94,11 @@ function ExecOutput({
   const { t } = useI18n();
   const raw =
     typeof result === "string" ? result : JSON.stringify(result, null, 2);
-  const parts = readTextParts(result);
+  const decoded = decodeCodeModeOutput(result);
   const readsSkill =
     isCodeModeExecInput(input) &&
     input.calls.some((call) => getSkillRead(call));
-  if (!parts) {
+  if (!decoded) {
     return (
       <pre className={`${styles.text} ${isError ? styles.error : ""}`}>
         {raw}
@@ -157,22 +107,17 @@ function ExecOutput({
   }
   return (
     <div className={`${styles.output} ${isError ? styles.error : ""}`}>
-      {parts.map((part, index) => {
-        const command = readCommandOutput(part);
-        const text = command?.text ?? part;
+      {decoded.parts.map((part, index) => {
+        const command = part.kind === "command-output" ? part : undefined;
+        const { text } = part;
         const skill = readsSkill ? readSkillDocument(text) : undefined;
         const documentTitle = skill
           ? t("codeModeExecSkill", { name: skill.name })
           : /^# ([^\r\n]+)\r?\n/.exec(text)?.[1];
-        if (
-          index === 0 &&
-          /^Script (?:completed|running with cell ID \w+)\r?\nWall time[^\n]*\r?\nOutput:\r?\n$/.test(
-            text,
-          )
-        ) {
+        if (part.kind === "script-status") {
           return (
             <p className={styles.metadata} key={index}>
-              {text.replace(/\r?\nOutput:\r?\n$/, "")}
+              {text}
             </p>
           );
         }

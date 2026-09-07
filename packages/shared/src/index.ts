@@ -229,6 +229,13 @@ export {
   type ToolResultMediaRejectionReason,
 } from "./tool-result-media.js";
 
+export {
+  decodeCodeModeOutput,
+  type CodeModeOutputPart,
+  type DecodedCodeModeOutput,
+  type DecodeCodeModeOutputOptions,
+} from "./code-mode-output.js";
+
 // ANSI escape rendering (shared between server and client)
 export { hasAnsiEscapes, renderAnsiToHtml } from "./ansi-renderer.js";
 export {
