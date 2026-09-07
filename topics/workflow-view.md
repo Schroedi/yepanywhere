@@ -7,6 +7,8 @@
 Status: Proposal, 2026-09-07; not implemented or scheduled. The first version
 is a display-only, single-turn span. Harness awareness of the workflow ID is
 desirable; the calling session knowing and emitting the ID is sufficient.
+An initial producer convention now exists for local publish instructions;
+the rendering capability remains proposed.
 
 ## Purpose and scope
 
@@ -82,8 +84,8 @@ tool is explicitly designated as a workflow producer.
 No new callback broker, MCP server, or persistent process is required for this
 display contract. A CLI can query a daemon or attach to an existing interaction
 and emit the same data. Selecting a carrier should follow what the harness
-preserves and the model produces reliably. This proposal does not add a CLI or
-choose the final marker syntax.
+preserves and the model produces reliably. The initial tag convention below
+uses ordinary output and adds no CLI.
 
 Native harness metadata can later carry the same logical records and improve
 association with tool calls. Keep that as an adapter capability. The agent
@@ -95,7 +97,78 @@ remain namespaced references. An identical workflow ID in another turn does
 not implicitly continue this instance. Markers carry display data and do not
 become user messages, approval, or authority over another session.
 
-## Candidate declaration and updates
+## Initial tag convention
+
+The reusable `tagged-stages/1` contract is owned by
+`~/agents/topics/workflow-tags.md` and adopted by this checkout's local publish
+instructions. A rare `@@visualization-schema/1` activation marker followed by
+a JSON declaration or explicit pointer must first be surfaced in agent output
+or a tool result. A resolved invocation or observed read of skill content can
+instead activate through the string-valued `metadata.visualization-schema`
+frontmatter field. Skill discovery and ordinary bracketed text do not activate
+the view. The declaration's `type` selects from a fixed supported inventory,
+initially `tagged-stages/1`, leaving room for explicitly added visualization
+types besides tag-based outlines.
+
+Fixed `[A][B]` line prefixes select paths in an outline; declared
+titles expand shorthand keys, with the key itself as fallback. Following agent
+activity belongs to that path until the next recognized prefix.
+
+The schema can describe substeps inside one tool invocation and explicitly
+enable tool-output tags. Without a whitelist, every start-of-line bracketed
+path matches; with one, only the exact listed paths match. Tool paths inherit
+the calling stage as their parent. A tool view can either show matching lines
+only in its compact presentation or split the full output into spans ending
+at the next match. Both retain the original output in detail view.
+
+The current local publish script remains opaque to this convention until it
+emits compatible prefixes. Declaring its children does not claim that their
+progress is observable. This producer convention can precede YA UI support.
+
+## Resolving skill and schema sources
+
+The shared topic owns the pointer grammar and metadata field. In YA, resolution
+belongs on the provider host. Standalone references are absolute or `~/`-relative;
+`~` is that session owner's home. A relative schema reference inside skill
+metadata is relative to the real source skill file. YA does not implicitly
+search `~/agents` for an unbased path. An explicit reference such as
+`~/ya/topics/publish-workflow.local.md#ya-publish/1` selects the declaration by ID.
+
+There is already a concrete path source for Codex: `refreshCodexSkills` retains
+the `skills/list` metadata, and `createCodexUserInputs` in
+`packages/server/src/sdk/providers/codex.ts` sends selected skills with their
+provider-reported paths. The shared `SlashCommandInvocation` menu metadata
+does not currently carry a skill-definition path. A future activation resolver
+should use the retained server-side inventory and invocation, or an observed
+file-read path or explicit `skillFile` pointer when native provenance is absent.
+It should not infer a filesystem location from a skill name.
+
+Follow [skill invocation](skill-invocation.md): definition paths remain
+server-side unless already exposed as supported provenance. Deliver the resolved
+declaration and activity/turn binding to the renderer, and preserve that snapshot
+for replay. This metadata reader and activation resolver are proposed work;
+existing skill dispatch does not establish that they are implemented.
+
+Both tool and assistant activities can explicitly select a supported
+visualization type, including an automatically selected skill. Such records
+retain their originating activity as well as the containing turn. Adding a
+different visualization type should extend the fixed dispatch inventory, rather
+than relying on tag-shaped prose or requiring every type to be an outline.
+
+## Visualization progression
+
+A v0 prototype can simply highlight matching prefixes or add visual
+pseudo-boundaries inside the existing turn/tool presentation after schema
+activation. It need not synthesize actual turns or split command invocations.
+V1 builds a collapsible linear outline while retaining segment chronology:
+`[A]`, `[B]`, `[A]` still produces three segments.
+
+A later view can collect both A segments under one A node, retaining their
+original positions as source links and preserving chronology within that
+group. This is a separate projection from the linear outline; the canonical
+transcript stays available. It can use the same schema and emitted paths.
+
+## Candidate richer declaration and updates
 
 The following is an illustrative complete snapshot, not a released schema or
 an invocation recipe. It shows the information that a skill and YA would share:
@@ -164,10 +237,11 @@ messages, tool calls, or artifacts. A producer-chosen activity key is useful
 only if it also appears on the relevant activity in a carrier YA can observe;
 an invented provider tool ID is not a substitute.
 
-Do not infer a unique part assignment just because a tool call follows a
-marker. Concurrent work and several active parts make that ambiguous. A known
-span can group activities at workflow level while leaving their part
-association unknown. Explicit associations can be many-to-many: one check may
+A declared tag-span convention explicitly assigns presentation groups by
+prefix, with each tool invocation retaining its captured parent stage. Without
+such a convention, proximity to a marker does not establish a unique part
+assignment: concurrent work and several active parts make that ambiguous.
+Semantic associations can separately be many-to-many, since one check may
 support two parts. Unknown references remain unresolved and inspectable.
 
 Artifact references identify outputs and, when the underlying artifact system
@@ -184,24 +258,28 @@ compose with [conversation view](conversation-view.md), retain access to the
 original transcript, and leave unassociated activities visible. A user can
 inspect the source update that caused a displayed state.
 
-The first recognized declaration opens the span inside the observed turn. An
-explicit terminal snapshot closes it. Ending or canceling the turn without
-such a snapshot leaves the workflow incomplete or interrupted; it does not
-mark pending parts completed. A completed command does not prove completion
+The declared opening starts the span inside the observed turn. An explicit
+terminal record closes it: an end marker for tags, a final snapshot for the
+richer candidate. Ending or canceling the turn without closure leaves the
+workflow incomplete or interrupted; it does not mark pending parts completed.
+A completed command does not prove completion
 of its containing part. A tool error does not by itself fail the entire
 workflow. The displayed part result is the producer's report, with linked
 evidence available for inspection.
 
 Replaying the same source records should yield the same outline as live
-updates. Deduplicate by source identity, accept complete validated revisions,
-and retain the last accepted state when an update is incomplete or malformed.
-Conflicting duplicate revisions remain inspectable rather than silently
-overwriting state. A tail load needs the latest complete snapshot at its
-boundary; it must not require an off-window declaration to recover labels.
+updates. Deduplicate by source identity and retain the last accepted state
+when an update is incomplete or malformed. Snapshot producers use validated
+revisions; conflicting duplicate revisions remain inspectable. A tail load
+needs resolved state at its boundary, including the active tag paths and
+declaration or the latest complete snapshot, so labels and ancestry survive
+off-window source records.
 
 Parse only designated structured output envelopes, including explicitly
 selected producer results. Quoted examples, file contents, logs, and arbitrary
-nested JSON are not independent declarations. Unknown envelope versions or
+nested JSON are not independent workflow declarations. Enabled tool-output
+tags use their declared matching policy, including unrestricted start-of-line
+matching when no whitelist is present. Unknown envelope versions or
 invalid hierarchy retain their ordinary readable output. A known generic
 envelope with an unknown domain schema can still show its basic outline.
 
@@ -236,8 +314,9 @@ These are proposed acceptance cases, not tests already run:
   a coherent nested outline using only session-authored workflow IDs.
 - Collapse and focus survive valid updates; each result and associated
   activity remains reachable in the original transcript.
-- Concurrent calls without explicit part references remain unassigned; adding
-  real references associates them without changing the underlying chronology.
+- Calls under a tag-span convention retain their captured parent; otherwise
+  concurrent calls without explicit references remain unassigned. Associations
+  preserve the underlying chronology.
 - Cancellation, malformed partial output, duplicate delivery, and reload do
   not invent completion or silently lose the last valid state.
 - A tail-loaded view can recover the current outline; unsupported viewers
@@ -246,10 +325,10 @@ These are proposed acceptance cases, not tests already run:
   chosen output carrier survives both live streaming and saved history in
   Claude and Codex. Their end-to-end reliability remains untested here.
 
-The next decision, if implementation becomes useful, is the smallest producer
-convention that those harnesses preserve reliably. A schema file, helper,
-provider-native adapter, or richer transport should earn its place in that
-exercise; none is scheduled by this proposal.
+The next implementation question is whether the initial tag convention
+survives those harnesses reliably enough to render useful outlines. Helpers,
+native adapters, and richer transports remain optional; none is scheduled by
+this proposal.
 
 ## Later extensions
 
