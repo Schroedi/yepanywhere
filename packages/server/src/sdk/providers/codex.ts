@@ -267,6 +267,7 @@ const CODEX_FAILURE_TRACE_LIMIT = 12;
 const CODEX_FAILURE_PREVIEW_CHARS = 240;
 const CODEX_SERVER_OVERLOAD_RETRY_LIMIT = 16;
 const CODEX_SERVER_OVERLOAD_RETRY_SCALE_MS = 5000;
+const CODEX_SERVER_OVERLOAD_RETRY_MAX_DELAY_MS = 180_000;
 const CODEX_THINKING_OFF_MIN_REASONING_EFFORT_PREFIXES = [
   "gpt-5.3-codex-spark",
 ] as const;
@@ -277,7 +278,10 @@ type CodexOverloadRetryWait = (
 ) => Promise<boolean>;
 
 function getCodexOverloadRetryDelayMs(attempt: number): number {
-  return (attempt + 1) ** 2 * CODEX_SERVER_OVERLOAD_RETRY_SCALE_MS;
+  return Math.min(
+    (attempt + 1) ** 2 * CODEX_SERVER_OVERLOAD_RETRY_SCALE_MS,
+    CODEX_SERVER_OVERLOAD_RETRY_MAX_DELAY_MS,
+  );
 }
 
 async function waitForCodexOverloadRetry(
@@ -428,6 +432,11 @@ interface CodexTurnRuntimeState {
   latestTokenUsage?: TokenUsageSnapshot;
   activeTurnId: string | null;
   pendingTurnStart: Promise<string | null> | null;
+  pendingCompaction?: {
+    retryAttempt: number;
+    requestAccepted: Promise<boolean>;
+  };
+  overloadRetryController?: AbortController;
   activePermissionMode: PermissionMode;
   turnEffortOverride: EffortLevel | null | undefined;
   activeTurnHasEffortOverride?: boolean;
@@ -2089,6 +2098,10 @@ export class CodexProvider implements AgentProvider {
         }
       },
       interrupt: async () => {
+        if (runtimeState.overloadRetryController) {
+          runtimeState.overloadRetryController.abort();
+          return true;
+        }
         if (!activeClient) return false;
         if (!runtimeState.threadId || !runtimeState.activeTurnId) return false;
         let turnId = runtimeState.activeTurnId;
@@ -2379,24 +2392,39 @@ export class CodexProvider implements AgentProvider {
         }
         // A compact runs as its own (non-steerable) turn; refuse mid-turn so we
         // do not collide with active work or send `/compact` as plain text.
-        if (runtimeState.activeTurnId) {
+        if (
+          runtimeState.activeTurnId ||
+          runtimeState.pendingCompaction ||
+          runtimeState.overloadRetryController
+        ) {
           return {
             handled: true,
             error: "Cannot compact while a turn is in progress",
           };
         }
+        const request = activeClient.request<ThreadCompactStartResponse>(
+          "thread/compact/start",
+          {
+            threadId: runtimeState.threadId,
+          } satisfies ThreadCompactStartParams,
+        );
+        runtimeState.pendingCompaction = {
+          retryAttempt: 0,
+          // The command reports RPC failures; queued input only needs to know
+          // whether a compaction turn will follow the request.
+          requestAccepted: request.then(
+            () => true,
+            () => false,
+          ),
+        };
         try {
-          await activeClient.request<ThreadCompactStartResponse>(
-            "thread/compact/start",
-            {
-              threadId: runtimeState.threadId,
-            } satisfies ThreadCompactStartParams,
-          );
+          await request;
           return {
             handled: true,
             output: { summary: "Compaction requested" },
           };
         } catch (error) {
+          runtimeState.pendingCompaction = undefined;
           const message =
             error instanceof Error ? error.message : String(error);
           log.warn(
@@ -3065,7 +3093,10 @@ export class CodexProvider implements AgentProvider {
             )
           ) {
             if (notification.method === "error") emittedTurnError = true;
-            turnComplete = true;
+            // A turn error precedes its completion; do not release queued work
+            // while the provider still owns the failed turn.
+            turnComplete =
+              notification.method !== "error" || appServer.isClosed;
           }
         }
         logSuppressedPreTurnNotifications("turn consumption ended");
@@ -3108,11 +3139,63 @@ export class CodexProvider implements AgentProvider {
           return { overloadError };
         }
 
+        runtimeState.pendingCompaction = undefined;
         yield {
           type: "result",
           session_id: sessionId,
         } as SDKMessage;
         return { overloadError: null };
+      };
+
+      const overloadRetryWait =
+        this.config.overloadRetryWait ?? waitForCodexOverloadRetry;
+      const prepareOverloadRetry = async function* (
+        overloadError: SDKMessage,
+        attempt: number,
+      ): AsyncGenerator<SDKMessage, boolean, void> {
+        if (attempt > CODEX_SERVER_OVERLOAD_RETRY_LIMIT) {
+          yield {
+            ...overloadError,
+            codexWillRetry: false,
+            codexOverloadRetryExhausted: true,
+            codexRetryAttempt: CODEX_SERVER_OVERLOAD_RETRY_LIMIT,
+            codexRetryMaxRetries: CODEX_SERVER_OVERLOAD_RETRY_LIMIT,
+          } as SDKMessage;
+          return false;
+        }
+
+        const retryDelayMs = getCodexOverloadRetryDelayMs(attempt);
+        const controller = new AbortController();
+        const retrySignal = AbortSignal.any([signal, controller.signal]);
+        runtimeState.overloadRetryController = controller;
+        try {
+          yield {
+            ...overloadError,
+            codexWillRetry: true,
+            codexOverloadRetry: true,
+            codexRetryDelayMs: retryDelayMs,
+            codexRetryAttempt: attempt,
+            codexRetryMaxRetries: CODEX_SERVER_OVERLOAD_RETRY_LIMIT,
+          } as SDKMessage;
+          log.info(
+            {
+              sessionId,
+              turnId: overloadError.codexTurnId,
+              model:
+                runtimeState.turnModelOverride ?? runtimeState.resolvedModel,
+              retryAttempt: attempt,
+              retryDelayMs,
+            },
+            "Codex model is overloaded; waiting to retry the operation",
+          );
+          return (
+            !retrySignal.aborted &&
+            (await overloadRetryWait(retryDelayMs, retrySignal)) &&
+            !retrySignal.aborted
+          );
+        } finally {
+          runtimeState.overloadRetryController = undefined;
+        }
       };
 
       const messageGen = queue[Symbol.asyncIterator]();
@@ -3133,6 +3216,13 @@ export class CodexProvider implements AgentProvider {
           let next: "input" | JsonRpcNotification;
           try {
             next = await Promise.race([peekNotification(), inputReady]);
+            if (
+              next === "input" &&
+              runtimeState.pendingCompaction &&
+              (await runtimeState.pendingCompaction.requestAccepted)
+            ) {
+              next = await peekNotification();
+            }
           } finally {
             releaseQueueListener();
           }
@@ -3150,7 +3240,25 @@ export class CodexProvider implements AgentProvider {
                   0,
                 );
                 if (overloadError) {
-                  yield overloadError;
+                  const compaction = runtimeState.pendingCompaction;
+                  if (compaction) {
+                    const retryReady = yield* prepareOverloadRetry(
+                      overloadError,
+                      ++compaction.retryAttempt,
+                    );
+                    if (retryReady) {
+                      await appServer.request<ThreadCompactStartResponse>(
+                        "thread/compact/start",
+                        {
+                          threadId: sessionId,
+                        } satisfies ThreadCompactStartParams,
+                      );
+                      continue;
+                    }
+                    runtimeState.pendingCompaction = undefined;
+                  } else {
+                    yield overloadError;
+                  }
                   yield { type: "result", session_id: sessionId } as SDKMessage;
                 }
               }
@@ -3326,46 +3434,17 @@ export class CodexProvider implements AgentProvider {
             if (!overloadError) break;
 
             overloadRetryAttempt += 1;
-            if (overloadRetryAttempt > CODEX_SERVER_OVERLOAD_RETRY_LIMIT) {
-              yield {
-                ...overloadError,
-                codexWillRetry: false,
-                codexOverloadRetryExhausted: true,
-                codexRetryAttempt: CODEX_SERVER_OVERLOAD_RETRY_LIMIT,
-                codexRetryMaxRetries: CODEX_SERVER_OVERLOAD_RETRY_LIMIT,
-              } as SDKMessage;
+            const retryReady = yield* prepareOverloadRetry(
+              overloadError,
+              overloadRetryAttempt,
+            );
+            if (!retryReady) {
               yield {
                 type: "result",
                 session_id: sessionId,
               } as SDKMessage;
               break;
             }
-
-            const retryDelayMs =
-              getCodexOverloadRetryDelayMs(overloadRetryAttempt);
-            yield {
-              ...overloadError,
-              codexWillRetry: true,
-              codexOverloadRetry: true,
-              codexRetryDelayMs: retryDelayMs,
-              codexRetryAttempt: overloadRetryAttempt,
-              codexRetryMaxRetries: CODEX_SERVER_OVERLOAD_RETRY_LIMIT,
-            } as SDKMessage;
-
-            log.info(
-              {
-                sessionId,
-                turnId: overloadError.codexTurnId,
-                model: turnStartParams.model ?? runtimeState.resolvedModel,
-                retryAttempt: overloadRetryAttempt,
-                retryDelayMs,
-              },
-              "Codex model is overloaded; waiting to retry the turn",
-            );
-            const retryReady = await (
-              this.config.overloadRetryWait ?? waitForCodexOverloadRetry
-            )(retryDelayMs, signal);
-            if (!retryReady || signal.aborted) break;
 
             const retryTurnStartParams = this.createTurnStartParams(
               sessionId,
