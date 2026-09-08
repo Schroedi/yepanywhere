@@ -118,6 +118,7 @@ import { useProject, useProjects } from "../hooks/useProjects";
 import { useProviders } from "../hooks/useProviders";
 import { usePublicShareStatus } from "../hooks/usePublicShareStatus";
 import { recordSessionVisit } from "../hooks/useRecentSessions";
+import { recordSessionInteraction } from "../lib/sessionInteractionOrder";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { useServerSettings } from "../hooks/useServerSettings";
 import { useSessionLoadingProgress } from "../hooks/useSessionLoadingProgress";
@@ -1913,8 +1914,16 @@ function SessionPageContent({
 
   // Record session visit for recents tracking
   useEffect(() => {
+    if (isDomLingerParked) return;
     recordSessionVisit(sessionId, projectId);
-  }, [sessionId, projectId]);
+    recordSessionInteraction(sourceRuntime.sourceKey, actualSessionId);
+  }, [
+    sessionId,
+    projectId,
+    actualSessionId,
+    sourceRuntime.sourceKey,
+    isDomLingerParked,
+  ]);
 
   // Navigate to new session ID when temp ID is replaced with real SDK session ID
   // This ensures the URL stays in sync with the actual session
@@ -2344,6 +2353,12 @@ function SessionPageContent({
     const actionAtMs = Date.now();
     const clientTimestamp = getServerClockTimestamp(actionAtMs);
     const clientTimestampIso = new Date(clientTimestamp).toISOString();
+
+    recordSessionInteraction(
+      sourceRuntime.sourceKey,
+      actualSessionId,
+      actionAtMs,
+    );
 
     // Add to pending queue and get tempId to pass to server
     const { tempId } = addPendingMessage(
@@ -2863,6 +2878,12 @@ function SessionPageContent({
     const showThinking = getShowThinkingSetting();
     const actionAtMs = Date.now();
     const clientTimestamp = getServerClockTimestamp(actionAtMs);
+
+    recordSessionInteraction(
+      sourceRuntime.sourceKey,
+      actualSessionId,
+      actionAtMs,
+    );
 
     // The queue path is not optimistic: no "Sending..." pending chip. The
     // composer disables for the round-trip and the queued chip renders from the

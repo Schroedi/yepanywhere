@@ -48,7 +48,7 @@
 - Provider/model compact glyph vocabulary (top-right status)
 - Claude API failures and auto-retry (transient 5xx/overload evidence)
 - Media rendering and routing (image/video/file surfaces, the relay fetch rule, serving doors)
-- Sidebar session ordering (active rows pinned and stable, idle rows deduped by recency)
+- Sidebar session ordering (user activity owns chronology; pointer/focus holds keep rows clickable)
 - Session list hidden duplicates (conservative duplicate-title hiding, fork/helper lineage, current/source session safety)
 - Deferred & tactical roadmap (prioritized: backgrounded-jobs badge, `Task*` list rendering, queue-across-compaction, rich-text gaps, OpenCode/pi provider fleshout)
 - pi provider (Zechner's pi-mono as agnostic backend: integration plan + periodic progress tracking)

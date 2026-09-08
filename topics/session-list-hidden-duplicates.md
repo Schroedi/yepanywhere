@@ -7,8 +7,8 @@
 
 Topic: session-list-hidden-duplicates
 
-See also: [sidebar-session-ordering](sidebar-session-ordering.md) (active-row
-stability and the sidebar sections), [side-session-config](side-session-config.md)
+See also: [sidebar-session-ordering](sidebar-session-ordering.md) (user-driven
+chronology and the sidebar sections), [side-session-config](side-session-config.md)
 (helper sessions are bounded implementation work), [recaps](recaps.md) and
 [session-retitle](session-retitle.md) (features that create temporary helper
 forks), [fork-from-turn](fork-from-turn.md) (user-facing forks and
@@ -151,18 +151,19 @@ a later patch removes an already discovered helper from ordinary list
 projections. Neither ordering may leave a copied source-title row visible until
 reload.
 
-### Active/pinned rows stay visible
+### Active and queued rows stay visible
 
-The sidebar's active/queued "pinned" set (rows where `activity` is
+The sidebar's active/queued protected set (rows where `activity` is
 `in-turn`/`waiting-input`, or the row is a project-queue target) bypasses title
-deduplication. A previous mitigation collapsed same-title pinned rows to hide
+deduplication without moving those rows ahead of user chronology. A previous
+mitigation collapsed same-title pinned rows to hide
 stale activity left behind when a provider session id rotated. That crossed the
 contract boundary: title equality cannot establish that two independently live
 or queued rows are interchangeable, so it could hide a real active session.
 
 Stale rotated activity must instead be expired or remapped at the collection
 store/source-event boundary once the replacement identity is known. Until that
-upstream proof exists, the fail-open behavior is to show the extra pinned row.
+upstream proof exists, the fail-open behavior is to show the extra live row.
 A dev-only (`import.meta.env.DEV`) console log in `Sidebar` reports only truly
 repeated ids. It deliberately omits duplicate-title groups: active-session
 metadata refreshes make that a hot path, and a grouping key may contain an

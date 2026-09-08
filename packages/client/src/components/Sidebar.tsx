@@ -25,6 +25,10 @@ import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { useServerSettings } from "../hooks/useServerSettings";
 import { useSidebarDuplicateHiding } from "../hooks/useSidebarDuplicateHiding";
 import { useSidebarSessionFeeds } from "../hooks/useSidebarSessionFeeds";
+import {
+  useHeldSidebarLists,
+  useSidebarSessionOrder,
+} from "../hooks/useSidebarSessionOrder";
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "../hooks/useSidebarWidth";
 import { useVersion } from "../hooks/useVersion";
 import { SessionAsyncQuestionsButton } from "./SessionAsyncQuestionsButton";
@@ -37,10 +41,6 @@ import { isNearScrollEnd } from "../lib/predictiveScroll";
 import { serverSupportsProjectQueue } from "../lib/projectQueueVisibility";
 import { sessionCollectionRecordToGlobalSessionItem } from "../lib/sessionCollectionRecords";
 import type { SessionCollectionRecord } from "../lib/clientSummaryCollections";
-import {
-  selectOlderSessionRecordsFromRecords,
-  selectRecentSessionRecordsFromRecords,
-} from "../lib/clientSummaryQueries";
 import {
   useDraftSessionIds,
   useInboxCounts,
@@ -95,10 +95,8 @@ const EMPTY_PROJECT_QUEUE_PROJECTS: readonly {
 const EMPTY_PROJECT_QUEUE_SESSION_IDS: ReadonlySet<string> = new Set();
 
 /**
- * A session is "active" while its agent is mid-turn or waiting on input. Active
- * sessions are pinned above idle rows and are deliberately sorted by the time
- * they became active rather than by updatedAt. Their updatedAt churns every few
- * seconds during a turn, so recency ordering would reshuffle them constantly.
+ * Live sessions must remain visible even when another row shares their title.
+ * Activity affects badges and duplicate protection, never sidebar chronology.
  */
 function isActiveSession(session: GlobalSessionItem): boolean {
   return session.activity === "in-turn" || session.activity === "waiting-input";
@@ -370,13 +368,9 @@ export function Sidebar({
 
   const globalQueryRecords = useSessionCollectionQueryRecords(globalQuery);
   const starredSessionRecords = useStarredSessionRecords();
-  const recentSessionRecords = useMemo(
-    () => selectRecentSessionRecordsFromRecords(globalQueryRecords),
-    [globalQueryRecords],
-  );
-  const olderSessionRecords = useMemo(
-    () => selectOlderSessionRecordsFromRecords(globalQueryRecords),
-    [globalQueryRecords],
+  const orderedSessions = useSidebarSessionOrder(
+    globalQueryRecords,
+    starredSessionRecords,
   );
 
   const hasNewSessionDraft = useNewSessionDraft();
@@ -492,8 +486,8 @@ export function Sidebar({
   }, [maybeLoadMoreGlobalSessions, maybeLoadMoreStarredSessions]);
   const sidebarLoadMoreKey = [
     starredSessionRecords.length,
-    recentSessionRecords.length,
-    olderSessionRecords.length,
+    orderedSessions.recent.length,
+    orderedSessions.older.length,
     projectQueueExpanded,
     starredExpanded,
     recentDayExpanded,
@@ -605,18 +599,19 @@ export function Sidebar({
   };
 
   const filteredStarredSessions = useMemo(
-    () => sessionCollectionRecordsToSidebarSessionItems(starredSessionRecords),
-    [starredSessionRecords],
+    () =>
+      sessionCollectionRecordsToSidebarSessionItems(orderedSessions.starred),
+    [orderedSessions.starred],
   );
 
   const recentDaySessions = useMemo(
-    () => sessionCollectionRecordsToSidebarSessionItems(recentSessionRecords),
-    [recentSessionRecords],
+    () => sessionCollectionRecordsToSidebarSessionItems(orderedSessions.recent),
+    [orderedSessions.recent],
   );
 
   const olderSessions = useMemo(
-    () => sessionCollectionRecordsToSidebarSessionItems(olderSessionRecords),
-    [olderSessionRecords],
+    () => sessionCollectionRecordsToSidebarSessionItems(orderedSessions.older),
+    [orderedSessions.older],
   );
 
   const sidebarProjectIds = useMemo(
@@ -784,6 +779,8 @@ export function Sidebar({
         const protectedRows = arr.filter(
           (session) =>
             session.id === currentSessionId ||
+            isActiveSession(session) ||
+            projectQueuedSessionIds.has(session.id) ||
             session.ownership?.owner === "self" ||
             Boolean(session.parentSessionId) ||
             Boolean(session.forkedFromSessionId) ||
@@ -809,38 +806,20 @@ export function Sidebar({
       }
 
       const visible = sessions.filter((session) => visibleIds.has(session.id));
-      visible.sort((a, b) => updatedAtMs(b) - updatedAtMs(a));
-      hidden.sort((a, b) => updatedAtMs(b) - updatedAtMs(a));
-      return { visible, hidden };
+      const hiddenIds = new Set(hidden.map((session) => session.id));
+      return { visible, hidden: sessions.filter((s) => hiddenIds.has(s.id)) };
     },
-    [currentSessionId],
-  );
-
-  // Active and queued rows are actionable live state, not title duplicates.
-  // Keep every pinned row visible; stale activity must be corrected where the
-  // source identity changes rather than hidden by a presentation heuristic.
-  const recentPinned = useMemo(
-    () =>
-      recentDaySessions.filter(
-        (session) =>
-          isActiveSession(session) || projectQueuedSessionIds.has(session.id),
-      ),
-    [projectQueuedSessionIds, recentDaySessions],
+    [currentSessionId, projectQueuedSessionIds],
   );
 
   const { visibleRecent, hiddenRecent } = useMemo(() => {
-    const idle = recentDaySessions.filter(
-      (session) =>
-        !isActiveSession(session) && !projectQueuedSessionIds.has(session.id),
-    );
     if (!sidebarDuplicateHidingEnabled) {
-      return { visibleRecent: idle, hiddenRecent: [] };
+      return { visibleRecent: recentDaySessions, hiddenRecent: [] };
     }
-    const { visible, hidden } = groupDuplicateSessions(idle);
+    const { visible, hidden } = groupDuplicateSessions(recentDaySessions);
     return { visibleRecent: visible, hiddenRecent: hidden };
   }, [
     groupDuplicateSessions,
-    projectQueuedSessionIds,
     recentDaySessions,
     sidebarDuplicateHidingEnabled,
   ]);
@@ -852,6 +831,18 @@ export function Sidebar({
     const { visible, hidden } = groupDuplicateSessions(olderSessions);
     return { visibleOlder: visible, hiddenOlder: hidden };
   }, [groupDuplicateSessions, olderSessions, sidebarDuplicateHidingEnabled]);
+
+  const { lists: displayed, handlers: orderInteractionHandlers } =
+    useHeldSidebarLists(
+      {
+        starred: filteredStarredSessions,
+        recent: visibleRecent,
+        hiddenRecent,
+        older: visibleOlder,
+        hiddenOlder,
+      },
+      isDesktop ? !isCollapsed : isOpen,
+    );
 
   // Dev-only: flag a true repeated id, which title grouping cannot fix.
   useEffect(() => {
@@ -929,6 +920,7 @@ export function Sidebar({
       )}
       <aside
         ref={sidebarRef}
+        {...orderInteractionHandlers}
         className="sidebar"
         onTouchStart={!isDesktop ? handleTouchStart : undefined}
         onTouchMove={!isDesktop ? handleTouchMove : undefined}
@@ -1205,7 +1197,7 @@ export function Sidebar({
           )}
 
           {/* Global sessions list */}
-          {filteredStarredSessions.length > 0 && (
+          {displayed.starred.length > 0 && (
             <div className="sidebar-section">
               <SidebarSectionHeader
                 title={t("sidebarSectionStarred")}
@@ -1219,13 +1211,13 @@ export function Sidebar({
               />
               {starredExpanded && (
                 <ul id="sidebar-starred-list" className="sidebar-session-list">
-                  {filteredStarredSessions.map(renderCompactSession)}
+                  {displayed.starred.map(renderCompactSession)}
                 </ul>
               )}
             </div>
           )}
 
-          {(recentPinned.length > 0 || visibleRecent.length > 0) && (
+          {displayed.recent.length > 0 && (
             <div className="sidebar-section">
               <SidebarSectionHeader
                 title={t("sidebarSectionLast24Hours")}
@@ -1242,9 +1234,8 @@ export function Sidebar({
                   id="sidebar-last-24-hours-list"
                   className="sidebar-session-list"
                 >
-                  {recentPinned.map(renderCompactSession)}
-                  {visibleRecent.map(renderCompactSession)}
-                  {hiddenRecent.length > 0 && (
+                  {displayed.recent.map(renderCompactSession)}
+                  {displayed.hiddenRecent.length > 0 && (
                     <li className="sidebar-hidden-dups">
                       <button
                         type="button"
@@ -1254,12 +1245,12 @@ export function Sidebar({
                       >
                         {showHiddenRecent ? "−" : "+"}{" "}
                         {t("sidebarHiddenDuplicateSessions", {
-                          count: hiddenRecent.length,
+                          count: displayed.hiddenRecent.length,
                         })}
                       </button>
                       {showHiddenRecent && (
                         <ul className="sidebar-session-list sidebar-hidden-sublist">
-                          {hiddenRecent.map(renderCompactSession)}
+                          {displayed.hiddenRecent.map(renderCompactSession)}
                         </ul>
                       )}
                     </li>
@@ -1269,7 +1260,7 @@ export function Sidebar({
             </div>
           )}
 
-          {visibleOlder.length > 0 && (
+          {displayed.older.length > 0 && (
             <div className="sidebar-section">
               <SidebarSectionHeader
                 title={t("sidebarSectionOlder")}
@@ -1283,8 +1274,8 @@ export function Sidebar({
               />
               {olderExpanded && (
                 <ul id="sidebar-older-list" className="sidebar-session-list">
-                  {visibleOlder.map(renderCompactSession)}
-                  {hiddenOlder.length > 0 && (
+                  {displayed.older.map(renderCompactSession)}
+                  {displayed.hiddenOlder.length > 0 && (
                     <li className="sidebar-hidden-dups">
                       <button
                         type="button"
@@ -1294,12 +1285,12 @@ export function Sidebar({
                       >
                         {showHiddenOlder ? "−" : "+"}{" "}
                         {t("sidebarHiddenDuplicateSessions", {
-                          count: hiddenOlder.length,
+                          count: displayed.hiddenOlder.length,
                         })}
                       </button>
                       {showHiddenOlder && (
                         <ul className="sidebar-session-list sidebar-hidden-sublist">
-                          {hiddenOlder.map(renderCompactSession)}
+                          {displayed.hiddenOlder.map(renderCompactSession)}
                         </ul>
                       )}
                     </li>
@@ -1309,11 +1300,10 @@ export function Sidebar({
             </div>
           )}
 
-          {filteredStarredSessions.length === 0 &&
+          {displayed.starred.length === 0 &&
             pendingProjectQueueItems.length === 0 &&
-            recentPinned.length === 0 &&
-            visibleRecent.length === 0 &&
-            visibleOlder.length === 0 && (
+            displayed.recent.length === 0 &&
+            displayed.older.length === 0 && (
               <p className="sidebar-empty">
                 {sessionsLoading
                   ? t("sidebarLoadingSessions")
