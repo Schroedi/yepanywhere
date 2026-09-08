@@ -672,6 +672,29 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
       });
       if (!(await page.locator(".sidebar-nav-section").first().isVisible()))
         await sidebarToggle.click();
+      const sidebarBeta = page
+        .locator(".sidebar .session-list-item")
+        .filter({ hasText: "Beta questions" })
+        .first();
+      await sidebarBeta.hover();
+      const questionBounds = await sidebarBeta
+        .getByRole("button", { name: /^1 question/ })
+        .boundingBox();
+      const menuBounds = await sidebarBeta
+        .locator(".session-list-item__menu")
+        .boundingBox();
+      expect(questionBounds).not.toBeNull();
+      expect(menuBounds).not.toBeNull();
+      expect(menuBounds!.x + menuBounds!.width).toBeLessThanOrEqual(
+        questionBounds!.x,
+      );
+      if (captures)
+        await page.screenshot({
+          path: join(captures, `${viewport.name}-sidebar-count.png`),
+        });
+      await sidebarBeta.getByRole("button", { name: /^1 question/ }).click();
+      await expect(menu).toBeVisible();
+      await page.keyboard.press("Escape");
       const aggregate = page
         .locator(".sidebar-nav-section")
         .getByRole("button", { name: /^3 questions/ });

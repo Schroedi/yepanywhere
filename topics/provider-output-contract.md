@@ -267,6 +267,10 @@ default-on and share the existing reminder slider; zero hides them. Ordinary
 unread-session counts remain separate. Unknown question inventories never
 masquerade as a known zero.
 
+Session-row question counts sit outside the title area's hover-menu overlay.
+The menu and count retain separate, non-overlapping click targets on desktop
+and touch layouts, including compact sidebar rows.
+
 Click or right-click a count to open previews directly. Aggregate menus group
 questions by session, with the most recently updated session last; questions
 within each group remain oldest-first. Compact counts retain an icon and

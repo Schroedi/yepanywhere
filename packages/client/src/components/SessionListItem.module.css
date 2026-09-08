@@ -1,6 +1,16 @@
 .compactLink {
   column-gap: var(--space-2);
 }
+
+/* The hover menu may cover title text, never adjacent row actions. */
+.body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+}
+
 .questions {
   flex: 0 0 auto;
   align-self: center;
