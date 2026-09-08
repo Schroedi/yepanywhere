@@ -10,6 +10,7 @@ Request line:  {"audio_b64":"<base64>","mime_type":"audio/webm;codecs=opus"}
 Response line: {"text":"..."} or {"error":"..."}
 Startup line:  {"status":"ready"} (written once after model loads)
 """
+
 import base64
 import json
 import os
@@ -17,7 +18,6 @@ import subprocess
 import sys
 import tempfile
 from typing import Any
-
 
 DEFAULT_NEMO_MODEL = "nvidia/parakeet-tdt-0.6b-v3"
 
@@ -111,8 +111,7 @@ def wav_path_for_nemo(input_path: str, suffix: str) -> str:
                 output_path,
             ],
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
     except subprocess.CalledProcessError as exc:
         unlink_if_present(output_path)
@@ -179,7 +178,7 @@ def main() -> None:
         if device.startswith("cuda"):
             model = model.to(device)
         model.eval()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - Worker startup errors use the JSON protocol.
         sys.stdout.write(
             json.dumps({"error": summarize_model_load_error(model_name, exc)}) + "\n"
         )
@@ -222,7 +221,7 @@ def main() -> None:
                 if transcription_file != tmpfile:
                     unlink_if_present(transcription_file)
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - Keep the worker alive after a failed request.
             sys.stdout.write(json.dumps({"error": str(exc)}) + "\n")
 
         sys.stdout.flush()
