@@ -68,6 +68,10 @@ describe("GET /version", () => {
         const before = await (await legacy.request(query)).json();
         const after = await (await routes.request(query)).json();
         expect(before.sqlite).toBeUndefined();
+        expect(before.serverRuntime).toEqual({
+          kind: process.versions.bun ? "bun" : "node",
+          version: process.versions.bun ?? process.versions.node,
+        });
         expect(after).toEqual({ ...before, sqlite: { state } });
       }
       expect(getSqliteStatus).toHaveBeenCalledTimes(3);

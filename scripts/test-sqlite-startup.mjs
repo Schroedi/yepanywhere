@@ -12,7 +12,8 @@ import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
-const [expected, packageDir = "dist/npm-package"] = process.argv.slice(2);
+const [expected, packageDir = "dist/npm-package", launchMode] =
+  process.argv.slice(2);
 assert.ok(
   ["ready", "unsupported"].includes(expected),
   "Pass ready or unsupported",
@@ -60,16 +61,18 @@ for (const state of [
   // or providers; parent requests still exercise the real local HTTP server.
   const child = spawn(
     process.execPath,
-    [
-      "--input-type=module",
-      "-e",
-      `
+    launchMode === "bunx"
+      ? ["x", "--bun", "--no-install", "yepanywhere"]
+      : [
+          "--input-type=module",
+          "-e",
+          `
     globalThis.fetch = async () => new Response(null, { status: 503 });
     await import(${JSON.stringify(entry)});
   `,
-    ],
+        ],
     {
-      cwd: temporary,
+      cwd: launchMode === "bunx" ? resolve(packageDir, "../..") : temporary,
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...platformEnvironment,
@@ -135,7 +138,36 @@ for (const state of [
       signal: AbortSignal.timeout(10_000),
     });
     assert.equal(response.status, 200, output);
-    assert.deepEqual((await response.json()).sqlite, { state });
+    const version = await response.json();
+    assert.deepEqual(version.sqlite, { state });
+    assert.deepEqual(version.serverRuntime, {
+      kind: process.versions.bun ? "bun" : "node",
+      version: process.versions.bun ?? process.versions.node,
+    });
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/api/ws`);
+    let websocketTimeout;
+    try {
+      await new Promise((resolvePong, rejectPong) => {
+        websocketTimeout = setTimeout(
+          () => rejectPong(new Error("Packaged WebSocket ping timed out")),
+          10_000,
+        );
+        socket.addEventListener("error", () =>
+          rejectPong(new Error("Packaged WebSocket failed")),
+        );
+        socket.addEventListener("open", () =>
+          socket.send(JSON.stringify({ type: "ping", id: "runtime-smoke" })),
+        );
+        socket.addEventListener("message", (event) => {
+          const message = JSON.parse(String(event.data));
+          if (message.type === "pong" && message.id === "runtime-smoke")
+            resolvePong();
+        });
+      });
+    } finally {
+      clearTimeout(websocketTimeout);
+      socket.close();
+    }
     if (state === "disabled" || state === "unsupported") {
       assert.equal(existsSync(join(dataDir, "discovery.sqlite")), false);
     }

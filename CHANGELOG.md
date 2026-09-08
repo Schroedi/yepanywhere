@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Require Node.js `^22.16 || ^23.11 || >=24.10` for new server releases;
+  Bun 1.3.14 or newer uses `bunx --bun yepanywhere`. Desktop retains its
+  private pinned Bun. Unsupported CLI/direct launches exit before app startup.
+- Keep older servers usable from the hosted frontend and show advisory runtime
+  upgrade guidance. There is no frontend cutoff or mandatory waiting period
+  before the server runtime change. See [runtime upgrade instructions](topics/server-runtime.md#upgrading-a-remote-server).
+
+### Fixed
+- Align the published math-plugin peers with markdown-it 15, update matching
+  KaTeX rendering/CSS, and take the Node-22-compatible sanitizer security fixes.
+
 ## [0.8.1] - 2026-09-05
 
 ### Added

@@ -1,3 +1,4 @@
+import type { ServerRuntimeInfo } from "@yep-anywhere/shared/server-runtime";
 import type {
   ArtifactViewerStatus,
   SqliteStatus,
@@ -9,6 +10,8 @@ import type {
 import { fetchJSON } from "./sourceApiFetch";
 
 export interface VersionInfo {
+  /** Absent on older servers; never implies storage readiness. */
+  serverRuntime?: ServerRuntimeInfo;
   /** Storage diagnostic only; absent on older servers. */
   sqlite?: SqliteStatus;
   artifactViewer?: ArtifactViewerStatus;

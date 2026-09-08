@@ -1,4 +1,4 @@
-name: Optional SQLite
+name: Server Runtime And SQLite
 
 on:
   push:
@@ -14,13 +14,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [22.16.0, 23.11.0, 24.10.0, 24]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: pnpm
       # Only core ships this feature. Relay/push-broker's separate native
       # better-sqlite3 dependency must not require a compiler for this matrix.
@@ -32,6 +33,14 @@ jobs:
         with:
           bun-version: ${{ steps.bun.outputs.version }}
       - run: pnpm build:bundle
+      - name: Check public entry-point runtime preflight
+        run: node scripts/test-runtime-preflight.mjs
+      - name: Clean npm installation and full startup
+        if: runner.os != 'Windows'
+        run: node scripts/agent-self-package-smoke.mjs --startup --bun-runtime="$(command -v bun)"
+      - name: Clean Windows npm installation and agent command
+        if: runner.os == 'Windows'
+        run: node scripts/agent-self-package-smoke.mjs
       - name: Attach locked runtime dependencies to npm distribution
         # Exercise the published modules with the repository's tested dependency
         # versions, rather than re-resolving npm ranges to unrelated newer deps.
@@ -45,7 +54,7 @@ jobs:
       - name: Node distribution startup
         # Full Windows boot currently fails in provider coordination before
         # SQLite initializes; see gaps/windows-packaged-startup-provider-identity.md.
-        # Storage, bundle loading, and Node 20 fallback still run on Windows.
+        # Storage, entry-point rejection and clean npm installation still run on Windows.
         if: runner.os != 'Windows'
         run: node scripts/test-sqlite-startup.mjs ready
       - name: Bun distribution startup
@@ -54,8 +63,5 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 20.12.2
-      - name: Engines-floor storage fallback
-        run: node scripts/test-discovery-sqlite.mjs unsupported dist/npm-package/dist/storage
-      - name: Engines-floor distribution startup
-        if: runner.os != 'Windows'
-        run: node scripts/test-sqlite-startup.mjs unsupported
+      - name: Reject an actual unsupported runtime before loading the app
+        run: node scripts/test-runtime-preflight.mjs dist/npm-package --reject

@@ -16,7 +16,7 @@ describe("Markdown plugin dependency resolution", () => {
     );
 
     expect(serverRequire("markdown-it/package.json").version).toBe("15.0.0");
-    expect(serverRequire("katex/package.json").version).toBe("0.16.45");
+    expect(serverRequire("katex/package.json").version).toBe("0.18.7");
     expect(realpathSync(pluginRequire.resolve("markdown-it"))).toBe(
       realpathSync(serverRequire.resolve("markdown-it")),
     );
@@ -325,7 +325,12 @@ describe("renderSafeMarkdown — embedded HTML", () => {
 <xmp></xmp/><img src=x onerror="alert(document.domain)">
 `);
 
-    expect(html).not.toMatch(/<(?:textarea|xmp|img)\b/i);
+    // Patched htmlparser2 recognizes the malformed closing tags and exposes
+    // the following images to normal sanitization. Images are allowed; raw
+    // text elements and executable attributes must still never survive.
+    expect(html).not.toMatch(/<(?:textarea|xmp)\b/i);
+    expect(html).not.toMatch(/\son\w+\s*=/i);
+    expect(html).not.toContain("alert(document.domain)");
     expect(html).toContain("&lt;textarea&gt;");
     expect(html).toContain("&lt;xmp&gt;");
   });

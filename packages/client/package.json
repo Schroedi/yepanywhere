@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "@yep-anywhere/shared": "workspace:*",
-    "katex": "^0.16.45",
+    "katex": "^0.18.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.15.1",

@@ -175,7 +175,11 @@ step("Rewrite @yep-anywhere/shared imports", () => {
         // Ensure it starts with ./ for Node.js ESM resolution
         if (!relPath.startsWith(".")) relPath = `./${relPath}`;
 
-        const rewritten = content.replace(
+        const subpathRewritten = content.replaceAll(
+          "@yep-anywhere/shared/server-runtime",
+          relPath.replace(/index\.js$/, "server-runtime.js"),
+        );
+        const rewritten = subpathRewritten.replace(
           /(?<=(from\s+|import\(\s*))(["'])@yep-anywhere\/shared\2/g,
           `$2${relPath}$2`,
         );
@@ -287,7 +291,7 @@ step("Generate package.json for npm", () => {
     keywords: ["claude", "ai", "agent", "supervisor", "mobile"],
     license: "MIT",
     engines: {
-      node: ">=20.12",
+      node: rootPackageJson.engines.node,
     },
   };
 

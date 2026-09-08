@@ -10,6 +10,11 @@
       "source": "./src/index.ts",
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./server-runtime": {
+      "source": "./src/server-runtime.ts",
+      "import": "./dist/server-runtime.js",
+      "types": "./dist/server-runtime.d.ts"
     }
   },
   "scripts": {

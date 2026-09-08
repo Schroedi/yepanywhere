@@ -1,3 +1,7 @@
+import {
+  getServerRuntime,
+  type ServerRuntimeInfo,
+} from "@yep-anywhere/shared/server-runtime";
 import { exec } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -306,6 +310,8 @@ async function getLatestVersion(
 }
 
 export interface VersionInfo {
+  /** Absent on older servers; never implies storage readiness. */
+  serverRuntime?: ServerRuntimeInfo;
   /** Storage diagnostic only; absent on older servers. */
   sqlite?: SqliteStatus;
   artifactViewer?: ArtifactViewerStatus;
@@ -640,6 +646,7 @@ export function createVersionRoutes(options?: VersionRouteOptions): Hono {
 
     const info: VersionInfo = {
       current,
+      serverRuntime: getServerRuntime(process.versions),
       ...(options?.getSqliteStatus
         ? { sqlite: options.getSqliteStatus() }
         : {}),

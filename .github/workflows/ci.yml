@@ -1,14 +1,8 @@
 name: CI
 on: [push, pull_request]
 
-# Most CI pins Node 20.12 (the package's engines floor). Browser E2E uses a
-# patched Node 20 for its recursive-watcher deletion fix; see the job below.
-# Do NOT bump to 24+ just to run
-# the opencode.db reader test: that reader uses node:sqlite (Node >=22.5) and is
-# an opt-in feature (OPENCODE_DB_READER, default on locally but unexercised by
-# CI). On Node 20.12 node:sqlite is absent, so opencode-db-reader.test.ts cleanly
-# skips. A Node-24 CI run made the server suite hang for >1h in this environment;
-# the reader is verified locally on Node 24 instead. See topics/opencode-backend.md.
+# Server checks run at the supported Node floor. SQLite boundary and Bun
+# distribution checks live in sqlite.yml; managed runners retain their own floor.
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -26,7 +20,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20.12
+          node-version: 22.16.0
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @yep-anywhere/shared build
@@ -41,7 +35,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20.12
+          node-version: 22.16.0
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:bundle
@@ -68,7 +62,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20.12
+          node-version: 22.16.0
           cache: "pnpm"
       - run: pnpm install
       - run: pnpm lint
@@ -83,7 +77,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20.12
+          node-version: 22.16.0
       # Advisories triaged as unreachable are listed in auditConfig.ignoreGhsas
       # (pnpm-workspace.yaml) with rationale in CLAUDE.md "Known-unreachable
       # advisories".
@@ -98,7 +92,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20.12
+          node-version: 22.16.0
           cache: "pnpm"
       - run: pnpm install
       - run: pnpm typecheck
@@ -111,7 +105,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20.12
+          node-version: 22.16.0
           cache: "pnpm"
       - run: pnpm install
       - run: pnpm --filter @yep-anywhere/shared build
@@ -134,7 +128,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20.12
+          node-version: 22.16.0
           cache: "pnpm"
       - run: pnpm install
       - run: pnpm -F @yep-anywhere/client exec playwright install chromium
@@ -170,7 +164,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20.12
+          node-version: 22.16.0
           cache: "pnpm"
       - run: pnpm install
       - run: pnpm --filter @yep-anywhere/server benchmark:markdown
@@ -182,7 +176,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20.12
+          node-version: 22.16.0
           cache: "pnpm"
       - run: pnpm install
       - run: pnpm --filter @yep-anywhere/shared build
@@ -200,10 +194,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
-          # Node 20.12 throws inside its recursive watcher when a transcript
-          # is removed. 20.13+ handles deletion; retain 20.12 in unit, source,
-          # and npm checks. See gaps/node20-recursive-watch-deletion.md.
-          node-version: 20.20.0
+          node-version: 22.16.0
           cache: "pnpm"
       - run: pnpm install
       - run: pnpm -F @yep-anywhere/client exec playwright install chromium

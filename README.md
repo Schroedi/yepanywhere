@@ -22,6 +22,9 @@ Use an eligible Claude or ChatGPT plan through the account already signed in to
 the official provider tool. Yep Anywhere can also show current subscription
 limits when the provider exposes them.
 
+New server releases require Node.js `^22.16 || ^23.11 || >=24.10`. Existing
+servers remain usable with the hosted client. See [runtime upgrade guidance](topics/server-runtime.md).
+
 ## Features
 
 - **All your sessions, in one place** — Find and resume every Claude Code and

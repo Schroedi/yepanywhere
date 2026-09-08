@@ -1,7 +1,8 @@
 # Optional discovery SQLite storage
 
 > YA can initialize its own SQLite database for future session discovery without
-> requiring a native package build or raising the Node runtime floor. Storage
+> requiring a native SQLite package build. The server runtime floor is owned
+> by [server runtimes](server-runtime.md). Storage
 > readiness does not advertise a search or indexing feature.
 
 Topic: optional-sqlite
@@ -98,8 +99,9 @@ No generic SQLite capability ID is allocated. Future session discovery routes
 must receive their own exact optional capability, advertised only when their
 implementation and required storage are available. Storage readiness alone
 does not enable discovery UI. Old/disabled servers receive no new requests;
-older clients can ignore the new field. Existing capability meanings, protocol
-levels, and supported runtime floors are unchanged.
+older clients can ignore the new field. Existing capability meanings and protocol
+levels are unchanged; the separately approved server runtime floor is documented in
+[server runtimes](server-runtime.md).
 
 The approved optional-feature corpus is v0.8.0 (2026-08-31) and v0.8.1
 (2026-09-05): the latest two stable server releases and all stable server
@@ -108,26 +110,20 @@ This change adds no frontend consumer, endpoint, or unsupported fallback call.
 
 ## Verification
 
-`scripts/test-discovery-sqlite.mjs` runs the same storage contract against built
-modules on Node 24, desktop's pinned Bun, and the Node 20.12 engines floor.
-It covers persistence, parameters, rollback, migration failure, newer/corrupt
-files, lock contention, teardown, and unsupported/off behavior. Its optional
-shared-file argument verifies Node/Bun file interoperability.
+`scripts/test-discovery-sqlite.mjs` runs the same contract against packaged
+modules across the supported Node boundaries and Desktop's pinned Bun. It
+covers persistence, parameters, rollback, migrations, newer/corrupt files,
+contention, teardown and disabled/unsupported driver behavior. Shared-file
+checks verify Node/Bun interoperability.
 
-`scripts/test-sqlite-startup.mjs` starts the npm distribution in a disposable
-home/data directory using a mock provider and blocked outbound fetch. It checks
-actual `/api/version` state for disabled, enabled/unsupported, and failed-open
-configurations. The Optional SQLite workflow runs the storage contract on
-Linux, macOS, and Windows; full-server startup runs on Linux and macOS.
-Windows full boot currently fails in existing provider coordination before
-SQLite initialization, so that smoke is gated pending the
-[Windows startup gap](../gaps/windows-packaged-startup-provider-identity.md).
-Windows still checks the packaged modules, Node/Bun file interoperability,
-and Node 20 fallback. The general server suite retains its existing Node floor.
-Packaged-module tests attach the locked workspace runtime dependencies; they do
-not validate fresh npm registry resolution. The separate
-[npm runtime-floor gap](../gaps/npm-runtime-dependency-node20-floor.md) records
-the install failures found when attempting fresh dependency resolution.
+`scripts/test-sqlite-startup.mjs` checks real packaged `/api/version` state and
+runtime identity in disposable profiles. The Server Runtime And SQLite workflow
+also verifies fresh npm installation rather than only attached workspace deps.
+Linux/macOS run full startup. Windows retains the existing
+[startup fixture exclusion](../gaps/windows-packaged-startup-provider-identity.md)
+while checking package installation, runtime preflight and storage modules.
+Node 20 is no longer a supported main-server runtime; an old running server
+remains compatible with the hosted frontend. See [server runtimes](server-runtime.md).
 
 Related: [server capabilities](server-capabilities.md),
 [YA environment variables](ya-env-vars.md),

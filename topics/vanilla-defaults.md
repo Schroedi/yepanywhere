@@ -73,6 +73,11 @@ adding chrome; visible narrowing tiers also show its toolbar button.
 
 ## Known Exceptions
 
+The server runtime upgrade notice is default-visible and nonblocking, authorized
+by the Maintainer on 2026-09-08 so remote users can arrange a runtime upgrade
+while continuing to use their existing server. It adds no frontend cutoff or
+update-command gate. See [server runtimes](server-runtime.md).
+
 Structured Codex async questions and their toolbar reminders ship default-on,
 explicitly authorized by graehl on 2026-09-07. They make an existing provider
 question answerable without blocking ongoing work. Clickable choices and the

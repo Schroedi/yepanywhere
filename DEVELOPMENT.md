@@ -2,6 +2,9 @@
 
 ## Setup
 
+Use Node.js `^22.16 || ^23.11 || >=24.10` (a maintained LTS is recommended).
+See [server runtimes](topics/server-runtime.md) for Bun and remote upgrade guidance.
+
 ```bash
 git clone https://github.com/kzahel/yepanywhere.git
 cd yepanywhere

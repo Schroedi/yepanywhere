@@ -79,6 +79,7 @@ interface Props {
  * RelayConnectionGate (relay mode) once connected.
  */
 function ConnectedAppContentInner({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
   const location = useLocation();
   useRemoteActivityBusConnection();
   const { currentRelayUsername } = useRemoteConnection();
@@ -121,6 +122,7 @@ function ConnectedAppContentInner({ children }: { children: ReactNode }) {
     <>
       <RemoteCompatibilityNotices
         versionInfo={versionInfo}
+        runtimeNotice={{ runtime: versionInfo?.serverRuntime, sourceKey, t }}
         relayUsername={currentRelayUsername}
       />
       <ReloadBannerStack avoidSessionComposer={isSessionDetailRoute}>

@@ -26,9 +26,8 @@ export default defineConfig({
       // choice with guarded fallbacks) makes Node print an ExperimentalWarning
       // per worker. Silence it in test output only, so real warnings stay
       // visible; production server logs still show Node's notice. The flag
-      // needs Node >= 20.13, one minor above the supported 20.12 floor, so add
-      // it only where the runtime accepts it. Node 20.12 lacks node:sqlite and
-      // therefore does not emit this warning in the guarded reader tests.
+      // is supported at the Node 22.16 server floor. Keep the acceptance check
+      // for alternate runtimes; this test-only setting never affects the server.
       threads: {
         execArgv: testExecArgv,
       },
