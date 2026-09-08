@@ -2344,6 +2344,183 @@ describe("CodexSessionReader - OSS Support", () => {
     expect(tailBoundaryId).toBe(matchingFullBoundary?.uuid);
   });
 
+  it("bounds incremental reads while preserving old cursors and append reuse", async () => {
+    const sessionId = "bounded-incremental";
+    const projectId = "test-project" as UrlProjectId;
+    const sessionPath = join(testDir, `${sessionId}.jsonl`);
+    const timestamp = "2026-09-08T00:00:00.000Z";
+    const message = (id: string) => ({
+      type: "response_item",
+      timestamp,
+      payload: {
+        type: "message",
+        role: "assistant",
+        id,
+        content: [{ type: "output_text", text: id }],
+      },
+    });
+    const lines = [
+      {
+        type: "session_meta",
+        timestamp,
+        payload: {
+          id: sessionId,
+          cwd: "/test/project",
+          timestamp,
+        },
+      },
+      message("old-anchor"),
+      {
+        type: "response_item",
+        timestamp,
+        payload: {
+          type: "function_call",
+          name: "shell_command",
+          call_id: "old-call",
+          arguments: JSON.stringify({ command: "true" }),
+        },
+      },
+      {
+        type: "world_state",
+        timestamp,
+        payload: {
+          full: true,
+          state: { filler: "x".repeat(5 * 1024 * 1024) },
+        },
+      },
+      ...[1, 2, 3].flatMap((i) => [
+        { type: "compacted", timestamp, payload: { message: `compact ${i}` } },
+        message(`anchor-${i}`),
+      ]),
+    ];
+    await writeFile(
+      sessionPath,
+      `${lines.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
+    );
+    const summary = await reader.getSessionSummary(sessionId, projectId);
+    if (!summary) throw new Error("Expected summary");
+    const options = { tailCompactions: 2, summaryHint: summary };
+    const first = await reader.getSession(
+      sessionId,
+      projectId,
+      "anchor-3",
+      options,
+    );
+    if (!first) throw new Error("Expected incremental session");
+    const normalized = normalizeSession(first);
+    expect(normalized.messages.map((m) => m.uuid)).not.toContain("old-anchor");
+    expect(reader.getEntryCacheStats().sourceBytes).toBeLessThan(4096);
+
+    const reads = vi.spyOn(
+      reader as unknown as CodexEntryReadInternals,
+      "readFileRange",
+    );
+    const unchanged = await reader.getSession(
+      sessionId,
+      projectId,
+      "anchor-3",
+      options,
+    );
+    if (!unchanged) throw new Error("Expected unchanged session");
+    expect(normalizeSession(unchanged).messages).toBe(normalized.messages);
+    expect(reads).not.toHaveBeenCalled();
+    await appendFile(sessionPath, `${JSON.stringify(message("appended"))}\n`);
+    const appended = await reader.getSession(
+      sessionId,
+      projectId,
+      "anchor-3",
+      options,
+    );
+    if (!appended) throw new Error("Expected appended session");
+    const appendedMessages = normalizeSession(appended).messages;
+    expect(appendedMessages.at(-1)?.uuid).toBe("appended");
+    expect(appendedMessages[0]).toBe(normalized.messages[0]);
+    expect(normalized.messages.at(-1)?.uuid).toBe("anchor-3");
+
+    const old = await reader.getSession(
+      sessionId,
+      projectId,
+      "old-anchor",
+      options,
+    );
+    if (!old) throw new Error("Expected old cursor fallback");
+    expect(old.readWindow).toBeUndefined();
+    expect(normalizeSession(old).messages.map((m) => m.uuid)).toContain(
+      "old-anchor",
+    );
+    const recent = await reader.getSession(
+      sessionId,
+      projectId,
+      "appended",
+      options,
+    );
+    if (!recent) throw new Error("Expected recent cursor");
+    expect(reader.getEntryCacheStats().sourceBytes).toBeLessThan(4096);
+    expect(normalizeSession(recent).messages).toEqual(appendedMessages);
+
+    await appendFile(
+      sessionPath,
+      `${JSON.stringify({ type: "compacted", timestamp, payload: { message: "compact 4" } })}\n${JSON.stringify(message("after-compact"))}\n`,
+    );
+    const rotated = await reader.getSession(
+      sessionId,
+      projectId,
+      "appended",
+      options,
+    );
+    if (!rotated) throw new Error("Expected rotated window");
+    expect(normalizeSession(rotated).messages.map((m) => m.uuid)).not.toContain(
+      "anchor-2",
+    );
+    expect(normalizeSession(rotated).messages.at(-1)?.uuid).toBe(
+      "after-compact",
+    );
+
+    const partial = Buffer.from(JSON.stringify(message("partial-😀")) + "\n");
+    const split = partial.indexOf(Buffer.from("😀")) + 2;
+    await appendFile(sessionPath, partial.subarray(0, split));
+    await reader.getSession(sessionId, projectId, "after-compact", options);
+    await appendFile(sessionPath, partial.subarray(split));
+    const [bounded, full] = await Promise.all([
+      reader.getSession(sessionId, projectId, "after-compact", options),
+      reader.getSession(sessionId, projectId),
+    ]);
+    if (!bounded || !full) throw new Error("Expected concurrent snapshots");
+    expect(normalizeSession(bounded).messages.at(-1)?.uuid).toBe("partial-😀");
+    expect(normalizeSession(full).messages.map((m) => m.uuid)).toContain(
+      "old-anchor",
+    );
+    expect(normalizeSession(bounded).messages).toEqual(
+      normalizeSession(full).messages.slice(
+        -normalizeSession(bounded).messages.length,
+      ),
+    );
+
+    await appendFile(
+      sessionPath,
+      `${JSON.stringify({
+        type: "response_item",
+        timestamp,
+        payload: {
+          type: "function_call_output",
+          call_id: "old-call",
+          output: "late output",
+        },
+      })}\n`,
+    );
+    const dependent = await reader.getSession(
+      sessionId,
+      projectId,
+      "after-compact",
+      options,
+    );
+    if (!dependent) throw new Error("Expected prefix-dependent result");
+    expect(dependent.readWindow).toBeUndefined();
+    expect(normalizeSession(dependent).messages.map((m) => m.uuid)).toContain(
+      "old-anchor",
+    );
+  });
+
   it("keeps the compact tail when the rollout grew past its indexed summary", async () => {
     const sessionId = "growing-compact-tail";
     const sessionPath = join(testDir, `${sessionId}.jsonl`);

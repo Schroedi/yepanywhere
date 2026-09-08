@@ -3039,11 +3039,15 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         // When we own the session, tools without results might be pending approval
         includeOrphans: wasEverOwned && !process,
         ...(!fullHistory &&
-        !afterMessageId &&
-        effectiveTailCompactions !== undefined
+        ((!afterMessageId && effectiveTailCompactions !== undefined) ||
+          primaryReaderAfterMessageId)
           ? {
-              tailCompactions: effectiveTailCompactions,
-              ...(beforeMessageId ? { beforeMessageId } : {}),
+              tailCompactions:
+                effectiveTailCompactions ??
+                DEFAULT_SESSION_DETAIL_TAIL_COMPACTIONS,
+              ...(!afterMessageId && beforeMessageId
+                ? { beforeMessageId }
+                : {}),
             }
           : {}),
       },
@@ -3346,6 +3350,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
     if (
       loadedSession.readWindow &&
+      !incrementalAnchorFound &&
       (paginationInfo?.hasOlderMessages !==
         loadedSession.readWindow.omittedPrefix ||
         (loadedSession.readWindow.omittedPrefix &&

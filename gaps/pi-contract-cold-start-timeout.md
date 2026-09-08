@@ -18,3 +18,10 @@ test` failed the installed Pi `--version` probe; the focused Pi contract passed
 on rerun. The 10-second non-Windows deadline remains unchanged. This is a
 suite-load-dependent failure, not evidence of a mockup export defect.
 Contributing-model: 6-Astra
+
+Observed again 2026-09-08 during Codex incremental-read verification: the
+full-suite installed-Pi probe failed after 10.8 seconds with empty version
+stdout (`Unrecognized Pi version output:`), while an isolated contract rerun
+passed in 7.1 seconds. The empty output's cause was not established; the
+isolated pass does not make the full-suite result clean.
+Contributing-model: 6-Astra

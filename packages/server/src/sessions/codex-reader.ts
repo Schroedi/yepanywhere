@@ -252,6 +252,7 @@ export interface CodexSessionReaderScanMetrics {
 
 interface CodexEntryCache {
   filePath: string;
+  startByte: number;
   mtimeMs: number;
   ctimeMs: number;
   size: number;
@@ -332,6 +333,7 @@ type CodexEntryReadPurpose =
 interface CodexReadEntriesOptions {
   purpose: CodexEntryReadPurpose;
   cache?: boolean;
+  startByte?: number;
 }
 
 export interface CodexEntryCacheStats {
@@ -646,7 +648,7 @@ export class CodexSessionReader implements ISessionReader {
 
     for (const cached of this.entryCache.values()) {
       entries += cached.entries.length;
-      sourceBytes += cached.size;
+      sourceBytes += cached.size - cached.startByte;
       partialLineBytes += cached.partialLine.length;
     }
 
@@ -852,7 +854,6 @@ export class CodexSessionReader implements ISessionReader {
       let compactWindow: CodexCompactWindowSnapshot | null = null;
       let referenceBackedHistory = false;
       if (
-        afterMessageId === undefined &&
         Number.isInteger(requestedTailCompactions) &&
         requestedTailCompactions !== undefined &&
         requestedTailCompactions > 0 &&
@@ -876,18 +877,27 @@ export class CodexSessionReader implements ISessionReader {
           !referenceBackedHistory &&
           summaryHint.updatedAt <= snapshotUpdatedAt
         ) {
-          compactWindow = beforeMessageId
-            ? await this.readCompactPageSnapshot(
+          compactWindow = afterMessageId
+            ? await this.readIncrementalSnapshot(
+                sessionId,
                 sessionFile.filePath,
                 stats,
                 requestedTailCompactions,
-                beforeMessageId,
+                afterMessageId,
+                summaryHint,
               )
-            : await this.readCompactTailSnapshot(
-                sessionFile.filePath,
-                stats,
-                requestedTailCompactions,
-              );
+            : beforeMessageId
+              ? await this.readCompactPageSnapshot(
+                  sessionFile.filePath,
+                  stats,
+                  requestedTailCompactions,
+                  beforeMessageId,
+                )
+              : await this.readCompactTailSnapshot(
+                  sessionFile.filePath,
+                  stats,
+                  requestedTailCompactions,
+                );
         }
       }
 
@@ -910,15 +920,6 @@ export class CodexSessionReader implements ISessionReader {
             transcriptSnapshotUpdatedAt,
           );
       if (!summary) return null;
-
-      // Filter entries if needed (for incremental fetching)
-      // Note: Codex entries are not 1:1 with messages, so standard ID filtering is tricky
-      // with raw format. We return all entries for now.
-      // Ideally the client handles diffing/appending.
-      const finalEntries = entries;
-      if (afterMessageId) {
-        // Logic to filter entries would go here if strict incremental loading is needed
-      }
 
       const provider = compactWindow
         ? summary.provider === "codex-oss"
@@ -950,7 +951,7 @@ export class CodexSessionReader implements ISessionReader {
         data: {
           provider,
           session: {
-            entries: finalEntries,
+            entries,
           },
         },
       };
@@ -1619,6 +1620,7 @@ export class CodexSessionReader implements ISessionReader {
   ): Promise<CodexEntrySnapshot> {
     const purpose = options?.purpose ?? "detail";
     const shouldWriteCache = options?.cache ?? true;
+    const startByte = options?.startByte ?? 0;
     const startedAt = Date.now();
     const memoryBefore = process.memoryUsage();
 
@@ -1629,17 +1631,19 @@ export class CodexSessionReader implements ISessionReader {
       if (
         cached &&
         cached.filePath === filePath &&
+        cached.startByte === startByte &&
         cached.size === stats.size &&
         cached.mtimeMs === stats.mtimeMs &&
         cached.ctimeMs === stats.ctimeMs
       ) {
-        this.cacheAgentMappingsFromEntries(
-          sessionId,
-          filePath,
-          stats.mtimeMs,
-          stats.size,
-          cached.entries,
-        );
+        if (startByte === 0)
+          this.cacheAgentMappingsFromEntries(
+            sessionId,
+            filePath,
+            stats.mtimeMs,
+            stats.size,
+            cached.entries,
+          );
         this.recordEntryReadMetrics({
           startedAt,
           memoryBefore,
@@ -1682,6 +1686,7 @@ export class CodexSessionReader implements ISessionReader {
         filePath,
         purpose,
         revision,
+        startByte,
       }).finally(() => {
         if (this.entryReadOwners.get(sessionId) === owner) {
           this.entryReadOwners.delete(sessionId);
@@ -1717,15 +1722,24 @@ export class CodexSessionReader implements ISessionReader {
     filePath: string;
     purpose: CodexEntryReadPurpose;
     revision: number;
+    startByte: number;
   }): Promise<CodexEntryCache | null> {
-    const { startedAt, memoryBefore, sessionId, filePath, purpose, revision } =
-      options;
+    const {
+      startedAt,
+      memoryBefore,
+      sessionId,
+      filePath,
+      purpose,
+      revision,
+      startByte,
+    } = options;
     const stats = await stat(filePath);
     const cached = this.entryCache.get(sessionId);
 
     if (
       cached &&
       cached.filePath === filePath &&
+      cached.startByte === startByte &&
       cached.size === stats.size &&
       cached.mtimeMs === stats.mtimeMs &&
       cached.ctimeMs === stats.ctimeMs
@@ -1736,6 +1750,7 @@ export class CodexSessionReader implements ISessionReader {
     if (
       cached &&
       cached.filePath === filePath &&
+      cached.startByte === startByte &&
       !isCompressedCodexRolloutPath(filePath) &&
       cached.size < stats.size
     ) {
@@ -1768,13 +1783,14 @@ export class CodexSessionReader implements ISessionReader {
       cached.size = stats.size;
       cached.mtimeMs = stats.mtimeMs;
       cached.ctimeMs = stats.ctimeMs;
-      this.cacheAgentMappingsFromEntries(
-        sessionId,
-        filePath,
-        stats.mtimeMs,
-        stats.size,
-        cached.entries,
-      );
+      if (startByte === 0)
+        this.cacheAgentMappingsFromEntries(
+          sessionId,
+          filePath,
+          stats.mtimeMs,
+          stats.size,
+          cached.entries,
+        );
       this.recordEntryReadMetrics({
         startedAt,
         memoryBefore,
@@ -1794,7 +1810,14 @@ export class CodexSessionReader implements ISessionReader {
       return cached;
     }
 
-    const parsed = await this.readEntrySnapshot(sessionId, filePath, stats);
+    const parsed: CodexReadEntrySnapshot =
+      startByte === 0
+        ? await this.readEntrySnapshot(sessionId, filePath, stats)
+        : await this.rolloutWindowReader.readEntryRange(
+            filePath,
+            startByte,
+            stats.size - startByte,
+          );
     if (
       revision !== this.entryCacheRevision ||
       this.entryCache.get(sessionId) !== cached
@@ -1805,6 +1828,7 @@ export class CodexSessionReader implements ISessionReader {
     const cacheStoreStartedAt = Date.now();
     const refreshed: CodexEntryCache = {
       filePath,
+      startByte,
       mtimeMs: stats.mtimeMs,
       ctimeMs: stats.ctimeMs,
       size: stats.size,
@@ -1815,13 +1839,14 @@ export class CodexSessionReader implements ISessionReader {
     };
     this.entryCache.set(sessionId, refreshed);
     const cacheStoreMs = Date.now() - cacheStoreStartedAt;
-    this.cacheAgentMappingsFromEntries(
-      sessionId,
-      filePath,
-      Number(stats.mtimeMs),
-      Number(stats.size),
-      parsed.entries,
-    );
+    if (startByte === 0)
+      this.cacheAgentMappingsFromEntries(
+        sessionId,
+        filePath,
+        Number(stats.mtimeMs),
+        Number(stats.size),
+        parsed.entries,
+      );
     this.recordEntryReadMetrics({
       startedAt,
       memoryBefore,
@@ -2015,6 +2040,89 @@ export class CodexSessionReader implements ISessionReader {
       updatedAt: window.transcriptSnapshotUpdatedAt,
       ...(model !== undefined ? { model } : {}),
       ...(contextUsage ? { contextUsage } : {}),
+    };
+  }
+
+  private async readIncrementalSnapshot(
+    sessionId: string,
+    filePath: string,
+    stats: Awaited<ReturnType<typeof stat>>,
+    compactBoundaries: number,
+    afterMessageId: string,
+    summary: SessionSummary,
+  ): Promise<CodexCompactTailSnapshot | null> {
+    const cached = this.entryCache.get(sessionId);
+    let startByte = cached?.startByte ?? 0;
+    let snapshot: CodexEntrySnapshot | undefined;
+    if (
+      cached?.filePath === filePath &&
+      startByte > 0 &&
+      (cached.size < stats.size ||
+        (cached.size === stats.size &&
+          cached.mtimeMs === stats.mtimeMs &&
+          cached.ctimeMs === stats.ctimeMs))
+    ) {
+      snapshot = await this.readEntries(sessionId, filePath, {
+        purpose: "detail",
+        startByte,
+      });
+      if (
+        snapshot.entries.filter((entry) => entry.type === "compacted")
+          .length !== compactBoundaries
+      ) {
+        snapshot = undefined;
+        stats = await stat(filePath);
+      }
+    }
+    if (!snapshot) {
+      const locatedStart = await this.rolloutWindowReader.findCompactTailStart(
+        filePath,
+        stats,
+        compactBoundaries,
+      );
+      if (locatedStart === null) return null;
+      startByte = locatedStart;
+      snapshot = await this.readEntries(sessionId, filePath, {
+        purpose: "detail",
+        startByte,
+      });
+    }
+    if (snapshot.entries[0]?.type !== "compacted") return null;
+    const provider = summary.provider === "codex-oss" ? "codex-oss" : "codex";
+    const normalized = normalizeSession({
+      summary,
+      transcriptSnapshotUpdatedAt: snapshot.transcriptSnapshotUpdatedAt,
+      data: { provider, session: { entries: snapshot.entries } },
+    });
+    // An older or unknown durable id must take the complete catch-up path.
+    if (
+      !normalized.messages.some(
+        (message) => (message.uuid ?? message.id) === afterMessageId,
+      )
+    ) {
+      return null;
+    }
+    // Results whose calls precede the window need the prefix's tool context.
+    const toolCalls = new Set<string>();
+    for (const message of normalized.messages) {
+      const content = message.message?.content;
+      if (!Array.isArray(content)) continue;
+      for (const block of content) {
+        if (block.type === "tool_use" && block.id) toolCalls.add(block.id);
+        if (
+          block.type === "tool_result" &&
+          block.tool_use_id &&
+          !toolCalls.has(block.tool_use_id)
+        )
+          return null;
+      }
+    }
+    return {
+      ...snapshot,
+      kind: "compact-tail",
+      omittedPrefix: true,
+      startByte,
+      compactBoundaries,
     };
   }
 

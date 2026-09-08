@@ -179,7 +179,10 @@ malformed lineage.
 For an uncursored compact-tail detail request over a large plain rollout, the
 reader can avoid parsing and retaining the hidden prefix. The optimization is
 eligible when the file is larger than 2 MiB times the requested compact-boundary
-count and a cached session summary matches the captured rollout activity time.
+count and a cached session summary describes a valid prefix of the rollout.
+An indexed summary may predate strict file growth; the reader refreshes
+tail-derived fields from the live window. See
+[indexed head fields](session-compact-tail-pagination.md#indexed-head-fields-for-a-session-still-being-written).
 It scans backward from the captured end of file in fixed 1 MiB blocks, carrying
 only the JSONL fragment that crosses each block boundary, until it finds the
 requested Nth `compacted` record.
@@ -193,6 +196,14 @@ visible row without replacing that row's durable message identity. The bounded
 suffix is not published as a complete-entry cache snapshot. The route also
 requires an omitted prefix to retain an older-history cursor; it fails rather
 than presenting the suffix as the start of the session.
+
+Incremental catch-up may retain that suffix in the existing append cache after
+verifying the durable cursor and tool dependencies within it. Cache identity
+includes the source start, so complete reads cannot mistake a suffix for full
+history. Compactions rotate the retained suffix; unchanged reads reuse
+normalization and ordinary appends parse only new bytes. Old or unknown cursors
+and results needing omitted tool context use the complete reader. See the
+[incremental contract and diagnostic comparison](session-compact-tail-pagination.md#incremental-catch-up).
 
 A source-backed `beforeMessageId` continues the same reverse scan from the
 cursor byte instead of the end of file. The reader finds the requested Nth

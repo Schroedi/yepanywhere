@@ -2933,6 +2933,7 @@ describe("Sessions metadata route", () => {
     });
     expect(getSession).toHaveBeenCalledWith("sess-1", project.id, "missing", {
       includeOrphans: false,
+      tailCompactions: 12,
     });
   });
 
