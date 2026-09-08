@@ -721,26 +721,32 @@ async function requestServerReload(source) {
     return;
   }
   wrapperState = "reloading";
-  console.log(`\n[Reload] Replacing backend after ${source}...`);
+  console.log(`[Reload] Replacing backend and Vite after ${source}...`);
   signalManagedChild(server, isWindows ? "SIGTERM" : "SIGHUP");
   void completeServerReload(server);
 }
 
 async function completeServerReload(server) {
+  const client = clientChild;
   try {
     if (!(await waitForProcessTargetsExit(managedTargets(server), 10_000))) {
       console.warn("[Reload] Backend did not stop after SIGHUP; escalating");
       await stopManagedChild(server, "backend reload", 2_000);
     }
+    if (wrapperState !== "reloading") return;
+    if (client) client.yaReloading = true;
+    await stopManagedChild(client, "Vite reload");
   } catch (error) {
     console.error(`[Reload] ${errorMessage(error)}`);
-    await shutdownWrapper("Backend reload cleanup failed", 1);
+    await shutdownWrapper("Development reload cleanup failed", 1);
     return;
   }
 
   if (wrapperState !== "reloading") return;
   if (serverChild === server) serverChild = null;
-  console.log("[Reload] Starting replacement backend");
+  if (clientChild === client) clientChild = null;
+  console.log("[Reload] Starting replacement Vite and backend");
+  startClient();
   startServer();
   wrapperState = "running";
 }
@@ -863,13 +869,14 @@ function startClient() {
   clientChild = client;
 
   client.on("exit", (code, signal) => {
-    if (wrapperState === "shutting-down") return;
-    if (code !== null && code !== 0) {
-      console.error(`Client exited with code ${code}`);
-    }
-    void shutdownWrapper(
-      `Vite exited unexpectedly (code=${code}, signal=${signal})`,
-      code === 0 ? 0 : 1,
+    if (wrapperState === "shutting-down" || client.yaReloading) return;
+    console.error(
+      `[Vite] Exited (code=${code}, signal=${signal}); backend and provider host remain running. Reload the server to retry.`,
+    );
+  });
+  client.on("error", (error) => {
+    console.error(
+      `[Vite] Failed to start: ${errorMessage(error)}. Backend and provider host remain running. Reload the server to retry.`,
     );
   });
 

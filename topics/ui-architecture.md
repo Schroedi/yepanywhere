@@ -161,6 +161,11 @@ stacks, route, client/server versions, timestamp, user agent, bounded DOM
 counts, and the browser-local Conversation View/thinking settings relevant to
 session rendering. It never includes transcript or draft text.
 
+The copy icon beside Diagnostic details copies that same complete diagnostic
+without opening or closing the disclosure. It shares success/failure feedback
+with the Copy Diagnostics button and remains usable without the app's styles
+or hook-based providers.
+
 The Report Issue action targets the canonical repository and pre-fills the
 same diagnostic plus a prompt for the immediately preceding action. Optional
 remote client-log collection receives the diagnostic as one formatted error

@@ -255,6 +255,12 @@ export class ErrorBoundary extends Component<Props, State> {
         serverVersion,
       );
       const issueUrl = buildClientCrashIssueUrl(error, diagnostic);
+      const copyLabel =
+        copyStatus === "copied"
+          ? enMessages.errorBoundaryDiagnosticsCopied
+          : copyStatus === "failed"
+            ? enMessages.errorBoundaryDiagnosticsCopyFailed
+            : enMessages.errorBoundaryCopyDiagnostics;
 
       return (
         <div style={styles.container}>
@@ -293,12 +299,42 @@ export class ErrorBoundary extends Component<Props, State> {
               )}
             </div>
 
-            <details style={styles.diagnosticDetails}>
-              <summary style={styles.diagnosticSummary}>
-                {enMessages.errorBoundaryDiagnosticDetails}
-              </summary>
-              <pre style={styles.diagnosticText}>{diagnostic}</pre>
-            </details>
+            <div style={styles.diagnosticSection}>
+              <details style={styles.diagnosticDetails}>
+                <summary style={styles.diagnosticSummary}>
+                  {enMessages.errorBoundaryDiagnosticDetails}
+                </summary>
+                <pre style={styles.diagnosticText}>{diagnostic}</pre>
+              </details>
+              <button
+                type="button"
+                onClick={this.handleCopyDiagnostics}
+                style={styles.diagnosticCopyButton}
+                aria-label={copyLabel}
+                title={copyLabel}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  {copyStatus === "copied" ? (
+                    <path d="m5 12 4 4L19 6" />
+                  ) : (
+                    <>
+                      <rect x="9" y="9" width="13" height="13" rx="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </>
+                  )}
+                </svg>
+              </button>
+            </div>
 
             <div style={styles.actions}>
               <button
@@ -313,11 +349,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 onClick={this.handleCopyDiagnostics}
                 style={styles.secondaryButton}
               >
-                {copyStatus === "copied"
-                  ? enMessages.errorBoundaryDiagnosticsCopied
-                  : copyStatus === "failed"
-                    ? enMessages.errorBoundaryDiagnosticsCopyFailed
-                    : enMessages.errorBoundaryCopyDiagnostics}
+                {copyLabel}
               </button>
               <a
                 href={issueUrl}
@@ -415,16 +447,37 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "13px",
     color: "#a1a1aa",
   },
-  diagnosticDetails: {
+  diagnosticSection: {
+    position: "relative",
     marginBottom: "24px",
+  },
+  diagnosticDetails: {
     padding: "12px 16px",
     backgroundColor: "#27272a",
     borderRadius: "6px",
   },
   diagnosticSummary: {
+    paddingRight: "44px",
+    lineHeight: "44px",
     cursor: "pointer",
     fontSize: "14px",
     color: "#d4d4d8",
+  },
+  diagnosticCopyButton: {
+    position: "absolute",
+    top: "12px",
+    right: "16px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "44px",
+    height: "44px",
+    padding: 0,
+    color: "#d4d4d8",
+    backgroundColor: "transparent",
+    border: "1px solid #52525b",
+    borderRadius: "6px",
+    cursor: "pointer",
   },
   diagnosticText: {
     maxHeight: "240px",

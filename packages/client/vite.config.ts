@@ -6,7 +6,7 @@ import { warningFreeBuildLogger } from "./vite-build-policy";
 import { cspPlugin, shouldInlineClientAsset } from "./vite-plugin-csp";
 import { reloadNotify } from "./vite-plugin-reload-notify";
 
-// NO_FRONTEND_RELOAD: Disable HMR and use manual reload notifications instead
+// NO_FRONTEND_RELOAD: Suppress application updates with reloadNotify.
 const noFrontendReload = process.env.NO_FRONTEND_RELOAD === "true";
 
 // Port defaults to 3402 (base port 3400 + 2), can be overridden via VITE_PORT
@@ -34,6 +34,8 @@ function getGitVersion(): string {
 }
 
 export default defineConfig(({ command }) => ({
+  // Other dev servers must not replace this server's optimized React graph.
+  cacheDir: `node_modules/.vite-local-${vitePort}`,
   build: {
     assetsInlineLimit: shouldInlineClientAsset,
     rollupOptions: {
@@ -63,7 +65,7 @@ export default defineConfig(({ command }) => ({
   },
   plugins: [
     react(),
-    // When HMR is disabled, use reload-notify plugin to tell backend about changes
+    // Manual mode suppresses application updates inside the HMR hook.
     reloadNotify({ enabled: noFrontendReload }),
     // Content Security Policy (stricter in production, permissive in dev for HMR)
     cspPlugin({ isRemote: false }),
@@ -76,18 +78,15 @@ export default defineConfig(({ command }) => ({
   },
   server: {
     port: vitePort,
+    strictPort: true,
     host: viteHost,
     allowedHosts: ["localhost", ".yepanywhere.com"],
     // HMR configuration for reverse proxy setup
     // When accessed through backend proxy (port 3400) or Tailscale, HMR needs to
     // connect back through the same proxy path, not directly to Vite's port
-    hmr: noFrontendReload
-      ? false
-      : {
-          // Let the client determine host/port from its current location
-          // This allows HMR to work through any proxy (backend, Tailscale, etc.)
-          // The backend will proxy WebSocket connections to us
-        },
+    // Keep HMR machinery alive for config restarts and reloadNotify's hook.
+    // An empty config derives the WebSocket address from the browser URL.
+    hmr: {},
     // No proxy needed - backend (port 3400) proxies to us, not the other way around
     // Users access http://localhost:3400 and backend forwards non-API requests here
   },

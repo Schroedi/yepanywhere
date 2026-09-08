@@ -92,10 +92,10 @@ already-running ordinary sessions, volatile queued work, an unavailable or
 incompatible host, and any session that cannot detach cleanly. Changing the
 Codex setting never attempts to adopt a live process.
 
-Safe Reload replaces Hono, not existing provider workers. A surviving worker
-keeps the provider code and launch facts it started with. New workers load
-current code, a targeted worker relaunch updates one session, and a
-provider-host reboot guarantees that every hosted provider worker adopted a
+Safe Reload replaces Hono and Vite while preserving existing provider workers.
+A surviving worker keeps the provider code and launch facts it started with.
+New workers load current code, a targeted worker relaunch updates one session,
+and a provider-host reboot guarantees that every hosted provider worker adopted a
 provider-layer change. A full wrapper reboot provides that guarantee when the
 wrapper owns the host, but not when it merely attached to a separately owned
 foreground host. Orderly-restart recovery launches a new worker using current
@@ -881,6 +881,20 @@ Both the authenticated API action and wrapper `SIGHUP` enter this same decision
 path. HUP is sent only to the wrapper. Codex app-server interprets HUP as a
 request to drain and exit after active work, so forwarding it would retire the
 very runtime that Hono reload is meant to preserve.
+
+In the development wrapper, both paths also replace Vite after the old Hono
+generation exits. Expected frontend termination is part of reload, so it does
+not trigger wrapper shutdown. The replacement reads current Vite configuration
+and builds a fresh in-memory module graph; backend and frontend process IDs
+change while the wrapper, provider host, and worker identities remain stable.
+Concurrent reload requests coalesce. The safe-restart blocker decision remains
+unchanged; restarting Vite never bypasses the queue or provider-detach checks.
+
+A frontend exit or launch error keeps Hono and the provider host alive. The
+wrapper reports that Vite needs attention and the next server reload retries
+it; there is no automatic retry loop. Terminal wrapper shutdown still reaps
+its owned host and all children. A wrapper source change needs one full wrapper
+restart before the running process adopts this reload behavior.
 
 The client gates the Codex backend-selector field with
 `reload-safe-codex-runtime-settings` and enables it only when the current host

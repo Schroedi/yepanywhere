@@ -78,6 +78,25 @@ describe("ErrorBoundary", () => {
     expect(emitted).not.toContain("viewer-state");
   });
 
+  it("copies the diagnostic from its header without expanding it", async () => {
+    render(
+      <ErrorBoundary>
+        <ThrowingSessionView />
+      </ErrorBoundary>,
+    );
+    await screen.findByText("0.7.0-server");
+    const details = screen.getByText("Diagnostic details").closest("details");
+    const copy = screen.getAllByRole("button", { name: "Copy Diagnostics" })[0];
+    expect(copy?.querySelector("svg")).toBeTruthy();
+    fireEvent.click(copy!);
+    await screen.findByText("Diagnostics Copied");
+    expect(details?.open).toBe(false);
+    expect(writeText).toHaveBeenCalledOnce();
+    expect(writeText).toHaveBeenCalledWith(
+      details?.querySelector("pre")?.textContent,
+    );
+  });
+
   it("preserves the component stack and session render context", async () => {
     render(
       <ErrorBoundary>

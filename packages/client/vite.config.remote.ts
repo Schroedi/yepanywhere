@@ -68,6 +68,8 @@ function serveRemoteHtml(): Plugin {
 }
 
 export default defineConfig(({ command }) => ({
+  // Keep remote development independent of the local app's dependency graph.
+  cacheDir: `node_modules/.vite-remote-${remoteDevPort}`,
   clearScreen: false,
   customLogger:
     command === "build" ? warningFreeBuildLogger("Remote client") : undefined,

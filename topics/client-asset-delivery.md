@@ -71,6 +71,30 @@ removed after bootstrap. Without it, missing, malformed, non-JSON, mismatched,
 or unavailable prior metadata/assets fail the deployment. This does not
 complete direct/LAN static-server generation retention or static encoding.
 
+## Development dependency graphs and manual reload
+
+Local and remote Vite development servers keep separate optimized-dependency
+caches, additionally separated by their configured ports. Starting one must
+not replace React or other dependency chunks still referenced by another.
+Browser-test fixtures supply their own temporary cache through
+`e2e/support/vite-server.ts`. Optimized modules remain under `node_modules`
+so React transforms treat them as dependencies.
+The local dev server fails when its configured Vite port is occupied instead
+of silently moving to a port the backend does not proxy.
+
+`NO_FRONTEND_RELOAD=true` keeps source edits manual: the reload-notification
+plugin tells the backend about changes and prevents application HMR updates.
+Notifications use `VITE_API_PORT` when explicitly set, otherwise the launch's
+`PORT` (default 3400).
+Vite's HMR machinery remains enabled so that notification hooks, config
+restarts, and dependency-graph invalidation still run. Configuration or
+dependency changes may require Vite's full page reload to keep the module graph
+consistent; ordinary application source edits wait for the user to reload.
+Development server reload actions replace Vite alongside Hono, adopting fresh
+startup configuration while the provider host and its workers remain alive.
+If Vite exits or cannot start, the wrapper keeps Hono and the provider host
+running, reports the failure, and allows the next reload request to retry.
+
 ## Response contract
 
 Treat build-owned `/assets/` filenames as immutable only when the build

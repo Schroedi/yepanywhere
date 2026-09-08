@@ -72,10 +72,11 @@ Shared-host use is capability-driven and automatic, not a user toggle. The
 former Codex-native setting remains accepted and stored for compatibility, but
 is inert and hidden; Codex uses the shared host like every other provider.
 
-**Safe Reload replaces Hono only.** Existing shared-host workers intentionally
-keep the provider code and launch facts they started with. A newly launched
-worker uses current provider code, a targeted worker relaunch updates that one
-session, and a provider-host reboot guarantees every provider worker adopted
+**Safe Reload replaces Hono and Vite, preserving the provider host.** Existing
+shared-host workers intentionally keep the provider code and launch facts they
+started with. A newly launched worker uses current provider code, a targeted
+worker relaunch updates that one session, and a provider-host reboot guarantees
+every provider worker adopted
 provider-layer changes (a full wrapper reboot does this when the wrapper owns
 the host). The UI's immediate reload is
 available only when each active blocker has a detachable hosted owner and no

@@ -42,7 +42,7 @@ export function reloadNotify(options: ReloadNotifyOptions = {}): Plugin {
       }
 
       // Notify the backend about the file change
-      const apiPort = process.env.VITE_API_PORT || "3400";
+      const apiPort = process.env.VITE_API_PORT || process.env.PORT || "3400";
       const url = `http://localhost:${apiPort}${endpoint}`;
 
       fetch(url, {
