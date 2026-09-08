@@ -100,6 +100,19 @@ export function latestPublished(releases) {
     })[0];
 }
 
+export function selectVerifiedCommit(runs, isAncestor) {
+  const seen = new Set();
+  return runs.find((run) => {
+    if (seen.has(run.head_sha)) return false;
+    seen.add(run.head_sha);
+    return (
+      run.status === "completed" &&
+      run.conclusion === "success" &&
+      isAncestor(run.head_sha)
+    );
+  });
+}
+
 function select() {
   const repo = process.env.GITHUB_REPOSITORY;
   // Require main's newest run for that SHA to pass, including reruns. Never
@@ -108,20 +121,14 @@ function select() {
     `repos/${repo}/actions/workflows/ci.yml/runs?branch=main&event=push&per_page=100`,
     ".workflow_runs | map({id, head_sha, status, conclusion})",
   );
-  const seen = new Set();
-  const candidate = runs.find((run) => {
-    if (seen.has(run.head_sha)) return false;
-    seen.add(run.head_sha);
-    return (
-      run.status === "completed" &&
-      run.conclusion === "success" &&
-      spawnSync(
-        "git",
-        ["merge-base", "--is-ancestor", run.head_sha, "origin/main"],
-        { cwd: root, stdio: "pipe" },
-      ).status === 0
-    );
-  });
+  const candidate = selectVerifiedCommit(
+    runs,
+    (sha) =>
+      spawnSync("git", ["merge-base", "--is-ancestor", sha, "origin/main"], {
+        cwd: root,
+        stdio: "pipe",
+      }).status === 0,
+  );
   if (!candidate)
     throw new Error("No verified main commit in the latest 100 CI runs");
   const releases = [];

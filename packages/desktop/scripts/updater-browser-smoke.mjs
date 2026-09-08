@@ -90,6 +90,10 @@ try {
         if (command === "get_server_output_buffer") return [];
         if (command === "get_update_channel") return f.track;
         if (command === "set_update_channel") {
+          if (f.deferSelection)
+            await new Promise((_, reject) => {
+              f.failSelection = () => reject(new Error("Save failed"));
+            });
           f.track = args.track;
           f.version = args.track === "latest" ? "0.3.201" : null;
           f.waiting = args.track === "stable";
@@ -157,6 +161,20 @@ try {
   await page.evaluate(() => {
     window.fixture.resolve();
     window.fixture.deferred = false;
+  });
+  await page.waitForTimeout(100);
+  assert.equal(await page.getByRole("dialog").count(), 0);
+  await page.evaluate(() => window.fixture.check());
+  await page.getByText(/Waiting for Stable to catch up/).waitFor();
+  await page.evaluate(() => {
+    window.fixture.deferSelection = true;
+  });
+  await page.locator("select").selectOption("latest");
+  await page.waitForFunction(() => Boolean(window.fixture.failSelection));
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.evaluate(() => {
+    window.fixture.failSelection();
+    window.fixture.deferSelection = false;
   });
   await page.waitForTimeout(100);
   assert.equal(await page.getByRole("dialog").count(), 0);

@@ -14,6 +14,7 @@ import {
   isDesktopInput,
   latestPublished,
   nightlyIdentity,
+  selectVerifiedCommit,
 } from "./nightly-release.mjs";
 import { validateRelease } from "./desktop-release.mjs";
 
@@ -160,5 +161,28 @@ test("publication refuses incomplete or foreign updater artifacts", () => {
         version,
       }),
     /MSI/,
+  );
+});
+
+test("selection rejects pending, failed reruns and commits outside main", () => {
+  const run = (head_sha, conclusion, status = "completed") => ({
+    head_sha,
+    conclusion,
+    status,
+  });
+  const runs = [
+    run("pending", null, "in_progress"),
+    run("retry", "failure"),
+    run("retry", "success"),
+    run("foreign", "success"),
+    run("verified", "success"),
+  ];
+  assert.equal(
+    selectVerifiedCommit(runs, (sha) => sha !== "foreign").head_sha,
+    "verified",
+  );
+  assert.equal(
+    selectVerifiedCommit(runs.slice(0, 3), () => true),
+    undefined,
   );
 });

@@ -84,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       # tauri-action merges updater metadata in the shared private draft.
-      max-parallel: 1
+      max-parallel: ${{ needs.release-input.outputs.publish == 'true' && 1 || 3 }}
       matrix:
         include:
           # macos-latest is mid-migration to macOS 26 (runner-images#14167, rolling

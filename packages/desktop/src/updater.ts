@@ -115,7 +115,8 @@ async function showDialog(
         if (selection !== generation) return;
         track = select.value as Track;
       } catch (error) {
-        await showDialog(`Could not change channel: ${String(error)}`);
+        if (selection === generation)
+          await showDialog(`Could not change channel: ${String(error)}`);
         return;
       } finally {
         busy = false;
@@ -132,7 +133,12 @@ async function showDialog(
   overlay
     .querySelector('[data-action="install"]')
     ?.addEventListener("click", () => void installUpdate(overlay));
-  await openUpdaterWindow();
+  try {
+    await openUpdaterWindow();
+  } catch (error) {
+    // Preserve the result even when native window activation fails.
+    console.error("Failed to activate updater window:", error);
+  }
 }
 
 async function installUpdate(overlay: HTMLElement): Promise<void> {
