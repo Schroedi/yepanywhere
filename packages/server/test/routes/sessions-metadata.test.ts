@@ -2493,6 +2493,9 @@ describe("Sessions metadata route", () => {
       project.id,
       "sess-1",
       reader,
+      // A live rollout grows between index passes; the hint supplies only
+      // head-derived fields, so an indexed prefix is still usable.
+      { acceptAppendedFile: true },
     );
     expect(getSession).toHaveBeenCalledWith("sess-1", project.id, undefined, {
       includeOrphans: false,

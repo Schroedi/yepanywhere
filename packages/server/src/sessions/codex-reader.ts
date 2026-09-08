@@ -867,9 +867,14 @@ export class CodexSessionReader implements ISessionReader {
         const snapshotUpdatedAt = new Date(
           getCodexRolloutActivityTimeMs(sessionFile.filePath, stats),
         ).toISOString();
+        // The hint's relationship to the file was validated where it was
+        // fetched, and it only supplies head-derived fields: the window itself
+        // is read from the live file. Reject only a hint claiming to be newer
+        // than the file, which means the rollout was replaced or rewound
+        // rather than appended to.
         if (
           !referenceBackedHistory &&
-          summaryHint.updatedAt === snapshotUpdatedAt
+          summaryHint.updatedAt <= snapshotUpdatedAt
         ) {
           compactWindow = beforeMessageId
             ? await this.readCompactPageSnapshot(
@@ -894,7 +899,10 @@ export class CodexSessionReader implements ISessionReader {
         }));
       const { entries, transcriptSnapshotUpdatedAt } = transcriptSnapshot;
       const summary = compactWindow
-        ? cloneSessionSummary(summaryHint ?? null)
+        ? this.refreshTailDerivedSummary(
+            cloneSessionSummary(summaryHint ?? null),
+            compactWindow,
+          )
         : await this.buildSessionSummaryFromEntries(
             sessionId,
             projectId,
@@ -1978,6 +1986,36 @@ export class CodexSessionReader implements ISessionReader {
       Number(stats.size),
       readStartedAt,
     );
+  }
+
+  /**
+   * A compact-tail response pairs an indexed summary with entries read from
+   * the live file, so the index may predate recent appends. Re-derive the
+   * fields the tail window itself carries; head-derived fields (title,
+   * creation, originator, provider) cannot change under append. An older page
+   * is not the session's current state, so it refreshes nothing.
+   *
+   * `messageCount` still reflects only what was indexed and therefore lags a
+   * session that is still being written. It feeds session-list ordering and
+   * the empty-session check, neither of which depends on an exact count.
+   */
+  private refreshTailDerivedSummary(
+    summary: SessionSummary | null,
+    window: CodexCompactWindowSnapshot,
+  ): SessionSummary | null {
+    if (!summary || window.kind !== "compact-tail") return summary;
+
+    const provider = summary.provider === "codex-oss" ? "codex-oss" : "codex";
+    const model = this.extractModel(window.entries) ?? summary.model;
+    const contextUsage =
+      this.extractContextUsage(window.entries, model, provider) ??
+      summary.contextUsage;
+    return {
+      ...summary,
+      updatedAt: window.transcriptSnapshotUpdatedAt,
+      ...(model !== undefined ? { model } : {}),
+      ...(contextUsage ? { contextUsage } : {}),
+    };
   }
 
   private async readCompactTailSnapshot(

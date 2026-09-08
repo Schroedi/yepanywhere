@@ -2303,6 +2303,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
               projectId,
               sessionId,
               source.reader,
+              // A live Codex rollout grows between index passes, so requiring
+              // an exactly-current index meant every mid-turn open of a long
+              // session lost the compact-tail window and fell back to reading
+              // and normalizing the whole file. The reader takes only
+              // head-derived fields from this hint and reads the tail itself.
+              { acceptAppendedFile: true },
             )
           : null;
       const loaded = await source.reader.getSession(

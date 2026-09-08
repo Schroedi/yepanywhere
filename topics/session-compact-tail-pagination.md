@@ -108,6 +108,33 @@ intentionally never normalized or counted. The route rejects a provider-bounded
 response whose omitted prefix lacks the older-history boolean or cursor instead
 of presenting the suffix as the beginning of the session.
 
+#### Indexed head fields for a session still being written
+
+Omitting that prefix needs head-derived summary fields the window itself does
+not contain — title, creation time, originator, provider — which the Codex
+reader takes from the session index. A session Codex is actively writing grows
+between index passes, so requiring an exactly-current index surrendered the
+bounded window at the worst possible moment: opening a long session mid-turn
+then read and normalized the whole rollout.
+
+An append-only transcript that has only grown still has an accurate indexed
+prefix. The index may therefore supply those head-derived fields while the
+window is read from the live file, and the response re-derives what the window
+carries: `updatedAt` comes from the live file, and the model and context usage
+come from the window whenever it contains them. `messageCount` stays the
+indexed count and lags a session still being written; it feeds session-list
+ordering and the empty-session check, neither of which needs an exact count. An
+older page refreshes nothing, because it is not the session's current state.
+
+A file that shrank, or whose size held while its modification time moved, was
+rewritten rather than appended to, so its index describes different bytes and
+is refused. A hint claiming to be newer than the file means the rollout was
+replaced or rewound, and also falls back to the complete reader.
+
+This bounded window covers uncursored reads. An `afterMessageId` incremental
+read is not compact-tail bounded and still works from the full normalized
+transcript.
+
 ## Why This Matters
 
 The previous boundary condition used `totalCompactions <= tailCompactions` as

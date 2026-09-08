@@ -2344,6 +2344,168 @@ describe("CodexSessionReader - OSS Support", () => {
     expect(tailBoundaryId).toBe(matchingFullBoundary?.uuid);
   });
 
+  it("keeps the compact tail when the rollout grew past its indexed summary", async () => {
+    const sessionId = "growing-compact-tail";
+    const sessionPath = join(testDir, `${sessionId}.jsonl`);
+    const compactTimestamps = [
+      "2026-09-02T01:00:00.000Z",
+      "2026-09-02T02:00:00.000Z",
+      "2026-09-02T03:00:00.000Z",
+    ];
+    const lines = [
+      JSON.stringify({
+        type: "session_meta",
+        timestamp: "2026-09-02T00:00:00.000Z",
+        payload: {
+          id: sessionId,
+          cwd: "/test/project",
+          timestamp: "2026-09-02T00:00:00.000Z",
+          model_provider: "openai",
+        },
+      }),
+      JSON.stringify({
+        type: "event_msg",
+        timestamp: "2026-09-02T00:00:01.000Z",
+        payload: { type: "user_message", message: "first turn" },
+      }),
+      JSON.stringify({
+        type: "world_state",
+        timestamp: "2026-09-02T00:00:02.000Z",
+        payload: { full: true, state: { filler: "x".repeat(5 * 1024 * 1024) } },
+      }),
+      ...compactTimestamps.flatMap((timestamp, index) => [
+        JSON.stringify({
+          type: "compacted",
+          timestamp,
+          payload: { message: `compact ${index + 1}` },
+        }),
+        JSON.stringify({
+          type: "event_msg",
+          timestamp: timestamp.replace("00.000Z", "01.000Z"),
+          payload: { type: "user_message", message: `turn ${index + 1}` },
+        }),
+      ]),
+    ];
+    await writeFile(sessionPath, `${lines.join("\n")}\n`);
+
+    // The hint an index pass would have produced for the file as it stood.
+    const summary = await reader.getSessionSummary(
+      sessionId,
+      "test-project" as UrlProjectId,
+    );
+    if (!summary) throw new Error("Expected the indexed summary hint");
+
+    // Codex keeps writing: the hint is now a correct prefix, not current truth.
+    await appendFile(
+      sessionPath,
+      `${JSON.stringify({
+        type: "event_msg",
+        timestamp: "2026-09-02T04:00:00.000Z",
+        payload: { type: "user_message", message: "turn while live" },
+      })}\n`,
+    );
+    await utimes(sessionPath, new Date(), new Date());
+
+    const loaded = await reader.getSession(
+      sessionId,
+      "test-project" as UrlProjectId,
+      undefined,
+      { tailCompactions: 2, summaryHint: summary },
+    );
+
+    expect(loaded?.readWindow).toMatchObject({
+      kind: "compact-tail",
+      omittedPrefix: true,
+      compactBoundaries: 2,
+    });
+    if (
+      !loaded ||
+      (loaded.data.provider !== "codex" && loaded.data.provider !== "codex-oss")
+    ) {
+      throw new Error("Expected the compact-tail detail read");
+    }
+    expect(loaded.data.session.entries.map((entry) => entry.type)).toEqual([
+      "compacted",
+      "event_msg",
+      "compacted",
+      "event_msg",
+      "event_msg",
+    ]);
+    // The appended turn is inside the window, and the reported snapshot time
+    // comes from the live file rather than the older indexed summary.
+    expect(loaded.summary.updatedAt).toBe(loaded.transcriptSnapshotUpdatedAt);
+    expect(loaded.summary.updatedAt).not.toBe(summary.updatedAt);
+  });
+
+  it("falls back to a full read when the hint claims to be newer than the file", async () => {
+    const sessionId = "rewound-compact-tail";
+    const sessionPath = join(testDir, `${sessionId}.jsonl`);
+    const lines = [
+      JSON.stringify({
+        type: "session_meta",
+        timestamp: "2026-09-02T00:00:00.000Z",
+        payload: {
+          id: sessionId,
+          cwd: "/test/project",
+          timestamp: "2026-09-02T00:00:00.000Z",
+          model_provider: "openai",
+        },
+      }),
+      JSON.stringify({
+        type: "event_msg",
+        timestamp: "2026-09-02T00:00:01.000Z",
+        payload: { type: "user_message", message: "first turn" },
+      }),
+      JSON.stringify({
+        type: "world_state",
+        timestamp: "2026-09-02T00:00:02.000Z",
+        payload: { full: true, state: { filler: "x".repeat(5 * 1024 * 1024) } },
+      }),
+      JSON.stringify({
+        type: "compacted",
+        timestamp: "2026-09-02T01:00:00.000Z",
+        payload: { message: "compact 1" },
+      }),
+      JSON.stringify({
+        type: "compacted",
+        timestamp: "2026-09-02T02:00:00.000Z",
+        payload: { message: "compact 2" },
+      }),
+      JSON.stringify({
+        type: "event_msg",
+        timestamp: "2026-09-02T02:00:01.000Z",
+        payload: { type: "user_message", message: "last turn" },
+      }),
+    ];
+    await writeFile(sessionPath, `${lines.join("\n")}\n`);
+
+    const summary = await reader.getSessionSummary(
+      sessionId,
+      "test-project" as UrlProjectId,
+    );
+    if (!summary) throw new Error("Expected the indexed summary hint");
+
+    const compactTailRead = vi.spyOn(
+      reader as unknown as CodexEntryReadInternals,
+      "readCompactTailSnapshot",
+    );
+    const loaded = await reader.getSession(
+      sessionId,
+      "test-project" as UrlProjectId,
+      undefined,
+      {
+        tailCompactions: 2,
+        summaryHint: {
+          ...summary,
+          updatedAt: new Date(Date.now() + 60_000).toISOString(),
+        },
+      },
+    );
+
+    expect(compactTailRead).not.toHaveBeenCalled();
+    expect(loaded?.readWindow).toBeUndefined();
+  });
+
   it("accepts only well-formed safe source byte cursors", () => {
     expect(parseCodexSourceByteCursor("codex-cursor-byte-42")).toBe(42);
     expect(
@@ -2363,7 +2525,11 @@ describe("CodexSessionReader - OSS Support", () => {
     }
   });
 
-  it("uses the complete reader when the summary hint is stale", async () => {
+  it("still attempts the compact tail with a summary hint older than the file", async () => {
+    // An older hint describes an indexed prefix of an append-only rollout, which
+    // is exactly the state of a session Codex is still writing. The window
+    // itself comes from the live file, so the read is attempted; this fixture is
+    // too small for a compact tail, so it falls back to the complete reader.
     const sessionId = "stale-compact-tail-summary";
     await createSessionFile(sessionId, "openai", "gpt-5");
     const summary = await reader.getSessionSummary(
@@ -2390,7 +2556,7 @@ describe("CodexSessionReader - OSS Support", () => {
       },
     );
 
-    expect(compactTailRead).not.toHaveBeenCalled();
+    expect(compactTailRead).toHaveBeenCalledTimes(1);
     expect(loaded?.readWindow).toBeUndefined();
     expect(loaded?.data.session.entries[0]?.type).toBe("session_meta");
   });
