@@ -954,7 +954,7 @@ describe("YA server speech provider", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(stopTrack).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(stopTrack).toHaveBeenCalledTimes(1));
     expect(recorderStart).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
     expect(onResult).not.toHaveBeenCalled();
@@ -1621,6 +1621,7 @@ describe("YA server speech provider", () => {
     await Promise.resolve();
     await Promise.resolve();
 
+    await waitForProviderStatus(provider, "listening");
     ws.receive({ type: "interim", text: "hel", isFinal: false });
     expect(onInterimResult).toHaveBeenLastCalledWith("hel");
     expect(onResult).not.toHaveBeenCalled();
@@ -1940,6 +1941,7 @@ describe("YA server speech provider", () => {
     await Promise.resolve();
     await Promise.resolve();
 
+    await waitForProviderStatus(provider, "listening");
     ws.receive({
       type: "interim",
       text: "testing speech to text",
@@ -2080,6 +2082,7 @@ describe("YA server speech provider", () => {
     await Promise.resolve();
     await Promise.resolve();
 
+    await waitForProviderStatus(provider, "listening");
     const stopFrameCount = () =>
       ws.send.mock.calls
         .map(([payload]) =>
@@ -2357,6 +2360,7 @@ describe("YA server speech provider", () => {
     await Promise.resolve();
     await Promise.resolve();
 
+    await waitForProviderStatus(provider, "listening");
     ws.receive({
       type: "interim",
       text: "does not delete the content",
@@ -2487,6 +2491,7 @@ describe("YA server speech provider", () => {
     await Promise.resolve();
 
     // graceMs is client-side only and must not appear in the start frame.
+    await waitForProviderStatus(provider, "listening");
     expect(JSON.parse(ws.send.mock.calls[0]?.[0] as string)).toMatchObject({
       type: "start",
       backendId: "ya-grok",
@@ -2906,6 +2911,7 @@ describe("YA server speech provider", () => {
     await Promise.resolve();
     await Promise.resolve();
 
+    await vi.waitFor(() => expect(ws.onmessage).not.toBeNull());
     expect(audioContextOptions[0]).toMatchObject({
       latencyHint: "interactive",
       sampleRate: 16_000,
@@ -3640,7 +3646,7 @@ describe("YA server speech provider", () => {
     FakeWebSocket.instances[0]?.open();
     await Promise.resolve();
     await Promise.resolve();
-    expect(provider.getState().status).toBe("listening");
+    await waitForProviderStatus(provider, "listening");
 
     provider.stop();
 
@@ -3739,6 +3745,7 @@ describe("YA server speech provider", () => {
     await Promise.resolve();
     await Promise.resolve();
 
+    await waitForProviderStatus(provider, "listening");
     ws.receive({ type: "interim", text: "hello world", isFinal: false });
     // Upstream gives up while the user paused: the words must not be lost.
     ws.receive({ type: "error", message: "xAI STT streaming timed out" });
@@ -3824,6 +3831,7 @@ describe("YA server speech provider", () => {
     await Promise.resolve();
     await Promise.resolve();
 
+    await vi.waitFor(() => expect(ws.onmessage).not.toBeNull());
     ws.receive({ type: "error", message: "xAI STT streaming timed out" });
 
     expect(onError).toHaveBeenCalledWith("xAI STT streaming timed out");

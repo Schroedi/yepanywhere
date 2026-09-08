@@ -359,6 +359,15 @@ Current streaming command semantics:
   Warm on, the same active-listening window ends on schedule while the ordinary
   idle warm stream remains. Only a streaming backend that advertises Smart
   Turn can use this option.
+  Non-empty interim and final transcript events count as speech begun even
+  when the backend keeps its status at `listening`. Enabling follow-up does
+  not open the mic before the user's first activation. That activation shares
+  its device with subsequent follow-up turns, including across composer
+  navigation. Command grace keeps capture running; automatic-send
+  finalization retains the device until the result can arm the next turn.
+  Stop cancels the held automatic send and releases temporary device ownership.
+  Disconnect, disposal, or a five-second finalization failure bound also
+  releases it; failure salvages recognized text without sending it.
 
 The browser-local **Speech message prefix** selector defaults to the `🎤`
 preset. Its other presets are `[ASR]`, `[STT]`, and `[Dictation]`; Custom
@@ -605,9 +614,11 @@ is advisory UI only: the command word still must not appear in the textarea
 value.
 
 `Reduce playback while dictating` is a browser-local, default-on capture
-setting. From the first starting state through the end of capture, YA exactly
-mutes every HTML audio/video element it owns, including media inserted or
-unmuted during capture. Multiple simultaneous capture owners share the mute;
+setting. From the first starting state until the last microphone track closes,
+YA exactly mutes every HTML audio/video element it owns, including media inserted or
+unmuted during capture. Partial/final transcript updates, command grace,
+automatic-send finalization, and idle retained microphones do not restore
+playback while that device remains open. Multiple capture owners share the mute;
 YA restores each element's original muted state only after the last owner is
 idle. The default also requests echo cancellation for YA-controlled microphone
 streams, which lets Android Chromium select its communication/AEC capture path.

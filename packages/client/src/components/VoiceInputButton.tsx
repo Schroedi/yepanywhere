@@ -44,7 +44,6 @@ import {
   type SpeechMethodId,
 } from "../lib/speechProviders/methods";
 import { reconcileParakeetBackendForModel } from "../lib/speechProviders/parakeetModels";
-import { acquireSharedSpeechMicWarmLease } from "../lib/speechProviders/sharedMicCapture";
 import {
   clearSpeechWaveform,
   publishSpeechWaveformSamples,
@@ -254,15 +253,18 @@ export const VoiceInputButton = forwardRef(function VoiceInputButton(
   const temporarilyKeepMicWarm = useCallback(() => {
     const current = getSpeechFollowUpSnapshot();
     return (
-      current.active &&
+      (followUpEnabled || current.active) &&
       (current.owner === null ||
         current.owner === speechCaptureOwnerRef.current)
     );
-  }, []);
+  }, [followUpEnabled]);
 
   const handleResult = useCallback(
     (transcript: string, metadata?: SpeechTranscriptionResultMetadata) => {
       if (suppressResultsAfterVisibleStopRef.current) return;
+      if (transcript.trim()) {
+        noteSpeechFollowUpActivity(speechCaptureOwnerRef.current);
+      }
       const outcome = onTranscript(transcript, metadata);
       if (
         outcome === "wait" ||
@@ -278,6 +280,9 @@ export const VoiceInputButton = forwardRef(function VoiceInputButton(
 
   const handleInterim = useCallback(
     (transcript: string) => {
+      if (transcript.trim()) {
+        noteSpeechFollowUpActivity(speechCaptureOwnerRef.current);
+      }
       onInterimTranscript?.(transcript);
     },
     [onInterimTranscript],
@@ -479,16 +484,6 @@ export const VoiceInputButton = forwardRef(function VoiceInputButton(
     },
     [],
   );
-
-  useEffect(() => {
-    if (
-      !followUpSnapshot.active ||
-      followUpSnapshot.owner !== speechCaptureOwnerRef.current
-    ) {
-      return;
-    }
-    return acquireSharedSpeechMicWarmLease();
-  }, [followUpSnapshot.active, followUpSnapshot.owner]);
 
   useEffect(() => {
     if (!followUpSnapshot.active || !followUpEnabled) return;

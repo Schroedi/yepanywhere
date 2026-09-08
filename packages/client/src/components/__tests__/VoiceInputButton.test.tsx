@@ -179,7 +179,7 @@ describe("VoiceInputButton", () => {
     vi.useRealTimers();
   });
 
-  it("warms only an armed follow-up and ends the window on wait", () => {
+  it("shares the first capture for follow-up without enabling idle prewarm", () => {
     speechCaptureState.followUpListenMs = 3_000;
     versionState.voiceBackends = ["ya-grok"];
     versionState.voiceBackendCapabilities = {
@@ -204,7 +204,7 @@ describe("VoiceInputButton", () => {
 
     const options = observedSpeechOptions.at(-1);
     expect(options?.keepMicWarm).toBe(false);
-    expect(options?.temporarilyKeepMicWarm?.()).toBe(false);
+    expect(options?.temporarilyKeepMicWarm?.()).toBe(true);
 
     act(() => ref.current?.continueAfterSpeechSend());
     expect(getSpeechFollowUpSnapshot().active).toBe(true);
@@ -216,48 +216,52 @@ describe("VoiceInputButton", () => {
     expect(getSpeechFollowUpSnapshot().active).toBe(false);
   });
 
-  it("does not restart after the absolute follow-up deadline", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(10_000);
-    speechCaptureState.followUpListenMs = 3_000;
-    versionState.voiceBackends = ["ya-grok"];
-    versionState.voiceBackendCapabilities = {
-      "ya-grok": { streaming: true, smartTurn: true },
-    };
-    const ref = createRef<VoiceInputButtonRef>();
-    const props = {
-      ref,
-      onTranscript: vi.fn(() => "committed" as const),
-      speechMethod: "ya-grok" as const,
-      smartTurn: {
-        enabled: true,
-        threshold: 0.95,
-        timeoutMs: 3_000,
-        graceMs: 0,
-      },
-    };
+  it.each(["onInterimResult", "onResult"] as const)(
+    "lets speech reported by %s finish after the follow-up deadline",
+    (event) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(10_000);
+      speechCaptureState.followUpListenMs = 3_000;
+      versionState.voiceBackends = ["ya-grok"];
+      versionState.voiceBackendCapabilities = {
+        "ya-grok": { streaming: true, smartTurn: true },
+      };
+      const ref = createRef<VoiceInputButtonRef>();
+      const props = {
+        ref,
+        onTranscript: vi.fn(() => "committed" as const),
+        speechMethod: "ya-grok" as const,
+        smartTurn: {
+          enabled: true,
+          threshold: 0.95,
+          timeoutMs: 3_000,
+          graceMs: 0,
+        },
+      };
 
-    const view = render(<VoiceInputButton {...props} />);
-    act(() => ref.current?.continueAfterSpeechSend());
-    expect(startListening).toHaveBeenCalledOnce();
+      const view = render(<VoiceInputButton {...props} />);
+      act(() => ref.current?.continueAfterSpeechSend());
+      expect(startListening).toHaveBeenCalledOnce();
 
-    speechState.status = "receiving";
-    speechState.isListening = true;
-    view.rerender(<VoiceInputButton {...props} />);
-    act(() => vi.advanceTimersByTime(3_000));
-    expect(getSpeechFollowUpSnapshot()).toMatchObject({
-      active: true,
-      deadlineMs: 13_000,
-      expired: true,
-    });
+      speechState.status = "listening";
+      speechState.isListening = true;
+      view.rerender(<VoiceInputButton {...props} />);
+      act(() => observedSpeechOptions.at(-1)?.[event]?.("still speaking"));
+      act(() => vi.advanceTimersByTime(3_000));
+      expect(getSpeechFollowUpSnapshot()).toMatchObject({
+        active: true,
+        deadlineMs: 13_000,
+        expired: true,
+      });
 
-    const startsAtExpiry = startListening.mock.calls.length;
-    speechState.status = "idle";
-    speechState.isListening = false;
-    view.rerender(<VoiceInputButton {...props} />);
-    expect(getSpeechFollowUpSnapshot().active).toBe(false);
-    expect(startListening).toHaveBeenCalledTimes(startsAtExpiry);
-  });
+      const startsAtExpiry = startListening.mock.calls.length;
+      speechState.status = "idle";
+      speechState.isListening = false;
+      view.rerender(<VoiceInputButton {...props} />);
+      expect(getSpeechFollowUpSnapshot().active).toBe(false);
+      expect(startListening).toHaveBeenCalledTimes(startsAtExpiry);
+    },
+  );
 
   it("keeps the relayed speech socket opener stable across rerenders", () => {
     const props = {

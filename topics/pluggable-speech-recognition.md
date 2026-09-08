@@ -398,6 +398,28 @@ client through `fetchJSON("/speech/transcribe", ...)`.
    audio-as-modality. Providers that accept audio should get the original
    audio content, while text-only providers keep the transcript-first path.
 
+## Local recognition candidates — 2026-09-08
+
+YA still defaults to `distil-large-v3` for Whisper and
+`nvidia/parakeet-tdt-0.6b-v3` for Parakeet. These are comparison candidates,
+not verified tablet-quality upgrades; no defaults or runtime pins changed.
+
+| Candidate | Why compare it | Existing YA execution path |
+| --- | --- | --- |
+| [Distil-Whisper v3.5](https://huggingface.co/distil-whisper/distil-large-v3.5) | A newer English distilled model, trained with more varied data and augmentation. The authors report better short-form results than v3; this is not a tablet measurement. | `WHISPER_MODEL=distil-whisper/distil-large-v3.5-ct2` uses the published faster-whisper weights. The inspected faster-whisper 1.2.1 also recognizes `distil-large-v3.5`. |
+| [Whisper large-v3](https://huggingface.co/openai/whisper-large-v3) | Full model as the accuracy-oriented comparison; expect more work per utterance than the distilled default. | `WHISPER_MODEL=large-v3`; the existing worker remains batch-only. |
+| [Whisper large-v3-turbo](https://huggingface.co/openai/whisper-large-v3-turbo) | Pruned decoder trades some quality for speed according to its model card. Compare when full large-v3 latency is unacceptable. | `WHISPER_MODEL=large-v3-turbo`; supported by the inspected faster-whisper registry. |
+| [Parakeet TDT 0.6B v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) | English-only comparison against multilingual v3; not evidence that older v2 is better. | Custom Parakeet model name `nvidia/parakeet-tdt-0.6b-v2`; verify load/decoding in the selected backend before adopting. |
+| [Parakeet unified English 0.6B](https://huggingface.co/nvidia/parakeet-unified-en-0.6b) | Released April 2026; supports offline and buffered streaming inference with configurable context. Vendor leaderboard gains do not establish tablet gains. | Evaluate in a separate modern NeMo environment. The pinned NeMo 2.0 add-on lacks the documented streaming pipeline; changing a model name does not implement streaming in YA's batch worker. |
+| [Canary-Qwen 2.5B](https://huggingface.co/nvidia/canary-qwen-2.5b) | English speech-language model worth a later accuracy comparison. | Requires a different `speechlm2`/`SALM.generate` worker, not the existing Parakeet `ASRModel.transcribe` contract. |
+
+First compare distilled v3.5 and full large-v3 on the same retained tablet
+clips, with manually verified text. Keep capture settings and preprocessing
+identical, count dropped/substituted words and invented text on silence, and
+measure latency separately. Follow with Parakeet v2/v3 and the isolated newer
+NeMo candidate if needed. Do not upgrade the shared STT environment to make
+the newer NeMo model fit; the coexistence constraints below still apply.
+
 ## Keyterm Biasing
 
 Status 2026-08-09: assessed, deliberately not wired. Revisit when retained
