@@ -91,6 +91,11 @@ enrollment through `InstallService`. Retained collection reads intentionally
 exclude never-used stores; transcript fixtures alone do not establish the
 install history needed by sidebar and inbox tests.
 
+Browser CI runs on Node 20.20.0: Node 20.12's recursive watcher can crash inside
+Node itself when a test removes a watched transcript. The unit, source-command,
+and npm-artifact jobs still cover the 20.12 engine floor. See the
+[older-runtime limitation](../gaps/node20-recursive-watch-deletion.md).
+
 Feature-specific Playwright fixtures start Vite through
 `packages/client/e2e/support/vite-server.ts`. Each server owns a temporary
 dependency cache, removed when it closes; starting a different fixture must

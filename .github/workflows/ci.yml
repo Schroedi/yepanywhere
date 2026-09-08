@@ -1,7 +1,9 @@
 name: CI
 on: [push, pull_request]
 
-# CI pins Node 20.12 (the package's engines floor). Do NOT bump to 24+ just to run
+# Most CI pins Node 20.12 (the package's engines floor). Browser E2E uses a
+# patched Node 20 for its recursive-watcher deletion fix; see the job below.
+# Do NOT bump to 24+ just to run
 # the opencode.db reader test: that reader uses node:sqlite (Node >=22.5) and is
 # an opt-in feature (OPENCODE_DB_READER, default on locally but unexercised by
 # CI). On Node 20.12 node:sqlite is absent, so opencode-db-reader.test.ts cleanly
@@ -198,7 +200,10 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20.12
+          # Node 20.12 throws inside its recursive watcher when a transcript
+          # is removed. 20.13+ handles deletion; retain 20.12 in unit, source,
+          # and npm checks. See gaps/node20-recursive-watch-deletion.md.
+          node-version: 20.20.0
           cache: "pnpm"
       - run: pnpm install
       - run: pnpm -F @yep-anywhere/client exec playwright install chromium
