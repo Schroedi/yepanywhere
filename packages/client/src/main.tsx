@@ -15,7 +15,7 @@ import { initializeOutputAppearance } from "./hooks/useOutputAppearance";
 import { initializeTabSize } from "./hooks/useTabSize";
 import { initializeTheme } from "./hooks/useTheme";
 import { initializeTooltipAppearance } from "./hooks/useTooltipAppearance";
-import { I18nProvider } from "./i18n";
+import { I18nProvider, useI18n } from "./i18n";
 import "./styles/index.css";
 
 const App = lazy(() => import("./App").then(({ App }) => ({ default: App })));
@@ -116,6 +116,7 @@ const WorkstreamsPage = lazy(() =>
  * self-contained inline styles rather than relying on app CSS variables.
  */
 function WrongPortNotice({ backendUrl }: { backendUrl: string }) {
+  const { t } = useI18n();
   return (
     <div
       style={{
@@ -151,10 +152,10 @@ function WrongPortNotice({ backendUrl }: { backendUrl: string }) {
             marginBottom: 10,
           }}
         >
-          Wrong port
+          {t("wrongPortLabel")}
         </div>
         <h1 style={{ fontSize: 20, fontWeight: 650, margin: "0 0 10px" }}>
-          This is the Vite dev server, not the app
+          {t("wrongPortTitle")}
         </h1>
         <p
           style={{
@@ -164,9 +165,7 @@ function WrongPortNotice({ backendUrl }: { backendUrl: string }) {
             color: "#b6bcc8",
           }}
         >
-          You've hit the internal HMR / asset server on port {__VITE_DEV_PORT__}
-          , which has no backend. The Yep Anywhere UI runs on the main server —
-          open the link below instead.
+          {t("wrongPortBody", { port: __VITE_DEV_PORT__ })}
         </p>
         <a
           href={backendUrl}
@@ -181,7 +180,7 @@ function WrongPortNotice({ backendUrl }: { backendUrl: string }) {
             textDecoration: "none",
           }}
         >
-          Open Yep Anywhere →
+          {t("wrongPortOpen")}
         </a>
         <div
           style={{
@@ -211,7 +210,11 @@ if (!rootElement) {
 // pointer to the real app instead. Stripped from production via import.meta.env.DEV.
 if (import.meta.env.DEV && window.location.port === String(__VITE_DEV_PORT__)) {
   const backendUrl = `${window.location.protocol}//${window.location.hostname}:${__BACKEND_PORT__}${window.location.pathname}${window.location.search}${window.location.hash}`;
-  createRoot(rootElement).render(<WrongPortNotice backendUrl={backendUrl} />);
+  createRoot(rootElement).render(
+    <I18nProvider>
+      <WrongPortNotice backendUrl={backendUrl} />
+    </I18nProvider>,
+  );
 } else {
   // Apply saved preferences before React renders to avoid flash
   initializeTheme();

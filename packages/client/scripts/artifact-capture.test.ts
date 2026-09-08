@@ -241,7 +241,7 @@ describe("portable artifact capture", () => {
       };
       const result = await writeCapturePreview(options);
       expect(result._acli?.commentary[1]?.text).toContain(
-        `![phone](<${path}>)`,
+        `![phone](<${await realpath(path)}>)`,
       );
       expect(await readFile(path)).toEqual(bytes);
       expect(await page.getByRole("button").textContent()).toBe("Expanded");

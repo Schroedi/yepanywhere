@@ -375,3 +375,4 @@
 
 - desktop-nightly-releases - Signed nightly publication and same-app Stable/Latest channels.
 - ya-agent-self — read-only owning-session inspection and command delivery.
+- node-22-builtin-sqlite - Immediate server runtime floor and advisory remote upgrade guidance.

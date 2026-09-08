@@ -3148,5 +3148,9 @@
   "desktopProviderNoticeGetClaude": "Get Claude",
   "desktopProviderNoticeGetCodex": "Get Codex",
   "desktopProviderNoticeRetry": "Check again",
-  "desktopProviderNoticeDismiss": "Dismiss provider setup notice"
+  "desktopProviderNoticeDismiss": "Dismiss provider setup notice",
+  "wrongPortLabel": "Wrong port",
+  "wrongPortTitle": "This is the Vite dev server, not the app",
+  "wrongPortBody": "You've hit the internal HMR / asset server on port {port}, which has no backend. The Yep Anywhere UI runs on the main server — open the link below instead.",
+  "wrongPortOpen": "Open Yep Anywhere →"
 }
