@@ -24,11 +24,12 @@ window. The same generation logged `CODEX_READER: slow entry read` for
 this session id immediately before the detail request.
 
 This is the long-session example. It did **not** show stuck Sending.
-The send-ack stall lives on a different, shorter session
-([codex-post-compact-send-ack-stall](codex-post-compact-send-ack-stall.md)).
-The coupling risk is that this 3.7 s parse shares the event loop with
-every provider’s POST and WS, so opening this tab can make other
-sessions’ send chips look stuck.
+The per-tab `Sending` chip stall on a different Codex session was a
+missed live user-echo with no while-connected fallback (`c0c98ff80`).
+The coupling risk remains: this 3.7 s parse shares the event loop with
+every provider’s POST and WS. Sibling-tab composer resurrection of the
+last sent prompt is separate
+([sibling-tab-restores-sent-composer-draft](sibling-tab-restores-sent-composer-draft.md)).
 
 Sidebar/new-window slowness with many Codex rows is the same family:
 `CODEX_SCANNER: slow scan` / `CODEX_READER: slow scan` every few
