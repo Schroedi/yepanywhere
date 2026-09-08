@@ -202,7 +202,7 @@ jobs:
           cache: "pnpm"
       - run: pnpm install
       - run: pnpm -F @yep-anywhere/client exec playwright install chromium
-      - run: pnpm test:e2e
+      - run: pnpm test:e2e --reporter=list,github
       - name: Preserve browser failure evidence
         if: failure()
         uses: actions/upload-artifact@v7
