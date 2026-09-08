@@ -1115,7 +1115,9 @@ function putInboxSnapshot(
     ...next,
     inbox: {
       ...next.inbox,
-      tiers: stableTiers,
+      tiers:
+        snapshot.catalog?.complete === false ? next.inbox.tiers : stableTiers,
+      catalog: snapshot.catalog,
       requestStartedAt,
       fetchedAt: Date.now(),
     },
@@ -1539,7 +1541,10 @@ function upsertQuery(
     snapshot.sessions.map((session) => session.id),
   );
   let ids = incomingIds;
-  if (snapshot.mode === "append" && existing) {
+  if (
+    (snapshot.mode === "append" || snapshot.catalog?.complete === false) &&
+    existing
+  ) {
     ids = [
       ...existing.ids,
       ...incomingIds.filter((id) => !existing.ids.includes(id)),
@@ -1564,6 +1569,7 @@ function upsertQuery(
   queries.set(key, {
     key,
     descriptor: snapshot.query,
+    catalog: snapshot.catalog,
     ids,
     hasMore: snapshot.hasMore,
     requestStartedAt,
@@ -1673,7 +1679,7 @@ export function applyGlobalSessionsCollectionSnapshot(
 ): ClientSummaryState {
   const observation = createSessionCollectionObservation(
     requestStartedAt,
-    "full-snapshot",
+    snapshot.catalog ? "partial-snapshot" : "full-snapshot",
     "global-sessions",
   );
   let next = state;

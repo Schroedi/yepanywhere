@@ -1187,6 +1187,92 @@ describe("clientSummaryState", () => {
     );
   });
 
+  it("keeps visible rows through a cold catalog and preserves omitted details", () => {
+    const query = { scope: "global-sessions" as const, limit: 50 };
+    let state = applyGlobalSessionsCollectionSnapshot(
+      createEmptyClientSummaryState(),
+      {
+        query,
+        sessions: [globalSession("saved", { messageCount: 42 })],
+        hasMore: false,
+      },
+      100,
+    );
+    const catalog = {
+      catalogEpoch: "restart",
+      catalogGeneration: 0,
+      complete: false,
+      refreshing: true,
+    };
+    state = applyGlobalSessionsCollectionSnapshot(
+      state,
+      {
+        query,
+        sessions: [],
+        hasMore: false,
+        catalog,
+      },
+      200,
+    );
+    expect(selectSessionCollectionQueryState(state, query)?.ids).toEqual([
+      "saved",
+    ]);
+    state = applyGlobalSessionsCollectionSnapshot(
+      state,
+      {
+        query,
+        sessions: [
+          globalSession("saved", {
+            title: undefined,
+            fullTitle: undefined,
+            createdAt: undefined,
+            messageCount: undefined,
+          }),
+        ],
+        hasMore: false,
+        catalog: {
+          ...catalog,
+          catalogGeneration: 1,
+          complete: true,
+          refreshing: false,
+        },
+      },
+      300,
+    );
+    expect(selectSessionCollectionRecord(state, "saved")).toMatchObject({
+      title: "Session saved",
+      fullTitle: "Session saved",
+      messageCount: 42,
+      createdAt: RECENT,
+    });
+    state = applyInboxCollectionSnapshot(
+      state,
+      {
+        needsAttention: [],
+        active: [],
+        recentActivity: [inboxItem("saved")],
+        unread8h: [],
+        unread24h: [],
+      },
+      400,
+    );
+    state = applyInboxCollectionSnapshot(
+      state,
+      {
+        needsAttention: [],
+        active: [],
+        recentActivity: [],
+        unread8h: [],
+        unread24h: [],
+        catalog,
+      },
+      500,
+    );
+    expect(
+      selectInboxResponse(state).recentActivity.map((item) => item.sessionId),
+    ).toEqual(["saved"]);
+  });
+
   it("stores query ids separately from entity facts", () => {
     const query = {
       scope: "global-sessions" as const,

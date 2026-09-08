@@ -10,6 +10,7 @@ import type {
   PromptSuggestionMode,
   SafeRestartChangedEvent,
   SafeRestartState,
+  SessionCatalogUpdatedEvent,
   TranscriptDisplayObject,
   UrlProjectId,
   WorkstreamsChangedEvent,
@@ -234,6 +235,7 @@ export interface SessionQueuePersistenceChangedEvent {
 
 // Map event names to their data types
 export interface ActivityEventMap {
+  "session-catalog-updated": SessionCatalogUpdatedEvent;
   "file-change": FileChangeEvent;
   "session-status-changed": SessionStatusEvent;
   "session-created": SessionCreatedEvent;
@@ -600,6 +602,7 @@ class ActivityBus {
   private isValidEventType(type: string): type is ActivityEventType {
     return [
       "file-change",
+      "session-catalog-updated",
       "session-status-changed",
       "session-created",
       "session-id-remapped",

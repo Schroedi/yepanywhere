@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   PROGRESSIVE_SESSION_CATALOG_CAPABILITY,
+  RETAINED_SESSION_COLLECTIONS_CAPABILITY,
   serverHasCapability,
 } from "@yep-anywhere/shared";
 import {
@@ -47,7 +48,7 @@ import {
   type SessionMetadataChangedEvent,
   useFileActivity,
 } from "./useFileActivity";
-import { useRetainedVersionInfo } from "./useVersion";
+import { ensureVersionInfo, useRetainedVersionInfo } from "./useVersion";
 
 const REFETCH_DEBOUNCE_MS = 500;
 /**
@@ -56,7 +57,10 @@ const REFETCH_DEBOUNCE_MS = 500;
  * event before deciding whether a refetch is even needed, and that patch is
  * per-query bookkeeping rather than a revalidation.
  */
-const GLOBAL_SESSIONS_REVALIDATE_EVENTS = ["reconnect"] as const;
+const GLOBAL_SESSIONS_REVALIDATE_EVENTS = [
+  "reconnect",
+  "session-catalog-updated",
+] as const;
 const GLOBAL_SESSIONS_DEFAULT_LIMIT = 100;
 const GLOBAL_SESSIONS_STALE_TIME_MS = 30_000;
 const GLOBAL_SESSION_STATS_STALE_TIME_MS = 30_000;
@@ -420,8 +424,18 @@ export function useGlobalSessionsFeed(
           coverage: { minRows: requestedRows },
           staleTimeMs: GLOBAL_SESSIONS_STALE_TIME_MS,
           force: fetchOptions.force,
-          fetcher: () => {
+          fetcher: async () => {
+            const version = await ensureVersionInfo(requestSourceKey);
+            if (sourceKeyRef.current !== requestSourceKey)
+              throw new Error("Session source changed");
+            const retained =
+              !searchQuery &&
+              serverHasCapability(
+                version,
+                RETAINED_SESSION_COLLECTIONS_CAPABILITY,
+              );
             const request: GlobalSessionsRequest = {
+              ...(retained ? { summaryMode: "retained" as const } : {}),
               project: projectId ?? undefined,
               q: searchQuery || undefined,
               limit,
@@ -430,7 +444,7 @@ export function useGlobalSessionsFeed(
               includeStats: false,
             };
             const knownGeneration =
-              fetchOptions.conditional === false
+              retained || fetchOptions.conditional === false
                 ? undefined
                 : knownGenerationForRequest();
             return knownGeneration === undefined
@@ -456,11 +470,13 @@ export function useGlobalSessionsFeed(
                 sessions: data.sessions,
                 hasMore: data.hasMore,
                 mode: "replace",
+                catalog: data.catalog,
               },
               context.requestStartedAt,
             );
             updateGlobalSessionsAuxiliary(context.sourceKey, {
               projects: data.projects,
+              ...(data.catalog ? { stats: data.stats } : {}),
             });
             if (data.generation === undefined) {
               // An ungated server, or one that stopped reporting: forget the
@@ -471,8 +487,18 @@ export function useGlobalSessionsFeed(
             }
           },
         });
-        const statsPromise =
+        const version =
           includeStats && !projectId
+            ? await ensureVersionInfo(requestSourceKey)
+            : null;
+        const statsPromise =
+          includeStats &&
+          !projectId &&
+          (searchQuery ||
+            !serverHasCapability(
+              version,
+              RETAINED_SESSION_COLLECTIONS_CAPABILITY,
+            ))
             ? ensureClientQuery<{ stats: GlobalSessionStats }>({
                 sourceKey: requestSourceKey,
                 key: GLOBAL_SESSION_STATS_QUERY_KEY,
@@ -536,7 +562,13 @@ export function useGlobalSessionsFeed(
     try {
       setError(null);
       const requestStartedAt = Date.now();
+      const version = await ensureVersionInfo(requestSourceKey);
+      if (sourceKeyRef.current !== requestSourceKey) return;
       const data = await api.getGlobalSessions({
+        ...(!searchQuery &&
+        serverHasCapability(version, RETAINED_SESSION_COLLECTIONS_CAPABILITY)
+          ? { summaryMode: "retained" as const }
+          : {}),
         project: projectId ?? undefined,
         q: searchQuery || undefined,
         limit,
@@ -552,6 +584,7 @@ export function useGlobalSessionsFeed(
           sessions: data.sessions,
           hasMore: data.hasMore,
           mode: "append",
+          catalog: data.catalog,
         },
         requestStartedAt,
       );
@@ -723,8 +756,18 @@ export function useGlobalSessionsFeed(
   return {
     query,
     ready,
-    loading: enabled && (loading || (!ready && !queryState)),
-    error,
+    loading:
+      enabled &&
+      (loading ||
+        (!ready && !queryState) ||
+        (queryState?.ids.length === 0 &&
+          queryState.catalog?.complete === false &&
+          queryState.catalog.refreshing)),
+    error:
+      error ??
+      (queryState?.catalog?.refreshError
+        ? new Error(queryState.catalog.refreshError)
+        : null),
     hasMore: queryState?.hasMore ?? false,
     loadMore,
     // An explicit refresh is a fidelity request, not a freshness one: a user

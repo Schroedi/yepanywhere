@@ -958,6 +958,7 @@ async function startServer() {
     resolveAbsoluteFilePaths,
     artifactServer,
   } = createApp({
+    getCatalogFamilies: () => installService.getCatalogFamilies(),
     artifacts: config.artifacts,
     provider: mockProvider,
     realSdk,

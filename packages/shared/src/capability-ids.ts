@@ -396,6 +396,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "acli-commentary-rendering",
     introducedIn: "0.8.2",
   },
+  retainedSessionCollections: {
+    id: 63,
+    direction: "server",
+    name: "retained-session-collections",
+    introducedIn: "0.8.2",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

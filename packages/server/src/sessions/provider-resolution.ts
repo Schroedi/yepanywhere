@@ -353,6 +353,7 @@ export function getSessionSources(
   deps: ProviderResolutionDeps,
   preferredProvider?: ProviderName | string,
   catalog?: ProviderProjectCatalog,
+  allowedGroups?: ReadonlySet<string>,
 ): SessionSource[] {
   const sources: SessionSource[] = [];
   for (const group of buildCandidateGroups(
@@ -360,6 +361,7 @@ export function getSessionSources(
     preferredProvider,
     catalog,
   )) {
+    if (allowedGroups && !allowedGroups.has(group)) continue;
     const source = getSourceForGroup(project, deps, group, catalog);
     if (!source) continue;
     if (

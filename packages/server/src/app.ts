@@ -126,6 +126,16 @@ import { ProjectFileCompletion } from "./services/projectFileCompletion.js";
 import { createConversationContextRoutes } from "./routes/conversation-context.js";
 import { createGlossaryArtifactRoutes } from "./routes/glossary-artifacts.js";
 import { createGlobalSessionsRoutes } from "./routes/global-sessions.js";
+import {
+  getActiveSessionIndexOptions,
+  isSessionAutoArchived,
+} from "./routes/session-list-options.js";
+import { RetainedSessionCollections } from "./services/RetainedSessionCollections.js";
+import { collectionCatalogAdapters } from "./sessions/catalog-adapters/collection-catalog-adapters.js";
+import {
+  providerCatalogFamily,
+  type ProviderCatalogFamily,
+} from "./sessions/provider-catalog-family.js";
 import { createReviewCommentsRoutes } from "./routes/review-comments.js";
 import { createReviewInboxRoutes } from "./routes/review-inbox.js";
 import { createReviewSubmissionsRoutes } from "./routes/review-submissions.js";
@@ -361,6 +371,7 @@ export interface AppOptions {
   serverPort?: number;
   /** Unique installation identifier (for server-info endpoint) */
   installId?: string;
+  getCatalogFamilies?: () => readonly ProviderCatalogFamily[];
   /** Data directory for persistent state (for onboarding state) */
   dataDir?: string;
   /** NetworkBindingService for runtime binding configuration */
@@ -790,7 +801,9 @@ export function createApp(options: AppOptions): AppResult {
       console.warn(`[App] Failed to close session reader ${key}:`, error);
     }
   };
+  let retainedCollections: RetainedSessionCollections | undefined;
   const disposeSessionReaders = async (): Promise<void> => {
+    await retainedCollections?.dispose();
     await projectQueueScheduler?.dispose();
     await artifactServer.close();
     await projectFileCompletion.dispose();
@@ -1944,9 +1957,51 @@ export function createApp(options: AppOptions): AppResult {
   }
 
   // Inbox routes (cross-project session aggregation)
+  retainedCollections = new RetainedSessionCollections({
+    dataDir: effectiveDataDir,
+    eventBus: options.eventBus,
+    shouldReadQuestions: (row) =>
+      !(
+        options.sessionMetadataService?.getMetadata(row.sessionId)
+          ?.isArchived ??
+        isSessionAutoArchived(
+          row,
+          getActiveSessionIndexOptions(options.sessionAutoArchiveDays)
+            ?.activeAfterMs,
+        )
+      ),
+    adapters: (rows, signal, changedPaths) =>
+      collectionCatalogAdapters(
+        {
+          scanner,
+          readerFactory,
+          codexScanner,
+          codexSessionsDir,
+          codexReaderFactory,
+          geminiScanner,
+          geminiSessionsDir,
+          geminiReaderFactory,
+          grokSessionsDir,
+          grokReaderFactory,
+          piSessionsDir,
+          piReaderFactory,
+          sessionIndexService: options.sessionIndexService,
+          getCatalogFamilies:
+            options.getCatalogFamilies ??
+            (() =>
+              (
+                options.sessionMetadataService?.getRecordedProviders() ?? []
+              ).map(providerCatalogFamily)),
+        },
+        rows,
+        signal,
+        changedPaths,
+      ),
+  });
   app.route(
     "/api/inbox",
     createInboxRoutes({
+      retainedCollections,
       scanner,
       readerFactory,
       supervisor,
@@ -1973,6 +2028,7 @@ export function createApp(options: AppOptions): AppResult {
   app.route(
     "/api/sessions",
     createGlobalSessionsRoutes({
+      retainedCollections,
       scanner,
       readerFactory,
       supervisor,

@@ -1,5 +1,6 @@
 import type {
   AppSessionSummary,
+  RetainedSessionCollectionState,
   AgentActivity,
   AgentContextHints,
   CacheMissBillingRecord,
@@ -110,7 +111,7 @@ export interface InboxItem {
   sessionId: string;
   projectId: string;
   projectName: string;
-  sessionTitle: string | null;
+  sessionTitle?: string | null;
   updatedAt: string;
   customTitle?: string;
   isStarred?: boolean;
@@ -124,6 +125,7 @@ export interface InboxItem {
  * Inbox response with sessions categorized into priority tiers.
  */
 export interface InboxResponse {
+  catalog?: RetainedSessionCollectionState;
   needsAttention: InboxItem[];
   active: InboxItem[];
   recentActivity: InboxItem[];
@@ -137,11 +139,11 @@ export interface InboxResponse {
 export interface GlobalSessionItem {
   asyncQuestions?: AppSessionSummary["asyncQuestions"];
   id: string;
-  title: string | null;
-  fullTitle: string | null;
-  createdAt: string;
+  title?: string | null;
+  fullTitle?: string | null;
+  createdAt?: string;
   updatedAt: string;
-  messageCount: number;
+  messageCount?: number;
   provider: ProviderName;
   /** Last active model for this session (from JSONL), for list/badge display. */
   model?: string;
@@ -195,6 +197,7 @@ export interface ProjectOption {
  * Response from the global sessions API.
  */
 export interface GlobalSessionsResponse {
+  catalog?: RetainedSessionCollectionState;
   sessions: GlobalSessionItem[];
   hasMore: boolean;
   /** Global stats computed from all sessions (not just paginated results) */
@@ -220,6 +223,7 @@ export interface GlobalSessionsUnchangedResponse {
 }
 
 export interface GlobalSessionsRequest {
+  summaryMode?: "retained";
   project?: string;
   q?: string;
   after?: string;
@@ -359,6 +363,7 @@ function getGlobalSessionsRequest(
   params?: Partial<ConditionalGlobalSessionsRequest>,
 ): Promise<GlobalSessionsResponse | GlobalSessionsUnchangedResponse> {
   const searchParams = new URLSearchParams();
+  if (params?.summaryMode) searchParams.set("summaryMode", params.summaryMode);
   if (params?.project) searchParams.set("project", params.project);
   if (params?.q) searchParams.set("q", params.q);
   if (params?.after) searchParams.set("after", params.after);
@@ -1318,12 +1323,14 @@ export const api = {
   ...reviewApi,
 
   // Inbox API
-  getInbox: (projectId?: string) =>
-    fetchJSON<InboxResponse>(
-      projectId
-        ? `/inbox?projectId=${encodeURIComponent(projectId)}`
-        : "/inbox",
-    ),
+  getInbox: (projectId?: string, summaryMode?: "retained") => {
+    const params = new URLSearchParams();
+    if (projectId) params.set("projectId", projectId);
+    if (summaryMode) params.set("summaryMode", summaryMode);
+    return fetchJSON<InboxResponse>(
+      params.size ? `/inbox?${params}` : "/inbox",
+    );
+  },
 
   // Global Sessions API
   getGlobalSessions: getGlobalSessionsRequest,

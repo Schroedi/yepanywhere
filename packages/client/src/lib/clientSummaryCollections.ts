@@ -9,6 +9,7 @@ import type {
   ProjectQueueResponse,
   ProviderChildSessionSummary,
   ProviderName,
+  RetainedSessionCollectionState,
   ProviderRuntimeStatus,
 } from "@yep-anywhere/shared";
 import type { GlobalSessionItem, InboxResponse } from "../api/client";
@@ -80,6 +81,7 @@ export interface SessionCollectionQueryDescriptor {
 }
 
 export interface SessionCollectionQueryState {
+  catalog?: RetainedSessionCollectionState;
   key: string;
   descriptor: SessionCollectionQueryDescriptor;
   ids: string[];
@@ -139,6 +141,7 @@ export interface ProjectQueueCountSource {
 }
 
 export interface InboxCollectionState {
+  catalog?: RetainedSessionCollectionState;
   tiers: Record<InboxTier, readonly string[]>;
   requestStartedAt?: number;
   fetchedAt?: number;
@@ -201,6 +204,7 @@ export function resolveSessionCollectionId(
 }
 
 export interface GlobalSessionsCollectionSnapshot {
+  catalog?: RetainedSessionCollectionState;
   query: SessionCollectionQueryDescriptor;
   sessions: readonly GlobalSessionItem[];
   hasMore: boolean;

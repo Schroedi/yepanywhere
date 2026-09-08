@@ -102,6 +102,8 @@ export type SessionSummaryReadMode = "full" | "head";
  * Options for reading summary metadata.
  */
 export interface GetSessionSummaryOptions {
+  /** Collection discovery may defer the independent question-tail projection. */
+  deferAsyncQuestions?: boolean;
   /**
    * `head` permits a provider to stop after stable head metadata. It preserves
    * the SessionSummary wire shape but may omit tail-derived optional fields
@@ -196,6 +198,7 @@ export interface ISessionReader {
     projectId: UrlProjectId,
     /** Fresh indexed base facts; optional projections may still be absent. */
     summaryHint?: SessionListSummary,
+    options?: { deferAsyncQuestions?: boolean },
   ): Promise<SessionListSummary | null>;
 
   /**

@@ -7,7 +7,11 @@ import {
   resetClientSummaryStoreForTests,
   setCurrentClientSummarySourceKey,
 } from "../../lib/clientSummaryStore";
-import { resetVersionSnapshotsForTests, useVersion } from "../useVersion";
+import {
+  ensureVersionInfo,
+  resetVersionSnapshotsForTests,
+  useVersion,
+} from "../useVersion";
 
 const mocks = vi.hoisted(() => {
   const handlers = new Map<string, Set<() => void>>();
@@ -110,6 +114,19 @@ afterEach(() => {
 });
 
 describe("useVersion", () => {
+  it("shares cold capability acquisition with navigation and later version consumers", async () => {
+    let results: unknown[] = [];
+    await act(async () => {
+      results = await Promise.all(
+        Array.from({ length: 20 }, () => ensureVersionInfo(SOURCE_A)),
+      );
+    });
+    expect(mocks.getVersion).toHaveBeenCalledTimes(1);
+    expect(results).toHaveLength(20);
+    renderHook(() => useVersion());
+    await settle();
+    expect(mocks.getVersion).toHaveBeenCalledTimes(1);
+  });
   it("shares one request across simultaneously mounted consumers", async () => {
     mocks.getVersion.mockResolvedValue(versionInfo({ current: "9.9.9" }));
 

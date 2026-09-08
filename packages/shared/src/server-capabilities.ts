@@ -410,6 +410,29 @@ export const SERVER_CAPABILITIES = {
         "YA is self-hosted with no forced upgrade, so the population of servers without the conditional read never converges and the client's enumeration fallback never becomes removable.",
     },
   },
+  retainedSessionCollections: {
+    id: CAPABILITY_ID_ALLOCATIONS.retainedSessionCollections.id,
+    name: "retained-session-collections",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Session collections serve durable compact rows while catalog and optional badges refresh independently.",
+    clientFallback:
+      "Omit summaryMode and use the existing complete-request collection paths.",
+    serverContract: {
+      routes: ["GET /api/sessions", "GET /api/inbox"],
+      requestFields: ["summaryMode"],
+      responseFields: ["catalog"],
+      events: ["session-catalog-updated"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Independently updated clients and servers retain the complete-list fallback.",
+    },
+  },
   projectDirectoryStoragePolicy: {
     id: CAPABILITY_ID_ALLOCATIONS.projectDirectoryStoragePolicy.id,
     name: "project-directory-storage-policy",
@@ -2341,6 +2364,8 @@ export const TOOL_RESULT_MEDIA_PRESERVATION_POLICY_CAPABILITY =
   SERVER_CAPABILITIES.toolResultMediaPreservationPolicy.name;
 export const PROGRESSIVE_SESSION_CATALOG_CAPABILITY =
   SERVER_CAPABILITIES.progressiveSessionCatalog.name;
+export const RETAINED_SESSION_COLLECTIONS_CAPABILITY =
+  SERVER_CAPABILITIES.retainedSessionCollections.name;
 export const SESSION_ASYNC_QUESTIONS_CAPABILITY =
   SERVER_CAPABILITIES.sessionAsyncQuestions.name;
 export const ACLI_COMMENTARY_RENDERING_CAPABILITY =

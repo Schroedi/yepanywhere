@@ -495,9 +495,14 @@ the same ledger:
 | 56 | server | 0.8.2 | `project-file-completion` |
 | 57 | server | 0.8.2 | `session-conversation-context` |
 | 58 | server | 0.8.2 | `turn-effort-modifiers` |
+| 59 | server | 0.8.2 | `artifact-viewer` |
+| 60 | server | 0.8.2 | `session-async-questions` |
+| 61 | server | 0.8.2 | `project-queue-readiness-check` |
+| 62 | server | 0.8.2 | `acli-commentary-rendering` |
+| 63 | server | 0.8.2 | `retained-session-collections` |
 
 The code ledger is authoritative. The next client or server capability takes
-ID 59; retired rows stay in the ledger as reserved IDs.
+ID 64; retired rows stay in the ledger as reserved IDs.
 
 `session-conversation-context` gates the general sequence-of-user/assistant-text
 delivery route; it does not gate question-card fork orchestration. The
@@ -628,6 +633,33 @@ on automatic revalidation and treats `unchanged` as keeping its retained rows;
 an explicit user refresh always asks for rows, since that is a fidelity request
 rather than a freshness one. Bounded deltas, and the cross-tab/IndexedDB
 persistence in the same plan step, are not built.
+
+### Retained collection gate
+
+Approved 2026-09-08. `retained-session-collections` is permanent ID 63,
+version-implied from 0.8.2. The reviewed core-functionality corpus is v0.6.1,
+v0.6.2, v0.7.0, v0.8.0, and v0.8.1. None provides `summaryMode=retained`
+on `/api/sessions` or `/api/inbox`, their `catalog` status object, or the
+`session-catalog-updated` event. Source builds advertise the new bit explicitly
+until the introducing release implies it.
+
+Capable clients request saved rows immediately and accept later badge/detail
+enrichment. `catalog` contains `catalogEpoch`, `catalogGeneration`, `complete`,
+`refreshing`, and optional `refreshError`. The update event carries that object
+and a timestamp. An incomplete empty generation cannot replace existing client
+membership, and omitted detail fields cannot clear known complete facts.
+Catalog status describes retained source observations, not a new full-summary
+freshness claim.
+
+Before its first request a client joins the source's version acquisition.
+Without this capability, it sends no retained-mode parameter and keeps the
+complete-request path, including any independently supported conditional-read
+behavior. Old clients on new servers also keep that path. Full-prompt search
+continues using complete requests. `progressive-session-catalog` still means
+only the existing global collection revision/`knownGeneration` contract;
+neither its meaning nor that of `session-async-questions` changes.
+The execution and lifecycle contract is in
+[Session Catalog Observation](session-catalog-observation.md#retained-global-sessions-and-inbox).
 
 Tool-result preservation is independently gated by the proposed permanent
 `tool-result-media-preservation-policy` capability. It owns `GET

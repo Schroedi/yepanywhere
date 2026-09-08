@@ -3,6 +3,11 @@ export type {
   ArtifactViewerStatus,
   ArtifactViewerGrant,
 } from "./artifact-viewer.js";
+export type {
+  RetainedSessionCollectionState,
+  SessionCatalogUpdatedEvent,
+} from "./retained-session-collections.js";
+
 export {
   ACLI_COMMENTARY_MAX_TEXTS,
   ACLI_COMMENTARY_MAX_BODY_BYTES,
@@ -626,6 +631,7 @@ export {
   SESSION_SANDBOX_NETWORK_FIREWALL_CAPABILITY,
   SESSION_FORK_TURN_INTENTS_CAPABILITY,
   PROGRESSIVE_SESSION_CATALOG_CAPABILITY,
+  RETAINED_SESSION_COLLECTIONS_CAPABILITY,
   PROJECT_QUEUE_CAPABILITY,
   PROJECT_QUEUE_ATTACHMENT_EDITING_CAPABILITY,
   PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,

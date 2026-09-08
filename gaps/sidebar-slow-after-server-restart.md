@@ -20,4 +20,12 @@ hydration, and coordinate with the session-reader/async-question work in
 `topics/session-summary-fidelity.md`. Do not hide same-title sessions to reduce
 list work: they may be independently active sessions.
 
+Retained collection mode now serves saved catalog rows without waiting for
+provider discovery or optional question badges; the real route test serves
+twenty requests while discovery is deliberately blocked. See
+`topics/session-catalog-observation.md` for the contract and work-count checks.
+The reported live restart still needs a browser timing check after the user
+restarts with this change. Keep that verification open: the isolated checks
+prove work separation, not an end-to-end latency bound on the affected tab.
+
 Found 2026-09-07 while fixing metadata loss exposing recap-helper duplicates.

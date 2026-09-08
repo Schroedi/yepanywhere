@@ -791,7 +791,11 @@ export class CodexSessionReader implements ISessionReader {
     sessionId: string,
     projectId: UrlProjectId,
     summaryHint?: SessionListSummary,
+    options?: { deferAsyncQuestions?: boolean },
   ): Promise<SessionListSummary | null> {
+    if (summaryHint && options?.deferAsyncQuestions) {
+      return toSessionListSummary(summaryHint);
+    }
     if (summaryHint) {
       const sessionFile = await this.findSessionFile(sessionId);
       if (!sessionFile) return null;
@@ -807,6 +811,7 @@ export class CodexSessionReader implements ISessionReader {
     }
     const summary = await this.getSessionSummary(sessionId, projectId, {
       readMode: "head",
+      deferAsyncQuestions: options?.deferAsyncQuestions,
     });
     return summary ? toSessionListSummary(summary) : null;
   }
@@ -2051,7 +2056,7 @@ export class CodexSessionReader implements ISessionReader {
       stats,
       read.state,
     );
-    if (summary)
+    if (summary && !options?.deferAsyncQuestions)
       summary.asyncQuestions = await readCodexAsyncQuestions(filePath);
     return summary;
   }

@@ -267,6 +267,7 @@ export function selectInboxTierItems(
 
 export function selectInboxResponse(state: ClientSummaryState): InboxResponse {
   return {
+    ...(state.inbox.catalog ? { catalog: state.inbox.catalog } : {}),
     needsAttention: selectInboxTierItems(state, "needsAttention"),
     active: selectInboxTierItems(state, "active"),
     recentActivity: selectInboxTierItems(state, "recentActivity"),

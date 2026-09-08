@@ -86,7 +86,16 @@ The persisted session-summary index remains a complete-summary cache:
 - serving a lightweight collection must not clear watcher dirty state needed
   by a later complete-summary consumer.
 
-Providers without a lightweight reader retain their existing complete-summary
+In retained collection mode, acquiring a Codex base row explicitly defers the
+question projection. The catalog publishes base rows first, then reads optional
+previews for non-archived sessions. Exact retained rows need no repeated head
+read. Claude titles use a bounded 256 KiB prefix; native providers may remain at
+identity fidelity when they have no cheap title. Unknown title/full-prompt,
+message count, and tail detail fields are omitted from retained responses.
+Known client details survive these partial observations.
+
+On the existing complete-request path, providers without a lightweight reader
+retain their existing complete-summary
 fallback. This preserves provider behavior while allowing providers with large
 append-only transcripts to opt into bounded list work.
 
