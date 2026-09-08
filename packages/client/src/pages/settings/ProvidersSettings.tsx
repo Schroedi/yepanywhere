@@ -53,6 +53,7 @@ import {
   YaCompactContextEarlyControl,
 } from "./compactSettingsControls";
 import { SettingsItem } from "./SettingsItem";
+import styles from "./ProvidersSettings.module.css";
 import { useSettingsPaneTitle } from "./SettingsPaneTitleContext";
 import { HideInSettingsSearch } from "./SettingsSearchContext";
 import { SettingsSection } from "./SettingsSection";
@@ -1529,7 +1530,7 @@ export function ProvidersSettings() {
                     })
             }
           >
-            <div>
+            <div className={styles.limitControls}>
               <CommittedRangeNumberInput
                 id="providers-subagent-max-depth-control"
                 min={PROVIDER_DEFAULT_SUBAGENT_MAX_DEPTH}
@@ -1577,7 +1578,7 @@ export function ProvidersSettings() {
                   })
             }
           >
-            <div>
+            <div className={styles.limitControls}>
               <CommittedRangeNumberInput
                 id="providers-idle-reap-hours-control"
                 min={NEVER_IDLE_REAP_HOURS}
