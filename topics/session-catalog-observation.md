@@ -385,6 +385,16 @@ per transcript — and names what is left. Removing that remaining parse is what
 the durable catalog is for, and it has no production caller, so a restart still
 costs the routes a first read of every project.
 
+## YA-owned provider cache storage
+
+Gemini's YA-owned hash-to-project map lives at
+`<YEP_DATA_DIR>/gemini-project-map.json`, outside the recursively watched native
+session tree. On first use, an existing `<GEMINI_SESSIONS_DIR>/project-map.json`
+is copied into that location; subsequent reads and atomic writes use only the
+new map. The legacy file is retained for older installs. Besides avoiding
+spurious provider events, this keeps short-lived atomic-write files away from
+Node 20's recursive watcher, which can throw while statting a renamed file.
+
 ## Client and browser reuse
 
 Within one tab, retained client queries have one `(sourceKey, queryKey)`
