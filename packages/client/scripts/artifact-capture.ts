@@ -122,7 +122,7 @@ async function createDelivery(
   if (!options.yaUrl)
     return {
       status: "skipped",
-      reason: "No --ya-url supplied; local capture needs no YA server",
+      reason: "Local capture; no YA server selected",
     };
   const version = await apiJson<
     ServerCapabilitySource & { artifactViewer?: ArtifactViewerStatus }

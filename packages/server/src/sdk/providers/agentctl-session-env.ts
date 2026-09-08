@@ -6,12 +6,14 @@ import { quoteShellWord } from "../../utils/posixShell.js";
 const AGENTCTL_SESSION_ID_ENV = "AGENTCTL_SESSION_ID";
 const ORIGINAL_BASH_ENV_ENV = "YEP_ORIGINAL_BASH_ENV";
 const SESSION_CHILD_ENV_NAMES = [
+  "AGENT_SERVER_URL",
   "YEP_SESSION_WAKE_URL",
   "YEP_SESSION_WAKE_TOKEN",
   "YEP_BROWSER_DEBUG_AGENT_URL",
   "YEP_BROWSER_DEBUG_CALLER_TOKEN",
 ] as const;
-const BROWSER_DEBUG_ENV_NAMES = [
+const STATIC_AGENT_ENV_NAMES = [
+  "AGENT_SERVER_URL",
   "YEP_BROWSER_DEBUG_AGENT_URL",
   "YEP_BROWSER_DEBUG_CALLER_TOKEN",
 ] as const;
@@ -26,11 +28,11 @@ export interface AgentctlSessionEnvBridge {
   cleanup(): void;
 }
 
-export function pickBrowserDebugAgentEnvironment(
+export function pickStaticAgentEnvironment(
   environment: Record<string, string> | NodeJS.ProcessEnv | undefined,
 ): Record<string, string> {
   return Object.fromEntries(
-    BROWSER_DEBUG_ENV_NAMES.flatMap((name) => {
+    STATIC_AGENT_ENV_NAMES.flatMap((name) => {
       const value = environment?.[name];
       return typeof value === "string" && value ? [[name, value]] : [];
     }),
@@ -68,7 +70,7 @@ export function createAgentctlSessionEnvBridge(
     const sessionEnv = {
       [AGENTCTL_SESSION_ID_ENV]: sessionId,
       ...getSessionEnv?.(sessionId),
-      ...pickBrowserDebugAgentEnvironment(browserDebugEnvironment),
+      ...pickStaticAgentEnvironment(browserDebugEnvironment),
     };
     writeFileSync(
       tempPath,

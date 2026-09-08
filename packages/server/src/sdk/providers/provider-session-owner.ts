@@ -12,7 +12,7 @@ import type {
   ToolApprovalResult,
   UserMessage,
 } from "../types.js";
-import { pickBrowserDebugAgentEnvironment } from "./agentctl-session-env.js";
+import { pickStaticAgentEnvironment } from "./agentctl-session-env.js";
 import type {
   AgentSession,
   ProviderSessionOptions,
@@ -188,7 +188,7 @@ export class ProviderSessionOwner {
     initialBrowserDebugEnvironment?: Record<string, string>,
   ): Promise<ProviderSessionReadyMetadata> {
     if (this.session) throw new Error("Provider session owner already started");
-    this.browserDebugEnvironment = pickBrowserDebugAgentEnvironment(
+    this.browserDebugEnvironment = pickStaticAgentEnvironment(
       initialBrowserDebugEnvironment,
     );
     const result = await startSession({
@@ -820,7 +820,7 @@ export class ProviderSessionOwner {
           typeof requestedEnvironment === "object" &&
           !Array.isArray(requestedEnvironment)
         ) {
-          this.browserDebugEnvironment = pickBrowserDebugAgentEnvironment(
+          this.browserDebugEnvironment = pickStaticAgentEnvironment(
             requestedEnvironment as Record<string, string>,
           );
         }

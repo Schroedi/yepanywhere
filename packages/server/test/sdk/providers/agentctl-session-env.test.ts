@@ -50,6 +50,28 @@ function bridgeTestEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
 const bashIt = process.platform !== "win32" && isBashAvailable() ? it : it.skip;
 
 describe("agentctl session env bridge", () => {
+  bashIt("publishes the supervising server URL to tool subprocesses", () => {
+    const bridge = createAgentctlSessionEnvBridge();
+    try {
+      const env = bridge.extendEnv({
+        ...bridgeTestEnv(),
+        AGENT_SERVER_URL: "http://stale.invalid/",
+      });
+      expect(env.AGENT_SERVER_URL).toBeUndefined();
+      bridge.publishSessionId("session", {
+        AGENT_SERVER_URL: "http://localhost:4010/",
+      });
+      expect(
+        execFileSync("bash", ["-c", 'printf "%s" "$AGENT_SERVER_URL"'], {
+          encoding: "utf8",
+          env,
+          stdio: ["ignore", "pipe", "pipe"],
+        }),
+      ).toBe("http://localhost:4010/");
+    } finally {
+      bridge.cleanup();
+    }
+  });
   bashIt("publishes AGENTCTL_SESSION_ID to later Bash shells", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "ya-agentctl-env-test-"));
     const originalBashEnvPath = join(tempDir, "original-bash-env.sh");

@@ -12,6 +12,19 @@ YA owns presentation, feature settings, and compatibility. See also
 [assistant media](media-rendering-and-routing.md), and
 [vanilla defaults](vanilla-defaults.md).
 
+## Presentation intent
+
+Declared commentary is transformed into regular assistant prose: it should
+read as if the assistant had generated that prose directly, including its
+links and images. It is conversation content, not routine activity to hide in
+Conversation View. The declaring invocation remains visible at its transcript
+position even when surrounding activity is collapsed. Tool provenance and the
+original output remain available through the existing context controls.
+
+This is the same presentation intent as [schema-announced workflow
+output](workflow-view.md#implemented-v1-contract). Neither transformation changes
+the provider transcript or invents an assistant message.
+
 ## Activation and compatibility
 
 **Tool commentary** in Appearance is a browser-local setting, enabled by

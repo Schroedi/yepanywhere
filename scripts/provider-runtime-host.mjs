@@ -56,6 +56,7 @@ export function resolveProviderRuntimeWorkerPath(env = process.env) {
 // provider child, so a `YEP_`-named marker would reach the worker and vanish
 // one process later. See topics/ya-env-vars.md.
 const AGENT_LAUNCH_ENV_NAMES = [
+  "AGENT_SERVER_URL",
   "AGENT_LAUNCHER",
   "AGENT_LAUNCH_HARNESS",
   "AGENT_LAUNCH_MODEL",
@@ -98,6 +99,9 @@ export function withAgentLaunchEnvironment(
 
   environment.AGENT_LAUNCHER = AGENT_LAUNCHER_NAME;
   environment.AGENT_LAUNCH_HARNESS = agentHarness(providerName);
+  const serverUrl = options?.staticAgentEnvironment?.AGENT_SERVER_URL;
+  if (typeof serverUrl === "string" && serverUrl)
+    environment.AGENT_SERVER_URL = serverUrl;
   const model =
     typeof options?.model === "string" ? options.model.trim() : undefined;
   const effort =

@@ -1,12 +1,13 @@
 // @vitest-environment node
 import { execFile } from "node:child_process";
+import { createServer } from "node:http";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { parseCaptureArgs } from "./capture-artifact";
 
 const exec = promisify(execFile);
@@ -14,6 +15,32 @@ const loader = createRequire(import.meta.url).resolve("tsx/esm");
 const script = fileURLToPath(new URL("./capture-artifact.ts", import.meta.url));
 
 describe("artifact capture command", () => {
+  beforeEach(() => vi.stubEnv("AGENT_SERVER_URL", undefined));
+  afterEach(() => vi.unstubAllEnvs());
+  it("uses the supervising server URL, with explicit override and local opt-out", () => {
+    const env = { AGENT_SERVER_URL: "http://localhost:4010/" };
+    expect(parseCaptureArgs(["index.html"], env)).toMatchObject({
+      options: { yaUrl: env.AGENT_SERVER_URL },
+    });
+    expect(
+      parseCaptureArgs(
+        ["index.html", "--ya-url", "http://localhost:4020"],
+        env,
+      ),
+    ).toMatchObject({ options: { yaUrl: "http://localhost:4020" } });
+    expect(parseCaptureArgs(["index.html", "--local-only"], env)).toMatchObject(
+      { options: { yaUrl: undefined } },
+    );
+    expect(
+      parseCaptureArgs(["https://example.org/index.html"], env),
+    ).toMatchObject({ options: { yaUrl: undefined } });
+    expect(() =>
+      parseCaptureArgs(
+        ["index.html", "--local-only", "--ya-url", env.AGENT_SERVER_URL],
+        env,
+      ),
+    ).toThrow();
+  });
   it("accepts standardized output flags and explicit hosting options", () => {
     expect(
       parseCaptureArgs([
@@ -41,6 +68,59 @@ describe("artifact capture command", () => {
       options: { commentary: false },
     });
   });
+
+  it("discovers delivery through the inherited URL without --ya-url", async () => {
+    const requests: string[] = [];
+    const server = createServer((request, response) => {
+      requests.push(request.url ?? "");
+      response.setHeader("Content-Type", "application/json");
+      response.end(
+        JSON.stringify({
+          current: "0.8.2",
+          artifactViewer: { available: false },
+        }),
+      );
+    });
+    const directory = await mkdtemp(join(tmpdir(), "ya-artifact-env-"));
+    try {
+      await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+      const address = server.address();
+      if (!address || typeof address === "string")
+        throw new Error("Missing test server port");
+      await writeFile(
+        join(directory, "index.html"),
+        "<h1>Discovered server</h1>",
+      );
+      const result = await exec(
+        process.execPath,
+        [
+          "--import",
+          loader,
+          script,
+          "index.html",
+          "--out",
+          "capture",
+          "--json",
+        ],
+        {
+          cwd: directory,
+          env: {
+            ...process.env,
+            AGENT_SERVER_URL: `http://127.0.0.1:${address.port}/`,
+          },
+        },
+      );
+      expect(requests).toEqual(["/api/version"]);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        delivery: { status: "skipped" },
+        screenshots: [{ name: "desktop" }, { name: "phone" }],
+      });
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((done) => server.close(() => done()));
+      await rm(directory, { recursive: true });
+    }
+  }, 30_000);
 
   it.each(
     [
@@ -85,6 +165,7 @@ describe("artifact capture command", () => {
           "--out",
           "captures",
           "--json",
+          "--local-only",
           "--interact",
           "workflow with spaces.mjs",
           "--ready-selector",
@@ -116,6 +197,7 @@ describe("artifact capture command", () => {
           "--out",
           "data-only",
           "--no-commentary",
+          "--local-only",
         ],
         { cwd: directory },
       );

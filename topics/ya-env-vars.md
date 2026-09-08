@@ -108,6 +108,21 @@ set legacy value supplies it, and every listed legacy key is deleted.
 
 ## Child launch markers
 
+`AGENT_SERVER_URL` is the supervising YA server's child-reachable HTTP(S) base
+URL, published as non-secret information. It uses the existing browser-debug
+connection base (or session-wake base when that is the available connection),
+including explicit remote-executor configuration; an unknown reachable base
+leaves it absent. Hosted workers replace stale outer-launcher values, propagate
+the current value to remote environments, and refresh it through the session
+Bash bridge on binding or reattachment. Ordinary child filtering preserves it.
+It conveys neither authentication nor permission to create an artifact grant.
+
+The artifact capture CLI uses it for local HTML when `--ya-url` is absent.
+Explicit `--ya-url` takes precedence; `--local-only` makes no YA requests.
+Existing HTTP(S) input uses its own URL and ignores the informational default.
+Capability, configuration, and authentication checks remain in force. No YA
+control-plane credential is published to make automatic URL discovery work.
+
 Canonical launch/session outputs are addressed to the agent, so they carry no
 product prefix: `filterEnvForChildProcess` drops inherited `YEP_*` on the way
 into a provider child, and an unprefixed `AGENT_*` value needs no allowlist

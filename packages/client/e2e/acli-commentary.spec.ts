@@ -153,13 +153,19 @@ test.beforeAll(async () => {
           req.url?.startsWith("/api/fixture")
             ? {
                 projectId,
-                ...(req.url.includes("artifact=1")
-                  ? artifactOutput
-                  : req.url.includes("lines=1")
-                    ? lineOutput
-                    : req.url.includes("composition=1")
-                      ? workflowOutput
-                      : output),
+                ...(req.url.includes("plain-workflow=1")
+                  ? {
+                      stdout: "[build] Compilation passed.",
+                      stderr: "",
+                      workflowActivation: '@@visualization-schema/1 ["build"]',
+                    }
+                  : req.url.includes("artifact=1")
+                    ? artifactOutput
+                    : req.url.includes("lines=1")
+                      ? lineOutput
+                      : req.url.includes("composition=1")
+                        ? workflowOutput
+                        : output),
               }
             : { current: "0.8.2" },
         ),
@@ -247,7 +253,31 @@ test("renders through the endpoint and keeps context outside transcript geometry
   expect(requests).toBe(before);
 });
 
-test("the capture CLI presents its links and generated images through a code-mode result", async ({
+test("schema-rendered tool progress stays visible in collapsed Conversation View", async ({
+  page,
+}) => {
+  for (const [name, width, height] of [
+    ["desktop", 1000, 600],
+    ["phone", 375, 812],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(
+      `${base}/e2e/fixtures/acli-commentary.html?plain-workflow=1&conversation=1`,
+    );
+    await expect(
+      page.getByText("Compilation passed.", { exact: false }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: resolve(
+        root,
+        `../../.artifacts/ui-testing/2026-09-07-acli-commentary/workflow-conversation-${name}.png`,
+      ),
+      fullPage: true,
+    });
+  }
+});
+
+test("the capture CLI presents its links and generated images in collapsed Conversation View", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -261,7 +291,9 @@ test("the capture CLI presents its links and generated images through a code-mod
     ["phone", 375, 812],
   ] as const) {
     await page.setViewportSize({ width, height });
-    await page.goto(`${base}/e2e/fixtures/acli-commentary.html?artifact=1`);
+    await page.goto(
+      `${base}/e2e/fixtures/acli-commentary.html?artifact=1&conversation=1`,
+    );
     await expect(
       page.getByRole("link", { name: "File viewer", exact: true }),
     ).toBeVisible();

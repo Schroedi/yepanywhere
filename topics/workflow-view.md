@@ -17,6 +17,15 @@ activated tags create visual boundaries and display declared title paths
 inside existing transcript rows. Repeated paths retain their source order.
 No provider messages, turns, commands, or completion events are synthesized.
 
+Schema-rendered workflow output is intended to read as regular assistant
+prose, as if generated directly by the assistant. Like [ACLI
+commentary](acli-commentary.md#presentation-intent), its progress and outcomes
+are conversation content, not routine activity. Tool rows with recognized
+workflow markers remain visible in Conversation View when surrounding activity
+is collapsed. A captured parent context alone does not promote unrelated raw
+tool output. Original output and schema details remain available through their
+existing disclosure controls and links.
+
 - The inline `@@visualization-schema/1 ["build",["check","types"]]` form
   accepts exact paths in assistant text and tool output. Activation can arrive
   from either source; a tool activation applies only from its own marker

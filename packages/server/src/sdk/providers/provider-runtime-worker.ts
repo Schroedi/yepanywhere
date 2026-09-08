@@ -2,7 +2,7 @@ import "../../startupEnv.js";
 import type { PermissionMode } from "@yep-anywhere/shared";
 import { prepareSessionSandbox } from "../../session-sandbox.js";
 import { getModuleEnv } from "../../yaModuleEnv.js";
-import { pickBrowserDebugAgentEnvironment } from "./agentctl-session-env.js";
+import { pickStaticAgentEnvironment } from "./agentctl-session-env.js";
 import { ClaudeGatewayProvider } from "./claude-gateway.js";
 import { ClaudeOllamaProvider } from "./claude-ollama.js";
 import { grokACPProvider } from "./grok-acp.js";
@@ -201,7 +201,7 @@ async function main(): Promise<void> {
             }
           : undefined,
       };
-    }, pickBrowserDebugAgentEnvironment(initialBrowserDebugEnvironment));
+    }, pickStaticAgentEnvironment(initialBrowserDebugEnvironment));
     await adapter.listen();
     owner.begin();
     if (typeof process.send === "function" && process.connected) {

@@ -12,8 +12,9 @@ checkout's Node/pnpm dependencies and Playwright Chromium. Install the browser
 with: pnpm --filter @yep-anywhere/client exec playwright install chromium
 
   --out <directory>       New output directory; defaults to .artifacts/captures/<unique-id> in this checkout
-  --ya-url <origin>       Optional YA server origin; without it, make no YA requests
-  --audience <value>      local (default) or public; used only with --ya-url
+  --ya-url <origin>       YA server origin; defaults to AGENT_SERVER_URL for local HTML
+  --local-only           Capture locally without YA requests, overriding the environment
+  --audience <value>      local (default) or public; requires a selected YA server
   --ya-headers <file>     JSON request headers for YA authentication only; never sent to artifacts
   --ready-selector <css>  Wait for a visible element before capturing
   --interact <module>     Run trusted local JS/TS default async ({page, viewport}) after navigation
@@ -32,7 +33,7 @@ Local files use a fresh browser-only HTTP origin rooted at the entry directory;
 no listening port or YA server is required. Existing output is never overwritten.
 --ya-url checks capability/configuration before probing or creating a grant.
 Disabled/unconfigured delivery skips those requests and captures locally.
-Explicit hosting failures are errors; retry without --ya-url for local captures.
+Hosting failures are errors; use --local-only for local captures.
 URL input uses that existing URL without creating or renewing a grant.
 --interact runs once per fresh viewport before --ready-selector and capture.
 It may click, fill, and await UI state; it executes as local Node code, not sandboxed page content.
@@ -51,7 +52,10 @@ Errors are JSON on stderr. No prompts, shared-server restarts, or browser reuse.
 acli: 1 +commentary
 `;
 
-export function parseCaptureArgs(argv: string[]) {
+export function parseCaptureArgs(
+  argv: string[],
+  env: NodeJS.ProcessEnv = process.env,
+) {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
@@ -59,6 +63,7 @@ export function parseCaptureArgs(argv: string[]) {
       help: { type: "boolean", short: "h" },
       out: { type: "string" },
       "ya-url": { type: "string" },
+      "local-only": { type: "boolean" },
       audience: { type: "string" },
       "ya-headers": { type: "string" },
       "ready-selector": { type: "string" },
@@ -80,8 +85,17 @@ export function parseCaptureArgs(argv: string[]) {
     throw new Error("Supply exactly one HTML file or HTTP(S) URL");
   if (values.audience && !["local", "public"].includes(values.audience))
     throw new Error("--audience must be local or public");
-  if ((values.audience || values["ya-headers"]) && !values["ya-url"])
-    throw new Error("--audience and --ya-headers require --ya-url");
+  if (values["local-only"] && values["ya-url"])
+    throw new Error("--local-only and --ya-url cannot be combined");
+  const remoteInput = /^https?:\/\//i.test(positionals[0]!);
+  const yaUrl = values["local-only"]
+    ? undefined
+    : (values["ya-url"] ??
+      (remoteInput ? undefined : env.AGENT_SERVER_URL?.trim() || undefined));
+  if ((values.audience || values["ya-headers"]) && !yaUrl)
+    throw new Error(
+      "--audience and --ya-headers require --ya-url or AGENT_SERVER_URL",
+    );
   if (values["ya-url"] && /^https?:\/\//i.test(positionals[0]!))
     throw new Error("--ya-url applies only to local HTML input");
   const timeoutMs = Number(values["timeout-ms"] ?? 30000);
@@ -98,7 +112,7 @@ export function parseCaptureArgs(argv: string[]) {
   const options: CaptureOptions = {
     input: positionals[0]!,
     out: values.out,
-    yaUrl: values["ya-url"],
+    yaUrl,
     audience: values.audience as "local" | "public" | undefined,
     readySelector: values["ready-selector"],
     timeoutMs,

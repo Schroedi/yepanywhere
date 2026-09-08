@@ -4,6 +4,7 @@ import {
 } from "../messageAge";
 import { getDisplayBashCommandFromInput } from "../bashCommand";
 import { getPathBasename } from "../text";
+import { toolDeclaresCommentary } from "../toolCommentarySource";
 import { toolRegistry } from "../../components/renderers/tools";
 import { getToolSummary } from "../../components/tools/summaries";
 import type {
@@ -101,6 +102,8 @@ export function isConversationViewActivity(item: RenderItem): boolean {
   }
   return (
     !isMediaToolCall(item) &&
+    !toolDeclaresCommentary(item) &&
+    !item.workflow?.markers.length &&
     item.status !== "error" &&
     item.status !== "incomplete"
   );

@@ -61,6 +61,15 @@ provider-history rewrite and not deletion.
   objects, agent-authored text, ordinary system notices, warnings, and errors.
   Tool calls with media remain visible, using their existing media renderer, so
   images stay associated with the agent turn's text.
+- Tool invocations declaring ACLI commentary also remain at their transcript
+  position, including declarations inside code-mode output blocks. Their
+  human-facing links, reports, and capture tables must not require expanding
+  routine activity. The existing Tool commentary setting and server capability
+  still govern rich presentation; when unavailable, the original output remains
+  accessible through the ordinary tool row.
+- Recognized schema-rendered workflow output has the same prose-level status.
+  Tool rows containing workflow markers remain visible; merely running under
+  a workflow's parent stage does not exempt unrelated routine activity.
 - Routine tool calls (pending, complete, or aborted), Thinking rows,
   non-failing task notifications, and subagent-activity notices condense.
   Provider plan-checklist updates rendered through the canonical `UpdatePlan`

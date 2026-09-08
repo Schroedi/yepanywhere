@@ -26,6 +26,7 @@ import {
 import { getDisplayBashCommandFromInput } from "../lib/bashCommand";
 import type { YaSourceRuntime } from "../lib/sourceRuntime";
 import { renderCommentary } from "../lib/renderCommentary";
+import { readToolCommentaryOutput as readOutput } from "../lib/toolCommentarySource";
 import {
   joinWorkflowOutputs,
   projectWorkflowFragments,
@@ -34,10 +35,7 @@ import {
 import type { ToolCallItem, ToolResultData } from "../types/renderItems";
 import { AcliCommentary } from "./AcliCommentary";
 import { ActivityDetailModal } from "./ActivityDetailModal";
-import {
-  BashModalContent,
-  normalizeBashResult,
-} from "./renderers/tools/BashRenderer";
+import { BashModalContent } from "./renderers/tools/BashRenderer";
 import type { BashInput, BashResult } from "./renderers/tools/types";
 
 interface Props {
@@ -259,41 +257,6 @@ function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
-}
-
-function readOutput(
-  props: Pick<Props, "toolName" | "toolInput" | "toolResult">,
-): Output {
-  const raw =
-    props.toolResult?.structured ??
-    props.toolResult?.content ??
-    record(props.toolInput)?._previewResult;
-  if (
-    ["bash", "exec_command", "shell_command"].includes(
-      props.toolName.toLowerCase(),
-    )
-  ) {
-    const shell = normalizeBashResult(
-      raw as BashResult | string | undefined,
-      props.toolResult?.isError ?? false,
-    );
-    return {
-      stdout: shell.stdout ?? "",
-      stderr: shell.stderr ?? "",
-      shell,
-      stdoutSequenced: typeof record(raw)?.stdout === "string",
-    };
-  }
-  const structured = record(raw);
-  return {
-    stdout:
-      typeof structured?.stdout === "string"
-        ? structured.stdout
-        : (props.toolResult?.content ?? ""),
-    stderr: typeof structured?.stderr === "string" ? structured.stderr : "",
-    stdoutSequenced: typeof structured?.stdout === "string",
-    shell: null,
-  };
 }
 
 export function ToolCommentaryBoundary(props: Props) {

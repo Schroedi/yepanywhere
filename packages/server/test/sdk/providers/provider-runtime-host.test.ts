@@ -68,6 +68,23 @@ describe("resolveProviderRuntimeWorkerPath", () => {
 });
 
 describe("withAgentLaunchEnvironment", () => {
+  it("publishes the current server URL and clears a stale outer launcher URL", () => {
+    const ambient = { AGENT_SERVER_URL: "http://outer.invalid/" };
+    expect(
+      withAgentLaunchEnvironment("pi", {}, ambient).AGENT_SERVER_URL,
+    ).toBeUndefined();
+    expect(
+      withAgentLaunchEnvironment(
+        "pi",
+        {
+          staticAgentEnvironment: {
+            AGENT_SERVER_URL: "http://localhost:4010/",
+          },
+        },
+        ambient,
+      ).AGENT_SERVER_URL,
+    ).toBe("http://localhost:4010/");
+  });
   it("replaces inherited markers with the provider launch facts", () => {
     expect(
       withAgentLaunchEnvironment(
@@ -1282,6 +1299,7 @@ describe.skipIf(process.platform !== "linux")("ProviderRuntimeHost", () => {
           effort: "high",
           remoteEnv: { REMOTE_KEEP_ME: "yes" },
           staticAgentEnvironment: {
+            AGENT_SERVER_URL: "http://127.0.0.1/",
             YEP_BROWSER_DEBUG_AGENT_URL: "http://127.0.0.1/browser-debug/v1",
             YEP_BROWSER_DEBUG_CALLER_TOKEN: "boot-token",
           },
@@ -1299,6 +1317,7 @@ describe.skipIf(process.platform !== "linux")("ProviderRuntimeHost", () => {
     });
     expect(launched.worker.remoteAgentLaunchEnvironment).toEqual({
       REMOTE_KEEP_ME: "yes",
+      AGENT_SERVER_URL: "http://127.0.0.1/",
       AGENT_LAUNCHER: "yepanywhere",
       AGENT_LAUNCH_HARNESS: "claude",
       AGENT_LAUNCH_MODEL: "gpt-5.6-sol",
@@ -1815,6 +1834,7 @@ describe.skipIf(process.platform !== "linux")("ProviderRuntimeHost", () => {
         cwd: runtimeRoot,
         resumeSessionId: "canonical-session",
         getSessionChildEnv: () => ({
+          AGENT_SERVER_URL: "http://127.0.0.1/",
           YEP_BROWSER_DEBUG_AGENT_URL: "http://127.0.0.1/browser-debug/v1",
           YEP_BROWSER_DEBUG_CALLER_TOKEN: "second-boot-token",
           UNRELATED_SECRET: "must-not-pass",
@@ -1831,6 +1851,7 @@ describe.skipIf(process.platform !== "linux")("ProviderRuntimeHost", () => {
     expect(environmentEvent.value).toMatchObject({
       status: "browser-debug-environment-published",
       browserDebugEnvironment: {
+        AGENT_SERVER_URL: "http://127.0.0.1/",
         YEP_BROWSER_DEBUG_AGENT_URL: "http://127.0.0.1/browser-debug/v1",
         YEP_BROWSER_DEBUG_CALLER_TOKEN: "second-boot-token",
       },

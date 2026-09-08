@@ -114,6 +114,7 @@ describe("filterEnvForChildProcess", () => {
 
   it("passes the agent's own launch markers through to the child", () => {
     const env = filterEnvForChildProcess({
+      AGENT_SERVER_URL: "http://localhost:4010/",
       AGENT_LAUNCHER: "yepanywhere",
       AGENT_LAUNCH_HARNESS: "claude",
       AGENT_LAUNCH_MODEL: "claude-opus-5",
@@ -121,6 +122,7 @@ describe("filterEnvForChildProcess", () => {
     });
 
     expect(env.AGENT_LAUNCHER).toBe("yepanywhere");
+    expect(env.AGENT_SERVER_URL).toBe("http://localhost:4010/");
     expect(env.AGENT_LAUNCH_HARNESS).toBe("claude");
     expect(env.AGENT_LAUNCH_MODEL).toBe("claude-opus-5");
     expect(env.AGENT_LAUNCH_EFFORT).toBe("xhigh");

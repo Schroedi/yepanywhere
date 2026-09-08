@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { compileTranscriptProjection } from "../../transcriptProjection/compiler";
 import type { Message } from "../../../types";
 import type {
   ConversationActivityItem,
@@ -45,6 +46,75 @@ function summary(items: readonly RenderItem[]): ConversationActivityItem {
 }
 
 describe("projectConversationView", () => {
+  it("keeps schema-rendered tool progress visible with activity collapsed", () => {
+    const items = compileTranscriptProjection(
+      [
+        {
+          id: "activation",
+          role: "assistant",
+          content: '@@visualization-schema/1 ["build"]',
+        },
+        {
+          id: "call",
+          role: "assistant",
+          content: [{ type: "tool_use", id: "build", name: "Bash", input: {} }],
+        },
+        {
+          id: "result",
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "build",
+              content: "[build] Compilation passed.",
+            },
+          ],
+        },
+      ],
+      { workflowTags: true },
+    );
+    const build = items.find((item) => item.type === "tool_call");
+    expect(build?.workflow?.markers.length).toBeGreaterThan(0);
+    expect(
+      projectConversationView(items, { active: false, nowMs: 0 }),
+    ).toContain(build);
+  });
+
+  it.each(["Bash", "Exec"])(
+    "keeps %s commentary visible with activity collapsed",
+    (toolName) => {
+      const text =
+        '# acli: 1 +commentary\n{"_acli":{"commentary":[{"text":"[Artifact](./index.html)"}]}}';
+      const content =
+        toolName === "Exec"
+          ? JSON.stringify([
+              {
+                type: "input_text",
+                text: JSON.stringify({
+                  chunk_id: "capture",
+                  wall_time_seconds: 0,
+                  exit_code: 0,
+                  output: text,
+                }),
+              },
+            ])
+          : text;
+      const artifact = tool("artifact", 2000, {
+        toolName,
+        toolResult: { content, isError: false },
+      });
+      const projected = projectConversationView(
+        [tool("routine", 1000), artifact],
+        {
+          active: false,
+          nowMs: 3000,
+        },
+      );
+      expect(projected).toContain(artifact);
+      expect(summary(projected).activityCount).toBe(1);
+    },
+  );
+
   it("preserves authored text, media, and failures while summarizing routine activity", () => {
     const items: RenderItem[] = [
       {

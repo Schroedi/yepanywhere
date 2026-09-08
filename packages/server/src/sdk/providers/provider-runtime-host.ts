@@ -14,7 +14,7 @@ import type {
   UserMessage,
 } from "../types.js";
 import { getModuleEnv } from "../../yaModuleEnv.js";
-import { pickBrowserDebugAgentEnvironment } from "./agentctl-session-env.js";
+import { pickStaticAgentEnvironment } from "./agentctl-session-env.js";
 import type {
   AgentSession,
   ProviderName,
@@ -448,7 +448,7 @@ function cloneableOptions(
   );
   return {
     ...cloneable,
-    staticAgentEnvironment: pickBrowserDebugAgentEnvironment(sessionChildEnv),
+    staticAgentEnvironment: pickStaticAgentEnvironment(sessionChildEnv),
   };
 }
 
@@ -651,7 +651,7 @@ class HostedAgentSession {
       if (options.resumeSessionId && options.getSessionChildEnv) {
         await proxy.rpc("publishAgentctlSessionId", [
           options.resumeSessionId,
-          pickBrowserDebugAgentEnvironment(
+          pickStaticAgentEnvironment(
             options.getSessionChildEnv(
               options.resumeSessionId,
               options.executor,
@@ -1108,10 +1108,7 @@ class HostedAgentSession {
           "publishAgentctlSessionId",
           browserDebugEnvironment === undefined
             ? [sessionId]
-            : [
-                sessionId,
-                pickBrowserDebugAgentEnvironment(browserDebugEnvironment),
-              ],
+            : [sessionId, pickStaticAgentEnvironment(browserDebugEnvironment)],
         );
         const bound = await requestHost<HostedProviderRuntimeInfo>("bind", {
           runtimeId: this.runtime.runtimeId,

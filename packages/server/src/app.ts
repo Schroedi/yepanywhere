@@ -1289,7 +1289,9 @@ export function createApp(options: AppOptions): AppResult {
             const wakeBaseUrl = options.getSessionWakeBaseUrl?.(executor);
             const browserDebugConnection =
               options.getBrowserDebugConnection?.(executor);
+            const serverUrl = browserDebugConnection?.baseUrl ?? wakeBaseUrl;
             return {
+              ...(serverUrl ? { AGENT_SERVER_URL: serverUrl } : {}),
               ...(browserDebugConnection
                 ? browserDebugService.getAgentEnvironment(
                     browserDebugConnection.baseUrl,
