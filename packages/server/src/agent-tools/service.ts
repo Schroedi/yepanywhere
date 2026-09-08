@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { quoteShellWord } from "../utils/posixShell.js";
 import {
   AGENT_SELF_PATH,
@@ -76,7 +76,11 @@ async function createRuntime(): Promise<Runtime> {
     );
     const args =
       source && !process.versions.bun
-        ? ["--import", createRequire(import.meta.url).resolve("tsx"), entry]
+        ? [
+            "--import",
+            pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href,
+            entry,
+          ]
         : [entry];
     const command = [process.execPath, ...args];
     if (process.platform === "win32") {
