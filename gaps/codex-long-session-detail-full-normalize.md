@@ -28,8 +28,11 @@ The per-tab `Sending` chip stall on a different Codex session was a
 missed live user-echo with no while-connected fallback (`c0c98ff80`).
 The coupling risk remains: this 3.7 s parse shares the event loop with
 every provider’s POST and WS. Sibling-tab composer resurrection of the
-last sent prompt is separate
-([sibling-tab-restores-sent-composer-draft](sibling-tab-restores-sent-composer-draft.md)).
+last sent prompt was separate and is fixed: the post-submit recovery copy
+now carries a `pendingSend` marker and is discarded once the receiving tab
+proves the same text is a durable turn or a queued message
+([`topics/message-control-steer-queue-btw-later-interrupt.md`](../topics/message-control-steer-queue-btw-later-interrupt.md)
+§ Composer acknowledgement safety).
 
 Sidebar/new-window slowness with many Codex rows is the same family:
 `CODEX_SCANNER: slow scan` / `CODEX_READER: slow scan` every few

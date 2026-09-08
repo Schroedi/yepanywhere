@@ -130,6 +130,7 @@ import {
   deleteDraftAttachmentRef,
   validateDraftAttachmentRefs,
 } from "../lib/draftAttachmentStaging";
+import { draftTextIsAccountedFor } from "../lib/draftSendReconcile";
 import {
   hasAttachmentNavigationRisk,
   useAttachmentNavigationGuard,
@@ -3924,11 +3925,30 @@ function SessionPageContent({
     ],
   );
 
+  // A submit clears the composer optimistically and keeps the text as a
+  // recovery copy, so a sibling tab or a reload can still see a send that
+  // never landed. Once this session proves the same text is durable — a real
+  // user turn, or a message the server holds queued — that copy is noise, and
+  // its tab may be gone before its own confirm ever runs.
+  const reconcilePendingSendDraftRef = useRef<() => void>(() => {});
+  const reconcilePendingSendDraft = useCallback(() => {
+    draftControlsRef.current?.discardPendingSendDraft((draftText) =>
+      draftTextIsAccountedFor({ draftText, messages, deferredMessages }),
+    );
+  }, [deferredMessages, messages]);
+  reconcilePendingSendDraftRef.current = reconcilePendingSendDraft;
+
+  useEffect(() => {
+    reconcilePendingSendDraft();
+  }, [reconcilePendingSendDraft]);
+
   const handleDraftControlsReady = useCallback(
     (controls: DraftControls) => {
       draftControlsRef.current = controls;
       flushPendingMotherComposerTransfer(controls);
       void hydrateDraftAttachments(controls);
+      // History may already have loaded before the composer mounted.
+      reconcilePendingSendDraftRef.current();
     },
     [flushPendingMotherComposerTransfer, hydrateDraftAttachments],
   );
