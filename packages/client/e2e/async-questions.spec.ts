@@ -6,7 +6,7 @@ import {
   decodeJsonFrame,
   type RemoteClientMessage,
 } from "@yep-anywhere/shared";
-import { createServer } from "vite";
+import { createTestViteServer as createServer } from "./support/vite-server";
 import {
   startYaServerProcess,
   stopYaServerProcess,
@@ -205,14 +205,6 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
       });
       await page.setViewportSize(viewport);
       await page.goto(`${origin}/projects/${projectId}/sessions/${sessionId}`);
-      if (viewport.name === "desktop") {
-        await page
-          .getByRole("button", { name: "Skip all", exact: true })
-          .click();
-        await expect(
-          page.getByText("Welcome to yepanywhere"),
-        ).not.toBeVisible();
-      }
       await page.evaluate(() => {
         for (const key of Object.keys(localStorage))
           if (key.startsWith("yep-async-questions:"))

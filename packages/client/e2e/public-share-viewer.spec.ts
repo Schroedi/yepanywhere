@@ -164,17 +164,27 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+    });
     await page.locator(".public-share-scroll").evaluate((node) => {
       node.scrollTop = node.scrollHeight - node.clientHeight - 12;
     });
     const summary = page.locator(".conversation-activity-summary");
     await summary.scrollIntoViewIfNeeded();
     await expect(summary).toBeInViewport();
-    const before = await summary.boundingBox();
     await summary.evaluate((node: HTMLElement) => {
       node.addEventListener(
         "click",
         () => {
+          // Measure at the actual click boundary, after Playwright's own
+          // visibility scrolling and any pending live-edge reconciliation.
+          document.documentElement.dataset.beforeExpandedTop = String(
+            node.getBoundingClientRect().top,
+          );
           requestAnimationFrame(() => {
             document.documentElement.dataset.firstExpandedTop = String(
               document
@@ -183,22 +193,25 @@ for (const viewport of [
             );
           });
         },
-        { once: true },
+        { once: true, capture: true },
       );
     });
     await summary.click();
     await expect(
       page.getByRole("button", { name: "Show full command", exact: true }),
     ).toHaveCount(8);
+    const before = Number(
+      await page.locator("html").getAttribute("data-before-expanded-top"),
+    );
     await expect
-      .poll(async () => Math.abs((await summary.boundingBox())!.y - before!.y))
+      .poll(async () => Math.abs((await summary.boundingBox())!.y - before))
       .toBeLessThan(3);
     await expect
       .poll(async () =>
         Math.abs(
           Number(
             await page.locator("html").getAttribute("data-first-expanded-top"),
-          ) - before!.y,
+          ) - before,
         ),
       )
       .toBeLessThan(3);

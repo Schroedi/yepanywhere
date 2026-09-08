@@ -84,6 +84,26 @@ than treating the banner as unrelated visual noise.
 
 ## Recommended automation
 
+### Browser integration fixture isolation
+
+Feature-specific Playwright fixtures start Vite through
+`packages/client/e2e/support/vite-server.ts`. Each server owns a temporary
+dependency cache, removed when it closes; starting a different fixture must
+not invalidate modules served by the suite's long-lived remote client.
+Optimized modules stay beneath `node_modules` so React/Babel treats them as
+dependencies. These fixtures explicitly disable unrelated onboarding and CLI
+update overlays, independent of test order or developer shell settings.
+Navigation URLs use the server's bound loopback address: a listener bound to
+`127.0.0.1` is opened at that address, since `localhost` may resolve to an
+unrelated IPv6 listener using the same port.
+
+Export checks build their required mockup bundle from the checked-out source;
+they must work without pre-existing `.artifacts` output. The relay artifact
+fixture accepts its dedicated generated HTTPS certificate in its browser
+context. This fixture setting does not change production certificate checks.
+
+### Browser capture command
+
 Use the browser control tool listed in `CLAUDE.md` when it has an
 available backend. If setup or discovery reports no browser, or the
 browser inventory is empty, immediately fall back to the repository's

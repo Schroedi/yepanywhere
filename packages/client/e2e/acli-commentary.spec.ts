@@ -7,7 +7,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { toUrlProjectId } from "@yep-anywhere/shared";
-import { createServer as createViteServer } from "vite";
+import { createTestViteServer as createViteServer } from "./support/vite-server";
 import { createToolCommentaryRoutes } from "../../server/src/routes/tool-commentary";
 import type { ProjectScanner } from "../../server/src/projects/scanner";
 
