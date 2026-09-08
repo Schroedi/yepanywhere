@@ -598,6 +598,7 @@ describe("workflow tag projection", () => {
     ]);
     const pages = items.find((item) => item.id === "pages");
     expect(pages?.workflow).toEqual({
+      outputBoundaries: [0],
       parent: {
         path: "[publish][client]",
         title: "Publish YA › Publish the hosted client",

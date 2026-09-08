@@ -39,6 +39,25 @@ const workflowOutput = {
     '@@visualization-schema/1 ["parent","build","report"]\n[parent] Check the report.',
 };
 const captureImages = new Map<string, Buffer>();
+const basicAcliOutput = {
+  toolName: "Exec",
+  workflowActivation: '@@visualization-schema/1 ["build"]',
+  stderr: "",
+  stdout: JSON.stringify(
+    [
+      "0\t0\n",
+      'master\n# acli: 1 complete\n{"kind":"file_claim","dropped":["client/output.tsx","client/workflow.tsx"],"ok":true}\n',
+    ].map((output, index) => ({
+      type: "input_text",
+      text: JSON.stringify({
+        chunk_id: String(index),
+        output,
+        exit_code: 0,
+        wall_time_seconds: 0.1,
+      }),
+    })),
+  ),
+};
 const note = (text: string) => ({ _acli: { commentary: [{ text }] } });
 
 test.beforeAll(async () => {
@@ -153,19 +172,30 @@ test.beforeAll(async () => {
           req.url?.startsWith("/api/fixture")
             ? {
                 projectId,
-                ...(req.url.includes("plain-workflow=1")
-                  ? {
-                      stdout: "[build] Compilation passed.",
-                      stderr: "",
-                      workflowActivation: '@@visualization-schema/1 ["build"]',
-                    }
-                  : req.url.includes("artifact=1")
-                    ? artifactOutput
-                    : req.url.includes("lines=1")
-                      ? lineOutput
-                      : req.url.includes("composition=1")
-                        ? workflowOutput
-                        : output),
+                ...(req.url.includes("acli-basics=1")
+                  ? basicAcliOutput
+                  : req.url.includes("workflow-json=1")
+                    ? {
+                        stdout:
+                          '[build] Checks passed.\n# acli: 1 complete\n{"kind":"checks","ok":true,"count":2}\n',
+                        stderr: "",
+                        workflowActivation:
+                          '@@visualization-schema/1 ["build"]',
+                      }
+                    : req.url.includes("plain-workflow=1")
+                      ? {
+                          stdout: "[build] Compilation passed.",
+                          stderr: "",
+                          workflowActivation:
+                            '@@visualization-schema/1 ["build"]',
+                        }
+                      : req.url.includes("artifact=1")
+                        ? artifactOutput
+                        : req.url.includes("lines=1")
+                          ? lineOutput
+                          : req.url.includes("composition=1")
+                            ? workflowOutput
+                            : output),
               }
             : { current: "0.8.2" },
         ),
@@ -251,6 +281,55 @@ test("renders through the endpoint and keeps context outside transcript geometry
     page.getByRole("button", { name: "Open tool output" }),
   ).toHaveCount(0);
   expect(requests).toBe(before);
+});
+
+test("ACLI metadata and JSON retain their types inside workflows", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (["warning", "error"].includes(message.type()))
+      errors.push(message.text());
+  });
+  for (const query of ["acli-basics", "workflow-json"]) {
+    for (const [name, width, height] of [
+      ["desktop", 1000, 600],
+      ["phone", 375, 812],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      await page.goto(`${base}/e2e/fixtures/acli-commentary.html?${query}=1`);
+      if (query === "acli-basics")
+        await page.getByRole("button", { name: "Expand", exact: true }).click();
+      const json = page.locator('[data-tool-output-kind="json"]');
+      await expect(json).toHaveCount(1);
+      await expect(json).toContainText('"ok": true');
+      expect(await json.textContent()).toContain('\n  "kind":');
+      await expect(
+        page.locator('[data-tool-output-kind="metadata"]'),
+      ).toHaveCount(1);
+      if (query === "acli-basics") {
+        await expect(page.locator("[data-workflow-output]")).toHaveCount(0);
+        await expect(
+          page.getByText("Exit code: 0 · 0.1s", { exact: true }),
+        ).toHaveCount(2);
+      } else
+        await expect(
+          page.getByText("Checks passed.", { exact: false }),
+        ).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(width);
+      await page.screenshot({
+        path: resolve(
+          root,
+          `../../.artifacts/ui-testing/2026-09-08-acli-basics/${query}-${name}.png`,
+        ),
+        fullPage: true,
+      });
+    }
+  }
+  expect(errors).toEqual([]);
 });
 
 test("schema-rendered tool progress stays visible in collapsed Conversation View", async ({

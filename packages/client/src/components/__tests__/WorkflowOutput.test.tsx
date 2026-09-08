@@ -3,6 +3,19 @@ import { expect, it } from "vitest";
 import { I18nProvider } from "../../i18n";
 import { WorkflowOutput } from "../WorkflowOutput";
 
+it("does not join incomplete JSON across command output boundaries", () => {
+  const { container } = render(
+    <I18nProvider>
+      <WorkflowOutput
+        text={'{"ok":\ntrue}\n'}
+        workflow={{ markers: [], outputBoundaries: [0, 7] }}
+      />
+    </I18nProvider>,
+  );
+  expect(container.querySelector('[data-tool-output-kind="json"]')).toBeNull();
+  expect(container.querySelector("pre")?.textContent).toBe('{"ok":\ntrue}\n');
+});
+
 it("keeps progress visible and reveals raw schema syntax only on expansion", () => {
   const declaration = "@@visualization-schema/1 /schema.json#ya-publish/1";
   const stage = "[publish][prepare]";

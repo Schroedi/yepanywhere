@@ -1,6 +1,8 @@
 import type { ToolRenderer } from "./types";
 import { decodeCodeModeOutput } from "@yep-anywhere/shared";
 import { useI18n } from "../../../i18n";
+import { ToolOutputText } from "../../ToolOutputText";
+import { isAcliMetadata } from "../../../lib/toolOutputPresentation";
 import styles from "./CodeModeExecRenderer.module.css";
 import { formatCommandDuration } from "../../../lib/shellToolOutput";
 
@@ -113,7 +115,9 @@ function ExecOutput({
         const skill = readsSkill ? readSkillDocument(text) : undefined;
         const documentTitle = skill
           ? t("codeModeExecSkill", { name: skill.name })
-          : /^# ([^\r\n]+)\r?\n/.exec(text)?.[1];
+          : isAcliMetadata(text.split("\n", 1)[0] ?? "")
+            ? undefined
+            : /^# ([^\r\n]+)\r?\n/.exec(text)?.[1];
         if (part.kind === "script-status") {
           return (
             <p className={styles.metadata} key={index}>
@@ -146,7 +150,9 @@ function ExecOutput({
                 <pre className={styles.text}>{text}</pre>
               </details>
             ) : (
-              <pre className={styles.text}>{text}</pre>
+              <pre className={styles.text}>
+                <ToolOutputText text={text} />
+              </pre>
             )}
           </div>
         );

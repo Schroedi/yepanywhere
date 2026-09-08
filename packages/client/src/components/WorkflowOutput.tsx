@@ -6,6 +6,7 @@ import type {
 } from "../lib/transcriptProjection/workflowTags";
 import styles from "./WorkflowOutput.module.css";
 import { TimelineDisclosure } from "./TimelineDisclosure";
+import { ToolOutputText } from "./ToolOutputText";
 import { SessionFilePathLink } from "./SessionFilePathLink";
 import { workflowSchemaReference } from "../lib/transcriptProjection/workflowTags";
 
@@ -103,6 +104,23 @@ export function WorkflowOutput({
   const [originalExpanded, setOriginalExpanded] = useState(false);
   const originalId = useId();
   const content: ReactNode[] = [];
+  const output = (start: number, end: number) => {
+    const boundaries = [
+      start,
+      ...(workflow.outputBoundaries ?? []).filter(
+        (offset) => offset > start && offset < end,
+      ),
+      end,
+    ];
+    return boundaries
+      .slice(0, -1)
+      .map((offset, index) => (
+        <ToolOutputText
+          key={offset}
+          text={text.slice(offset, boundaries[index + 1])}
+        />
+      ));
+  };
   let markerIndex = 0;
   for (const range of workflow.visibleRanges ?? [
     { start: 0, end: text.length },
@@ -115,13 +133,17 @@ export function WorkflowOutput({
       if (marker.start < range.start) continue;
       content.push(
         <Fragment key={marker.start}>
-          {text.slice(offset, marker.start)}
+          {output(offset, marker.start)}
           <WorkflowBoundary marker={marker} />
         </Fragment>,
       );
       offset = marker.end;
     }
-    content.push(text.slice(offset, range.end));
+    content.push(
+      <Fragment key={`tail-${range.start}`}>
+        {output(offset, range.end)}
+      </Fragment>,
+    );
   }
   return (
     <div className={`${styles.root} timeline-item`} data-workflow-output="true">

@@ -161,7 +161,7 @@ describe("CodeModeExecRenderer", () => {
           }),
         ),
       );
-      expect(getByText("permission denied").tagName).toBe("PRE");
+      expect(getByText("permission denied").closest("pre")).not.toBeNull();
       expect(getByText("Exit code: 1 · 0.4s")).toBeDefined();
     },
   );

@@ -26,6 +26,14 @@ is collapsed. A captured parent context alone does not promote unrelated raw
 tool output. Original output and schema details remain available through their
 existing disclosure controls and links.
 
+This prose intent applies to declared progress, not every byte in its tool
+invocation. Complete JSON objects and arrays in workflow spans remain indented
+monospace data, and ACLI banners remain metadata. Neither a JSON string nor a
+parent stage authorizes prose interpretation. Command-output boundaries also
+bound JSON framing: incomplete fragments from different commands cannot form
+one JSON value. A parent-only `spans` annotation retains the ordinary tool
+renderer; `matching-lines` continues to show only declared matching lines.
+
 - The inline `@@visualization-schema/1 ["build",["check","types"]]` form
   accepts exact paths in assistant text and tool output. Activation can arrive
   from either source; a tool activation applies only from its own marker

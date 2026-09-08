@@ -24,7 +24,7 @@ import { validateToolResult } from "../../../lib/validateToolResult";
 import { ActivityDetailModal } from "../../ActivityDetailModal";
 import { ProjectPathLinkedText } from "../../ProjectPathLinkedText";
 import { SchemaWarning } from "../../SchemaWarning";
-import { AnsiText } from "../../ui/AnsiText";
+import { ToolOutputText } from "../../ToolOutputText";
 import {
   FixedFontMathToggle,
   type RenderedMathResult,
@@ -196,7 +196,7 @@ export function BashModalContent({
               projectPathLinks={projectPathLinks}
               sourceView={
                 <pre className="code-block">
-                  <AnsiText text={stdout} />
+                  <ToolOutputText text={stdout} />
                 </pre>
               }
               renderRenderedView={(html) => renderFixedFontMathPanel(html)}
@@ -221,7 +221,7 @@ export function BashModalContent({
               projectPathLinks={projectPathLinks}
               sourceView={
                 <pre className="code-block code-block-error">
-                  <AnsiText text={stderr} />
+                  <ToolOutputText text={stderr} />
                 </pre>
               }
               renderRenderedView={(html) =>
@@ -448,7 +448,7 @@ function BashToolResult({
             }
             sourceView={
               <pre className="code-block">
-                <AnsiText text={displayStdout} />
+                <ToolOutputText text={displayStdout} />
               </pre>
             }
             renderRenderedView={(html) => renderFixedFontMathPanel(html)}
@@ -483,7 +483,7 @@ function BashToolResult({
             precomputedRendered={richStderr}
             sourceView={
               <pre className="code-block code-block-error">
-                <AnsiText text={stderr} />
+                <ToolOutputText text={stderr} />
               </pre>
             }
             renderRenderedView={(html) =>
@@ -672,7 +672,7 @@ function BashCollapsedPreview({
                 precomputedRendered={previewRichContent}
                 sourceView={
                   <pre>
-                    <AnsiText text={previewText} />
+                    <ToolOutputText text={previewText} compact />
                   </pre>
                 }
                 renderRenderedView={(html) => (

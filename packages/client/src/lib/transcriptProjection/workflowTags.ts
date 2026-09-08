@@ -25,6 +25,8 @@ export interface WorkflowAnnotation {
   markers: WorkflowMarker[];
   toolContext?: WorkflowToolContext;
   outputText?: string;
+  /** Starts of independently decoded output blocks; JSON never crosses these. */
+  outputBoundaries?: number[];
   parent?: { path: string; title: string };
   view?: "spans" | "matching-lines";
   visibleRanges?: Array<{ start: number; end: number }>;
@@ -542,6 +544,10 @@ function appendAnnotation(
   const separator = previous && text ? "\n" : "";
   const offset = previous.length + separator.length;
   target.outputText = previous + separator + text;
+  target.outputBoundaries ??= [];
+  target.outputBoundaries.push(
+    ...(source.outputBoundaries ?? [0]).map((start) => start + offset),
+  );
   target.parent ??= source.parent;
   target.view ??= source.view;
   target.markers.push(
@@ -846,12 +852,16 @@ export function annotateWorkflowTags(
               continue;
             }
             const text = parts.join("\n");
-            const annotation: WorkflowAnnotation = { markers: [] };
+            const annotation: WorkflowAnnotation = {
+              markers: [],
+              outputBoundaries: [],
+            };
             const visibleRanges: NonNullable<
               WorkflowAnnotation["visibleRanges"]
             > = [];
             let offset = 0;
             for (const part of parts) {
+              annotation.outputBoundaries!.push(offset);
               // Each result owns its fences and local activation. Joining
               // first would let one command reinterpret a sibling's stdout.
               const current = scanWorkflowText(

@@ -754,7 +754,11 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
     if (suppressCollapsedPreview || !shouldHydrateRichContent) {
       return null;
     }
-    if (workflow?.view && toolResult) {
+    if (
+      workflow?.view &&
+      toolResult &&
+      (workflow.markers.length > 0 || workflow.view === "matching-lines")
+    ) {
       return (
         <WorkflowOutput
           text={workflow.outputText ?? toolResult.content}
