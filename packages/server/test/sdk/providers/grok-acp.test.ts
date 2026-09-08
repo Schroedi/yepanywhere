@@ -429,6 +429,13 @@ describe("GrokACPProvider — ACP integration (mocked)", () => {
   let failLoad = false;
   let extensionMethodCallback: ExtensionMethodCallback | null = null;
   let promptUpdates: Array<Record<string, unknown>> = [];
+  // Full `session/update` notifications, for cases that need the per-update
+  // `_meta` Grok attaches beside the update (its event id). Takes precedence
+  // over promptUpdates, which only carries the update body.
+  let promptNotifications: Array<{
+    update: Record<string, unknown>;
+    _meta?: Record<string, unknown>;
+  }> = [];
 
   // Minimal fake ACPClient that records calls and allows controlling flow
   class FakeACPClient {
@@ -505,7 +512,15 @@ describe("GrokACPProvider — ACP integration (mocked)", () => {
     }
     async prompt(_sessionId: string, _text: string) {
       promptCalls.push({ sessionId: _sessionId, text: _text });
-      if (this.updateCb && promptUpdates.length > 0) {
+      if (this.updateCb && promptNotifications.length > 0) {
+        for (const notification of promptNotifications) {
+          this.updateCb({
+            sessionId: _sessionId,
+            ...(notification._meta ? { _meta: notification._meta } : {}),
+            update: notification.update as never,
+          });
+        }
+      } else if (this.updateCb && promptUpdates.length > 0) {
         for (const update of promptUpdates) {
           this.updateCb({
             sessionId: _sessionId,
@@ -542,6 +557,7 @@ describe("GrokACPProvider — ACP integration (mocked)", () => {
     failLoad = false;
     extensionMethodCallback = null;
     promptUpdates = [];
+    promptNotifications = [];
     acpClientMock = vi.fn(() => new FakeACPClient());
 
     // Mock fs for isInstalled / findGrokPath to always succeed in these tests
@@ -777,6 +793,58 @@ describe("GrokACPProvider — ACP integration (mocked)", () => {
         totalLines: 2,
       },
     });
+  });
+
+  it("keys streamed text and thinking on the update event id the transcript records", async () => {
+    const sessionId = "grok-stream-identity";
+    const chunk = (
+      eventSuffix: number,
+      sessionUpdate: string,
+      text: string,
+    ) => ({
+      update: { sessionUpdate, content: { type: "text", text } },
+      _meta: { eventId: `${sessionId}-${eventSuffix}` },
+    });
+    promptNotifications = [
+      chunk(44, "agent_thought_chunk", "Checking "),
+      chunk(45, "agent_thought_chunk", "host pressure."),
+      chunk(85, "agent_message_chunk", "Host is fine; "),
+      chunk(86, "agent_message_chunk", "relay is healthy."),
+      chunk(90, "agent_thought_chunk", "Now the queue."),
+    ];
+    const provider = await loadFreshGrokProvider({ grokPath: "/fake/grok" });
+    const session = await provider.startSession({
+      cwd: "/tmp",
+      initialMessage: { text: "look into the stall" },
+    });
+    const messages: SDKMessage[] = [];
+
+    try {
+      for await (const message of session.iterator) {
+        messages.push(message);
+        if (message.type === "result") break;
+      }
+    } finally {
+      session.abort();
+    }
+
+    // Same grouping and same ids as GrokSessionReader derives from the
+    // recorded updates, so a durable backfill merges instead of duplicating.
+    expect(
+      messages
+        .filter((message) => message.type === "assistant")
+        .map((message) => [message.uuid, message.message?.content]),
+    ).toEqual([
+      [
+        `grok-evt-${sessionId}-44`,
+        [{ type: "thinking", thinking: "Checking host pressure." }],
+      ],
+      [`grok-evt-${sessionId}-85`, "Host is fine; relay is healthy."],
+      [
+        `grok-evt-${sessionId}-90`,
+        [{ type: "thinking", thinking: "Now the queue." }],
+      ],
+    ]);
   });
 
   it("builds correct args for `grok agent stdio` including effort mapping", async () => {

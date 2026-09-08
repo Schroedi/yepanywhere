@@ -261,6 +261,136 @@ describe("GrokSessionReader interject replay", () => {
   });
 });
 
+describe("GrokSessionReader message identity", () => {
+  it("keys each buffered run on its first chunk's update event id", async () => {
+    const root = mkdtempSync(join(tmpdir(), "grok-reader-identity-"));
+    tempRoots.push(root);
+    const sessionsDir = join(root, "sessions");
+    const projectPath = join(root, "project");
+    const sessionId = "grok-session-identity";
+    const sessionDir = join(
+      sessionsDir,
+      encodeURIComponent(projectPath),
+      sessionId,
+    );
+    mkdirSync(projectPath, { recursive: true });
+    mkdirSync(sessionDir, { recursive: true });
+    writeFileSync(
+      join(sessionDir, "summary.json"),
+      JSON.stringify({
+        info: { id: sessionId, cwd: projectPath },
+        created_at: "2026-09-08T00:00:00.000Z",
+        updated_at: "2026-09-08T00:01:00.000Z",
+        generated_title: "Identity",
+        num_messages: 4,
+        current_model_id: "grok-4.6",
+      }),
+    );
+
+    const chunk = (
+      eventSuffix: number,
+      sessionUpdate: string,
+      text: string,
+    ) => ({
+      timestamp: 1_788_901_556 + eventSuffix,
+      params: {
+        update: { sessionUpdate, content: { type: "text", text } },
+        _meta: { eventId: `${sessionId}-${eventSuffix}` },
+      },
+    });
+
+    writeFileSync(
+      join(sessionDir, "updates.jsonl"),
+      `${[
+        chunk(2, "user_message_chunk", "look into the stall"),
+        chunk(44, "agent_thought_chunk", "Checking "),
+        chunk(45, "agent_thought_chunk", "host pressure."),
+        chunk(85, "agent_message_chunk", "Host is fine; "),
+        chunk(86, "agent_message_chunk", "relay is healthy."),
+        // A thought after text starts a new run rather than reopening the
+        // earlier thinking block, matching how the live stream groups chunks.
+        chunk(90, "agent_thought_chunk", "Now the queue."),
+      ]
+        .map((record) => JSON.stringify(record))
+        .join("\n")}\n`,
+    );
+
+    const reader = new GrokSessionReader({ sessionsDir, projectPath });
+    const loaded = await reader.getSession(
+      sessionId,
+      toUrlProjectId(projectPath),
+    );
+    if (loaded?.data.provider !== "grok") {
+      throw new Error("Expected a Grok session");
+    }
+
+    expect(
+      loaded.data.session.messages.map((message) => [
+        message.uuid,
+        message.message?.content,
+      ]),
+    ).toEqual([
+      [`grok-evt-${sessionId}-2`, "look into the stall"],
+      [
+        `grok-evt-${sessionId}-44`,
+        [{ type: "thinking", thinking: "Checking host pressure." }],
+      ],
+      [`grok-evt-${sessionId}-85`, "Host is fine; relay is healthy."],
+      [
+        `grok-evt-${sessionId}-90`,
+        [{ type: "thinking", thinking: "Now the queue." }],
+      ],
+    ]);
+  });
+
+  it("falls back to positional ids for transcripts with no event ids", async () => {
+    const root = mkdtempSync(join(tmpdir(), "grok-reader-legacy-id-"));
+    tempRoots.push(root);
+    const sessionsDir = join(root, "sessions");
+    const projectPath = join(root, "project");
+    const sessionId = "grok-session-legacy-id";
+    const sessionDir = join(
+      sessionsDir,
+      encodeURIComponent(projectPath),
+      sessionId,
+    );
+    mkdirSync(projectPath, { recursive: true });
+    mkdirSync(sessionDir, { recursive: true });
+    writeFileSync(
+      join(sessionDir, "summary.json"),
+      JSON.stringify({
+        info: { id: sessionId, cwd: projectPath },
+        created_at: "2026-09-08T00:00:00.000Z",
+        updated_at: "2026-09-08T00:01:00.000Z",
+        num_messages: 1,
+        current_model_id: "grok-4.6",
+      }),
+    );
+    writeFileSync(
+      join(sessionDir, "updates.jsonl"),
+      `${JSON.stringify({
+        timestamp: 1_775_000_000,
+        params: {
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: { type: "text", text: "older transcript" },
+          },
+        },
+      })}\n`,
+    );
+
+    const reader = new GrokSessionReader({ sessionsDir, projectPath });
+    const loaded = await reader.getSession(
+      sessionId,
+      toUrlProjectId(projectPath),
+    );
+    if (loaded?.data.provider !== "grok") {
+      throw new Error("Expected a Grok session");
+    }
+    expect(loaded.data.session.messages[0]?.uuid).toBe("grok-0-assistant-text");
+  });
+});
+
 describe("GrokSessionReader provider children", () => {
   it("lists parent/subagents metas and hides child dirs from top-level lists", async () => {
     const root = mkdtempSync(join(tmpdir(), "grok-reader-children-"));

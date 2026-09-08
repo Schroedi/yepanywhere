@@ -103,7 +103,12 @@ in YA's environment wins. See [vanilla-defaults](vanilla-defaults.md).
 | Session recap / voice / cancel-rewind bits | ignored metadata | new facility if a YA surface wants them |
 
 `updates.jsonl` remains the replay log. A live TUI session may create that
-file after the first persist, not at directory creation.
+file after the first persist, not at directory creation. Every recorded update
+carries `_meta.eventId`, which is also on the live ACP notification, so both
+paths key the same rendered message on it — see
+[stream-durable-id-dedup](stream-durable-id-dedup.md) § Grok for the buffering
+rule that keeps the two sides grouping chunks alike, and for the user-turn
+pairing Grok's self-minted row identity forces.
 
 ## Tool vocabulary
 

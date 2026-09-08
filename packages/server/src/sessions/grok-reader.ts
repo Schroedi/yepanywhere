@@ -31,6 +31,7 @@ import type {
 } from "@yep-anywhere/shared";
 import { attachToolResultMediaCandidates } from "../media/inlineImageData.js";
 import { unwrapGrokInterjectText } from "../sdk/providers/grok-interject-text.js";
+import { grokEventUuid } from "../sdk/providers/grok-message-identity.js";
 import {
   type NormalizedGrokToolState,
   buildGrokStructuredToolResult,
@@ -70,6 +71,8 @@ type GrokTextBuffer = {
   kind: "text" | "thinking";
   role: "assistant" | "user";
   timestamp?: string;
+  /** Event-id identity of the run's first chunk; see grok-message-identity. */
+  uuid?: string;
 };
 
 interface GrokSessionInfo {
@@ -376,11 +379,13 @@ export class GrokSessionReader implements ISessionReader {
       }
 
       const record = this.asRecord(parsed);
-      const update = this.asRecord(this.asRecord(record?.params)?.update);
+      const params = this.asRecord(record?.params);
+      const update = this.asRecord(params?.update);
       const updateType = this.stringField(update, "sessionUpdate");
       if (!record || !update || !updateType) continue;
 
       const timestamp = this.timestampFromRecord(record);
+      const eventUuid = grokEventUuid(params?._meta);
       if (updateType === "user_message_chunk") {
         const text = this.textFromUpdate(update);
         if (!text) continue;
@@ -391,6 +396,7 @@ export class GrokSessionReader implements ISessionReader {
           "text",
           text,
           timestamp,
+          eventUuid,
         );
         continue;
       }
@@ -405,6 +411,7 @@ export class GrokSessionReader implements ISessionReader {
           "text",
           text,
           timestamp,
+          eventUuid,
         );
         continue;
       }
@@ -419,6 +426,7 @@ export class GrokSessionReader implements ISessionReader {
           "thinking",
           text,
           timestamp,
+          eventUuid,
         );
         continue;
       }
@@ -445,7 +453,7 @@ export class GrokSessionReader implements ISessionReader {
         if (entries.length > 0) {
           messages.push({
             type: "assistant",
-            uuid: `grok-plan-${index}`,
+            uuid: eventUuid ?? `grok-plan-${index}`,
             timestamp,
             role: "assistant",
             message: {
@@ -495,6 +503,7 @@ export class GrokSessionReader implements ISessionReader {
     kind: "text" | "thinking",
     text: string,
     timestamp?: string,
+    eventUuid?: string,
   ): GrokTextBuffer {
     const sameBuffer = buffer?.role === role && buffer.kind === kind;
     if (!sameBuffer) {
@@ -505,6 +514,7 @@ export class GrokSessionReader implements ISessionReader {
       kind,
       role,
       timestamp: (sameBuffer ? buffer.timestamp : undefined) ?? timestamp,
+      uuid: (sameBuffer ? buffer.uuid : undefined) ?? eventUuid,
     };
   }
 
@@ -520,7 +530,12 @@ export class GrokSessionReader implements ISessionReader {
         : buffer.content;
     if (!text.trim()) return null;
 
-    const uuid = `grok-${messages.length}-${buffer.role}-${buffer.kind}`;
+    // Prefer the run's first-chunk event id: the live ACP stream keys the same
+    // message on it, so a mid-session backfill merges by id instead of
+    // rendering the turn twice. The positional id remains for transcripts
+    // recorded before Grok stamped event ids.
+    const uuid =
+      buffer.uuid ?? `grok-${messages.length}-${buffer.role}-${buffer.kind}`;
     const content =
       buffer.kind === "thinking"
         ? [{ type: "thinking", thinking: text }]

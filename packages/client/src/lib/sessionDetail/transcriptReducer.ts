@@ -4,6 +4,7 @@ import {
   reconcileClaudeQueueOperationEchoes,
   reconcileCodexSteerEchoes,
   reconcileLinearMessages,
+  reconcileSelfSendUserEchoes,
 } from "../linearMessageDedup";
 import { isUnconfirmedSelfSend } from "../deliveryState";
 import { reconcileCodexToolMessages } from "../codexToolReconciliation";
@@ -50,6 +51,10 @@ function usesApproxMessageDedup(
 
 function usesQueueOperationEchoDedup(provider?: string): boolean {
   return getProvider(provider).capabilities.dedupQueueOperationEchoes === true;
+}
+
+function usesSelfSendUserEchoDedup(provider?: string): boolean {
+  return getProvider(provider).capabilities.dedupSelfSendUserEchoes === true;
 }
 
 function approxDedupOptions(
@@ -225,9 +230,12 @@ function maybeReconcileApprox(
     (provider === "codex" && !codexStreamDurableIdAlignment)
       ? reconcileCodexSteerEchoes(approx)
       : approx;
-  return usesQueueOperationEchoDedup(provider)
-    ? reconcileClaudeQueueOperationEchoes(steerReconciled)
+  const selfSendReconciled = usesSelfSendUserEchoDedup(provider)
+    ? reconcileSelfSendUserEchoes(steerReconciled)
     : steerReconciled;
+  return usesQueueOperationEchoDedup(provider)
+    ? reconcileClaudeQueueOperationEchoes(selfSendReconciled)
+    : selfSendReconciled;
 }
 
 function maxOptionalNumber(

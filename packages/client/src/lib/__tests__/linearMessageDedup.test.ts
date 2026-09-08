@@ -5,6 +5,7 @@ import {
   reconcileClaudeQueueOperationEchoes,
   reconcileCodexSteerEchoes,
   reconcileLinearMessages,
+  reconcileSelfSendUserEchoes,
 } from "../linearMessageDedup";
 
 describe("hasEquivalentJsonlMessage", () => {
@@ -937,5 +938,72 @@ describe("reconcileCodexSteerEchoes", () => {
     const echo = steerEcho({ timestamp: "2026-07-23T03:10:03.000Z" });
 
     expect(reconcileCodexSteerEchoes([row, echo])).toHaveLength(2);
+  });
+});
+
+describe("reconcileSelfSendUserEchoes", () => {
+  const PROMPT = "check the relay health before the handoff";
+
+  function echo(overrides: Partial<Message> & { timestamp: string }): Message {
+    return {
+      uuid: "ya-queue-uuid",
+      type: "user",
+      tempId: "temp-send",
+      _source: "sdk",
+      messageMetadata: { deliveryIntent: "direct" },
+      message: { role: "user", content: PROMPT },
+      ...overrides,
+    } as Message;
+  }
+
+  function durableRow(
+    overrides: Partial<Message> & { timestamp: string },
+  ): Message {
+    return {
+      uuid: "grok-evt-session-2",
+      type: "user",
+      _source: "jsonl",
+      message: { role: "user", content: PROMPT },
+      ...overrides,
+    } as Message;
+  }
+
+  it("confirms a direct send against Grok's own durable user row", () => {
+    // Grok stamps its row to whole seconds, so the row can read slightly
+    // earlier than the echo it confirms.
+    const sent = echo({ timestamp: "2026-09-08T21:05:56.400Z" });
+    const row = durableRow({ timestamp: "2026-09-08T21:05:56.000Z" });
+
+    const result = reconcileSelfSendUserEchoes([sent, row]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?._source).toBe("jsonl");
+    expect(result[0]?.uuid).toBe("grok-evt-session-2");
+    expect(result[0]?.tempId).toBe("temp-send");
+  });
+
+  it("confirms an interject the agent drained minutes later", () => {
+    const sent = echo({
+      timestamp: "2026-09-08T21:05:56.000Z",
+      messageMetadata: { deliveryIntent: "steer" },
+    });
+    const row = durableRow({ timestamp: "2026-09-08T21:12:31.000Z" });
+
+    expect(reconcileSelfSendUserEchoes([sent, row])).toHaveLength(1);
+  });
+
+  it("leaves provider stream copies and later resends alone", () => {
+    const providerCopy = echo({
+      uuid: "grok-stream-user",
+      tempId: undefined,
+      timestamp: "2026-09-08T21:05:56.000Z",
+      messageMetadata: undefined,
+    });
+    const row = durableRow({ timestamp: "2026-09-08T21:05:56.100Z" });
+    const laterResend = echo({ timestamp: "2026-09-08T21:06:20.000Z" });
+
+    expect(
+      reconcileSelfSendUserEchoes([providerCopy, row, laterResend]),
+    ).toHaveLength(3);
   });
 });
