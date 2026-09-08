@@ -703,7 +703,7 @@ export class SessionCatalogService {
           storeKey: adapter.storeKey,
           sourceVersion: scan.sourceVersion,
           rowCount: adapterRows,
-          metrics: { ...(scan.metrics ?? {}) },
+          metrics: { ...scan.metrics },
         });
       }
       await writer.close();
