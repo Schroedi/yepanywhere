@@ -124,7 +124,9 @@ describe("artifact capture command", () => {
     } finally {
       await rm(directory, { recursive: true });
     }
-  });
+    // Two real browser captures plus three CLI startups exceed the unit-test
+    // default on CI runners; the capture command retains its own deadlines.
+  }, 30_000);
 
   it("reports invalid invocation as a structured error without stdout", async () => {
     await expect(

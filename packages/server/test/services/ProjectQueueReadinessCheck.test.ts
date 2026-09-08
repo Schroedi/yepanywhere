@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -29,7 +29,7 @@ describe("ProjectQueueReadinessCheck", () => {
       },
       directory,
     );
-    expect(result).toEqual(`Editing ${directory}`);
+    expect(result).toEqual(`Editing ${await realpath(directory)}`);
   });
 
   it("clears on zero exit and passes arguments literally", async () => {

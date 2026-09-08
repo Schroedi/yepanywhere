@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-09-05.
+Last updated: 2026-09-08.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in
@@ -57,6 +57,13 @@ The release outcome is decided; the first mobile release design remains open.
   or still-processing build leaves the previous successful build available.
 
 ### Latest channel expectations
+
+Desktop starts with nightly publication at 02:37 UTC, skipping unchanged
+packaged inputs, plus manual dispatch for recovery and validation. Same-app
+Stable/Latest selection and the signed nightly workflow are being validated;
+installed macOS/Windows upgrade acceptance remains the completion gate.
+Continuous per-commit desktop delivery remains a later extension of this
+foundation.
 
 Continuous publication should make builds available as soon as verification,
 packaging, signing, and platform processing allow; it is not restricted to a
