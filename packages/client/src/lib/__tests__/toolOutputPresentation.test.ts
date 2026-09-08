@@ -19,11 +19,11 @@ describe("tool output presentation", () => {
   });
   it("preserves numeric spelling, duplicate keys, and encoded source strings", () => {
     const source =
-      '{"n":9007199254740993,"n":1e+20,"stdout":"{\\\"ok\\\":true}\\n"}\n';
+      '{"n":9007199254740993,"n":1e+20,"stdout":"{\\"ok\\":true}\\n"}\n';
     const part = presentToolOutput(source)[0]!;
     expect(part.text).toContain("9007199254740993");
     expect(part.text).toContain("1e+20");
-    expect(part.text).toContain('"stdout": "{\\\"ok\\\":true}\\n"');
+    expect(part.text).toContain('"stdout": "{\\"ok\\":true}\\n"');
     expect(part.source).toBe(source);
   });
   it("retains malformed, truncated, unknown-version, and fenced data verbatim", () => {
