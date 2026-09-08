@@ -101,6 +101,8 @@ Export checks build their required mockup bundle from the checked-out source;
 they must work without pre-existing `.artifacts` output. The relay artifact
 fixture accepts its dedicated generated HTTPS certificate in its browser
 context. This fixture setting does not change production certificate checks.
+After a failed E2E job, CI retains `test-results` screenshots and traces for
+seven days in the run's `e2e-failures-<attempt>` artifact.
 
 ### Browser capture command
 

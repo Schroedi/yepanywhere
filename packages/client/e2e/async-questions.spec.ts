@@ -418,6 +418,8 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
     ).toBeVisible();
     await page.goto(`${origin}/projects/${projectId}/sessions/${sessionId}`);
     const toolbar = page.locator(".message-input-actions");
+    const composer = page.locator("[data-composer-input]");
+    await expect(composer).toBeVisible({ timeout: 30_000 });
     await expect(
       toolbar.getByRole("button", { name: /^1 question/ }),
     ).toBeVisible();
@@ -465,7 +467,6 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
     holdReply = true;
     await page.getByRole("button", { name: "Send reply", exact: true }).click();
     await expect.poll(() => Boolean(replyGate.release)).toBe(true);
-    const composer = page.locator("[data-composer-input]");
     await composer.fill("My newer focus belongs here");
     replyGate.release?.();
     holdReply = false;
@@ -762,6 +763,7 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
       page.getByRole("button", { name: /^\d+ questions?/ }),
     ).toHaveCount(0);
     await page.goto(`${origin}/projects/${projectId}/sessions/${sessionId}`);
+    await expect(composer).toBeVisible({ timeout: 30_000 });
     await expect(page.locator("[data-async-question-reply]")).not.toHaveCount(
       0,
     );
@@ -777,6 +779,7 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
     expect(browserErrors).toEqual([]);
   } finally {
     replyGate.release?.();
+    await page.unrouteAll({ behavior: "wait" });
     await source.close();
     stopYaServerProcess(backend);
   }

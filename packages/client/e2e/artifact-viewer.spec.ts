@@ -87,6 +87,12 @@ test.beforeAll(async () => {
   });
 });
 
+test.afterEach(async ({ page }) => {
+  // Saving settings refreshes version metadata. Let intercepted responses
+  // finish before Playwright closes the browser context.
+  await page.unrouteAll({ behavior: "wait" });
+});
+
 test.afterAll(async () => {
   if (listener) {
     listener.closeAllConnections();
