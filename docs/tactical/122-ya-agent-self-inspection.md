@@ -1,6 +1,7 @@
 # YA Agent Self-Inspection
 
-Status: Implemented; pushed CI verification pending, 2026-09-08.
+Status: Implemented locally; upstream push and CI verification blocked by
+repository write authorization, 2026-09-08.
 
 Topic: ya-agent-self
 
@@ -127,3 +128,5 @@ coverage on Linux; the existing desktop gates execute the Bun artifact probe.
 Live cloud-provider inference is not part of this deterministic validation.
 
 The final publication gate is green CI for the pushed implementation commit.
+The configured GitHub identity currently lacks write access to origin; no
+implementation commit has reached upstream, so CI cannot yet validate it.

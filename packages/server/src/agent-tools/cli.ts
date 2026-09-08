@@ -3,8 +3,8 @@ import {
   AGENT_SELF_EXIT_CODES,
   AGENT_SELF_MAX_BYTES,
   AGENT_SELF_PATH,
+  isAgentSelfReport,
   type AgentSelfErrorCode,
-  type AgentSelfReport,
 } from "./protocol.js";
 
 function fail(code: AgentSelfErrorCode): void {
@@ -105,16 +105,11 @@ async function main(): Promise<void> {
       );
     }
     if (
-      (sessionId && result.sessionId !== sessionId) ||
-      typeof result.sessionId !== "string" ||
-      result.scope !== "owning-session" ||
-      !result.launch ||
-      !result.selected ||
-      !result.providerEvidence ||
-      !result.pending
+      !isAgentSelfReport(result) ||
+      (sessionId && result.sessionId !== sessionId)
     )
       return fail("invalid-response");
-    const report = result as AgentSelfReport;
+    const report = result;
     if (args.includes("--json"))
       process.stdout.write(`${JSON.stringify(report)}\n`);
     else {

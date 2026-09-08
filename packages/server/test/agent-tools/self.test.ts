@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import { createServer } from "node:http";
 import { delimiter } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -54,6 +55,46 @@ async function command(lease: AgentSelfLease, sessionId: string, extra = {}) {
 }
 
 describe("ya-agent self real command/service", () => {
+  it.each([
+    [{ schemaVersion: 2 }, "unsupported-protocol"],
+    [
+      {
+        schemaVersion: 1,
+        scope: "owning-session",
+        sessionId: "one",
+        launch: {},
+        selected: {},
+        providerEvidence: {},
+        pending: {},
+      },
+      "invalid-response",
+    ],
+  ])(
+    "rejects incompatible or partial JSON reports: %j",
+    async (body, error) => {
+      const { lease } = await leaseFor("one");
+      const server = createServer((_req, res) => res.end(JSON.stringify(body)));
+      await new Promise<void>((resolve) =>
+        server.listen(0, "127.0.0.1", resolve),
+      );
+      try {
+        const address = server.address();
+        if (!address || typeof address === "string")
+          throw new Error("No test address");
+        await expect(
+          command(lease, "one", {
+            AGENT_YA_API_URL: `http://127.0.0.1:${address.port}`,
+          }),
+        ).rejects.toMatchObject({
+          code: 6,
+          stdout: expect.stringContaining(String(error)),
+        });
+      } finally {
+        server.closeAllConnections();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+    },
+  );
   it("uses token ownership when a non-Bash shell has no late session marker", async () => {
     const { lease } = await leaseFor("token-bound-session");
     expect(JSON.parse((await command(lease, "")).stdout).sessionId).toBe(

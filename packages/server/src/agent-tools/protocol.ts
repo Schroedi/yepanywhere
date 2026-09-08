@@ -33,6 +33,52 @@ export interface AgentSelfReport {
   activeInference: "unknown";
 }
 
+/** Reject partial/foreign responses before either output mode treats them as facts. */
+export function isAgentSelfReport(input: unknown): input is AgentSelfReport {
+  if (!input || typeof input !== "object") return false;
+  const report = input as Record<string, unknown>;
+  const field = (input: unknown): boolean => {
+    if (!input || typeof input !== "object") return false;
+    const item = input as Record<string, unknown>;
+    return (
+      (typeof item.value === "string" || item.value === null) &&
+      ["known", "default", "unknown"].includes(String(item.status)) &&
+      (item.status === "known"
+        ? typeof item.value === "string"
+        : item.value === null) &&
+      typeof item.source === "string" &&
+      ["launch", "session", "response"].includes(String(item.scope)) &&
+      typeof item.observedAt === "string"
+    );
+  };
+  const pair = (input: unknown): boolean => {
+    if (!input || typeof input !== "object") return false;
+    const item = input as Record<string, unknown>;
+    return field(item.model) && field(item.effort);
+  };
+  return (
+    report.schemaVersion === 1 &&
+    report.scope === "owning-session" &&
+    report.launcher === "yepanywhere" &&
+    report.activeInference === "unknown" &&
+    [
+      report.sessionId,
+      report.launchId,
+      report.harness,
+      report.provider,
+      report.observedAt,
+    ].every((value) => typeof value === "string" && value.length > 0) &&
+    pair(report.launch) &&
+    pair(report.selected) &&
+    pair(report.providerEvidence) &&
+    Boolean(
+      report.pending &&
+        typeof report.pending === "object" &&
+        typeof (report.pending as Record<string, unknown>).effort === "boolean",
+    )
+  );
+}
+
 export type AgentSelfErrorCode =
   | "unavailable"
   | "unauthorized"
