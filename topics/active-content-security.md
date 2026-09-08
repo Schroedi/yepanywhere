@@ -338,6 +338,12 @@ a file, restoring a source view, or receiving a link does not request a grant.
 An initially requested scriptless presentation retains its explicit Run action.
 Older/disabled servers retain scriptless viewing without unsupported requests.
 
+Artifact requests expand home-relative paths with the same rules as source
+viewing: `~`, `~/...`, and `~\...` refer to the server user's home directory.
+Expansion precedes optional project-relative resolution and the artifact
+file-access policy. Equivalent absolute and home-relative HTML paths can be
+previewed with or without a project ID; expansion grants no extra file access.
+
 A browser-enforced parent `frame-src` violation replaces the broken frame with
 an explanation and an **Open interactive preview in a new tab** link to the
 same grant. The new tab has no opener or referrer; stopping/closing the owning

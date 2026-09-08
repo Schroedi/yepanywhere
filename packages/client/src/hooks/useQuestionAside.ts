@@ -4,11 +4,10 @@ import {
   type ProviderName,
 } from "@yep-anywhere/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../api/client";
+import type { SessionApi } from "../api/sessionClient";
 import type { QuestionAsideCardProps } from "../components/QuestionAsideCard";
 import { useI18n } from "../i18n";
 import { turnContentText } from "../lib/sessionMessageText";
-import type { SourceApiClient } from "../lib/sourceRuntime";
 import { generateUUID } from "../lib/uuid";
 import type { Message } from "../types";
 
@@ -18,6 +17,7 @@ interface QuestionAside
     "question" | "answers" | "status" | "error"
   > {
   id: string;
+  sourceApi: SessionApi;
   sessionId?: string;
   processId?: string;
   snapshotRequestedAt: string;
@@ -44,7 +44,8 @@ export function questionAsideAnswers(
 export function useQuestionAside(options: {
   projectId: string;
   sessionId: string;
-  sourceApi: SourceApiClient;
+  sourceKey: string;
+  sourceApi: SessionApi;
   provider: ProviderName | undefined;
   model: string | undefined;
   executor: string | undefined;
@@ -79,9 +80,11 @@ export function useQuestionAside(options: {
     update(null);
     resumePoll.current = null;
     if (abandoned?.processId && abandoned.status !== "complete") {
-      void api.abortProcess(abandoned.processId).catch((error: unknown) => {
-        latest.current.showToast(String(error), "error");
-      });
+      void abandoned.sourceApi
+        .abortProcess(abandoned.processId)
+        .catch((error: unknown) => {
+          latest.current.showToast(String(error), "error");
+        });
     }
   }, [update]);
 
@@ -106,12 +109,14 @@ export function useQuestionAside(options: {
         abandoned?.processId &&
         (abandoned.status === "running" || abandoned.status === "failed")
       ) {
-        void api.abortProcess(abandoned.processId).catch((error: unknown) => {
-          latest.current.showToast(String(error), "error");
-        });
+        void abandoned.sourceApi
+          .abortProcess(abandoned.processId)
+          .catch((error: unknown) => {
+            latest.current.showToast(String(error), "error");
+          });
       }
     };
-  }, [options.projectId, options.sessionId]);
+  }, [options.projectId, options.sessionId, options.sourceKey]);
 
   const ask = useCallback(
     (question: string) => {
@@ -119,6 +124,7 @@ export function useQuestionAside(options: {
       const context = latest.current;
       const pending: QuestionAside = {
         id: generateUUID(),
+        sourceApi: context.sourceApi,
         question,
         answers: [],
         status: "starting",
@@ -128,16 +134,18 @@ export function useQuestionAside(options: {
       const marker = `[YA question aside ${pending.id}]`;
       const isCurrent = () => current.current?.id === pending.id;
       const run = async () => {
-        const clone = await api.cloneSession(
+        const clone = await context.sourceApi.cloneSession(
           context.projectId,
           context.sessionId,
           `Quick answer: ${question.slice(0, 80)}`,
           context.provider,
         );
         pending.sessionId = clone.sessionId;
-        await api.updateSessionMetadata(clone.sessionId, { archived: true });
+        await context.sourceApi.updateSessionMetadata(clone.sessionId, {
+          archived: true,
+        });
         if (!isCurrent()) return;
-        const result = await api.resumeSession(
+        const result = await context.sourceApi.resumeSession(
           context.projectId,
           clone.sessionId,
           [
@@ -155,7 +163,7 @@ export function useQuestionAside(options: {
         );
         pending.processId = result.processId;
         if (!isCurrent()) {
-          await api.abortProcess(result.processId);
+          await context.sourceApi.abortProcess(result.processId);
           return;
         }
         update({ ...pending, status: "running" });
@@ -170,12 +178,15 @@ export function useQuestionAside(options: {
               return;
             }
             polls += 1;
-            const state = await api.getProcessInfo(clone.sessionId);
-            const detail = await context.sourceApi.getSession({
-              projectId: context.projectId,
-              sessionId: clone.sessionId,
-              tailTurns: 2,
-            });
+            const state = await context.sourceApi.getProcessInfo(
+              clone.sessionId,
+            );
+            const detail = await context.sourceApi.getSession(
+              context.projectId,
+              clone.sessionId,
+              undefined,
+              { tailTurns: 2 },
+            );
             if (!isCurrent()) return;
             const answers = questionAsideAnswers(detail.messages, marker);
             if (state.process?.state === "waiting-input")
@@ -203,7 +214,7 @@ export function useQuestionAside(options: {
                 status: "failed",
                 error: String(error),
               });
-            await api
+            await context.sourceApi
               .abortProcess(result.processId)
               .catch((stopError: unknown) => {
                 context.showToast(String(stopError), "error");
@@ -237,15 +248,18 @@ export function useQuestionAside(options: {
     try {
       let delivery: "native-history" | "user-turn" = "user-turn";
       if (context.nativeContextRoute) {
-        await api.reactivateSession(context.projectId, context.sessionId);
-        const receipt = await api.sendConversationContext(
+        await value.sourceApi.reactivateSession(
+          context.projectId,
+          context.sessionId,
+        );
+        const receipt = await value.sourceApi.sendConversationContext(
           context.projectId,
           context.sessionId,
           { requestId: value.id, turns },
         );
         delivery = receipt.delivery;
       } else {
-        await api.resumeSession(
+        await value.sourceApi.resumeSession(
           context.projectId,
           context.sessionId,
           formatConversationContextTurn(turns),
@@ -254,7 +268,8 @@ export function useQuestionAside(options: {
           value.id,
         );
       }
-      if (current.current?.id === value.id) update(null);
+      if (current.current?.id !== value.id) return;
+      update(null);
       context.showToast(
         t(
           delivery === "native-history"
@@ -296,7 +311,7 @@ export function useQuestionAside(options: {
     const context = latest.current;
     update({ ...value, status: "moving", error: undefined });
     try {
-      await api.updateSessionMetadata(value.sessionId, {
+      await value.sourceApi.updateSessionMetadata(value.sessionId, {
         archived: false,
         parentSessionId: context.sessionId,
         title: `/btw ${value.question.slice(0, 80)}`,

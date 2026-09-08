@@ -48,20 +48,16 @@ import type {
   ProviderChildSessionSummary,
   ProviderName,
   ProviderSubscriptionUsage,
-  ProviderRuntimeStatus,
   RecapMode,
   PublicSessionShareSessionStatusResponse,
   PublicSessionShareViewerActionResponse,
   RevokePublicSessionSharesResponse,
   RevokeAllPublicSharesResponse,
   RevokePublicShareResponse,
-  SessionMetadataResponse,
   SessionQueuedMessageSummary,
-  SessionLivenessSnapshot,
   SessionSandboxEnforcement,
   SessionSandboxLevel,
   ShowThinking,
-  SlashCommand,
   ThinkingOption,
   TranscriptDisplayObject,
   UpdateProjectQueueItemRequest,
@@ -76,10 +72,8 @@ import { PUBLIC_SHARE_MANAGEMENT_FREEZE_CONFIRMATION } from "@yep-anywhere/share
 import type {
   AgentSession,
   InputRequest,
-  Message,
   PermissionMode,
   Project,
-  SessionMetadata,
   SessionStatus,
 } from "../types";
 import { authApi } from "./authClient";
@@ -93,6 +87,7 @@ import { pushApi, pushSettingsApi } from "./pushClient";
 import { recentsApi } from "./recentsClient";
 import { serverMetadataApi } from "./serverMetadataClient";
 import { fetchJSON } from "./sourceApiFetch";
+import { createSessionApi } from "./sessionClient";
 
 /** Pagination metadata for compact-boundary-based session loading */
 export interface PaginationInfo {
@@ -381,6 +376,7 @@ function getGlobalSessionsRequest(
 }
 
 export const api = {
+  ...createSessionApi(fetchJSON),
   // Server metadata/admin API
   ...serverMetadataApi,
 
@@ -485,54 +481,6 @@ export const api = {
       {
         method: "DELETE",
       },
-    ),
-
-  getSession: (
-    projectId: string,
-    sessionId: string,
-    afterMessageId?: string,
-    options?: {
-      tailCompactions?: number;
-      beforeMessageId?: string;
-      tailTurns?: number;
-      tailFrom?: string;
-      fullHistory?: boolean;
-      fullHistoryReason?: string;
-    },
-  ) => {
-    const params = new URLSearchParams();
-    if (afterMessageId) params.set("afterMessageId", afterMessageId);
-    if (options?.tailCompactions !== undefined)
-      params.set("tailCompactions", String(options.tailCompactions));
-    if (options?.beforeMessageId)
-      params.set("beforeMessageId", options.beforeMessageId);
-    if (options?.tailTurns !== undefined)
-      params.set("tailTurns", String(options.tailTurns));
-    if (options?.tailFrom) params.set("tailFrom", options.tailFrom);
-    if (options?.fullHistory) params.set("fullHistory", "1");
-    if (options?.fullHistoryReason)
-      params.set("fullHistoryReason", options.fullHistoryReason);
-    const qs = params.toString();
-    return fetchJSON<{
-      session: SessionMetadata;
-      messages: Message[];
-      transcriptSnapshotUpdatedAt?: string;
-      ownership: SessionStatus;
-      pendingInputRequest?: InputRequest | null;
-      providerRuntimeStatus?: ProviderRuntimeStatus;
-      slashCommands?: SlashCommand[] | null;
-      deferredMessages?: DeferredQueueMessage[];
-      pagination?: PaginationInfo;
-    }>(`/projects/${projectId}/sessions/${sessionId}${qs ? `?${qs}` : ""}`);
-  },
-
-  /**
-   * Get session metadata only (no messages).
-   * Lightweight endpoint for refreshing title, status, etc. without re-fetching all messages.
-   */
-  getSessionMetadata: (projectId: string, sessionId: string) =>
-    fetchJSON<SessionMetadataResponse>(
-      `/projects/${projectId}/sessions/${sessionId}/metadata`,
     ),
 
   reclassifySessionProject: (
@@ -826,89 +774,6 @@ export const api = {
         recapAfterSeconds: options?.recapAfterSeconds,
         promptSuggestionMode: options?.promptSuggestionMode,
         helperSideModel: options?.helperSideModel,
-      }),
-    }),
-
-  resumeSession: (
-    projectId: string,
-    sessionId: string,
-    message: string,
-    options?: SessionOptions,
-    attachments?: UploadedFile[],
-    tempId?: string,
-    clientTimestamp?: number,
-    messageMetadata?: UserMessageMetadata,
-  ) =>
-    fetchJSON<{
-      processId: string;
-      permissionMode: PermissionMode;
-      appliedPermissionMode?: PermissionMode;
-      modeVersion: number;
-      recapAfterSeconds?: number;
-      sandboxEnforcement?: SessionSandboxEnforcement;
-      serverTimestamp: number;
-      resume?: {
-        requestedMode: "full" | "compact-first";
-        provider?: ProviderName;
-        outcome?: "queued" | "started";
-        compaction?: { status: string; [key: string]: unknown };
-      };
-    }>(`/projects/${projectId}/sessions/${sessionId}/resume`, {
-      method: "POST",
-      body: JSON.stringify({
-        message,
-        mode: options?.mode,
-        model: options?.model,
-        serviceTier: options?.serviceTier,
-        thinking: options?.thinking,
-        showThinking: options?.showThinking,
-        provider: options?.provider,
-        executor: options?.executor,
-        recapMode: options?.recapMode,
-        recapAfterSeconds: options?.recapAfterSeconds,
-        promptSuggestionMode: options?.promptSuggestionMode,
-        helperSideModel: options?.helperSideModel,
-        resumeMode: options?.resumeMode,
-        attachments,
-        tempId,
-        clientTimestamp,
-        messageMetadata,
-      }),
-    }),
-
-  /**
-   * Bring a reaped session's process back live WITHOUT sending a turn, so the
-   * client can read live process state (model options) before messaging.
-   * With no options the server resumes using the session's persisted
-   * provider/model. Idempotent if the session is already owned.
-   */
-  reactivateSession: (
-    projectId: string,
-    sessionId: string,
-    options?: {
-      mode?: PermissionMode;
-      model?: string;
-      provider?: ProviderName;
-      executor?: string;
-      recapAfterSeconds?: number;
-    },
-  ) =>
-    fetchJSON<{
-      processId: string;
-      permissionMode: PermissionMode;
-      appliedPermissionMode?: PermissionMode;
-      modeVersion: number;
-      recapAfterSeconds?: number;
-      sandboxEnforcement?: SessionSandboxEnforcement;
-      serverTimestamp: number;
-    }>(`/projects/${projectId}/sessions/${sessionId}/reactivate`, {
-      method: "POST",
-      body: JSON.stringify({
-        mode: options?.mode,
-        model: options?.model,
-        provider: options?.provider,
-        executor: options?.executor,
-        recapAfterSeconds: options?.recapAfterSeconds,
       }),
     }),
 
@@ -1272,27 +1137,6 @@ export const api = {
       { method: "POST" },
     ),
 
-  abortProcess: (processId: string, options?: { blockResume?: boolean }) =>
-    fetchJSON<{
-      aborted: true;
-      processId: string;
-      sessionId: string;
-      pid?: number;
-      verifiedStopped: true;
-      verification: "pid" | "provider" | "iterator";
-      /** Present when the abort also exempted the session from auto-resume. */
-      resumeExemption?: {
-        heartbeatDisabled: boolean;
-        autoResumeDisabled: boolean;
-        error?: string;
-      };
-    }>(`/processes/${processId}/abort`, {
-      method: "POST",
-      ...(options?.blockResume
-        ? { body: JSON.stringify({ blockResume: true }) }
-        : {}),
-    }),
-
   interruptProcess: (processId: string) =>
     fetchJSON<{ interrupted: boolean; supported: boolean; aborted?: boolean }>(
       `/processes/${processId}/interrupt`,
@@ -1406,36 +1250,6 @@ export const api = {
       body: JSON.stringify({ mode }),
     }),
 
-  getProcessInfo: (sessionId: string) =>
-    fetchJSON<{
-      process: {
-        id: string;
-        sessionId: string;
-        projectId: string;
-        projectPath: string;
-        projectName: string;
-        sessionTitle: string | null;
-        state: string;
-        startedAt: string;
-        queueDepth: number;
-        idleSince?: string;
-        terminationReason?: string;
-        terminatedAt?: string;
-        provider: ProviderName;
-        thinking?: { type: string };
-        effort?: string;
-        model?: string;
-        /** YA model id (launch alias) for keying per-model settings. */
-        requestedModel?: string;
-        liveness?: SessionLivenessSnapshot;
-        providerRuntimeStatus?: ProviderRuntimeStatus;
-        recapMode?: RecapMode;
-        recapAfterSeconds?: number;
-        promptSuggestionMode?: PromptSuggestionMode;
-        helperSideModel?: string;
-      } | null;
-    }>(`/sessions/${sessionId}/process`),
-
   markSessionSeen: (
     sessionId: string,
     timestamp?: string,
@@ -1485,56 +1299,6 @@ export const api = {
     fetchJSON<{
       lastSeen: Record<string, { timestamp: string; messageId?: string }>;
     }>("/notifications/last-seen"),
-
-  updateSessionMetadata: (
-    sessionId: string,
-    updates: {
-      title?: string;
-      archived?: boolean;
-      starred?: boolean;
-      parentSessionId?: string | null;
-      heartbeatTurnsEnabled?: boolean;
-      heartbeatTurnsAfterMinutes?: number | null;
-      heartbeatTurnText?: string | null;
-      heartbeatForceAfterMinutes?: number | null;
-      promptSuggestionMode?: PromptSuggestionMode | null;
-    },
-  ) =>
-    fetchJSON<{ updated: boolean }>(`/sessions/${sessionId}/metadata`, {
-      method: "PUT",
-      body: JSON.stringify(updates),
-    }),
-
-  /**
-   * Clone a session, creating a new session with the same conversation history.
-   * Supported for Claude and Codex sessions.
-   */
-  cloneSession: (
-    projectId: string,
-    sessionId: string,
-    title?: string,
-    provider?: string,
-    parentSessionId?: string,
-  ) =>
-    fetchJSON<{
-      sessionId: string;
-      messageCount: number;
-      clonedFrom: string;
-      provider: string;
-    }>(`/projects/${projectId}/sessions/${sessionId}/clone`, {
-      method: "POST",
-      body: JSON.stringify({ title, provider, parentSessionId }),
-    }),
-
-  sendConversationContext: (
-    projectId: string,
-    sessionId: string,
-    request: import("@yep-anywhere/shared").ConversationContextRequest,
-  ) =>
-    fetchJSON<import("@yep-anywhere/shared").ConversationContextReceipt>(
-      `/projects/${projectId}/sessions/${sessionId}/conversation-context`,
-      { method: "POST", body: JSON.stringify(request) },
-    ),
 
   // Push notification API
   ...pushApi,

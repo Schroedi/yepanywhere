@@ -56,7 +56,7 @@ work independently of transcript tail size. Reading enough head data to find
 stable metadata and the first user title is allowed; scanning to EOF merely to
 populate fields outside `SessionListSummary` is not.
 
-Codex question previews add an independent read of at most the final 2 MiB,
+Codex question previews read bounded head metadata and at most the final 2 MiB,
 not a full parse. They stop at 128 questions or 32 subsequent user turns and
 retain only 320-character preview titles. A process-wide, source-versioned
 single-flight cache retains at most 8 MiB of preview results and rejects a
@@ -66,6 +66,13 @@ without the projection may use the lightweight reader to acquire it. Neither
 this acquisition nor its cache advances complete-summary freshness. The
 observable discovery and omission semantics live in
 [`provider-output-contract.md`](provider-output-contract.md#discovery-from-inbox-and-session-navigation).
+
+Reference-backed forks and reverted rollouts mark inherited history as omitted
+when the leaf has not established that it is older than 32 user turns. A short
+leaf with no local questions therefore cannot claim a complete empty inventory.
+The preview does not traverse ancestors; the logical detail reader still
+recovers inherited questions. This preserves bounded collection reads at the
+cost of leaving inherited questions out of the bounded preview.
 
 The persisted session-summary index remains a complete-summary cache:
 

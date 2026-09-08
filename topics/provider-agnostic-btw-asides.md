@@ -40,6 +40,12 @@ the warning.
   question plus instructions to answer from inherited context, avoid commands
   and file changes, and avoid follow-up questions. This is a prompt constraint,
   not a new provider sandbox or a guarantee that a fork costs less than steering.
+- The card belongs to its originating source, project, and session. Switching
+  sources clears it even if the new host uses identical project/session IDs.
+  Clone, metadata changes, resume, polling, transcript reads, Save, and cleanup
+  remain bound to that source. A late clone is archived there; a late launch
+  after dismissal is stopped there. A Save already underway may finish on the
+  original host, but cannot refresh or change the newly selected session.
 - The compact card occupies normal footer space immediately above the main
   composer, below queued items and other aside panels. It reduces the transcript
   viewport instead of covering recent activity. An already-following transcript

@@ -2359,7 +2359,7 @@ export class Process {
     turns: ConversationContextTurn[],
   ): Promise<boolean> {
     if (!this.appendConversationContextFn) return false;
-    await this.waitForSessionId();
+    await this.waitForProviderSessionId();
     return this.appendConversationContextFn(turns);
   }
 

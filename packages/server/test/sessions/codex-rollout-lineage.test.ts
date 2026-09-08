@@ -138,6 +138,77 @@ describe("Codex reference-backed rollout lineage", () => {
     await rm(codexHome, { recursive: true, force: true });
   });
 
+  it.each([false, true])(
+    "reports inherited question history as omitted (reverted %s)",
+    async (reverted) => {
+      const rootPrefix = [
+        sessionMeta({ id: ROOT_ID, ordinal: 0 }),
+        userMessage(1, "Start"),
+        {
+          ordinal: 2,
+          type: "event_msg",
+          timestamp: "2026-09-03T00:02:00.000Z",
+          payload: {
+            type: "item_completed",
+            item: {
+              type: "AgentMessage",
+              id: "inherited-question",
+              delivery: "async",
+              content: [{ type: "Text", text: "Which path?" }],
+              questions: [{ title: "Which path?", options: null }],
+            },
+          },
+        },
+      ];
+      await writeFile(rolloutPath(sessionsDir, ROOT_ID), jsonl(rootPrefix));
+      const sessionId = reverted ? ROOT_ID : CHILD_ID;
+      const leaf = reverted
+        ? replacementRolloutPath(sessionsDir, ROOT_ID, REPLACEMENT_ID)
+        : rolloutPath(sessionsDir, CHILD_ID);
+      await writeFile(
+        leaf,
+        jsonl([
+          sessionMeta({
+            id: sessionId,
+            ordinal: 3,
+            historyBase: prefixPosition(ROOT_ID, rootPrefix),
+          }),
+        ]),
+      );
+      const reader = new CodexSessionReader({
+        sessionsDir,
+        projectPath: PROJECT_PATH,
+      });
+      try {
+        const summary = await reader.getSessionListSummary(
+          sessionId,
+          PROJECT_ID,
+        );
+        expect(summary?.asyncQuestions).toEqual({
+          questions: [],
+          omitted: true,
+        });
+        expect(reader.getEntryCacheStats().entries).toBe(0);
+        const detail = await reader.getSession(sessionId, PROJECT_ID);
+        expect(JSON.stringify(detail?.data.session.entries)).toContain(
+          "inherited-question",
+        );
+        await appendFile(
+          leaf,
+          jsonl(
+            Array.from({ length: 32 }, (_, index) =>
+              userMessage(index + 4, "Continue"),
+            ),
+          ),
+        );
+        const aged = await reader.getSessionListSummary(sessionId, PROJECT_ID);
+        expect(aged?.asyncQuestions).toEqual({ questions: [], omitted: false });
+      } finally {
+        reader.close();
+      }
+    },
+  );
+
   it("lists and loads a native reference-backed clone at its frozen prefix", async () => {
     const rootPrefix = [
       sessionMeta({ id: ROOT_ID, ordinal: 0 }),

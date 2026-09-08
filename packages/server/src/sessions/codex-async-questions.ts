@@ -5,6 +5,7 @@ import { SourceVersionedSingleFlight } from "../lib/sourceVersionedSingleFlight.
 import { isCompressedCodexRolloutPath } from "../utils/codexRolloutFiles.js";
 import { isCodexUserMessageEventEntry } from "./codex-user-turn-provenance.js";
 import { getCodexAsyncAgentMessageItem } from "./normalization.js";
+import { readCodexSessionMeta } from "./codex-rollout-lineage.js";
 
 type QuestionSummary = NonNullable<AppSessionSummary["asyncQuestions"]>;
 export const CODEX_QUESTION_PREVIEW_BYTES = 2 * 1024 * 1024;
@@ -30,6 +31,7 @@ export async function readCodexAsyncQuestions(
     isCurrent: async (sourceVersion) =>
       version(await stat(filePath)) === sourceVersion,
     compute: async () => {
+      const meta = await readCodexSessionMeta(filePath);
       const start = Math.max(
         0,
         Number(stats.size) - CODEX_QUESTION_PREVIEW_BYTES,
@@ -58,7 +60,7 @@ export async function readCodexAsyncQuestions(
       const questions: QuestionSummary["questions"] = [];
       const seen = new Set<string>();
       let age = 0;
-      let omitted = start > 0;
+      let omitted = start > 0 || Boolean(meta.payload.history_base);
       for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex--) {
         const line = lines[lineIndex]!;
         if (

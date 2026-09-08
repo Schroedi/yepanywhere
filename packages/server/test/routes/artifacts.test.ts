@@ -1,11 +1,13 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { join, relative } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { ArtifactServer } from "../../src/artifacts/ArtifactServer.js";
+import { createArtifactRoutes } from "../../src/routes/artifacts.js";
 import { createLocalResourcePathPolicy } from "../../src/routes/local-resource-policy.js";
 import { createApp } from "../setup/create-app.js";
 import { MockClaudeSDK } from "../../src/sdk/mock.js";
+import { ServerSettingsService } from "../../src/services/ServerSettingsService.js";
 import { initFileAccess } from "../../src/middleware/file-access.js";
 import {
   updateAllowedHosts,
@@ -23,6 +25,104 @@ afterEach(async () => {
   vi.restoreAllMocks();
   if (directory) await rm(directory, { recursive: true });
   directory = "";
+});
+
+it("grants the same home-relative HTML file with or without project context", async () => {
+  directory = await mkdtemp(join(homedir(), ".ya-artifact-test-"));
+  const entry = join(directory, "index.html");
+  await writeFile(entry, "<h1>Home-relative</h1>");
+  const server = new ArtifactServer(
+    { port: 4402, localOrigin: "http://artifacts.localhost:4402" },
+    createLocalResourcePathPolicy({ allowedPaths: [directory] }),
+  );
+  const routes = createArtifactRoutes({
+    server,
+    scanner: { getProject: vi.fn().mockResolvedValue({ path: directory }) },
+    locked: true,
+  });
+  try {
+    for (const projectId of [undefined, "project"]) {
+      for (const path of [
+        entry,
+        `~/${relative(homedir(), entry)}`,
+        `~\\${relative(homedir(), entry)}`,
+      ]) {
+        const response = await routes.request("/artifacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path, projectId, audience: "local" }),
+        });
+        expect(response.status).toBe(200);
+        const grant = await response.json();
+        expect(await (await server.app.request(grant.url)).text()).toBe(
+          "<h1>Home-relative</h1>",
+        );
+      }
+    }
+  } finally {
+    await server.close();
+  }
+});
+
+it("configures, creates, and revokes artifacts through the app's public routes", async () => {
+  directory = await mkdtemp(join(tmpdir(), "ya-artifact-routes-"));
+  const entry = join(directory, "index.html");
+  await writeFile(entry, "<h1>Public route</h1>");
+  const dataDir = join(directory, "data");
+  const settings = new ServerSettingsService({ dataDir });
+  await settings.initialize();
+  initFileAccess({
+    uploadsDir: directory,
+    homeDir: directory,
+    tempPaths: [directory],
+    envPaths: [directory],
+  });
+  const instance = createApp({
+    sdk: new MockClaudeSDK(),
+    dataDir,
+    projectsDir: join(directory, "sessions"),
+    serverSettingsService: settings,
+  });
+  const call = (path: string, method: string, body?: object) =>
+    instance.app.request(path, {
+      method,
+      headers: { "Content-Type": "application/json", "X-Yep-Anywhere": "true" },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  try {
+    expect(
+      (await call("/api/artifacts", "POST", { path: entry, audience: "local" }))
+        .status,
+    ).toBe(409);
+    expect(
+      (
+        await call("/api/artifacts/config", "PUT", {
+          port: 4402,
+          localOrigin: "http://artifacts.localhost:3400",
+          expiryHours: 2,
+        })
+      ).status,
+    ).toBe(200);
+    expect(settings.getSetting("artifactViewer")?.expiryHours).toBe(2);
+    const response = await call("/api/artifacts", "POST", {
+      path: entry,
+      audience: "local",
+    });
+    expect(response.status).toBe(200);
+    const grant = await response.json();
+    expect(
+      await (await instance.artifactServer.app.request(grant.url)).text(),
+    ).toBe("<h1>Public route</h1>");
+    expect((await call(`/api/artifacts/${grant.id}`, "DELETE")).status).toBe(
+      200,
+    );
+    expect((await instance.artifactServer.app.request(grant.url)).status).toBe(
+      404,
+    );
+  } finally {
+    await instance.artifactServer.close();
+    await instance.disposeSessionReaders();
+  }
 });
 
 it("serves an authorized HTML directory with executable bytes and revocable access", async () => {

@@ -3,7 +3,7 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../api/client";
 import { I18nProvider } from "../../i18n";
-import type { SourceApiClient } from "../../lib/sourceRuntime";
+import type { SessionApi } from "../../api/sessionClient";
 import { useQuestionAside } from "../useQuestionAside";
 
 describe("one-shot question aside", () => {
@@ -47,10 +47,11 @@ describe("one-shot question aside", () => {
       const inject = vi
         .spyOn(api, "sendConversationContext")
         .mockResolvedValue({ delivery: "native-history" });
-      const sourceApi: SourceApiClient = {
+      const sourceApi: SessionApi = {
+        ...api,
         getSession: async () => ({
           session: { id: "child" } as Awaited<
-            ReturnType<SourceApiClient["getSession"]>
+            ReturnType<SessionApi["getSession"]>
           >["session"],
           ownership: { owner: "none" },
           messages: [
@@ -68,13 +69,13 @@ describe("one-shot question aside", () => {
             },
           ],
         }),
-        getSessionMetadata: vi.fn(),
       };
       const showToast = vi.fn();
       const { result } = renderHook(
         () =>
           useQuestionAside({
             projectId: "project",
+            sourceKey: "test-source",
             sessionId: "parent",
             sourceApi,
             provider: "codex",
@@ -156,10 +157,11 @@ describe("one-shot question aside", () => {
     vi.spyOn(api, "getProcessInfo").mockResolvedValue({ process: null });
     const inject = vi.spyOn(api, "sendConversationContext");
     const onContinueAsBtw = vi.fn();
-    const sourceApi: SourceApiClient = {
+    const sourceApi: SessionApi = {
+      ...api,
       getSession: async () => ({
         session: { id: "child" } as Awaited<
-          ReturnType<SourceApiClient["getSession"]>
+          ReturnType<SessionApi["getSession"]>
         >["session"],
         ownership: { owner: "none" },
         messages: [
@@ -167,7 +169,6 @@ describe("one-shot question aside", () => {
           { type: "assistant", content: "Answer." },
         ],
       }),
-      getSessionMetadata: vi.fn(),
     };
     const { result } = renderHook(
       () =>
@@ -175,6 +176,7 @@ describe("one-shot question aside", () => {
           projectId: "project",
           sessionId: "parent",
           sourceApi,
+          sourceKey: "test-source",
           provider: "codex",
           model: undefined,
           executor: undefined,
@@ -256,7 +258,8 @@ describe("one-shot question aside", () => {
         useQuestionAside({
           projectId: "project",
           sessionId: "parent",
-          sourceApi: { getSession: vi.fn(), getSessionMetadata: vi.fn() },
+          sourceApi: { ...api, getSession: vi.fn() },
+          sourceKey: "test-source",
           provider: "codex",
           model: undefined,
           executor: undefined,
@@ -332,7 +335,8 @@ describe("one-shot question aside", () => {
         useQuestionAside({
           projectId: "project",
           sessionId: "parent",
-          sourceApi: { getSession, getSessionMetadata: vi.fn() },
+          sourceApi: { ...api, getSession },
+          sourceKey: "test-source",
           provider: "codex",
           model: undefined,
           executor: undefined,

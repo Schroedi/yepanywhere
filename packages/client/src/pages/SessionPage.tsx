@@ -43,6 +43,7 @@ import {
 } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import { createSessionApi } from "../api/sessionClient";
 import type { BangCommandHandlers } from "../components/BangCommandDisplayObject";
 import {
   SessionViewerProvider,
@@ -890,10 +891,18 @@ function SessionPageContent({
     originalText: string;
   } | null>(null);
   const { questionAsidesEnabled } = useQuestionAsideSetting();
+  const questionSourceApi = useMemo(
+    () =>
+      createSessionApi((path, options) =>
+        sourceRuntime.transport.fetch(path, options),
+      ),
+    [sourceRuntime],
+  );
   const questionAside = useQuestionAside({
     projectId,
     sessionId: actualSessionId,
-    sourceApi,
+    sourceKey: sourceRuntime.sourceKey,
+    sourceApi: questionSourceApi,
     provider: effectiveProvider,
     model: effectiveModelConfig?.model ?? session?.model,
     executor: session?.executor,

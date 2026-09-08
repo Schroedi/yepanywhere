@@ -7,6 +7,7 @@ import {
 } from "../artifacts/config.js";
 import type { ProjectScanner } from "../projects/scanner.js";
 import type { ServerSettingsService } from "../services/ServerSettingsService.js";
+import { expandHomePath } from "../utils/expandHomePath.js";
 
 export function createArtifactRoutes(options: {
   server: ArtifactServer;
@@ -16,7 +17,7 @@ export function createArtifactRoutes(options: {
 }) {
   const routes = new Hono();
   let updating = false;
-  routes.put("/config", async (c) => {
+  routes.put("/artifacts/config", async (c) => {
     if (options.locked || !options.settings)
       return c.json(
         { error: "Artifact configuration is controlled at launch" },
@@ -71,7 +72,7 @@ export function createArtifactRoutes(options: {
       updating = false;
     }
   });
-  routes.post("/", async (c) => {
+  routes.post("/artifacts", async (c) => {
     if (!options.server.available)
       return c.json({ error: "Artifact serving is disabled" }, 409);
     const body = await c.req.json<unknown>();
@@ -89,15 +90,15 @@ export function createArtifactRoutes(options: {
         },
         400,
       );
-    let filePath = path;
+    let filePath = expandHomePath(path);
     if (projectId) {
       const project = await options.scanner.getProject(projectId);
       if (!project) return c.json({ error: "Project not found" }, 404);
-      filePath = resolve(project.path, path);
+      filePath = resolve(project.path, filePath);
     }
     return c.json(await options.server.createGrant(filePath, audience));
   });
-  routes.delete("/:id", (c) => {
+  routes.delete("/artifacts/:id", (c) => {
     options.server.revoke(c.req.param("id"));
     return c.json({ success: true });
   });
