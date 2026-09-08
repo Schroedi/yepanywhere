@@ -60,7 +60,8 @@ import { ToolCallRow } from "./blocks/ToolCallRow";
 import { UserPromptBlock } from "./blocks/UserPromptBlock";
 import { LinkifiedText } from "./ui/LinkifiedText";
 import styles from "./RenderItemComponent.module.css";
-import { WorkflowContext, WorkflowOutput } from "./WorkflowOutput";
+import { WorkflowContext } from "./WorkflowOutput";
+import { WorkflowAssistantOutput } from "./WorkflowAssistantOutput";
 
 interface Props {
   item: RenderItem;
@@ -1286,10 +1287,22 @@ export const RenderItemComponent = memo(function RenderItemComponent({
           <WorkflowContext workflow={item.workflow} />
         ) : null}
         {item.type === "text" && item.workflow?.markers.length ? (
-          <WorkflowOutput
+          <WorkflowAssistantOutput
             text={item.text}
             workflow={item.workflow}
+            isStreaming={item.isStreaming}
             original={renderContent()}
+            renderText={(text, html) => (
+              <TextBlock
+                text={text}
+                augmentHtml={html}
+                projectPathLinks={item.projectPathLinks}
+                renderItemId={item.id}
+                onQuoteBlock={onQuoteTextBlock}
+                alwaysShowQuoteCircle={alwaysShowQuoteCircle}
+                paragraphQuoteCirclesEnabled={paragraphQuoteCirclesEnabled}
+              />
+            )}
           />
         ) : (
           renderContent()

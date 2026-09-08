@@ -92,10 +92,12 @@ export function WorkflowOutput({
   text,
   workflow,
   original,
+  preview,
 }: {
   text: string;
   workflow: WorkflowAnnotation;
   original?: ReactNode;
+  preview?: ReactNode;
 }) {
   const { t } = useI18n();
   const [originalExpanded, setOriginalExpanded] = useState(false);
@@ -131,7 +133,7 @@ export function WorkflowOutput({
         controls={originalId}
         onClick={() => setOriginalExpanded((value) => !value)}
       />
-      <pre className={styles.content}>{content}</pre>
+      {preview ?? <pre className={styles.content}>{content}</pre>}
       {originalExpanded && (
         <div
           className={styles.original}

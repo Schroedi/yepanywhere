@@ -61,11 +61,17 @@ for (const viewport of [
     const declaration = `@@visualization-schema/1 ${schemaPath}#ya-publish/1`;
     const progress =
       "Checking completed commits, active work, and the publication checkout.";
+    const reportPath = join(
+      e2ePaths.tempDir,
+      "mockproject",
+      "publish-report.md",
+    );
+    writeFileSync(reportPath, "# Publication checks\n\nReady to publish.");
     const sessionId = `workflow-lede-${viewport.name}`;
     const projectId = saveTranscript(sessionId, [
       assistant(
         "publish-lede",
-        `${declaration}\n[workflow][start] id=publish-test schema=ya-publish/1\n[publish][prepare] ${progress}`,
+        `${declaration}\n[workflow][start] id=publish-test schema=ya-publish/1\n[publish][prepare] ${progress} Read [the report](<${reportPath}>).`,
       ),
     ]);
     await page.goto(`${baseURL}/projects/${projectId}/sessions/${sessionId}`);
@@ -79,6 +85,10 @@ for (const viewport of [
       output.getByText("Workflow schema · Publish YA", { exact: true }),
     ).toBeVisible();
     await expect(output).not.toContainText("@@visualization-schema/1");
+    await expect(
+      output.getByRole("link", { name: "the report", exact: true }),
+    ).toBeVisible();
+    await expect(output).not.toContainText("[the report](");
     await toggle.click();
     await expect(output.locator("[data-workflow-original]")).toContainText(
       declaration,
@@ -87,6 +97,13 @@ for (const viewport of [
       .getByRole("button", { name: "Collapse original output" })
       .click();
     await expect(output.getByText(progress, { exact: false })).toBeVisible();
+    await output.getByRole("link", { name: "the report", exact: true }).click();
+    await expect(page.locator(".file-viewer-modal")).toBeVisible();
+    await expect(page.locator(".file-viewer-modal")).toContainText(
+      "Publication checks",
+    );
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".file-viewer-modal")).not.toBeVisible();
     const captureDir =
       process.env.YEP_E2E_UI_CAPTURE_DIR ?? testInfo.outputPath("captures");
     mkdirSync(captureDir, { recursive: true });

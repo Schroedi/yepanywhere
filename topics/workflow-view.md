@@ -89,7 +89,18 @@ No provider messages, turns, commands, or completion events are synthesized.
   Earlier output retains its previous interpretation, including lines hidden
   by `matching-lines` before the script switches to inline `spans`.
 - Highlighted assistant blocks keep progress messages visible with tag/title
-  boundaries even while original output is collapsed. Schema announcements show
+  boundaries even while original output is collapsed. Completed assistant
+  stage prose renders as Markdown through the existing capability-gated batch
+  renderer, including clickable file and web links, math, and formatting.
+  Each stage's prose is a Markdown fragment. Expanding original output never
+  changes the preview's link behavior. Streaming, pending or failed rendering,
+  public shares, and servers without `acli-commentary-rendering` retain the
+  ordinary rich assistant message in place; they never hide it behind a
+  plain-text replacement. Unsupported servers receive no rendering request.
+  Rendering requests wait for message completion, remain bound to the source,
+  project and session, and are cancelled when that context leaves the view.
+  Tool commentary's separate setting does not disable assistant Markdown.
+  Schema announcements show
   only their human-readable label and title (or unresolved status); the raw
   activation syntax and file reference appear only in the original output.
   For file-backed declarations, the readable label links to the schema file
