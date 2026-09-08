@@ -11,7 +11,12 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { captureArtifact, markdownLink } from "./artifact-capture";
+import { chromium } from "@playwright/test";
+import {
+  captureArtifact,
+  markdownLink,
+  writeCapturePreview,
+} from "./artifact-capture";
 
 const directories: string[] = [];
 const servers: Server[] = [];
@@ -196,6 +201,71 @@ describe("portable artifact capture", () => {
           item.method === "DELETE" && item.path === "/api/artifacts/grant-id",
       ),
     ).toBe(true);
+  });
+
+  it("revokes a created grant when the interaction fails without writing a successful manifest", async () => {
+    const files = await fixture();
+    const server = await serverFixture();
+    await expect(
+      captureArtifact({
+        ...files,
+        yaUrl: server.yaUrl,
+        interact: async () => {
+          throw new Error("Workflow failed");
+        },
+      }),
+    ).rejects.toThrow("Workflow failed");
+    expect(server.requests.some((item) => item.method === "DELETE")).toBe(true);
+    await expect(
+      readFile(join(files.out, "capture.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("packages an existing driven page without replacing its screenshots or owning its browser", async () => {
+    const files = await fixture();
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage({
+        viewport: { width: 375, height: 812 },
+      });
+      await page.setContent(
+        "<button onclick=\"this.textContent='Expanded'\">Expand</button>",
+      );
+      await page.getByRole("button", { name: "Expand", exact: true }).click();
+      const path = join(files.directory, "chosen state.png");
+      const bytes = await page.screenshot({ path });
+      const options = {
+        input: "Caller-owned browser workflow",
+        out: files.out,
+        screenshots: [{ name: "phone", width: 375, height: 812, path }],
+      };
+      const result = await writeCapturePreview(options);
+      expect(result._acli?.commentary[1]?.text).toContain(
+        `![phone](<${path}>)`,
+      );
+      expect(await readFile(path)).toEqual(bytes);
+      expect(await page.getByRole("button").textContent()).toBe("Expanded");
+      expect(
+        JSON.parse(await readFile(join(files.out, "capture.json"), "utf8")),
+      ).toEqual(result);
+      await expect(writeCapturePreview(options)).rejects.toMatchObject({
+        code: "EEXIST",
+      });
+      await expect(
+        writeCapturePreview({
+          ...options,
+          out: join(files.directory, "missing"),
+          screenshots: [
+            {
+              ...options.screenshots[0]!,
+              path: join(files.directory, "absent.png"),
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await browser.close();
+    }
   });
 
   it("captures an existing URL without creating or renewing a grant", async () => {

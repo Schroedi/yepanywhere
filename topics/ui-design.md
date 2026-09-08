@@ -110,7 +110,8 @@ to 30000 per browser/API operation; health probes have a 2500ms deadline.
 Capturing succeeds only after both viewports and the output manifest are
 written. A successful capture does not certify appearance or test interaction:
 the agent must open and inspect both PNGs sequentially before handing them off.
-Behavior checks such as clicking menus remain separate.
+Behavior checks belong to the caller's browser workflow or the interaction
+module described below; capture alone makes no assertions about them.
 
 Each invocation owns a new directory, defaulting to
 `.artifacts/captures/<unique-id>/` in this checkout. `--out` selects another new
@@ -132,6 +133,68 @@ does not activate YA's current output-based commentary recognition.
 Errors are structured JSON on stderr; exit 0 means complete, 2 means invalid
 arguments, and 3 means a capture/delivery/filesystem failure. Partial PNGs may
 remain after failure, but are not a successful handoff.
+
+### Capturing a driven workflow
+
+An explicit local interaction module can reach the desired state before each
+capture:
+
+```bash
+pnpm -s artifact:capture path/to/index.html --interact path/to/workflow.mjs --ready-selector '[data-ready]' --json
+```
+
+The module default-exports an async function receiving `{ page, viewport }`:
+
+```js
+export default async ({ page, viewport }) => {
+  await page.getByRole("textbox", { name: "Reply" }).fill("Show this result");
+  await page.getByRole("button", { name: "Submit" }).click();
+  await page.getByText("Show this result", { exact: true }).waitFor();
+};
+```
+
+The module is trusted caller-owned Node code, loaded from the supplied path
+relative to the command's working directory; JavaScript and TypeScript are
+supported by the existing tsx entry point. It is never loaded from artifact
+content. It runs once in each fresh viewport after DOM-content navigation,
+before `--ready-selector`, font readiness, and the screenshot. The ordinary
+no-module path retains its network-idle wait. Playwright operations use the
+configured timeout; the module owns any non-browser waits and assertions.
+Keep its stdout clear for the command's JSON result. Callback errors fail the
+capture, close the browser, and revoke any grant created by this invocation.
+Network restrictions and YA-header separation remain unchanged. Reopening
+the artifact starts the document normally; the interaction module is not
+bundled into the document or replayed by the viewer.
+
+For an existing Playwright workflow that already owns its browser, input
+sequence, authentication, and screenshots, import `writeCapturePreview` and
+`emitCapturePreview` from `packages/client/scripts/artifact-capture.ts`:
+
+```ts
+const preview = await writeCapturePreview({
+  input: "Session question workflow",
+  out: ".artifacts/provider-output-contract/20260908T070000Z-question-menu",
+  screenshots: [
+    { name: "desktop", width: 1000, height: 600, path: desktopPng },
+    { name: "phone", width: 375, height: 812, path: phonePng },
+  ],
+  warnings: browserWarnings,
+});
+emitCapturePreview(preview);
+```
+
+This helper verifies nonempty screenshot files, canonicalizes their paths,
+and writes the same `capture.json`, `links.md`, and image commentary used by
+the CLI. It accepts one or more uniquely named states with positive viewport
+dimensions. It never navigates, recaptures, copies images, closes the caller's
+browser, or creates a delivery grant. The caller remains responsible for
+assertions, browser errors, warning collection, and teardown. Optional `file`
+and `delivery` describe an already-established interactive artifact; omit them
+for screenshots of an ephemeral test server. Existing manifest or link files
+are not overwritten; failure can leave partial output, never a success result.
+`emitCapturePreview` writes the capability banner and JSON to the tool output
+so supporting YA sessions present the image files beside that call. Agents
+still inspect each image themselves before claiming visual quality.
 
 ### Optional interactive delivery
 

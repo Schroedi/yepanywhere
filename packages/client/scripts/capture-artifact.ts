@@ -1,7 +1,7 @@
 // acli: 1 +commentary
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import type { CaptureOptions } from "./artifact-capture";
 
@@ -16,6 +16,7 @@ with: pnpm --filter @yep-anywhere/client exec playwright install chromium
   --audience <value>      local (default) or public; used only with --ya-url
   --ya-headers <file>     JSON request headers for YA authentication only; never sent to artifacts
   --ready-selector <css>  Wait for a visible element before capturing
+  --interact <module>     Run trusted local JS/TS default async ({page, viewport}) after navigation
   --timeout-ms <number>   Per-operation deadline, default 30000
   --allow-network        Allow requests outside the document origin; default blocks and reports them
   --format <value>       jsonl (default), json (pretty), or markdown
@@ -33,6 +34,8 @@ no listening port or YA server is required. Existing output is never overwritten
 Disabled/unconfigured delivery skips those requests and captures locally.
 Explicit hosting failures are errors; retry without --ya-url for local captures.
 URL input uses that existing URL without creating or renewing a grant.
+--interact runs once per fresh viewport before --ready-selector and capture.
+It may click, fill, and await UI state; it executes as local Node code, not sandboxed page content.
 YA must see the same absolute file path when requesting a grant.
 
 Duration: seconds, blocking. Stdout: one complete JSON result or Markdown.
@@ -59,6 +62,7 @@ export function parseCaptureArgs(argv: string[]) {
       audience: { type: "string" },
       "ya-headers": { type: "string" },
       "ready-selector": { type: "string" },
+      interact: { type: "string" },
       "timeout-ms": { type: "string" },
       "allow-network": { type: "boolean" },
       format: { type: "string" },
@@ -106,6 +110,7 @@ export function parseCaptureArgs(argv: string[]) {
     options,
     format,
     headersFile: values["ya-headers"],
+    interactionFile: values.interact,
     quiet: values["acli-quiet"],
   };
 }
@@ -138,6 +143,14 @@ async function main() {
           "--ya-headers must contain a JSON object with string values",
         );
       args.options.yaHeaders = headers as Record<string, string>;
+    }
+    if (args.interactionFile) {
+      const workflow = await import(
+        pathToFileURL(resolve(args.interactionFile)).href
+      );
+      if (typeof workflow.default !== "function")
+        throw new Error("--interact module must default-export a function");
+      args.options.interact = workflow.default;
     }
     failureCode = 3;
     const { captureArtifact } = await import("./artifact-capture");

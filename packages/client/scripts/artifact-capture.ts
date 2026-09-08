@@ -12,7 +12,7 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium, type Browser } from "@playwright/test";
+import { chromium, type Browser, type Page } from "@playwright/test";
 import type {
   ArtifactViewerGrant,
   ArtifactViewerStatus,
@@ -46,12 +46,32 @@ export interface CaptureOptions {
   timeoutMs?: number;
   allowNetwork?: boolean;
   commentary?: boolean;
+  /** Trusted caller-owned workflow, run after navigation for each viewport. */
+  interact?: (context: {
+    page: Page;
+    viewport: (typeof captureViewports)[number];
+  }) => Promise<void>;
 }
 
 export type ArtifactDelivery =
   | { status: "skipped"; reason: string }
   | { status: "existing"; url: string; expiresAt: null }
   | ({ status: "created" } & ArtifactViewerGrant);
+
+export interface CapturePreviewOptions {
+  input: string;
+  out: string;
+  file?: string | null;
+  delivery?: ArtifactDelivery;
+  screenshots: readonly {
+    name: string;
+    width: number;
+    height: number;
+    path: string;
+  }[];
+  warnings?: readonly string[];
+  commentary?: boolean;
+}
 
 function httpUrl(value: string): URL {
   const url = new URL(value);
@@ -295,7 +315,10 @@ export async function captureArtifact(options: CaptureOptions) {
           if (message.type() === "warning") warnings.add(message.text());
           if (message.type() === "error") problems.add(message.text());
         });
-        await page.goto(url, { waitUntil: "networkidle" });
+        await page.goto(url, {
+          waitUntil: options.interact ? "domcontentloaded" : "networkidle",
+        });
+        await options.interact?.({ page, viewport });
         if (options.readySelector)
           await page
             .locator(options.readySelector)
@@ -310,49 +333,15 @@ export async function captureArtifact(options: CaptureOptions) {
         await context.close();
       }
     }
-    const lines = [
-      ...(file ? [`Open in YA: ${markdownLink("File viewer", file)}`] : []),
-      ...(delivery.status !== "skipped"
-        ? [
-            `Interactive: [Artifact](<${delivery.url}>) — ${delivery.expiresAt === null ? "expiry unknown (existing URL)" : `expires ${new Date(delivery.expiresAt).toISOString()}`}`,
-          ]
-        : [`Interactive: unavailable — ${delivery.reason}`]),
-      `Captures: ${screenshots.map((item) => markdownLink(`${item.name} ${item.width}×${item.height}`, item.path)).join(" · ")}`,
-      ...(warnings.size
-        ? [`Browser warnings: ${[...warnings].join("; ")}`]
-        : []),
-    ];
-    const result = {
-      kind: "artifact-capture",
-      capturedAt: new Date().toISOString(),
+    return await writeCapturePreview({
+      out: output,
       input: file ?? url,
+      file,
       delivery,
       screenshots,
       warnings: [...warnings],
-      markdown: lines.join("\n\n"),
-      ...(options.commentary === false
-        ? {}
-        : {
-            _acli: {
-              commentary: [
-                { text: lines.join("\n\n") },
-                {
-                  text: [
-                    `| ${screenshots.map((item) => `${item.name} ${item.width}×${item.height}`).join(" | ")} |`,
-                    `| ${screenshots.map(() => "---").join(" | ")} |`,
-                    `| ${screenshots.map((item) => `!${markdownLink(item.name, item.path)}`).join(" | ")} |`,
-                  ].join("\n"),
-                },
-              ],
-            },
-          }),
-    };
-    await writeFile(
-      join(output, "capture.json"),
-      `${JSON.stringify(result, null, 2)}\n`,
-    );
-    await writeFile(join(output, "links.md"), `${result.markdown}\n`);
-    return result;
+      commentary: options.commentary,
+    });
   } catch (error) {
     if (delivery.status === "created") {
       const response = await fetch(
@@ -377,4 +366,88 @@ export async function captureArtifact(options: CaptureOptions) {
   } finally {
     await browser.close();
   }
+}
+
+/** Package existing PNGs without navigating, recapturing, or closing their browser. */
+export async function writeCapturePreview(options: CapturePreviewOptions) {
+  if (!options.screenshots.length)
+    throw new Error("At least one screenshot is required");
+  const names = new Set<string>();
+  const screenshots = [];
+  for (const screenshot of options.screenshots) {
+    if (!screenshot.name || names.has(screenshot.name))
+      throw new Error("Screenshot names must be nonempty and unique");
+    names.add(screenshot.name);
+    if (
+      ![screenshot.width, screenshot.height].every(
+        (size) => Number.isSafeInteger(size) && size > 0,
+      )
+    )
+      throw new Error("Screenshot dimensions must be positive integers");
+    const path = await realpath(resolve(screenshot.path));
+    const info = await stat(path);
+    if (!info.isFile() || info.size === 0)
+      throw new Error("Screenshot must be a nonempty file");
+    screenshots.push({ ...screenshot, path });
+  }
+  const delivery: ArtifactDelivery = options.delivery ?? {
+    status: "skipped",
+    reason: "Existing browser captures; interactive delivery not requested",
+  };
+  const file = options.file ? await realpath(resolve(options.file)) : null;
+  const warnings = [...(options.warnings ?? [])];
+  const lines = [
+    ...(file ? [`Open in YA: ${markdownLink("File viewer", file)}`] : []),
+    ...(delivery.status !== "skipped"
+      ? [
+          `Interactive: [Artifact](<${delivery.url}>) — ${delivery.expiresAt === null ? "expiry unknown (existing URL)" : `expires ${new Date(delivery.expiresAt).toISOString()}`}`,
+        ]
+      : [`Interactive: unavailable — ${delivery.reason}`]),
+    `Captures: ${screenshots.map((item) => markdownLink(`${item.name} ${item.width}×${item.height}`, item.path)).join(" · ")}`,
+    ...(warnings.length ? [`Browser warnings: ${warnings.join("; ")}`] : []),
+  ];
+  const result = {
+    kind: "artifact-capture",
+    capturedAt: new Date().toISOString(),
+    input: options.input,
+    delivery,
+    screenshots,
+    warnings,
+    markdown: lines.join("\n\n"),
+    ...(options.commentary === false
+      ? {}
+      : {
+          _acli: {
+            commentary: [
+              { text: lines.join("\n\n") },
+              {
+                text: [
+                  `| ${screenshots.map((item) => `${item.name} ${item.width}×${item.height}`).join(" | ")} |`,
+                  `| ${screenshots.map(() => "---").join(" | ")} |`,
+                  `| ${screenshots.map((item) => `!${markdownLink(item.name, item.path)}`).join(" | ")} |`,
+                ].join("\n"),
+              },
+            ],
+          },
+        }),
+  };
+  const output = resolve(options.out);
+  await mkdir(output, { recursive: true });
+  await writeFile(
+    join(output, "capture.json"),
+    `${JSON.stringify(result, null, 2)}\n`,
+    { flag: "wx" },
+  );
+  await writeFile(join(output, "links.md"), `${result.markdown}\n`, {
+    flag: "wx",
+  });
+  return result;
+}
+
+/** Emit the same YA preview presentation from a caller-owned browser workflow. */
+export function emitCapturePreview(
+  result: Awaited<ReturnType<typeof writeCapturePreview>>,
+) {
+  if (!process.env.ACLI_QUIET) process.stderr.write("# acli: 1 +commentary\n");
+  process.stdout.write(`${JSON.stringify(result)}\n`);
 }

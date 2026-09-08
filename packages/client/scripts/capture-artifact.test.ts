@@ -62,7 +62,18 @@ describe("artifact capture command", () => {
     try {
       await writeFile(
         join(directory, "page with spaces.html"),
-        "<h1>Standalone CLI</h1>",
+        "<h1>Standalone CLI</h1><input aria-label=\"Reply\"><button onclick=\"document.querySelector('h1').textContent=document.querySelector('input').value;document.querySelector('h1').dataset.ready='yes'\">Submit</button>",
+      );
+      await writeFile(
+        join(directory, "workflow with spaces.mjs"),
+        `
+        export default async ({ page, viewport }) => {
+          await page.getByRole('textbox', { name: 'Reply' }).fill(viewport.name);
+          await page.getByRole('button', { name: 'Submit' }).click();
+          if (await page.locator('h1').textContent() !== viewport.name)
+            throw new Error('Interaction did not reach the intended state');
+        };
+      `,
       );
       const result = await exec(
         process.execPath,
@@ -74,6 +85,10 @@ describe("artifact capture command", () => {
           "--out",
           "captures",
           "--json",
+          "--interact",
+          "workflow with spaces.mjs",
+          "--ready-selector",
+          "[data-ready]",
         ],
         { cwd: directory },
       );
