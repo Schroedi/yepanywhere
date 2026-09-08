@@ -4,7 +4,7 @@ import { cp, copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import { createServer as createViteServer } from "vite";
+import { createTestViteServer as createViteServer } from "./support/vite-server";
 import { createApp } from "../../server/test/setup/create-app";
 import { createFrontendProxy } from "../../server/src/frontend/proxy";
 import { MockClaudeSDK } from "../../server/src/sdk/mock";

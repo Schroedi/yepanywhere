@@ -11,7 +11,8 @@ import {
 } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { createServer, preview } from "vite";
+import { build, preview } from "vite";
+import { createTestViteServer as createServer } from "./support/vite-server";
 import {
   clientRoot,
   exportDirectory,
@@ -34,6 +35,8 @@ const captures = resolve(exportDirectory, "../captures/projects");
 test("exports matching source states, a complete bundle, and a working direct YA preview", async ({
   page,
 }) => {
+  test.setTimeout(90_000);
+  await build({ configFile });
   const problems: string[] = [];
   page.on("pageerror", (error) => problems.push(error.message));
   page.on("console", (message) => {
@@ -66,8 +69,17 @@ test("exports matching source states, a complete bundle, and a working direct YA
     for (const viewport of viewports) {
       await page.setViewportSize(viewport);
       for (const state of states) {
-        await page.goto(`http://localhost:${address.port}/${state.entry}`);
-        await checkMockup(page, state.name);
+        await page.goto(`http://127.0.0.1:${address.port}/${state.entry}`);
+        try {
+          await checkMockup(page, state.name);
+        } catch (error) {
+          throw new Error(
+            `Source preview browser errors: ${problems.join("\n")}`,
+            {
+              cause: error,
+            },
+          );
+        }
         const name = `${state.name}-${viewport.name}.png`;
         sourceImages.set(
           name,
@@ -97,7 +109,7 @@ test("exports matching source states, a complete bundle, and a working direct YA
       const address = exported.httpServer.address();
       if (!address || typeof address === "string")
         throw new Error("Missing export port");
-      const origin = `http://localhost:${address.port}`;
+      const origin = `http://127.0.0.1:${address.port}`;
       const inventory = JSON.parse(
         await readFile(join(relocated, "ya-mockup.json"), "utf8"),
       );
@@ -207,7 +219,7 @@ test("exports matching source states, a complete bundle, and a working direct YA
         localOrigin: `http://artifacts.localhost:${address.port}`,
       });
       await page.goto(
-        `http://localhost:${address.port}/e2e/fixtures/artifact-viewer.html?path=${encodeURIComponent(join(relocated, "index.html"))}`,
+        `http://127.0.0.1:${address.port}/e2e/fixtures/artifact-viewer.html?path=${encodeURIComponent(join(relocated, "index.html"))}`,
       );
       await page
         .getByRole("button", { name: "Run interactive preview" })

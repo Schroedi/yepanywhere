@@ -34,6 +34,9 @@ import { UploadManager } from "../../server/src/uploads/manager";
 import { EventBus } from "../../server/src/watcher";
 import { createApp } from "../../server/test/setup/create-app";
 
+// The dedicated gateway below uses a generated, self-signed test certificate.
+test.use({ ignoreHTTPSErrors: true });
+
 const clientRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const serverRequire = createRequire(join(clientRoot, "../server/package.json"));
 const username = "artifact-relay-test";
