@@ -790,7 +790,21 @@ export class CodexSessionReader implements ISessionReader {
   async getSessionListSummary(
     sessionId: string,
     projectId: UrlProjectId,
+    summaryHint?: SessionListSummary,
   ): Promise<SessionListSummary | null> {
+    if (summaryHint) {
+      const sessionFile = await this.findSessionFile(sessionId);
+      if (!sessionFile) return null;
+      try {
+        return {
+          ...toSessionListSummary(summaryHint),
+          asyncQuestions: await readCodexAsyncQuestions(sessionFile.filePath),
+        };
+      } catch {
+        // Match summary reads when the provider source becomes unreadable.
+        return null;
+      }
+    }
     const summary = await this.getSessionSummary(sessionId, projectId, {
       readMode: "head",
     });

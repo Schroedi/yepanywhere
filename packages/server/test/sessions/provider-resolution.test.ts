@@ -163,6 +163,7 @@ describe("provider resolution", () => {
     expect(reader.getSessionListSummary).toHaveBeenCalledWith(
       "session-head",
       projectId,
+      undefined,
     );
     expect(reader.getSessionSummary).not.toHaveBeenCalled();
     expect(sessionIndexService.getCachedSessionSummary).toHaveBeenCalledWith(

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   appendFile,
   mkdir,
+  readFile,
   rm,
   stat,
   utimes,
@@ -13,9 +14,11 @@ import { fileURLToPath } from "node:url";
 import * as zlib from "node:zlib";
 import type { CodexSessionEntry, UrlProjectId } from "@yep-anywhere/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SessionIndexService } from "../../src/indexes/SessionIndexService.js";
 import { getLogger } from "../../src/logging/logger.js";
 import { encodeProjectId } from "../../src/projects/paths.js";
 import { CodexSessionReader } from "../../src/sessions/codex-reader.js";
+import { findSessionListSummaryAcrossProviders } from "../../src/sessions/provider-resolution.js";
 import {
   getCodexMessageSourceByteCursor,
   normalizeSession,
@@ -216,6 +219,65 @@ describe("CodexSessionReader - OSS Support", () => {
     expect(first?.asyncQuestions?.questions[0]?.age).toBe(0);
     const full = await reader.getSessionSummary(sessionId, projectId);
     expect(full?.asyncQuestions).toEqual(next?.asyncQuestions);
+  });
+
+  it("adds question previews to a fresh indexed row without rereading its head", async () => {
+    const sessionId = "indexed-before-question-previews";
+    await createSessionFile(sessionId, "openai", "gpt-6-astra");
+    const projectId = "test-project" as UrlProjectId;
+    const options = { dataDir: join(testDir, "indexes") };
+    const initialIndex = new SessionIndexService(options);
+    await initialIndex.initialize();
+    const indexed = await initialIndex.getSessionSummaryWithCache(
+      testDir,
+      projectId,
+      sessionId,
+      reader,
+    );
+    expect(indexed).not.toBeNull();
+    const indexPath = initialIndex.getIndexPath(testDir, reader);
+    const persisted = JSON.parse(await readFile(indexPath, "utf8"));
+    delete persisted.sessions[sessionId].asyncQuestions;
+    initialIndex.dispose();
+    await writeFile(indexPath, JSON.stringify(persisted));
+    const index = new SessionIndexService(options);
+    await index.initialize();
+    const freshReader = new CodexSessionReader({ sessionsDir: testDir });
+    try {
+      const resolved = await findSessionListSummaryAcrossProviders(
+        {
+          id: projectId,
+          path: "/test/project",
+          name: "test",
+          sessionCount: 1,
+          sessionDir: testDir,
+          activeOwnedCount: 0,
+          activeExternalCount: 0,
+          lastActivity: null,
+          provider: "codex",
+        },
+        sessionId,
+        projectId,
+        {
+          readerFactory: () => freshReader,
+          codexReaderFactory: () => freshReader,
+          sessionIndexService: index,
+        },
+        "codex",
+      );
+      const summary = resolved?.summary;
+      expect(summary?.title).toBe(indexed!.title);
+      expect(summary?.asyncQuestions).toEqual({
+        questions: [],
+        omitted: false,
+      });
+      expect(freshReader.getLastSummaryStreamMetrics()).toBeNull();
+      expect(summary).not.toHaveProperty("messageCount");
+      expect(await readFile(indexPath, "utf8")).toBe(JSON.stringify(persisted));
+    } finally {
+      index.dispose();
+      await freshReader.close();
+    }
   });
 
   it("identifies session as codex-oss when model_provider is ollama", async () => {

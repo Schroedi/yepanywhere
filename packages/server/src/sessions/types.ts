@@ -194,6 +194,8 @@ export interface ISessionReader {
   getSessionListSummary?(
     sessionId: string,
     projectId: UrlProjectId,
+    /** Fresh indexed base facts; optional projections may still be absent. */
+    summaryHint?: SessionListSummary,
   ): Promise<SessionListSummary | null>;
 
   /**

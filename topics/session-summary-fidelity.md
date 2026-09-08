@@ -61,9 +61,11 @@ not a full parse. They stop at 128 questions or 32 subsequent user turns and
 retain only 320-character preview titles. A process-wide, source-versioned
 single-flight cache retains at most 8 MiB of preview results and rejects a
 result when the rollout's stat version changes during the read. Compressed
-rollouts leave this optional projection unknown. An old indexed Codex row
-without the projection may use the lightweight reader to acquire it. Neither
-this acquisition nor its cache advances complete-summary freshness. The
+rollouts leave this optional projection unknown. A fresh indexed Codex row
+without the projection supplies its base facts to the lightweight reader, which
+acquires the question preview without rereading the transcript head. Dirty or
+stat-mismatched rows cannot supply this hint. Neither this acquisition nor its
+cache advances complete-summary freshness or rewrites the complete index. The
 observable discovery and omission semantics live in
 [`provider-output-contract.md`](provider-output-contract.md#discovery-from-inbox-and-session-navigation).
 

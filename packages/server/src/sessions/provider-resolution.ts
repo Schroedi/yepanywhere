@@ -491,7 +491,12 @@ async function listSessionListSummariesForSource(
           ) {
             return toSessionListSummary(cached);
           }
-          return listReader.call(source.reader, entry.sessionId, project.id);
+          return listReader.call(
+            source.reader,
+            entry.sessionId,
+            project.id,
+            cached ? toSessionListSummary(cached) : undefined,
+          );
         }),
     );
     for (const summary of batch) {
@@ -594,6 +599,7 @@ export async function findSessionListSummaryAcrossProviders(
       const summary = await source.reader.getSessionListSummary(
         sessionId,
         projectId,
+        cachedSummary ? toSessionListSummary(cachedSummary) : undefined,
       );
       if (summary) {
         return { source, summary };
