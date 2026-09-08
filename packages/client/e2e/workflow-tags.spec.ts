@@ -97,6 +97,15 @@ for (const viewport of [
     await page.screenshot({
       path: join(captureDir, `publish-lede-${viewport.name}.png`),
     });
+    const schemaLink = output.getByRole("link", {
+      name: "Workflow schema · Publish YA",
+      exact: true,
+    });
+    await schemaLink.click();
+    await expect(page.locator(".file-viewer-modal")).toBeVisible();
+    await expect(page.locator(".file-viewer-modal")).toContainText(
+      "ya-publish/1",
+    );
   });
 
   test(`file-reference, inline and nested schemas at ${viewport.name} width`, async ({

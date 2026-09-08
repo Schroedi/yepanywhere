@@ -6,9 +6,31 @@ import type {
 } from "../lib/transcriptProjection/workflowTags";
 import styles from "./WorkflowOutput.module.css";
 import { TimelineDisclosure } from "./TimelineDisclosure";
+import { SessionFilePathLink } from "./SessionFilePathLink";
+import { workflowSchemaReference } from "../lib/transcriptProjection/workflowTags";
+
+function SchemaLabel({ marker }: { marker: WorkflowMarker }) {
+  const { t } = useI18n();
+  const label =
+    marker.kind === "unresolved"
+      ? t("workflowSchemaUnresolved")
+      : t("workflowSchemaActivated", { title: marker.title });
+  const reference = marker.schemaRef
+    ? workflowSchemaReference(marker.schemaRef)
+    : undefined;
+  return reference ? (
+    <SessionFilePathLink
+      displayPath={label}
+      filePath={reference.path}
+      showCopyButton={false}
+      showVersionControlLinks={false}
+    />
+  ) : (
+    label
+  );
+}
 
 function Boundary({ marker }: { marker: WorkflowMarker }) {
-  const { t } = useI18n();
   return (
     <span
       className={styles.boundary}
@@ -20,11 +42,11 @@ function Boundary({ marker }: { marker: WorkflowMarker }) {
       )}
       {marker.kind !== "activation" || marker.title ? (
         <span className={styles.title}>
-          {marker.kind === "unresolved"
-            ? t("workflowSchemaUnresolved")
-            : marker.kind === "activation"
-              ? t("workflowSchemaActivated", { title: marker.title })
-              : marker.title}
+          {marker.kind === "unresolved" || marker.kind === "activation" ? (
+            <SchemaLabel marker={marker} />
+          ) : (
+            marker.title
+          )}
         </span>
       ) : null}
     </span>
@@ -36,7 +58,6 @@ export function WorkflowContext({
 }: {
   workflow: WorkflowAnnotation;
 }) {
-  const { t } = useI18n();
   return (
     <>
       {workflow.parent ? (
@@ -60,9 +81,7 @@ export function WorkflowContext({
             title={marker.prefix}
             data-workflow-schema={marker.kind}
           >
-            {marker.kind === "unresolved"
-              ? t("workflowSchemaUnresolved")
-              : t("workflowSchemaActivated", { title: marker.title })}
+            <SchemaLabel marker={marker} />
           </div>
         ))}
     </>

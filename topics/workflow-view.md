@@ -92,6 +92,10 @@ No provider messages, turns, commands, or completion events are synthesized.
   boundaries even while original output is collapsed. Schema announcements show
   only their human-readable label and title (or unresolved status); the raw
   activation syntax and file reference appear only in the original output.
+  For file-backed declarations, the readable label links to the schema file
+  through the session file viewer, without adjacent copy or version-control
+  controls. Inline and embedded declarations retain their original-output
+  disclosure rather than linking to a potentially different file.
   A compact first-line gutter control expands the original output
   underneath, including the existing rich message renderer and its copy/quote
   controls. It shows `+` while the original is hidden and `−` while visible;
