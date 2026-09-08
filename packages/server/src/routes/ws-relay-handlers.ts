@@ -875,6 +875,21 @@ export async function handleRequest(
     } else if (legacyPublicShareRequest && !jsonResponse) {
       const text = new TextDecoder().decode(responseBody.bytes);
       body = text || null;
+    } else if (
+      response.ok &&
+      (url.searchParams.get("download") === "true" ||
+        response.headers
+          .get("Content-Disposition")
+          ?.split(";", 1)[0]
+          ?.trim()
+          .toLowerCase() === "attachment")
+    ) {
+      // Downloads preserve original bytes, including JSON formatting and
+      // integers that parsing would round. Keep errors on their normal path.
+      body = {
+        _binary: true,
+        data: Buffer.from(responseBody.bytes).toString("base64"),
+      };
     } else if (jsonResponse) {
       relayResponseSerializationStats.eligibleJsonResponses += 1;
       const parsed = parseRelayJsonBody(responseBody.bytes);

@@ -296,6 +296,22 @@ improvise a different one:
 | Manager state `disconnected` (gave up / non-retryable)| `disconnected` |
 | Localhost, always                                     | `ready`        |
 
+## File Download Responses
+
+Successful multiplexed WebSocket and relay file responses requested with
+`download=true`, or marked `Content-Disposition: attachment`, carry the
+existing `{ _binary: true, data: "<base64>" }` body regardless of MIME type.
+Decoding that body must reproduce the original bytes, including empty files,
+non-UTF-8 text, JSON whitespace, and integers beyond JavaScript's safe range.
+Download classification precedes JSON parsing. The file viewer continues to
+use the original file name when saving the resulting blob.
+
+Ordinary text and JSON viewing retain their existing response representation;
+failed downloads retain their normal error bodies and status codes so clients
+can report the cause. Existing legacy public-share response handling and size
+limits remain authoritative. This repairs the server's use of an existing
+binary contract; it adds no client dependency, capability, or protocol version.
+
 ## Request Semantics When Not Ready
 
 The contract splits by traffic type. The transport is the single readiness
