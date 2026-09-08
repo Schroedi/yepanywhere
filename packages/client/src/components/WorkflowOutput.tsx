@@ -15,7 +15,9 @@ function Boundary({ marker }: { marker: WorkflowMarker }) {
       data-workflow-boundary={marker.kind}
       data-workflow-path={marker.path}
     >
-      <mark className={styles.tag}>{marker.prefix}</mark>
+      {marker.kind !== "activation" && marker.kind !== "unresolved" && (
+        <mark className={styles.tag}>{marker.prefix}</mark>
+      )}
       {marker.kind !== "activation" || marker.title ? (
         <span className={styles.title}>
           {marker.kind === "unresolved"

@@ -88,8 +88,11 @@ No provider messages, turns, commands, or completion events are synthesized.
   `[publish][client][build][types]` and `[publish][client][copy]` boundaries.
   Earlier output retains its previous interpretation, including lines hidden
   by `matching-lines` before the script switches to inline `spans`.
-- Highlighted assistant blocks show their literal source with tag/title
-  boundaries. A compact first-line gutter control expands the original output
+- Highlighted assistant blocks keep progress messages visible with tag/title
+  boundaries even while original output is collapsed. Schema announcements show
+  only their human-readable label and title (or unresolved status); the raw
+  activation syntax and file reference appear only in the original output.
+  A compact first-line gutter control expands the original output
   underneath, including the existing rich message renderer and its copy/quote
   controls. It shows `+` while the original is hidden and `−` while visible;
   there is no separate **Original output** label row. Tagged tool previews retain
