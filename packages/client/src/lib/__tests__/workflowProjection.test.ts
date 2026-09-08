@@ -636,6 +636,36 @@ describe("workflow tag projection", () => {
     expect(compile(messages)).toEqual(items);
   });
 
+  it("requires raw publish markers instead of inline-code examples", () => {
+    const reference = "~/skills/publish/workflow.json#ya-publish/1";
+    const lines = [
+      `@@visualization-schema/1 ${reference}`,
+      "[workflow][start] id=publish-example schema=ya-publish/1",
+      "[publish][prepare] Inspect the work.",
+      "[workflow][end] id=publish-example status=completed Prepared only.",
+    ];
+    const options = {
+      workflowTags: true,
+      workflowSchemaFiles: { [reference]: JSON.stringify(publishSchema) },
+    };
+    const quoted = lines.map((line) => `\`${line}\``).join("\n\n");
+    const literal = compileTranscriptProjection(
+      [assistant("quoted", quoted)],
+      options,
+    );
+    expect(literal[0]?.workflow).toBeUndefined();
+    const raw = compileTranscriptProjection(
+      [assistant("raw", lines.join("\n\n"))],
+      options,
+    );
+    expect(raw[0]?.workflow?.markers.map((marker) => marker.kind)).toEqual([
+      "activation",
+      "start",
+      "stage",
+      "end",
+    ]);
+  });
+
   it("ignores quoted examples, undeclared gates, malformed updates and later turns", () => {
     const messages = [
       assistant(

@@ -82,6 +82,10 @@ renderer; `matching-lines` continues to show only declared matching lines.
   cannot activate or advance a workflow. Invalid activations preserve the
   previous valid interpretation. A streaming final line is recognized once
   its newline arrives or the block completes.
+  Producers must emit activation, lifecycle, and stage markers as raw text at
+  column one, without backticks, indentation, list/quote prefixes, or emphasis.
+  Inline-code examples stay literal even when their contents match the schema;
+  Markdown formatting shown in skill instructions is not protocol syntax.
 - Tool calls capture their parent stage and effective output policy when
   launched. Results are interpreted in source-message arrival order, so an
   agent's later stage does not adopt an earlier call's output. Enabled tool
