@@ -195,4 +195,4 @@ Read more: [How we use the SDK](https://yepanywhere.com/tos-compliance.html) | [
 
 ## License
 
-MIT
+[MIT](LICENSE)

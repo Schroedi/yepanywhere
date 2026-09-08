@@ -264,7 +264,7 @@ step("Generate package.json for npm", () => {
     exports: {
       ".": "./dist/index.js",
     },
-    files: ["dist", "client-dist", "bundled", "README.md"],
+    files: ["dist", "client-dist", "bundled", "README.md", "LICENSE"],
     // Copy dependencies from source, excluding workspace deps
     dependencies: Object.fromEntries(
       Object.entries(sourcePackageJson.dependencies || {}).filter(
@@ -297,6 +297,16 @@ step("Generate package.json for npm", () => {
   log(`  Version: ${NPM_VERSION}`);
   log("  Written to: dist/npm-package/package.json");
   log("  (Original packages/server/package.json unchanged)");
+});
+
+// The license is required in every npm distribution; a missing source fails
+// the build instead of publishing metadata without the full license text.
+step("Copy LICENSE to staging", () => {
+  fs.copyFileSync(
+    path.join(ROOT_DIR, "LICENSE"),
+    path.join(STAGING_DIR, "LICENSE"),
+  );
+  log("  Copied LICENSE from repo root");
 });
 
 // Copy README to staging
@@ -336,7 +346,7 @@ Then open http://localhost:3400 in your browser.
 
 ## License
 
-MIT
+[MIT](LICENSE)
 `;
     fs.writeFileSync(readmeDest, basicReadme);
     log("  Created basic README.md (no repo README found)");
