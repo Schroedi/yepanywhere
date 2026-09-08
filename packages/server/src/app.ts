@@ -741,7 +741,7 @@ export function createApp(options: AppOptions): AppResult {
     localResourcePathPolicy,
   );
   app.route(
-    "/api/artifacts",
+    "/api",
     createArtifactRoutes({
       server: artifactServer,
       scanner,

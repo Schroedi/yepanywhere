@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import {
   APPROVAL_AUDIT_LOG_CAPABILITY,
+  SERVER_CAPABILITIES,
   ACLI_COMMENTARY_RENDERING_CAPABILITY,
   ATTACHMENT_ONLY_SESSION_MESSAGES_CAPABILITY,
   BANG_COMMANDS_CAPABILITY,
@@ -514,7 +515,7 @@ function getCapabilitiesForDeviceBridgeState(
 export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   const capabilities: string[] = [...BASE_CAPABILITIES];
   if (options?.getArtifactViewerStatus?.().available)
-    capabilities.push("artifact-viewer");
+    capabilities.push(SERVER_CAPABILITIES.artifactViewer.name);
   if (options?.sessionSandboxAvailability?.state === "available") {
     capabilities.push(SESSION_SANDBOXING_CAPABILITY);
   }
