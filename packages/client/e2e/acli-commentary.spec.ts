@@ -20,6 +20,7 @@ let directory: string;
 let base: string;
 let requests = 0;
 let artifactOutput: { stdout: string; stderr: string; toolName: string };
+let lineOutput: { stdout: string; stderr: string; command: string };
 const captureImages = new Map<string, Buffer>();
 const note = (text: string) => ({ _acli: { commentary: [{ text }] } });
 
@@ -135,7 +136,11 @@ test.beforeAll(async () => {
           req.url?.startsWith("/api/fixture")
             ? {
                 projectId,
-                ...(req.url.includes("artifact=1") ? artifactOutput : output),
+                ...(req.url.includes("artifact=1")
+                  ? artifactOutput
+                  : req.url.includes("lines=1")
+                    ? lineOutput
+                    : output),
               }
             : { current: "0.8.2" },
         ),
@@ -282,4 +287,89 @@ test("the capture CLI presents its links and generated images through a code-mod
     });
   }
   expect(errors).toEqual([]);
+});
+
+test("shell commentary lines preserve stdout context and unsequenced stderr", async ({
+  page,
+}) => {
+  test.skip(
+    process.platform === "win32",
+    "Native POSIX shell producer; portable decoding is covered by unit tests.",
+  );
+  const source = [
+    "printf '%s\\n' '# acli-capabilities: commentary-lines/1'",
+    "printf '%s\\n' 'Links: passed' 'Math: passed'",
+    'if [ "$1" != --no-commentary ]; then',
+    "  printf '%s\\n' '# _acli.commentary: [Report](./report.md) checks passed.'",
+    "fi",
+    "printf '%s\\n' '# acli-capabilities: commentary-lines/1' >&2",
+    "printf '%s\\n' 'diagnostic retained' >&2",
+    'if [ "$1" != --no-commentary ]; then',
+    "  printf '%s\\n' '# _acli.commentary: Run completed; this stderr note is unsequenced.' >&2",
+    "fi",
+  ].join("\n");
+  const run = promisify(execFile);
+  const emitted = await run("sh", ["-c", source, "report.sh"]);
+  const suppressed = await run("sh", [
+    "-c",
+    source,
+    "report.sh",
+    "--no-commentary",
+  ]);
+  expect(suppressed.stdout).toBe(
+    "# acli-capabilities: commentary-lines/1\nLinks: passed\nMath: passed\n",
+  );
+  expect(suppressed.stderr).toBe(
+    "# acli-capabilities: commentary-lines/1\ndiagnostic retained\n",
+  );
+  lineOutput = { ...emitted, command: "sh report.sh" };
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (["warning", "error"].includes(message.type()))
+      errors.push(message.text());
+  });
+  const archive = resolve(
+    root,
+    "../../.artifacts/ui-testing/2026-09-08-acli-lines",
+  );
+  await mkdir(archive, { recursive: true });
+  for (const [name, width, height] of [
+    ["desktop", 1000, 600],
+    ["phone", 375, 812],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${base}/e2e/fixtures/acli-commentary.html?lines=1`);
+    await expect(page.getByRole("link", { name: "Report" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Show commentary context" }),
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole("button", { name: "Open tool output" }),
+    ).toHaveCount(1);
+    await expect(
+      page.getByText("Run completed; this stderr note is unsequenced."),
+    ).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: join(archive, `${name}.png`) });
+    await page.getByRole("button", { name: "Show commentary context" }).click();
+    await expect(
+      page.getByRole("dialog", { name: "Show commentary context" }),
+    ).toContainText("Links: passed\nMath: passed");
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: join(archive, `${name}-context.png`) });
+  }
+  expect(errors).toEqual([]);
+  const before = requests;
+  await page.evaluate(() =>
+    localStorage.setItem("yep-anywhere-acli-commentary-enabled", "false"),
+  );
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Show commentary context" }),
+  ).toHaveCount(0);
+  await expect(page.getByText("sh report.sh", { exact: true })).toBeVisible();
+  expect(requests).toBe(before);
 });

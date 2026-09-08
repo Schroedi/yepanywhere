@@ -48,6 +48,7 @@ interface Props {
 interface Output {
   stdout: string;
   stderr: string;
+  stdoutSequenced: boolean;
   shell: BashResult | null;
 }
 
@@ -225,7 +226,12 @@ function readOutput(
       raw as BashResult | string | undefined,
       props.toolResult?.isError ?? false,
     );
-    return { stdout: shell.stdout ?? "", stderr: shell.stderr ?? "", shell };
+    return {
+      stdout: shell.stdout ?? "",
+      stderr: shell.stderr ?? "",
+      shell,
+      stdoutSequenced: typeof record(raw)?.stdout === "string",
+    };
   }
   const structured = record(raw);
   return {
@@ -234,6 +240,7 @@ function readOutput(
         ? structured.stdout
         : (props.toolResult?.content ?? ""),
     stderr: typeof structured?.stderr === "string" ? structured.stderr : "",
+    stdoutSequenced: typeof structured?.stdout === "string",
     shell: null,
   };
 }
@@ -299,7 +306,12 @@ function InvocationBoundary(props: InvocationProps) {
 
 const completed = new WeakMap<
   ToolResultData,
-  { sourceKey: string; source: string; projection: AcliOutputProjection }
+  {
+    sourceKey: string;
+    source: string;
+    stderr: string;
+    projection: AcliOutputProjection;
+  }
 >();
 
 function CommentaryOutput(
@@ -316,6 +328,7 @@ function CommentaryOutput(
       : undefined;
     return cached?.sourceKey === props.runtime.sourceKey &&
       cached.source === props.output.stdout &&
+      cached.stderr === props.output.stderr &&
       props.status !== "pending"
       ? cached
       : null;
@@ -335,6 +348,7 @@ function CommentaryOutput(
     let abort = new AbortController();
     const create = (cached?: {
       source: string;
+      stderr: string;
       projection: AcliOutputProjection;
     }) =>
       new AcliToolOutput(
@@ -393,10 +407,12 @@ function CommentaryOutput(
             completed.set(current.toolResult, {
               sourceKey: current.runtime.sourceKey,
               source: current.output.stdout,
+              stderr: current.output.stderr,
               projection: next,
             });
         },
         cached,
+        props.output.stdoutSequenced,
       );
     restart.current = () => {
       abort.abort();
@@ -407,6 +423,7 @@ function CommentaryOutput(
       engine.current.appendSnapshot(
         current.output.stdout,
         current.status !== "pending",
+        current.output.stderr,
       );
     };
     engine.current = create(initial ?? undefined);
@@ -414,6 +431,7 @@ function CommentaryOutput(
     engine.current.appendSnapshot(
       current.output.stdout,
       current.status !== "pending",
+      current.output.stderr,
     );
     return () => {
       abort.abort();
@@ -421,7 +439,7 @@ function CommentaryOutput(
       engine.current = null;
       restart.current = null;
     };
-  }, [props.projectId, props.runtime, initial]);
+  }, [props.projectId, props.runtime, props.output.stdoutSequenced, initial]);
 
   useEffect(() => {
     if (!engine.current) return;
@@ -429,29 +447,29 @@ function CommentaryOutput(
       !engine.current.appendSnapshot(
         props.output.stdout,
         props.status !== "pending",
+        props.output.stderr,
       )
     ) {
       // Reconcile a replacement atomically after rendering; never mix the old
       // invocation's context with its replacement or flash raw metadata.
       restart.current?.();
     }
-  }, [props.output.stdout, props.status]);
+  }, [props.output.stdout, props.output.stderr, props.status]);
 
   const closeViewer = useCallback(() => setViewerOpen(false), []);
   const openViewer = useCallback(() => setViewerOpen(true), []);
   const projectedResult = useMemo(() => {
     if (!projection) return undefined;
-    const stderr = props.output.stderr
-      .split("\n")
-      .filter((line) => !declaresAcliCommentary(line))
-      .join("\n");
+    const stderr = projection.stderr;
     return {
       ...props.toolResult,
       content: projection.stdout,
       isError: props.toolResult?.isError ?? false,
       structured: props.output.shell
         ? { ...props.output.shell, stdout: projection.stdout, stderr }
-        : undefined,
+        : props.output.stderr
+          ? { stdout: projection.stdout, stderr }
+          : undefined,
     };
   }, [props.toolResult, props.output, projection]);
   const projectedInput = useMemo(() => {

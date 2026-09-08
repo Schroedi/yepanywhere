@@ -7,6 +7,8 @@ export {
   ACLI_COMMENTARY_MAX_TEXTS,
   ACLI_COMMENTARY_MAX_BODY_BYTES,
   AcliRecordFramer,
+  acliCommentaryFormat,
+  decodeAcliCommentaryLine,
   decodeAcliRecord,
   declaresAcliCommentary,
   getAcliContext,

@@ -17,6 +17,7 @@ function Fixture() {
     stdout: string;
     stderr: string;
     toolName?: string;
+    command?: string;
   }>();
   useEffect(() => {
     void fetch(`/api/fixture${window.location.search}`)
@@ -50,7 +51,7 @@ function Fixture() {
                       source:
                         "text(await tools.exec_command({cmd: 'pnpm -s artifact:capture index.html --json'}))",
                     }
-                  : { command: "report --jsonl" }
+                  : { command: data.command ?? "report --jsonl" }
               }
               status="complete"
               toolResult={{

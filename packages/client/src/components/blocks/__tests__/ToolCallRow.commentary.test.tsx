@@ -116,6 +116,108 @@ describe("ToolCallRow commentary integration", () => {
     },
   );
 
+  it("renders declared stdout lines with preceding text context", async () => {
+    const fetch = vi
+      .spyOn(
+        getSourceRuntimeRegistry().getOrCreateSourceRuntime(
+          LOCAL_CLIENT_SUMMARY_SOURCE_KEY,
+        ).transport,
+        "fetch",
+      )
+      .mockImplementation(async (_url, options) => ({
+        html: (JSON.parse(options!.body as string).texts as string[]).map(
+          (text) => `<p>${text}</p>`,
+        ),
+      }));
+    const stdout =
+      "# acli-capabilities: commentary-lines/1\nfirst row\nsecond row\n# _acli.commentary: Report ready\n";
+    const view = render(
+      row(stdout, false, {
+        toolResult: {
+          content: stdout,
+          isError: false,
+          structured: { stdout, stderr: "" },
+        },
+      }),
+    );
+    await screen.findByText("Report ready");
+    expect(view.container.textContent).not.toContain("_acli");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show commentary context" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Show commentary context" })
+        .textContent,
+    ).toContain("first row\nsecond row\n");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["stderr", "combined"])(
+    "keeps %s line commentary unsequenced",
+    async (channel) => {
+      const fetch = vi
+        .spyOn(
+          getSourceRuntimeRegistry().getOrCreateSourceRuntime(
+            LOCAL_CLIENT_SUMMARY_SOURCE_KEY,
+          ).transport,
+          "fetch",
+        )
+        .mockResolvedValue({ html: ["<p>Unsequenced note</p>"] });
+      const lines =
+        "# acli-capabilities: commentary-lines/1\ndiagnostic\n# _acli.commentary: Unsequenced note\n";
+      const result =
+        channel === "stderr"
+          ? {
+              content: "ordinary stdout\n",
+              isError: false,
+              structured: { stdout: "ordinary stdout\n", stderr: lines },
+            }
+          : {
+              content: JSON.stringify([
+                {
+                  type: "text",
+                  text: JSON.stringify({
+                    output: lines,
+                    exit_code: 0,
+                    wall_time_seconds: 1,
+                    chunk_id: "chunk",
+                  }),
+                },
+              ]),
+              isError: false,
+            };
+      const view = render(
+        row("", false, {
+          toolName: channel === "stderr" ? "Bash" : "Exec",
+          toolResult: result,
+        }),
+      );
+      await screen.findByText("Unsequenced note");
+      expect(
+        screen.queryByRole("button", { name: "Show commentary context" }),
+      ).toBeNull();
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Open tool output" }),
+        );
+      });
+      await screen.findByText("Original output");
+      expect(screen.getAllByText(/diagnostic/).length).toBeGreaterThan(0);
+      await act(async () => view.unmount());
+      version.value = { current: "0.8.1" };
+      render(
+        row("", false, {
+          toolName: channel === "stderr" ? "Bash" : "Exec",
+          toolResult: result,
+        }),
+      );
+      expect(
+        screen.queryByText("Unsequenced note", { exact: true }),
+      ).toBeNull();
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it("keeps old servers and the disabled setting on raw output without requests", () => {
     const fetch = vi.spyOn(
       getSourceRuntimeRegistry().getOrCreateSourceRuntime(

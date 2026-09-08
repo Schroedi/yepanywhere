@@ -1,7 +1,8 @@
 import {
   AcliRecordFramer,
+  acliCommentaryFormat,
+  decodeAcliCommentaryLine,
   decodeAcliRecord,
-  declaresAcliCommentary,
   getAcliContext,
   type AcliRecord,
 } from "@yep-anywhere/shared";
@@ -15,6 +16,7 @@ export interface PresentedCommentary {
 
 export interface AcliOutputProjection {
   stdout: string;
+  stderr: string;
   commentary: PresentedCommentary[];
   failed: boolean;
   complete: boolean;
@@ -23,22 +25,32 @@ export interface AcliOutputProjection {
 interface PendingRecord {
   id: number;
   record: AcliRecord;
-  previous: AcliRecord | null;
+  stream: OutputStream;
+  getPreviousContext: (() => string) | null;
+}
+
+class OutputStream {
+  source = "";
+  framer: AcliRecordFramer | null = null;
+  format: "json" | "lines" | "raw" = "raw";
+  previous: AcliRecord | null = null;
+  textBlock: string[] = [];
+  afterCommentary = false;
+  data: string[] = [];
 }
 
 /** One invocation owns framing, context, render ordering, and publication. */
 export class AcliToolOutput {
-  private framer = new AcliRecordFramer();
-  private source = "";
+  private stdout = new OutputStream();
+  private stderr = new OutputStream();
   private finished = false;
-  private previous: AcliRecord | null = null;
   private records: PendingRecord[] = [];
   private nextId = 0;
   private active = false;
   private stopped = false;
-  private data: string[] = [];
   private projection: AcliOutputProjection = {
     stdout: "",
+    stderr: "",
     commentary: [],
     failed: false,
     complete: false,
@@ -47,34 +59,39 @@ export class AcliToolOutput {
   constructor(
     private render: (texts: string[]) => Promise<string[]>,
     private publish: (projection: AcliOutputProjection) => void,
-    cached?: { source: string; projection: AcliOutputProjection },
+    cached?: {
+      source: string;
+      stderr: string;
+      projection: AcliOutputProjection;
+    },
+    private stdoutSequenced = true,
   ) {
     if (cached) {
-      this.source = cached.source;
+      this.stdout.source = cached.source;
+      this.stderr.source = cached.stderr;
       this.finished = true;
       this.projection = cached.projection;
     }
   }
 
-  appendSnapshot(source: string, complete: boolean): boolean {
+  appendSnapshot(source: string, complete: boolean, stderr = ""): boolean {
     if (this.stopped) return false;
-    if (
-      !source.startsWith(this.source) ||
-      (this.finished && source !== this.source)
-    )
-      return false;
-    const frames = this.framer.append(source.slice(this.source.length));
-    this.source = source;
-    if (complete && !this.finished) {
-      frames.push(...this.framer.finish());
-      this.finished = true;
-    }
-    for (const frame of frames) {
-      if (declaresAcliCommentary(frame)) continue;
-      const record = decodeAcliRecord(frame);
-      this.records.push({ id: this.nextId++, record, previous: this.previous });
-      if (!record.metadataOnly && frame.trim()) this.previous = record;
-    }
+    for (const [stream, text] of [
+      [this.stdout, source],
+      [this.stderr, stderr],
+    ] as const)
+      if (
+        !text.startsWith(stream.source) ||
+        (this.finished && text !== stream.source)
+      )
+        return false;
+    if (this.finished) return true;
+    const jsonDeclared = [source, stderr].some(
+      (text) => acliCommentaryFormat(text.split("\n", 1)[0]!) === "json",
+    );
+    this.appendStream(this.stdout, source, complete, jsonDeclared);
+    this.appendStream(this.stderr, stderr, complete, false);
+    this.finished = complete;
     if (
       this.finished &&
       !this.active &&
@@ -86,6 +103,68 @@ export class AcliToolOutput {
     }
     void this.drain();
     return true;
+  }
+
+  private appendStream(
+    stream: OutputStream,
+    source: string,
+    complete: boolean,
+    jsonDeclared: boolean,
+  ) {
+    let offset = stream.source.length;
+    if (!stream.framer) {
+      const newline = source.indexOf("\n");
+      if (newline < 0 && !complete) return;
+      const first = source.slice(0, newline < 0 ? source.length : newline);
+      const format = first.length <= 4096 ? acliCommentaryFormat(first) : null;
+      stream.format =
+        format === "lines" ? "lines" : jsonDeclared ? "json" : "raw";
+      stream.framer = new AcliRecordFramer(
+        stream.format === "json" ? "json" : "lines",
+      );
+      if (format) offset = newline < 0 ? source.length : newline + 1;
+    }
+    const frames = stream.framer.append(source.slice(offset));
+    stream.source = source;
+    if (complete) frames.push(...stream.framer.finish());
+    for (const frame of frames) {
+      const record =
+        stream.format === "json"
+          ? decodeAcliRecord(frame)
+          : stream.format === "lines"
+            ? decodeAcliCommentaryLine(frame)
+            : {
+                source: frame,
+                data: frame,
+                commentary: [],
+                removed: [],
+                metadataOnly: false,
+              };
+      let getPreviousContext: (() => string) | null = null;
+      if (
+        stream === this.stdout &&
+        (stream.format !== "lines" || this.stdoutSequenced)
+      ) {
+        const previous = stream.previous;
+        const block = stream.textBlock;
+        if (stream.format === "lines" && block.length)
+          getPreviousContext = () => block.join("");
+        else if (previous) getPreviousContext = () => previous.data;
+      }
+      this.records.push({
+        id: this.nextId++,
+        record,
+        stream,
+        getPreviousContext,
+      });
+      if (record.metadataOnly) stream.afterCommentary = true;
+      else {
+        if (stream.afterCommentary) stream.textBlock = [];
+        stream.afterCommentary = false;
+        stream.textBlock.push(record.data);
+        if (frame.trim()) stream.previous = record;
+      }
+    }
   }
 
   stop() {
@@ -113,12 +192,12 @@ export class AcliToolOutput {
         if (this.stopped) return;
         let index = 0;
         const commentary = [...this.projection.commentary];
-        for (const { id, record, previous } of batch) {
+        for (const { id, record, stream, getPreviousContext } of batch) {
           if (!html) {
-            this.data.push(record.source);
+            stream.data.push(record.source);
             continue;
           }
-          if (!record.metadataOnly) this.data.push(record.data);
+          if (!record.metadataOnly) stream.data.push(record.data);
           for (const item of record.commentary) {
             commentary.push({
               id: `${id}:${item.id}`,
@@ -126,14 +205,15 @@ export class AcliToolOutput {
               html: html[index++]!,
               getContext: item.context
                 ? () => getAcliContext(record, item)!
-                : record.metadataOnly && previous
-                  ? () => previous.data
+                : record.metadataOnly
+                  ? getPreviousContext
                   : null,
             });
           }
         }
         this.projection = {
-          stdout: this.data.join(""),
+          stdout: this.stdout.data.join(""),
+          stderr: this.stderr.data.join(""),
           commentary,
           failed: this.projection.failed || html === null,
           complete: this.finished && this.records.length === 0,

@@ -7,11 +7,17 @@ export const ACLI_COMMENTARY_MAX_TEXTS = 32;
 export const ACLI_COMMENTARY_MAX_BODY_BYTES = 64 * 1024;
 
 export function declaresAcliCommentary(line: string): boolean {
+  return acliCommentaryFormat(line) !== null;
+}
+
+export function acliCommentaryFormat(line: string): "json" | "lines" | null {
   const declaration = line.trim().replace(/^#\s*/, "");
   const full = /^acli: 1(?:\s+(.*))?$/.exec(declaration);
-  if (full) return (full[1] ?? "").split(/\s+/).includes("+commentary");
   const narrow = /^acli-capabilities:\s+(.+)$/.exec(declaration);
-  return narrow?.[1]?.split(/\s+/).includes("commentary/1") ?? false;
+  const tokens = (full?.[1] ?? narrow?.[1] ?? "").split(/\s+/);
+  if (tokens.includes(full ? "+commentary-lines" : "commentary-lines/1"))
+    return "lines";
+  return tokens.includes(full ? "+commentary" : "commentary/1") ? "json" : null;
 }
 
 export interface AcliCommentaryItem {
@@ -199,7 +205,22 @@ export function decodeAcliRecord(source: string): AcliRecord {
   return record;
 }
 
-/** Splits JSONL and complete pretty JSON without rescanning an unfinished tail. */
+export function decodeAcliCommentaryLine(source: string): AcliRecord {
+  const prefix = "# _acli.commentary: ";
+  const text = source.startsWith(prefix)
+    ? source.slice(prefix.length).replace(/\r?\n$/, "")
+    : "";
+  const valid = source.length <= 1024 * 1024 && !!text.trim();
+  return {
+    source,
+    data: valid ? "" : source,
+    commentary: valid ? [{ id: "line", text, context: null }] : [],
+    removed: valid ? [{ start: 0, end: source.length }] : [],
+    metadataOnly: valid,
+  };
+}
+
+/** Splits records without rescanning an unfinished tail. */
 export class AcliRecordFramer {
   private fragments: string[] = [];
   private depth = 0;
@@ -208,6 +229,8 @@ export class AcliRecordFramer {
   private json = false;
   private started = false;
 
+  constructor(private format: "json" | "lines" = "json") {}
+
   append(chunk: string): string[] {
     const records: string[] = [];
     let start = 0;
@@ -215,7 +238,7 @@ export class AcliRecordFramer {
       const char = chunk[index]!;
       if (!this.started && !/\s/.test(char)) {
         this.started = true;
-        this.json = char === "{" || char === "[";
+        this.json = this.format === "json" && (char === "{" || char === "[");
       }
       if (this.json) {
         if (this.quoted) {

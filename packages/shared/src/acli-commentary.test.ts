@@ -4,6 +4,8 @@ import {
   getAcliContext,
   AcliRecordFramer,
   declaresAcliCommentary,
+  acliCommentaryFormat,
+  decodeAcliCommentaryLine,
 } from "./acli-commentary.js";
 
 describe("acli commentary", () => {
@@ -12,6 +14,8 @@ describe("acli commentary", () => {
       "# acli: 1 complete +commentary",
       "acli-capabilities: commentary/1",
       "# acli-capabilities: commentary/1 other/2",
+      "# acli-capabilities: commentary-lines/1",
+      "# acli: 1 +commentary-lines",
     ]) {
       expect(declaresAcliCommentary(line)).toBe(true);
     }
@@ -20,10 +24,49 @@ describe("acli commentary", () => {
       "acli: 1 complete",
       "acli: 2 +commentary",
       "acli-capabilities: commentary/2",
+      "acli-capabilities: commentary-lines/2",
       '{"_acli":{}}',
     ]) {
       expect(declaresAcliCommentary(line)).toBe(false);
     }
+  });
+
+  it("decodes exact line markers without JSON escaping or hash-comment guessing", () => {
+    expect(
+      acliCommentaryFormat("# acli-capabilities: commentary-lines/1"),
+    ).toBe("lines");
+    const text = '  [report](./report.html) \\(x\\) "quoted" — ✓  ';
+    for (const ending of ["\n", "\r\n", ""]) {
+      const record = decodeAcliCommentaryLine(
+        `# _acli.commentary: ${text}${ending}`,
+      );
+      expect(record.commentary[0]?.text).toBe(text);
+      expect(record.metadataOnly).toBe(true);
+      expect(record.data).toBe("");
+    }
+    for (const source of [
+      "# ordinary comment\n",
+      " # _acli.commentary: Indented\n",
+      "# _acli commentary: Wrong separator\n",
+      "# _acli.commentary: \n",
+      "# _acli.commentary:Missing space\n",
+      '{"_acli":{"commentary":[{"text":"Literal JSON"}]}}\n',
+      `# _acli.commentary: ${"x".repeat(1024 * 1024)}\n`,
+    ]) {
+      expect(decodeAcliCommentaryLine(source)).toMatchObject({
+        data: source,
+        commentary: [],
+      });
+    }
+  });
+
+  it("frames text lines even when ordinary output contains unmatched JSON brackets", () => {
+    const framer = new AcliRecordFramer("lines");
+    expect(framer.append("{unfinished\n# _acli.com")).toEqual([
+      "{unfinished\n",
+    ]);
+    expect(framer.append("mentary: Ready\r")).toEqual([]);
+    expect(framer.append("\n")).toEqual(["# _acli.commentary: Ready\r\n"]);
   });
 
   it("leaves oversized records raw", () => {

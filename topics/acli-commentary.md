@@ -75,6 +75,32 @@ live and gain commentary on a later full replay; this limitation is tracked in
 
 ## Presentation and context
 
+### Shell line commentary
+
+`commentary-lines/1` (`+commentary-lines` for full tools) activates marked
+text on the stream whose first line declares it. The exact marker is
+`# _acli.commentary: `; its nonblank remainder is one Markdown item. Ordinary
+hash lines and JSON-looking text stay literal. LF/CRLF complete records;
+partial lines wait, and final unterminated lines are accepted at completion.
+Only the initial declaration is hidden. Later declarations do not change mode.
+
+Known stdout commentary previews the immediately preceding block of ordinary
+lines. Consecutive notes share that block; ordinary output after a note begins
+a new block. Stderr commentary is unsequenced relative to stdout and receives
+invocation context only. Merged provider output and code-mode leaves without
+original stream identity are also unsequenced. JSON commentary retains its
+existing record-association contract. Producers own flushing and ordering;
+arrival order across streams cannot establish a stdout association.
+
+Each stream is framed independently. The ordinary view retains both projected
+stdout and stderr, including diagnostics and failed-render records. Replacement
+of either stream rebuilds the projection, and replay caching includes both.
+The existing Markdown route, limits, setting, and capability gate apply;
+this adds no server endpoint, wire field, or expanded server capability.
+Workflow-tag composition remains tracked in the gap linked above.
+
+### JSON commentary
+
 Each valid commentary `text` is preserved exactly after JSON decoding and
 rendered through the existing assistant Markdown renderer and `TextBlock`.
 Links, math, sanitization, and supported media use that same path and the
