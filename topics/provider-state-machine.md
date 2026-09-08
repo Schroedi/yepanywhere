@@ -161,6 +161,15 @@ A message is considered sent only when one of these confirms:
 - deferred-queue refresh that omits that `tempId`,
 - reconnect/session snapshot showing the message in history and not in queued summary.
 
+The live user-echo is the fast path, not a required notice. While the tab
+stays connected, a `Sending` chip with no echo must still reconcile from
+durable session history (file-change fetch and a bounded retry) using the
+same content/tempId match as reload. Reload clearing the chip while the
+provider transcript already has the turn is a missed-notice failure, not
+proof that the send had not landed. POST success must not remove the chip
+until a transcript row exists, or the bubble vanishes until the echo
+arrives.
+
 When this mismatch is observed, UI should preserve the queued row for recovery
 actions (`cancel`, `edit`, `retry`) and mark the state as uncertain rather than
 forcing silent state transitions.[^claude-queued-bug][^codex-queued-bug]

@@ -119,9 +119,12 @@ is impossible here: the CLI drops the supplied uuid on its queue path.
   server-accepted but not yet proven durable, exactly the copy a process kill
   could lose — and flips to the ordinary unadorned bubble when the durable
   copy merges (`lib/deliveryState.ts`, `UserPromptBlock`). A ✓ glyph was
-  rejected: it reads as confirmed/seen, the opposite of the state it marks. Owned sessions normally skip
-  file-change fetches; while unconfirmed sends exist they fetch incrementally
-  so confirmation lands mid-turn (`useSession.handleFileChange`).
+  rejected: it reads as confirmed/seen, the opposite of the state it marks.
+  Owned sessions normally skip file-change fetches. They fetch incrementally
+  while a `Sending` chip is up (no live echo yet) or while an unconfirmed
+  self-send echo is in `messages`, so confirmation does not depend on one
+  WS/SSE user-echo arriving in order (`useSession.handleFileChange`). A
+  bounded retry covers the case where file-change notices are also dropped.
 
 Residual gaps: two identical busy sends >60s apart whose CLI enqueue lagged
 that far (pairing misses; duplicate returns), and pre-delivery steers show
