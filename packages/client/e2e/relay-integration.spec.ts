@@ -442,6 +442,27 @@ test.describe("Full Relay Integration", () => {
         uuid: "bounded-user-2",
         parentUuid: "bounded-assistant-1",
       },
+      // A newly written transcript is externally active. Frozen capture
+      // excludes its last user turn, so put the marker in a completed turn
+      // before an explicit active suffix.
+      {
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: "The final fixture turn is complete.",
+        },
+        timestamp,
+        uuid: "bounded-assistant-2",
+        parentUuid: "bounded-user-2",
+      },
+      {
+        type: "user",
+        cwd: projectPath,
+        message: { role: "user", content: "Pending fixture turn" },
+        timestamp,
+        uuid: "bounded-user-3",
+        parentUuid: "bounded-assistant-2",
+      },
     ];
 
     await mkdir(projectPath, { recursive: true });
