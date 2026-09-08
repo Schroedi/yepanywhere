@@ -5,11 +5,19 @@ import styles from "./QuestionAsideCard.module.css";
 export interface QuestionAsideCardProps {
   question: string;
   answers: readonly string[];
-  status: "starting" | "running" | "complete" | "failed" | "saving" | "sending";
+  status:
+    | "starting"
+    | "running"
+    | "complete"
+    | "failed"
+    | "saving"
+    | "sending"
+    | "moving";
   error?: string;
   onSave: () => void;
   onDiscard: () => void;
   onSteer: () => void;
+  onContinueAsBtw: () => void;
 }
 
 export function QuestionAsideHint({ mobile }: { mobile: boolean }) {
@@ -29,6 +37,7 @@ export function QuestionAsideCard({
   onSave,
   onDiscard,
   onSteer,
+  onContinueAsBtw,
 }: QuestionAsideCardProps) {
   const { t } = useI18n();
   const [helpOpen, setHelpOpen] = useState(false);
@@ -36,6 +45,7 @@ export function QuestionAsideCard({
   const complete = status === "complete" && answers.length > 0;
   const saving = status === "saving";
   const sending = status === "sending";
+  const moving = status === "moving";
   const showSteer = status === "failed" || sending;
   return (
     <section
@@ -102,8 +112,17 @@ export function QuestionAsideCard({
         <button
           className={styles.discard}
           type="button"
+          disabled={!complete || moving}
+          onClick={onContinueAsBtw}
+          title={t("questionAsideContinueDescription")}
+        >
+          {t(moving ? "questionAsideContinuing" : "questionAsideContinue")}
+        </button>
+        <button
+          className={styles.discard}
+          type="button"
           aria-label={t("questionAsideDiscard")}
-          disabled={saving || sending}
+          disabled={saving || sending || moving}
           onClick={onDiscard}
         >
           {t("questionAsideDiscard")}

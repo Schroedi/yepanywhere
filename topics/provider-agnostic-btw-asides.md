@@ -11,9 +11,18 @@ silent helper queries and lightweight fallback side-query envelopes.
 ## One-shot question cards
 
 Question cards are a lighter entry than `/btw`: one question, one answer,
-then an explicit Save Q+A or Discard decision. Enable **Quick question cards**
+then an explicit Save Q+A, Continue /btw, or Discard decision. Enable **Quick question cards**
 under Settings → Message delivery. The browser-local setting defaults off;
 existing delivery remains unchanged until enabled.
+
+The setting caption warns about observed Codex prompt-cache costs: as of
+2026-09-08, all three measured Quick Answer forks had large misses, with
+90–96% of input uncached. This is a 100% observed miss rate across requests,
+not a claim that every input token missed or that all future forks must miss.
+Native fork support alone does not establish inexpensive inference. The open
+[fork cache-efficiency gap](../gaps/quick-answer-fork-cache-efficiency.md)
+records the evidence and the provider improvements needed before reconsidering
+the warning.
 
 - While the main session is `in-turn` or `waiting-input`, an attachment-free
   draft whose literal final character is ASCII `?` previews a quick answer
@@ -43,13 +52,22 @@ existing delivery remains unchanged until enabled.
   desktop shortcut, which sits outside the button. It displays only
   the child assistant's visible text after the marked question, in order;
   inherited answers, reasoning blocks, and tool execution are not imported.
-  Typing always drafts the next main message. There is no child composer or
-  continuing question-card conversation in v1.
+  Typing drafts the next main message until the user chooses Continue /btw.
+  The question card itself has no child composer.
 - Once complete, a **fresh Enter on an exactly empty composer**, the empty
   composer Send button, or the card's **Save Q+A** button saves the exchange.
   Empty means no text, attachments, uploads, pending speech, or IME composition.
   Held/repeated Enter cannot save the answer automatically. Explicit card Save
   also works while the user has a separate main draft.
+- **Continue /btw** is available after the answer completes. It unarchives
+  the existing child, links it to this parent as an interactive aside, and
+  opens the ordinary `/btw` conversation with the original question and answer.
+  Moving starts no fork, model turn, or parent-context insertion. Follow-ups
+  resume that same child and explicitly lift the one-question-only limit;
+  they do not refork the parent's growing history. Controls prevent duplicate
+  moves or dismissal during the metadata update. Failure retains the answered
+  card with an error and allows an explicit retry. The existing metadata and
+  `/btw` navigation contracts also work with older capable servers.
 - **Discard**, Esc when the card owns dismissal, or submission of a new main
   message closes without saving. Typing alone does not dismiss. Dismissal
   stops unfinished child work; it never stops main. Saving already in progress
@@ -102,7 +120,7 @@ copy would retain the full-transcript cost and duplicate that ownership.
 The browser owns this transient flow. Helper clones are archived before their
 question starts, so normal session lists stay clear; they remain archived
 sessions, not deleted transcripts. They have ordinary fork provenance and no
-interactive `/btw` parent link. They are not restored as cards after navigation,
+interactive `/btw` parent link until explicitly continued in `/btw`. They are not restored as cards after navigation,
 reload, or browser crash. Polling is bounded to 160 visible checks spaced by
 1.5 seconds, pauses while the page is hidden, and stops on completion or
 unmount. Input requests, missing answers, and exhausted polling show failure

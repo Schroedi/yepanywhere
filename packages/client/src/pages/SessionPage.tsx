@@ -907,6 +907,11 @@ function SessionPageContent({
     },
     sendToMain: (text) =>
       handleSendRef.current(text, undefined, { preserveComposer: true }),
+    onContinueAsBtw: (childId) => {
+      const params = new URLSearchParams(location.search);
+      params.set("btw", childId);
+      navigate({ search: params.toString() });
+    },
   });
   const [forkSummaryDraft, setForkSummaryDraft] = useState<{
     sourceMessageId: string;
@@ -5900,6 +5905,9 @@ function SessionPageContent({
                 onDiscard={questionAside.discard}
                 onSteer={() => {
                   void questionAside.steer();
+                }}
+                onContinueAsBtw={() => {
+                  void questionAside.continueAsBtw();
                 }}
               />
             )}

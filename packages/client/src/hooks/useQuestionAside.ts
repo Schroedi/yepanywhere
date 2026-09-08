@@ -52,6 +52,7 @@ export function useQuestionAside(options: {
   showToast: (text: string, kind?: "success" | "error" | "info") => void;
   onSaved: () => void;
   sendToMain: (question: string) => Promise<boolean>;
+  onContinueAsBtw: (sessionId: string) => void;
 }) {
   const { t } = useI18n();
   const [aside, setAside] = useState<QuestionAside | null>(null);
@@ -68,7 +69,11 @@ export function useQuestionAside(options: {
 
   const discard = useCallback(() => {
     const abandoned = current.current;
-    if (abandoned?.status === "saving" || abandoned?.status === "sending")
+    if (
+      abandoned?.status === "saving" ||
+      abandoned?.status === "sending" ||
+      abandoned?.status === "moving"
+    )
       return;
     clearTimeout(timer.current);
     update(null);
@@ -285,5 +290,28 @@ export function useQuestionAside(options: {
     }
   }, [t, update]);
 
-  return { aside, ask, save, discard, steer };
+  const continueAsBtw = useCallback(async () => {
+    const value = current.current;
+    if (value?.status !== "complete" || !value.sessionId) return;
+    const context = latest.current;
+    update({ ...value, status: "moving", error: undefined });
+    try {
+      await api.updateSessionMetadata(value.sessionId, {
+        archived: false,
+        parentSessionId: context.sessionId,
+        title: `/btw ${value.question.slice(0, 80)}`,
+      });
+      if (current.current?.id !== value.id) return;
+      update(null);
+      context.onContinueAsBtw(value.sessionId);
+    } catch (error) {
+      if (current.current?.id === value.id)
+        update({
+          ...value,
+          error: t("questionAsideContinueFailed", { message: String(error) }),
+        });
+    }
+  }, [t, update]);
+
+  return { aside, ask, save, discard, steer, continueAsBtw };
 }

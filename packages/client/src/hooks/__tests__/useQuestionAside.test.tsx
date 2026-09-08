@@ -84,6 +84,7 @@ describe("one-shot question aside", () => {
             showToast,
             onSaved: vi.fn(),
             sendToMain: vi.fn(),
+            onContinueAsBtw: vi.fn(),
           }),
         { wrapper: I18nProvider },
       );
@@ -136,6 +137,109 @@ describe("one-shot question aside", () => {
     },
   );
 
+  it("continues the answered child once and retains the card when moving fails", async () => {
+    const clone = vi.spyOn(api, "cloneSession").mockResolvedValue({
+      sessionId: "child",
+      messageCount: 1,
+      clonedFrom: "parent",
+      provider: "codex",
+    });
+    const metadata = vi
+      .spyOn(api, "updateSessionMetadata")
+      .mockResolvedValue({ updated: true });
+    const resume = vi.spyOn(api, "resumeSession").mockResolvedValue({
+      processId: "child-process",
+      permissionMode: "default",
+      modeVersion: 1,
+      serverTimestamp: 0,
+    });
+    vi.spyOn(api, "getProcessInfo").mockResolvedValue({ process: null });
+    const inject = vi.spyOn(api, "sendConversationContext");
+    const onContinueAsBtw = vi.fn();
+    const sourceApi: SourceApiClient = {
+      getSession: async () => ({
+        session: { id: "child" } as Awaited<
+          ReturnType<SourceApiClient["getSession"]>
+        >["session"],
+        ownership: { owner: "none" },
+        messages: [
+          { type: "user", content: resume.mock.calls[0]?.[2] ?? "" },
+          { type: "assistant", content: "Answer." },
+        ],
+      }),
+      getSessionMetadata: vi.fn(),
+    };
+    const { result } = renderHook(
+      () =>
+        useQuestionAside({
+          projectId: "project",
+          sessionId: "parent",
+          sourceApi,
+          provider: "codex",
+          model: undefined,
+          executor: undefined,
+          nativeContextRoute: true,
+          showToast: vi.fn(),
+          onSaved: vi.fn(),
+          sendToMain: vi.fn(),
+          onContinueAsBtw,
+        }),
+      { wrapper: I18nProvider },
+    );
+    await act(async () => {
+      result.current.ask("Why?");
+    });
+    await act(async () => {
+      await result.current.continueAsBtw();
+    });
+    expect(onContinueAsBtw).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+    expect(result.current.aside?.status).toBe("complete");
+    metadata.mockRejectedValueOnce(new Error("Network unavailable"));
+    await act(async () => {
+      await result.current.continueAsBtw();
+    });
+    expect(result.current.aside).toMatchObject({
+      status: "complete",
+      answers: ["Answer."],
+      error: expect.stringContaining("Network unavailable"),
+    });
+    expect(onContinueAsBtw).not.toHaveBeenCalled();
+    let finishMove!: (value: { updated: boolean }) => void;
+    metadata.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishMove = resolve;
+        }),
+    );
+    let moving!: Promise<void>;
+    act(() => {
+      moving = result.current.continueAsBtw();
+      void result.current.continueAsBtw();
+      result.current.discard();
+      void result.current.save();
+    });
+    expect(result.current.aside?.status).toBe("moving");
+    expect(metadata).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      finishMove({ updated: true });
+      await moving;
+    });
+    expect(metadata).toHaveBeenLastCalledWith("child", {
+      archived: false,
+      parentSessionId: "parent",
+      title: "/btw Why?",
+    });
+    expect(result.current.aside).toBeNull();
+    expect(onContinueAsBtw).toHaveBeenCalledTimes(1);
+    expect(onContinueAsBtw).toHaveBeenCalledWith("child");
+    expect(clone).toHaveBeenCalledTimes(1);
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(inject).not.toHaveBeenCalled();
+  });
+
   it("steers a failed question once, preserves it on send failure, and closes on success", async () => {
     const clone = vi
       .spyOn(api, "cloneSession")
@@ -160,6 +264,7 @@ describe("one-shot question aside", () => {
           showToast: vi.fn(),
           onSaved: vi.fn(),
           sendToMain,
+          onContinueAsBtw: vi.fn(),
         }),
       { wrapper: I18nProvider },
     );
@@ -235,6 +340,7 @@ describe("one-shot question aside", () => {
           showToast: vi.fn(),
           onSaved: vi.fn(),
           sendToMain: vi.fn(),
+          onContinueAsBtw: vi.fn(),
         }),
       { wrapper: I18nProvider },
     );

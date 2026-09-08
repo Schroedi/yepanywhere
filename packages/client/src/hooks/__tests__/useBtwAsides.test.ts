@@ -96,6 +96,37 @@ describe("useBtwAsides helpers", () => {
     ).toBe("Thinking: Thinking about a route split\nUsing Grep: btw");
   });
 
+  it("retains a migrated question and answer before /btw follow-ups", () => {
+    const messages: Message[] = [
+      { id: "parent", type: "assistant", content: "Inherited parent answer" },
+      {
+        id: "question",
+        type: "user",
+        content: "[YA question aside test-id]\nInstructions\n[Question]\nWhy?",
+      },
+      { id: "answer", type: "assistant", content: "The original answer" },
+    ];
+    expect(getBtwRequestFromMessages(messages)).toBe("Why?");
+    messages.push(
+      {
+        id: "followup",
+        type: "user",
+        content: buildBtwAsideFollowupPrompt("What next?"),
+      },
+      { id: "next-answer", type: "assistant", content: "The next step" },
+    );
+    expect(getBtwTranscriptTurns(messages, Number.MAX_SAFE_INTEGER)).toEqual([
+      { id: "question-user", role: "user", text: "Why?" },
+      {
+        id: "answer-assistant",
+        role: "assistant",
+        text: "The original answer",
+      },
+      { id: "followup-user", role: "user", text: "What next?" },
+      { id: "next-answer-assistant", role: "assistant", text: "The next step" },
+    ]);
+  });
+
   it("hides native-fork history until the aside prompt arrives", () => {
     const messages: Message[] = [
       { id: "inherited", type: "assistant", content: "An old parent answer" },
