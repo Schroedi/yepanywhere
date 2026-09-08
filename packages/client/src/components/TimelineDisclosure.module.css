@@ -42,8 +42,10 @@
 
 .toggle > span {
   position: relative;
-  inline-size: 10px;
-  block-size: 10px;
+  /* Odd-sized ink stays symmetric around a single whole-pixel stem. */
+  inline-size: 9px;
+  block-size: 9px;
+  translate: 0.5px 0.5px;
   font-size: 0;
 }
 
@@ -55,11 +57,11 @@
 }
 
 .toggle > span::before {
-  inset: 4.5px 0;
+  inset: 4px 0;
 }
 
 .toggle[aria-expanded="false"] > span::after {
-  inset: 0 4.5px;
+  inset: 0 4px;
 }
 
 .toggle:hover {
@@ -74,7 +76,7 @@
 :global(.timeline-item):has(> button.toggle[aria-expanded])::before {
   display: block;
   top: -4px;
-  height: 7px;
+  height: 8px;
   border-radius: 0;
   animation: none;
 }
@@ -86,16 +88,16 @@
 
 /* Keep three pixels of clear space around the visible ink in either state. */
 :global(.timeline-item):has(> button.toggle[aria-expanded="true"])::before {
-  height: 11.5px;
+  height: 12px;
 }
 
 :global(.timeline-item):has(> .toggle[aria-expanded="true"])::after {
-  top: 14.5px;
+  top: 15px;
 }
 
 :global(.timeline-item):has(> button.toggle[aria-expanded])::before,
 :global(.timeline-item):has(> button.toggle[aria-expanded])::after {
-  left: -8.5px;
+  left: -8px;
   width: 1px;
   background: var(--timeline-line-color);
   opacity: 0.45;

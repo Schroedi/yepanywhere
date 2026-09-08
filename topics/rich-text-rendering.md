@@ -317,6 +317,8 @@ there is no second boxed toggle or trailing disclosure chevron. Keyboard and
 pointer activation update the visible marker and `aria-expanded` together.
 The connector is centered on the glyph, uses lower contrast than the status
 color, and leaves three pixels clear above and below its visible strokes.
+The one-pixel strokes form symmetric nine-pixel glyphs aligned with the
+ordinary timeline connector, avoiding half-pixel stems at native scale.
 Hover brightens the same control without adding a box.
 
 Long one-line summaries keep the row tail visible by reserving result/count
