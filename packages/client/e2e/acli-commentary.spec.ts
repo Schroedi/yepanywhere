@@ -21,6 +21,23 @@ let base: string;
 let requests = 0;
 let artifactOutput: { stdout: string; stderr: string; toolName: string };
 let lineOutput: { stdout: string; stderr: string; command: string };
+const workflowOutput = {
+  stdout:
+    '# acli: 1 +commentary\n{"checks":"passed"}\n' +
+    JSON.stringify({
+      _acli: {
+        commentary: [
+          { text: "[build] [Report](./report.md) checks passed." },
+          { text: "[report] The score is \\(x^2 = 25\\)." },
+        ],
+      },
+    }) +
+    "\n[build] Final data.\n",
+  stderr:
+    "# acli-capabilities: commentary-lines/1\n# _acli.commentary: [report] Independent stderr note.\n",
+  workflowActivation:
+    '@@visualization-schema/1 ["parent","build","report"]\n[parent] Check the report.',
+};
 const captureImages = new Map<string, Buffer>();
 const note = (text: string) => ({ _acli: { commentary: [{ text }] } });
 
@@ -140,7 +157,9 @@ test.beforeAll(async () => {
                   ? artifactOutput
                   : req.url.includes("lines=1")
                     ? lineOutput
-                    : output),
+                    : req.url.includes("composition=1")
+                      ? workflowOutput
+                      : output),
               }
             : { current: "0.8.2" },
         ),
@@ -286,6 +305,74 @@ test("the capture CLI presents its links and generated images through a code-mod
       fullPage: true,
     });
   }
+  expect(errors).toEqual([]);
+});
+
+test("workflow tags compose with rich commentary and recover original records", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (["warning", "error"].includes(message.type()))
+      errors.push(message.text());
+  });
+  const archive = resolve(
+    root,
+    "../../.artifacts/ui-testing/2026-09-08-acli-workflow",
+  );
+  await mkdir(archive, { recursive: true });
+  for (const [name, width, height] of [
+    ["desktop", 1000, 600],
+    ["phone", 375, 812],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${base}/e2e/fixtures/acli-commentary.html?composition=1`);
+    await expect(page.getByRole("link", { name: "Report" })).toBeVisible();
+    await expect(page.locator(".katex")).toHaveCount(1);
+    await expect(
+      page.locator('[data-workflow-path="[parent][build]"]'),
+    ).toHaveCount(2);
+    await expect(
+      page.locator('[data-workflow-output="true"]'),
+    ).not.toContainText("_acli");
+    await expect(
+      page.getByRole("button", { name: "Show commentary context" }),
+    ).toHaveCount(2);
+    await expect(
+      page.getByRole("button", { name: "Open tool output" }),
+    ).toHaveCount(1);
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({ path: join(archive, `${name}.png`) });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+    await page.getByRole("button", { name: "Expand original output" }).click();
+    await expect(page.locator('[data-workflow-original="true"]')).toContainText(
+      "_acli",
+    );
+  }
+  // Each switch works independently; disabling both preserves raw output.
+  const before = requests;
+  await page.evaluate(() =>
+    localStorage.setItem("yep-anywhere-acli-commentary-enabled", "false"),
+  );
+  await page.reload();
+  await expect(
+    page.locator('[data-workflow-path="[parent][build]"]'),
+  ).toHaveCount(2);
+  expect(requests).toBe(before);
+  await page.goto(
+    `${base}/e2e/fixtures/acli-commentary.html?composition=1&workflow=off`,
+  );
+  await expect(page.locator('[data-workflow-output="true"]')).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Report" })).toHaveCount(0);
+  await page.evaluate(() =>
+    localStorage.removeItem("yep-anywhere-acli-commentary-enabled"),
+  );
+  await page.reload();
+  await expect(page.getByRole("link", { name: "Report" })).toBeVisible();
+  await expect(page.locator("[data-workflow-boundary]")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

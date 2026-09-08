@@ -30,7 +30,7 @@ function SchemaLabel({ marker }: { marker: WorkflowMarker }) {
   );
 }
 
-function Boundary({ marker }: { marker: WorkflowMarker }) {
+export function WorkflowBoundary({ marker }: { marker: WorkflowMarker }) {
   return (
     <span
       className={styles.boundary}
@@ -114,7 +114,7 @@ export function WorkflowOutput({
       content.push(
         <Fragment key={marker.start}>
           {text.slice(offset, marker.start)}
-          <Boundary marker={marker} />
+          <WorkflowBoundary marker={marker} />
         </Fragment>,
       );
       offset = marker.end;

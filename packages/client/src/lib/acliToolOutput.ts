@@ -1,17 +1,26 @@
 import {
-  AcliRecordFramer,
-  acliCommentaryFormat,
-  decodeAcliCommentaryLine,
-  decodeAcliRecord,
+  AcliStreamDecoder,
+  initialAcliFormat,
+  acliRecordFragments,
+  type AcliOutputFragment,
   getAcliContext,
   type AcliRecord,
 } from "@yep-anywhere/shared";
+import {
+  projectWorkflowFragments,
+  workflowCommentarySegments,
+  type WorkflowAnnotation,
+  type WorkflowMarker,
+  type WorkflowToolContext,
+} from "./transcriptProjection/workflowTags";
 
 export interface PresentedCommentary {
   id: string;
   text: string;
   html: string;
   getContext: (() => string) | null;
+  workflow?: WorkflowAnnotation;
+  segments?: Array<{ text: string; html: string; marker?: WorkflowMarker }>;
 }
 
 export interface AcliOutputProjection {
@@ -20,32 +29,35 @@ export interface AcliOutputProjection {
   commentary: PresentedCommentary[];
   failed: boolean;
   complete: boolean;
+  fragments: { stdout: AcliOutputFragment[]; stderr: AcliOutputFragment[] };
+  workflow?: WorkflowAnnotation;
 }
 
 interface PendingRecord {
-  id: number;
+  id: string;
   record: AcliRecord;
   stream: OutputStream;
   getPreviousContext: (() => string) | null;
 }
 
 class OutputStream {
-  source = "";
-  framer: AcliRecordFramer | null = null;
-  format: "json" | "lines" | "raw" = "raw";
-  previous: AcliRecord | null = null;
-  textBlock: string[] = [];
-  afterCommentary = false;
+  decoder: AcliStreamDecoder;
   data: string[] = [];
+  fragments: AcliOutputFragment[] = [];
+  constructor(
+    readonly channel: "stdout" | "stderr",
+    sequenced = true,
+  ) {
+    this.decoder = new AcliStreamDecoder(sequenced ? channel : "unknown");
+  }
 }
 
 /** One invocation owns framing, context, render ordering, and publication. */
 export class AcliToolOutput {
-  private stdout = new OutputStream();
-  private stderr = new OutputStream();
+  private stdout: OutputStream;
+  private stderr = new OutputStream("stderr");
   private finished = false;
   private records: PendingRecord[] = [];
-  private nextId = 0;
   private active = false;
   private stopped = false;
   private projection: AcliOutputProjection = {
@@ -54,6 +66,7 @@ export class AcliToolOutput {
     commentary: [],
     failed: false,
     complete: false,
+    fragments: { stdout: [], stderr: [] },
   };
 
   constructor(
@@ -64,11 +77,13 @@ export class AcliToolOutput {
       stderr: string;
       projection: AcliOutputProjection;
     },
-    private stdoutSequenced = true,
+    stdoutSequenced = true,
+    private workflowContext?: WorkflowToolContext,
   ) {
+    this.stdout = new OutputStream("stdout", stdoutSequenced);
     if (cached) {
-      this.stdout.source = cached.source;
-      this.stderr.source = cached.stderr;
+      this.stdout.decoder.source = cached.source;
+      this.stderr.decoder.source = cached.stderr;
       this.finished = true;
       this.projection = cached.projection;
     }
@@ -81,13 +96,13 @@ export class AcliToolOutput {
       [this.stderr, stderr],
     ] as const)
       if (
-        !text.startsWith(stream.source) ||
-        (this.finished && text !== stream.source)
+        !text.startsWith(stream.decoder.source) ||
+        (this.finished && text !== stream.decoder.source)
       )
         return false;
     if (this.finished) return true;
     const jsonDeclared = [source, stderr].some(
-      (text) => acliCommentaryFormat(text.split("\n", 1)[0]!) === "json",
+      (text) => initialAcliFormat(text, complete) === "json",
     );
     this.appendStream(this.stdout, source, complete, jsonDeclared);
     this.appendStream(this.stderr, stderr, complete, false);
@@ -111,59 +126,16 @@ export class AcliToolOutput {
     complete: boolean,
     jsonDeclared: boolean,
   ) {
-    let offset = stream.source.length;
-    if (!stream.framer) {
-      const newline = source.indexOf("\n");
-      if (newline < 0 && !complete) return;
-      const first = source.slice(0, newline < 0 ? source.length : newline);
-      const format = first.length <= 4096 ? acliCommentaryFormat(first) : null;
-      stream.format =
-        format === "lines" ? "lines" : jsonDeclared ? "json" : "raw";
-      stream.framer = new AcliRecordFramer(
-        stream.format === "json" ? "json" : "lines",
-      );
-      if (format) offset = newline < 0 ? source.length : newline + 1;
-    }
-    const frames = stream.framer.append(source.slice(offset));
-    stream.source = source;
-    if (complete) frames.push(...stream.framer.finish());
-    for (const frame of frames) {
-      const record =
-        stream.format === "json"
-          ? decodeAcliRecord(frame)
-          : stream.format === "lines"
-            ? decodeAcliCommentaryLine(frame)
-            : {
-                source: frame,
-                data: frame,
-                commentary: [],
-                removed: [],
-                metadataOnly: false,
-              };
-      let getPreviousContext: (() => string) | null = null;
-      if (
-        stream === this.stdout &&
-        (stream.format !== "lines" || this.stdoutSequenced)
-      ) {
-        const previous = stream.previous;
-        const block = stream.textBlock;
-        if (stream.format === "lines" && block.length)
-          getPreviousContext = () => block.join("");
-        else if (previous) getPreviousContext = () => previous.data;
-      }
+    for (const decoded of stream.decoder.appendSnapshot(
+      source,
+      complete,
+      jsonDeclared,
+    )) {
       this.records.push({
-        id: this.nextId++,
-        record,
+        ...decoded,
+        id: `${stream.channel}:${decoded.id}`,
         stream,
-        getPreviousContext,
       });
-      if (record.metadataOnly) stream.afterCommentary = true;
-      else {
-        if (stream.afterCommentary) stream.textBlock = [];
-        stream.afterCommentary = false;
-        stream.textBlock.push(record.data);
-        if (frame.trim()) stream.previous = record;
-      }
     }
   }
 
@@ -178,8 +150,33 @@ export class AcliToolOutput {
     try {
       while (!this.stopped && this.records.length > 0) {
         const batch = this.records.splice(0);
-        const texts = batch.flatMap(({ record }) =>
-          record.commentary.map((item) => item.text),
+        const workflow = this.workflowContext
+          ? projectWorkflowFragments(
+              [this.stdout, this.stderr].map((stream) => [
+                ...stream.fragments,
+                ...batch
+                  .filter((entry) => entry.stream === stream)
+                  .flatMap(({ id, record }) => acliRecordFragments(id, record)),
+              ]),
+              this.workflowContext,
+            )
+          : undefined;
+        const prepared = new Map(
+          batch.flatMap(({ id, record }) =>
+            record.commentary.map((item) => {
+              const key = `${id}:${item.id}`;
+              const annotation = workflow?.commentary[key];
+              return [
+                key,
+                annotation
+                  ? workflowCommentarySegments(item.text, annotation)
+                  : [{ text: item.text }],
+              ] as const;
+            }),
+          ),
+        );
+        const texts = [...prepared.values()].flatMap((parts) =>
+          parts.filter((part) => part.text.trim()).map((part) => part.text),
         );
         let html: string[] | null;
         try {
@@ -195,14 +192,29 @@ export class AcliToolOutput {
         for (const { id, record, stream, getPreviousContext } of batch) {
           if (!html) {
             stream.data.push(record.source);
+            stream.fragments.push({
+              id,
+              text: record.source,
+              kind: "data",
+              opaque: record.json,
+            });
             continue;
           }
+          stream.fragments.push(...acliRecordFragments(id, record));
           if (!record.metadataOnly) stream.data.push(record.data);
           for (const item of record.commentary) {
+            const key = `${id}:${item.id}`;
+            const segments = prepared.get(key)!.map((part) => ({
+              ...part,
+              html: part.text.trim() ? html[index++]! : "",
+            }));
             commentary.push({
-              id: `${id}:${item.id}`,
+              id: key,
               text: item.text,
-              html: html[index++]!,
+              html: segments.map((part) => part.html).join(""),
+              ...(workflow
+                ? { workflow: workflow.commentary[key], segments }
+                : {}),
               getContext: item.context
                 ? () => getAcliContext(record, item)!
                 : record.metadataOnly
@@ -217,6 +229,18 @@ export class AcliToolOutput {
           commentary,
           failed: this.projection.failed || html === null,
           complete: this.finished && this.records.length === 0,
+          fragments: {
+            stdout: [...this.stdout.fragments],
+            stderr: [...this.stderr.fragments],
+          },
+          workflow: html
+            ? workflow?.data
+            : this.workflowContext
+              ? projectWorkflowFragments(
+                  [this.stdout.fragments, this.stderr.fragments],
+                  this.workflowContext,
+                ).data
+              : undefined,
         };
         this.publish(this.projection);
       }

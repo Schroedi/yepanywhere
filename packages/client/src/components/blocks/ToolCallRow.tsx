@@ -539,11 +539,15 @@ function useNearViewportHydration(
 export const ToolCallRow = memo(function ToolCallRow(props: Props) {
   return (
     <ToolCommentaryBoundary {...props}>
-      {(toolInput, toolResult) => (
+      {(toolInput, toolResult, workflow) => (
         <ToolCallRowContent
           {...props}
           toolInput={toolInput}
           toolResult={toolResult}
+          workflow={workflow}
+          originalOutput={
+            props.toolResult?.structured ?? props.toolResult?.content
+          }
         />
       )}
     </ToolCommentaryBoundary>
@@ -560,7 +564,8 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
   sessionProvider,
   startTimestampMs,
   resultTimestampMs,
-}: Props) {
+  originalOutput,
+}: Props & { originalOutput?: unknown }) {
   const [summaryExpanded, setSummaryExpanded] = useRememberedDisclosureState(
     id,
     "interactive-summary",
@@ -754,6 +759,13 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
         <WorkflowOutput
           text={workflow.outputText ?? toolResult.content}
           workflow={workflow}
+          original={
+            <pre>
+              {typeof originalOutput === "string"
+                ? originalOutput
+                : JSON.stringify(originalOutput, null, 2)}
+            </pre>
+          }
         />
       );
     }
@@ -767,6 +779,7 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
   }, [
     suppressCollapsedPreview,
     workflow,
+    originalOutput,
     toolName,
     toolInput,
     structuredResult,

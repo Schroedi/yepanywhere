@@ -1,9 +1,18 @@
-import { memo, useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  Fragment,
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { useTooltipTrigger } from "../hooks/useTooltipTrigger";
 import { useI18n } from "../i18n";
 import type { PresentedCommentary } from "../lib/acliToolOutput";
 import { TextBlock } from "./blocks/TextBlock";
+import { WorkflowBoundary, WorkflowContext } from "./WorkflowOutput";
 import styles from "./AcliCommentary.module.css";
 
 export const AcliCommentary = memo(function AcliCommentary({
@@ -15,20 +24,50 @@ export const AcliCommentary = memo(function AcliCommentary({
   command: string;
   onOpenOutput: () => void;
 }) {
-  return items.map((item) => (
-    <TextBlock
-      key={item.id}
-      text={item.text}
-      augmentHtml={item.html}
-      timelineAction={
-        <ContextBullet
-          item={item}
-          command={command}
-          onOpenOutput={onOpenOutput}
-        />
-      }
-    />
-  ));
+  return items.map((item) =>
+    item.segments ? (
+      <Fragment key={item.id}>
+        {item.segments.length && !item.segments[0]?.marker ? (
+          <WorkflowContext
+            workflow={{ markers: [], parent: item.workflow?.parent }}
+          />
+        ) : null}
+        {item.segments.map((segment, index) => (
+          <Fragment key={index}>
+            {segment.marker ? (
+              <WorkflowBoundary marker={segment.marker} />
+            ) : null}
+            {segment.text.trim() || segment.marker ? (
+              <TextBlock
+                text={segment.text}
+                augmentHtml={segment.html}
+                timelineAction={
+                  <ContextBullet
+                    item={item}
+                    command={command}
+                    onOpenOutput={onOpenOutput}
+                  />
+                }
+              />
+            ) : null}
+          </Fragment>
+        ))}
+      </Fragment>
+    ) : (
+      <TextBlock
+        key={item.id}
+        text={item.text}
+        augmentHtml={item.html}
+        timelineAction={
+          <ContextBullet
+            item={item}
+            command={command}
+            onOpenOutput={onOpenOutput}
+          />
+        }
+      />
+    ),
+  );
 });
 
 function ContextBullet({

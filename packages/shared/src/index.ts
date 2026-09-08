@@ -16,6 +16,13 @@ export {
   type AcliCommentaryItem,
 } from "./acli-commentary.js";
 export {
+  AcliStreamDecoder,
+  initialAcliFormat,
+  acliRecordFragments,
+  type AcliDecodedRecord,
+  type AcliOutputFragment,
+} from "./acli-output.js";
+export {
   formatConversationContextTurn,
   type ConversationContextTurn,
   type ConversationContextRequest,

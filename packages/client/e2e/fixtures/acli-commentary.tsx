@@ -8,6 +8,7 @@ import { SessionMetadataProvider } from "../../src/contexts/SessionMetadataConte
 import { ToastProvider } from "../../src/contexts/ToastContext";
 import { useVersion } from "../../src/hooks/useVersion";
 import { I18nProvider } from "../../src/i18n";
+import { compileTranscriptProjection } from "../../src/lib/transcriptProjection/compiler";
 import "../../src/styles/index.css";
 
 function Fixture() {
@@ -18,6 +19,7 @@ function Fixture() {
     stderr: string;
     toolName?: string;
     command?: string;
+    workflowActivation?: string;
   }>();
   useEffect(() => {
     void fetch(`/api/fixture${window.location.search}`)
@@ -25,6 +27,47 @@ function Fixture() {
       .then(setData);
   }, []);
   if (!data) return null;
+  const workflow =
+    data.workflowActivation &&
+    new URLSearchParams(window.location.search).get("workflow") !== "off"
+      ? compileTranscriptProjection(
+          [
+            {
+              id: "activate",
+              role: "assistant",
+              content: data.workflowActivation,
+            },
+            {
+              id: "call",
+              role: "assistant",
+              content: [
+                {
+                  type: "tool_use",
+                  id: "report",
+                  name: data.toolName ?? "Bash",
+                  input: {},
+                },
+              ],
+            },
+            {
+              id: "result",
+              role: "user",
+              content: [
+                {
+                  type: "tool_result",
+                  tool_use_id: "report",
+                  content: data.stdout,
+                },
+              ],
+              toolUseResult:
+                data.toolName === "Exec"
+                  ? undefined
+                  : { stdout: data.stdout, stderr: data.stderr },
+            },
+          ],
+          { workflowTags: true },
+        ).find((item) => item.id === "report")?.workflow
+      : undefined;
   return (
     <SessionMetadataProvider
       projectId={data.projectId}
@@ -54,6 +97,7 @@ function Fixture() {
                   : { command: data.command ?? "report --jsonl" }
               }
               status="complete"
+              workflow={workflow}
               toolResult={{
                 content: data.stdout,
                 isError: false,

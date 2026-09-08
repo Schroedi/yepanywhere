@@ -13,8 +13,252 @@ import {
 } from "../../../test-fixtures/workflow";
 import { buildSessionDetailRenderItems } from "../sessionDetail/renderItems";
 import { readWorkflowSchema } from "../transcriptProjection/workflowTags";
+import { AcliToolOutput, type AcliOutputProjection } from "../acliToolOutput";
 
 describe("workflow tag projection", () => {
+  it.each(["json", "lines"])(
+    "composes %s commentary before matching, with stream and caller isolation",
+    async (format) => {
+      const banner = `# acli-capabilities: commentary${format === "lines" ? "-lines" : ""}/1\n`;
+      const note = (text: string) =>
+        format === "lines"
+          ? `# _acli.commentary: ${text}\n`
+          : `${JSON.stringify({ _acli: { commentary: [{ text }] } })}\n`;
+      const stdout =
+        banner +
+        "[build] first\n" +
+        note(
+          "[report] [Report](./report.md)\n[workflow][end] id=x status=completed",
+        ) +
+        "following data\n[build] last\n";
+      const stderr =
+        '# acli-capabilities: commentary-lines/1\n# _acli.commentary: @@visualization-schema/1 ["error"]\n# _acli.commentary: [error] Independent.\n';
+      const messages = [
+        assistant(
+          "start",
+          '@@visualization-schema/1 ["parent","build","report"]\n[parent] Start.',
+        ),
+        call("tool"),
+        assistant("advance", "[build] Caller advanced."),
+        { ...result("tool", stdout), toolUseResult: { stdout, stderr } },
+        assistant("after", "[report] Caller retained its schema."),
+      ];
+      const items = compileTranscriptProjection(messages, {
+        workflowTags: true,
+      });
+      const tool = items.find((item) => item.id === "tool")!;
+      expect(tool.workflow?.toolContext?.initial?.path).toBe("[parent]");
+      expect(
+        tool.workflow?.markers
+          .filter((marker) => marker.kind === "stage")
+          .map((marker) => marker.path),
+      ).toEqual([
+        "[parent][build]",
+        "[parent][report]",
+        "[parent][build]",
+        "[parent][error]",
+      ]);
+      expect(items.at(-1)?.workflow?.markers[0]?.path).toBe("[report]");
+      expect(tool).toMatchObject({ toolResult: { content: stdout } });
+      expect(
+        compileTranscriptProjection(JSON.parse(JSON.stringify(messages)), {
+          workflowTags: true,
+        }),
+      ).toEqual(items);
+      const outputs: AcliOutputProjection[] = [];
+      const engine = new AcliToolOutput(
+        async (texts) => texts,
+        (next) => outputs.push(next),
+        undefined,
+        true,
+        tool.workflow?.toolContext,
+      );
+      for (let end = 1; end <= stdout.length; end++) {
+        engine.appendSnapshot(stdout.slice(0, end), false, stderr);
+        await new Promise<void>((resolve) => queueMicrotask(resolve));
+      }
+      engine.appendSnapshot(stdout, true, stderr);
+      await new Promise<void>((resolve) => queueMicrotask(resolve));
+      const output = outputs.at(-1)!;
+      expect(output.stdout).not.toContain("_acli");
+      expect(output.workflow?.outputText).not.toContain("_acli");
+      expect(
+        output.commentary.flatMap(
+          (item) => item.workflow?.markers.map((marker) => marker.path) ?? [],
+        ),
+      ).toContain("[parent][report]");
+      for (const marker of output.workflow?.markers ?? [])
+        expect(
+          output.workflow?.outputText?.slice(marker.start, marker.end),
+        ).toBe(marker.prefix);
+      expect(
+        output.workflow?.markers.some(
+          (marker) =>
+            marker.path === "[parent][report]" && marker.prefix === "",
+        ),
+      ).toBe(true);
+      expect(
+        output.commentary.find((item) => item.text.includes("Independent"))
+          ?.getContext,
+      ).toBeNull();
+    },
+  );
+
+  it("activates from decoded commentary without interpreting arbitrary JSON strings", () => {
+    const note = (text: string) =>
+      JSON.stringify({ _acli: { commentary: [{ text }] } }) + "\n";
+    const source =
+      "# acli: 1 +commentary\n" +
+      note('@@visualization-schema/1 ["build"]') +
+      note("[build] Note.") +
+      JSON.stringify({ example: "[build] Data string." }) +
+      "\n";
+    const messages = [
+      call("tool"),
+      result("tool", source),
+      assistant("after", "[build] Subsequent activity."),
+    ];
+    for (const input of [messages, asCodeMode(messages, "command")]) {
+      const items = compileTranscriptProjection(input, { workflowTags: true });
+      expect(items[0]?.workflow?.markers.map((marker) => marker.kind)).toEqual([
+        "activation",
+        "stage",
+      ]);
+      expect(items.at(-1)?.workflow?.markers[0]?.kind).toBe("stage");
+    }
+    expect(
+      compileTranscriptProjection(messages).every((item) => !item.workflow),
+    ).toBe(true);
+  });
+
+  it("recomputes workflow ranges against retained raw records after render failure", async () => {
+    const source =
+      "# acli: 1 +commentary\n" +
+      JSON.stringify({
+        _acli: { commentary: [{ text: "[build] Unrendered." }] },
+      }) +
+      "\n[build] Raw progress.\n";
+    const tool = compileTranscriptProjection(
+      [
+        assistant("activate", '@@visualization-schema/1 ["build"]'),
+        call("tool"),
+        result("tool", source),
+      ],
+      { workflowTags: true },
+    ).find((item) => item.id === "tool")!;
+    const outputs: AcliOutputProjection[] = [];
+    new AcliToolOutput(
+      async () => {
+        throw new Error("Offline");
+      },
+      (next) => outputs.push(next),
+      undefined,
+      true,
+      tool.workflow?.toolContext,
+    ).appendSnapshot(source, true);
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    const output = outputs.at(-1)!;
+    expect(output.failed).toBe(true);
+    expect(output.commentary).toEqual([]);
+    expect(output.workflow?.outputText).toBe(output.stdout);
+    expect(output.workflow?.markers).toHaveLength(1);
+    expect(
+      output.workflow?.outputText?.slice(output.workflow.markers[0]!.start),
+    ).toBe("[build] Raw progress.\n");
+  });
+
+  it("keeps JSON arrays opaque and tool lifecycle prefixes subordinate", () => {
+    const schema = { ...publishSchema, toolOutput: { containsTags: true } };
+    const source =
+      "# acli: 1 +commentary\n[1]\n" +
+      JSON.stringify({
+        _acli: { commentary: [{ text: "[workflow][end] id=x status=failed" }] },
+      }) +
+      "\n";
+    const items = compileTranscriptProjection(
+      [
+        assistant(
+          "activate",
+          "@@visualization-schema/1 /schema.json\n[workflow][start] id=x schema=ya-publish/1\n[publish] Begin.",
+        ),
+        call("tool"),
+        result("tool", source),
+        assistant("end", "[workflow][end] id=x status=completed Done."),
+      ],
+      {
+        workflowTags: true,
+        workflowSchemaFiles: { "/schema.json": JSON.stringify(schema) },
+      },
+    );
+    expect(items.find((item) => item.id === "tool")?.workflow?.markers).toEqual(
+      [
+        expect.objectContaining({
+          kind: "stage",
+          path: "[publish][workflow][end]",
+        }),
+      ],
+    );
+    expect(items.at(-1)?.workflow?.markers[0]?.kind).toBe("end");
+  });
+
+  it("keeps each commentary document's fences independent of ordinary output", () => {
+    const source =
+      '# acli-capabilities: commentary-lines/1\n```text\n# _acli.commentary: @@visualization-schema/1 ["child"]\n@@visualization-schema/1 ["wrong"]\n```\n[child] Still child.\n# _acli.commentary: ```text\n# _acli.commentary: @@visualization-schema/1 ["after"]\n[after] New document.\n';
+    const items = compileTranscriptProjection(
+      [call("tool"), result("tool", source)],
+      { workflowTags: true },
+    );
+    expect(items[0]?.workflow?.markers.map((marker) => marker.prefix)).toEqual([
+      '@@visualization-schema/1 ["child"]',
+      "[child]",
+      '@@visualization-schema/1 ["after"]',
+      "[after]",
+    ]);
+  });
+
+  it("isolates code-mode commentary activations and partial records", () => {
+    const declared =
+      "# acli: 1 +commentary\n" +
+      JSON.stringify({
+        _acli: {
+          commentary: [
+            { text: '@@visualization-schema/1 ["child"]' },
+            { text: "[child] First leaf." },
+          ],
+        },
+      }) +
+      "\n";
+    const source = JSON.stringify([
+      { type: "text", text: declared },
+      {
+        type: "text",
+        text: "# acli-capabilities: commentary-lines/1\n# _acli.commentary: [child] Ordinary sibling.\n",
+      },
+    ]);
+    const items = compileTranscriptProjection(
+      [
+        assistant(
+          "activate",
+          '@@visualization-schema/1 ["parent"]\n[parent] Start.',
+        ),
+        call("tool", "Exec"),
+        result("tool", source),
+      ],
+      { workflowTags: true },
+    );
+    expect(
+      items.at(-1)?.workflow?.markers.map((marker) => marker.kind),
+    ).toEqual(["activation", "stage"]);
+    const partial = compileTranscriptProjection(
+      [
+        call("pending"),
+        { ...result("pending", declared.slice(0, -3)), _isStreaming: true },
+      ],
+      { workflowTags: true },
+    );
+    expect(partial.at(-1)?.workflow?.markers).toEqual([]);
+  });
+
   it.each(["text", "command", "settled"] as const)(
     "resolves file announcements from code-mode %s envelopes",
     (format) => {

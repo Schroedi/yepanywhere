@@ -32,6 +32,8 @@ export interface AcliRecord {
   commentary: AcliCommentaryItem[];
   removed: AcliSourceSpan[];
   metadataOnly: boolean;
+  /** Valid JSON data is opaque to other text protocols. */
+  json?: true;
 }
 
 interface JsonNode extends AcliSourceSpan {
@@ -147,7 +149,15 @@ export function decodeAcliRecord(source: string): AcliRecord {
   // Keep large records as ordinary output rather than building an unbounded
   // second syntax tree on the browser's rendering thread.
   if (source.length > 1024 * 1024) return record;
-  if (!source.includes("_acli") && !source.includes("\\")) return record;
+  if (!source.includes("_acli") && !source.includes("\\")) {
+    try {
+      JSON.parse(source);
+      record.json = true;
+    } catch {
+      // Non-JSON progress lines retain their ordinary text interpretation.
+    }
+    return record;
+  }
   let root: JsonNode;
   try {
     root = readNodes(source);
@@ -155,6 +165,7 @@ export function decodeAcliRecord(source: string): AcliRecord {
     // Malformed, truncated, excessively deep, or ambiguous output stays raw.
     return record;
   }
+  record.json = true;
   const isMetadataOnly = (node: JsonNode) =>
     node.members?.length === 1 &&
     node.members[0]!.key === "_acli" &&

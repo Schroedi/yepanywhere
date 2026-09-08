@@ -59,11 +59,10 @@ shaped captures retain a common starting edge. Automatic gallery grouping is
 only a [low-priority proposal](acli-commentary.sketches.md), not required for
 this handoff.
 
-Workflow tag highlighting currently classifies original output before this
-commentary projection. Tags inside commentary JSON are not recognized, and
-mixing tagged raw progress with stripped metadata can leave stale display
-offsets or re-expose metadata. This [composition defect](../gaps/acli-workflow-composition.md)
-must be resolved before advertising a combined tagged-commentary transport.
+Workflow tag highlighting composes with both commentary encodings through the
+decoded fragments described below. The producer's
+[workflow convention](https://github.com/graehl/agents/blob/master/topics/workflow-tags.md#composition-with-acli-commentary)
+owns tag meaning; YA's [workflow view](workflow-view.md) owns presentation.
 
 Classification happens before publishing a record. Once an invocation has
 published ordinary output without a declaration, it keeps that presentation
@@ -97,7 +96,40 @@ stdout and stderr, including diagnostics and failed-render records. Replacement
 of either stream rebuilds the projection, and replay caching includes both.
 The existing Markdown route, limits, setting, and capability gate apply;
 this adds no server endpoint, wire field, or expanded server capability.
-Workflow-tag composition remains tracked in the gap linked above.
+
+### Workflow composition
+
+With Workflow tag highlighting enabled, YA decodes declared commentary before
+matching tags. The acli banner alone activates no schema. Each decoded prose
+item supplies logical text lines; arbitrary JSON strings and valid JSON arrays
+are opaque data. Ordinary data precedes its record's extracted commentary,
+whose order follows the existing extraction traversal. Independent prose
+documents have independent fences; complete records complete their final
+decoded line even without a trailing newline.
+
+Stage paths remain relative to the invocation's captured parent and use its
+schema/policy. A note can activate a local inline schema; it cannot move the
+calling agent's stage or end its workflow. Stdout, stderr, and code-mode result
+leaves retain independent stage cursors. In `spans`, a note's stage carries
+into following data and prose on that stream, while its context bullet keeps
+the original acli data association. In `matching-lines`, only selected lines
+appear beside the output. Their bodies retain ordinary Markdown links, math,
+and media rendering, with tag/title boundaries outside the rendered HTML.
+
+Output-box marker offsets refer only to published data. If rendering fails,
+the affected original records remain data and their workflow ranges are
+recomputed against that retained text. No preview reintroduces successfully
+extracted metadata. Both the workflow disclosure and the commentary viewer
+retain access to the exact original result, including omitted prose and stderr.
+Changing a resolved schema rebuilds commentary presentation with the new
+invocation snapshot; ordinary streaming updates retain existing rendered items.
+
+The settings are independent. With commentary disabled, workflow highlighting
+can show the decoded logical stream as plain text and makes no Markdown-render
+request. With workflow highlighting disabled, commentary renders normally
+without tag boundaries. With both disabled, the ordinary tool renderer receives
+the original output. Existing server capability and public-share restrictions
+on commentary rendering remain in force; this composition adds no wire contract.
 
 ### JSON commentary
 

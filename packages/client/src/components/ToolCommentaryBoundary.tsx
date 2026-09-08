@@ -2,7 +2,7 @@ import {
   ACLI_COMMENTARY_MAX_BODY_BYTES,
   ACLI_COMMENTARY_MAX_TEXTS,
   ACLI_COMMENTARY_RENDERING_CAPABILITY,
-  declaresAcliCommentary,
+  initialAcliFormat,
   decodeCodeModeOutput,
   serverHasCapability,
 } from "@yep-anywhere/shared";
@@ -27,6 +27,11 @@ import {
 } from "../lib/acliToolOutput";
 import { getDisplayBashCommandFromInput } from "../lib/bashCommand";
 import type { YaSourceRuntime } from "../lib/sourceRuntime";
+import {
+  joinWorkflowOutputs,
+  projectWorkflowFragments,
+  type WorkflowAnnotation,
+} from "../lib/transcriptProjection/workflowTags";
 import type { ToolCallItem, ToolResultData } from "../types/renderItems";
 import { AcliCommentary } from "./AcliCommentary";
 import { ActivityDetailModal } from "./ActivityDetailModal";
@@ -42,7 +47,12 @@ interface Props {
   toolInput: unknown;
   toolResult?: ToolResultData;
   status: ToolCallItem["status"];
-  children: (input: unknown, result: ToolResultData | undefined) => ReactNode;
+  workflow?: WorkflowAnnotation;
+  children: (
+    input: unknown,
+    result: ToolResultData | undefined,
+    workflow: WorkflowAnnotation | undefined,
+  ) => ReactNode;
 }
 
 interface Output {
@@ -70,18 +80,12 @@ const codeModeResults = new WeakMap<
     source: unknown;
     blocks: { type: string; text: string }[];
     parts: CodeModePart[];
+    textParts: Array<{ index: number; text: string }>;
   }
 >();
 
 function firstLineDeclaresCommentary(text: string, pending: boolean) {
-  const prefix = text.slice(0, 4097);
-  const newline = prefix.indexOf("\n");
-  const firstLine = newline < 0 ? prefix : prefix.slice(0, newline);
-  return (
-    (newline >= 0 || !pending) &&
-    firstLine.length <= 4096 &&
-    declaresAcliCommentary(firstLine)
-  );
+  return initialAcliFormat(text, !pending) !== null;
 }
 
 function CodeModeBoundary(props: InvocationProps) {
@@ -133,19 +137,35 @@ function CodeModeBoundary(props: InvocationProps) {
         }),
       };
     });
-    const result = { source, blocks, parts };
+    const textParts = output.parts.flatMap((part, index) =>
+      part.kind === "script-status" ? [] : [{ index, text: part.text }],
+    );
+    const result = { source, blocks, parts, textParts };
     if (props.toolResult && props.status !== "pending")
       codeModeResults.set(props.toolResult, result);
     return result;
   }, [source, props.toolResult, props.status]);
   const [projections, setProjections] = useState(
-    () => new Map<number, ToolResultData | undefined>(),
+    () =>
+      new Map<
+        number,
+        { result?: ToolResultData; workflow?: WorkflowAnnotation }
+      >(),
   );
   const project = useCallback(
-    (index: number, result: ToolResultData | undefined) => {
+    (
+      index: number,
+      result: ToolResultData | undefined,
+      workflow: WorkflowAnnotation | undefined,
+    ) => {
       setProjections((current) => {
-        if (current.has(index) && current.get(index) === result) return current;
-        return new Map(current).set(index, result);
+        if (
+          current.has(index) &&
+          current.get(index)?.result === result &&
+          current.get(index)?.workflow === workflow
+        )
+          return current;
+        return new Map(current).set(index, { result, workflow });
       });
     },
     [],
@@ -153,20 +173,42 @@ function CodeModeBoundary(props: InvocationProps) {
   const input = record(props.toolInput);
   const leafInput = useMemo(() => ({ cmd: input?.source }), [input?.source]);
   if (!decoded || props.supported === false)
-    return props.children(props.toolInput, props.toolResult);
+    return props.children(props.toolInput, props.toolResult, props.workflow);
   const blocks = [...decoded.blocks];
   for (const part of decoded.parts)
     blocks[part.index] = part.replaceText(
-      projections.get(part.index)?.content ?? "",
+      projections.get(part.index)?.result?.content ?? "",
     );
+  const context = props.workflow?.toolContext;
+  const workflow = context
+    ? joinWorkflowOutputs(
+        decoded.textParts.map((part) => {
+          if (decoded.parts.some((selected) => selected.index === part.index))
+            return (
+              projections.get(part.index)?.workflow ?? {
+                markers: [],
+                outputText: "",
+              }
+            );
+          return projectWorkflowFragments(
+            [[{ id: String(part.index), kind: "data", text: part.text }]],
+            context,
+          ).data;
+        }),
+      )
+    : props.workflow;
   return (
     <>
-      {props.children(props.toolInput, {
-        ...props.toolResult,
-        content: JSON.stringify(blocks),
-        structured: blocks,
-        isError: props.toolResult?.isError ?? false,
-      })}
+      {props.children(
+        props.toolInput,
+        {
+          ...props.toolResult,
+          content: JSON.stringify(blocks),
+          structured: blocks,
+          isError: props.toolResult?.isError ?? false,
+        },
+        workflow,
+      )}
       {decoded.parts.map((part) => (
         <InvocationBoundary
           {...props}
@@ -176,10 +218,11 @@ function CodeModeBoundary(props: InvocationProps) {
           toolInput={leafInput}
           toolResult={part.result}
         >
-          {(_input, result) => (
+          {(_input, result, workflow) => (
             <CodeModeProjection
               index={part.index}
               result={result}
+              workflow={workflow}
               project={project}
             />
           )}
@@ -192,15 +235,24 @@ function CodeModeBoundary(props: InvocationProps) {
 function CodeModeProjection({
   index,
   result,
+  workflow,
   project,
 }: {
   index: number;
   result: ToolResultData | undefined;
-  project: (index: number, result: ToolResultData | undefined) => void;
+  workflow?: WorkflowAnnotation;
+  project: (
+    index: number,
+    result: ToolResultData | undefined,
+    workflow: WorkflowAnnotation | undefined,
+  ) => void;
 }) {
   // Publish cleaned command data before the same paint as its sibling prose.
   // Stable keyed siblings keep existing streams mounted as new blocks arrive.
-  useLayoutEffect(() => project(index, result), [index, result, project]);
+  useLayoutEffect(
+    () => project(index, result, workflow),
+    [index, result, workflow, project],
+  );
   return null;
 }
 
@@ -252,12 +304,12 @@ export function ToolCommentaryBoundary(props: Props) {
   const runtime = useCurrentSourceRuntime();
   const version = useRetainedVersionInfo(runtime.sourceKey);
   if (!acliCommentaryEnabled || !metadata || publicShare)
-    return props.children(props.toolInput, props.toolResult);
+    return props.children(props.toolInput, props.toolResult, props.workflow);
   const Boundary =
     props.toolName === "Exec" ? CodeModeBoundary : InvocationBoundary;
   return (
     <Boundary
-      key={`${runtime.sourceKey}:${metadata.projectId}:${metadata.sessionId}:${props.id}`}
+      key={`${runtime.sourceKey}:${metadata.projectId}:${metadata.sessionId}:${props.id}:${JSON.stringify(props.workflow?.toolContext)}`}
       {...props}
       projectId={metadata.projectId}
       runtime={runtime}
@@ -295,11 +347,13 @@ function InvocationBoundary(props: InvocationProps) {
   }
   if (mode === "commentary")
     return <CommentaryOutput {...props} output={output} />;
-  if (mode === "raw") return props.children(props.toolInput, props.toolResult);
+  if (mode === "raw")
+    return props.children(props.toolInput, props.toolResult, props.workflow);
   // Do not publish an undecided record, then move its metadata after paint.
   const input = record(props.toolInput);
   return props.children(
     input ? { ...input, _previewResult: undefined } : props.toolInput,
+    undefined,
     undefined,
   );
 }
@@ -311,6 +365,7 @@ const completed = new WeakMap<
     source: string;
     stderr: string;
     projection: AcliOutputProjection;
+    workflowKey: string;
   }
 >();
 
@@ -322,11 +377,14 @@ function CommentaryOutput(
   },
 ) {
   const { t } = useI18n();
+  // The outer key remounts this invocation when its serialized schema changes.
+  const [workflowContext] = useState(props.workflow?.toolContext);
   const [initial] = useState(() => {
     const cached = props.toolResult
       ? completed.get(props.toolResult)
       : undefined;
     return cached?.sourceKey === props.runtime.sourceKey &&
+      cached.workflowKey === JSON.stringify(props.workflow?.toolContext) &&
       cached.source === props.output.stdout &&
       cached.stderr === props.output.stderr &&
       props.status !== "pending"
@@ -409,10 +467,12 @@ function CommentaryOutput(
               source: current.output.stdout,
               stderr: current.output.stderr,
               projection: next,
+              workflowKey: JSON.stringify(current.workflow?.toolContext),
             });
         },
         cached,
         props.output.stdoutSequenced,
+        workflowContext,
       );
     restart.current = () => {
       abort.abort();
@@ -439,7 +499,13 @@ function CommentaryOutput(
       engine.current = null;
       restart.current = null;
     };
-  }, [props.projectId, props.runtime, props.output.stdoutSequenced, initial]);
+  }, [
+    props.projectId,
+    props.runtime,
+    props.output.stdoutSequenced,
+    initial,
+    workflowContext,
+  ]);
 
   useEffect(() => {
     if (!engine.current) return;
@@ -480,7 +546,7 @@ function CommentaryOutput(
   }, [props.toolInput, projectedResult]);
   return (
     <>
-      {props.children(projectedInput, projectedResult)}
+      {props.children(projectedInput, projectedResult, projection?.workflow)}
       {projection ? (
         <AcliCommentary
           items={projection.commentary}

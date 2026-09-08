@@ -17,6 +17,8 @@ import { LOCAL_CLIENT_SUMMARY_SOURCE_KEY } from "../../../lib/clientSummaryStore
 import { UI_KEYS } from "../../../lib/storageKeys";
 import { SessionViewerProvider } from "../../SessionManagedViewer";
 import { ToolCallRow } from "../ToolCallRow";
+import { compileTranscriptProjection } from "../../../lib/transcriptProjection/compiler";
+import { assistant, call, result } from "../../../../test-fixtures/workflow";
 
 const version = vi.hoisted(() => ({ value: { current: "0.8.2" } }));
 vi.mock("../../../hooks/useVersion", () => ({
@@ -70,6 +72,100 @@ function row(
 }
 
 describe("ToolCallRow commentary integration", () => {
+  it.each(["Bash", "Exec"])(
+    "composes %s workflow summaries with rich prose and original-output recovery",
+    async (toolName) => {
+      const stdout =
+        banner +
+        note("[build] [Report](./report.md) ready.\nHidden prose.") +
+        '\n{"value":1}\n[build] Raw progress.\n';
+      const content =
+        toolName === "Exec"
+          ? JSON.stringify([
+              {
+                type: "text",
+                text: JSON.stringify({
+                  chunk_id: "chunk",
+                  exit_code: 0,
+                  wall_time_seconds: 1,
+                  output: stdout,
+                }),
+              },
+            ])
+          : stdout;
+      const schema = {
+        type: "tagged-stages/1",
+        id: "test/1",
+        key: "work",
+        title: "Work",
+        toolOutput: {
+          containsTags: true,
+          closed: true,
+          view: "matching-lines",
+        },
+        stages: [{ key: "build", title: "Build" }],
+      };
+      const messages = [
+        assistant(
+          "activate",
+          "@@visualization-schema/1 /schema.json\n[workflow][start] id=x schema=test/1\n[work] Begin.",
+        ),
+        call("command", toolName),
+        result("command", content),
+        assistant("end", "[workflow][end] id=x status=completed Finished."),
+      ];
+      const compiled = compileTranscriptProjection(messages, {
+        workflowTags: true,
+        workflowSchemaFiles: { "/schema.json": JSON.stringify(schema) },
+      });
+      const tool = compiled.find((item) => item.id === "command")!;
+      if (tool.type !== "tool_call") throw new Error("Missing tool");
+      const fetch = vi
+        .spyOn(
+          getSourceRuntimeRegistry().getOrCreateSourceRuntime(
+            LOCAL_CLIENT_SUMMARY_SOURCE_KEY,
+          ).transport,
+          "fetch",
+        )
+        .mockImplementation(async (_path, options) => {
+          const { texts } = JSON.parse(options?.body as string);
+          expect(texts.join("\n")).not.toContain("Hidden prose");
+          return {
+            html: texts.map(
+              () => '<p><a href="./report.md">Report</a> ready.</p>',
+            ),
+          };
+        });
+      const view = render(
+        row(content, false, {
+          toolName,
+          toolResult: tool.toolResult,
+          workflow: tool.workflow,
+        }),
+      );
+      await screen.findByRole("link", { name: "Report" });
+      const preview = view.container.querySelector(
+        '[data-workflow-output="true"]',
+      )!;
+      expect(preview.textContent).toContain("Raw progress.");
+      expect(preview.textContent).not.toContain("_acli");
+      expect(preview.textContent).not.toContain("value");
+      expect(
+        view.container.querySelectorAll('[data-workflow-path="[work][build]"]'),
+      ).toHaveLength(2);
+      expect(view.container.textContent).not.toContain("Hidden prose");
+      fireEvent.click(
+        screen.getByRole("button", { name: "Expand original output" }),
+      );
+      expect(
+        view.container.querySelector('[data-workflow-original="true"]')
+          ?.textContent,
+      ).toContain("_acli");
+      expect(compiled.at(-1)?.workflow?.markers[0]?.kind).toBe("end");
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
   beforeEach(() => {
     version.value = { current: "0.8.2" };
     localStorage.removeItem(UI_KEYS.acliCommentary);

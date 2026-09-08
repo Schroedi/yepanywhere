@@ -114,6 +114,25 @@ No provider messages, turns, commands, or completion events are synthesized.
   it does not guess the missing schema. Subagent streams are not activated by
   their parent's declaration.
 
+### Commentary-bearing tools
+
+[ACLI commentary](acli-commentary.md#workflow-composition) participates after
+declared records are decoded. Workflow classification operates on ordinary
+text and decoded commentary fragments, retaining the invocation's captured
+schema and separate stdout/stderr or code-mode leaf contexts. JSON data stays
+opaque. Data precedes prose within a record; commentary tags can label later
+data on the same stream. Tool-origin activation and lifecycle rules above
+remain unchanged.
+
+With both features enabled, selected prose keeps rich Markdown and context
+bullets beside the output box. The data preview uses offsets mapped to its
+own fragments, including when rendering fails and raw records are retained.
+Original-output disclosure recovers the original result, not a second copy
+of the cleaned projection. With commentary presentation disabled, this view
+can show decoded logical lines as plain text without requesting Markdown.
+The producer convention is specified in
+[workflow-tags](https://github.com/graehl/agents/blob/master/topics/workflow-tags.md#composition-with-acli-commentary).
+
 The implementation lives in `transcriptProjection/workflowTags.ts` and the
 shared `WorkflowOutput` renderer. It adds no server route, capability, server
 persistence, filesystem writer, or provider adapter requirement. Automatic
