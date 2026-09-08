@@ -85,6 +85,7 @@ vi.mock("../../hooks/useModelSettings", () => ({
     speechMethod: "browser-native",
     hasStoredSpeechMethod: false,
     parakeetSpeechModel: "nvidia/parakeet-ctc-1.1b",
+    whisperSpeechModel: "large-v3",
     grokSpeechAudioSettings: { uplinkMode: "pcm16" },
   }),
 }));
@@ -154,6 +155,17 @@ vi.mock("../SpeechWaveform", () => ({
 }));
 
 describe("VoiceInputButton", () => {
+  it("passes a saved Whisper choice only after the server capability is known", () => {
+    const view = render(
+      <VoiceInputButton onTranscript={vi.fn()} speechMethod="ya-whisper" />,
+    );
+    expect(observedSpeechOptions.at(-1)?.whisperModel).toBeUndefined();
+    versionState.capabilities.push("local-speech-model-selection");
+    view.rerender(
+      <VoiceInputButton onTranscript={vi.fn()} speechMethod="ya-whisper" />,
+    );
+    expect(observedSpeechOptions.at(-1)?.whisperModel).toBe("large-v3");
+  });
   beforeEach(() => {
     versionState.capabilities = [VOICE_INPUT_CAPABILITY];
   });
@@ -544,6 +556,53 @@ describe("VoiceInputButton", () => {
     const recordingIcon = document.querySelector(".voice-input-recording");
     expect(recordingIcon).toBeTruthy();
     expect(recordingIcon?.classList.contains("is-speech-active")).toBe(false);
+  });
+
+  it("keeps the waveform slot across a brief Smart Turn handoff", () => {
+    vi.useFakeTimers();
+    speechState.status = "listening";
+    speechState.isListening = true;
+    speechCaptureState.followUpListenMs = 3_000;
+    versionState.voiceBackends = ["ya-grok"];
+    versionState.voiceBackendCapabilities = {
+      "ya-grok": { streaming: true, smartTurn: true },
+    };
+    const onWaveformActiveChange = vi.fn();
+    const props = {
+      onTranscript: vi.fn(),
+      speechMethod: "ya-grok" as const,
+      smartTurn: {
+        enabled: true,
+        threshold: 0.95,
+        timeoutMs: 3000,
+        graceMs: 0,
+      },
+      showWaveform: true,
+      inlineWaveform: true,
+      onWaveformActiveChange,
+    };
+    const view = render(<VoiceInputButton {...props} />);
+    onWaveformActiveChange.mockClear();
+
+    speechState.status = "finalizing";
+    speechState.isListening = false;
+    view.rerender(<VoiceInputButton {...props} />);
+    act(() => vi.advanceTimersByTime(100));
+    speechState.status = "starting";
+    view.rerender(<VoiceInputButton {...props} />);
+    act(() => vi.advanceTimersByTime(100));
+    speechState.status = "listening";
+    speechState.isListening = true;
+    view.rerender(<VoiceInputButton {...props} />);
+    expect(onWaveformActiveChange).not.toHaveBeenCalled();
+    expect(document.querySelector(".composer-speech-waveform")).toBeTruthy();
+
+    speechState.status = "idle";
+    speechState.isListening = false;
+    view.rerender(<VoiceInputButton {...props} />);
+    act(() => vi.advanceTimersByTime(300));
+    expect(document.querySelector(".composer-speech-waveform")).toBeNull();
+    expect(onWaveformActiveChange).toHaveBeenLastCalledWith(false);
   });
 
   it("puts an inline waveform inside the microphone touch target", () => {

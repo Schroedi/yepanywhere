@@ -1,5 +1,6 @@
 import {
   VOICE_INPUT_CAPABILITY,
+  SERVER_CAPABILITIES,
   hasServerCapabilityAdvertisement,
   serverHasCapability,
 } from "@yep-anywhere/shared";
@@ -15,6 +16,7 @@ import {
 } from "../../components/FilterDropdown";
 import { SpeechSmartTurnControls } from "../../components/SpeechSmartTurnControls";
 import { SpeechMessagePrefixControls } from "../../components/SpeechMessagePrefixControls";
+import { WhisperModelControls } from "../../components/WhisperModelControls";
 import { useModelSettings } from "../../hooks/useModelSettings";
 import { useBrowserXaiSttApiKey } from "../../hooks/useBrowserXaiSttApiKey";
 import { useSpeechCaptureSettings } from "../../hooks/useSpeechCaptureSettings";
@@ -39,6 +41,7 @@ import {
   PARAKEET_SPEECH_MODEL_PRESETS,
   type ParakeetModelBackendId,
   resolveParakeetModelBackend,
+  requestedParakeetModel,
 } from "../../lib/speechProviders/parakeetModels";
 import { prewarmYaServerSpeechBackend } from "../../lib/speechProviders/YaServerProvider";
 import { SettingsItem } from "./SettingsItem";
@@ -59,6 +62,8 @@ export function SpeechSettings() {
     setSpeechSmartTurnSettings,
     parakeetSpeechModel,
     setParakeetSpeechModel,
+    whisperSpeechModel,
+    setWhisperSpeechModel,
   } = useModelSettings();
   const parakeetModelPresetId = useId();
   const parakeetModelInputId = useId();
@@ -86,6 +91,10 @@ export function SpeechSettings() {
   const { relayTransport, relayedServerSpeechAvailable } =
     useSpeechSourceRuntime();
   const { version: versionInfo, loading: versionLoading } = useVersion();
+  const recentModels = serverHasCapability(
+    versionInfo,
+    SERVER_CAPABILITIES.localSpeechModelSelection.name,
+  );
   const undoState = useMemo(
     () => ({
       voiceInputEnabled,
@@ -99,6 +108,7 @@ export function SpeechSettings() {
       speechMessagePrefixMode,
       speechMessageCustomPrefix,
       parakeetSpeechModel,
+      whisperSpeechModel,
       browserXaiSttApiKey,
     }),
     [
@@ -113,6 +123,7 @@ export function SpeechSettings() {
       speechMessagePrefixMode,
       speechMessageCustomPrefix,
       parakeetSpeechModel,
+      whisperSpeechModel,
       browserXaiSttApiKey,
     ],
   );
@@ -129,6 +140,7 @@ export function SpeechSettings() {
       setSpeechMessagePrefixMode(snapshot.speechMessagePrefixMode);
       setSpeechMessageCustomPrefix(snapshot.speechMessageCustomPrefix);
       setParakeetSpeechModel(snapshot.parakeetSpeechModel);
+      setWhisperSpeechModel(snapshot.whisperSpeechModel);
       setBrowserXaiSttApiKey(snapshot.browserXaiSttApiKey);
     },
     [
@@ -143,6 +155,7 @@ export function SpeechSettings() {
       setSpeechMessagePrefixMode,
       setSpeechMessageCustomPrefix,
       setParakeetSpeechModel,
+      setWhisperSpeechModel,
       setBrowserXaiSttApiKey,
     ],
   );
@@ -200,7 +213,11 @@ export function SpeechSettings() {
   const showParakeetModelControls =
     selectedBackend !== null && isParakeetModelBackend(selectedBackend);
   const selectedParakeetPreset =
-    getParakeetSpeechPresetValue(parakeetSpeechModel);
+    recentModels && !parakeetSpeechModel.trim()
+      ? "default"
+      : getParakeetSpeechPresetValue(
+          requestedParakeetModel(parakeetSpeechModel, recentModels) ?? "",
+        );
   const enabledParakeetBackends = useMemo(() => {
     const backends: ParakeetModelBackendId[] = [];
     const addBackend = (backendId: string) => {
@@ -238,7 +255,7 @@ export function SpeechSettings() {
       if (targetBackend === null || !isParakeetModelBackend(targetBackend)) {
         return;
       }
-      const model = cleanParakeetSpeechModel(modelValue);
+      const model = requestedParakeetModel(modelValue, recentModels);
       void prewarmYaServerSpeechBackend(targetBackend, model).catch(
         (err: unknown) => {
           console.warn(
@@ -248,7 +265,7 @@ export function SpeechSettings() {
         },
       );
     },
-    [selectedBackend],
+    [selectedBackend, recentModels],
   );
   const handleParakeetModelKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -261,7 +278,7 @@ export function SpeechSettings() {
   const selectParakeetPreset = useCallback(
     (modelValue: string) => {
       if (selectedBackend === null) return;
-      const model = cleanParakeetSpeechModel(modelValue);
+      const model = modelValue.trim();
       const backendId = resolveParakeetModelBackend(
         model,
         selectedBackend,
@@ -341,14 +358,21 @@ export function SpeechSettings() {
                 onChange={(event) => {
                   const preset = event.currentTarget.value;
                   if (!preset) return;
-                  selectParakeetPreset(preset);
+                  selectParakeetPreset(preset === "default" ? "" : preset);
                 }}
                 aria-label={t("speechSettingsParakeetModelPresetLabel")}
               >
+                {recentModels && (
+                  <option value="default">
+                    {t("speechSettingsModelServerDefault")}
+                  </option>
+                )}
                 <option value="">
                   {t("speechSettingsParakeetCustomModel")}
                 </option>
-                {PARAKEET_SPEECH_MODEL_PRESETS.map((preset) => {
+                {PARAKEET_SPEECH_MODEL_PRESETS.filter(
+                  (preset) => recentModels || !preset.requiresRecentModels,
+                ).map((preset) => {
                   const backendId = resolveParakeetModelBackend(
                     preset.value,
                     selectedBackend,
@@ -377,7 +401,11 @@ export function SpeechSettings() {
                 id={parakeetModelInputId}
                 className="settings-input"
                 value={parakeetSpeechModel}
-                placeholder={t("speechSettingsParakeetModelPlaceholder")}
+                placeholder={t(
+                  recentModels
+                    ? "speechSettingsModelServerDefault"
+                    : "speechSettingsParakeetModelPlaceholder",
+                )}
                 autoComplete="off"
                 spellCheck={false}
                 onChange={(event) =>
@@ -393,6 +421,19 @@ export function SpeechSettings() {
                 {t("speechSettingsParakeetModelHint")}
               </p>
             </div>
+          </SettingsItem>
+        )}
+
+        {selectedBackend === "ya-whisper" && recentModels && (
+          <SettingsItem
+            label={t("speechSettingsWhisperModelTitle")}
+            description={t("speechSettingsWhisperModelDescription")}
+            className="model-settings-item"
+          >
+            <WhisperModelControls
+              model={whisperSpeechModel}
+              onChange={setWhisperSpeechModel}
+            />
           </SettingsItem>
         )}
 

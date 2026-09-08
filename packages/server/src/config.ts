@@ -186,7 +186,7 @@ export interface Config {
   ambientXaiApiKey?: string;
   /** Whether authenticated clients may borrow the server's xAI STT key. */
   shareXaiSttApiKeyWithClients: boolean;
-  /** Whisper model name for ya-whisper backend (default: distil-large-v3). */
+  /** Whisper model name for ya-whisper backend (default: distil-large-v3.5). */
   whisperModel?: string;
   /** Whisper device for ya-whisper backend (default: cpu). */
   whisperDevice?: string;
@@ -196,7 +196,7 @@ export interface Config {
   parakeetModel?: string;
   /** Parakeet device for ya-parakeet backend (default: auto). */
   parakeetDevice?: string;
-  /** NeMo Parakeet fallback model name for ya-nemo backend (default: nvidia/parakeet-tdt-0.6b-v3). */
+  /** NeMo Parakeet fallback model name for ya-nemo backend (default: nvidia/parakeet-unified-en-0.6b). */
   nemoModel?: string;
   /** NeMo Parakeet device for ya-nemo backend (default: auto). */
   nemoDevice?: string;

@@ -500,9 +500,22 @@ the same ledger:
 | 61 | server | 0.8.2 | `project-queue-readiness-check` |
 | 62 | server | 0.8.2 | `acli-commentary-rendering` |
 | 63 | server | 0.8.2 | `retained-session-collections` |
+| 64 | server | 0.8.2 | `local-speech-model-selection` |
 
 The code ledger is authoritative. The next client or server capability takes
-ID 64; retired rows stay in the ledger as reserved IDs.
+ID 65; retired rows stay in the ledger as reserved IDs.
+
+`local-speech-model-selection` gates per-request Whisper model overrides and
+recent Parakeet presets, including unified English on the isolated NeMo
+runtime. The maintainer approved this plan on 2026-09-08 against the optional
+support corpus v0.8.0 and v0.8.1: both accept `model` on batch requests but
+ignore it for Whisper, and both use NeMo 2.0. Without the capability, hide
+Whisper selectors and recent Parakeet presets, send no Whisper model override,
+and resolve unset or unsupported new Parakeet presets to the existing v3
+request without rewriting stored preferences. Existing custom Parakeet IDs
+and older capable behavior remain unchanged. No new endpoint is required;
+the existing transcription and prewarm routes carry the model. The permanent
+capability is version-implied from 0.8.2 with source-ahead ID advertisement.
 
 `session-conversation-context` gates the general sequence-of-user/assistant-text
 delivery route; it does not gate question-card fork orchestration. The

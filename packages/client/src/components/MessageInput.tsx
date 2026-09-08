@@ -947,14 +947,21 @@ export function MessageInput({
 
   const getTranscriptionContext =
     useCallback((): SpeechTranscriptionContext => {
+      const draft = controls.getDraft();
       return {
         projectId,
         sessionId,
         draftKey,
         clientTurnId: ensureSpeechTurnId(),
         speechTargetId: activeSpeechTargetIdRef.current ?? undefined,
+        textBeforeCursor: draft.slice(
+          0,
+          speechInsertionRangeRef.current?.end ??
+            textareaRef.current?.selectionStart ??
+            draft.length,
+        ),
       };
-    }, [draftKey, ensureSpeechTurnId, projectId, sessionId]);
+    }, [controls, draftKey, ensureSpeechTurnId, projectId, sessionId]);
 
   const buildSubmissionMetadata = useCallback(
     (

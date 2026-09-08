@@ -31,7 +31,7 @@ def suffix_for_mime(mime: str) -> str:
 
 
 def main() -> None:
-    model_name = sys.argv[1] if len(sys.argv) > 1 else "distil-large-v3"
+    model_name = sys.argv[1] if len(sys.argv) > 1 else "distil-large-v3.5"
     device = sys.argv[2] if len(sys.argv) > 2 else "cpu"
     compute_type = sys.argv[3] if len(sys.argv) > 3 else "int8"
 

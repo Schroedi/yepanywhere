@@ -467,7 +467,7 @@ export const ENV_VAR_REGISTRY: EnvVarDescriptor[] = [
     name: "WHISPER_MODEL",
     group: "Speech & transcription",
     description:
-      "Model name for the ya-whisper backend (default distil-large-v3).",
+      "Model name for the ya-whisper backend (default distil-large-v3.5).",
   },
   {
     name: "WHISPER_DEVICE",

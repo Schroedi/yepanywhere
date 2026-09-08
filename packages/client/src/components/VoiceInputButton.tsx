@@ -1,5 +1,6 @@
 import {
   VOICE_INPUT_CAPABILITY,
+  SERVER_CAPABILITIES,
   hasServerCapabilityAdvertisement,
   serverHasCapability,
 } from "@yep-anywhere/shared";
@@ -11,6 +12,7 @@ import {
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
   useSyncExternalStore,
 } from "react";
 import { useBrowserXaiSttApiKey } from "../hooks/useBrowserXaiSttApiKey";
@@ -43,7 +45,10 @@ import {
   resolveSpeechMethod,
   type SpeechMethodId,
 } from "../lib/speechProviders/methods";
-import { reconcileParakeetBackendForModel } from "../lib/speechProviders/parakeetModels";
+import {
+  reconcileParakeetBackendForModel,
+  requestedParakeetModel,
+} from "../lib/speechProviders/parakeetModels";
 import {
   clearSpeechWaveform,
   publishSpeechWaveformSamples,
@@ -174,8 +179,13 @@ export const VoiceInputButton = forwardRef(function VoiceInputButton(
     hasStoredSpeechMethod,
     speechSmartTurnSettings,
     parakeetSpeechModel,
+    whisperSpeechModel,
   } = useModelSettings();
   const { version: versionInfo, loading: versionLoading } = useVersion();
+  const recentModels = serverHasCapability(
+    versionInfo,
+    SERVER_CAPABILITIES.localSpeechModelSelection.name,
+  );
   const { hasBrowserXaiSttApiKey } = useBrowserXaiSttApiKey();
   const basePath = useRemoteBasePath();
   const {
@@ -312,7 +322,10 @@ export const VoiceInputButton = forwardRef(function VoiceInputButton(
     reducePlayback,
     unspokenPunctuation,
     onAudioSamples: showWaveform ? publishSpeechWaveformSamples : undefined,
-    parakeetModel: parakeetSpeechModel,
+    parakeetModel: requestedParakeetModel(parakeetSpeechModel, recentModels),
+    whisperModel: recentModels
+      ? whisperSpeechModel?.trim() || undefined
+      : undefined,
     openRelayedSpeechSocket,
     onResult: handleResult,
     onInterimResult: handleInterim,
@@ -346,12 +359,22 @@ export const VoiceInputButton = forwardRef(function VoiceInputButton(
     : isCaptureStarting
       ? "starting"
       : null;
+  const [retainWaveformSlot, setRetainWaveformSlot] = useState(false);
+  useEffect(() => {
+    if (isCapturing) {
+      setRetainWaveformSlot(true);
+      return;
+    }
+    const timer = setTimeout(() => setRetainWaveformSlot(false), 300);
+    return () => clearTimeout(timer);
+  }, [isCapturing]);
   const waveformVisible =
     showWaveform &&
     speechMethod !== null &&
     speechMethod !== DEFAULT_SPEECH_METHOD &&
-    isCapturing;
-  const showPostCaptureStatus = isProcessing || isFinalizing;
+    (isCapturing || (followUpEnabled && retainWaveformSlot && !error));
+  const showPostCaptureStatus =
+    isProcessing || (isFinalizing && !waveformVisible);
   // Keep the parent informed for insertion-target and keyboard-cancel
   // lifecycle. Visual capture/processing status stays with this mic control;
   // the composer never inserts it into the textarea mirror.

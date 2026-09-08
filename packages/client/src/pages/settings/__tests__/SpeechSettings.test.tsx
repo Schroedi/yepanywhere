@@ -20,6 +20,8 @@ const modelSettings = vi.hoisted(() => {
     setSpeechSmartTurnSettings: vi.fn(),
     parakeetSpeechModel: "nvidia/parakeet-tdt-0.6b-v3",
     setParakeetSpeechModel: vi.fn(),
+    whisperSpeechModel: "",
+    setWhisperSpeechModel: vi.fn(),
   };
   state.setSpeechMethod = vi.fn((method: string) => {
     state.speechMethod = method;
@@ -122,6 +124,24 @@ vi.mock("../../../lib/speechProviders/YaServerProvider", () => ({
 vi.mock("../SettingsUndoContext", () => undoMocks);
 
 describe("SpeechSettings", () => {
+  it("shows Whisper presets only on a capable server", () => {
+    modelSettings.speechMethod = "ya-whisper";
+    versionState.voiceBackends = ["ya-whisper"];
+    const view = render(<SpeechSettings />);
+    expect(
+      screen.queryByRole("combobox", {
+        name: "speechSettingsWhisperModelTitle",
+      }),
+    ).toBeNull();
+    versionState.capabilities.push("local-speech-model-selection");
+    view.rerender(<SpeechSettings />);
+    expect(
+      screen.getByRole("combobox", { name: "speechSettingsWhisperModelTitle" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("option", { name: "Distil large v3.5 English" }),
+    ).toBeTruthy();
+  });
   beforeEach(() => {
     versionState.capabilities = [VOICE_INPUT_CAPABILITY];
   });

@@ -400,9 +400,29 @@ client through `fetchJSON("/speech/transcribe", ...)`.
 
 ## Local recognition candidates — 2026-09-08
 
-YA still defaults to `distil-large-v3` for Whisper and
-`nvidia/parakeet-tdt-0.6b-v3` for Parakeet. These are comparison candidates,
-not verified tablet-quality upgrades; no defaults or runtime pins changed.
+The server defaults to `distil-large-v3.5` for Whisper and
+`nvidia/parakeet-unified-en-0.6b` for NeMo Parakeet, at the maintainer's
+request. Explicit `WHISPER_MODEL` and `NEMO_MODEL` settings remain authoritative.
+Transformers Parakeet retains `nvidia/parakeet-tdt-0.6b-v3`; unified RNNT is a
+NeMo model. These choices are not verified tablet-quality improvements.
+
+Speech settings and the microphone menu offer recent model presets and custom
+IDs. Whisper offers distilled v3.5, full large-v3, turbo, and distilled v3;
+NeMo adds unified English and TDT v2 alongside the existing compatible models.
+The microphone menu lists only models supported by its selected backend.
+Its popup stays inside the viewport horizontally when opened or resized,
+including phone widths where the microphone sits away from the left edge.
+An unset browser preference or "Server default" omits the model override on
+capable servers, preserving the server configuration. Explicit saved browser
+choices persist and take effect immediately across mounted composers.
+
+The `local-speech-model-selection` capability gates the new choices. Without
+it, Whisper sends no model override; Parakeet uses its existing v3 fallback
+when unset or when a saved new preset is unsupported. Saved preferences are
+preserved, not rewritten when connecting to an older server. Existing custom
+Parakeet IDs remain available. Whisper loads, prewarms, and transcriptions share
+one queue: a model switch waits for the preceding transcription and the old
+worker's exit. A failed load returns an error and permits a later retry.
 
 | Candidate | Why compare it | Existing YA execution path |
 | --- | --- | --- |
@@ -410,7 +430,7 @@ not verified tablet-quality upgrades; no defaults or runtime pins changed.
 | [Whisper large-v3](https://huggingface.co/openai/whisper-large-v3) | Full model as the accuracy-oriented comparison; expect more work per utterance than the distilled default. | `WHISPER_MODEL=large-v3`; the existing worker remains batch-only. |
 | [Whisper large-v3-turbo](https://huggingface.co/openai/whisper-large-v3-turbo) | Pruned decoder trades some quality for speed according to its model card. Compare when full large-v3 latency is unacceptable. | `WHISPER_MODEL=large-v3-turbo`; supported by the inspected faster-whisper registry. |
 | [Parakeet TDT 0.6B v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) | English-only comparison against multilingual v3; not evidence that older v2 is better. | Custom Parakeet model name `nvidia/parakeet-tdt-0.6b-v2`; verify load/decoding in the selected backend before adopting. |
-| [Parakeet unified English 0.6B](https://huggingface.co/nvidia/parakeet-unified-en-0.6b) | Released April 2026; supports offline and buffered streaming inference with configurable context. Vendor leaderboard gains do not establish tablet gains. | Evaluate in a separate modern NeMo environment. The pinned NeMo 2.0 add-on lacks the documented streaming pipeline; changing a model name does not implement streaming in YA's batch worker. |
+| [Parakeet unified English 0.6B](https://huggingface.co/nvidia/parakeet-unified-en-0.6b) | Released April 2026; supports offline and buffered streaming inference with configurable context. Vendor leaderboard gains do not establish tablet gains. | Default on NeMo's isolated `stt-nemo` runtime. CPU and GPU worker transcription checked; YA currently uses batch inference. |
 | [Canary-Qwen 2.5B](https://huggingface.co/nvidia/canary-qwen-2.5b) | English speech-language model worth a later accuracy comparison. | Requires a different `speechlm2`/`SALM.generate` worker, not the existing Parakeet `ASRModel.transcribe` contract. |
 
 First compare distilled v3.5 and full large-v3 on the same retained tablet
@@ -422,8 +442,10 @@ the newer NeMo model fit; the coexistence constraints below still apply.
 
 ## Keyterm Biasing
 
-Status 2026-08-09: assessed, deliberately not wired. Revisit when retained
-speech traces show recognition misses that vocabulary bias would plausibly fix.
+Status 2026-09-08: requested immediately, not implemented. The
+[persistent unigram vocabulary gap](../gaps/speech-unigram-vocabulary.md)
+records default-off server-side learning, retrospective/live idempotent scans,
+retained counts while disabled, reset, and staged recognition integration.
 
 What the backends offer. xAI STT (batch and streaming) and Deepgram accept a
 repeatable `keyterm` parameter that biases recognition *toward* the listed
@@ -653,11 +675,8 @@ The 2026-06-16 coexistence spike found:
   encoder does not accept that argument. Keep the unified streaming target on
   the separate/newer-NeMo track.
 
-YA now exposes this as a separate batch-only `ya-nemo` backend. The shared
-Parakeet model selector includes the current NeMo 2.0.0-compatible set:
-`nvidia/parakeet-tdt-0.6b-v3`, `nvidia/parakeet-rnnt-1.1b`, and
-`nvidia/parakeet-ctc-1.1b`; `nvidia/parakeet-unified-en-0.6b` remains the
-desired streaming-quality target for a separate newer-NeMo environment. Any
+The current batch-only `ya-nemo` backend uses the isolated runtime below. The
+older shared add-on remains a recovery recipe, not its active runtime. Any
 NIM/NGC multilingual RNNT variant should be considered only if there is a
 host-installable local runtime that fits the Rocky 8 / pixi deployment
 constraints.
@@ -666,6 +685,31 @@ Hosted relay support for server-local STT is a product choice, not a technical
 requirement. If the operator wants phone-to-local-Whisper dictation through
 YA, the existing batch YA API path is the safer first target; relayed streaming
 to a local model remains a later optimization after local batch is solid.
+
+### Isolated NeMo runtime
+
+`ya-nemo` launches in the separate pixi `stt-nemo` environment with
+`nemo_toolkit[asr]==3.0.0`, installed by
+`pixi run -e stt-nemo nemo-bootstrap`. Whisper and Transformers remain in
+`stt`; their lock entries and the known-good recovery pins are unchanged.
+The committed pixi environments currently support Linux x86-64 only.
+
+The [unified model card](https://huggingface.co/nvidia/parakeet-unified-en-0.6b)
+names NeMo 2.7.3, but that release fails to load its encoder configuration.
+The failure is also recorded in
+[NVIDIA's issue tracker](https://github.com/NVIDIA-NeMo/Speech/issues/15705).
+[NeMo Speech 3.0](https://github.com/NVIDIA-NeMo/Speech/releases/tag/v3.0.0)
+includes the required encoder. Its file-input transcription path still reads
+a missing `validation_ds` from this checkpoint, so YA decodes every upload to
+16 kHz mono float samples and uses NeMo's supported waveform-array input.
+This also normalizes WAV input instead of assuming its channel/sample rate.
+Hypothesis results contribute their text, never an object representation.
+
+The backend remains batch-only. Model-native streaming support does not make
+the YA endpoint a streaming recognizer. Failed model loads and requests return
+explicit errors; the worker never substitutes a different model. Validation
+checks/imports bootstrap this isolated environment, while actual model loading
+remains deferred to prewarm or transcription.
 
 ## Verification Checklist
 

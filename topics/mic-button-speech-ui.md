@@ -418,6 +418,17 @@ the unconsumed audio span and the behavior can be exercised deterministically.
 
 ## Batch Behavior
 
+Whisper receives the already-composed text before the speech insertion cursor
+as its transcription prompt. A selected replacement and the suffix after it
+are excluded. Active-session, new-session, and floating composers all provide
+this context. Each recording snapshots it before microphone acquisition;
+later edits and overlapping recordings cannot change that recording's prompt.
+The client sends at most the last 8000 characters through the existing batch
+`prompt` field; faster-whisper applies its own token context limit. Other
+backends receive no invented text-prompt parameter. Grok's vocabulary-bias
+integration is tracked separately in
+[the unigram gap](../gaps/speech-unigram-vocabulary.md).
+
 Batch providers produce no streaming drafts and no mid-utterance Smart Turn.
 The default batch result is "wait": insert the whole recognized transcript at
 the speech transaction point, stop recognition, and do not submit.
@@ -569,6 +580,13 @@ rather than shrinking behind the glyph. Its resting scale includes the
 microphone stroke extending beyond the path's nominal bounds. This is
 deliberately activity-driven, not a fabricated volume meter;
 browser-native Web Speech exposes sound/speech events but not audio samples.
+With Smart Turn follow-up enabled, the waveform slot stays visible for up to
+300 ms after capture stops. A new capture within that interval cancels removal,
+so a brief finalization/start handoff does not collapse and reopen toolbar
+space. Samples are still cleared immediately when capture stops: the retained
+slot does not fabricate live audio or change microphone/recognizer ownership.
+Errors and disabling waveform display remove it immediately.
+
 While capture is active, the configurable live waveform is a non-interactive
 backdrop across the toolbar's left and center span. It owns no required width
 and never displaces or covers the right-side status and delivery controls.

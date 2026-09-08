@@ -159,6 +159,26 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  localSpeechModelSelection: {
+    id: CAPABILITY_ID_ALLOCATIONS.localSpeechModelSelection.id,
+    name: "local-speech-model-selection",
+    kind: "permanent",
+    area: "speech",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Per-request Whisper model selection and unified English Parakeet on NeMo.",
+    clientFallback:
+      "Hide Whisper and recent Parakeet choices; retain older Parakeet requests without modifying saved preferences.",
+    serverContract: {
+      requestFields: ["model"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers ignore Whisper model overrides and lack the recent NeMo runtime.",
+    },
+  },
   acliCommentaryRendering: {
     id: CAPABILITY_ID_ALLOCATIONS.acliCommentaryRendering.id,
     name: "acli-commentary-rendering",

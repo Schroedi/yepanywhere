@@ -651,7 +651,9 @@ export class YaServerProvider implements SpeechProvider {
     const model =
       this.backendId === "ya-parakeet" || this.backendId === "ya-nemo"
         ? this.options.parakeetModel
-        : undefined;
+        : this.backendId === "ya-whisper"
+          ? this.options.whisperModel
+          : undefined;
     const key = `${this.backendId}:${model ?? ""}`;
     if (this.prewarmedBackendKey === key) return;
     this.prewarmedBackendKey = key;
@@ -698,6 +700,7 @@ export class YaServerProvider implements SpeechProvider {
   }
 
   private async doStartBatch(token: number): Promise<void> {
+    const context = this.options.getTranscriptionContext?.();
     const stream = await this.getActiveMicStream();
     if (this.disposed || token !== this.startToken) {
       if (!isSharedSpeechMicStream(stream)) {
@@ -717,7 +720,7 @@ export class YaServerProvider implements SpeechProvider {
     const recording: BatchRecording = {
       token,
       chunks: [],
-      context: this.options.getTranscriptionContext?.(),
+      context,
       mimeType,
       stream,
       submitOnStop: true,
@@ -1619,6 +1622,7 @@ export class YaServerProvider implements SpeechProvider {
     const audio = new Blob(recording.chunks, { type: recording.mimeType });
     recording.chunks = [];
     releaseSpeechStream(recording.stream);
+    const { textBeforeCursor, ...context } = recording.context ?? {};
 
     let settlementStatus: SpeechTranscriptionSettlementStatus = "cancelled";
     try {
@@ -1633,9 +1637,15 @@ export class YaServerProvider implements SpeechProvider {
                   this.backendId === "ya-parakeet" ||
                   this.backendId === "ya-nemo"
                     ? this.options.parakeetModel
-                    : undefined,
+                    : this.backendId === "ya-whisper"
+                      ? this.options.whisperModel
+                      : undefined,
                 audioBase64: await blobToBase64(audio),
-                context: recording.context,
+                context,
+                prompt:
+                  this.backendId === "ya-whisper"
+                    ? textBeforeCursor?.slice(-8000)
+                    : undefined,
               }),
             })
           : { text: "" };

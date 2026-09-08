@@ -131,7 +131,7 @@ export interface SpeechRegistryInitOptions {
    * the opt-in signal.
    */
   xaiSttApiKey?: string;
-  /** Whisper model name (default: distil-large-v3). */
+  /** Whisper model name (default: distil-large-v3.5). */
   whisperModel?: string;
   /** Whisper device (default: cpu). */
   whisperDevice?: string;
@@ -141,7 +141,7 @@ export interface SpeechRegistryInitOptions {
   parakeetModel?: string;
   /** Parakeet device (default: auto). */
   parakeetDevice?: string;
-  /** NeMo Parakeet fallback model name (default: nvidia/parakeet-tdt-0.6b-v3). */
+  /** NeMo Parakeet fallback model name (default: nvidia/parakeet-unified-en-0.6b). */
   nemoModel?: string;
   /** NeMo Parakeet device (default: auto). */
   nemoDevice?: string;

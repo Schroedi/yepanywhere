@@ -35,6 +35,21 @@ import {
   resolveSpeechMethod,
 } from "../speechProviders/methods";
 import { setBrowserXaiSttApiKey } from "../speechProviders/xaiCredentials";
+import { requestedParakeetModel } from "../speechProviders/parakeetModels";
+
+it("preserves legacy Parakeet requests while gating new saved presets", () => {
+  expect(requestedParakeetModel("", false)).toBe("nvidia/parakeet-tdt-0.6b-v3");
+  expect(requestedParakeetModel("", true)).toBeUndefined();
+  expect(requestedParakeetModel("nvidia/parakeet-unified-en-0.6b", false)).toBe(
+    "nvidia/parakeet-tdt-0.6b-v3",
+  );
+  expect(requestedParakeetModel("nvidia/parakeet-unified-en-0.6b", true)).toBe(
+    "nvidia/parakeet-unified-en-0.6b",
+  );
+  expect(requestedParakeetModel("my-custom-model", false)).toBe(
+    "my-custom-model",
+  );
+});
 
 function deferred<T>(): {
   promise: Promise<T>;
@@ -1272,7 +1287,9 @@ describe("YA server speech provider", () => {
     const provider = new YaServerProvider("ya-whisper", "", {
       getTranscriptionContext: () => ({
         speechTargetId: currentSpeechTargetId,
+        textBeforeCursor: `Composed before ${currentSpeechTargetId}`,
       }),
+      whisperModel: "distil-large-v3.5",
       onResult,
       onTranscriptionSettled,
     });
@@ -1291,6 +1308,12 @@ describe("YA server speech provider", () => {
     provider.start();
     await waitForProviderStatus(provider, "listening");
     expect(FakeMediaRecorder.instances).toHaveLength(2);
+    const firstRequest = JSON.parse(
+      fetchMock.mock.calls[0]![1]!.body as string,
+    );
+    expect(firstRequest.prompt).toBe("Composed before target-1");
+    expect(firstRequest.model).toBe("distil-large-v3.5");
+    expect(firstRequest.context).toEqual({ speechTargetId: "target-1" });
 
     firstFetch.resolve(
       new Response(

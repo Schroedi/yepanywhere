@@ -152,6 +152,7 @@ export const BROWSER_LOCAL_KEYS = {
   speechSmartTurn: "yep-anywhere-speech-smart-turn",
   grokSpeechAudio: "yep-anywhere-grok-speech-audio",
   parakeetSpeechModel: "yep-anywhere-parakeet-speech-model",
+  whisperSpeechModel: "yep-anywhere-whisper-speech-model",
   xaiSttApiKey: "yep-anywhere-xai-stt-api-key",
   // Preserve the first-shipped push/client-log device id key.
   browserProfileId: "yep-anywhere-device-id",

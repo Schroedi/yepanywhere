@@ -38,6 +38,9 @@ import {
 import { getServerCapabilities } from "../../src/routes/version.js";
 
 describe("Version Routes", () => {
+  it("advertises recent local speech model selection", () => {
+    expect(getServerCapabilities()).toContain("local-speech-model-selection");
+  });
   it("advertises compiled glossary artifacts", () => {
     expect(getServerCapabilities()).toContain(GLOSSARY_TOOLTIPS_CAPABILITY);
   });

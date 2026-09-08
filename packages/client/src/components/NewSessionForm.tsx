@@ -3151,6 +3151,7 @@ export function NewSessionForm({
 
   const getTranscriptionContext =
     useCallback((): SpeechTranscriptionContext => {
+      const draft = draftControls.getDraft();
       if (!speechTurnIdRef.current) {
         speechTurnIdRef.current = createClientSpeechTurnId();
       }
@@ -3159,8 +3160,14 @@ export function NewSessionForm({
         draftKey: newSessionDraftKey,
         clientTurnId: speechTurnIdRef.current,
         speechTargetId: activeSpeechTargetIdRef.current ?? undefined,
+        textBeforeCursor: draft.slice(
+          0,
+          speechInsertionRangeRef.current?.end ??
+            textareaRef.current?.selectionStart ??
+            draft.length,
+        ),
       };
-    }, [projectId, newSessionDraftKey]);
+    }, [draftControls, projectId, newSessionDraftKey]);
   // Shared input area with toolbar (textarea + attach/voice on left, send on right)
   const inputArea = (
     <>

@@ -2533,6 +2533,21 @@ describe("MessageInput", () => {
     expect(mockVoiceCancelProcessing).toHaveBeenCalledTimes(1);
   });
 
+  it("supplies composed text before the speech insertion cursor", () => {
+    const textarea = renderMessageInput() as HTMLTextAreaElement;
+    fireEvent.change(textarea, {
+      target: { value: "Parakeet context replace me suffix" },
+    });
+    act(() => {
+      textarea.focus();
+      textarea.setSelectionRange(17, 27);
+      voicePropsState.current?.onListeningStart?.();
+    });
+    expect(voicePropsState.current?.getTranscriptionContext?.()).toMatchObject({
+      textBeforeCursor: "Parakeet context ",
+    });
+  });
+
   it("does not insert a Listening label into the draft", async () => {
     renderMessageInput();
 
