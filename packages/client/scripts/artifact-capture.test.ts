@@ -1,6 +1,13 @@
 // @vitest-environment node
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -115,7 +122,7 @@ describe("portable artifact capture", () => {
     });
     expect(result.delivery.status).toBe("skipped");
     expect(result.markdown).toContain(
-      `Open in YA: ${markdownLink("File viewer", files.input)}`,
+      `Open in YA: ${markdownLink("File viewer", await realpath(files.input))}`,
     );
     for (const capture of result.screenshots) {
       const png = await readFile(capture.path);
