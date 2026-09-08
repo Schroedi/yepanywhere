@@ -1102,9 +1102,19 @@ export default async function globalSetup() {
     writeFileSync(PID_FILE, String(serverProcess.pid));
   }
 
-  // Log stderr for debugging
+  // Drain both pipes: the shared server outlives setup, and a full stdout
+  // pipe must not become backpressure on its logging path. Keep bounded
+  // context for a failure annotation without retaining the whole run in RAM.
+  let serverOutput = "";
+  const rememberServerOutput = (message: string) => {
+    serverOutput = `${serverOutput}${message}`.slice(-16_384);
+  };
+  serverProcess.stdout?.on("data", (data: Buffer) => {
+    rememberServerOutput(data.toString());
+  });
   serverProcess.stderr?.on("data", (data: Buffer) => {
     const msg = data.toString();
+    rememberServerOutput(msg);
     if (!msg.includes("ExperimentalWarning")) {
       console.error("[E2E Server]", msg);
     }
@@ -1112,6 +1122,16 @@ export default async function globalSetup() {
 
   serverProcess.on("error", (err) => {
     console.error("[E2E Server] Process error:", err);
+  });
+  serverProcess.on("exit", (code, signal) => {
+    if (code === 0 || signal === "SIGTERM" || signal === "SIGINT") return;
+    const message = `E2E main server exited (${code}/${signal})\n${serverOutput}`;
+    console.error(message);
+    if (process.env.GITHUB_ACTIONS === "true") {
+      console.error(
+        `::error::${message.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A")}`,
+      );
+    }
   });
 
   // Wait for both port files
