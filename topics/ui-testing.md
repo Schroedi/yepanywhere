@@ -86,6 +86,11 @@ than treating the banner as unrelated visual noise.
 
 ### Browser integration fixture isolation
 
+The shared E2E installation seeds both transcript files and successful-provider
+enrollment through `InstallService`. Retained collection reads intentionally
+exclude never-used stores; transcript fixtures alone do not establish the
+install history needed by sidebar and inbox tests.
+
 Feature-specific Playwright fixtures start Vite through
 `packages/client/e2e/support/vite-server.ts`. Each server owns a temporary
 dependency cache, removed when it closes; starting a different fixture must

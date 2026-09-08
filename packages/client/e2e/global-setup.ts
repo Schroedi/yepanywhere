@@ -10,6 +10,7 @@ import {
 import { hostname, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { InstallService } from "../../server/src/services/InstallService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -101,6 +102,12 @@ export default async function globalSetup() {
   mkdirSync(E2E_CODEX_SESSIONS_DIR, { recursive: true });
   mkdirSync(E2E_GEMINI_SESSIONS_DIR, { recursive: true });
   mkdirSync(E2E_DATA_DIR, { recursive: true });
+  // This fixture models an installation with saved sessions from these
+  // providers. Retained collections only discover successfully used stores;
+  // creating transcript files alone intentionally does not enroll a provider.
+  const installService = new InstallService({ dataDir: E2E_DATA_DIR });
+  await installService.initialize();
+  await installService.recordSuccessfulProviders(["claude", "codex", "gemini"]);
   writeFileSync(
     join(E2E_DATA_DIR, "server-settings.json"),
     JSON.stringify(
