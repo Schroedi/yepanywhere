@@ -15,6 +15,13 @@ capability fragment, scoped endpoint channel, virgin instruction scope) lives in
 dispatch use the proposed shared
 [`agent command runtime sketch`](agent-command-runtime.sketches.md).
 
+The runtime's first milestone is now
+[`ya-agent self`](agent-command-runtime.sketches.md#first-milestone-inspect-the-owning-session)
+(2026-09-08): read-only inspection of the owning session, with manual
+harness-global instructions for discovery. Catalog, transcript, search,
+messaging, session creation, and boss conventions below remain deferred;
+the self-inspection grant authorizes none of them.
+
 See also:
 [`core-service-api.md`](core-service-api.md) — the external-consumer
 seam (D0 thin client, D3 API doc, resolved localhost posture) this

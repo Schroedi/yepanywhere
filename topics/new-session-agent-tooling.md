@@ -16,6 +16,12 @@ shared `ya-agent` dispatcher, and private input live in
 feature — the virgin instruction-scope option — is tracked in
 [`gaps/virgin-new-session-option.md`](../gaps/virgin-new-session-option.md).
 
+The [command runtime's first milestone](agent-command-runtime.sketches.md#first-milestone-inspect-the-owning-session)
+is now read-only `ya-agent self` (2026-09-08). It retains command-path and scoped
+connection delivery, but initially uses operator-managed Claude/Codex global
+instructions for advertisement. The capability fragments, New Session UI,
+private input, and broader session tooling described here remain later work.
+
 See also:
 [`agent-context-injection.md`](agent-context-injection.md) — current
 instruction placement and the dormant personal-launch-integration

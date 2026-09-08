@@ -374,3 +374,4 @@
 - acli-commentary - Declared tool prose and artifact capture handoffs in YA.
 
 - desktop-nightly-releases - Signed nightly publication and same-app Stable/Latest channels.
+- ya-agent-self — read-only owning-session inspection and command delivery.
