@@ -7,7 +7,9 @@
 
 Topic: new-session-agent-tooling
 
-Status: direction proposal, 2026-08-24. Nothing is implemented. The
+Status: broader direction proposal, updated 2026-09-08. Opt-in own-session
+command delivery is implemented in [Agent Own-Session Inspection](agent-self.md).
+The remaining tooling and instruction controls here are proposals. The
 consumer-side story (what the scripts do against the server) is
 [`agent-session-access.md`](agent-session-access.md); this topic owns
 what YA injects into a session at launch. Packaging, desktop delivery, the

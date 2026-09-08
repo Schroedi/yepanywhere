@@ -1,3 +1,4 @@
+import { startAgentSelfSession } from "./agent-self.js";
 import {
   type ChildProcess,
   type ChildProcessWithoutNullStreams,
@@ -1848,6 +1849,14 @@ export class ClaudeProvider implements AgentProvider {
    * Start a new Claude session.
    */
   async startSession(options: StartSessionOptions): Promise<AgentSession> {
+    return startAgentSelfSession(this.name, options, (resolved) =>
+      this.startSessionInternal(resolved),
+    );
+  }
+
+  private async startSessionInternal(
+    options: StartSessionOptions,
+  ): Promise<AgentSession> {
     const log = getLogger();
     const queue = new MessageQueue();
     const abortController = new AbortController();
@@ -1865,6 +1874,7 @@ export class ClaudeProvider implements AgentProvider {
     );
     const baseClaudeEnv = {
       ...this.getEnv(options.model),
+      ...options.agentEnvironment,
       ...autoCompactOverrideEnv,
     };
     const claudeEnv = agentctlSessionEnvBridge

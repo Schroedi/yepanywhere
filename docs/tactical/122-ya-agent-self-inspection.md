@@ -1,6 +1,6 @@
 # YA Agent Self-Inspection
 
-Status: In progress, 2026-09-08.
+Status: Implemented; pushed CI verification pending, 2026-09-08.
 
 Topic: ya-agent-self
 
@@ -12,10 +12,6 @@ session and distinguish launch settings, current selections, provider evidence,
 and pending changes. The command performs no provider work or configuration
 writes. Private input, cross-session commands, scheduling, automatic prompt
 advertisement, and a New Session UI remain deferred.
-
-The originating request authorizes implementation, local commits, pushing to
-origin, and verification of green CI. Work started after fast-forwarding main
-to `fb909d664`; the existing proposal edits were preserved and reapplied.
 
 Related: [command runtime proposal](../../topics/agent-command-runtime.sketches.md),
 [provider host API](../../topics/provider-host-api.md),
@@ -48,9 +44,9 @@ Related: [command runtime proposal](../../topics/agent-command-runtime.sketches.
   listener and private command directory, released when its last lease ends.
   It serves only a versioned self route, never operator APIs.
 - Mint an unguessable per-launch bearer capability. Bind it to the canonical
-  session as soon as known; validate the caller's session-id cross-check.
+  session as soon as known; validate the caller's optional session-id cross-check.
   Keep credentials out of command arguments, output, and diagnostics. The
-  capability lives only for its provider launch and is revoked at teardown.
+  capability expires after 24 hours and is revoked at provider teardown.
 - Inject the matching runtime command path and `AGENT_YA_API_URL` /
   `AGENT_YA_API_TOKEN` into supported local child environments. A nested YA
   launch replaces or clears inherited self credentials. YA filesystem
@@ -112,3 +108,22 @@ prerequisite.
 - Unsupported remote/sandbox launches receive no self grant. No idle polling
   or abandoned listener/directory remains after the last session ends.
 - Relevant checks and the required CI jobs pass for the pushed commit.
+
+## Implemented result and local evidence
+
+The current contract is [Agent Own-Session Inspection](../../topics/agent-self.md).
+The service and CLI ship inside the server; Claude/Codex launch integration
+and optional retained-worker selection RPC are implemented. The Bash bridge
+captures its original startup file at launch and reasserts the current self
+grant, so nested startup scripts cannot restore an outer capability.
+
+Local checks passed on macOS: repository lint (zero warnings), formatting,
+typecheck, the focused provider/ownership tests, installed npm artifact smoke,
+and desktop resource smoke with private Bun. Deterministic coverage includes
+real shell execution, pending effort application, controller reattachment,
+canonical-id remapping, expiry, credential isolation, and grant revocation.
+CI adds required source coverage on Linux/macOS/Windows and installed npm
+coverage on Linux; the existing desktop gates execute the Bun artifact probe.
+Live cloud-provider inference is not part of this deterministic validation.
+
+The final publication gate is green CI for the pushed implementation commit.

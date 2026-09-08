@@ -879,6 +879,9 @@ export interface ProcessConstructorOptions extends ProcessOptions {
   /** Function to change max thinking tokens at runtime (SDK 0.2.7+) */
   setMaxThinkingTokensFn?: (tokens: number | null) => Promise<void>;
   /** Function to change effort without restarting the provider process. */
+  publishAgentSelfSelectionFn?: (
+    selection: import("../agent-tools/protocol.js").AgentSelfSelection,
+  ) => void | Promise<void>;
   setEffortFn?: (effort?: EffortLevel) => Promise<void>;
   /** Whether effort changes can be published into an active provider turn. */
   effortUpdatesActiveTurn?: boolean;
@@ -1056,6 +1059,7 @@ export class Process {
     | ((tokens: number | null) => Promise<void>)
     | null;
   /** Function to change effort without restarting the provider process. */
+  private publishAgentSelfSelectionFn: ProcessConstructorOptions["publishAgentSelfSelectionFn"];
   private setEffortFn: ((effort?: EffortLevel) => Promise<void>) | null;
   private effortUpdatesActiveTurn: boolean;
 
@@ -1219,6 +1223,7 @@ export class Process {
     this._thinking = options.thinking;
     this._effort = options.effort;
     this.setMaxThinkingTokensFn = options.setMaxThinkingTokensFn ?? null;
+    this.publishAgentSelfSelectionFn = options.publishAgentSelfSelectionFn;
     this.setEffortFn = options.setEffortFn ?? null;
     this.effortUpdatesActiveTurn = options.effortUpdatesActiveTurn === true;
     this.interruptFn = options.interruptFn ?? null;
@@ -2133,6 +2138,10 @@ export class Process {
     }
 
     this.pendingEffortUpdate = { effort };
+    await this.publishAgentSelfSelectionFn?.({
+      effort: effort ?? null,
+      pendingEffort: true,
+    });
     const canDeferUntilBoundary =
       (this._state.type === "in-turn" ||
         this._state.type === "waiting-input") &&
@@ -2208,6 +2217,10 @@ export class Process {
       }
       if (this.pendingEffortUpdate === pending) {
         this.pendingEffortUpdate = null;
+        await this.publishAgentSelfSelectionFn?.({
+          effort: pending.effort ?? null,
+          pendingEffort: false,
+        });
       }
     }
   }

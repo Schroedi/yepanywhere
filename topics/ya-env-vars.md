@@ -144,6 +144,12 @@ values at the worker boundary — including the pre-2026-08-17 `YEP_AGENT_HARNES
 running inside an older YA's session cannot pass the outer session's stale
 values down — and applies the same launch facts to remote-provider
 environments. These are trusted child-session outputs, not operator inputs.
+With `YEP_AGENT_SELF=1` (or `true`), eligible local Claude/Codex launches also
+receive `AGENT_YA_API_URL`, `AGENT_YA_API_TOKEN`, and a private `ya-agent`
+launcher on PATH. These grant only live own-session inspection, expire after
+24 hours, and are revoked at provider teardown. Default is off. See
+[Agent Own-Session Inspection](agent-self.md) for eligibility and provenance.
+
 `AGENTCTL_SESSION_ID` remains the canonical YA session-id marker: a resume may
 have it at launch, while a new session receives it later through the session
 environment bridge.

@@ -12,6 +12,39 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  agent-self-source:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20.12
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @yep-anywhere/shared build
+      - run: pnpm --filter @yep-anywhere/server exec vitest run test/agent-tools
+      - run: node --import tsx scripts/agent-self-smoke.mjs packages/server --source
+
+  agent-self-npm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20.12
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:bundle
+      - run: node scripts/agent-self-package-smoke.mjs
+
   site-build:
     runs-on: ubuntu-latest
     steps:

@@ -7,7 +7,7 @@
 
 Topic: agent-session-access
 
-Status: direction proposal, 2026-08-24. Nothing is implemented; the
+Status: direction proposal, 2026-08-24. Cross-session access remains unimplemented; the
 script layer, the search route, and the boss conventions below are
 candidate work, not contracts. The launch-time half (PATH injection,
 capability fragment, scoped endpoint channel, virgin instruction scope) lives in
@@ -15,7 +15,7 @@ capability fragment, scoped endpoint channel, virgin instruction scope) lives in
 dispatch use the proposed shared
 [`agent command runtime sketch`](agent-command-runtime.sketches.md).
 
-The runtime's first milestone is now
+The runtime's implemented first milestone is [own-session inspection](agent-self.md); its original proposal is
 [`ya-agent self`](agent-command-runtime.sketches.md#first-milestone-inspect-the-owning-session)
 (2026-09-08): read-only inspection of the owning session, with manual
 harness-global instructions for discovery. Catalog, transcript, search,

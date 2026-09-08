@@ -47,20 +47,37 @@ export function createAgentctlSessionEnvBridge(
   const bashEnvPath = join(dir, "bash-env.sh");
   const sessionEnvPath = join(dir, "agentctl-session.env");
 
-  writeFileSync(
-    bashEnvPath,
-    [
-      "# yep-anywhere agentctl session bridge",
-      `if [ -n "\${${ORIGINAL_BASH_ENV_ENV}:-}" ] && [ -r "\${${ORIGINAL_BASH_ENV_ENV}}" ]; then`,
-      `  . "\${${ORIGINAL_BASH_ENV_ENV}}"`,
-      "fi",
-      `if [ -r ${quoteShellWord(sessionEnvPath)} ]; then`,
-      `  . ${quoteShellWord(sessionEnvPath)}`,
-      "fi",
-      "",
-    ].join("\n"),
-    { encoding: "utf-8", mode: 0o600 },
-  );
+  const writeBashEnv = (environment: NodeJS.ProcessEnv) =>
+    writeFileSync(
+      bashEnvPath,
+      [
+        "# yep-anywhere agentctl session bridge",
+        // Capture the original file at launch. A shared environment variable
+        // would point an outer bridge back at itself in a nested YA launch.
+        ...(environment.BASH_ENV
+          ? [
+              `if [ -r ${quoteShellWord(environment.BASH_ENV)} ]; then`,
+              `  . ${quoteShellWord(environment.BASH_ENV)}`,
+              "fi",
+            ]
+          : []),
+        // An inherited startup file can restore an outer YA capability after
+        // child filtering. Reassert only this launch's self grant, even before
+        // the canonical session-id file exists.
+        ...["AGENT_YA_API_URL", "AGENT_YA_API_TOKEN"].map((name) =>
+          environment[name]
+            ? `export ${name}=${quoteShellWord(environment[name])}`
+            : `unset ${name}`,
+        ),
+        `if [ -r ${quoteShellWord(sessionEnvPath)} ]; then`,
+        `  . ${quoteShellWord(sessionEnvPath)}`,
+        "fi",
+        "",
+      ].join("\n"),
+      { encoding: "utf-8", mode: 0o600 },
+    );
+
+  writeBashEnv({});
 
   const publishSessionId = (
     sessionId: string,
@@ -95,6 +112,7 @@ export function createAgentctlSessionEnvBridge(
   return {
     bashEnvPath,
     extendEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+      writeBashEnv(env);
       const extended: NodeJS.ProcessEnv = {
         ...env,
         ...(env.BASH_ENV

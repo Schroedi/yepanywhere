@@ -1,3 +1,4 @@
+import { startAgentSelfSession } from "./agent-self.js";
 /**
  * Codex Provider implementation using codex app-server JSON-RPC.
  *
@@ -1755,6 +1756,14 @@ export class CodexProvider implements AgentProvider {
    * Start a new Codex session.
    */
   async startSession(options: StartSessionOptions): Promise<AgentSession> {
+    return startAgentSelfSession(this.name, options, (resolved) =>
+      this.startSessionInternal(resolved),
+    );
+  }
+
+  private async startSessionInternal(
+    options: StartSessionOptions,
+  ): Promise<AgentSession> {
     if (
       options.effort === "max" ||
       options.initialMessage?.metadata?.turnEffort
@@ -2662,7 +2671,10 @@ export class CodexProvider implements AgentProvider {
       options.getSessionChildEnv,
     );
     setAgentctlSessionEnvBridge(agentctlSessionEnvBridge);
-    const codexEnv = agentctlSessionEnvBridge.extendEnv(this.getCodexEnv());
+    const codexEnv = agentctlSessionEnvBridge.extendEnv({
+      ...this.getCodexEnv(),
+      ...options.agentEnvironment,
+    });
     if (options.resumeSessionId) {
       // The bridge only reaches bash tool shells that source BASH_ENV, which
       // codex's sandbox may strip. For resume the id is known at spawn, so set

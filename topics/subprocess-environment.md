@@ -13,6 +13,12 @@ individual YA variables remain in [ya-env-vars.md](ya-env-vars.md).
 
 ## Runtime contracts
 
+- Opt-in [`ya-agent self`](agent-self.md) injects `AGENT_YA_API_URL` and
+  `AGENT_YA_API_TOKEN` plus the owning runtime's private command directory.
+  Ambient self credentials are stripped by the child filter before eligible
+  Claude/Codex launches receive their own grant. `AGENTCTL_SESSION_ID` is an
+  optional cross-check; the credential itself determines ownership.
+
 - Treat `process.env` as ambient input, not a stable default. A developer shell,
   package runner, service manager, or parent agent may contribute variables
   that are absent in CI or a production service.
@@ -67,8 +73,10 @@ individual YA variables remain in [ya-env-vars.md](ya-env-vars.md).
   relevant environment and stdio topology match the real launcher. Make those
   choices visible at the spawn site rather than relying on Node or test-runner
   defaults.
-- The local `agentctl` bridge preserves an existing `BASH_ENV` through
-  `YEP_ORIGINAL_BASH_ENV`, then sources YA's atomically updated session-env
+- The local `agentctl` bridge captures an existing `BASH_ENV` path at launch,
+  avoiding recursive lookup through a nested bridge's inherited environment.
+  It also records that path in `YEP_ORIGINAL_BASH_ENV` for compatibility,
+  sources the captured file, then sources YA's atomically updated session-env
   file. That file publishes `AGENTCTL_SESSION_ID` plus session-scoped outputs.
   Current builds use the legacy `YEP_*` wake and browser-debug pairs; the
   reader-first migration to canonical `AGENT_*` pairs is tracked in

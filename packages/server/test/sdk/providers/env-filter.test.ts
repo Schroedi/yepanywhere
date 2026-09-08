@@ -2,6 +2,16 @@ import { describe, expect, it } from "vitest";
 import { filterEnvForChildProcess } from "../../../src/sdk/providers/env-filter.js";
 
 describe("filterEnvForChildProcess", () => {
+  it("removes ambient own-session grants before the owner injects a new grant", () => {
+    const env = filterEnvForChildProcess({
+      AGENT_YA_API_URL: "http://127.0.0.1:1234",
+      AGENT_YA_API_TOKEN: "outer-launch-grant",
+      AGENT_LAUNCH_MODEL: "launch-history",
+    });
+    expect(env.AGENT_YA_API_URL).toBeUndefined();
+    expect(env.AGENT_YA_API_TOKEN).toBeUndefined();
+    expect(env.AGENT_LAUNCH_MODEL).toBe("launch-history");
+  });
   it("sets Claude Code's one-hour prompt cache TTL by default", () => {
     const env = filterEnvForChildProcess({
       HOME: "/home/test",

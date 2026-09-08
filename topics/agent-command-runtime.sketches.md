@@ -6,9 +6,11 @@
 
 Topic: agent-command-runtime
 
-Status: direction proposal, updated 2026-09-08. Nothing is implemented.
-The first milestone is read-only `ya-agent self` inspection of the owning
-session. Private input, broader session access, yacron integration, and
+Status: broader direction proposal, updated 2026-09-08. The first milestone,
+read-only `ya-agent self`, is implemented as an opt-in feature; its authoritative
+contract is [Agent Own-Session Inspection](agent-self.md). The details below
+remain design context where they go beyond that contract.
+Private input, broader session access, yacron integration, and
 automatic command advertisement are deferred beyond that milestone.
 
 Related:

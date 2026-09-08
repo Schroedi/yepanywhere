@@ -1972,6 +1972,55 @@ describe("CodexProvider app-server lifecycle", () => {
     },
   );
 
+  bashIt(
+    "executes ya-agent self from a real fake-Codex tool subprocess",
+    async () => {
+      const tempDir = mkdtempSync(join(tmpdir(), "codex-self-"));
+      const logPath = join(tempDir, "requests.jsonl");
+      const codexPath = createFakeCodexCommand(
+        tempDir,
+        "fake-codex-self",
+        buildFakeCodexAppServerWithAgentctlShellProbe(logPath),
+      );
+      let session:
+        | Awaited<ReturnType<CodexProvider["startSession"]>>
+        | undefined;
+      let consume: Promise<void> | undefined;
+      try {
+        session = await new CodexProvider({ codexPath }).startSession({
+          cwd: tempDir,
+          agentSelf: true,
+          permissionMode: "bypassPermissions",
+          model: "gpt-5.4-mini",
+          effort: "low",
+          initialMessage: { text: "inspect self" },
+        });
+        consume = (async () => {
+          for await (const _ of session?.iterator ?? []) {
+          }
+        })();
+        await waitForFakeCodexRequest(logPath, "turn/start");
+        const request = readFakeCodexRequests(logPath).find(
+          (record) => record.method === "turn/start",
+        );
+        expect(request?.agentSelf).toMatchObject({
+          schemaVersion: 1,
+          sessionId: "thread-agentctl",
+          harness: "codex",
+          scope: "owning-session",
+          launch: { effort: { value: "low" } },
+          providerEvidence: {
+            model: { value: "gpt-5.4-mini", source: "provider-config-ack" },
+          },
+        });
+      } finally {
+        await session?.abort();
+        await consume?.catch(() => undefined);
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("sets AGENTCTL_SESSION_ID directly in the app-server env on resume", async () => {
     // Resume knows the session id at spawn, so it is set directly in the
     // app-server's own env (not only via the BASH_ENV bridge), surviving even
@@ -4424,6 +4473,9 @@ function logRequest(message) {
   };
   if (message.method === "turn/start") {
     record.agentctlSessionId = agentctlSessionIdFromBash();
+    if (process.env.AGENT_YA_API_URL) {
+      record.agentSelf = JSON.parse(execFileSync("bash", ["-c", "ya-agent self --json"], { env: process.env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 10000 }));
+    }
   }
   appendFileSync(logPath, JSON.stringify(record) + "\\n");
 }
@@ -4486,6 +4538,7 @@ function readFakeCodexRequests(logPath: string): Array<{
   effectiveApprovalPolicy?: string;
   effectiveSandboxPolicy?: Record<string, unknown>;
   agentctlSessionId?: string;
+  agentSelf?: unknown;
   processEnvAgentctlSessionId?: string;
 }> {
   if (!existsSync(logPath)) return [];

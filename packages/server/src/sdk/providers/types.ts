@@ -193,6 +193,10 @@ export function inactiveProviderSessionOptionsResult(
  * Options for starting a new agent session.
  */
 export interface StartSessionOptions {
+  /** Operator opt-in, preserved across provider-host process boundaries. */
+  agentSelf?: boolean;
+  /** Trusted owner-supplied child environment; never a client request field. */
+  agentEnvironment?: Record<string, string>;
   /** Working directory for the session */
   cwd: string;
   /** Initial message to send (optional - session can wait for message) */
@@ -270,6 +274,10 @@ export interface StartSessionOptions {
  * This is the common interface all providers must return.
  */
 export interface AgentSession {
+  /** Publish selected/pending settings to the optional owning-session projection. */
+  publishAgentSelfSelection?: (
+    selection: import("../../agent-tools/protocol.js").AgentSelfSelection,
+  ) => void | Promise<void>;
   /** Async iterator yielding SDK messages */
   iterator: AsyncIterableIterator<SDKMessage>;
   /** Message queue for sending messages to the agent */

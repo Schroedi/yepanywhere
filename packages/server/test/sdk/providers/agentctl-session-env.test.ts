@@ -72,6 +72,42 @@ describe("agentctl session env bridge", () => {
       bridge.cleanup();
     }
   });
+  bashIt(
+    "does not restore an outer self grant through a chained startup file",
+    () => {
+      const outer = createAgentctlSessionEnvBridge();
+      const outerEnv = outer.extendEnv({
+        ...bridgeTestEnv(),
+        AGENT_YA_API_URL: "http://127.0.0.1:1234",
+        AGENT_YA_API_TOKEN: "outer-grant",
+      });
+      const inner = createAgentctlSessionEnvBridge();
+      try {
+        const launch = { ...outerEnv };
+        delete launch.AGENT_YA_API_URL;
+        delete launch.AGENT_YA_API_TOKEN;
+        // A nested provider chains the outer BASH_ENV but must not regain its
+        // grant, including the interval before its own canonical id is known.
+        delete launch.YEP_ORIGINAL_BASH_ENV;
+        const env = inner.extendEnv(launch);
+        const read = () =>
+          execFileSync(
+            "bash",
+            [
+              "-c",
+              `printf "%s|%s" "\${AGENT_YA_API_URL-}" "\${AGENT_YA_API_TOKEN-}"`,
+            ],
+            { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+          );
+        expect(read()).toBe("|");
+        inner.publishSessionId("inner-session");
+        expect(read()).toBe("|");
+      } finally {
+        inner.cleanup();
+        outer.cleanup();
+      }
+    },
+  );
   bashIt("publishes AGENTCTL_SESSION_ID to later Bash shells", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "ya-agentctl-env-test-"));
     const originalBashEnvPath = join(tempDir, "original-bash-env.sh");

@@ -1277,6 +1277,7 @@ export class Supervisor {
         return typeof p === "function" ? p() : p;
       },
       setMaxThinkingTokensFn: setMaxThinkingTokens,
+      publishAgentSelfSelectionFn: result.publishAgentSelfSelection,
       setEffortFn: setEffort,
       effortUpdatesActiveTurn: result.effortUpdatesActiveTurn,
       interruptFn: interrupt,
@@ -1967,6 +1968,7 @@ export class Supervisor {
         return typeof p === "function" ? p() : p;
       },
       setMaxThinkingTokensFn: setMaxThinkingTokens,
+      publishAgentSelfSelectionFn: result.publishAgentSelfSelection,
       setEffortFn: setEffort,
       effortUpdatesActiveTurn: result.effortUpdatesActiveTurn,
       interruptFn: interrupt,
@@ -2208,6 +2210,7 @@ export class Supervisor {
         return typeof p === "function" ? p() : p;
       },
       setMaxThinkingTokensFn: setMaxThinkingTokens,
+      publishAgentSelfSelectionFn: result.publishAgentSelfSelection,
       setEffortFn: setEffort,
       effortUpdatesActiveTurn: result.effortUpdatesActiveTurn,
       interruptFn: interrupt,
@@ -2462,6 +2465,7 @@ export class Supervisor {
         return typeof p === "function" ? p() : p;
       },
       setMaxThinkingTokensFn: setMaxThinkingTokens,
+      publishAgentSelfSelectionFn: result.publishAgentSelfSelection,
       setEffortFn: setEffort,
       effortUpdatesActiveTurn: result.effortUpdatesActiveTurn,
       interruptFn: interrupt,

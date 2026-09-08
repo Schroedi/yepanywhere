@@ -79,6 +79,7 @@ export interface ProviderSessionReadyMetadata {
   providerActivity: ProviderActivitySnapshot;
   providerRetention: ProviderRetentionSnapshot;
   capabilities: {
+    publishAgentSelfSelection?: boolean;
     probeLiveness: boolean;
     getProviderActivity: boolean;
     getProviderRetention: boolean;
@@ -237,6 +238,7 @@ export class ProviderSessionOwner {
       providerActivity: this.providerActivity,
       providerRetention: this.providerRetention,
       capabilities: {
+        publishAgentSelfSelection: Boolean(session.publishAgentSelfSelection),
         probeLiveness: Boolean(session.probeLiveness),
         getProviderActivity: Boolean(session.getProviderActivity),
         getProviderRetention: Boolean(session.getProviderRetention),
@@ -804,6 +806,10 @@ export class ProviderSessionOwner {
     const session = this.requireSession();
     const args = Array.isArray(rawArgs) ? rawArgs : [];
     switch (method) {
+      case "publishAgentSelfSelection":
+        return await session.publishAgentSelfSelection?.(
+          args[0] as import("../../agent-tools/protocol.js").AgentSelfSelection,
+        );
       case "drainQueue":
         return session.queue.drain();
       case "probeLiveness":

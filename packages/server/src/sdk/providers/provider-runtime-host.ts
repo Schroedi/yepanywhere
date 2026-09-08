@@ -1,3 +1,4 @@
+import { agentSelfEnabled } from "./agent-self.js";
 import { randomUUID } from "node:crypto";
 import { createConnection, type Socket } from "node:net";
 import type {
@@ -41,6 +42,7 @@ interface HostResponse<T> {
 }
 
 interface WorkerCapabilities {
+  publishAgentSelfSelection?: boolean;
   probeLiveness: boolean;
   getProviderActivity: boolean;
   getProviderRetention: boolean;
@@ -448,6 +450,7 @@ function cloneableOptions(
   );
   return {
     ...cloneable,
+    agentSelf: options.agentSelf ?? agentSelfEnabled(),
     staticAgentEnvironment: pickStaticAgentEnvironment(sessionChildEnv),
   };
 }
@@ -1099,6 +1102,12 @@ class HostedAgentSession {
         : {}),
       ...(capabilities.refreshPromptCache
         ? { refreshPromptCache: (arg) => this.rpc("refreshPromptCache", [arg]) }
+        : {}),
+      ...(capabilities.publishAgentSelfSelection
+        ? {
+            publishAgentSelfSelection: (selection) =>
+              this.rpc<void>("publishAgentSelfSelection", [selection]),
+          }
         : {}),
       publishAgentctlSessionId: async (sessionId, browserDebugEnvironment) => {
         // Make the routing decision synchronous with Process learning the YA

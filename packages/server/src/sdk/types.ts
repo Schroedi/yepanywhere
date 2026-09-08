@@ -237,6 +237,9 @@ export interface StartSessionOptions {
 }
 
 export interface StartSessionResult {
+  publishAgentSelfSelection?: (
+    selection: import("../agent-tools/protocol.js").AgentSelfSelection,
+  ) => void | Promise<void>;
   iterator: AsyncIterableIterator<SDKMessage>;
   queue: AgentMessageQueue;
   abort: () => void | Promise<void>;
