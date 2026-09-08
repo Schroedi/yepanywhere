@@ -28,8 +28,10 @@ The release outcome is decided; the first mobile release design remains open.
 - The web client and npm server are available. The
   [Latest remote-client workflow](../../.github/workflows/latest-remote-client.yml)
   already deploys the exact successful CI commit after pushes to `main`.
-- [Desktop CI](../../.github/workflows/desktop-ci.yml) has release packaging
-  and signing machinery, with publication tied to desktop release tags.
+- [Desktop CI](../../.github/workflows/desktop-ci.yml) packages and signs
+  desktop releases. [Nightly Desktop](../../.github/workflows/nightly-desktop.yml)
+  publishes verified `main` changes to Latest; the first signed nightlies and
+  the unchanged-source skip have passed release validation.
 - [Android CI](../../.github/workflows/android-app-ci.yml) tests and builds
   application artifacts but does not publish them to Google Play. Android
   implementation exists; neither native mobile app is publicly published.
@@ -60,8 +62,11 @@ The release outcome is decided; the first mobile release design remains open.
 
 Desktop starts with nightly publication at 02:37 UTC, skipping unchanged
 packaged inputs, plus manual dispatch for recovery and validation. Same-app
-Stable/Latest selection and the signed nightly workflow are being validated;
-installed macOS/Windows upgrade acceptance remains the completion gate.
+Stable/Latest selection and signed nightly publication are available. Windows
+installed-upgrade acceptance passed, including channel persistence and data
+preservation. Installed macOS upgrade acceptance remains blocked by the test
+VM's suspended-state restore failure, pending approval for recovery; see the
+[desktop release QA log](../testing/desktop-release-qa-log.md).
 Continuous per-commit desktop delivery remains a later extension of this
 foundation.
 
