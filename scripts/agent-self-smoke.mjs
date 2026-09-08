@@ -20,9 +20,11 @@ const { MessageQueue } = await import(
 );
 
 function command(env) {
+  const shell = process.platform === "win32" ? process.env.ComSpec : "/bin/sh";
+  assert.ok(shell, "The Windows artifact probe requires ComSpec");
   return new Promise((resolveResult, reject) => {
     const child = spawn(
-      process.platform === "win32" ? "cmd.exe" : "/bin/sh",
+      shell,
       process.platform === "win32"
         ? ["/d", "/s", "/c", "ya-agent self --json"]
         : ["-c", "ya-agent self --json"],
@@ -95,6 +97,17 @@ try {
   console.log(
     `ya-agent self artifact smoke passed (${process.versions.bun ? "private Bun" : "Node"}, ${source ? "source" : "compiled"}).`,
   );
+} catch (error) {
+  // Keep deterministic fixture failures visible in public check annotations
+  // as well as the authenticated Actions log viewer.
+  if (process.env.GITHUB_ACTIONS === "true") {
+    const message = String(error.stack ?? error)
+      .replaceAll("%", "%25")
+      .replaceAll("\r", "%0D")
+      .replaceAll("\n", "%0A");
+    console.error(`::error::${message}`);
+  }
+  throw error;
 } finally {
   await session.abort();
 }
