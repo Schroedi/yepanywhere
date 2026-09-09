@@ -73,6 +73,14 @@ const LEGACY_SEEN_FILE = "speech-seen.hash";
 const DEFAULT_SEEN_BYTES = 256 * 1024 * 1024;
 const MINIMUM_SEEN_BYTES = 1024 * 1024;
 
+/**
+ * Shortest interval between two writes of the table. Learning observes text as
+ * fast as agents produce it, and every observation would otherwise become a
+ * commit; this holds the rate to a few hundred an hour at worst.
+ * `YEP_SPEECH_VOCABULARY_WRITE_SECONDS` moves it.
+ */
+const DEFAULT_WRITE_INTERVAL_MS = 10_000;
+
 export function vocabularyFingerprint(
   sessionKey: string,
   message: VocabularyMessage,
@@ -114,6 +122,8 @@ export interface VocabularyStoreOptions {
   scratchDir?: string;
   /** Overrides the fingerprint filter's size. */
   seenBytes?: number;
+  /** Overrides the shortest interval between two writes of the table. */
+  writeIntervalMs?: number;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -150,6 +160,9 @@ export class VocabularyStore {
     resetAfter: 0,
   };
   private loaded = false;
+  private writeTimer: ReturnType<typeof setTimeout> | undefined;
+  private lastWriteAt = 0;
+  private readonly writeIntervalMs: number;
   private readonly scratch: ScratchSpace;
   private readonly seenBytes: number;
   private seen: BlockedBloom | undefined;
@@ -614,8 +627,29 @@ export class VocabularyStore {
     );
   }
 
+  /**
+   * Mark the table for writing, no sooner than the minimum interval since the
+   * last write. Scans arrive as fast as the catalog republishes, and the table
+   * is regenerable, so paying a commit for each one buys nothing: a crash
+   * costs at most one interval of learning, and a rescan recovers even that.
+   */
   private save(): void {
-    if (this.clean) return;
+    if (this.clean || this.writeTimer) return;
+    const due = this.lastWriteAt + this.writeIntervalMs - Date.now();
+    if (due <= 0) {
+      this.write();
+      return;
+    }
+    this.writeTimer = setTimeout(() => {
+      this.writeTimer = undefined;
+      if (!this.clean) this.write();
+    }, due);
+    // A pending write must never be the reason the process stays alive.
+    this.writeTimer.unref();
+  }
+
+  private write(): void {
+    this.lastWriteAt = Date.now();
     void this.saver.save().catch((error: unknown) => {
       getLogger().warn(
         { component: "speech", err: error },
@@ -661,8 +695,16 @@ export class VocabularyStore {
     }
   }
 
-  /** Wait for the writer to go quiet. Tests and shutdown, never the scan. */
+  /**
+   * Write anything still waiting for its interval, then wait for the writer to
+   * go quiet. Shutdown, reset, and tests; never the scan.
+   */
   async settled(): Promise<void> {
+    if (this.writeTimer) {
+      clearTimeout(this.writeTimer);
+      this.writeTimer = undefined;
+    }
+    if (!this.clean) this.write();
     await this.saver.idle();
   }
 
