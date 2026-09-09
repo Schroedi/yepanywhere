@@ -489,8 +489,28 @@ apostrophes, underscores, dots, and hyphens. Numeric-only tokens and tokens
 longer than 100 characters are excluded. User and assistant counts remain
 separate; no generated contribution is relabeled as user text.
 
-App-data files own the word-count map, the fingerprint hash set, and scan
-checkpoints. Already-seen content hashes skip tokenize; new messages are
+Alongside each count the server records how the word was written, so a term can
+be sent to a recognizer spelled as its writers spell it. Two positions withhold
+that evidence. A capital at the start of a line, a sentence, or anywhere in a
+Markdown heading line is forced by position and says nothing about the first
+letter; quotes, brackets, list markers and emphasis are looked past to find the
+real position. An all-lowercase spelling is discounted rather than trusted,
+because typing everything lowercase is as ordinary as capitalizing a sentence,
+and it leaves every letter open rather than only the first. Interior capitals
+are never forced and always count. At most three spellings are kept per word,
+the newcomer inheriting the weakest slot so a spelling that appears late can
+still overtake. Case evidence is not user-visible: exploration and the stored
+counts stay keyed by the lowercase word.
+
+A word is then sent spelled as its strongest free-position evidence, or as the
+plain lowercase word where the only capitals were forced and carry no interior
+capital. `The` at a hundred sentence starts is still `the`; `YA`, `JSONL` and
+`SQLite` keep their capitals.
+
+App-data files own the word-count map, the observed spellings, the fingerprint
+hash set, and scan checkpoints. Spellings live in their own file, so a server
+without this feature reads the counts unchanged and a server with it treats
+missing spellings as no evidence. Already-seen content hashes skip tokenize; new messages are
 tailed. Scan work yields in small bursts so the Node process stays
 responsive. Distinctive ranking uses
 `(observed - expected) / sqrt(expected + 1)` from this topic, not raw
@@ -574,14 +594,31 @@ Recognition selects up to 100 terms of at most 50 characters, xAI's documented
 limits. All learned terms with positive excess over English are candidates,
 including single occurrences, assistant-only terms, and words absent from the
 reference. The top 1,000 English words are explicitly excluded, even when locally
-overrepresented. The selector uses the in-memory distinctive heaps (global ~500, per-session
+overrepresented.
+
+One exception admits an excluded word: where writing settles on a spelling with
+an interior capital, that spelling is a different term from the English word and
+is counted and offered under itself. `YA`, `HEAD` and `OK` become terms while
+`ya` stays blocked, and a spelling loses this standing as soon as it stops being
+the word's dominant form, so an occasionally shouted `NOT` never qualifies. Such
+a term is charged the rarest listed English frequency rather than treated as
+never seen, and at most a fifth of a selection may be these spellings. Case is
+not meaning-carrying and a spoken acronym is usually transcribed correctly
+anyway; the point is to spell it as the reader expects, not to crowd out jargon
+the recognizer has no prior for. The selector uses the in-memory distinctive heaps (global ~500, per-session
 100) rather than walking every stored word; exploration's 2,000-word view and
 six-occurrence display filter do not constrain recognition.
 
 Usage and rarity supply a first approximation to expected missed uses. Global
 priority uses `(observed - expected) / sqrt(expected + 1)`, with expected count
 computed from all counted user and assistant tokens. Unlisted words use zero
-reference frequency in this heuristic and compete normally. Eligible active-
+reference frequency in this heuristic and compete normally, except where the
+reference splits a token YA keeps joined. The published list carries `'s`, `'t`
+and `'ll` as their own rows, so every contraction and possessive is missing from
+it and would otherwise rank as maximally distinctive — `i'll` and `i'm` were the
+two highest-scoring terms before this. A joined form is never more frequent than
+any of its parts, so the smallest listed part bounds it, which also keeps
+`agentctl's` from competing with `agentctl`. Eligible active-
 session terms receive a fixed fivefold priority multiplier. Ties break
 lexically. The score only selects the list inside YA: Grok receives plain
 repeated `keyterm` values, never numeric scores or weights. Acoustic confusion,

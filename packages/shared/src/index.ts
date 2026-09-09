@@ -1300,13 +1300,23 @@ export * from "./glossary/index.js";
 
 export type { SqliteStatus } from "./sqlite-status.js";
 export type { SpeechVocabularyStatus } from "./speech-vocabulary.js";
+export type {
+  SpeechVocabularyOccurrence,
+  VocabularyCaseForms,
+} from "./speech-vocabulary.js";
 export {
   parseVocabularyBaseline,
   rankVocabulary,
   VOCABULARY_BASELINE_URL,
   speechVocabularyTokens,
+  speechVocabularyOccurrences,
+  observeVocabularyCase,
+  projectVocabularyCase,
+  hasInteriorCapital,
+  vocabularyFrequency,
   commonVocabularyWords,
   vocabularyDistinctiveScore,
+  MAX_VOCABULARY_CASE_FORMS,
   MAX_SPEECH_SESSION_TERMS,
   COMMON_VOCABULARY_LIMIT,
   VOCABULARY_FLUSH_COUNTS,

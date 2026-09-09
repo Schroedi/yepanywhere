@@ -5,7 +5,12 @@ import { join } from "node:path";
 import { setImmediate as yieldToLoop } from "node:timers/promises";
 import {
   commonVocabularyWords,
-  speechVocabularyTokens,
+  hasInteriorCapital,
+  observeVocabularyCase,
+  projectVocabularyCase,
+  speechVocabularyOccurrences,
+  type VocabularyCaseForms,
+  vocabularyFrequency,
   VOCABULARY_FLUSH_COUNTS,
 } from "@yep-anywhere/shared";
 import { DistinctiveTop, distinctiveScore } from "./distinctive-top.js";
@@ -28,7 +33,15 @@ export interface VocabularyMessage {
 
 type Counts = { user: number; assistant: number };
 
+/**
+ * Ceiling on the share of selected terms that are capitalized spellings of
+ * common words. Case is not meaning-carrying, and a spoken acronym is usually
+ * transcribed correctly anyway, so these must not crowd out real jargon.
+ */
+const ESCAPE_SHARE = 0.2;
+
 const WORDS_FILE = "speech-words.json";
+const CASE_FILE = "speech-word-case.json";
 const SEEN_FILE = "speech-seen.hash";
 const STATE_FILE = "speech-vocabulary-state.json";
 
@@ -46,18 +59,6 @@ export function vocabularyFingerprint(
       ]),
     )
     .digest();
-}
-
-function countWords(
-  text: string,
-  ignored: ReadonlySet<string>,
-): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const word of speechVocabularyTokens(text)) {
-    if (ignored.has(word)) continue;
-    counts.set(word, (counts.get(word) ?? 0) + 1);
-  }
-  return counts;
 }
 
 function addDelta(
@@ -85,7 +86,10 @@ export class VocabularyStore {
   private wordsRevision = 0;
   private ignored: ReadonlySet<string> = new Set();
   private baseline: ReadonlyMap<string, number> | undefined;
+  private baselineFloor: number | undefined;
   private readonly wordCounts = new Map<string, Counts>();
+  /** Only words written with a capital somewhere; the rest project to the key. */
+  private readonly caseForms = new Map<string, VocabularyCaseForms>();
   private readonly top = new DistinctiveTop(500);
   private readonly sessionTops = new Map<string, DistinctiveTop>();
   private readonly pendingWords = new Map<string, Counts>();
@@ -156,10 +160,25 @@ export class VocabularyStore {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
+    try {
+      const raw = JSON.parse(readFileSync(this.casePath, "utf8")) as Record<
+        string,
+        VocabularyCaseForms
+      >;
+      for (const [word, forms] of Object.entries(raw))
+        if (forms && typeof forms === "object" && !Array.isArray(forms))
+          this.caseForms.set(word, forms);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
   }
 
   private get wordsPath(): string {
     return join(this.dataDir, WORDS_FILE);
+  }
+
+  private get casePath(): string {
+    return join(this.dataDir, CASE_FILE);
   }
 
   private get seenPath(): string {
@@ -177,6 +196,10 @@ export class VocabularyStore {
   setReference(baseline: ReadonlyMap<string, number>): void {
     this.baseline = baseline;
     this.ignored = commonVocabularyWords(baseline);
+    let floor = Number.POSITIVE_INFINITY;
+    for (const frequency of baseline.values())
+      if (frequency < floor) floor = frequency;
+    this.baselineFloor = Number.isFinite(floor) ? floor : undefined;
     this.rebuildTop();
   }
 
@@ -195,11 +218,20 @@ export class VocabularyStore {
     return this.userTotal + this.assistantTotal;
   }
 
+  private frequency(word: string): number | undefined {
+    if (!this.baseline) return undefined;
+    // A capitalized spelling of a common word is its own term, but treating it
+    // as never-seen English would let every shouted word outrank real jargon.
+    // Charge it the rarest listed frequency instead of nothing.
+    if (word !== word.toLowerCase()) return this.baselineFloor;
+    return vocabularyFrequency(this.baseline, word);
+  }
+
   private rebuildTop(): void {
     this.top.rebuild(
       this.mergedWords(),
       this.tokenTotal(),
-      (word) => this.baseline?.get(word),
+      (word) => this.frequency(word),
       this.ignored,
     );
   }
@@ -227,7 +259,7 @@ export class VocabularyStore {
     const score = distinctiveScore(
       counts.user + counts.assistant,
       this.tokenTotal(),
-      this.baseline?.get(word),
+      this.frequency(word),
     );
     this.top.consider(word, score);
     return score;
@@ -319,7 +351,18 @@ export class VocabularyStore {
     if (!this.accepts(generation)) return 0;
     const fingerprint = vocabularyFingerprint(sessionKey, message);
     if (!this.seen.add(fingerprint)) return 0;
-    const counts = countWords(message.text, this.ignored);
+    const counts = new Map<string, number>();
+    for (const { word, surface, forced } of speechVocabularyOccurrences(
+      message.text,
+    )) {
+      this.recordCase(word, surface, forced);
+      // A common English word written with an interior capital is a different
+      // term — YA, HEAD, OK — and earns its own key past the common-word block.
+      let key: string | undefined = word;
+      if (this.ignored.has(word))
+        key = hasInteriorCapital(surface) ? surface : undefined;
+      if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
     let added = 0;
     for (const [word, n] of counts) {
       added += n;
@@ -331,6 +374,23 @@ export class VocabularyStore {
     }
     this.pendingTokens += added;
     return added;
+  }
+
+  private recordCase(word: string, surface: string, forced: boolean): void {
+    const forms = this.caseForms.get(word);
+    if (forms) {
+      observeVocabularyCase(forms, surface, forced);
+      return;
+    }
+    if (surface === word) return;
+    // First capital for a word already counted in lowercase: credit the earlier
+    // occurrences to the lowercase spelling rather than let one capital win.
+    const seeded: VocabularyCaseForms = {};
+    const counts = this.countsOf(word);
+    const lowercase = counts.user + counts.assistant;
+    if (lowercase > 0) seeded[word] = [lowercase, 0];
+    observeVocabularyCase(seeded, surface, forced);
+    this.caseForms.set(word, seeded);
   }
 
   checkpoint(sessionKey: string, version: string, cutoff: number): void {
@@ -368,6 +428,13 @@ export class VocabularyStore {
     await yieldToLoop();
     await writeFile(this.wordsPath, JSON.stringify(payload));
     await yieldToLoop();
+    if (this.caseForms.size > 0) {
+      await writeFile(
+        this.casePath,
+        JSON.stringify(Object.fromEntries(this.caseForms)),
+      );
+      await yieldToLoop();
+    }
     await this.seen.persist(this.seenPath);
     this.rebuildTop();
     this.wordsRevision++;
@@ -377,6 +444,7 @@ export class VocabularyStore {
   async reset(): Promise<void> {
     this.discardPending();
     this.wordCounts.clear();
+    this.caseForms.clear();
     this.top.clear();
     this.sessionTops.clear();
     this.userTotal = 0;
@@ -386,11 +454,24 @@ export class VocabularyStore {
     this.state.resetAfter = Date.now();
     this.state.sessions = {};
     await this.seen.clear(this.seenPath);
-    await unlink(this.wordsPath).catch((error: NodeJS.ErrnoException) => {
-      if (error.code !== "ENOENT") throw error;
-    });
+    for (const path of [this.wordsPath, this.casePath])
+      await unlink(path).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== "ENOENT") throw error;
+      });
     await writeFile(this.statePath, JSON.stringify(this.state));
     this.wordsRevision++;
+  }
+
+  /**
+   * A capitalized spelling of a common English word stands only while writing
+   * still prefers it: "YA" survives, an occasional shouted "NOT" does not.
+   */
+  private spelled(word: string): boolean {
+    const key = word.toLowerCase();
+    return (
+      key === word ||
+      projectVocabularyCase(key, this.caseForms.get(key)) === word
+    );
   }
 
   private sessionTop(sessionKey: string): DistinctiveTop {
@@ -420,13 +501,28 @@ export class VocabularyStore {
       const counts = this.countsOf(term);
       const count = counts.user + counts.assistant;
       if (count <= 0) continue;
-      ranked.set(term, distinctiveScore(count, total, baseline.get(term)) * 5);
+      ranked.set(
+        term,
+        distinctiveScore(count, total, vocabularyFrequency(baseline, term)) * 5,
+      );
     }
-    return [...ranked]
-      .filter(([word]) => word.length <= maxLength && !this.ignored.has(word))
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, limit)
-      .map(([word]) => word);
+    const candidates = [...ranked]
+      .filter(
+        ([word, score]) =>
+          score > 0 &&
+          word.length <= maxLength &&
+          !this.ignored.has(word) &&
+          this.spelled(word),
+      )
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const selected: string[] = [];
+    let escapes = Math.ceil(limit * ESCAPE_SHARE);
+    for (const [word] of candidates) {
+      if (selected.length >= limit) break;
+      if (word !== word.toLowerCase() && escapes-- <= 0) continue;
+      selected.push(projectVocabularyCase(word, this.caseForms.get(word)));
+    }
+    return selected;
   }
 
   close(): void {}

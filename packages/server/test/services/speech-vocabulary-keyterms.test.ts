@@ -1,6 +1,7 @@
 import { mkdtempSync, readdirSync, rmSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { speechVocabularyTokens } from "@yep-anywhere/shared";
 import { afterEach, expect, it, vi } from "vitest";
 import { VocabularyStore } from "../../src/services/voice/VocabularyStore.js";
 import { VocabularyKeyterms } from "../../src/services/voice/VocabularyKeyterms.js";
@@ -55,6 +56,44 @@ it("considers the full corpus, admits singletons and short terms, and fills only
   expect(selected).toHaveLength(100);
   expect(selected[0]).toBe("x");
   expect(selected).not.toContain("z".repeat(51));
+});
+
+it("sends learned spelling, drops contractions, and rations capitalized common words", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ya-vocabulary-case-"));
+  const store = new VocabularyStore(dir);
+  cleanup.push(async () => rmSync(dir, { recursive: true }));
+  store.configure({ enabled: true, biasing: true, hours: 24 });
+  const text = [
+    "We use TypeScript here, and TypeScript stays.",
+    "Sometimes i'll type it lazily and I'll fix that later.",
+    "The YA server, YA client, YA relay, YA queue and YA scan share it.",
+    "Detached HEAD, another HEAD, one more HEAD.",
+    "Fine, OK, and OK again.",
+  ].join("\n");
+  const listed = new Set(speechVocabularyTokens(text));
+  listed.delete("typescript");
+  listed.delete("i'll");
+  const baseline = new Map<string, number>(
+    [...listed].map((word) => [word, 0.01]),
+  );
+  // The reference splits contractions into a stem and a clitic row.
+  baseline.set("i", 0.09);
+  baseline.set("'ll", 0.01);
+  baseline.set("rarest", 0.0000001);
+  store.setReference(baseline);
+  // Enough counted text that a common word's expected count is meaningful.
+  store.addWordCounts("filler", 100_000, 0);
+  store.observe("session", { source: "user", timestamp: 1, text }, 0);
+
+  const selected = store.keyterms(baseline, 10);
+  expect(selected).toContain("TypeScript");
+  expect(selected).not.toContain("typescript");
+  expect(selected.filter((term) => term.toLowerCase() === "i'll")).toEqual([]);
+  // Two of the three capitalized common words fit the 20% ration of ten slots.
+  expect(selected).toContain("YA");
+  expect(selected).toContain("HEAD");
+  expect(selected).not.toContain("OK");
+  expect(selected).not.toContain("ya");
 });
 
 it("does no disabled work, coalesces first use, reuses disk after reboot, and evicts its map", async () => {
