@@ -38,6 +38,7 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
     define: { __VITE_DEV_PORT__: "-1" },
     server: {
       port: 0,
+      strictPort: false,
       host: "127.0.0.1",
       proxy: { "/api": { target: backend.baseUrl, ws: true } },
     },
@@ -299,22 +300,28 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
         name: `Reply to: ${questions[1]!.title}`,
       });
       await expect(freeform).toBeFocused();
+      const sendsBeforeReply = sends.length;
+      await freeform.press("Enter");
+      await expect(freeform).toHaveValue("");
       await freeform.fill("Include exact test results.");
+      await freeform.press("Shift+Enter");
+      await expect(freeform).toHaveValue("Include exact test results.\n");
+      await freeform.dispatchEvent("keydown", {
+        key: "Enter",
+        isComposing: true,
+      });
+      expect(sends).toHaveLength(sendsBeforeReply);
       fail = true;
-      await page
-        .getByRole("button", { name: "Send reply", exact: true })
-        .click();
+      await freeform.press("Enter");
       await expect(
         page.getByRole("alert").filter({ hasText: "Reply could not be sent" }),
       ).toBeVisible();
-      await expect(freeform).toHaveValue("Include exact test results.");
+      await expect(freeform).toHaveValue("Include exact test results.\n");
       await expect(composer).toHaveValue("Keep my main draft");
       fail = false;
       busy = false;
       emit?.("status", { sessionId, state: "idle" });
-      await page
-        .getByRole("button", { name: "Send reply", exact: true })
-        .click();
+      await freeform.press("Enter");
       await expect(composer).toBeFocused();
       await expect
         .poll(() =>
@@ -334,7 +341,7 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
         .toBeLessThan(3);
       await expect(composer).toHaveValue("Keep my main draft");
       expect(sends.at(-1)).toMatchObject({
-        message: `> ${questions[1]!.title}\n\nInclude exact test results.`,
+        message: `> ${questions[1]!.title}\n\nInclude exact test results.\n`,
         messageMetadata: { deliveryIntent: "direct" },
       });
       await toolbar.getByRole("button", { name: /^1 question/ }).click();
@@ -517,6 +524,10 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
     await expect(composer).toHaveValue(/My newer focus belongs here/);
     await expect(composer).toHaveValue(/> A new question\?/);
     await expect(question).toBeInViewport();
+    await expect(question).toContainText("Reply moved to main composer");
+    await expect(
+      question.getByRole("button", { name: "Write a reply" }),
+    ).toHaveCount(0);
 
     const now = new Date().toISOString();
     const peerId = "unopened-question-session";

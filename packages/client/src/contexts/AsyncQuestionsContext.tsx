@@ -11,6 +11,7 @@ import {
 import {
   type AsyncQuestionRecord,
   emptyQuestionRecord as emptyRecord,
+  isQuestionAnswered,
   updateQuestionRecord,
   useQuestionRecords,
 } from "../lib/asyncQuestionRecords";
@@ -149,7 +150,7 @@ export function AsyncQuestionsProvider({
       const next = { ...recordsRef.current };
       for (const question of questionsRef.current) {
         const record = next[question.id] ?? emptyRecord;
-        if (record.dismissed || record.answer !== null) continue;
+        if (record.dismissed || isQuestionAnswered(record)) continue;
         const edits = Math.min(2400, record.edits + 1);
         if (edits === record.edits) continue;
         dirtyEditIds.current.add(question.id);
@@ -286,8 +287,9 @@ export function AsyncQuestionsProvider({
       setReturnAnchorId(null);
       returnPosition.current = null;
       callbacks.current.quote(`${quoteMarkdown(question.title)}\n\n`);
+      update(question.id, { quoted: true, seen: true });
     },
-    [open],
+    [open, update],
   );
 
   const retainedRenderIds = useMemo(() => {

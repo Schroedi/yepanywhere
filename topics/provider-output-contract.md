@@ -188,6 +188,11 @@ the question, opens a separate inline free-form composer, and focuses it once.
 Focus remains free to leave. Stream updates and transcript virtualization
 preserve the inline draft and the main composer's independent draft.
 
+In the inline reply composer, Enter sends the reply and Shift+Enter inserts a
+newline. Enter during text composition does not send. Empty replies, repeated
+held-Enter events, and submission while a reply is already sending do not send
+another reply.
+
 Choice and inline free-form replies send the complete question as a Markdown
 blockquote followed by the exact answer, using steering during an active turn
 and ordinary input after it ends. Source message id plus question index identify
@@ -196,8 +201,10 @@ establishes answer identity. Successful submission shows **Reply sent**, which
 does not assert provider consumption. Failure retains the draft and pending
 state. **Quote reply in main composer** is a secondary action: reveal the
 question, insert its full quote through the existing composer insertion/undo
-path, preserve existing text, and focus the main composer. This editable quote
-does not itself mark a question sent or attempt to classify later manual text.
+path, preserve existing text, and focus the main composer. Moving the reply to
+the main composer immediately marks the question answered locally and clears
+its reminders, including cross-session counts. The transcript says the reply
+was moved to the main composer; it does not claim delivery to the provider.
 Return uses a back-arrow icon and Quote uses a circled right chevron, with
 accessible action labels and tooltips.
 

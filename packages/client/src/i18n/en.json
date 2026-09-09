@@ -83,6 +83,7 @@
   "asyncQuestionShowDismissed": "Show dismissed",
   "asyncQuestionClickToSend": "Choose an option to send it as your reply.",
   "asyncQuestionReplySent": "Reply sent: {answer}",
+  "asyncQuestionReplyQuoted": "Reply moved to main composer",
   "asyncQuestionReply": "Write a reply",
   "asyncQuestionReplyTo": "Reply to: {question}",
   "asyncQuestionReplyPlaceholder": "Write your own answer…",

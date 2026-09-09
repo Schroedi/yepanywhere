@@ -11,6 +11,7 @@ import {
 import { createPortal } from "react-dom";
 import type { ComposerOverflowTier } from "../hooks/useMessageInputToolbarLayout";
 import { useAsyncQuestions } from "../contexts/AsyncQuestionsContext";
+import { isQuestionAnswered } from "../lib/asyncQuestionRecords";
 import { useI18n } from "../i18n";
 import {
   getQuestionReminderStage,
@@ -181,7 +182,7 @@ export function AsyncQuestionsButton({
   });
   const pending =
     state?.questions.filter(
-      (question) => state.records[question.id]?.answer == null,
+      (question) => !isQuestionAnswered(state.records[question.id]),
     ) ?? [];
   const visible = pending.filter(
     (question) => showDismissed || !state?.records[question.id]?.dismissed,
@@ -441,7 +442,7 @@ function InlineQuestion({ question }: { question: AsyncQuestion }) {
   const record = state.records[question.id];
   const active = state.activeId === question.id;
   const busy = state.submittingId === question.id;
-  const answered = record?.answer != null;
+  const answered = isQuestionAnswered(record);
   const update = state.update;
   const titleHtml = useMemo(
     () => renderFixedFontRichContent(question.title, { diffAware: false }).html,
@@ -504,7 +505,9 @@ function InlineQuestion({ question }: { question: AsyncQuestion }) {
       )}
       {answered ? (
         <p className={styles.sent}>
-          {t("asyncQuestionReplySent", { answer: record.answer! })}
+          {record?.quoted
+            ? t("asyncQuestionReplyQuoted")
+            : t("asyncQuestionReplySent", { answer: record!.answer! })}
         </p>
       ) : (
         <>
@@ -522,6 +525,7 @@ function InlineQuestion({ question }: { question: AsyncQuestion }) {
               className={styles.replyForm}
               onSubmit={(event) => {
                 event.preventDefault();
+                if (busy || !record?.draft.trim()) return;
                 void send(record?.draft ?? "");
               }}
             >
@@ -533,6 +537,17 @@ function InlineQuestion({ question }: { question: AsyncQuestion }) {
                 })}
                 placeholder={t("asyncQuestionReplyPlaceholder")}
                 readOnly={busy}
+                onKeyDown={(event) => {
+                  if (
+                    event.key !== "Enter" ||
+                    event.shiftKey ||
+                    event.nativeEvent.isComposing ||
+                    event.keyCode === 229
+                  )
+                    return;
+                  event.preventDefault();
+                  if (!event.repeat) event.currentTarget.form?.requestSubmit();
+                }}
                 onChange={(event) =>
                   update(question.id, { draft: event.target.value })
                 }

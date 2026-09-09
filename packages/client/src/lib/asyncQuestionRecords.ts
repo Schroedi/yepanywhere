@@ -6,6 +6,7 @@ const recordSchema = z.object({
   dismissed: z.boolean(),
   seen: z.boolean(),
   answer: z.string().nullable(),
+  quoted: z.boolean().optional(),
   edits: z.number().nonnegative(),
 });
 export type AsyncQuestionRecord = z.infer<typeof recordSchema>;
@@ -17,6 +18,9 @@ export const emptyQuestionRecord: AsyncQuestionRecord = {
   edits: 0,
 };
 type Records = Record<string, AsyncQuestionRecord>;
+export function isQuestionAnswered(record: AsyncQuestionRecord | undefined) {
+  return record?.answer != null || record?.quoted === true;
+}
 const stores = new Map<
   string,
   { records: Records; listeners: Set<() => void> }
@@ -132,6 +136,7 @@ export function updateQuestionRecord(
   const records = { ...value.records, [id]: next };
   const reminders =
     previous.answer !== next.answer ||
+    previous.quoted !== next.quoted ||
     previous.dismissed !== next.dismissed ||
     previous.seen !== next.seen ||
     previous.edits !== next.edits;
