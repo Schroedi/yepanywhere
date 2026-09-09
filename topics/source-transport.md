@@ -405,6 +405,33 @@ Session, focused-watch, activity, glossary, and worktree streams use one
 Raw `subscribe*` primitives on the transport stay dumb and return a plain
 `Subscription`, so fakes remain trivial.
 
+Every managed-stream state change publishes a snapshot to subscribers, so a
+consumer that mirrors stream state into React should derive it in the
+`subscribe` callback alone. Reading the snapshot from inside a `spec` handler
+observes the pre-transition value: `onError` and `onClose` run before the
+retry or terminal snapshot is set.
+
+`isManagedStreamResubscribing(snapshot)` distinguishes a transient gap —
+waiting on the transport, subscribing, or backing off before a retry — from a
+pipe that will stay down. A terminal or closed stream is not resubscribing.
+`restart()` is a no-op for those two states, so a reconnect request must derive
+its state from the published snapshot rather than assuming a subscription is on
+the way back.
+
+## Session Connection Bar
+
+The per-session bar (`getSessionConnectionBarStatus`) is narrower than the
+global diagnostic bar above. A session with no live update stream is `idle`.
+Otherwise `disconnected` is always visible, because a broken live pipe is
+something the user must see; `connected` and `connecting` render only under
+developer connection bars.
+
+A stream that is resubscribing, or a transport that is reconnecting, is
+`connecting` — not `disconnected`. Without that distinction a routine
+resubscribe paints a red bar, most visibly on the frontend-changed resubscribe
+that `useResubscribeOnFrontendSourceChange` triggers while the main transport
+is still ready.
+
 ## Design decisions
 
 - **Use a subscription-local heartbeat deadline** (vs. relying only on shared

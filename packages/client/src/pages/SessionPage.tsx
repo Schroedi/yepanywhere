@@ -177,6 +177,7 @@ import {
 } from "../lib/liveThinkingConfig";
 import { getPersistentEditApprovalResponse } from "../lib/permissionModes";
 import { buildConversationHandoffPrefill } from "../lib/sessionDetail/conversationHandoff";
+import { getSessionConnectionBarStatus } from "../lib/sessionConnectionBar";
 import { getCachedWebTranscriptProjection } from "../lib/webTranscriptProjection";
 import { createPendingElsewhereDismissKey } from "../lib/sessionUiStorageKeys";
 import { parseCodexConfigAck } from "../lib/sessionCodexConfigAck";
@@ -636,6 +637,7 @@ function SessionPageContent({
     sessionLoadProgress,
     error,
     sessionUpdatesConnected,
+    sessionUpdatesResubscribing,
     lastStreamActivityAt,
     setStatus,
     setProcessState,
@@ -763,18 +765,13 @@ function SessionPageContent({
   // developer mode for connected/idle states; a disconnected state is
   // always shown so users can see when the live pipe is broken (e.g. dropped
   // SSH tunnel, relay issue, etc.).
-  const rawSessionConnectionStatus = !hasSessionUpdateStream
-    ? "idle"
-    : sessionUpdatesConnected
-      ? "connected"
-      : connectionState === "reconnecting"
-        ? "connecting"
-        : "disconnected";
-
-  const sessionConnectionStatus =
-    showConnectionBars || rawSessionConnectionStatus === "disconnected"
-      ? rawSessionConnectionStatus
-      : "idle";
+  const sessionConnectionStatus = getSessionConnectionBarStatus({
+    hasSessionUpdateStream,
+    sessionUpdatesConnected,
+    sessionUpdatesResubscribing,
+    showConnectionBars,
+    transportReconnecting: connectionState === "reconnecting",
+  });
 
   // Effective provider/model for immediate display before session data loads
   const effectiveProvider = session?.provider ?? initialProvider;

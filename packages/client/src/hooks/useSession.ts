@@ -1828,7 +1828,10 @@ export function useSession(
     [recordSessionFileChangeFact, status.owner, throttledFetch],
   );
 
-  const { connected: sessionWatchConnected } = useSessionWatchStream(
+  const {
+    connected: sessionWatchConnected,
+    resubscribing: sessionWatchResubscribing,
+  } = useSessionWatchStream(
     !backgroundEffectsPaused && status.owner !== "self"
       ? {
           sessionId,
@@ -2568,7 +2571,11 @@ export function useSession(
 
   // Only connect to session stream when we own the session
   // External sessions are tracked via the activity stream instead
-  const { connected, reconnect: reconnectStream } = useSessionStream(
+  const {
+    connected,
+    reconnect: reconnectStream,
+    resubscribing: sessionStreamResubscribing,
+  } = useSessionStream(
     !backgroundEffectsPaused && status.owner === "self" ? sessionId : null,
     { onMessage: handleStreamMessage, onError: handleStreamError },
   );
@@ -2578,6 +2585,12 @@ export function useSession(
       ? connected
       : status.owner === "external"
         ? sessionWatchConnected
+        : false;
+  const sessionUpdatesResubscribing =
+    status.owner === "self"
+      ? sessionStreamResubscribing
+      : status.owner === "external"
+        ? sessionWatchResubscribing
         : false;
 
   // Restore the user's last per-session model pick when reopening a session
@@ -2634,6 +2647,7 @@ export function useSession(
     connected,
     sessionWatchConnected,
     sessionUpdatesConnected,
+    sessionUpdatesResubscribing,
     lastStreamActivityAt, // Last stream message timestamp for engagement tracking
     setStatus: setObservedStatus,
     setProcessState: setObservedProcessState,
