@@ -137,13 +137,36 @@ replay share one normalizer.
 | backend web search, `web_fetch` | `WebSearch`, `WebFetch` | Existing web result schemas |
 | `ask_user_question`, `exit_plan_mode` | `AskUserQuestion`, `ExitPlanMode` | Existing interaction/plan schemas |
 | `spawn_subagent` | `spawn_agent` | Existing spawn schema plus native diagnostic text |
-| `list_dir`, background output/kill, enter-plan | Native Grok name | Generic activity row |
+| `list_dir`, enter-plan | Native Grok name | Generic activity row |
+| `get_command_or_subagent_output` | Native Grok name | Canonical polled-task shape (see below) |
+| `kill_command_or_subagent` | Native Grok name | Kill outcome carrying both `task_id` and `shell_id` |
 | `image_gen`, `image_edit` | `ImageGen`, `ImageEdit` | Generic row plus hidden local-path media candidate |
 | `image_to_video`, `reference_to_video`, `video_gen` | `ImageToVideo` / `VideoGen` | Generic row plus `video/mp4` media candidate |
 
 Unknown future kinds keep their native name, canonical metadata, raw
 input, generic row, and terminal output. Image and video capture grants
 only the realpath-resolved session `images/` or `videos/` root.
+
+### Background command completion
+
+A `run_terminal_command` that exceeds its timeout keeps running as a task,
+and its row stays present-tense until the transcript shows the task ended.
+Grok reports that through its own poll and kill tools rather than the
+Claude-shaped `TaskOutput` and `KillShell`, so both the tool names and the
+result shape have to be understood for the row to settle.
+
+Grok returns `Result` for a single polled task and `MultiResult` for a wait
+covering several. The normalizer projects both onto one shape: `tasks` holds
+every polled task with a `task_id`, `status`, `output`, and `exitCode`, and
+`task` repeats the first for consumers that expect one. `retrieval_status`
+is `running` while any polled task is still going. A poll that reports
+several tasks ends every one of them, so a `wait_all` over parallel
+commands settles all their rows rather than only the first. `completed`,
+`failed`, and `cancelled` all count as ended; a not-found task does not,
+since that answer does not establish what happened to the command.
+
+The kill result carries `shell_id` alongside Grok's `task_id` so the kill
+row names its target the same way the launch row does.
 
 ## ACP extension requests
 

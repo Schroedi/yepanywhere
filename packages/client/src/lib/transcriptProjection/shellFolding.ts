@@ -151,6 +151,31 @@ function getRecordField(value: unknown, field: string): unknown {
   return isRecord(value) ? value[field] : undefined;
 }
 
+/** Polls that report a launched task's outcome, across provider spellings. */
+function isTaskPollToolName(toolName: string): boolean {
+  return (
+    toolName === "taskoutput" ||
+    toolName === "task_output" ||
+    toolName === "get_command_or_subagent_output"
+  );
+}
+
+/** Calls that terminate a launched task, across provider spellings. */
+function isKillToolName(toolName: string): boolean {
+  return (
+    toolName === "killshell" ||
+    toolName === "kill_shell" ||
+    toolName === "kill_command_or_subagent"
+  );
+}
+
+/** A polled task in any of these states has stopped running. */
+function isTaskEndedStatus(status: unknown): boolean {
+  return (
+    status === "completed" || status === "failed" || status === "cancelled"
+  );
+}
+
 function toolResultContent(item: ToolCallItem): string {
   const raw = item.toolResult?.content;
   return typeof raw === "string" ? raw : "";
@@ -195,21 +220,28 @@ export function annotateBackgroundCommands(items: RenderItem[]): RenderItem[] {
       if (id && (exited || status === "completed" || status === "failed")) {
         addEnded(id);
       }
-    } else if (toolName === "taskoutput" || toolName === "task_output") {
-      const task = getRecordField(structured, "task");
-      const status = getRecordField(task, "status");
-      if (status === "completed" || status === "failed") {
+    } else if (isTaskPollToolName(toolName)) {
+      // One poll can cover several tasks (Grok waits on a whole set), so end
+      // every task the result reports, not just the first.
+      const tasks = getRecordField(structured, "tasks");
+      const reported = Array.isArray(tasks)
+        ? tasks
+        : [getRecordField(structured, "task")];
+      for (const task of reported) {
+        if (!isTaskEndedStatus(getRecordField(task, "status"))) continue;
         addEnded(
           coerceSessionId(
             getRecordField(task, "task_id") ?? getRecordField(input, "task_id"),
           ),
         );
       }
-    } else if (toolName === "killshell" || toolName === "kill_shell") {
+    } else if (isKillToolName(toolName)) {
       addEnded(
         coerceSessionId(
           getRecordField(structured, "shell_id") ??
-            getRecordField(input, "shell_id"),
+            getRecordField(structured, "task_id") ??
+            getRecordField(input, "shell_id") ??
+            getRecordField(input, "task_id"),
         ),
       );
     } else if (
