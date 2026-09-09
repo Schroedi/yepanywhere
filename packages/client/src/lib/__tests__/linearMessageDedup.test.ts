@@ -1006,4 +1006,70 @@ describe("reconcileSelfSendUserEchoes", () => {
       reconcileSelfSendUserEchoes([providerCopy, row, laterResend]),
     ).toHaveLength(3);
   });
+
+  it("confirms two Grok interjects one-to-one against split durable rows", () => {
+    const first = echo({
+      uuid: "ya-queue-1",
+      tempId: "temp-1",
+      timestamp: "2026-09-09T07:00:00.400Z",
+      message: { role: "user", content: "first steer" },
+    });
+    const second = echo({
+      uuid: "ya-queue-2",
+      tempId: "temp-2",
+      timestamp: "2026-09-09T07:00:01.200Z",
+      message: { role: "user", content: "second steer" },
+    });
+    const row1 = durableRow({
+      uuid: "grok-evt-session-2",
+      timestamp: "2026-09-09T07:00:04.000Z",
+      message: { role: "user", content: "first steer" },
+    });
+    const row2 = durableRow({
+      uuid: "grok-evt-session-2#1",
+      timestamp: "2026-09-09T07:00:04.000Z",
+      message: { role: "user", content: "second steer" },
+    });
+
+    const result = reconcileSelfSendUserEchoes([first, second, row1, row2]);
+    expect(result).toHaveLength(2);
+    expect(result[0]?.tempId).toBe("temp-1");
+    expect(result[0]?.uuid).toBe("grok-evt-session-2");
+    expect(result[0]?._source).toBe("jsonl");
+    expect(result[1]?.tempId).toBe("temp-2");
+    expect(result[1]?.uuid).toBe("grok-evt-session-2#1");
+    expect(result[1]?._source).toBe("jsonl");
+  });
+
+  it("does not confirm either echo against a concatenated envelope remainder", () => {
+    const first = echo({
+      uuid: "ya-queue-1",
+      tempId: "temp-1",
+      timestamp: "2026-09-09T07:00:00.400Z",
+      message: { role: "user", content: "first steer" },
+    });
+    const second = echo({
+      uuid: "ya-queue-2",
+      tempId: "temp-2",
+      timestamp: "2026-09-09T07:00:01.200Z",
+      message: { role: "user", content: "second steer" },
+    });
+    const joined = durableRow({
+      uuid: "grok-evt-session-2",
+      timestamp: "2026-09-09T07:00:04.000Z",
+      message: {
+        role: "user",
+        content:
+          "first steer\n</user_query>\nMake sure to complete any unfinished tasks from previous turns.\nThe user sent a message while you were working:\n<user_query>\nsecond steer",
+      },
+    });
+
+    const result = reconcileSelfSendUserEchoes([first, second, joined]);
+    expect(result).toHaveLength(3);
+    expect(result.map((message) => message.tempId)).toEqual([
+      "temp-1",
+      "temp-2",
+      undefined,
+    ]);
+  });
 });

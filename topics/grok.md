@@ -71,7 +71,11 @@ before returning to the user) as a synthetic user item whose durable
 `user_message_chunk` is wrapped in Grok's "while you were working" /
 `<user_query>` envelope. YA already echoed the raw steer; replay strips
 that outer envelope and keeps any `<user_query>` the user themselves
-quoted. YA Queue remains the end-of-turn path. Grok TUI
+quoted. Two in-flight interjects may land as consecutive
+`user_message_chunk` updates or as one chunk with concatenated envelopes
+(sometimes missing the first opening or last closing). Replay emits one
+user row per inner text so each send can confirm its optimistic echo.
+YA Queue remains the end-of-turn path. Grok TUI
 `follow_up_behavior = steer` is CLI-local; YA does not read it.
 
 **Video output.** Grok writes MP4s under the session `videos/` directory.

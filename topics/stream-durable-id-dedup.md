@@ -392,7 +392,13 @@ identity itself and exposes no client-id hook on `session/prompt` or
 and Codex use for delivered turns, accepting any unconfirmed self-send echo
 rather than steers only — Grok direct sends diverge just as interjects do. The
 echo is always stamped before Grok writes its row and Grok's record timestamp
-has whole-second granularity, so the future-skew bound is 2s.
+has whole-second granularity, so the future-skew bound is 2s. Replay must
+emit one unwrapped inner text per send: concatenating two interject
+envelopes into one row leaves leftover `</user_query>` boilerplate that
+matches neither echo, so both stay unconfirmed. Live assistant double-echo
+that clears on reload is a separate gap
+(`gaps/grok-live-assistant-double-echo.md`); do not treat an unconfirmed
+joined user row as proof that it is the same defect.
 
 This one gap was self-amplifying: a Grok user echo could never be confirmed, so
 `useSession.handleFileChange` treated the session as permanently holding an

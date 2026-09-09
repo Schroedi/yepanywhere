@@ -30,7 +30,7 @@ import type {
   UrlProjectId,
 } from "@yep-anywhere/shared";
 import { attachToolResultMediaCandidates } from "../media/inlineImageData.js";
-import { unwrapGrokInterjectText } from "../sdk/providers/grok-interject-text.js";
+import { splitGrokUserMessageTexts } from "../sdk/providers/grok-interject-text.js";
 import { grokEventUuid } from "../sdk/providers/grok-message-identity.js";
 import {
   type NormalizedGrokToolState,
@@ -69,7 +69,7 @@ type GrokToolState = NormalizedGrokToolState & {
 type GrokTextBuffer = {
   content: string;
   kind: "text" | "thinking";
-  role: "assistant" | "user";
+  role: "assistant";
   timestamp?: string;
   /** Event-id identity of the run's first chunk; see grok-message-identity. */
   uuid?: string;
@@ -387,17 +387,14 @@ export class GrokSessionReader implements ISessionReader {
       const timestamp = this.timestampFromRecord(record);
       const eventUuid = grokEventUuid(params?._meta);
       if (updateType === "user_message_chunk") {
+        // Each user_message_chunk is a complete user item, not a streamed
+        // token run. Buffering consecutive ones concatenates distinct sends
+        // (and their interject envelopes) into one row that cannot confirm
+        // either optimistic echo.
+        flushText();
         const text = this.textFromUpdate(update);
         if (!text) continue;
-        textBuffer = this.appendTextChunk(
-          messages,
-          textBuffer,
-          "user",
-          "text",
-          text,
-          timestamp,
-          eventUuid,
-        );
+        this.appendUserTurns(messages, text, timestamp, eventUuid);
         continue;
       }
 
@@ -407,7 +404,6 @@ export class GrokSessionReader implements ISessionReader {
         textBuffer = this.appendTextChunk(
           messages,
           textBuffer,
-          "assistant",
           "text",
           text,
           timestamp,
@@ -422,7 +418,6 @@ export class GrokSessionReader implements ISessionReader {
         textBuffer = this.appendTextChunk(
           messages,
           textBuffer,
-          "assistant",
           "thinking",
           text,
           timestamp,
@@ -496,23 +491,49 @@ export class GrokSessionReader implements ISessionReader {
     return afterIndex === -1 ? messages : messages.slice(afterIndex + 1);
   }
 
+  private appendUserTurns(
+    messages: Message[],
+    text: string,
+    timestamp: string | undefined,
+    eventUuid: string | undefined,
+  ): void {
+    const parts = splitGrokUserMessageTexts(text);
+    for (const [offset, part] of parts.entries()) {
+      if (!part.trim()) continue;
+      const uuid = eventUuid
+        ? offset === 0
+          ? eventUuid
+          : `${eventUuid}#${offset}`
+        : `grok-${messages.length}-user-text`;
+      messages.push({
+        type: "user",
+        uuid,
+        timestamp,
+        role: "user",
+        message: {
+          role: "user",
+          content: part,
+        },
+      });
+    }
+  }
+
   private appendTextChunk(
     messages: Message[],
     buffer: GrokTextBuffer | null,
-    role: "assistant" | "user",
     kind: "text" | "thinking",
     text: string,
     timestamp?: string,
     eventUuid?: string,
   ): GrokTextBuffer {
-    const sameBuffer = buffer?.role === role && buffer.kind === kind;
+    const sameBuffer = buffer?.kind === kind;
     if (!sameBuffer) {
       this.flushTextBuffer(messages, buffer);
     }
     return {
       content: (sameBuffer ? buffer.content : "") + text,
       kind,
-      role,
+      role: "assistant",
       timestamp: (sameBuffer ? buffer.timestamp : undefined) ?? timestamp,
       uuid: (sameBuffer ? buffer.uuid : undefined) ?? eventUuid,
     };
@@ -524,10 +545,7 @@ export class GrokSessionReader implements ISessionReader {
   ): null {
     if (!buffer?.content.trim()) return null;
 
-    const text =
-      buffer.role === "user" && buffer.kind === "text"
-        ? unwrapGrokInterjectText(buffer.content)
-        : buffer.content;
+    const text = buffer.content;
     if (!text.trim()) return null;
 
     // Prefer the run's first-chunk event id: the live ACP stream keys the same
