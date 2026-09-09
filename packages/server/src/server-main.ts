@@ -44,6 +44,7 @@ import {
   getLogger,
   initLogger,
   interceptConsole,
+  startResourceSampling,
 } from "./logging/index.js";
 import {
   setDebugContext,
@@ -202,6 +203,7 @@ let securityClientForShutdown: SecurityClientService | null = null;
 let providerSessionWatchersForShutdown: ProviderSessionWatcherRegistry | null =
   null;
 let attachmentStagingCleanupTimer: ReturnType<typeof setInterval> | null = null;
+let stopResourceSampling: (() => void) | null = null;
 let isShuttingDown = false;
 
 /**
@@ -246,6 +248,11 @@ async function gracefulShutdown(signal: string): Promise<void> {
   if (attachmentStagingCleanupTimer) {
     clearInterval(attachmentStagingCleanupTimer);
     attachmentStagingCleanupTimer = null;
+  }
+
+  if (stopResourceSampling) {
+    stopResourceSampling();
+    stopResourceSampling = null;
   }
 
   if (hostAwakeForShutdown) {
@@ -674,6 +681,11 @@ async function startServer() {
   };
 
   markStartup("startup began");
+
+  // Sampling starts before the slow initialization below so a server that is
+  // already struggling at startup leaves the same evidence as one that
+  // degrades hours later.
+  stopResourceSampling = startResourceSampling({ dataDir: config.dataDir });
 
   let tlsOptions: { key: Buffer; cert: Buffer } | undefined;
   if (config.httpsSelfSigned) {
