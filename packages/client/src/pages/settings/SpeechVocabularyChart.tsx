@@ -105,6 +105,10 @@ export default function SpeechVocabularyChart({
     (word) => word.word === (hovered ?? selected),
   );
   const maximum = Math.max(1, ...displayed.map((word) => word.count));
+  const maximumLogRatio = Math.max(
+    1,
+    ...displayed.map((word) => Math.log1p(word.ratio ?? 0)),
+  );
   const description = (word: (typeof ranked)[number]) =>
     t("speechVocabularyWordDetail", {
       word: word.word,
@@ -188,7 +192,7 @@ export default function SpeechVocabularyChart({
                 </button>
               </th>
               <td>
-                <div className={styles.count}>
+                <div className={styles.value}>
                   {word.count.toLocaleString()}
                   <span
                     className={styles.countBar}
@@ -209,9 +213,22 @@ export default function SpeechVocabularyChart({
                 </div>
               </td>
               <td>
-                {word.ratio === undefined
-                  ? "—"
-                  : `${word.ratio.toLocaleString(undefined, { notation: "compact", maximumFractionDigits: 1 })}×`}
+                <div className={styles.value}>
+                  {word.ratio === undefined ? (
+                    "—"
+                  ) : (
+                    <>
+                      {`${word.ratio.toLocaleString(undefined, { notation: "compact", maximumFractionDigits: 1 })}×`}
+                      <span
+                        className={styles.ratioBar}
+                        aria-hidden="true"
+                        style={{
+                          width: `${(100 * Math.log1p(word.ratio)) / maximumLogRatio}%`,
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
               </td>
             </tr>
           ))}

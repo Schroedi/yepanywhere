@@ -508,7 +508,10 @@ closing Settings releases its progress timer.
 Speech settings provide an **Explore vocabulary** action. Its default view
 shows up to 18 distinctive recurring words in a compact table with counts and
 baseline-frequency ratios. In-cell bars have length proportional to count,
-split blue/purple for user/assistant contributions. Hover previews exact source
+split blue/purple for user/assistant contributions. Green bars extend left
+from the ratio column's right edge, scaled by `log(1 + ratio)` relative to the
+largest visible value (with a denominator floor of one). Missing baseline
+words have no ratio bar. Hover previews exact source
 counts; click or keyboard focus selects a word and retains its details after
 the pointer leaves. A **Most frequent** view and adjustable minimum count
 (initially six occurrences) make early scan results browsable. Totals update

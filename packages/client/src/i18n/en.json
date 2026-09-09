@@ -6,7 +6,7 @@
   "speechVocabularyDistinctive": "Distinctive words",
   "speechVocabularyFrequent": "Most frequent",
   "speechVocabularyMinimum": "Minimum occurrences",
-  "speechVocabularyChartGuide": "Bars show counts: blue for you, purple for agent replies. Hover or select a word for details.",
+  "speechVocabularyChartGuide": "Count: blue for you, purple for agents. Green: relative frequency (log scale). Hover or select for details.",
   "speechVocabularyWordColumn": "Word",
   "speechVocabularyCountColumn": "Count",
   "speechVocabularyBaselineColumn": "vs. English",
