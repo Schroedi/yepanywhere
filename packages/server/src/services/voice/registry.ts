@@ -123,7 +123,7 @@ export class SpeechBackendRegistry {
 
   /** Wait for startup validations currently in flight; useful for tests/tools. */
   async waitForValidation(): Promise<void> {
-    await Promise.all([...this.validations]);
+    await Promise.all(this.validations);
   }
 }
 
