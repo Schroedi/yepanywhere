@@ -58,6 +58,7 @@ export function useHeldSidebarLists<T extends { id: string }>(
     sourceKey: string;
     lists: SidebarLists<T>;
   } | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Source and enabled changes intentionally release the hold; the reset body does not need their values.
   useEffect(() => {
     pointer.current = false;
     focused.current = false;
