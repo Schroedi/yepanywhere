@@ -87,9 +87,7 @@ interface ClaudeGoalRow {
  * hook is installed. `met: true` (satisfied or cleared) and `failed: true`
  * (judged impossible) both mean Claude removed it.
  */
-function parseClaudeGoalTranscriptLine(
-  line: string,
-): ClaudeGoalRow | null {
+function parseClaudeGoalTranscriptLine(line: string): ClaudeGoalRow | null {
   if (!line.includes('"goal_status"')) return null;
   let entry: unknown;
   try {
@@ -107,7 +105,7 @@ function parseClaudeGoalTranscriptLine(
       };
     }
   )?.attachment;
-  if (!attachment || attachment.type !== "goal_status") return null;
+  if (attachment?.type !== "goal_status") return null;
   if (typeof attachment.condition !== "string") return null;
   return {
     condition: attachment.condition,
