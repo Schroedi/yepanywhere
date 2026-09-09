@@ -292,3 +292,9 @@ For older clients and legacy metadata, a missing firewall value defaults on
 only when `sandboxLevel` is `project-write`; explicit false stays authoritative,
 and true without project-write is rejected. Audited stable releases `v0.7.0`
 and `v0.6.2` lack the complete sandbox and firewall contracts.
+
+2026-09-09 `YEP_SQLITE` unset default — initialize built-in SQLite automatically;
+the maintainer requires it as normal server storage infrastructure now that
+supported runtimes include it. Preserve explicit `off` as a development/recovery
+escape hatch, with dependent capabilities unavailable. Learning and other
+feature opt-ins remain independent; browsers carry no SQLite opt-in to migrate.

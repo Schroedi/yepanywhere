@@ -444,8 +444,14 @@ the newer NeMo model fit; the coexistence constraints below still apply.
 
 Status 2026-09-09: persistent vocabulary collection and Grok-through-YA
 biasing are implemented as independent, default-off Speech settings. SQLite
-must be ready (`YEP_SQLITE=auto`, using Node's or Bun's built-in adapter).
+must be ready (the default `YEP_SQLITE=auto`, using Node's or Bun's built-in adapter).
 Explicit `YEP_SQLITE=off` remains authoritative.
+
+The controls live at the top of Settings → Speech backends, under Learned
+speech vocabulary. Settings search finds them by vocabulary, keyterms, lexicon,
+Scan + Learn, Stop + Clear, and Explore vocabulary. When the capability is absent,
+the same searchable entry explains disabled/unavailable storage or the need to
+update the server; it mounts no controls and makes no vocabulary requests.
 
 ### Learned vocabulary contract
 

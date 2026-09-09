@@ -86,7 +86,8 @@ for (const state of [
         XDG_DATA_HOME: join(temporary, "share"),
         NODE_ENV: "production",
         YEP_DATA_DIR: dataDir,
-        YEP_SQLITE: state === "disabled" ? "off" : "auto",
+        // Normal startup must initialize SQLite without an opt-in variable.
+        ...(state === "disabled" ? { YEP_SQLITE: "off" } : {}),
         // This uses the mock Claude provider. An explicit absent Codex path
         // avoids unrelated global npm/CLI discovery during startup on Windows.
         YEP_DESKTOP_CODEX_CLI_PATH: join(temporary, "codex-not-installed"),
@@ -140,6 +141,10 @@ for (const state of [
     assert.equal(response.status, 200, output);
     const version = await response.json();
     assert.deepEqual(version.sqlite, { state });
+    assert.equal(
+      version.capabilities.includes("speech-vocabulary"),
+      state === "ready",
+    );
     assert.deepEqual(version.serverRuntime, {
       kind: process.versions.bun ? "bun" : "node",
       version: process.versions.bun ?? process.versions.node,

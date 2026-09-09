@@ -620,7 +620,7 @@ export function createApp(options: AppOptions): AppResult {
     join(process.env.HOME ?? process.env.USERPROFILE ?? ".", ".yep-anywhere");
   const discoverySqlite = new DiscoverySqliteService({
     dataDir: effectiveDataDir,
-    mode: options.sqliteMode ?? "off",
+    mode: options.sqliteMode ?? "auto",
     onError: (error) =>
       console.warn("[DiscoverySqlite] Storage failed:", error),
   });

@@ -85,9 +85,9 @@ describe("hermetic config env setup", () => {
 describe("optional SQLite configuration", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("defaults off and honors explicit startup mode", async () => {
+  it("defaults to built-in SQLite and honors explicit startup mode", async () => {
     const { loadConfig } = await import("../src/config.js");
-    expect(loadConfig().sqliteMode).toBe("off");
+    expect(loadConfig().sqliteMode).toBe("auto");
     vi.stubEnv("YEP_SQLITE", "auto");
     expect(loadConfig().sqliteMode).toBe("auto");
     vi.stubEnv("YEP_SQLITE", "off");

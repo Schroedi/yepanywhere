@@ -318,10 +318,42 @@ export function SpeechSettings() {
   return (
     <SettingsSection description={t("speechSettingsDescription")}>
       <div className="settings-group">
-        {serverHasCapability(
-          versionInfo,
-          SERVER_CAPABILITIES.speechVocabulary.name,
-        ) && <SpeechVocabularyControls />}
+        <SettingsItem
+          id="speech-vocabulary"
+          label={t("speechVocabularyTitle")}
+          description={t("speechVocabularyDescription")}
+          keywords={[
+            t("speechVocabularyScan"),
+            t("speechVocabularyReset"),
+            t("speechVocabularyExplore"),
+            t("speechVocabularyBiasing"),
+            "keyterms",
+            "lexicon",
+          ]}
+          layout="custom"
+          baseClassName=""
+        >
+          {serverHasCapability(
+            versionInfo,
+            SERVER_CAPABILITIES.speechVocabulary.name,
+          ) ? (
+            <SpeechVocabularyControls />
+          ) : (
+            <>
+              <h3>{t("speechVocabularyTitle")}</h3>
+              <p>
+                {t(
+                  versionInfo?.sqlite?.state === "disabled"
+                    ? "speechVocabularyStorageDisabled"
+                    : versionInfo?.sqlite?.state === "error" ||
+                        versionInfo?.sqlite?.state === "unsupported"
+                      ? "speechVocabularyStorageUnavailable"
+                      : "speechVocabularyServerUnavailable",
+                )}
+              </p>
+            </>
+          )}
+        </SettingsItem>
         <SettingsItem
           label={t("speechSettingsVoiceInputTitle")}
           description={t("speechSettingsVoiceInputDescription")}

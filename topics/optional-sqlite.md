@@ -1,9 +1,9 @@
-# Optional discovery SQLite storage
+# Built-in SQLite storage
 
-> YA can initialize its own SQLite database for future session discovery without
-> requiring a native SQLite package build. The server runtime floor is owned
-> by [server runtimes](server-runtime.md). Storage
-> readiness does not advertise a search or indexing feature.
+> SQLite is normal YA storage infrastructure for keeping cold data out of RAM
+> and avoiding startup-blocking JSON loads. It uses the runtime builtin, without
+> a native package build. Product features keep their own enablement and retention
+> policies; opening storage does not enable learning, search, or indexing.
 
 Topic: optional-sqlite
 
@@ -11,8 +11,15 @@ Verified: 2026-09-08
 
 ## Startup policy
 
-`YEP_SQLITE` accepts `off` or `auto`. An unset value means `off`; invalid values
+`YEP_SQLITE` accepts `off` or `auto`. An unset value means `auto`; invalid values
 are configuration errors. Changes take effect after restarting the server.
+
+This default is infrastructure, not a feature opt-in. Independent features
+still govern learning, indexing, retention, and their own background work.
+An explicit `off` is a development/recovery escape hatch: SQLite-dependent
+capabilities may be unavailable or hidden. The previous unset/off default
+was not persisted by browsers, so it needs no client migration; restarting
+updated YA with no explicit setting initializes storage automatically.
 
 - `off` does not load either SQLite builtin, create a connection, or create a
   discovery database.

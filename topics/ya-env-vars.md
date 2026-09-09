@@ -49,8 +49,9 @@ rest of the server module graph is evaluated.
 ## Optional discovery storage
 
 `YEP_SQLITE=off|auto` controls optional discovery storage at server startup.
-Ordinary servers default to `off`; the desktop launcher supplies `auto` only
-when no explicit value is inherited. Invalid values fail configuration parsing.
+Servers default to `auto`; an explicit `off` disables storage. The desktop
+launcher preserves that same default and explicit choices. Invalid values fail
+configuration parsing.
 There is no legacy alias. See [optional SQLite storage](optional-sqlite.md) for
 runtime support, database location, and nonfatal initialization failures.
 

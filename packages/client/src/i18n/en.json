@@ -1,5 +1,8 @@
 {
   "speechVocabularyTitle": "Learned speech vocabulary",
+  "speechVocabularyStorageDisabled": "SQLite storage is disabled on this server. Set YEP_SQLITE=auto and restart the server to make vocabulary controls available.",
+  "speechVocabularyStorageUnavailable": "SQLite storage could not initialize on this server. Check the server logs, resolve the storage error, and restart to make vocabulary controls available.",
+  "speechVocabularyServerUnavailable": "This server does not advertise learned vocabulary support. Update and restart the server to make Scan + Learn and vocabulary controls available.",
   "speechVocabularyExplore": "Explore vocabulary",
   "speechVocabularyCloseView": "Close vocabulary view",
   "speechVocabularyView": "Vocabulary view",

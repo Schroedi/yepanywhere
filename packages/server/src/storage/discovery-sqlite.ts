@@ -11,8 +11,8 @@ import {
 export type SqliteMode = "off" | "auto";
 
 export function parseSqliteMode(value: string | undefined): SqliteMode {
-  if (value === undefined || value === "off") return "off";
-  if (value === "auto") return "auto";
+  if (value === undefined || value === "auto") return "auto";
+  if (value === "off") return "off";
   throw new Error("YEP_SQLITE must be one of: off, auto");
 }
 
