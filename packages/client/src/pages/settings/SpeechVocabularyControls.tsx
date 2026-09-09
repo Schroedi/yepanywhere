@@ -191,29 +191,34 @@ export function SpeechVocabularyControls() {
         {t("speechVocabularyBiasing")}
       </label>
       <p>{t("speechVocabularyIntegration")}</p>
-      <div className={styles.actions}>
-        <button
-          type="button"
-          aria-expanded={showLexicon}
-          onClick={() => {
-            if (showLexicon) {
-              includeWords.current = false;
-              setStatus((current) => current && { ...current, words: [] });
-            }
-            setShowLexicon(!showLexicon);
-          }}
-        >
-          {t(
-            showLexicon
-              ? "speechVocabularyCloseView"
-              : "speechVocabularyExplore",
-          )}
-        </button>
-      </div>
-      {showLexicon && status && (
-        <Suspense fallback={<p>{t("speechVocabularyLoading")}</p>}>
-          <SpeechVocabularyChart status={status} />
-        </Suspense>
+      {showLexicon ? (
+        <div className={styles.exploration}>
+          <div className={styles.viewHeader}>
+            <h4>{t("speechVocabularyView")}</h4>
+            <button
+              type="button"
+              className={styles.close}
+              aria-label={t("speechVocabularyCloseView")}
+              title={t("speechVocabularyCloseView")}
+              onClick={() => {
+                includeWords.current = false;
+                setStatus((current) => current && { ...current, words: [] });
+                setShowLexicon(false);
+              }}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+          <Suspense fallback={<p>{t("speechVocabularyLoading")}</p>}>
+            {status && <SpeechVocabularyChart status={status} />}
+          </Suspense>
+        </div>
+      ) : (
+        <div className={styles.actions}>
+          <button type="button" onClick={() => setShowLexicon(true)}>
+            {t("speechVocabularyExplore")}
+          </button>
+        </div>
       )}
       {(error || status?.scan.error) && (
         <p role="alert">{error || status?.scan.error}</p>

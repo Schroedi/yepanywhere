@@ -511,10 +511,12 @@ baseline-frequency ratios. In-cell bars have length proportional to count,
 split blue/purple for user/assistant contributions. Green bars extend left
 from the ratio column's right edge, scaled by `log(1 + ratio)` relative to the
 largest visible value (with a denominator floor of one). Missing baseline
-words have no ratio bar. Hover previews exact source
-counts; click or keyboard focus selects a word and retains its details after
-the pointer leaves. A **Most frequent** view and adjustable minimum count
-(initially six occurrences) make early scan results browsable. Totals update
+words have no ratio bar. Hover shows a tooltip; click, tap, or keyboard focus
+selects a word and expands exact source counts directly beneath its row.
+The table leads the view, with filters and explanation below it; a top-right
+close icon dismisses the view even while loading. A **Most frequent** view and
+adjustable minimum count (initially six learned occurrences, combining user
+and assistant counts) make early scan results browsable. Totals update
 after each completed session, while message progress also advances during
 scanning. Candidate counts are requested only while exploration is open, using
 GET `/api/speech/vocabulary?includeWords=1`; at most 2,000 words are returned,

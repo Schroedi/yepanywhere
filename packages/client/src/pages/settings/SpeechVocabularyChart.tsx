@@ -1,5 +1,5 @@
 import type { SpeechVocabularyStatus } from "@yep-anywhere/shared";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useI18n } from "../../i18n";
 import styles from "./SpeechVocabularyChart.module.css";
 import {
@@ -54,7 +54,6 @@ export default function SpeechVocabularyChart({
   const [distinctive, setDistinctive] = useState(true);
   const [minimum, setMinimum] = useState(6);
   const [selected, setSelected] = useState<string>();
-  const [hovered, setHovered] = useState<string>();
   useEffect(() => {
     let disposed = false;
     const controller = new AbortController();
@@ -101,9 +100,7 @@ export default function SpeechVocabularyChart({
         .filter((word) => word.ratio === undefined)
         .slice(0, 8)
     : [];
-  const active = [...displayed, ...unknown].find(
-    (word) => word.word === (hovered ?? selected),
-  );
+  const selectedUnknown = unknown.find((word) => word.word === selected);
   const maximum = Math.max(1, ...displayed.map((word) => word.count));
   const maximumLogRatio = Math.max(
     1,
@@ -127,6 +124,106 @@ export default function SpeechVocabularyChart({
         <p role="alert">
           {t("speechVocabularyBaselineError")} {error}
         </p>
+      )}
+      <table className={styles.table} aria-label={t("speechVocabularyView")}>
+        <thead>
+          <tr>
+            <th scope="col">{t("speechVocabularyWordColumn")}</th>
+            <th scope="col">{t("speechVocabularyCountColumn")}</th>
+            <th scope="col">{t("speechVocabularyBaselineColumn")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {displayed.map((word) => (
+            <Fragment key={word.word}>
+              <tr
+                data-selected={selected === word.word}
+                title={description(word)}
+              >
+                <th scope="row">
+                  <button
+                    type="button"
+                    className={styles.word}
+                    aria-label={description(word)}
+                    aria-pressed={selected === word.word}
+                    onClick={() => setSelected(word.word)}
+                    onFocus={() => setSelected(word.word)}
+                  >
+                    {word.word}
+                  </button>
+                </th>
+                <td>
+                  <div className={styles.value}>
+                    {word.count.toLocaleString()}
+                    <span
+                      className={styles.countBar}
+                      aria-hidden="true"
+                      style={{ width: `${(100 * word.count) / maximum}%` }}
+                    >
+                      <span
+                        className={styles.userBar}
+                        style={{ width: `${(100 * word.user) / word.count}%` }}
+                      />
+                      <span
+                        className={styles.agentBar}
+                        style={{
+                          width: `${(100 * word.assistant) / word.count}%`,
+                        }}
+                      />
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <div className={styles.value}>
+                    {word.ratio === undefined ? (
+                      "—"
+                    ) : (
+                      <>
+                        {`${word.ratio.toLocaleString(undefined, { notation: "compact", maximumFractionDigits: 1 })}×`}
+                        <span
+                          className={styles.ratioBar}
+                          aria-hidden="true"
+                          style={{
+                            width: `${(100 * Math.log1p(word.ratio)) / maximumLogRatio}%`,
+                          }}
+                        />
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+              {selected === word.word && (
+                <tr>
+                  <td colSpan={3} className={styles.detailCell}>
+                    <p aria-live="polite">{description(word)}</p>
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
+      {displayed.length === 0 && <p>{t("speechVocabularyNoWords")}</p>}
+      {unknown.length > 0 && (
+        <div className={styles.unknown}>
+          <p>{t("speechVocabularyOutsideBaseline")}</p>
+          {unknown.map((word) => (
+            <button
+              type="button"
+              key={word.word}
+              aria-label={description(word)}
+              aria-pressed={selected === word.word}
+              onFocus={() => setSelected(word.word)}
+              onClick={() => setSelected(word.word)}
+              title={description(word)}
+            >
+              {word.word} · {word.count.toLocaleString()}
+            </button>
+          ))}
+          {selectedUnknown && (
+            <p aria-live="polite">{description(selectedUnknown)}</p>
+          )}
+        </div>
       )}
       <div className={styles.controls}>
         <label>
@@ -159,102 +256,6 @@ export default function SpeechVocabularyChart({
         </label>
       </div>
       <p>{t("speechVocabularyChartGuide")}</p>
-      <p className={styles.detail} aria-live="polite">
-        {active ? description(active) : t("speechVocabularySelectWord")}
-      </p>
-      <table className={styles.table} aria-label={t("speechVocabularyView")}>
-        <thead>
-          <tr>
-            <th scope="col">{t("speechVocabularyWordColumn")}</th>
-            <th scope="col">{t("speechVocabularyCountColumn")}</th>
-            <th scope="col">{t("speechVocabularyBaselineColumn")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {displayed.map((word) => (
-            <tr
-              key={word.word}
-              data-selected={selected === word.word}
-              onMouseEnter={() => setHovered(word.word)}
-              onMouseLeave={() => setHovered(undefined)}
-              title={description(word)}
-            >
-              <th scope="row">
-                <button
-                  type="button"
-                  className={styles.word}
-                  aria-label={description(word)}
-                  aria-pressed={selected === word.word}
-                  onClick={() => setSelected(word.word)}
-                  onFocus={() => setSelected(word.word)}
-                >
-                  {word.word}
-                </button>
-              </th>
-              <td>
-                <div className={styles.value}>
-                  {word.count.toLocaleString()}
-                  <span
-                    className={styles.countBar}
-                    aria-hidden="true"
-                    style={{ width: `${(100 * word.count) / maximum}%` }}
-                  >
-                    <span
-                      className={styles.userBar}
-                      style={{ width: `${(100 * word.user) / word.count}%` }}
-                    />
-                    <span
-                      className={styles.agentBar}
-                      style={{
-                        width: `${(100 * word.assistant) / word.count}%`,
-                      }}
-                    />
-                  </span>
-                </div>
-              </td>
-              <td>
-                <div className={styles.value}>
-                  {word.ratio === undefined ? (
-                    "—"
-                  ) : (
-                    <>
-                      {`${word.ratio.toLocaleString(undefined, { notation: "compact", maximumFractionDigits: 1 })}×`}
-                      <span
-                        className={styles.ratioBar}
-                        aria-hidden="true"
-                        style={{
-                          width: `${(100 * Math.log1p(word.ratio)) / maximumLogRatio}%`,
-                        }}
-                      />
-                    </>
-                  )}
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {displayed.length === 0 && <p>{t("speechVocabularyNoWords")}</p>}
-      {unknown.length > 0 && (
-        <div className={styles.unknown}>
-          <p>{t("speechVocabularyOutsideBaseline")}</p>
-          {unknown.map((word) => (
-            <button
-              type="button"
-              key={word.word}
-              aria-label={description(word)}
-              aria-pressed={selected === word.word}
-              onFocus={() => setSelected(word.word)}
-              onClick={() => setSelected(word.word)}
-              onMouseEnter={() => setHovered(word.word)}
-              onMouseLeave={() => setHovered(undefined)}
-              title={description(word)}
-            >
-              {word.word} · {word.count.toLocaleString()}
-            </button>
-          ))}
-        </div>
-      )}
       <p>
         {t("speechVocabularyBaselineNote", { candidates: status.words.length })}{" "}
         <a

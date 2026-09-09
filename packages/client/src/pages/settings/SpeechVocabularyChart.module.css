@@ -2,10 +2,6 @@
   display: grid;
   gap: 12px;
   min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--bg-secondary);
 }
 
 .controls {
@@ -129,6 +125,7 @@
   flex-basis: 100%;
 }
 
-.detail {
-  min-height: 40px;
+.table .detailCell {
+  padding: 8px 6px;
+  text-align: left;
 }

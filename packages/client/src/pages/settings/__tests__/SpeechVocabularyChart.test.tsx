@@ -85,11 +85,12 @@ describe("learned vocabulary exploration", () => {
     );
     expect(screen.getByRole("table")).toBeTruthy();
     const token = screen.getByRole("button", { name: /token: 6 occurrences/ });
-    fireEvent.mouseEnter(token.closest("tr")!);
-    expect(screen.getByText(/token: 6 occurrences/)).toBeTruthy();
-    fireEvent.mouseLeave(token.closest("tr")!);
-    expect(screen.getByText(/compiler: 40 occurrences/)).toBeTruthy();
+    expect(token.closest("tr")!.title).toContain("token: 6 occurrences");
     fireEvent.click(token);
     expect(token.getAttribute("aria-pressed")).toBe("true");
+    expect(token.closest("tr")!.nextElementSibling?.textContent).toContain(
+      "token: 6 occurrences",
+    );
+    expect(screen.queryByText(/compiler: 40 occurrences/)).toBeNull();
   });
 });
