@@ -23,6 +23,14 @@ async function importVersion() {
   return mod;
 }
 
+// Both speech vocabulary capabilities are advertised only once SQLite is
+// ready, because learned vocabulary lives in that store. Every other
+// capability answers the same way with or without a SQLite status reader.
+const SQLITE_GATED_CAPABILITY_NAMES: ReadonlySet<string> = new Set([
+  SERVER_CAPABILITIES.speechVocabulary.name,
+  SERVER_CAPABILITIES.speechVocabularySessionTerms.name,
+]);
+
 describe("GET /version", () => {
   const originalFetch = global.fetch;
 
@@ -75,7 +83,7 @@ describe("GET /version", () => {
         });
         for (const { name } of Object.values(SERVER_CAPABILITIES)) {
           expect(serverHasCapability(after, name), name).toBe(
-            name === SERVER_CAPABILITIES.speechVocabulary.name
+            SQLITE_GATED_CAPABILITY_NAMES.has(name)
               ? state === "ready"
               : serverHasCapability(before, name),
           );
