@@ -3,6 +3,7 @@ import {
   VOCABULARY_FLUSH_COUNTS,
   type SpeechVocabularyStatus,
 } from "@yep-anywhere/shared";
+import { getLogger } from "../../logging/logger.js";
 import type { Message } from "../../supervisor/types.js";
 import type {
   VocabularyStore,
@@ -19,12 +20,16 @@ export interface VocabularySession {
 
 const MESSAGE_BURST = 16;
 
+/** Shortest interval between two relearns of a full fingerprint filter. */
+const RELEARN_COOLDOWN_MS = 24 * 3600_000;
+
 export class VocabularyLearning {
   private work?: Promise<void>;
   private epoch = 0;
   private closed = false;
   private requested = false;
   private retrospective = false;
+  private relearnAfter = 0;
   private readonly flushAfter: number;
   private readonly reference?: () => Promise<ReadonlyMap<string, number>>;
   private progress = {
@@ -155,9 +160,19 @@ export class VocabularyLearning {
         this.progress.sessions++;
         await yieldToLoop();
       }
-      if (this.store.settings().enabled && active()) await this.store.flush();
-      else this.store.discardPending();
+      // A scan runs whenever the catalog republishes, which live sessions do
+      // every few seconds. One that observed nothing new must cost nothing:
+      // no rewritten rows, no rebuilt ranking, no new revision.
+      if (this.store.settings().enabled && active()) {
+        if (!this.store.idle) await this.store.flush();
+      } else this.store.discardPending();
       if (active()) this.progress.state = "idle";
+      if (
+        this.store.seenSaturated &&
+        active() &&
+        Date.now() >= this.relearnAfter
+      )
+        await this.makeRoom();
     } catch (error) {
       this.store.discardPending();
       if (!active()) return;
@@ -166,6 +181,27 @@ export class VocabularyLearning {
       this.progress.error =
         error instanceof Error ? error.message : String(error);
     }
+  }
+
+  /**
+   * The fingerprint filter is full, so it can no longer tell new text from old
+   * reliably. Empty it and everything counted through it, then relearn the
+   * retained window from provider history — the counts outside that window are
+   * not recoverable by rescanning anyway.
+   *
+   * The cooldown matters: a retained window whose messages cannot fit the
+   * reservation fills the filter again as soon as it is relearned. Backing off
+   * leaves recognition working against a filter that dedupes approximately,
+   * which is the mild failure; rescanning in a loop is not.
+   */
+  private async makeRoom(): Promise<void> {
+    this.relearnAfter = Date.now() + RELEARN_COOLDOWN_MS;
+    getLogger().warn(
+      { component: "speech" },
+      "Speech vocabulary fingerprint filter is full; relearning the retained window",
+    );
+    await this.store.relearn();
+    this.scan(true);
   }
 
   async reset(): Promise<void> {
@@ -190,8 +226,9 @@ export class VocabularyLearning {
     this.epoch++;
     this.requested = false;
     await this.settled();
-    if (this.store.settings().enabled) await this.store.flush();
+    if (this.store.settings().enabled && !this.store.idle)
+      await this.store.flush();
     else this.store.discardPending();
-    this.store.close();
+    await this.store.close();
   }
 }

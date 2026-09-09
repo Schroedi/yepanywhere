@@ -29,16 +29,17 @@ simple excess count.
   a rebuild. Session state lives on the server (session key from the
   speech context); the client still *may* send `sessionTerms`, but that
   is not required for the overlay.
-- **Tail-only fingerprints.** A hash set of content hashes skips
-  already-seen messages. Revised or deleted text is not subtracted.
-  Dropped tokens are accepted. The set is open addressing in a packed
-  32-byte-slot file (mmap when Bun provides it, otherwise ordinary
-  read/write). It is not a B-tree.
-- **Counts are an in-memory string→count map** snapshotted to JSON.
-  `count > k` is a linear filter of that map. The map is small enough
-  to hold; it is not an ordered on-disk index.
-- **Durability.** Unflushed hashes and counts are lost on crash. Scan
-  work yields every 16 messages so the process stays responsive.
+- **Tail-only fingerprints.** A blocked Bloom filter of content hashes
+  skips already-seen messages. Revised or deleted text is not
+  subtracted. Dropped tokens are accepted. Membership is approximate:
+  an uncounted message reads as seen at well under a percent and is
+  skipped.
+- **Counts are an in-memory string→count map** backed by a local-disk
+  SQLite table. `count > k` is a linear filter of the in-memory map.
+  The map is small enough to hold; it is not an ordered on-disk index.
+- **Durability.** Unflushed counts and fingerprints are lost on crash,
+  as are flushed ones the background writer had not reached. Scan work
+  yields every 16 messages so the process stays responsive.
 
 Exact per-increment maintenance of the true top 100 under a changing
 `T`, and a fully crash-safe log, were deferred.

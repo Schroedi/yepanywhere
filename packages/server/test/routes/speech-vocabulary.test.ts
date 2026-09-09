@@ -1,4 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -88,7 +94,42 @@ function fixture() {
   };
 }
 
+/** Modification times of everything the learned table keeps on local disk. */
+function tableWrites(): Record<string, number> {
+  const root = process.env.YEP_SCRATCH_DIR!;
+  const seen: Record<string, number> = {};
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else seen[path] = statSync(path).mtimeMs;
+    }
+  };
+  walk(root);
+  return seen;
+}
+
 describe("persistent speech learning through its routes", () => {
+  it("writes nothing when a scan finds nothing new", async () => {
+    const f = fixture();
+    await f.enable();
+    await f.learning.store.settled();
+    const revision = f.learning.store.revision;
+    const before = tableWrites();
+    expect(Object.keys(before).length).toBeGreaterThan(0);
+
+    // A live session republishes the catalog every few seconds, and each
+    // publication starts a scan. One that observes nothing must not rewrite
+    // the table, the fingerprint filter, or the ranking.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      f.learning.scan(false);
+      await f.learning.settled();
+    }
+    await f.learning.store.settled();
+    expect(f.learning.store.revision).toBe(revision);
+    expect(tableWrites()).toEqual(before);
+  });
+
   it("reenters the real durable Claude reader without changing contributions", async () => {
     const f = fixture();
     const sessionDir = mkdtempSync(join(tmpdir(), "ya-vocabulary-source-"));

@@ -26,7 +26,7 @@ function fixture() {
   const vocabulary = new VocabularyKeyterms(store, dir);
   cleanup.push(async () => {
     await vocabulary.close();
-    store.close();
+    await store.close();
     rmSync(dir, { recursive: true });
   });
   const enable = () =>

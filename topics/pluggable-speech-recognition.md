@@ -443,15 +443,59 @@ the newer NeMo model fit; the coexistence constraints below still apply.
 ## Keyterm Biasing
 
 Status 2026-09-09: persistent vocabulary collection and Grok-through-YA
-biasing are implemented as independent, default-off Speech settings. Word
-counts live in an in-memory string→count map snapshotted to
-`speech-words.json`. Content hashes live in an open-addressed 32-byte-slot
-file (`speech-seen.hash`; mmap when Bun provides it, otherwise ordinary
-read/write). SQLite is not used for those structures. The speech-vocabulary
-UI still appears only when discovery SQLite is ready (the default
-`YEP_SQLITE=auto`). Explicit `YEP_SQLITE=off` remains authoritative.
+biasing are implemented as independent, default-off Speech settings. The
+speech-vocabulary UI still appears only when discovery SQLite is ready (the
+default `YEP_SQLITE=auto`). Explicit `YEP_SQLITE=off` remains authoritative.
 Ranking approximations are recorded in
 `gaps/speech-vocabulary-ranking-approximations.md`.
+
+### Where the learned table lives
+
+The learned table is regenerable by rescanning the same provider history, so it
+is homed on local disk rather than in the data directory, which is frequently a
+network mount. `reserveScratchSpace` picks the first candidate that is local and
+has room to spare: `YEP_SCRATCH_DIR` when set, then the cache directory, then
+the temporary directory, then the data directory as a last resort. Candidates on
+network or memory-backed filesystems are skipped unless nothing else is left,
+and a machine with no room gets a smaller reservation rather than a failure to
+start. A wiped cache or a cleared temporary directory costs a rescan, never a
+wrong answer. Two data directories never share a scratch directory, so profiles
+stay separate.
+
+Word counts, observed spellings, and scan checkpoints are rows in a SQLite
+database there. Only the rows a scan touched are written, in bounded
+transactions that yield between them, so recording a scan costs what the scan
+observed rather than the size of everything ever learned. Iteration returns the
+word strings, which top-N ranking needs.
+
+Content fingerprints are a blocked Bloom filter, resident in memory and backed
+by a fixed-size file in the same directory. Each key sets eight bits inside one
+64-byte block, so a flush writes only the 64 KB regions that changed, in place,
+with no truncate and no window where a reader sees an empty set. The default
+reservation is 256 MB, holding well over a hundred million distinct messages
+before its design load; `YEP_SPEECH_VOCABULARY_BYTES` moves it. The filter is
+allocated on first use, so a server whose owner never turned learning on pays
+nothing. Membership is approximate in one direction: a message that was counted
+always reads as seen, while an uncounted one can read as seen at well under a
+percent, which skips that message. Adding never clears a bit, so a partial write
+can lose evidence but never invent it.
+
+Nothing on the scan path waits for those writes. A flush commits to memory,
+hands the changed rows to a single coalescing writer, and returns; the writer
+runs one batch at a time and folds in whatever arrived meanwhile. A scan that
+observed nothing new does not flush at all, so the catalog republications that
+live sessions produce every few seconds cost no writes, no rebuilt ranking, and
+no new revision.
+
+When the filter passes its design load, YA empties it along with everything
+counted through it and relearns the retained window, since a filter that can no
+longer tell new text from old would silently stop counting. Settings, which a
+rescan cannot rebuild, stay in `{dataDir}/speech-vocabulary-state.json`, written
+through a temporary file and a rename so no reader sees a partial file. An
+unreadable settings file reverts to defaults with a logged warning rather than
+failing server construction. The previous layout's `speech-words.json`,
+`speech-word-case.json`, and `speech-seen.hash` are adopted once on first start
+and then deleted.
 
 The controls live at the top of Settings → Speech backends, under Learned
 speech vocabulary. Settings search finds them by vocabulary, keyterms, lexicon,
@@ -507,12 +551,12 @@ plain lowercase word where the only capitals were forced and carry no interior
 capital. `The` at a hundred sentence starts is still `the`; `YA`, `JSONL` and
 `SQLite` keep their capitals.
 
-App-data files own the word-count map, the observed spellings, the fingerprint
-hash set, and scan checkpoints. Spellings live in their own file, so a server
-without this feature reads the counts unchanged and a server with it treats
-missing spellings as no evidence. Already-seen content hashes skip tokenize; new messages are
-tailed. Scan work yields in small bursts so the Node process stays
-responsive. Distinctive ranking uses
+The local-disk table owns the word counts, the observed spellings, and the scan
+checkpoints; the filter beside it owns the fingerprints. Spellings are their own
+rows, so a server without this feature reads the counts unchanged and a server
+with it treats missing spellings as no evidence. Already-seen fingerprints skip
+tokenize; new messages are tailed. Scan work yields in small bursts so the Node
+process stays responsive. Distinctive ranking uses
 `(observed - expected) / sqrt(expected + 1)` from this topic, not raw
 excess count. The server keeps a global top-500 heap and a per-session
 top-100 with the session multiplier; a recognition request merges them.
@@ -524,16 +568,16 @@ identical text at different durable timestamps counts separately. Presentation
 IDs, record positions, read-window indexes, and metadata unrelated to the text
 do not affect the fingerprint. No vocabulary row stores a list of fingerprints.
 
-Each session's replacement contribution is staged in SQLite, in batches of
-32 messages. Counts, receipts, and source checkpoints commit atomically only
-after the session window finishes. Revised or removed text in that window
-subtracts its old contribution. Previously learned history outside the window
-is preserved. A file that changes during a scan is retried after catalog
-reconciliation rather than committing a mixed snapshot. Reset advances a
-persistent generation; an in-flight scan from an older generation cannot
-restore cleared data. Losing only source scan checkpoints causes a rescan,
-not double counting. Losing contribution receipts requires rebuilding counts
-with Reset, not treating the remaining totals as reconstructable provenance.
+A session's counts and its scan checkpoint are written together, so a session
+that finished scanning is not scanned again while its source version holds.
+Previously learned history outside the window is preserved. Revised or removed
+text is not subtracted: the fingerprint of the old wording simply stops
+appearing, and its counts stand. Reset advances a persistent generation; an
+in-flight scan from an older generation cannot restore cleared data. Losing only
+scan checkpoints causes a rescan rather than double counting, because the
+fingerprint filter still recognizes the messages already counted. Losing the
+filter as well means those messages are counted a second time, which is why
+Reset clears counts, spellings, checkpoints, and fingerprints together.
 
 The collector keeps only its current reader window and 32-message batch; it
 does not retain transcripts in its own cache. It reuses provider reader bounds

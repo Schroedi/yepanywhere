@@ -169,7 +169,7 @@ it("forwards the selected vocabulary through real HTTP and relayed stream entryp
     ]);
   } finally {
     await vocabulary.close();
-    store.close();
+    await store.close();
     rmSync(dataDir, { recursive: true });
   }
 });
