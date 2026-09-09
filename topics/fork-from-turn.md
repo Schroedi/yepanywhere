@@ -37,6 +37,12 @@ window the trim dot controls).
 
 ## Observable contract
 
+- A successful Clone or cold Fork can be opened immediately, including with
+  warm discovery caches or an older scan still in flight. Navigation does not
+  depend on a watcher event, a cache timeout, a page refresh, or a provider
+  turn. Creation preserves unrelated parsed transcripts and does not trigger
+  a whole-store rescan merely to locate the new child. This guarantee covers
+  the legacy `/clone` endpoint as well as `/fork`.
 - The session-header overflow menu exposes **Clone** only when the connected
   server advertises `session-fork-turn-intents` and the selected provider
   advertises `supportsForkSession`. Codex and Codex OSS additionally require

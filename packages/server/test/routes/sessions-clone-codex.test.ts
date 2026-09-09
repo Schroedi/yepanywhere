@@ -8,6 +8,8 @@ import {
   type SessionsDeps,
   createSessionsRoutes,
 } from "../../src/routes/sessions.js";
+import { Supervisor } from "../../src/supervisor/Supervisor.js";
+import type { AgentProvider } from "../../src/sdk/providers/types.js";
 import { CodexSessionReader } from "../../src/sessions/codex-reader.js";
 import type { ISessionReader } from "../../src/sessions/types.js";
 import type { Project } from "../../src/supervisor/types.js";
@@ -21,14 +23,15 @@ describe("Codex clone route", () => {
 
   const forkSession = vi.fn(async () => {
     const sessionId = randomUUID();
+    const filePath = join(
+      testDir,
+      "2026",
+      "03",
+      "08",
+      `rollout-2026-03-08T12-00-02-${sessionId}.jsonl`,
+    );
     await writeFile(
-      join(
-        testDir,
-        "2026",
-        "03",
-        "08",
-        `rollout-2026-03-08T12-00-02-${sessionId}.jsonl`,
-      ),
+      filePath,
       `${JSON.stringify({
         type: "session_meta",
         payload: {
@@ -43,7 +46,7 @@ describe("Codex clone route", () => {
         payload: { type: "user_message", message: "Prime the cache" },
       })}\n`,
     );
-    return { sessionId };
+    return { sessionId, filePath };
   });
 
   beforeEach(async () => {
@@ -209,7 +212,7 @@ describe("Codex clone route", () => {
     });
   });
 
-  it("invalidates cached Codex readers so the cloned session opens immediately", async () => {
+  it("registers the native fork so it opens without invalidating discovery", async () => {
     const sourceSummary = await reader.getSessionSummary(
       "source-session",
       projectId,
@@ -222,7 +225,9 @@ describe("Codex clone route", () => {
     const updateMetadata = vi.fn(async () => {});
 
     const routes = createSessionsRoutes({
-      supervisor: { forkSession } as unknown as SessionsDeps["supervisor"],
+      supervisor: new Supervisor({
+        provider: { name: "codex", forkSession } as unknown as AgentProvider,
+      }),
       scanner: {
         getOrCreateProject: vi.fn(async () => project),
       } as SessionsDeps["scanner"],
@@ -256,7 +261,7 @@ describe("Codex clone route", () => {
     );
     expect(clonedSummary).not.toBeNull();
     expect(clonedSummary?.id).toBe(body.sessionId);
-    expect(codexScanner.invalidateCache).toHaveBeenCalledTimes(1);
+    expect(codexScanner.invalidateCache).not.toHaveBeenCalled();
     expect(updateMetadata).toHaveBeenCalledWith(body.sessionId, {
       title: "Prime the cache [cloned]",
       parentSessionId: undefined,
@@ -269,7 +274,9 @@ describe("Codex clone route", () => {
     const updateMetadata = vi.fn(async () => {});
 
     const routes = createSessionsRoutes({
-      supervisor: { forkSession } as unknown as SessionsDeps["supervisor"],
+      supervisor: new Supervisor({
+        provider: { name: "codex", forkSession } as unknown as AgentProvider,
+      }),
       scanner: {
         getOrCreateProject: vi.fn(async () => project),
       } as SessionsDeps["scanner"],
@@ -315,7 +322,9 @@ describe("Codex clone route", () => {
     } as unknown as ISessionReader;
 
     const routes = createSessionsRoutes({
-      supervisor: { forkSession } as unknown as SessionsDeps["supervisor"],
+      supervisor: new Supervisor({
+        provider: { name: "codex", forkSession } as unknown as AgentProvider,
+      }),
       scanner: {
         getOrCreateProject: vi.fn(async () => claudeProject),
       } as SessionsDeps["scanner"],

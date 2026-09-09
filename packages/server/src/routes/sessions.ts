@@ -7522,8 +7522,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           // arrives. A conservative bound hides inherited text without a scan.
           entries: Number.MAX_SAFE_INTEGER,
         };
-        codexReader.invalidateCache();
-        deps.codexScanner?.invalidateCache();
       } else {
         result = await cloneClaudeSession(sessionDir, sessionId);
       }

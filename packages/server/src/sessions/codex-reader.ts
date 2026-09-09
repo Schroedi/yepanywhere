@@ -28,6 +28,7 @@ import {
   truncateSessionTitle,
 } from "@yep-anywhere/shared";
 import type { SessionDiscoveryIndex } from "../indexes/SessionDiscoveryIndex.js";
+import { getForkedSessionFile } from "./fork-discovery.js";
 import type { SourceVersionedSingleFlightStats } from "../lib/sourceVersionedSingleFlight.js";
 import { getLogger } from "../logging/logger.js";
 import {
@@ -1607,6 +1608,27 @@ export class CodexSessionReader implements ISessionReader {
     // Check cache first
     const cached = this.sessionFileCache.get(sessionId);
     if (cached) return cached;
+
+    // Fork completion supplies an exact path before the scan cache catches up.
+    // Read only that file; an older in-flight scan cannot erase this hint.
+    const forkPath = await getForkedSessionFile(
+      "codex",
+      sessionId,
+      this.sessionsDir,
+    );
+    if (forkPath) {
+      const session = await this.readSessionMeta(forkPath);
+      if (
+        session?.id === sessionId &&
+        !session.isSubagent &&
+        (!this.projectIdentityKey ||
+          getProjectIdentityKey(session.cwd) === this.projectIdentityKey)
+      ) {
+        this.hydrateSessionFileCache([session]);
+        return session;
+      }
+      if (session) return null;
+    }
 
     // Scan if cache miss
     await this.scanSessions();

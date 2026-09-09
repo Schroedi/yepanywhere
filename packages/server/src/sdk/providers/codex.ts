@@ -2453,7 +2453,7 @@ export class CodexProvider implements AgentProvider {
     boundary?: ProviderForkBoundary;
     title?: string;
     sessionSandbox?: SessionSandboxRuntime;
-  }): Promise<{ sessionId: string }> {
+  }): Promise<{ sessionId: string; filePath?: string }> {
     return this.installationCoordinator.withReadLease(
       CODEX_INSTALLATION_FAMILY,
       () => this.forkSessionWithLease(options),
@@ -2467,7 +2467,7 @@ export class CodexProvider implements AgentProvider {
     boundary?: ProviderForkBoundary;
     title?: string;
     sessionSandbox?: SessionSandboxRuntime;
-  }): Promise<{ sessionId: string }> {
+  }): Promise<{ sessionId: string; filePath?: string }> {
     if (options.boundary && options.boundary.kind !== "turn") {
       throw new Error("Codex fork requires a turn boundary");
     }
@@ -2525,7 +2525,10 @@ export class CodexProvider implements AgentProvider {
         },
         "Forked Codex app-server thread",
       );
-      return { sessionId: forkSessionId };
+      return {
+        sessionId: forkSessionId,
+        ...(fork.thread.path ? { filePath: fork.thread.path } : {}),
+      };
     } finally {
       await appServer.close();
     }

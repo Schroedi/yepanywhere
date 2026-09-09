@@ -2861,7 +2861,10 @@ describe("CodexProvider app-server lifecycle", () => {
         title: "Forked from second turn",
       });
 
-      expect(fork).toEqual({ sessionId: "fork-thread" });
+      expect(fork).toEqual({
+        sessionId: "fork-thread",
+        filePath: join(tempDir, "fork.jsonl"),
+      });
 
       const requests = readFakeCodexRequests(logPath);
       const read = requests.find((request) => request.method === "thread/read");
@@ -2913,7 +2916,10 @@ describe("CodexProvider app-server lifecycle", () => {
         },
       });
 
-      expect(fork).toEqual({ sessionId: "fork-thread" });
+      expect(fork).toEqual({
+        sessionId: "fork-thread",
+        filePath: join(tempDir, "fork.jsonl"),
+      });
       const requests = readFakeCodexRequests(logPath);
       expect(
         requests.find((request) => request.method === "thread/fork")?.params,
@@ -4205,7 +4211,7 @@ function handleMessage(message) {
       break;
     case "thread/fork":
       respond(message.id, {
-        thread: { id: "fork-thread", turns: [] },
+        thread: { id: "fork-thread", path: ${JSON.stringify(join(dirname(logPath), "fork.jsonl"))}, turns: [] },
         model: "gpt-5.4-mini",
         modelProvider: "openai",
         serviceTier: null,

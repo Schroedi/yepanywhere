@@ -546,7 +546,11 @@ export interface AgentProvider {
     title?: string;
     /** Project-private provider state and process confinement inherited by the fork. */
     sessionSandbox?: SessionSandboxRuntime;
-  }) => Promise<{ sessionId: string }>;
+  }) => Promise<{
+    sessionId: string;
+    /** Provider-owned durable file; internal hint for immediate discovery. */
+    filePath?: string;
+  }>;
 }
 
 /**

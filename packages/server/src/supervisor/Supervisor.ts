@@ -16,6 +16,7 @@ import {
   type WorkstreamId,
   truncateSessionTitle,
 } from "@yep-anywhere/shared";
+import { registerForkedSessionFile } from "../sessions/fork-discovery.js";
 import type { AgentActivity, PendingInputType } from "@yep-anywhere/shared";
 import { DEFAULT_IDLE_TIMEOUT_MS } from "../defaults.js";
 import { createLruMap, refreshLruMap } from "../lib/lruCollections.js";
@@ -2966,8 +2967,9 @@ export class Supervisor {
       title: options.title,
       sessionSandbox,
     });
+    registerForkedSessionFile(provider.name, fork.sessionId, fork.filePath);
     return {
-      ...fork,
+      sessionId: fork.sessionId,
       sandboxStateKey: sessionSandbox?.stateKey,
       sessionSandbox,
     };
