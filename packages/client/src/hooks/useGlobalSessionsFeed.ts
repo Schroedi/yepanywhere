@@ -416,12 +416,16 @@ export function useGlobalSessionsFeed(
           }
         }
 
+        const refreshRows = Math.max(
+          requestedRows,
+          queryRecordsRef.current.length,
+        );
         const sessionsPromise = ensureClientQuery<
           GlobalSessionsResponse | GlobalSessionsUnchangedResponse
         >({
           sourceKey: requestSourceKey,
           key: queryKey,
-          coverage: { minRows: requestedRows },
+          coverage: { minRows: refreshRows },
           staleTimeMs: GLOBAL_SESSIONS_STALE_TIME_MS,
           force: fetchOptions.force,
           fetcher: async () => {
@@ -438,7 +442,10 @@ export function useGlobalSessionsFeed(
               ...(retained ? { summaryMode: "retained" as const } : {}),
               project: projectId ?? undefined,
               q: searchQuery || undefined,
-              limit,
+              limit:
+                refreshRows > requestedRows
+                  ? Math.min(refreshRows, 500)
+                  : limit,
               includeArchived,
               starred,
               includeStats: false,
@@ -447,9 +454,32 @@ export function useGlobalSessionsFeed(
               retained || fetchOptions.conditional === false
                 ? undefined
                 : knownGenerationForRequest();
-            return knownGeneration === undefined
+            const response = await (knownGeneration === undefined
               ? api.getGlobalSessions(request)
-              : api.getGlobalSessions({ ...request, knownGeneration });
+              : api.getGlobalSessions({ ...request, knownGeneration }));
+            if (isUnchangedGlobalSessionsResponse(response)) return response;
+            let result = response;
+            while (result.hasMore && result.sessions.length < refreshRows) {
+              const after = result.sessions.at(-1)?.updatedAt;
+              if (!after) throw new Error("Session pagination did not advance");
+              const page = await api.getGlobalSessions({
+                ...request,
+                after,
+                limit: Math.min(refreshRows - result.sessions.length, 500),
+              });
+              if (
+                page.hasMore &&
+                (!page.sessions.length ||
+                  page.sessions.at(-1)?.updatedAt === after)
+              ) {
+                throw new Error("Session pagination did not advance");
+              }
+              result = {
+                ...page,
+                sessions: [...result.sessions, ...page.sessions],
+              };
+            }
+            return result;
           },
           applySnapshot: (data, context) => {
             const generationKey = acceptedGenerationKey(

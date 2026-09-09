@@ -25,6 +25,7 @@ test("sidebar follows user visits and sends while background work stays put", as
     define: { __VITE_DEV_PORT__: "-1" },
     server: {
       port: 0,
+      strictPort: false,
       host: "127.0.0.1",
       proxy: { "/api": { target: backend.baseUrl, ws: true } },
     },
@@ -144,6 +145,9 @@ test("sidebar follows user visits and sends while background work stays put", as
       const target = links.nth(1);
       await target.hover();
       const before = await target.boundingBox();
+      const visitsBeforeActivity = await page.evaluate(() =>
+        localStorage.getItem("yep-sidebar-interactions:local"),
+      );
       await expect.poll(() => activityListeners.length).toBeGreaterThan(0);
       for (const emit of activityListeners) {
         emit("process-state-changed", {
@@ -168,6 +172,11 @@ test("sidebar follows user visits and sends while background work stays put", as
         "Session C updated",
       ]);
       expect(await target.boundingBox()).toEqual(before);
+      expect(
+        await page.evaluate(() =>
+          localStorage.getItem("yep-sidebar-interactions:local"),
+        ),
+      ).toBe(visitsBeforeActivity);
       await target.click();
       await expect(page).toHaveURL(/\/sessions\/sidebar-b$/);
       await expect(composer).toBeVisible();
