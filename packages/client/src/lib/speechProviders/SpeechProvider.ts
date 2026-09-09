@@ -42,6 +42,8 @@ export interface SpeechTranscriptionContext {
   speechTargetId?: string;
   /** Composed text preceding the insertion cursor, snapshotted for this capture. */
   textBeforeCursor?: string;
+  /** Sent only to YA servers advertising speech-vocabulary-session-terms. */
+  sessionTerms?: string[];
 }
 
 export type SpeechTurnCommand = "send" | "cancel" | "wait";

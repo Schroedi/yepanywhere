@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  speechVocabularySessionTerms: {
+    name: "speech-vocabulary-session-terms",
+    index: CAPABILITY_ID_ALLOCATIONS.speechVocabularySessionTerms.id,
+    introducedIn: "0.8.2",
+  },
   speechVocabulary: {
     name: "speech-vocabulary",
     index: CAPABILITY_ID_ALLOCATIONS.speechVocabulary.id,
@@ -164,6 +169,30 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  speechVocabularySessionTerms: {
+    id: CAPABILITY_ID_ALLOCATIONS.speechVocabularySessionTerms.id,
+    name: "speech-vocabulary-session-terms",
+    kind: "permanent",
+    area: "speech",
+    introducedIn: "0.8.2",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.speechVocabularySessionTerms.id,
+    },
+    description:
+      "Bias learned speech keyterms toward a supplied active-session term set when SQLite is ready.",
+    clientFallback:
+      "Omit context.sessionTerms and preserve existing speech recognition.",
+    serverContract: {
+      routes: ["POST /api/speech/transcribe", "WS /api/speech/ws"],
+      routeModules: ["packages/server/src/routes/speech.ts"],
+      requestFields: ["context.sessionTerms"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Learned vocabulary depends on ready SQLite storage.",
+    },
+  },
   speechVocabulary: {
     id: CAPABILITY_ID_ALLOCATIONS.speechVocabulary.id,
     name: "speech-vocabulary",

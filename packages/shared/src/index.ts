@@ -1300,3 +1300,10 @@ export * from "./glossary/index.js";
 
 export type { SqliteStatus } from "./sqlite-status.js";
 export type { SpeechVocabularyStatus } from "./speech-vocabulary.js";
+export {
+  parseVocabularyBaseline,
+  rankVocabulary,
+  VOCABULARY_BASELINE_URL,
+  speechVocabularyTokens,
+  MAX_SPEECH_SESSION_TERMS,
+} from "./speech-vocabulary.js";

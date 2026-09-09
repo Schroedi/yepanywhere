@@ -34,6 +34,20 @@ import {
 } from "../index.js";
 
 describe("server capability advertisements", () => {
+  it("requires explicit session-term support independently of vocabulary controls", () => {
+    const name = CAPABILITY_ID_ALLOCATIONS.speechVocabularySessionTerms.name;
+    const vocabulary = CAPABILITY_ID_ALLOCATIONS.speechVocabulary.name;
+    for (const current of ["0.8.0", "0.8.1", "0.8.2"]) {
+      expect(serverHasCapability({ current }, name)).toBe(false);
+      expect(
+        serverHasCapability({ current, capabilities: [vocabulary] }, name),
+      ).toBe(false);
+      expect(serverHasCapability({ current, capabilities: [name] }, name)).toBe(
+        true,
+      );
+    }
+  });
+
   it("gates recent local speech models without changing older voice support", () => {
     const name = CAPABILITY_ID_ALLOCATIONS.localSpeechModelSelection.name;
     for (const current of ["0.8.0", "0.8.1"]) {

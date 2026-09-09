@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { rankVocabulary, speechVocabularyTokens } from "@yep-anywhere/shared";
 import type { SqliteDatabase, SqliteStatement } from "../../storage/sqlite.js";
 
 export interface VocabularySettings {
@@ -14,20 +15,9 @@ export interface VocabularyMessage {
   text: string;
 }
 
-// Selection excludes common English function words; the learned map keeps them.
-const COMMON_WORDS = new Set(
-  "the and that this with from have has had for not are was were you your our they their them will would should could can but into about just then than there here what when where which who how all any some been being its it's also only more very don't does did doing use used using need now please make like want one two get got let let's yes no as at be by do he if in is it me my of on or so to up us we".split(
-    " ",
-  ),
-);
-
 function countWords(text: string): Map<string, number> {
   const counts = new Map<string, number>();
-  for (const match of text
-    .normalize("NFKC")
-    .matchAll(/[\p{L}\p{N}]+(?:['_’.-][\p{L}\p{N}]+)*/gu)) {
-    const word = match[0].toLowerCase().replaceAll("’", "'");
-    if (!/\p{L}/u.test(word) || word.length > 100) continue;
+  for (const word of speechVocabularyTokens(text)) {
     counts.set(word, (counts.get(word) ?? 0) + 1);
   }
   return counts;
@@ -35,6 +25,11 @@ function countWords(text: string): Map<string, number> {
 
 export class VocabularyStore {
   private readonly statements = new Map<string, SqliteStatement>();
+  private wordsRevision = 0;
+
+  get revision(): number {
+    return this.wordsRevision;
+  }
 
   constructor(private readonly database: SqliteDatabase) {}
 
@@ -188,6 +183,7 @@ export class VocabularyStore {
       this.sql("DELETE FROM speech_staged_messages").run();
       this.sql("DELETE FROM speech_word_deltas").run();
     });
+    this.wordsRevision++;
   }
 
   reset(): void {
@@ -199,17 +195,55 @@ export class VocabularyStore {
         "DELETE FROM speech_words; DELETE FROM speech_messages; DELETE FROM speech_sessions; DELETE FROM speech_staged_messages; DELETE FROM speech_word_deltas;",
       );
     });
+    this.wordsRevision++;
   }
 
-  keyterms(limit = 100, maxLength = 50): string[] {
+  keyterms(
+    baseline: ReadonlyMap<string, number>,
+    limit = 100,
+    maxLength = 50,
+    sessionTerms: ReadonlySet<string> = new Set(),
+  ): string[] {
     if (!this.settings().biasing) return [];
-    return this.sql(
-      "SELECT word FROM speech_words WHERE length(word) BETWEEN 3 AND ? AND user_count > 0 ORDER BY (user_count * 4 + assistant_count) DESC, word LIMIT ?",
-    )
-      .all(maxLength, limit + COMMON_WORDS.size)
-      .map((row) => String(row.word))
-      .filter((word) => !COMMON_WORDS.has(word))
-      .slice(0, limit);
+    const totals = this.totals();
+    const common = new Set(
+      [...baseline]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 1000)
+        .map(([word]) => word),
+    );
+    let after = "";
+    let best: ReturnType<typeof rankVocabulary> = [];
+    // Walk the entire lexicon by its primary key, retaining only a page and the winners.
+    for (;;) {
+      const rows = this.sql(
+        "SELECT word, user_count, assistant_count FROM speech_words WHERE word > ? AND length(word) <= ? ORDER BY word LIMIT 512",
+      ).all(after, maxLength);
+      if (rows.length === 0) break;
+      const words = rows
+        .map((row) => ({
+          word: String(row.word),
+          user: Number(row.user_count),
+          assistant: Number(row.assistant_count),
+        }))
+        .filter(({ word }) => !common.has(word) && word.length <= maxLength);
+      best = rankVocabulary(
+        [...best, ...words],
+        totals.user + totals.assistant,
+        baseline,
+        1,
+        true,
+        true,
+      )
+        .map((word) => ({
+          ...word,
+          score: word.score * (sessionTerms.has(word.word) ? 5 : 1),
+        }))
+        .sort((a, b) => b.score - a.score || a.word.localeCompare(b.word))
+        .slice(0, limit);
+      after = String(rows[rows.length - 1]!.word);
+    }
+    return best.map(({ word }) => word);
   }
 
   close(): void {

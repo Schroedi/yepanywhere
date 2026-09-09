@@ -285,6 +285,7 @@ interface Props {
   /** Project ID for uploads (required to enable attach button) */
   projectId?: string;
   completionRenderItems?: RenderItem[];
+  speechVocabulary?: { terms(): string[]; heard(text: string): void };
   /** Session ID for uploads (required to enable attach button) */
   sessionId?: string;
   /** Completed file attachments */
@@ -443,6 +444,7 @@ export function MessageInput({
   providerRuntimeStatus,
   projectId,
   completionRenderItems,
+  speechVocabulary,
   sessionId,
   attachments = [],
   onAttach,
@@ -952,6 +954,7 @@ export function MessageInput({
         projectId,
         sessionId,
         draftKey,
+        sessionTerms: speechVocabulary?.terms(),
         clientTurnId: ensureSpeechTurnId(),
         speechTargetId: activeSpeechTargetIdRef.current ?? undefined,
         textBeforeCursor: draft.slice(
@@ -961,7 +964,14 @@ export function MessageInput({
             draft.length,
         ),
       };
-    }, [controls, draftKey, ensureSpeechTurnId, projectId, sessionId]);
+    }, [
+      controls,
+      draftKey,
+      ensureSpeechTurnId,
+      projectId,
+      sessionId,
+      speechVocabulary,
+    ]);
 
   const buildSubmissionMetadata = useCallback(
     (
@@ -3216,6 +3226,7 @@ export function MessageInput({
   );
   const handleVoiceTranscript = useCallback(
     (transcript: string, metadata?: SpeechTranscriptionResultMetadata) => {
+      speechVocabulary?.heard(transcript);
       const pendingDelivery = pendingSpeechDeliveryRef.current;
       const pendingRange = metadata?.speechTargetId
         ? (pendingDelivery?.speechInsertionRangesRef.current.get(
@@ -3248,7 +3259,7 @@ export function MessageInput({
       clearPendingSpeechFinal();
       return commitVoiceTranscript(transcript, metadata);
     },
-    [clearPendingSpeechFinal, commitVoiceTranscript],
+    [clearPendingSpeechFinal, commitVoiceTranscript, speechVocabulary],
   );
 
   const flushPendingSpeechFinal = useCallback(() => {

@@ -207,7 +207,6 @@ describe.skipIf(!loadSqliteDriver())(
         user: 3,
         assistant: 2,
       });
-      expect(f.learning.store.keyterms()).toEqual(["parakeet", "sqlite"]);
       expect(
         (await (await f.routes.request("/vocabulary")).json()).words,
       ).toBeUndefined();

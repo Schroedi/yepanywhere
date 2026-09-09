@@ -250,6 +250,7 @@ import type { SharingService } from "./services/SharingService.js";
 import type { SpeechBackendRegistry } from "./services/voice/registry.js";
 import { VocabularyStore } from "./services/voice/VocabularyStore.js";
 import { VocabularyLearning } from "./services/voice/VocabularyLearning.js";
+import { VocabularyKeyterms } from "./services/voice/VocabularyKeyterms.js";
 import { vocabularySessions } from "./services/voice/vocabulary-sessions.js";
 import { createSpeechVocabularyRoutes } from "./routes/speech-vocabulary.js";
 import { CodexSessionReader } from "./sessions/codex-reader.js";
@@ -818,10 +819,12 @@ export function createApp(options: AppOptions): AppResult {
   };
   let retainedCollections: RetainedSessionCollections | undefined;
   let vocabularyLearning: VocabularyLearning | undefined;
+  let vocabularyKeyterms: VocabularyKeyterms | undefined;
   let unsubscribeVocabulary: (() => void) | undefined;
   const disposeSessionReaders = async (): Promise<void> => {
     unsubscribeVocabulary?.();
     options.speechBackendRegistry?.setVocabularySource(undefined);
+    await vocabularyKeyterms?.close();
     await vocabularyLearning?.close();
     discoverySqlite.close();
     await retainedCollections?.dispose();
@@ -2034,8 +2037,10 @@ export function createApp(options: AppOptions): AppResult {
         ),
     );
     vocabularyLearning = learning;
-    options.speechBackendRegistry?.setVocabularySource(() =>
-      learning.store.keyterms(),
+    const keyterms = new VocabularyKeyterms(learning.store, effectiveDataDir);
+    vocabularyKeyterms = keyterms;
+    options.speechBackendRegistry?.setVocabularySource((context) =>
+      keyterms.get(context?.sessionTerms),
     );
     unsubscribeVocabulary = options.eventBus?.subscribe((event) => {
       if (event.type === "session-catalog-updated" && !event.catalog.refreshing)

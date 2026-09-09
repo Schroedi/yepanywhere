@@ -1,4 +1,7 @@
-import type { SpeechVocabularyStatus } from "@yep-anywhere/shared";
+import {
+  rankVocabulary,
+  type SpeechVocabularyStatus,
+} from "@yep-anywhere/shared";
 import { Fragment, useEffect, useState } from "react";
 import { useI18n } from "../../i18n";
 import styles from "./SpeechVocabularyChart.module.css";
@@ -7,41 +10,7 @@ import {
   VOCABULARY_BASELINE_URL,
 } from "./vocabulary-baseline";
 
-type Word = NonNullable<SpeechVocabularyStatus["words"]>[number];
-
-export function rankVocabulary(
-  words: Word[],
-  total: number,
-  baseline: ReadonlyMap<string, number>,
-  minimum: number,
-  distinctive: boolean,
-) {
-  return words
-    .filter((word) => word.user + word.assistant >= minimum)
-    .map((word) => {
-      const count = word.user + word.assistant;
-      const frequency = baseline.get(word.word);
-      const expected = frequency === undefined ? undefined : total * frequency;
-      return {
-        ...word,
-        count,
-        ratio: expected ? count / expected : undefined,
-        // Descriptive excess-frequency ranking, not a significance test.
-        score:
-          expected === undefined
-            ? 0
-            : (count - expected) / Math.sqrt(expected + 1),
-      };
-    })
-    .filter(
-      (word) => !distinctive || (word.ratio !== undefined && word.ratio > 1),
-    )
-    .sort(
-      (a, b) =>
-        (distinctive ? b.score - a.score : b.count - a.count) ||
-        a.word.localeCompare(b.word),
-    );
-}
+export { rankVocabulary } from "@yep-anywhere/shared";
 
 export default function SpeechVocabularyChart({
   status,

@@ -530,7 +530,8 @@ approximately 623 KB, lives outside Git, and needs no runtime decoding library.
 The view links to its source and CC BY-SA 4.0 license. It sends no learned words,
 credentials, or referrer to that fixed public URL. Browser HTTP caching may
 reuse the response. A failed fetch leaves raw-count exploration available;
-reopening retries. There is no startup download or server reference cache.
+reopening retries. There is no startup download. Recognition independently
+loads the same pinned resource on demand and caches it in server app data.
 
 Baseline frequencies are normalized within that published list. Distinctive
 words must exceed their expected count, and rank by
@@ -548,15 +549,77 @@ on demand. Corpus-derived embeddings, cooccurrences, or occurrence references
 change collection and remain in the
 [semantic-map sketch](pluggable-speech-recognition.sketches.md).
 
-Recognition selects up to 100 terms of at most 50 characters, ranks by
-`4 * user_count + assistant_count`, breaks ties lexically, and excludes common
-English function words and terms never observed in user text. This is a
-deterministic first heuristic, not an established transcription-quality gain.
+Recognition selects up to 100 terms of at most 50 characters, xAI's documented
+limits. All learned terms with positive excess over English are candidates,
+including single occurrences, assistant-only terms, and words absent from the
+reference. The top 1,000 English words are explicitly excluded, even when locally
+overrepresented. The selector walks the whole SQLite lexicon in 512-row pages
+and retains only its leading 100 candidates; exploration's 2,000-word view and
+six-occurrence display filter do not constrain recognition.
+
+Usage and rarity supply a first approximation to expected missed uses. Global
+priority uses `(observed - expected) / sqrt(expected + 1)`, with expected count
+computed from all counted user and assistant tokens. Unlisted words use zero
+reference frequency in this heuristic and compete normally. Eligible active-
+session terms receive a fixed fivefold priority multiplier. Ties break
+lexically. The score only selects the list inside YA: Grok receives plain
+repeated `keyterm` values, never numeric scores or weights. Acoustic confusion,
+homophones, and measured error probabilities remain in the requested
+[error-modeling gap](../gaps/speech-recognition-error-modeling.md); no
+transcription-quality gain is established by this heuristic.
 Caller-supplied keyterms take priority within Grok's same limits. Batch and
 both direct-to-YA and relayed streaming requests use the same selection;
 request logs record exactly the selected terms, and retained batch audio
 metadata also records them. No new words are implicitly added to the
 send/cancel/wait command vocabulary.
+
+With biasing off, recognition does not load the English reference. First use
+with biasing on reads the pinned app-data text cache or downloads the fixed
+public resource with a five-second network timeout and 2 MB response limit.
+Concurrent requests share the load. No learned text is sent to the resource
+host, and no frequency table ships in Git. The parsed 50,000-row map expires
+after **30 minutes without recognition use**, renewed on each use; its disk
+cache survives eviction and server restart. Shutdown aborts loading and releases
+the map and eviction timer. Reset or disabling biasing during loading cannot
+publish stale terms. A reference load/cache failure logs a diagnostic and
+continues ordinary recognition with caller-supplied terms only; another request
+may retry after one minute. A malformed on-disk cache must be removed to refetch.
+Reference loading shares the streaming handshake promise, so incoming audio can
+buffer in order. A disconnected or superseded stream cannot open an upstream
+connection after that load completes.
+
+The browser maintains a growing active-session term set from messages already
+loaded in its current session view. It starts on speech use, includes submitted
+user and assistant text, and ignores provisional streaming text, tool payloads,
+reasoning, and metadata messages. Trimming the rendered transcript window does
+not discard observed terms. The set has no time window or decay, makes no
+additional history reads, and is released with the view. Terms first introduced
+by an ASR result alone are excluded from the bonus. Later assistant use, including
+an echo, establishes discussion relevance and makes the term eligible; terms
+already present before that ASR result remain eligible. Live ASR callbacks
+and loaded `messageMetadata.speech` establish origin independently of a visible
+prefix such as 🎤. Historical records lacking speech metadata cannot establish
+ASR origin; this is not retrospective recovery of missing provenance.
+
+At most 10,000 terms travel in `context.sessionTerms`; larger local sets retain
+all terms and send their latest 10,000 additions. The server normalizes and bounds
+this list. Hints only boost existing learned candidates and do not increment
+durable counts. It caches at most 16 selected 100-term lists, keyed by a digest
+of the supplied set and invalidated by committed count changes or reset. An
+unchanged selection can be reused even after reference-map eviction. Hint lists
+are omitted from retained audio metadata and request logs; selected keyterms
+remain auditable.
+
+The optional `speech-vocabulary-session-terms` capability (permanent ID 66,
+introduced in 0.8.2) gates this field on existing batch and stream requests and
+is advertised only with ready SQLite. The maintainer-approved release corpus
+is v0.8.0 and v0.8.1; both lack session hints. Without it, the browser neither
+maintains nor sends the hint set, and existing recognition continues. The older
+`speech-vocabulary` capability retains its original meaning.
+
+The [project-specific vocabulary gap](../gaps/project-specific-speech-vocabulary.md)
+tracks project-wide selection beyond the active-session bonus. Durable learned
+counts remain installation-wide; no per-project occurrence records are added.
 
 The optional `speech-vocabulary` capability (permanent ID 65, introduced in
 0.8.2) is advertised only with ready SQLite. It owns GET/PUT

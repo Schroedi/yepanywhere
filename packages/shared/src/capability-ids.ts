@@ -414,6 +414,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "speech-vocabulary",
     introducedIn: "0.8.2",
   },
+  speechVocabularySessionTerms: {
+    id: 66,
+    direction: "server",
+    name: "speech-vocabulary-session-terms",
+    introducedIn: "0.8.2",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

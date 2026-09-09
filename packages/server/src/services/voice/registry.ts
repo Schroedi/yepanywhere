@@ -8,10 +8,19 @@ import type {
   SpeechBackend,
   SpeechBackendCapabilities,
   SpeechBackendInfo,
+  SpeechStreamOptions,
+  SpeechStreamHandlers,
+  SpeechStreamSession,
+  StreamingSpeechBackend,
 } from "./SpeechBackend.js";
 import { XaiSttBackend } from "./xaiSttBackend.js";
 
 const logger = getLogger();
+export interface SpeechVocabularyContext {
+  projectId?: string;
+  sessionId?: string;
+  sessionTerms?: string[];
+}
 
 /**
  * Server-side registry of speech backends.
@@ -26,17 +35,50 @@ export class SpeechBackendRegistry {
     { info: SpeechBackendInfo; backend: SpeechBackend }
   >();
   private readonly validations = new Set<Promise<void>>();
-  private vocabularySource?: () => string[];
+  private vocabularySource?: (
+    context?: SpeechVocabularyContext,
+  ) => string[] | Promise<string[]>;
 
-  setVocabularySource(source: (() => string[]) | undefined): void {
+  setVocabularySource(
+    source:
+      | ((context?: SpeechVocabularyContext) => string[] | Promise<string[]>)
+      | undefined,
+  ): void {
     this.vocabularySource = source;
   }
 
-  keyterms(backendId: string, requested: string[] = []): string[] {
+  async keyterms(
+    backendId: string,
+    requested: string[] = [],
+    context?: SpeechVocabularyContext,
+  ): Promise<string[]> {
     if (backendId !== "ya-grok") return requested;
-    return [...new Set([...requested, ...(this.vocabularySource?.() ?? [])])]
+    return [
+      ...new Set([
+        ...requested,
+        ...((await this.vocabularySource?.(context)) ?? []),
+      ]),
+    ]
       .filter((term) => term.length > 0 && term.length <= 50)
       .slice(0, 100);
+  }
+
+  /** Reference loading shares the handshake lifetime, without blocking audio frames. */
+  async stream(
+    backend: StreamingSpeechBackend,
+    options: SpeechStreamOptions,
+    handlers: SpeechStreamHandlers,
+    requestId: string,
+    isCurrent: () => boolean,
+    context?: SpeechVocabularyContext,
+  ): Promise<SpeechStreamSession> {
+    const keyterms = await this.keyterms(backend.id, options.keyterms, context);
+    if (!isCurrent()) throw new Error("Speech stream was closed or superseded");
+    logger.info(
+      { component: "speech", requestId, backendId: backend.id, keyterms },
+      "Speech streaming keyterms selected",
+    );
+    return backend.stream({ ...options, keyterms }, handlers);
   }
 
   /** Currently enabled backend ids in insertion order. */

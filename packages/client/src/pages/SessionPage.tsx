@@ -126,6 +126,7 @@ import type { SessionLoadProgress } from "../hooks/useSessionMessages";
 import { useSessionPerformanceSettings } from "../hooks/useSessionPerformanceSettings";
 import { useSessionToolbarPresence } from "../hooks/useSessionToolbarPresence";
 import { useVersion } from "../hooks/useVersion";
+import { useSessionSpeechVocabulary } from "../hooks/useSessionSpeechVocabulary";
 import type { DraftTextChangeMetadata } from "../lib/commentAnchors";
 import {
   deleteDraftAttachmentRef,
@@ -686,6 +687,14 @@ function SessionPageContent({
   // Composer `!!` routing is always-on where the server supports it
   // (vanilla-defaults.md § Known Exceptions); no setting gates execution.
   const bangCommandsSupported = serverSupportsBangCommands(versionInfo);
+  const speechVocabulary = useSessionSpeechVocabulary(
+    `${projectId}/${actualSessionId}`,
+    messages,
+    serverHasCapability(
+      versionInfo,
+      SERVER_CAPABILITIES.speechVocabularySessionTerms.name,
+    ),
+  );
   const publicSharesEnabled = serverSettings?.publicSharesEnabled ?? false;
   const { status: publicShareGlobalStatus } = usePublicShareStatus({
     poll: publicSharesEnabled,
@@ -5995,6 +6004,7 @@ function SessionPageContent({
                     : undefined
                 }
                 completionRenderItems={activityRenderItems}
+                speechVocabulary={speechVocabulary}
                 onSend={
                   mainComposerForAside
                     ? (text) => handleFocusedBtwSend(text, "main")
