@@ -1,6 +1,12 @@
 import { agentSelfEnabled } from "./agent-self.js";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
 import { createConnection, type Socket } from "node:net";
+import { getLogger } from "../../logging/logger.js";
+import { getModuleEnv, harvestYaModuleEnv } from "../../yaModuleEnv.js";
+import { setLinuxProviderHostDegraded } from "./provider-host-status.js";
 import type {
   PermissionMode,
   ThinkingConfig,
@@ -14,7 +20,6 @@ import type {
   ToolApprovalResult,
   UserMessage,
 } from "../types.js";
-import { getModuleEnv } from "../../yaModuleEnv.js";
 import { pickStaticAgentEnvironment } from "./agentctl-session-env.js";
 import type {
   AgentSession,
@@ -172,6 +177,131 @@ function getEnvironment(): RuntimeHostEnvironment | null {
 
 export function isProviderRuntimeHostAvailable(): boolean {
   return getEnvironment() !== null && registered;
+}
+
+function resolveProviderHostProjectRoot(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 8; i += 1) {
+    if (existsSync(join(dir, "scripts/provider-runtime-host.mjs"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return process.cwd();
+}
+
+function applyProviderHostConnection(connection: {
+  paths: {
+    runtimeDir: string;
+    controlSocketPath: string;
+    descriptorPath: string;
+    tokenPath: string;
+    receiptPath: string;
+  };
+  discovery: { token?: string; descriptor?: { controlSocketPath?: string } };
+}): void {
+  const socketPath =
+    connection.discovery.descriptor?.controlSocketPath ??
+    connection.paths.controlSocketPath;
+  process.env.YEP_PROVIDER_RUNTIME_DIR = connection.paths.runtimeDir;
+  process.env.YEP_PROVIDER_RUNTIME_SOCKET = socketPath;
+  if (connection.discovery.token) {
+    process.env.YEP_PROVIDER_RUNTIME_TOKEN = connection.discovery.token;
+  }
+  process.env.YEP_PROVIDER_RUNTIME_DESCRIPTOR = connection.paths.descriptorPath;
+  process.env.YEP_PROVIDER_RUNTIME_TOKEN_FILE = connection.paths.tokenPath;
+  process.env.YEP_PROVIDER_RUNTIME_RECEIPTS = connection.paths.receiptPath;
+  if (!process.env.YEP_SERVER_GENERATION?.trim()) {
+    process.env.YEP_SERVER_GENERATION = `${process.pid}-1`;
+  }
+  harvestYaModuleEnv();
+}
+
+/**
+ * Attach to a live Linux provider host, or start one when absent.
+ * Remote SSH executor sessions stay allowed either way: they still launch
+ * from this YA server. A failed ensure continues in-process and sets the
+ * Linux degraded notice.
+ */
+export async function ensureProviderRuntimeHost(): Promise<boolean> {
+  if (isProviderRuntimeHostAvailable()) {
+    setLinuxProviderHostDegraded(false);
+    return true;
+  }
+  if (process.platform !== "linux") return false;
+  if (process.env.VITEST) {
+    return await initializeProviderRuntimeHost();
+  }
+  if (!process.env.YEP_SERVER_GENERATION?.trim()) {
+    process.env.YEP_SERVER_GENERATION = `${process.pid}-1`;
+  }
+  if (await initializeProviderRuntimeHost()) {
+    setLinuxProviderHostDegraded(false);
+    return true;
+  }
+
+  try {
+    const projectRoot = resolveProviderHostProjectRoot();
+    const moduleUrl = pathToFileURL(
+      join(projectRoot, "scripts/attach-or-start-provider-host.mjs"),
+    ).href;
+    const { attachOrStartProviderHost } = (await import(moduleUrl)) as {
+      attachOrStartProviderHost: (options: {
+        env?: NodeJS.ProcessEnv;
+        projectRoot?: string;
+      }) => Promise<{
+        state: string;
+        paths?: {
+          runtimeDir: string;
+          controlSocketPath: string;
+          descriptorPath: string;
+          tokenPath: string;
+          receiptPath: string;
+        };
+        discovery?: {
+          token?: string;
+          descriptor?: { controlSocketPath?: string };
+        };
+        error?: string;
+      }>;
+    };
+    const result = await attachOrStartProviderHost({
+      env: process.env,
+      projectRoot,
+    });
+    if (
+      (result.state === "attached" || result.state === "started") &&
+      result.paths &&
+      result.discovery
+    ) {
+      applyProviderHostConnection({
+        paths: result.paths,
+        discovery: result.discovery,
+      });
+      if (await initializeProviderRuntimeHost()) {
+        setLinuxProviderHostDegraded(false);
+        return true;
+      }
+    }
+    getLogger().error(
+      {
+        event: "provider_host_ensure_failed",
+        state: result.state,
+        error: result.error,
+      },
+      "Linux YA could not attach or start the provider host",
+    );
+  } catch (error) {
+    getLogger().error(
+      {
+        event: "provider_host_ensure_failed",
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Linux YA could not attach or start the provider host",
+    );
+  }
+  setLinuxProviderHostDegraded(true);
+  return false;
 }
 
 export function hasHostedProviderRuntime(sessionId: string): boolean {

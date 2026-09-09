@@ -8,6 +8,7 @@ import { CacheMissBillingToasts } from "./components/CacheMissBillingToasts";
 import { ClientLogRecordingBadge } from "./components/ClientLogRecordingBadge";
 import { ConnectionBar } from "./components/ConnectionBar";
 import { DesktopProviderNotice } from "./components/DesktopProviderNotice";
+import { ProviderHostDegradedBanner } from "./components/ProviderHostDegradedBanner";
 import { ReloadBanner, ReloadBannerStack } from "./components/ReloadBanner";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ClientSummarySourceBinding } from "./contexts/ClientSummarySourceBinding";
@@ -112,6 +113,7 @@ function AppContent({ children }: Props) {
   return (
     <>
       <ConnectionBar />
+      <ProviderHostDegradedBanner />
       <DesktopProviderNotice />
       {!authLoading && (!authEnabled || isAuthenticated) && (
         <LocalRuntimeNotice />

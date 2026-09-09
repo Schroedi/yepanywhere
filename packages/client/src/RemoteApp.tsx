@@ -29,6 +29,7 @@ import { BottomOverscrollReload } from "./components/BottomOverscrollReload";
 import { ClientLogRecordingBadge } from "./components/ClientLogRecordingBadge";
 import { ConnectionBar } from "./components/ConnectionBar";
 import { HostOfflineModal } from "./components/HostOfflineModal";
+import { ProviderHostDegradedBanner } from "./components/ProviderHostDegradedBanner";
 import { ReloadBanner, ReloadBannerStack } from "./components/ReloadBanner";
 import { RemoteCompatibilityNotices } from "./components/RemoteCompatibilityNotices";
 import { StartupShell } from "./components/StartupShell";
@@ -120,6 +121,7 @@ function ConnectedAppContentInner({ children }: { children: ReactNode }) {
 
   return (
     <>
+      <ProviderHostDegradedBanner />
       <RemoteCompatibilityNotices
         versionInfo={versionInfo}
         runtimeNotice={{ runtime: versionInfo?.serverRuntime, sourceKey, t }}

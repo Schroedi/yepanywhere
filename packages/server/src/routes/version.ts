@@ -7,6 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { isLinuxProviderHostDegraded } from "../sdk/providers/provider-host-status.js";
 import {
   APPROVAL_AUDIT_LOG_CAPABILITY,
   SERVER_CAPABILITIES,
@@ -357,6 +358,11 @@ export interface VersionInfo {
   clientDefaults?: ClientDefaults;
   /** Whether this process is the server bundled with the desktop shell. */
   desktopRuntime?: boolean;
+  /**
+   * Linux boot tried to attach or start the provider host and still has none.
+   * Absent on healthy servers and on non-Linux hosts.
+   */
+  providerHostDegraded?: boolean;
 }
 
 /** Resume protocol version with mutual nonce challenge + server proof binding. */
@@ -685,6 +691,7 @@ export function createVersionRoutes(options?: VersionRouteOptions): Hono {
       latestDeviceBridgeVersion: deviceBridgeStatus.latestVersion ?? null,
       ...(clientDefaults ? { clientDefaults } : {}),
       ...(options?.desktopRuntime ? { desktopRuntime: true } : {}),
+      ...(isLinuxProviderHostDegraded() ? { providerHostDegraded: true } : {}),
     };
 
     return c.json(info);

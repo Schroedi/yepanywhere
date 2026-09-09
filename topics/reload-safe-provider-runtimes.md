@@ -361,7 +361,7 @@ Routing is evaluated on every provider launch, including a durable resume:
 | Launch | Runtime backend |
 |---|---|
 | Any provider, shared host available | shared provider host |
-| Shared host unavailable or incompatible | ordinary in-Hono provider only when reload continuity was not explicitly promised |
+| Shared host unavailable or incompatible | Linux boot attaches or starts the host; if that fails, ordinary in-Hono provider plus a non-dismissible degraded banner. SSH remote executors still launch from this server |
 
 The retained Codex setting does not participate in this decision. A runtime
 keeps the owner selected when it launched until it reaches terminal cleanup.
@@ -839,9 +839,9 @@ through `pnpm provider-host`. Host capability requires:
 - wrapper-generation registration for Hono control; and
 - bounded owner-loss cleanup owned by the host and its terminal owner.
 
-macOS, Windows, direct `pnpm --filter server dev` launches, unsupported Linux
-environments, and failed or ambiguous probes retain ordinary in-Hono provider
-ownership and the existing safe-restart/explicit-interruption choices. An
+macOS and Windows retain ordinary in-Hono provider ownership. Direct Linux
+server launches attach or start the host instead of silently skipping it. Failed
+or ambiguous Linux probes continue in-process with the degraded banner. An
 ambiguous stable descriptor is not removed or replaced.
 
 Any later use of `systemd-run --user`, Linux abstract sockets, `/proc`, cgroup

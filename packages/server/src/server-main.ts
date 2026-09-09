@@ -79,12 +79,13 @@ import { initMessageLogger } from "./sdk/messageLogger.js";
 import { MockServerClaudeProvider } from "./sdk/mock.js";
 import {
   closeProviderRuntimeHostRegistration,
+  ensureProviderRuntimeHost,
   hasHostedProviderRuntime,
-  initializeProviderRuntimeHost,
   isProviderRuntimeHostAvailable,
   listHostedProviderRuntimes,
   retainProviderRuntimeProcessGroup,
 } from "./sdk/providers/provider-runtime-host.js";
+import { isLinuxProviderHostDegraded } from "./sdk/providers/provider-host-status.js";
 import { ClaudeGatewayProvider } from "./sdk/providers/claude-gateway.js";
 import { ClaudeOllamaProvider } from "./sdk/providers/claude-ollama.js";
 import { grokACPProvider } from "./sdk/providers/grok-acp.js";
@@ -744,8 +745,12 @@ async function startServer() {
   if (await registerDevWrapperBackend()) {
     console.log("[DevWrapper] Registered backend process");
   }
-  if (await initializeProviderRuntimeHost()) {
+  if (await ensureProviderRuntimeHost()) {
     console.log("[ProviderRuntimeHost] Registered this server generation");
+  } else if (isLinuxProviderHostDegraded()) {
+    console.error(
+      "[ProviderRuntimeHost] Linux server is running without the provider host; local sessions stay in-process",
+    );
   }
   markStartup("Provider runtime host registration checked");
   await hostAwakeService.initialize({

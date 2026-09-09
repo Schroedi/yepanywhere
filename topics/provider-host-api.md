@@ -394,10 +394,13 @@ guarantees adoption across all hosted sessions. UI and operator documentation
 must not equate `Server changed` or `Reload` with provider-runtime refresh.
 
 Shared provider hosting is automatic when its launch capability is present. It
-has no user-facing enable setting. Unsupported platforms, watch mode, direct
-server launches without a host, failed capability probes, or explicit
-provider-host disablement use ordinary in-Hono ownership; headless session
-control then reports unavailable.
+has no user-facing enable setting. Linux server boot attaches to a compatible
+host or starts one (`scripts/attach-or-start-provider-host.mjs`). SSH remote
+executor sessions still launch from this YA server and are not a reason to skip
+the local host. If Linux still has no host after that attempt, local sessions
+continue in-process and the UI shows a non-dismissible warning banner.
+Unsupported non-Linux platforms keep ordinary in-Hono ownership without that
+banner; headless session control then reports unavailable.
 
 The `codexReloadSafeSessions` setting remains in the server schema and storage
 for old-client compatibility, but is ignored for routing. New clients hide the
@@ -455,8 +458,9 @@ version, while the permanent capability ledger retains all prior assignments.
   worker-code deployment still requires a wrapper restart.
 - Full wrapper shutdown and nonresponsive-host replacement leave no host,
   worker, provider process group, socket, descriptor, or token artifact behind.
-- Host absence degrades to ordinary in-Hono sessions; it never weakens network
-  admission or makes the provider-host socket remotely reachable.
+- Host absence on Linux after attach-or-start continues in-process and raises
+  the provider-host degraded banner; it never weakens network admission or
+  makes the provider-host socket remotely reachable.
 
 ## Design decisions
 

@@ -68,6 +68,11 @@ export interface VersionInfo {
   clientDefaults?: ClientDefaults;
   /** True when this server is bundled with the native desktop shell. */
   desktopRuntime?: boolean;
+  /**
+   * Linux boot tried to attach or start the provider host and still has none.
+   * Absent on healthy servers and on non-Linux hosts.
+   */
+  providerHostDegraded?: boolean;
 }
 
 export interface ServerInfo {
