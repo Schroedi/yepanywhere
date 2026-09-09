@@ -4396,64 +4396,6 @@ a.sidebar-nav-item {
   height: 8px;
 }
 
-/*
- * Overflow menu copies gate by their (priority-derived) tier class uniformly
- * across both menu groups: hidden by default, revealed once the toolbar's
- * measured overflow tier reaches each control's tier. Early menu copies (e.g.
- * the left-group mode/attach controls at their default priority) are revealed
- * at every tier, since the menu only exists once the toolbar has collapsed to
- * `early` or beyond. A control's inline and menu copies thus stay mutually
- * exclusive at every tier and priority — see the show rules below.
- */
-.composer-bottom-overflow-menu-group .composer-bottom-overflow-pinned,
-.composer-bottom-overflow-menu-group .composer-bottom-overflow-early,
-.composer-bottom-overflow-menu-group .composer-bottom-overflow-medium,
-.composer-bottom-overflow-menu-group .composer-bottom-overflow-late {
-  display: none;
-}
-
-.message-input-toolbar.overflow-tier-early
-  .composer-bottom-overflow-inline.composer-bottom-overflow-early,
-.message-input-toolbar.overflow-tier-medium
-  .composer-bottom-overflow-inline.composer-bottom-overflow-early,
-.message-input-toolbar.overflow-tier-late
-  .composer-bottom-overflow-inline.composer-bottom-overflow-early {
-  display: none;
-}
-
-.message-input-toolbar.overflow-tier-medium
-  .composer-bottom-overflow-inline.composer-bottom-overflow-medium,
-.message-input-toolbar.overflow-tier-late
-  .composer-bottom-overflow-inline.composer-bottom-overflow-medium {
-  display: none;
-}
-
-.message-input-toolbar.overflow-tier-late
-  .composer-bottom-overflow-inline.composer-bottom-overflow-late {
-  display: none;
-}
-
-.message-input-toolbar.overflow-tier-early
-  .composer-bottom-overflow-menu-group
-  .composer-bottom-overflow-early,
-.message-input-toolbar.overflow-tier-medium
-  .composer-bottom-overflow-menu-group
-  .composer-bottom-overflow-early,
-.message-input-toolbar.overflow-tier-medium
-  .composer-bottom-overflow-menu-group
-  .composer-bottom-overflow-medium,
-.message-input-toolbar.overflow-tier-late
-  .composer-bottom-overflow-menu-group
-  .composer-bottom-overflow-early,
-.message-input-toolbar.overflow-tier-late
-  .composer-bottom-overflow-menu-group
-  .composer-bottom-overflow-medium,
-.message-input-toolbar.overflow-tier-late
-  .composer-bottom-overflow-menu-group
-  .composer-bottom-overflow-late {
-  display: inline-flex;
-}
-
 /* Pending approval indicator button in toolbar */
 .pending-approval-indicator {
   display: flex;

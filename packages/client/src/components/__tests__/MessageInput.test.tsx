@@ -39,6 +39,7 @@ import {
 } from "../../lib/speechProviders/methods";
 import { setBrowserXaiSttApiKey } from "../../lib/speechProviders/xaiCredentials";
 import { MessageInput } from "../MessageInput";
+import toolbarStyles from "../MessageInputToolbar.module.css";
 import { getSourceRuntimeRegistry } from "../../lib/sourceRuntime";
 import {
   MessageInputToolbarView,
@@ -6190,32 +6191,8 @@ describe("MessageInput", () => {
     });
     vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
 
-    const currentTier = (
-      element: Element,
-    ): "none" | "early" | "medium" | "late" => {
-      const toolbar = element.closest(".message-input-toolbar");
-      if (!toolbar) return "none";
-      if (toolbar.classList.contains("overflow-tier-late")) return "late";
-      if (toolbar.classList.contains("overflow-tier-medium")) return "medium";
-      if (toolbar.classList.contains("overflow-tier-early")) return "early";
-      return "none";
-    };
-    const inlineHidden = (element: Element): boolean => {
-      if (!element.classList.contains("composer-bottom-overflow-inline")) {
-        return false;
-      }
-      const tier = currentTier(element);
-      return (
-        (element.classList.contains("composer-bottom-overflow-early") &&
-          tier !== "none") ||
-        (element.classList.contains("composer-bottom-overflow-medium") &&
-          (tier === "medium" || tier === "late")) ||
-        (element.classList.contains("composer-bottom-overflow-late") &&
-          tier === "late")
-      );
-    };
     vi.spyOn(window, "getComputedStyle").mockImplementation((element) => {
-      const hidden = inlineHidden(element);
+      const hidden = element.classList.contains(toolbarStyles.overflowHidden!);
       return {
         display: hidden ? "none" : "block",
         position: "static",

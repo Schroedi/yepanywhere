@@ -1328,15 +1328,12 @@ export function MessageInputToolbarView({
   const toolbarControlMarker = (
     key: SessionToolbarVisibilityKey,
     hasSpecialContextAction = false,
-  ): ToolbarControlMarker =>
-    onHideControl
-      ? {
-          "data-session-toolbar-control": key,
-          "data-session-toolbar-special-context": hasSpecialContextAction
-            ? "true"
-            : undefined,
-        }
-      : {};
+  ): ToolbarControlMarker => ({
+    "data-session-toolbar-control": key,
+    "data-session-toolbar-special-context": hasSpecialContextAction
+      ? "true"
+      : undefined,
+  });
   const normalizedWaveformButtonBackgroundOpacity = Math.min(
     100,
     Math.max(0, waveformButtonBackgroundOpacityPercent),
@@ -1357,9 +1354,8 @@ export function MessageInputToolbarView({
     }
     return configured;
   };
-  // Inline copy always carries `-inline`; append the priority-derived tier (or
-  // nothing when pinned). Menu copy carries just the tier. Both mirror each
-  // other so a control's inline and menu presentations stay mutually exclusive.
+  // Priority classes label measurement candidates. Individual hidden membership
+  // keeps each control's inline and menu presentations mutually exclusive.
   const inlineTierClass = (
     key: SessionToolbarVisibilityKey,
     ...extra: string[]
@@ -1368,6 +1364,7 @@ export function MessageInputToolbarView({
       ...extra,
       "composer-bottom-overflow-inline",
       priorityToTierClass(effectivePriority(key)),
+      hiddenControls.has(key) ? toolbarModuleStyles.overflowHidden : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -1376,7 +1373,13 @@ export function MessageInputToolbarView({
     ...extra: string[]
   ): string => {
     const tierClass = priorityToTierClass(effectivePriority(key));
-    return [...extra, tierClass || "composer-bottom-overflow-pinned"]
+    return [
+      ...extra,
+      tierClass || "composer-bottom-overflow-pinned",
+      hiddenControls.has(key)
+        ? toolbarModuleStyles.overflowVisible
+        : toolbarModuleStyles.overflowHidden,
+    ]
       .filter(Boolean)
       .join(" ");
   };
@@ -1447,7 +1450,11 @@ export function MessageInputToolbarView({
     }
 
     return (
-      <div ref={ref} className={className}>
+      <div
+        ref={ref}
+        className={className}
+        {...toolbarControlMarker("sessionStatus")}
+      >
         {showLivenessChip && livenessDisplay && (
           <div
             className={`composer-status-chip composer-liveness-status is-${livenessDisplay.tone}`}
@@ -1817,12 +1824,15 @@ export function MessageInputToolbarView({
       setBottomOverflowOpen(false);
     questionMenuWasOpen.current = asyncQuestions?.menuOpen === true;
   }, [asyncQuestions?.menuOpen]);
-  const { tier: bottomOverflowTier, setToolbarRef } =
-    useMeasuredComposerOverflow({
-      layoutKey: bottomOverflowLayoutKey,
-      hasControls: hasBottomOverflowControls,
-      refs,
-    });
+  const {
+    tier: bottomOverflowTier,
+    hiddenControls,
+    setToolbarRef,
+  } = useMeasuredComposerOverflow({
+    layoutKey: bottomOverflowLayoutKey,
+    hasControls: hasBottomOverflowControls,
+    refs,
+  });
   const showBottomOverflow =
     hasBottomOverflowControls &&
     (bottomOverflowTier !== "none" || hasAsyncQuestions);

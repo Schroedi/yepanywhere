@@ -1,3 +1,11 @@
+.overflowHidden.overflowHidden {
+  display: none;
+}
+
+.overflowVisible {
+  display: inline-flex;
+}
+
 .overflow {
   position: relative;
   display: inline-flex;
@@ -186,11 +194,15 @@
 }
 
 .browserDebugPerformance {
+  display: inline-block;
+  width: 22ch;
+  overflow: hidden;
   color: color-mix(in srgb, currentcolor 84%, var(--text-primary));
   font-family: var(--font-mono);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
