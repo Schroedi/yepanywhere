@@ -151,8 +151,8 @@ import {
   resizeComposerTextarea,
 } from "../lib/composerTextarea";
 import {
-  clearNewSessionPrefill,
-  getNewSessionPrefill,
+  consumeNewSessionPrefill,
+  consumeNewSessionPrefillToken,
 } from "../lib/newSessionPrefill";
 import { makeAttachmentFileNamesUnique } from "../lib/attachmentFileNames";
 import {
@@ -1819,16 +1819,27 @@ export function NewSessionForm({
 
   // Check for opt-in new-session prefill on mount.
   useEffect(() => {
-    const prefill = getNewSessionPrefill(clientSummarySourceKey);
-    if (prefill) {
-      setMessage(prefill);
-      clearNewSessionPrefill(clientSummarySourceKey);
-      // Focus and move cursor to end
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-        textareaRef.current.setSelectionRange(prefill.length, prefill.length);
-      }
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("prefillToken");
+    const record = token
+      ? consumeNewSessionPrefillToken(token, clientSummarySourceKey)
+      : consumeNewSessionPrefill(clientSummarySourceKey);
+    if (!record) return;
+    if (token) {
+      params.delete("prefillToken");
+      const search = params.toString();
+      const next = `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`;
+      window.history.replaceState(window.history.state, "", next);
     }
+    pendingTextareaSelectionRef.current = {
+      value: record.text,
+      restore: (textarea) => {
+        const position = record.caret === "start" ? 0 : record.text.length;
+        textarea.focus();
+        textarea.setSelectionRange(position, position);
+      },
+    };
+    setMessage(record.text);
   }, [clientSummarySourceKey, setMessage]);
 
   const handleProjectInputKeyDown = useCallback(

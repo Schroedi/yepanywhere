@@ -158,6 +158,13 @@ session rows, future-visible provider context, or autonomous server upkeep for
 sessions with no current client viewer; stronger hidden-message keepalive modes
 remain explicit per-provider choices.
 
+**Handoff from…** on the scrollbar turn-notch menu ships default-on.
+Authorized by graehl on 2026-09-09: it is an explicit successor-session
+start from a selected in-memory turn, copies that session's launch
+options, and does not change ordinary send or Conversation view
+presentation. See [fork-from-turn](fork-from-turn.md) and
+[conversation-view](conversation-view.md).
+
 [conversation-view](conversation-view.md) and its Session Toolbar control ship
 default-on. The condensed projection keeps user/agent conversation, media, and
 important failures visible while preserving one-click access to every routine

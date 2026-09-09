@@ -79,6 +79,20 @@ window the trim dot controls).
   The primary error describes that outcome; provider detail is diagnostic.
 - The turn rail remains a desktop accelerator backed by the same handlers. Its
   normal two-anchor threshold is not a feature-availability gate.
+- **Handoff from…** is a default-on notch-menu action. It does not fork the
+  provider transcript. The client builds a new-session composer prefill from
+  the in-memory transcript model starting at the selected user turn, using
+  Conversation view's projection even when the Conversation view toggle is
+  off. Conversation view now marks each row `activity`, `error`, or
+  `importance`; handoff serializes only `importance` rows as original
+  markdown source (not rendered HTML), prefixes user turns with `user: `,
+  emits project-relative image pathnames rather than attaching files, and
+  omits error rows, activity summaries, thinking, and compact banners.
+  Left-click opens the new-session form in the current tab; middle-click
+  opens it in a new tab. The form copies the source session's project,
+  provider, model, thinking/effort, permission mode, and executor. Caret
+  starts at the top of the prefill. See
+  [conversation-view](conversation-view.md).
 - Older servers without `session-fork-turn-intents` expose none of this unified
   surface and receive no fork request. The server continues to parse legacy
   empty and `{ upToMessageId }` bodies for older clients.
@@ -121,6 +135,7 @@ Fork before…
 Fork after…
 Copy
 Show from
+Handoff from…
 ```
 
 The ellipsis means the action enters a fork composer mode or uses existing

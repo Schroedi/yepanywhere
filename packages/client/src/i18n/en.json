@@ -2046,6 +2046,7 @@
   "turnNotchForkAfter": "Fork after…",
   "turnNotchCopy": "Copy",
   "turnNotchShowFrom": "Show from",
+  "turnNotchHandoffFrom": "Handoff from…",
   "turnNotchDismissMenu": "Dismiss menu",
   "turnNotchJumpToTurn": "Jump to turn",
   "turnNotchShowFromTurn": "Load client transcript from turn",

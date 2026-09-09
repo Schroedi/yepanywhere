@@ -845,6 +845,11 @@ interface Props {
   forkUnavailableMessage?: string;
   /** Copy the given user turn's text (turn-notch context menu). */
   onCopyUserMessage?: (messageId: string) => void;
+  /** Open a new session from this turn's in-memory conversation source. */
+  onHandoffFromUserMessage?: (
+    messageId: string,
+    options: { newTab: boolean },
+  ) => void;
   /** Pre-rendered markdown HTML from server (keyed by message ID) */
   markdownAugments?: Record<string, MarkdownAugment>;
   /** Active tool approval - prevents matching orphaned tool from showing as interrupted */
@@ -1467,6 +1472,7 @@ export const MessageList = memo(function MessageList({
   forkAfterUserMessageDisabled = false,
   forkUnavailableMessage,
   onCopyUserMessage,
+  onHandoffFromUserMessage,
   markdownAugments,
   activeToolApproval,
   hasOlderMessages = false,
@@ -4484,6 +4490,7 @@ export const MessageList = memo(function MessageList({
         forkAfterDisabled={forkAfterUserMessageDisabled}
         onCopyAnchor={onCopyUserMessage}
         canCopyAnchor={canTrimHistoryAnchor}
+        onHandoffFromAnchor={onHandoffFromUserMessage}
         onPreviewTimestampChange={handlePreviewTimestampChange}
         getRenderIdTop={transcriptRenderWindow.getRenderIdTop}
         revealRenderId={transcriptRenderWindow.revealRenderId}

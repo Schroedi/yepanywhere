@@ -176,6 +176,7 @@ import {
   thinkingOptionFromSelection,
 } from "../lib/liveThinkingConfig";
 import { getPersistentEditApprovalResponse } from "../lib/permissionModes";
+import { buildConversationHandoffPrefill } from "../lib/sessionDetail/conversationHandoff";
 import { getCachedWebTranscriptProjection } from "../lib/webTranscriptProjection";
 import { createPendingElsewhereDismissKey } from "../lib/sessionUiStorageKeys";
 import { parseCodexConfigAck } from "../lib/sessionCodexConfigAck";
@@ -1661,6 +1662,43 @@ function SessionPageContent({
   const activityRenderItems = useMemo(
     () => getCachedWebTranscriptProjection(messages),
     [messages],
+  );
+  const handoffFromUserMessage = useCallback(
+    (messageId: string, options: { newTab: boolean }) => {
+      if (!effectiveProvider || !actualSessionId) return;
+      const prefill = buildConversationHandoffPrefill({
+        items: activityRenderItems,
+        fromUserTurnId: messageId,
+        provider: effectiveProvider,
+        sessionId: actualSessionId,
+        goal: currentGoal,
+        projectPath: project?.path,
+      });
+      if (!prefill) return;
+      startNewSessionWithPrefill(projectId, prefill, {
+        caret: "start",
+        executor: session?.executor,
+        model: effectiveModelConfig?.model ?? effectiveModel,
+        newTab: options.newTab,
+        permissionMode,
+        provider: effectiveProvider,
+        thinking: getImplicitComposerThinking(),
+      });
+    },
+    [
+      activityRenderItems,
+      actualSessionId,
+      currentGoal,
+      effectiveModel,
+      effectiveModelConfig?.model,
+      effectiveProvider,
+      getImplicitComposerThinking,
+      permissionMode,
+      project?.path,
+      projectId,
+      session?.executor,
+      startNewSessionWithPrefill,
+    ],
   );
   const sessionActivityUi = useMemo(
     () =>
@@ -5787,6 +5825,7 @@ function SessionPageContent({
                     forkAfterUserMessageDisabled={forkAfterDisabled}
                     forkUnavailableMessage={forkUnavailableMessage}
                     onCopyUserMessage={copyUserMessage}
+                    onHandoffFromUserMessage={handoffFromUserMessage}
                     markdownAugments={markdownAugments}
                     activeToolApproval={activeToolApproval}
                     hasOlderMessages={pagination?.hasOlderMessages}

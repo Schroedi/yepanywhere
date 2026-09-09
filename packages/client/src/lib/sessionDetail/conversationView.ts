@@ -73,8 +73,49 @@ export function windowConversationViewItems(
   };
 }
 
-function isMediaToolCall(item: ToolCallItem): boolean {
+export function isMediaToolCall(item: ToolCallItem): boolean {
   return (item.toolResult?.media?.length ?? 0) > 0;
+}
+
+/**
+ * Why Conversation view retains or condenses a render item.
+ *
+ * - `activity`: routine work folded into the per-turn summary.
+ * - `error`: retained because it is a failure, not because it is conversation.
+ * - `importance`: retained conversation content (prompts, prose, media, plans).
+ */
+export type ConversationViewSurfaceReason = "activity" | "error" | "importance";
+
+export function conversationViewSurfaceReason(
+  item: RenderItem,
+): ConversationViewSurfaceReason {
+  if (item.type === "thinking" || item.type === "conversation_activity") {
+    return "activity";
+  }
+  if (item.type === "task_notification") {
+    const status = item.status?.toLowerCase();
+    return status === "failed" || status === "error" ? "error" : "activity";
+  }
+  if (item.type === "system") {
+    return item.subtype === "subagent_activity" ? "activity" : "importance";
+  }
+  if (item.type !== "tool_call") {
+    return "importance";
+  }
+  if (item.status === "error" || item.status === "incomplete") {
+    return "error";
+  }
+  if (toolRegistry.get(item.toolName).tool === "UpdatePlan") {
+    return "importance";
+  }
+  if (
+    isMediaToolCall(item) ||
+    toolDeclaresCommentary(item) ||
+    (item.workflow?.markers.length ?? 0) > 0
+  ) {
+    return "importance";
+  }
+  return "activity";
 }
 
 /**
@@ -84,29 +125,7 @@ function isMediaToolCall(item: ToolCallItem): boolean {
  * associated with the assistant turn.
  */
 export function isConversationViewActivity(item: RenderItem): boolean {
-  if (item.type === "thinking") {
-    return true;
-  }
-  if (item.type === "task_notification") {
-    const status = item.status?.toLowerCase();
-    return status !== "failed" && status !== "error";
-  }
-  if (item.type === "system") {
-    return item.subtype === "subagent_activity";
-  }
-  if (item.type !== "tool_call") {
-    return false;
-  }
-  if (toolRegistry.get(item.toolName).tool === "UpdatePlan") {
-    return false;
-  }
-  return (
-    !isMediaToolCall(item) &&
-    !toolDeclaresCommentary(item) &&
-    !item.workflow?.markers.length &&
-    item.status !== "error" &&
-    item.status !== "incomplete"
-  );
+  return conversationViewSurfaceReason(item) === "activity";
 }
 
 export function groupHasFollowingConversationText(

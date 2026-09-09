@@ -93,6 +93,8 @@
   instant back/forward returns without unbounded transcript caching.
 - turn-rail-marker-layout - Right-scrollbar turn marker hit targets, previews,
   and bottom-bar position-age hints.
+- conversation-handoff-from - Turn-notch Handoff from… new-session prefill
+  from the in-memory Conversation view projection.
 - remote-hosted-compatibility - Coarse hosted remote UI / YA server
   compatibility level, starting with recommended level 10 for the first
   rollout.
