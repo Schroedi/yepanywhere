@@ -45,10 +45,7 @@ describe("speech vocabulary controls", () => {
     fireEvent.change(screen.getByLabelText("History to learn (hours)"), {
       target: { value: "48" },
     });
-    fireEvent.click(enable);
-    await waitFor(() => expect(status.enabled).toBe(true));
-    expect(status.hours).toBe(48);
-    expect(status.biasing).toBe(false);
+    expect(status.enabled).toBe(false);
     await waitFor(() =>
       expect(
         screen
@@ -58,6 +55,14 @@ describe("speech vocabulary controls", () => {
     );
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Scan + Learn" }));
+    });
+    expect(transport.fetch).toHaveBeenCalledWith("/speech/vocabulary", {
+      method: "PUT",
+      body: JSON.stringify({
+        enabled: true,
+        biasing: false,
+        hours: 48,
+      }),
     });
     expect(transport.fetch).toHaveBeenCalledWith("/speech/vocabulary/scan", {
       method: "POST",

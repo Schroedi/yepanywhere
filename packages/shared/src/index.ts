@@ -1305,5 +1305,9 @@ export {
   rankVocabulary,
   VOCABULARY_BASELINE_URL,
   speechVocabularyTokens,
+  commonVocabularyWords,
+  vocabularyDistinctiveScore,
   MAX_SPEECH_SESSION_TERMS,
+  COMMON_VOCABULARY_LIMIT,
+  VOCABULARY_FLUSH_COUNTS,
 } from "./speech-vocabulary.js";

@@ -4,6 +4,20 @@ export const VOCABULARY_BASELINE_URL =
   "https://raw.githubusercontent.com/hermitdave/FrequencyWords/525f9b560de45753a5ea01069454e72e9aa541c6/content/2018/en/en_50k.txt";
 
 export const MAX_SPEECH_SESSION_TERMS = 10000;
+export const COMMON_VOCABULARY_LIMIT = 1000;
+export const VOCABULARY_FLUSH_COUNTS = 1_000_000;
+
+export function commonVocabularyWords(
+  baseline: ReadonlyMap<string, number>,
+  limit = COMMON_VOCABULARY_LIMIT,
+): Set<string> {
+  return new Set(
+    [...baseline]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, limit)
+      .map(([word]) => word),
+  );
+}
 
 export function speechVocabularyTokens(text: string): string[] {
   return [
@@ -39,6 +53,15 @@ export function parseVocabularyBaseline(
   return new Map([...counts].map(([word, count]) => [word, count / total]));
 }
 
+export function vocabularyDistinctiveScore(
+  count: number,
+  total: number,
+  frequency: number | undefined,
+): number {
+  const expected = frequency === undefined ? 0 : total * frequency;
+  return (count - expected) / Math.sqrt(expected + 1);
+}
+
 export function rankVocabulary(
   words: SpeechVocabularyWord[],
   total: number,
@@ -57,8 +80,7 @@ export function rankVocabulary(
         ...word,
         count,
         ratio: expected ? count / expected : undefined,
-        // Descriptive excess-frequency ranking, not a significance test.
-        score: (count - (expected ?? 0)) / Math.sqrt((expected ?? 0) + 1),
+        score: vocabularyDistinctiveScore(count, total, frequency),
       };
     })
     .filter(

@@ -40,8 +40,8 @@ export function createSpeechVocabularyRoutes(
     learning.scan();
     return c.json(learning.status(), 202);
   });
-  routes.post("/vocabulary/reset", (c) => {
-    learning.reset();
+  routes.post("/vocabulary/reset", async (c) => {
+    await learning.reset();
     return c.json(learning.status());
   });
   return routes;

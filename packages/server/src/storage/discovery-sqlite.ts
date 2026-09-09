@@ -1,7 +1,10 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { SqliteStatus } from "@yep-anywhere/shared";
-import { SPEECH_VOCABULARY_SCHEMA } from "../services/voice/vocabulary-schema.js";
+import {
+  SPEECH_VOCABULARY_SCHEMA,
+  SPEECH_VOCABULARY_SET_SCHEMA,
+} from "../services/voice/vocabulary-schema.js";
 import {
   loadSqliteDriver,
   type SqliteDatabase,
@@ -27,6 +30,7 @@ const APPLICATION_ID = 0x59414449;
 const MIGRATIONS: readonly DiscoveryMigration[] = [
   { version: 1, sql: "" },
   { version: 2, sql: SPEECH_VOCABULARY_SCHEMA },
+  { version: 3, sql: SPEECH_VOCABULARY_SET_SCHEMA },
 ];
 
 function readRow(database: SqliteDatabase, sql: string) {

@@ -443,9 +443,15 @@ the newer NeMo model fit; the coexistence constraints below still apply.
 ## Keyterm Biasing
 
 Status 2026-09-09: persistent vocabulary collection and Grok-through-YA
-biasing are implemented as independent, default-off Speech settings. SQLite
-must be ready (the default `YEP_SQLITE=auto`, using Node's or Bun's built-in adapter).
-Explicit `YEP_SQLITE=off` remains authoritative.
+biasing are implemented as independent, default-off Speech settings. Word
+counts live in an in-memory string→count map snapshotted to
+`speech-words.json`. Content hashes live in an open-addressed 32-byte-slot
+file (`speech-seen.hash`; mmap when Bun provides it, otherwise ordinary
+read/write). SQLite is not used for those structures. The speech-vocabulary
+UI still appears only when discovery SQLite is ready (the default
+`YEP_SQLITE=auto`). Explicit `YEP_SQLITE=off` remains authoritative.
+Ranking approximations are recorded in
+`gaps/speech-vocabulary-ranking-approximations.md`.
 
 The controls live at the top of Settings → Speech backends, under Learned
 speech vocabulary. Settings search finds them by vocabulary, keyterms, lexicon,
@@ -465,8 +471,9 @@ message IDs are never learning inputs.
 
 Speech settings offer a numeric hours field and slider (1–8760 hours), a
 green Scan + Learn and red Stop + Clear actions, progress, and a separate
-recognition-biasing switch. Stop + Clear cancels the current scan and clears
-counts and checkpoints while preserving the opt-in settings.
+recognition-biasing switch. Clicking Scan + Learn turns learning on if it
+was off, then starts a scan. Stop + Clear cancels the current scan and clears
+counts, hashes, and checkpoints while preserving the opt-in settings.
 Enabling collection starts the selected retrospective scan. Catalog changes
 and completed/live session activity schedule coalesced subsequent learning.
 Disabling collection stops it without clearing committed counts or progress;
@@ -482,8 +489,15 @@ apostrophes, underscores, dots, and hyphens. Numeric-only tokens and tokens
 longer than 100 characters are excluded. User and assistant counts remain
 separate; no generated contribution is relabeled as user text.
 
-The app-data `discovery.sqlite` owns indexed word totals, message contribution
-receipts, and source scan checkpoints. A receipt fingerprints the durable
+App-data files own the word-count map, the fingerprint hash set, and scan
+checkpoints. Already-seen content hashes skip tokenize; new messages are
+tailed. Scan work yields in small bursts so the Node process stays
+responsive. Distinctive ranking uses
+`(observed - expected) / sqrt(expected + 1)` from this topic, not raw
+excess count. The server keeps a global top-500 heap and a per-session
+top-100 with the session multiplier; a recognition request merges them.
+Live increments re-score only the updated word; a full rebuild of those
+heaps runs on flush. A receipt fingerprints the durable
 role, timestamp, and complete extracted text using SHA-256. Exact duplicate
 records with those same fields in the same source session count once;
 identical text at different durable timestamps counts separately. Presentation
@@ -548,7 +562,8 @@ code, other languages, and differing tokenization make this a rough reference.
 
 Closing exploration aborts an outstanding reference fetch, releases its parsed
 reference map and candidate arrays, and stops detailed word requests. The full
-learned lexicon stays in SQLite, with bounded queries for display and recognition.
+learned lexicon stays in the in-memory count map, with `count > k` as a
+linear filter for display and recognition.
 Any future permanent server reference cache may retain about 10,000 word/frequency
 pairs; larger reference tables require eviction. Display-only resources may load
 on demand. Corpus-derived embeddings, cooccurrences, or occurrence references
@@ -559,8 +574,8 @@ Recognition selects up to 100 terms of at most 50 characters, xAI's documented
 limits. All learned terms with positive excess over English are candidates,
 including single occurrences, assistant-only terms, and words absent from the
 reference. The top 1,000 English words are explicitly excluded, even when locally
-overrepresented. The selector walks the whole SQLite lexicon in 512-row pages
-and retains only its leading 100 candidates; exploration's 2,000-word view and
+overrepresented. The selector uses the in-memory distinctive heaps (global ~500, per-session
+100) rather than walking every stored word; exploration's 2,000-word view and
 six-occurrence display filter do not constrain recognition.
 
 Usage and rarity supply a first approximation to expected missed uses. Global

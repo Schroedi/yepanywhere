@@ -2026,8 +2026,10 @@ export function createApp(options: AppOptions): AppResult {
   const vocabularyDatabase = discoverySqlite.getDatabase();
   if (vocabularyDatabase) {
     const catalog = retainedCollections;
+    const store = new VocabularyStore(effectiveDataDir);
+    const keyterms = new VocabularyKeyterms(store, effectiveDataDir);
     const learning = new VocabularyLearning(
-      new VocabularyStore(vocabularyDatabase),
+      store,
       (cutoff) =>
         vocabularySessions(
           catalog,
@@ -2035,12 +2037,12 @@ export function createApp(options: AppOptions): AppResult {
           heartbeatProviderResolutionDeps(),
           cutoff,
         ),
+      { reference: () => keyterms.reference() },
     );
     vocabularyLearning = learning;
-    const keyterms = new VocabularyKeyterms(learning.store, effectiveDataDir);
     vocabularyKeyterms = keyterms;
     options.speechBackendRegistry?.setVocabularySource((context) =>
-      keyterms.get(context?.sessionTerms),
+      keyterms.get(context?.sessionTerms, context?.sessionId),
     );
     unsubscribeVocabulary = options.eventBus?.subscribe((event) => {
       if (event.type === "session-catalog-updated" && !event.catalog.refreshing)

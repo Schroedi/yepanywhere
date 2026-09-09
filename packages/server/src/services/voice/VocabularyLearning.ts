@@ -1,5 +1,8 @@
 import { setImmediate as yieldToLoop } from "node:timers/promises";
-import type { SpeechVocabularyStatus } from "@yep-anywhere/shared";
+import {
+  VOCABULARY_FLUSH_COUNTS,
+  type SpeechVocabularyStatus,
+} from "@yep-anywhere/shared";
 import type { Message } from "../../supervisor/types.js";
 import type {
   VocabularyStore,
@@ -14,12 +17,16 @@ export interface VocabularySession {
   messages: () => AsyncIterable<readonly Message[]>;
 }
 
+const MESSAGE_BURST = 16;
+
 export class VocabularyLearning {
   private work?: Promise<void>;
   private epoch = 0;
   private closed = false;
   private requested = false;
   private retrospective = false;
+  private readonly flushAfter: number;
+  private readonly reference?: () => Promise<ReadonlyMap<string, number>>;
   private progress = {
     state: "idle" as "idle" | "scanning" | "error",
     sessions: 0,
@@ -32,7 +39,14 @@ export class VocabularyLearning {
     private readonly sessions: (
       cutoff: number,
     ) => AsyncIterable<VocabularySession>,
-  ) {}
+    options: {
+      reference?: () => Promise<ReadonlyMap<string, number>>;
+      flushAfter?: number;
+    } = {},
+  ) {
+    this.reference = options.reference;
+    this.flushAfter = options.flushAfter ?? VOCABULARY_FLUSH_COUNTS;
+  }
 
   status(includeWords = false): SpeechVocabularyStatus {
     return {
@@ -50,6 +64,7 @@ export class VocabularyLearning {
     if (!settings.enabled) {
       this.epoch++;
       this.requested = false;
+      this.store.discardPending();
     } else if (!wasEnabled) this.scan();
   }
 
@@ -82,6 +97,10 @@ export class VocabularyLearning {
       error: undefined,
     };
     try {
+      await this.store.load();
+      if (this.reference) this.store.setReference(await this.reference());
+      if (!active()) return;
+      let burst = 0;
       for await (const session of this.sessions(cutoff)) {
         if (!active()) break;
         if (
@@ -89,10 +108,8 @@ export class VocabularyLearning {
           this.store.hasScanned(session.key, session.version, cutoff)
         )
           continue;
-        this.store.beginSession();
         for await (const page of session.messages()) {
           if (!active()) break;
-          const batch: VocabularyMessage[] = [];
           for (const message of page) {
             if (!active()) break;
             const timestamp = Date.parse(message.timestamp ?? "");
@@ -114,29 +131,35 @@ export class VocabularyLearning {
                       .map((block) => block.text)
                       .join("\n")
                   : "";
-            batch.push({ source: message.type, timestamp, text });
+            this.store.observe(
+              session.key,
+              {
+                source: message.type,
+                timestamp,
+                text,
+              } satisfies VocabularyMessage,
+              generation,
+            );
             this.progress.messages++;
-            if (batch.length === 32) {
-              this.store.stage(session.key, batch, generation);
-              batch.length = 0;
+            burst++;
+            if (this.store.pendingCount >= this.flushAfter)
+              await this.store.flush();
+            if (burst >= MESSAGE_BURST) {
+              burst = 0;
               await yieldToLoop();
             }
           }
-          if (active()) this.store.stage(session.key, batch, generation);
-          await yieldToLoop();
         }
         if (!active()) break;
-        this.store.commitSession(
-          session.key,
-          session.version,
-          cutoff,
-          generation,
-        );
+        this.store.checkpoint(session.key, session.version, cutoff);
         this.progress.sessions++;
         await yieldToLoop();
       }
-      this.progress.state = "idle";
+      if (this.store.settings().enabled && active()) await this.store.flush();
+      else this.store.discardPending();
+      if (active()) this.progress.state = "idle";
     } catch (error) {
+      this.store.discardPending();
       if (!active()) return;
       this.requested = false;
       this.progress.state = "error";
@@ -145,11 +168,11 @@ export class VocabularyLearning {
     }
   }
 
-  reset(): void {
+  async reset(): Promise<void> {
     this.epoch++;
     this.requested = false;
     this.retrospective = false;
-    this.store.reset();
+    await this.store.reset();
     this.progress = {
       state: "idle",
       sessions: 0,
@@ -167,6 +190,8 @@ export class VocabularyLearning {
     this.epoch++;
     this.requested = false;
     await this.settled();
+    if (this.store.settings().enabled) await this.store.flush();
+    else this.store.discardPending();
     this.store.close();
   }
 }

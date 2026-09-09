@@ -9,6 +9,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  commonVocabularyWords,
   parseVocabularyBaseline,
   VOCABULARY_BASELINE_URL,
 } from "@yep-anywhere/shared";
@@ -37,7 +38,10 @@ export class VocabularyKeyterms {
     private readonly dataDir: string,
   ) {}
 
-  async get(sessionTerms: readonly string[] = []): Promise<string[]> {
+  async get(
+    sessionTerms: readonly string[] = [],
+    sessionKey?: string,
+  ): Promise<string[]> {
     if (this.abort.signal.aborted || !this.store.settings().biasing) return [];
     const generation = this.store.settings().generation;
     const active = new Set(sessionTerms);
@@ -60,6 +64,7 @@ export class VocabularyKeyterms {
         const baseline = await this.loading;
         if (this.abort.signal.aborted) return [];
         this.baseline = baseline;
+        this.store.setReference(baseline);
       }
     } catch (error) {
       // Reference failure must not prevent ordinary dictation. Retry on demand.
@@ -75,7 +80,13 @@ export class VocabularyKeyterms {
     this.renewEviction();
     const settings = this.store.settings();
     if (settings.generation !== generation || !settings.biasing) return [];
-    const terms = this.store.keyterms(this.baseline, 100, 50, active);
+    const terms = this.store.keyterms(
+      this.baseline,
+      100,
+      50,
+      active,
+      sessionKey,
+    );
     this.selected.delete(cacheKey);
     this.selected.set(cacheKey, { revision: this.store.revision, terms });
     if (this.selected.size > 16)
@@ -141,6 +152,28 @@ export class VocabularyKeyterms {
       });
     }
     return baseline;
+  }
+
+  async reference(): Promise<ReadonlyMap<string, number>> {
+    if (this.abort.signal.aborted) return new Map();
+    try {
+      if (!this.baseline) {
+        this.loading ??= this.load().finally(() => {
+          this.loading = undefined;
+        });
+        this.baseline = await this.loading;
+      }
+    } catch {
+      return new Map();
+    }
+    if (!this.baseline) return new Map();
+    this.store.setReference(this.baseline);
+    this.renewEviction();
+    return this.baseline;
+  }
+
+  async commonWords(): Promise<ReadonlySet<string>> {
+    return commonVocabularyWords(await this.reference());
   }
 
   async close(): Promise<void> {

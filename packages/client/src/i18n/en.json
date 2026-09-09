@@ -31,7 +31,6 @@
   "speechVocabularyCounts": "{words} words · {user} user occurrences · {assistant} agent occurrences",
   "speechVocabularyLoading": "Loading vocabulary…",
   "speechVocabularyBiasing": "Use learned words for Grok through YA",
-  "speechVocabularyIntegration": "Recognition biasing is separate from learning. Direct Grok and other speech methods do not use this vocabulary yet.",
   "acliCommentarySetting": "Tool commentary",
   "acliCommentaryDescription": "Show commentary from supported tools as prose alongside their output.",
   "acliCommentaryContext": "Show commentary context",

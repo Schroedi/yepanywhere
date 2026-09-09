@@ -1,10 +1,9 @@
 import type { SpeechVocabularyStatus } from "@yep-anywhere/shared";
-import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useCurrentSourceRuntime } from "../../contexts/SourceRuntimeContext";
 import { useI18n } from "../../i18n";
 import styles from "./SpeechVocabularyControls.module.css";
-
-const SpeechVocabularyChart = lazy(() => import("./SpeechVocabularyChart"));
+import SpeechVocabularyChart from "./SpeechVocabularyChart";
 
 export function SpeechVocabularyControls() {
   const { t } = useI18n();
@@ -144,12 +143,9 @@ export function SpeechVocabularyControls() {
           type="button"
           className={styles.scan}
           disabled={
-            !status?.enabled ||
-            busy ||
-            !validHours ||
-            status.scan.state === "scanning"
+            !status || busy || !validHours || status.scan.state === "scanning"
           }
-          onClick={() => void action("scan")}
+          onClick={() => void action("scan", { enabled: true })}
         >
           {t("speechVocabularyScan")}
         </button>
@@ -190,7 +186,6 @@ export function SpeechVocabularyControls() {
         />
         {t("speechVocabularyBiasing")}
       </label>
-      <p>{t("speechVocabularyIntegration")}</p>
       {showLexicon ? (
         <div className={styles.exploration}>
           <div className={styles.viewHeader}>
@@ -209,9 +204,7 @@ export function SpeechVocabularyControls() {
               <span aria-hidden="true">×</span>
             </button>
           </div>
-          <Suspense fallback={<p>{t("speechVocabularyLoading")}</p>}>
-            {status && <SpeechVocabularyChart status={status} />}
-          </Suspense>
+          {status && <SpeechVocabularyChart status={status} />}
         </div>
       ) : (
         <div className={styles.actions}>

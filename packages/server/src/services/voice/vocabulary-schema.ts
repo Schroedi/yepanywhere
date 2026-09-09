@@ -39,3 +39,14 @@ CREATE TABLE speech_sessions (
   cutoff REAL NOT NULL
 ) WITHOUT ROWID;
 `;
+
+/** Membership set plus per-session totals; replaces per-message JSON receipts. */
+/** Drop the SQLite vocabulary experiment; counts and fingerprints are files. */
+export const SPEECH_VOCABULARY_SET_SCHEMA = `
+DROP TABLE IF EXISTS speech_messages;
+DROP TABLE IF EXISTS speech_staged_messages;
+DROP TABLE IF EXISTS speech_word_deltas;
+DROP TABLE IF EXISTS speech_words;
+DROP TABLE IF EXISTS speech_sessions;
+DROP TABLE IF EXISTS speech_seen;
+`;

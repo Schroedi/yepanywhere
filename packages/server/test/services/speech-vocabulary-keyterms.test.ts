@@ -2,7 +2,6 @@ import { mkdtempSync, readdirSync, rmSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import { DiscoverySqliteService } from "../../src/storage/discovery-sqlite.js";
 import { VocabularyStore } from "../../src/services/voice/VocabularyStore.js";
 import { VocabularyKeyterms } from "../../src/services/voice/VocabularyKeyterms.js";
 import { SpeechBackendRegistry } from "../../src/services/voice/registry.js";
@@ -20,52 +19,42 @@ afterEach(async () => {
 
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "ya-vocabulary-reference-"));
-  const storage = new DiscoverySqliteService({ dataDir: dir, mode: "auto" });
-  const database = storage.getDatabase()!;
-  const store = new VocabularyStore(database);
-  database.exec(
-    "INSERT INTO speech_words VALUES ('compiler', 6, 4), ('the', 100, 100)",
-  );
+  const store = new VocabularyStore(dir);
+  store.addWordCounts("compiler", 6, 4);
+  store.addWordCounts("the", 100, 100);
   const vocabulary = new VocabularyKeyterms(store, dir);
   cleanup.push(async () => {
     await vocabulary.close();
     store.close();
-    storage.close();
     rmSync(dir, { recursive: true });
   });
   const enable = () =>
     store.configure({ enabled: false, biasing: true, hours: 24 });
-  return { dir, store, vocabulary, enable, database };
+  return { dir, store, vocabulary, enable };
 }
 
 it("considers the full corpus, admits singletons and short terms, and fills only 100 slots", () => {
-  const f = fixture();
-  f.enable();
-  f.database.exec("DELETE FROM speech_words");
-  const insert = f.database.prepare(
-    "INSERT INTO speech_words VALUES (?, ?, ?)",
-  );
+  const dir = mkdtempSync(join(tmpdir(), "ya-vocabulary-top-"));
+  const store = new VocabularyStore(dir);
+  cleanup.push(async () => rmSync(dir, { recursive: true }));
+  store.configure({ enabled: false, biasing: true, hours: 24 });
   const baseline = new Map<string, number>();
-  try {
-    f.database.transaction(() => {
-      for (let i = 0; i < 2500; i++) {
-        const word = `ordinary${i}`;
-        insert.run(word, 100, 0);
-        baseline.set(word, 1 / 2500);
-      }
-      insert.run("x", 0, 1);
-    });
-    expect(f.store.keyterms(baseline)).toEqual(["x"]);
-    for (let i = 0; i < 150; i++)
-      insert.run(`term${i.toString().padStart(3, "0")}`, 1, 0);
-    insert.run("z".repeat(51), 1000, 0);
-    const selected = f.store.keyterms(baseline, 100, 50, new Set(["x"]));
-    expect(selected).toHaveLength(100);
-    expect(selected[0]).toBe("x");
-    expect(selected).not.toContain("z".repeat(51));
-  } finally {
-    insert.finalize();
+  for (let i = 0; i < 2500; i++) {
+    const word = `ordinary${i}`;
+    store.addWordCounts(word, 100, 0);
+    baseline.set(word, 1 / 2500);
   }
+  store.addWordCounts("x", 0, 1);
+  store.setReference(baseline);
+  expect(store.keyterms(baseline)).toEqual(["x"]);
+  for (let i = 0; i < 150; i++)
+    store.addWordCounts(`term${i.toString().padStart(3, "0")}`, 1, 0);
+  store.addWordCounts("z".repeat(51), 1000, 0);
+  store.setReference(baseline);
+  const selected = store.keyterms(baseline, 100, 50, new Set(["x"]));
+  expect(selected).toHaveLength(100);
+  expect(selected[0]).toBe("x");
+  expect(selected).not.toContain("z".repeat(51));
 });
 
 it("does no disabled work, coalesces first use, reuses disk after reboot, and evicts its map", async () => {
@@ -98,7 +87,7 @@ it("does no disabled work, coalesces first use, reuses disk after reboot, and ev
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(await reopened.get(["compiler"])).toEqual(["compiler"]);
     expect(fetch).toHaveBeenCalledTimes(2);
-    f.store.reset();
+    await f.store.reset();
     expect(await reopened.get()).toEqual([]);
   } finally {
     await reopened.close();

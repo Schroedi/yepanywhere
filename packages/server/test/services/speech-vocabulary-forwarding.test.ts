@@ -8,7 +8,6 @@ import { XaiSttBackend } from "../../src/services/voice/xaiSttBackend.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DiscoverySqliteService } from "../../src/storage/discovery-sqlite.js";
 import { VocabularyStore } from "../../src/services/voice/VocabularyStore.js";
 import { VocabularyKeyterms } from "../../src/services/voice/VocabularyKeyterms.js";
 
@@ -52,14 +51,15 @@ it("forwards the selected vocabulary through real HTTP and relayed stream entryp
   registry.register(new XaiSttBackend("test-key"));
   await registry.waitForValidation();
   const dataDir = mkdtempSync(join(tmpdir(), "ya-keyterms-"));
-  const storage = new DiscoverySqliteService({ dataDir, mode: "auto" });
-  const database = storage.getDatabase()!;
-  const store = new VocabularyStore(database);
+  const store = new VocabularyStore(dataDir);
   store.configure({ enabled: false, biasing: true, hours: 24 });
-  database.exec(`INSERT INTO speech_words VALUES
-    ('ordinary', 100, 0), ('parakeet', 6, 14), ('sqlite', 8, 0),
-    ('unknown', 100, 0), ('typo', 1, 0), ('assistantonly', 0, 100),
-    ('the', 1000, 1000)`);
+  store.addWordCounts("ordinary", 100, 0);
+  store.addWordCounts("parakeet", 6, 14);
+  store.addWordCounts("sqlite", 8, 0);
+  store.addWordCounts("unknown", 100, 0);
+  store.addWordCounts("typo", 1, 0);
+  store.addWordCounts("assistantonly", 0, 100);
+  store.addWordCounts("the", 1000, 1000);
   const vocabulary = new VocabularyKeyterms(store, dataDir);
   registry.setVocabularySource((context) =>
     vocabulary.get(context?.sessionTerms),
@@ -170,7 +170,6 @@ it("forwards the selected vocabulary through real HTTP and relayed stream entryp
   } finally {
     await vocabulary.close();
     store.close();
-    storage.close();
     rmSync(dataDir, { recursive: true });
   }
 });
