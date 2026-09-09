@@ -78,6 +78,11 @@ These run unconditionally and are not user-configurable:
 - **Shiki syntax highlighting** — server-side, keyed on file extension, stored as
   `_highlightedContentHtml` on `ReadResultWithAugment`. Applied only to files the
   server recognises as source code.
+- **Code-fence language marking** — an assistant code block's info string is
+  reduced to one normalized language name, and every rendered block carries it
+  as `class="language-<name>"` regardless of which renderer produced the markup.
+  See [`code-fence-renderers.md`](code-fence-renderers.md), which also holds the
+  proposed per-language renderer registry and Mermaid design.
 - **Server markdown rendering** — server-side, for `.md`/`.markdown` files,
   stored as `_renderedMarkdownHtml`. CommonMark embedded HTML is parsed before
   the shared sanitizer, so inert structural markup such as table headers with
