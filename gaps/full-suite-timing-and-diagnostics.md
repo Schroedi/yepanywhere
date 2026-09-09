@@ -41,13 +41,4 @@ it cannot be safely bundled into a successful-file response serialization
 repair. The issue #121 focused file/relay/public-share suite passes all 159
 tests without warnings, and lint, formatting, and source type checks pass.
 
-On September 9, a Linux full-workspace run while fixing composer/sidebar
-flashing found four failures in `test/version.test.ts`'s retained SQLite status
-matrix. The test expects three status reads and no capability change; the
-speech-vocabulary route now reads status during capability construction as
-well, and advertises `speech-vocabulary` when SQLite is ready. The run passed
-4,797 other server tests, with ten skipped. Reconcile those assertions with
-the speech feature's negotiated support contract. Speech work was concurrently
-active, so this independent contract mismatch was left to that scope.
-
 Found 2026-09-08 while validating issue #121 relay file downloads.

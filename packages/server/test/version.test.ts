@@ -9,6 +9,7 @@ import {
   PROJECT_QUEUE_ATTACHMENT_EDITING_CAPABILITY,
   PROJECT_QUEUE_NEW_SESSION_SHORTCUT_SETTING_CAPABILITY,
   PROJECT_SESSION_DEFAULTS_CAPABILITY,
+  SERVER_CAPABILITIES,
   SESSION_SANDBOXING_CAPABILITY,
   SESSION_SANDBOXING_STATUS_CAPABILITY,
   VOICE_INPUT_CAPABILITY,
@@ -43,7 +44,7 @@ describe("GET /version", () => {
   }
 
   it.each(["disabled", "unsupported", "ready", "error"] as const)(
-    "reports retained SQLite %s status without changing capability negotiation",
+    "reports retained SQLite %s status and gates vocabulary in every encoding",
     async (state) => {
       mockFetch(() => new Response(JSON.stringify({ version: "0.8.1" })));
       const { createVersionRoutes } = await importVersion();
@@ -72,9 +73,27 @@ describe("GET /version", () => {
           kind: process.versions.bun ? "bun" : "node",
           version: process.versions.bun ?? process.versions.node,
         });
+        for (const { name } of Object.values(SERVER_CAPABILITIES)) {
+          expect(serverHasCapability(after, name), name).toBe(
+            name === SERVER_CAPABILITIES.speechVocabulary.name
+              ? state === "ready"
+              : serverHasCapability(before, name),
+          );
+        }
+        // Compare other metadata after checking capabilities semantically;
+        // their wire representation differs between the negotiated encodings.
+        for (const field of [
+          "capabilities",
+          "capabilityBits",
+          "optionalCapabilityBits",
+        ]) {
+          delete before[field];
+          delete after[field];
+        }
         expect(after).toEqual({ ...before, sqlite: { state } });
       }
-      expect(getSqliteStatus).toHaveBeenCalledTimes(3);
+      // Each response reads retained readiness for capabilities and status.
+      expect(getSqliteStatus).toHaveBeenCalledTimes(6);
     },
   );
 
