@@ -24,7 +24,9 @@ import {
   type TranscriptDisplayObject,
   type UrlProjectId,
   type WorkstreamId,
+  findGoalCommand,
   normalizeRecapAfterSeconds,
+  readGoalDetails,
   sanitizeSessionTitle,
 } from "@yep-anywhere/shared";
 import { createCoalescingSaver } from "../lib/coalescingSaver.js";
@@ -69,7 +71,9 @@ export interface SessionMetadata {
   /** Durable YA-owned recap rows merged into the transcript view only. */
   recapMessages?: DurableRecapMessage[];
   localCommandMessages?: DurableLocalCommandMessage[];
-  /** Last provider-observed goal, independent of historical command receipts. */
+  /** Last observed goal, independent of historical command receipts. */
+  goalCommand?: SlashCommand;
+  /** Pre-Claude name for the same record; still read, no longer written. */
   codexGoalCommand?: SlashCommand;
   /** Durable YA-only `/done` rows merged into the transcript view only. */
   syntheticDoneMessages?: DurableSyntheticDoneMessage[];
@@ -322,15 +326,21 @@ export class SessionMetadataService {
     await this.metadataSaver.flush();
   }
 
+  /** Last observed goal command for a session, whichever provider reported it. */
+  getGoalCommand(sessionId: string): SlashCommand | undefined {
+    const metadata = this.getMetadata(this.resolveSessionId(sessionId));
+    return metadata?.goalCommand ?? metadata?.codexGoalCommand;
+  }
+
   async observeCommandInventory(
     sessionId: string,
     commands: SlashCommand[],
   ): Promise<void> {
-    const goal = commands.find((command) => command.name === "goal");
+    const goal = findGoalCommand(commands);
     // An inventory without goal state is unknown, not evidence of a clear.
-    if (goal?.providerDetails?.codex?.goalObjective === undefined) return;
+    if (readGoalDetails(goal)?.goalObjective === undefined) return;
     sessionId = this.resolveSessionId(sessionId);
-    const previous = this.getMetadata(sessionId)?.codexGoalCommand;
+    const previous = this.getGoalCommand(sessionId);
     if (
       JSON.stringify(previous) === JSON.stringify(goal) &&
       !this.unsavedGoalObservations.has(sessionId)
@@ -339,10 +349,10 @@ export class SessionMetadataService {
     this.unsavedGoalObservations.add(sessionId);
     this.updateSessionMetadata(sessionId, (metadata) => ({
       ...metadata,
-      codexGoalCommand: goal,
+      goalCommand: goal,
     }));
     await this.metadataSaver.flush();
-    if (this.getMetadata(sessionId)?.codexGoalCommand === goal) {
+    if (this.getMetadata(sessionId)?.goalCommand === goal) {
       this.unsavedGoalObservations.delete(sessionId);
     }
   }
@@ -991,6 +1001,9 @@ export class SessionMetadataService {
     }
     if (updated.localCommandMessages?.length) {
       cleaned.localCommandMessages = updated.localCommandMessages;
+    }
+    if (updated.goalCommand) {
+      cleaned.goalCommand = updated.goalCommand;
     }
     if (updated.codexGoalCommand) {
       cleaned.codexGoalCommand = updated.codexGoalCommand;

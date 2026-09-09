@@ -24,6 +24,7 @@ import {
   SYNTHETIC_TERMINATE_COMMAND_CAPABILITY,
   getCanonicalInvocationToken,
   isClaudeProviderName,
+  readInventoryGoalDetails,
   serverHasCapability,
   startsWithSlashCommand,
   thinkingOptionToConfig,
@@ -674,8 +675,7 @@ function SessionPageContent({
   );
   const providerRuntimeStatus =
     useProviderRuntimeStatusForSession(actualSessionId);
-  const goalDetails = slashCommands.find((command) => command.name === "goal")
-    ?.providerDetails?.codex;
+  const goalDetails = readInventoryGoalDetails(slashCommands);
   const currentGoal = goalDetails?.goalObjective;
   const sessionLoadingProgressText =
     sessionLoadingProgressEnabled && sessionLoadingProgressDetailsVisible

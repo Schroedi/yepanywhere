@@ -9,6 +9,7 @@ import type {
   SlashCommand,
 } from "@yep-anywhere/shared";
 import type { AgentMessageQueue } from "../messageQueue.js";
+import type { ClaudeGoalSnapshot } from "./claude-goal.js";
 import type {
   PrepareSessionSandboxOptions,
   SessionSandboxRuntime,
@@ -217,6 +218,12 @@ export interface StartSessionOptions {
   clientName?: string;
   /** Permission mode for tool approvals */
   permissionMode?: PermissionMode;
+  /**
+   * Last YA-observed goal for a resumed session. Providers that keep goal
+   * state outside their own protocol (Claude) restore what only YA knows: a
+   * paused goal, whose Stop hook YA removed and intends to reinstall.
+   */
+  restoredGoal?: ClaudeGoalSnapshot | null;
   /** Model to use (e.g., "sonnet", "opus", "haiku") */
   model?: string;
   /** Provider-visible service tier. undefined means provider/default behavior. */

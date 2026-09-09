@@ -20,8 +20,10 @@ import {
   type UserMessageMetadata,
   type UrlProjectId,
   type WorkstreamId,
+  GOAL_COMMAND_NAME,
   buildEffectiveAgentContext,
   getModelContextWindow,
+  readGoalDetails,
   isUrlProjectId,
   isWorkstreamId,
   mainWorkstreamId,
@@ -221,16 +223,22 @@ async function getSessionSlashCommands(
       );
     }
   }
-  return (
+  // A stopped session has no provider to ask, so the last observed goal stands
+  // in for live state. A live inventory that already reports goal state wins;
+  // unknown goal state is not evidence that the goal was cleared.
+  const savedGoal = metadata?.goalCommand ?? metadata?.codexGoalCommand;
+  if (!savedGoal) return commands ?? null;
+  const merged =
     commands?.map((command) =>
-      provider === "codex" &&
-      command.name === "goal" &&
-      command.providerDetails?.codex?.goalObjective === undefined &&
-      metadata?.codexGoalCommand
-        ? metadata.codexGoalCommand
+      command.name === GOAL_COMMAND_NAME &&
+      readGoalDetails(command)?.goalObjective === undefined
+        ? savedGoal
         : command,
-    ) ?? null
-  );
+    ) ?? null;
+  if (merged?.some((command) => command.name === GOAL_COMMAND_NAME)) {
+    return merged;
+  }
+  return [...(merged ?? []), savedGoal];
 }
 
 function roundedMs(value: number): number {

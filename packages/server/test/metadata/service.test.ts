@@ -87,7 +87,7 @@ describe("SessionMetadataService", () => {
       await service.observeCommandInventory("session", [goal]);
       const restored = new SessionMetadataService({ dataDir: testDir });
       await restored.initialize();
-      expect(restored.getMetadata("session").codexGoalCommand).toEqual(goal);
+      expect(restored.getMetadata("session").goalCommand).toEqual(goal);
     });
 
     it("waits for overlapping goal observations and skips durable duplicates", async () => {
@@ -145,7 +145,7 @@ describe("SessionMetadataService", () => {
         expect(writes).toHaveBeenCalledTimes(count);
         expect(
           JSON.parse(await readFile(service.getFilePath(), "utf8")).sessions
-            .session.codexGoalCommand,
+            .session.goalCommand,
         ).toEqual(goal);
         expect(
           JSON.parse(await readFile(service.getFilePath(), "utf8")).sessions
@@ -206,9 +206,7 @@ describe("SessionMetadataService", () => {
       await service.setTitle("session-1", "Work");
       const restarted = new SessionMetadataService({ dataDir: testDir });
       await restarted.initialize();
-      expect(restarted.getMetadata("session-1")?.codexGoalCommand).toEqual(
-        goal,
-      );
+      expect(restarted.getMetadata("session-1")?.goalCommand).toEqual(goal);
       const cleared = {
         ...goal,
         providerDetails: { codex: { goalObjective: null } },
@@ -217,9 +215,7 @@ describe("SessionMetadataService", () => {
       await restarted.observeCommandInventory("session-1", [cleared]);
       const afterClear = new SessionMetadataService({ dataDir: testDir });
       await afterClear.initialize();
-      expect(afterClear.getMetadata("session-1")?.codexGoalCommand).toEqual(
-        cleared,
-      );
+      expect(afterClear.getMetadata("session-1")?.goalCommand).toEqual(cleared);
     });
 
     it("preserves goal receipts and their positions across restart and unrelated edits", async () => {

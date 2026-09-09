@@ -300,6 +300,7 @@ export type {
   HelperTargetConfig,
   SlashCommand,
   SlashCommandArgumentCompletion,
+  SlashCommandGoalDetails,
   SlashCommandInvocation,
   SlashCommandInvocationKind,
   SlashCommandInvocationPrefix,
@@ -353,6 +354,12 @@ export {
   type InvocationCandidate,
   type SkillInvocationMatch,
 } from "./skill-invocations.js";
+export {
+  GOAL_COMMAND_NAME,
+  findGoalCommand,
+  readGoalDetails,
+  readInventoryGoalDetails,
+} from "./slash-command-goal.js";
 export {
   detectNestedHarnessLaunch,
   type NestedHarnessLaunch,

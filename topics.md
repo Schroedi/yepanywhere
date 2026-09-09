@@ -380,3 +380,5 @@
 - node-22-builtin-sqlite - Immediate server runtime floor and advisory remote upgrade guidance.
 - pending-send-live-echo-fallback - Sending chips must reconcile from durable
   history when the live user-echo notice is dropped.
+- claude-goal-controls - Claude `/goal` state read from its transcript, with
+  YA-owned pause/resume and the session header flag.

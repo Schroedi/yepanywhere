@@ -54,6 +54,7 @@ function createLaunchSettingsMetadata(
   };
   const service = {
     getMetadata: () => undefined,
+    getGoalCommand: () => undefined,
     getEffectiveLaunchSettings: () => current,
     getRequestedModel: () =>
       current ? (current.requestedModel ?? undefined) : legacyRequestedModel,
@@ -409,6 +410,7 @@ describe("Supervisor", () => {
       const onSuccessfulProviderSession = vi.fn(async () => {});
       const providerMetadata = {
         getMetadata: vi.fn(() => undefined),
+        getGoalCommand: vi.fn(() => undefined),
         recordEffectiveLaunchSettings: vi.fn(async () => undefined),
         remapSessionId: vi.fn(async () => {}),
         setProvider: vi.fn(async () => {}),
@@ -3168,6 +3170,7 @@ describe("Supervisor", () => {
       );
       const metadata = {
         getMetadata: () => undefined,
+        getGoalCommand: () => undefined,
         getEffectiveLaunchSettings: () => durable,
         getRequestedModel: () => durable?.requestedModel ?? undefined,
         recordEffectiveLaunchSettings,

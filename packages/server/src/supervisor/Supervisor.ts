@@ -14,8 +14,10 @@ import {
   type SyntheticSessionBoundaryCommand,
   type UrlProjectId,
   type WorkstreamId,
+  readGoalDetails,
   truncateSessionTitle,
 } from "@yep-anywhere/shared";
+import type { ClaudeGoalSnapshot } from "../sdk/providers/claude-goal.js";
 import { registerForkedSessionFile } from "../sessions/fork-discovery.js";
 import type { AgentActivity, PendingInputType } from "@yep-anywhere/shared";
 import { DEFAULT_IDLE_TIMEOUT_MS } from "../defaults.js";
@@ -1216,6 +1218,7 @@ export class Supervisor {
       launchCompactPercentOverride:
         modelSettings?.claudeAutoCompactPercentOverride,
       claudeSteerBackgroundBash: this.getClaudeSteerBackgroundBashSettings?.(),
+      restoredGoal: this.readRestoredGoal(resumeSessionId),
       clientName: modelSettings?.clientName,
       globalInstructions: modelSettings?.globalInstructions,
       getSessionChildEnv: this.getSessionChildEnv
@@ -1248,6 +1251,7 @@ export class Supervisor {
       supportedModels,
       supportedCommands,
       setModel,
+      runProviderCommand,
       publishAgentctlSessionId,
     } = result;
 
@@ -1290,6 +1294,7 @@ export class Supervisor {
           commands,
         ) ?? Promise.resolve(),
       setModelFn: setModel,
+      runProviderCommandFn: runProviderCommand,
       publishAgentctlSessionIdFn: publishAgentctlSessionId,
       permissionMode: effectiveMode,
       provider: "claude", // Real SDK is always Claude
@@ -1334,6 +1339,23 @@ export class Supervisor {
     this.registerProcess(process, !resumeSessionId);
 
     return process;
+  }
+
+  /**
+   * A paused goal exists only in YA: its Stop hook was removed from the
+   * provider, so a resumed session would otherwise forget the objective it is
+   * meant to reinstall. An active goal is not restored here — Claude reinstalls
+   * that hook itself on resume and the transcript reports it.
+   */
+  private readRestoredGoal(
+    resumeSessionId: string | undefined,
+  ): ClaudeGoalSnapshot | null {
+    if (!resumeSessionId) return null;
+    const goal = readGoalDetails(
+      this.sessionMetadataService?.getGoalCommand(resumeSessionId),
+    );
+    if (goal?.goalStatus !== "paused" || !goal.goalObjective) return null;
+    return { objective: goal.goalObjective, status: "paused" };
   }
 
   private async settleProviderStart<T>(
@@ -1905,6 +1927,7 @@ export class Supervisor {
       launchCompactPercentOverride:
         modelSettings?.claudeAutoCompactPercentOverride,
       claudeSteerBackgroundBash: this.getClaudeSteerBackgroundBashSettings?.(),
+      restoredGoal: this.readRestoredGoal(resumeSessionId),
       clientName: modelSettings?.clientName,
       executor: modelSettings?.executor,
       remoteEnv: modelSettings?.remoteEnv,
@@ -1940,6 +1963,7 @@ export class Supervisor {
       supportedModels,
       supportedCommands,
       setModel,
+      runProviderCommand,
       publishAgentctlSessionId,
     } = result;
 
@@ -1981,6 +2005,7 @@ export class Supervisor {
           commands,
         ) ?? Promise.resolve(),
       setModelFn: setModel,
+      runProviderCommandFn: runProviderCommand,
       publishAgentctlSessionIdFn: publishAgentctlSessionId,
       permissionMode: effectiveMode,
       provider: "claude", // Real SDK is always Claude
@@ -2132,6 +2157,7 @@ export class Supervisor {
         ? {}
         : { launchCompactPercentOverride }),
       claudeSteerBackgroundBash: this.getClaudeSteerBackgroundBashSettings?.(),
+      restoredGoal: this.readRestoredGoal(resumeSessionId),
       clientName: modelSettings?.clientName,
       executor: modelSettings?.executor,
       remoteEnv: modelSettings?.remoteEnv,
@@ -2388,6 +2414,7 @@ export class Supervisor {
         ? {}
         : { launchCompactPercentOverride }),
       claudeSteerBackgroundBash: this.getClaudeSteerBackgroundBashSettings?.(),
+      restoredGoal: this.readRestoredGoal(resumeSessionId),
       executor: modelSettings?.executor,
       remoteEnv: modelSettings?.remoteEnv,
       globalInstructions: modelSettings?.globalInstructions,
