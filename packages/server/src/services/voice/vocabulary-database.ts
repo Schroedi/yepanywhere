@@ -33,6 +33,16 @@ export interface VocabularyCommit {
  */
 const COMMIT_CHUNK = 500;
 
+/** What the store needs of its table, so a test can record what is written. */
+export interface VocabularyTable {
+  words(): VocabularyWordRow[];
+  forms(): Map<string, VocabularyCaseForms>;
+  checkpoints(): VocabularyCheckpointRow[];
+  commit(batch: VocabularyCommit): Promise<void>;
+  clear(): void;
+  close(): void;
+}
+
 /**
  * The learned vocabulary table. Counts are keyed rows that are updated where
  * they changed, so the cost of recording a scan is proportional to the words it
@@ -43,7 +53,7 @@ const COMMIT_CHUNK = 500;
  * The file belongs on local disk: it is written as agent sessions produce text,
  * and it is regenerable by rescanning the same history.
  */
-export class VocabularyDatabase {
+export class VocabularyDatabase implements VocabularyTable {
   private constructor(private readonly database: SqliteDatabase) {}
 
   static open(

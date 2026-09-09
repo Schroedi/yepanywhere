@@ -7,10 +7,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout } from "node:timers/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { createSpeechVocabularyRoutes } from "../../src/routes/speech-vocabulary.js";
 import { VocabularyStore } from "../../src/services/voice/VocabularyStore.js";
 import { VocabularyLearning } from "../../src/services/voice/VocabularyLearning.js";
+import type { VocabularyStoreOptions } from "../../src/services/voice/VocabularyStore.js";
 import type { Message } from "../../src/supervisor/types.js";
 import { SessionReader } from "../../src/sessions/reader.js";
 import { normalizeSession } from "../../src/sessions/normalization.js";
@@ -22,6 +24,12 @@ afterEach(async () => {
 });
 
 function fixture() {
+  return fixtureWithOptions({});
+}
+
+function fixtureWithOptions(
+  options: Omit<VocabularyStoreOptions, "scratchDir"> = {},
+) {
   const dataDir = mkdtempSync(join(tmpdir(), "ya-speech-vocabulary-"));
   let learning: VocabularyLearning;
   let version = "v1";
@@ -46,7 +54,7 @@ function fixture() {
   ];
   const open = () => {
     learning = new VocabularyLearning(
-      new VocabularyStore(dataDir),
+      new VocabularyStore(dataDir, options),
       async function* () {
         yield {
           key: "durable-session",
@@ -109,7 +117,74 @@ function tableWrites(): Record<string, number> {
   return seen;
 }
 
+async function waitForIdle(learning: VocabularyLearning): Promise<void> {
+  let loops = 200;
+  while (loops--) {
+    const state = learning.status().scan.state;
+    if (state === "error") {
+      throw new Error(learning.status().scan.error ?? "scan error");
+    }
+    if (state === "idle") return;
+    await setTimeout(25);
+  }
+  throw new Error("scan did not return to idle");
+}
+
 describe("persistent speech learning through its routes", () => {
+  it("respects the write-interval floor", async () => {
+    const f = fixtureWithOptions({ writeIntervalMs: 2_000 });
+    await f.enable();
+    const before = tableWrites();
+    const now = new Date();
+    f.change([
+      {
+        type: "user",
+        timestamp: new Date(now.getTime() + 1).toISOString(),
+        content: "compile compile compile",
+      },
+      {
+        type: "assistant",
+        timestamp: new Date(now.getTime() + 2).toISOString(),
+        content: "compile compile",
+      },
+    ]);
+    f.learning.scan();
+    await setTimeout(50);
+    expect(tableWrites()).toEqual(before);
+    await setTimeout(2_100);
+    await f.learning.settled();
+    await waitForIdle(f.learning);
+    expect(tableWrites()).not.toEqual(before);
+  });
+
+  it("reads the write interval from env", async () => {
+    const f = fixtureWithOptions({
+      env: { ...process.env, YEP_SPEECH_VOCABULARY_WRITE_SECONDS: "2" },
+    });
+    await f.enable();
+    const before = tableWrites();
+    const now = new Date();
+    f.change([
+      {
+        type: "user",
+        timestamp: new Date(now.getTime() + 1).toISOString(),
+        content: "compiler compiler compiler",
+      },
+      {
+        type: "assistant",
+        timestamp: new Date(now.getTime() + 2).toISOString(),
+        content: "compiler",
+      },
+    ]);
+    f.learning.scan();
+    await setTimeout(500);
+    expect(tableWrites()).toEqual(before);
+    await setTimeout(2_000);
+    await f.learning.settled();
+    await waitForIdle(f.learning);
+    expect(tableWrites()).not.toEqual(before);
+  });
+
   it("writes nothing when a scan finds nothing new", async () => {
     const f = fixture();
     await f.enable();
@@ -256,7 +331,9 @@ describe("persistent speech learning through its routes", () => {
       { type: "user", timestamp: new Date().toISOString(), content: "NeMo" },
     ]);
     f.learning.scan();
+    await waitForIdle(f.learning);
     await f.learning.settled();
+    await f.learning.store.settled();
     const words = f.learning.status(true).words ?? [];
     expect(words.some((word) => word.word === "nemo")).toBe(true);
     await f.routes.request("/vocabulary", {

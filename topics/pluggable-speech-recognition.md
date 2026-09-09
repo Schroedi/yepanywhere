@@ -487,6 +487,16 @@ observed nothing new does not flush at all, so the catalog republications that
 live sessions produce every few seconds cost no writes, no rebuilt ranking, and
 no new revision.
 
+Writes are also floored at one every ten minutes, moved by
+`YEP_SPEECH_VOCABULARY_WRITE_SECONDS`. Waiting shrinks the work rather than
+merely delaying it, because a word seen fifty times inside one interval is still
+one row written once. A crash costs at most one interval of learning, and even
+that is recovered by a rescan, since each session's checkpoint is written in the
+same batch as the counts it covers. Shutdown, reset, and the adoption of the
+previous layout's files write immediately instead of waiting; the old files are
+deleted only after the adopting write lands, so a server killed inside the
+interval still has them.
+
 When the filter passes its design load, YA empties it along with everything
 counted through it and relearns the retained window, since a filter that can no
 longer tell new text from old would silently stop counting. Settings, which a

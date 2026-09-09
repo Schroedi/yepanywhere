@@ -28,7 +28,10 @@ import {
 import { getLogger } from "../../logging/logger.js";
 import { BlockedBloom, BloomFile } from "./blocked-bloom.js";
 import { DistinctiveTop, distinctiveScore } from "./distinctive-top.js";
-import { VocabularyDatabase } from "./vocabulary-database.js";
+import {
+  VocabularyDatabase,
+  type VocabularyTable,
+} from "./vocabulary-database.js";
 
 export { VOCABULARY_FLUSH_COUNTS };
 
@@ -76,10 +79,23 @@ const MINIMUM_SEEN_BYTES = 1024 * 1024;
 /**
  * Shortest interval between two writes of the table. Learning observes text as
  * fast as agents produce it, and every observation would otherwise become a
- * commit; this holds the rate to a few hundred an hour at worst.
- * `YEP_SPEECH_VOCABULARY_WRITE_SECONDS` moves it.
+ * commit. Waiting also shrinks the work rather than merely delaying it: a word
+ * seen fifty times inside one interval is still one row written once. What a
+ * crash costs is at most this much learning, which a rescan recovers, because
+ * the session checkpoints are written in the same batch as the counts they
+ * cover. `YEP_SPEECH_VOCABULARY_WRITE_SECONDS` moves it.
  */
-const DEFAULT_WRITE_INTERVAL_MS = 10_000;
+const DEFAULT_WRITE_INTERVAL_MS = 10 * 60_000;
+
+function parseWriteIntervalMs(
+  env: NodeJS.ProcessEnv,
+  defaultValue: number,
+): number {
+  const raw = env.YEP_SPEECH_VOCABULARY_WRITE_SECONDS;
+  if (!raw) return defaultValue;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isNaN(parsed) || parsed < 0 ? defaultValue : parsed * 1000;
+}
 
 export function vocabularyFingerprint(
   sessionKey: string,
@@ -124,6 +140,8 @@ export interface VocabularyStoreOptions {
   seenBytes?: number;
   /** Overrides the shortest interval between two writes of the table. */
   writeIntervalMs?: number;
+  /** Substitutes the table, so a test can record exactly what is written. */
+  openTable?: (path: string) => VocabularyTable | undefined;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -161,13 +179,14 @@ export class VocabularyStore {
   };
   private loaded = false;
   private writeTimer: ReturnType<typeof setTimeout> | undefined;
-  private lastWriteAt = 0;
+  private lastWriteAt = Date.now();
   private readonly writeIntervalMs: number;
   private readonly scratch: ScratchSpace;
   private readonly seenBytes: number;
   private seen: BlockedBloom | undefined;
   private seenFile: BloomFile | undefined;
-  private database: VocabularyDatabase | undefined;
+  private database: VocabularyTable | undefined;
+  private readonly openDatabase: (path: string) => VocabularyTable | undefined;
   private readonly saver = createCoalescingSaver(() => this.persist());
 
   get revision(): number {
@@ -205,6 +224,7 @@ export class VocabularyStore {
     options: VocabularyStoreOptions = {},
   ) {
     const env = options.env ?? process.env;
+    this.openDatabase = options.openTable ?? VocabularyDatabase.open;
     const requested =
       options.seenBytes ??
       parseByteSize(env.YEP_SPEECH_VOCABULARY_BYTES, DEFAULT_SEEN_BYTES);
@@ -227,6 +247,9 @@ export class VocabularyStore {
     // a floor, since a filter of a few kilobytes would dedupe nothing.
     this.seenBytes =
       options.seenBytes ?? Math.max(MINIMUM_SEEN_BYTES, this.scratch.bytes);
+    this.writeIntervalMs =
+      options.writeIntervalMs ??
+      parseWriteIntervalMs(env, DEFAULT_WRITE_INTERVAL_MS);
     this.loadState();
     this.openTable();
   }
@@ -374,7 +397,7 @@ export class VocabularyStore {
   private openTable(): void {
     try {
       mkdirSync(this.scratch.dir, { recursive: true });
-      this.database = VocabularyDatabase.open(this.databasePath);
+      this.database = this.openDatabase(this.databasePath);
     } catch (error) {
       // Losing the table costs relearning, not correctness. Refusing to run
       // would take recognition biasing down with it.
@@ -449,18 +472,34 @@ export class VocabularyStore {
         this.caseForms.set(word, entry);
         this.dirtyForms.add(word);
       }
-    for (const name of [
-      LEGACY_WORDS_FILE,
-      LEGACY_CASE_FILE,
-      LEGACY_SEEN_FILE,
-    ]) {
-      try {
-        unlinkSync(join(this.dataDir, name));
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      }
-    }
-    if (this.dirtyWords.size > 0 || this.dirtyForms.size > 0) this.save();
+    // Deleting the old files has to wait for the adopted rows to land. The
+    // ordinary write waits for its interval, and a server killed inside that
+    // window would otherwise have removed the only copy of these counts.
+    void this.settled().then(
+      () => {
+        for (const name of [
+          LEGACY_WORDS_FILE,
+          LEGACY_CASE_FILE,
+          LEGACY_SEEN_FILE,
+        ]) {
+          try {
+            unlinkSync(join(this.dataDir, name));
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+              getLogger().warn(
+                { component: "speech", err: error, file: name },
+                "Speech vocabulary could not remove an adopted legacy file",
+              );
+          }
+        }
+      },
+      (error: unknown) => {
+        getLogger().warn(
+          { component: "speech", err: error },
+          "Speech vocabulary kept its legacy files; adopting them did not land",
+        );
+      },
+    );
   }
 
   settings(): VocabularySettings {
