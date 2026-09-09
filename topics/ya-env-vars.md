@@ -158,9 +158,12 @@ launcher on PATH. These grant only live own-session inspection, expire after
 24 hours, and are revoked at provider teardown. Default is off. See
 [Agent Own-Session Inspection](agent-self.md) for eligibility and provenance.
 
-`AGENTCTL_SESSION_ID` remains the canonical YA session-id marker: a resume may
-have it at launch, while a new session receives it later through the session
-environment bridge.
+`AGENTCTL_SESSION_ID` remains the canonical YA session-id marker for every
+hosted provider. A resume may have it at launch in the provider process
+environment. A new session receives it through the host `BASH_ENV` bridge
+once the provider reports its canonical id, before the first user-turn
+tool shells. YA-launched sessions must not require transcript search to
+learn this value.
 
 `YEP_SESSION_WAKE_URL` and `YEP_SESSION_WAKE_TOKEN` are current compatibility
 outputs for canonical `AGENT_SESSION_WAKE_URL` and

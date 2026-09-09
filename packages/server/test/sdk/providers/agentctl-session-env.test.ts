@@ -3,7 +3,10 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createAgentctlSessionEnvBridge } from "../../../src/sdk/providers/agentctl-session-env.js";
+import {
+  copyAgentctlBashEnvInto,
+  createAgentctlSessionEnvBridge,
+} from "../../../src/sdk/providers/agentctl-session-env.js";
 
 function runBash(env: NodeJS.ProcessEnv): string {
   return execFileSync(
@@ -183,6 +186,33 @@ describe("agentctl session env bridge", () => {
       expect(runBash(env)).toBe(
         "original= agentctl=sess-retained wake_url=http://127.0.0.1/session-wake/sess-retained wake_token=wake-token debug_url=http://127.0.0.1/new debug_token=new-token",
       );
+    } finally {
+      bridge.cleanup();
+    }
+  });
+
+  bashIt("copies the Bash bridge path without stripping the overlay", () => {
+    const bridge = createAgentctlSessionEnvBridge();
+    try {
+      const target: Record<string, string> = {
+        KEEP_ME: "yes",
+        AGENT_SERVER_URL: "http://child.invalid/",
+      };
+      copyAgentctlBashEnvInto(target, bridge, {
+        sessionId: "sess-copy",
+        baseEnv: bridgeTestEnv({ AGENT_SERVER_URL: "http://stale.invalid/" }),
+      });
+      expect(target.KEEP_ME).toBe("yes");
+      expect(target.AGENT_SERVER_URL).toBe("http://child.invalid/");
+      expect(target.BASH_ENV).toBeTruthy();
+      expect(target.AGENTCTL_SESSION_ID).toBe("sess-copy");
+      expect(
+        execFileSync("bash", ["-c", 'printf "%s" "$AGENTCTL_SESSION_ID"'], {
+          encoding: "utf8",
+          env: { ...bridgeTestEnv(), ...target },
+          stdio: ["ignore", "pipe", "pipe"],
+        }),
+      ).toBe("sess-copy");
     } finally {
       bridge.cleanup();
     }

@@ -19,7 +19,11 @@
  * for opt-in smoke conventions.
  */
 
-import type { ChildProcess, ExecException } from "node:child_process";
+import {
+  execFileSync,
+  type ChildProcess,
+  type ExecException,
+} from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -629,6 +633,41 @@ describe("GrokACPProvider — ACP integration (mocked)", () => {
     session.abort();
     return session;
   }
+
+  function isBashAvailable(): boolean {
+    try {
+      execFileSync("bash", ["--version"], { stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function readAgentctlSessionId(connectEnv?: Record<string, string>): string {
+    const env = { ...process.env, ...connectEnv };
+    delete env.AGENTCTL_SESSION_ID;
+    if (connectEnv?.AGENTCTL_SESSION_ID) {
+      env.AGENTCTL_SESSION_ID = connectEnv.AGENTCTL_SESSION_ID;
+    }
+    delete env.BASH_ENV;
+    if (connectEnv?.BASH_ENV) env.BASH_ENV = connectEnv.BASH_ENV;
+    delete env.YEP_ORIGINAL_BASH_ENV;
+    if (connectEnv?.YEP_ORIGINAL_BASH_ENV) {
+      env.YEP_ORIGINAL_BASH_ENV = connectEnv.YEP_ORIGINAL_BASH_ENV;
+    }
+    return execFileSync(
+      "bash",
+      ["-c", 'printf "%s" "$' + '{AGENTCTL_SESSION_ID-}"'],
+      {
+        encoding: "utf-8",
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+  }
+
+  const bashIt =
+    process.platform !== "win32" && isBashAvailable() ? it : it.skip;
 
   it("surfaces Grok command inventory through slash commands", async () => {
     const provider = await loadFreshGrokProvider({ grokPath: "/fake/grok" });
@@ -1330,6 +1369,47 @@ describe("GrokACPProvider — ACP integration (mocked)", () => {
       session.abort();
     }
   });
+
+  bashIt("publishes AGENTCTL_SESSION_ID to Grok Bash tool shells", async () => {
+    const provider = await loadFreshGrokProvider({ grokPath: "/fake/grok" });
+    const session = await provider.startSession({
+      cwd: "/tmp",
+      initialMessage: { text: "hi" },
+    });
+    try {
+      const init = await session.iterator.next();
+      const sessionId = (init.value as { session_id?: string }).session_id;
+      expect(sessionId).toMatch(/^grok_ses_new_/);
+      expect(session.publishAgentctlSessionId).toBeTypeOf("function");
+      expect(connectCalls[0]?.env?.BASH_ENV).toBeTruthy();
+      expect(connectCalls[0]?.env?.AGENTCTL_SESSION_ID).toBeUndefined();
+      expect(readAgentctlSessionId(connectCalls[0]?.env)).toBe(sessionId);
+    } finally {
+      session.abort();
+    }
+  });
+
+  bashIt(
+    "seeds AGENTCTL_SESSION_ID in the Grok spawn env on resume",
+    async () => {
+      const provider = await loadFreshGrokProvider({ grokPath: "/fake/grok" });
+      const session = await provider.startSession({
+        cwd: "/tmp",
+        resumeSessionId: "existing_ses_123",
+      });
+      try {
+        await session.iterator.next();
+        expect(connectCalls[0]?.env?.AGENTCTL_SESSION_ID).toBe(
+          "existing_ses_123",
+        );
+        expect(readAgentctlSessionId(connectCalls[0]?.env)).toBe(
+          "existing_ses_123",
+        );
+      } finally {
+        session.abort();
+      }
+    },
+  );
 });
 
 /**

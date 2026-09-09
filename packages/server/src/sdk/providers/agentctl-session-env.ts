@@ -129,3 +129,35 @@ export function createAgentctlSessionEnvBridge(
     },
   };
 }
+
+/**
+ * Install the Bash bridge path onto a child overlay or the worker process
+ * environment without stripping session-scoped values from `target` itself.
+ * `extendEnv` still drops those names from the object it returns so a full
+ * spawn env cannot leak a stale wake/debug pair; this helper only copies the
+ * bridge path and an already-known resume id.
+ */
+export function copyAgentctlBashEnvInto(
+  target: NodeJS.ProcessEnv | Record<string, string>,
+  bridge: AgentctlSessionEnvBridge,
+  options?: { sessionId?: string; baseEnv?: NodeJS.ProcessEnv },
+): void {
+  const bridged = bridge.extendEnv({
+    ...(options?.baseEnv ?? process.env),
+    ...target,
+  });
+  if (typeof bridged.BASH_ENV === "string" && bridged.BASH_ENV) {
+    target.BASH_ENV = bridged.BASH_ENV;
+  }
+  if (
+    typeof bridged.YEP_ORIGINAL_BASH_ENV === "string" &&
+    bridged.YEP_ORIGINAL_BASH_ENV
+  ) {
+    target.YEP_ORIGINAL_BASH_ENV = bridged.YEP_ORIGINAL_BASH_ENV;
+  } else {
+    delete target.YEP_ORIGINAL_BASH_ENV;
+  }
+  if (options?.sessionId) {
+    target.AGENTCTL_SESSION_ID = options.sessionId;
+  }
+}

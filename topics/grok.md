@@ -41,6 +41,13 @@ unreadable-catalog fallback remains `grok-build`. Compact glyphs are
 `Gk 4.6` / `Gk 4.5`. Effort maps to Grok's top-level `--effort`; YA omits
 `-m` for the discovered default.
 
+**`AGENTCTL_SESSION_ID` is published to Grok tool shells.** YA installs
+the same `BASH_ENV` session-id bridge Claude and Codex use. Resume
+seeds the id in the spawned `grok` environment before startup. A new
+session writes it as soon as `session/new` returns the native id, before
+the first user-turn tool shells. Agents must not search
+`~/.grok/sessions/` to recover a YA-launched session id.
+
 **Continuation is `session/load` + `_meta.noReplay`.** Grok advertises
 `agentCapabilities.loadSession`. `session/resume` is not used until
 re-measured. A load failure stays fail-closed and never falls back to

@@ -12,7 +12,10 @@ import type {
   ToolApprovalResult,
   UserMessage,
 } from "../types.js";
-import { pickStaticAgentEnvironment } from "./agentctl-session-env.js";
+import {
+  pickStaticAgentEnvironment,
+  type AgentctlSessionEnvBridge,
+} from "./agentctl-session-env.js";
 import type {
   AgentSession,
   ProviderSessionOptions,
@@ -113,6 +116,11 @@ export interface ProviderSessionStartResult {
   session: AgentSession;
   sandbox?: ProviderSessionSandboxMetadata;
   diagnostics?: Record<string, unknown>;
+  /**
+   * Host-owned Bash bridge so every hosted provider publishes
+   * `AGENTCTL_SESSION_ID`, including adapters that have no session method.
+   */
+  agentctlSessionEnvBridge?: AgentctlSessionEnvBridge;
 }
 
 export type StartOwnedProviderSession = (
@@ -181,6 +189,7 @@ export class ProviderSessionOwner {
   private terminalSignalled = false;
   private sandboxMetadata: ProviderSessionSandboxMetadata | undefined;
   private diagnostics: Record<string, unknown> | undefined;
+  private agentctlSessionEnvBridge: AgentctlSessionEnvBridge | null = null;
 
   constructor(private readonly options: ProviderSessionOwnerOptions) {}
 
@@ -211,6 +220,7 @@ export class ProviderSessionOwner {
     this.session = result.session;
     this.sandboxMetadata = result.sandbox;
     this.diagnostics = result.diagnostics;
+    this.agentctlSessionEnvBridge = result.agentctlSessionEnvBridge ?? null;
     this.reportProviderPid();
     this.providerActivity = result.session.getProviderActivity?.() ?? {};
     this.providerRetention = result.session.getProviderRetention?.() ?? {
@@ -243,7 +253,9 @@ export class ProviderSessionOwner {
         getProviderActivity: Boolean(session.getProviderActivity),
         getProviderRetention: Boolean(session.getProviderRetention),
         refreshPromptCache: Boolean(session.refreshPromptCache),
-        publishAgentctlSessionId: Boolean(session.publishAgentctlSessionId),
+        publishAgentctlSessionId: Boolean(
+          session.publishAgentctlSessionId || this.agentctlSessionEnvBridge,
+        ),
         steer: Boolean(session.steer),
         appendConversationContext: Boolean(session.appendConversationContext),
         setMaxThinkingTokens: Boolean(session.setMaxThinkingTokens),
@@ -435,6 +447,10 @@ export class ProviderSessionOwner {
       typeof message.session_id === "string"
     ) {
       this.providerSessionId = message.session_id;
+      this.agentctlSessionEnvBridge?.publishSessionId(
+        message.session_id,
+        this.browserDebugEnvironment,
+      );
     }
     const sequence = ++this.sequence;
     const bytes = Buffer.byteLength(JSON.stringify(message));
@@ -830,6 +846,10 @@ export class ProviderSessionOwner {
             requestedEnvironment as Record<string, string>,
           );
         }
+        this.agentctlSessionEnvBridge?.publishSessionId(
+          sessionId,
+          this.browserDebugEnvironment,
+        );
         await session.publishAgentctlSessionId?.(
           sessionId,
           this.browserDebugEnvironment,
@@ -1023,6 +1043,8 @@ export class ProviderSessionOwner {
         });
       }
       await Promise.resolve(this.session?.abort()).catch(() => {});
+      this.agentctlSessionEnvBridge?.cleanup();
+      this.agentctlSessionEnvBridge = null;
       this.attachedController = null;
     })();
     return await this.shuttingDown;

@@ -77,6 +77,11 @@ import type {
   ToolApprovalResult,
 } from "../types.js";
 import { ACPClient } from "./acp/client.js";
+import {
+  copyAgentctlBashEnvInto,
+  createAgentctlSessionEnvBridge,
+  type AgentctlSessionEnvBridge,
+} from "./agentctl-session-env.js";
 import { grokInterjectAccepted } from "./grok-interject-text.js";
 import { grokEventUuid } from "./grok-message-identity.js";
 import {
@@ -514,6 +519,10 @@ export class GrokACPProvider implements AgentProvider {
       activePromptCount: 0,
       promptError: null,
     };
+    const agentctlSessionEnvBridge = createAgentctlSessionEnvBridge(
+      options.resumeSessionId,
+      options.getSessionChildEnv,
+    );
     const iterator = this.runSession(
       client,
       options,
@@ -521,6 +530,7 @@ export class GrokACPProvider implements AgentProvider {
       abortController.signal,
       runtime,
       commandInventory,
+      agentctlSessionEnvBridge,
     );
 
     return {
@@ -529,9 +539,16 @@ export class GrokACPProvider implements AgentProvider {
       abort: () => {
         abortController.abort();
         client.close();
+        agentctlSessionEnvBridge.cleanup();
       },
       get pid() {
         return client.pid;
+      },
+      publishAgentctlSessionId: (sessionId, browserDebugEnvironment) => {
+        agentctlSessionEnvBridge.publishSessionId(
+          sessionId,
+          browserDebugEnvironment,
+        );
       },
       steer: async (message) =>
         this.steerWithInterject(client, runtime, message),
@@ -549,9 +566,11 @@ export class GrokACPProvider implements AgentProvider {
     signal: AbortSignal,
     runtime: GrokPromptRuntime,
     commandInventory: GrokCommandInventory,
+    agentctlSessionEnvBridge: AgentctlSessionEnvBridge,
   ): AsyncIterableIterator<SDKMessage> {
     const grokPath = await this.findGrokPath();
     if (!grokPath) {
+      agentctlSessionEnvBridge.cleanup();
       yield {
         type: "error",
         error:
@@ -611,11 +630,14 @@ export class GrokACPProvider implements AgentProvider {
           ? { XAI_API_KEY: xaiApiKey }
           : {}),
       };
+      copyAgentctlBashEnvInto(extraEnv, agentctlSessionEnvBridge, {
+        sessionId: options.resumeSessionId,
+      });
       await client.connect({
         command: grokPath,
         args,
         cwd: options.cwd,
-        env: Object.keys(extraEnv).length > 0 ? extraEnv : undefined,
+        env: extraEnv,
         excludeEnv: passXaiApiKey
           ? GROK_BILLING_ENV_DENYLIST.filter((key) => key !== "XAI_API_KEY")
           : GROK_BILLING_ENV_DENYLIST,
@@ -664,6 +686,7 @@ export class GrokACPProvider implements AgentProvider {
         this.log.debug({ sessionId }, "Grok ACP session created");
       }
       runtime.sessionId = sessionId;
+      agentctlSessionEnvBridge.publishSessionId(sessionId);
 
       // Emit init
       yield {
@@ -752,6 +775,7 @@ export class GrokACPProvider implements AgentProvider {
       runtime.sessionId = undefined;
       runtime.activePromptCount = 0;
       client.close();
+      agentctlSessionEnvBridge.cleanup();
     }
   }
 
