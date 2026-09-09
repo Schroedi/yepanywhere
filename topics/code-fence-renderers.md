@@ -1,18 +1,19 @@
 # Code-Fence Language Renderers
 
 > How YA reduces a fenced code block's info string to one normalized language
-> name, marks every rendered block with that name, and — proposed — dispatches a
-> registered per-language renderer such as Mermaid instead of syntax
-> highlighting.
+> name, marks every rendered block with that name, and — proposed —
+> dispatches a registered per-language renderer such as Mermaid instead of
+> syntax highlighting.
 
 Status: the normalization and the language marker described in the first two
 sections are implemented. The language affordance, the renderer registry, and
 the Mermaid renderer are a proposal; nothing dispatches on language yet beyond
-the pre-existing `ansi` and `toon` cases.
+the pre-existing `ansi` and `toon` cases. No open questions block
+implementation.
 
 See also [`rich-text-rendering.md`](rich-text-rendering.md) for the surrounding
 render pipeline and [`active-content-security.md`](active-content-security.md)
-for the boundary any generated-markup renderer has to satisfy.
+for which trust class a renderer's output falls into.
 
 ## The info string is one language name
 
@@ -28,7 +29,7 @@ This applies to **every** code-block language string, not only ones some
 renderer claims. `BlockDetector` normalizes at fence detection, for both the
 completed-block and streaming-block paths, and both `AugmentGenerator` entry
 points normalize before rendering. So the Shiki grammar lookup, the `ansi` and
-`toon` special cases, the loaded-language set, and the emitted class all compare
+`toon` special cases, the loaded-language set, and the emitted class all see
 the same form, and a fence written ```` ```JavaScript ```` behaves like
 ```` ```javascript ````.
 
@@ -103,15 +104,37 @@ augment generator. The split is therefore:
 - On a Mermaid parse or render failure, the code block is left exactly as it
   was.
 
-**Open question, and the reason this is not yet implemented.** Mermaid
-generates SVG in the client from agent-authored text. By the standard in
-[`active-content-security.md`](active-content-security.md) that is active
-content, and injecting it as raw markup would be a new hole rather than a
-render feature. Mermaid's own `securityLevel: "strict"` is necessary but is not
-by itself the argument that the output is inert. The generated SVG should go
-through an allowlist on the way in, and which allowlist — the existing sanitizer
-extended to SVG, or a separate narrower one — is undecided. Settle this before
-writing the renderer.
+### Inline SVG from a reviewed renderer is allowed
+
+Mermaid's SVG is displayed inline as ordinary reviewed-renderer output. No new
+allowlist, no rasterization, no sandbox. Mermaid is a reviewed renderer, and
+its own `securityLevel: "strict"` stays on because it costs nothing.
+
+The untrusted-active-document rule that SVG follows the active-document policy
+even when the UI calls it an image governs SVG *bytes* YA received and cannot
+reason about — a project file, an upload, a share. It does not govern markup a
+renderer YA chose and ships produced from text. KaTeX is the standing example
+of the latter: `renderSafeMarkdown` buffers its `span`/`svg` output past the
+sanitizer rather than growing the allowlist to cover it. Trust rests on
+renderer selection and upkeep, so an advisory against such a renderer is an
+upgrade-or-drop decision rather than a reason to add a second sanitizer.
+
+YA has no SVG sanitization path for the case where the renderer is *not*
+reviewed, and nothing mechanically distinguishes the two classes. That is
+captured in
+[`gaps/svg-sanitization-for-unreviewed-renderers.md`](../gaps/svg-sanitization-for-unreviewed-renderers.md)
+and does not affect Mermaid.
+
+### Control is the source/render toggle
+
+The user-facing control for a rendered diagram is the ordinary source-or-
+rendered choice YA already offers everywhere else, not a security setting. A
+Mermaid block renders as a diagram by default and toggles back to its
+highlighted source on demand, reusing the existing render-mode affordance
+rather than introducing a per-language control. Rendering by default is the
+deliberate choice here: showing diagram source where a diagram was requested is
+the defect this feature exists to fix, so it is not a case of disturbing a
+sound default.
 
 ## Streaming
 

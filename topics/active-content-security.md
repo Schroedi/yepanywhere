@@ -98,6 +98,23 @@ HTML preview.
 decision. Only output from the owning reviewed renderer/sanitizer belongs in
 this class.
 
+A reviewed renderer that converts agent-authored text into markup belongs to
+this class even when its output is SVG, and even though the SVG rule under
+untrusted active documents below reads as a blanket prohibition. That rule
+governs SVG *bytes* YA received and cannot reason about — a project file, an
+upload, a share. It does not govern markup a renderer YA chose and ships
+produced from text. KaTeX is the standing example: `renderSafeMarkdown`
+buffers its `span`/`svg` output past the sanitizer rather than growing the
+allowlist to cover it. The trust rests on renderer selection and upkeep, so an
+advisory against such a renderer is an upgrade-or-drop decision. See
+[`code-fence-renderers.md`](code-fence-renderers.md), where this is settled
+for Mermaid diagrams.
+
+An unreviewed renderer has no such standing, and YA currently has neither an
+SVG sanitizer to hand it nor a mechanical check that separates the two classes.
+See
+[`gaps/svg-sanitization-for-unreviewed-renderers.md`](../gaps/svg-sanitization-for-unreviewed-renderers.md).
+
 ### Untrusted active documents
 
 HTML, XHTML, SVG, and other browser-active formats supplied by a project,
