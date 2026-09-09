@@ -61,7 +61,7 @@ All ports are derived from a single `PORT` environment variable (default: 3400):
 | Port | Purpose |
 |------|---------|
 | PORT + 0 | Main server (default: 3400) |
-| PORT + 1 | Maintenance server (default: 3401) |
+| PORT + 1 | Maintenance server (3401 by convention; only runs when `MAINTENANCE_PORT` is set) |
 | PORT + 2 | Vite dev server (default: 3402) |
 
 To run on different ports:
@@ -70,7 +70,7 @@ PORT=4000 pnpm dev  # Uses 4000, 4001, 4002
 ```
 
 Individual overrides (rarely needed):
-- `MAINTENANCE_PORT` - Override maintenance port (set to 0 to disable)
+- `MAINTENANCE_PORT` - Port for the maintenance server; unset or 0 means it does not run
 - `VITE_PORT` - Override vite dev port
 
 ## Data Directory & Profiles
@@ -331,7 +331,7 @@ tail -f ~/.yep-anywhere/logs/client-logs/*.jsonl
 
 ## Maintenance Server
 
-A separate lightweight HTTP server runs on PORT + 1 (default 3401) for out-of-band diagnostics. Useful when the main server is unresponsive.
+A separate lightweight HTTP server can run on PORT + 1 (conventionally 3401) for out-of-band diagnostics, which is exactly when the main server is unresponsive. It is **off unless `MAINTENANCE_PORT` names a port** — set it at launch, because a server that is already wedged cannot be told to open it.
 
 ```bash
 # Check server status
@@ -362,7 +362,7 @@ Available endpoints:
 - `POST /reload` - Restart server
 
 Environment variables:
-- `MAINTENANCE_PORT` - Port for maintenance server (default: PORT + 1, set to 0 to disable)
+- `MAINTENANCE_PORT` - Port for maintenance server (default: 0, meaning no maintenance server; PORT + 1 is the usual choice)
 - `PROXY_DEBUG` - Enable proxy debug logging at startup (default: false)
 
 ## Validating Session Data

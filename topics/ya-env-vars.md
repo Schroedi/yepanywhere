@@ -210,8 +210,8 @@ value, because the child has no other way to express one.
 ### Ports & instance
 | Var | Meaning |
 |-----|---------|
-| `PORT` | Base port (default 3400). Main = PORT+0, maintenance = PORT+1, vite = PORT+2. |
-| `MAINTENANCE_PORT` | Override maintenance port (0 disables). |
+| `PORT` | Base port (default 3400). Main = PORT+0, vite = PORT+2; PORT+1 is the usual maintenance port but is not derived automatically. |
+| `MAINTENANCE_PORT` | Port for the out-of-band maintenance server. Unset or 0 means it never starts, so a launch that may need to diagnose a wedged server must name it. |
 | `VITE_PORT` | Override vite dev port. |
 | `YEP_PROFILE` | Profile suffix → `~/.yep-anywhere-<profile>/`. |
 | `YEP_DATA_DIR` | Full data-dir path override. |
