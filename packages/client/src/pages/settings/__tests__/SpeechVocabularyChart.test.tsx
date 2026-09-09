@@ -47,7 +47,7 @@ describe("learned vocabulary exploration", () => {
   it("loads its reference on mount and exposes exact counts through keyboard focus", async () => {
     const fetch = vi
       .fn()
-      .mockResolvedValue(new Response("the 100000\ncompiler 10\n"));
+      .mockResolvedValue(new Response("the 100000\ncompiler 10\ntoken 10\n"));
     vi.stubGlobal("fetch", fetch);
     render(
       <I18nProvider>
@@ -57,10 +57,11 @@ describe("learned vocabulary exploration", () => {
             enabled: true,
             biasing: false,
             hours: 24,
-            totals: { words: 2, user: 40, assistant: 10 },
+            totals: { words: 3, user: 46, assistant: 10 },
             words: [
               { word: "compiler", user: 30, assistant: 10 },
               { word: "the", user: 10, assistant: 0 },
+              { word: "token", user: 6, assistant: 0 },
             ],
             scan: { state: "idle", sessions: 1, messages: 1 },
             integration: "grok-via-ya",
@@ -68,19 +69,27 @@ describe("learned vocabulary exploration", () => {
         />
       </I18nProvider>,
     );
-    const bubble = await screen.findByRole("button", {
+    const wordButton = await screen.findByRole("button", {
       name: /compiler: 40 occurrences/,
     });
     expect(fetch).toHaveBeenCalledWith(
       VOCABULARY_BASELINE_URL,
       expect.objectContaining({ credentials: "omit" }),
     );
-    fireEvent.focus(bubble);
+    fireEvent.focus(wordButton);
     await waitFor(() =>
-      expect(bubble.getAttribute("aria-pressed")).toBe("true"),
+      expect(wordButton.getAttribute("aria-pressed")).toBe("true"),
     );
     expect(screen.getByText(/compiler: 40 occurrences/).textContent).toContain(
       "30 user · 10 agent",
     );
+    expect(screen.getByRole("table")).toBeTruthy();
+    const token = screen.getByRole("button", { name: /token: 6 occurrences/ });
+    fireEvent.mouseEnter(token.closest("tr")!);
+    expect(screen.getByText(/token: 6 occurrences/)).toBeTruthy();
+    fireEvent.mouseLeave(token.closest("tr")!);
+    expect(screen.getByText(/compiler: 40 occurrences/)).toBeTruthy();
+    fireEvent.click(token);
+    expect(token.getAttribute("aria-pressed")).toBe("true");
   });
 });

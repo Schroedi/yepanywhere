@@ -54,6 +54,7 @@ export default function SpeechVocabularyChart({
   const [distinctive, setDistinctive] = useState(true);
   const [minimum, setMinimum] = useState(6);
   const [selected, setSelected] = useState<string>();
+  const [hovered, setHovered] = useState<string>();
   useEffect(() => {
     let disposed = false;
     const controller = new AbortController();
@@ -101,7 +102,7 @@ export default function SpeechVocabularyChart({
         .slice(0, 8)
     : [];
   const active = [...displayed, ...unknown].find(
-    (word) => word.word === selected,
+    (word) => word.word === (hovered ?? selected),
   );
   const maximum = Math.max(1, ...displayed.map((word) => word.count));
   const description = (word: (typeof ranked)[number]) =>
@@ -157,29 +158,65 @@ export default function SpeechVocabularyChart({
       <p className={styles.detail} aria-live="polite">
         {active ? description(active) : t("speechVocabularySelectWord")}
       </p>
-      <div className={styles.bubbles} aria-label={t("speechVocabularyView")}>
-        {displayed.map((word) => (
-          <button
-            type="button"
-            key={word.word}
-            className={styles.bubble}
-            aria-label={description(word)}
-            aria-pressed={selected === word.word}
-            onClick={() => setSelected(word.word)}
-            onFocus={() => setSelected(word.word)}
-            title={description(word)}
-            style={{
-              width: 76 + 56 * Math.sqrt(word.count / maximum),
-              height: 76 + 56 * Math.sqrt(word.count / maximum),
-              borderColor: `hsl(${205 + (85 * word.assistant) / word.count} 65% 60%)`,
-              backgroundColor: `hsl(${205 + (85 * word.assistant) / word.count} 65% 60% / 0.08)`,
-            }}
-          >
-            <strong>{word.word}</strong>
-            <span>{word.count.toLocaleString()}</span>
-          </button>
-        ))}
-      </div>
+      <table className={styles.table} aria-label={t("speechVocabularyView")}>
+        <thead>
+          <tr>
+            <th scope="col">{t("speechVocabularyWordColumn")}</th>
+            <th scope="col">{t("speechVocabularyCountColumn")}</th>
+            <th scope="col">{t("speechVocabularyBaselineColumn")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {displayed.map((word) => (
+            <tr
+              key={word.word}
+              data-selected={selected === word.word}
+              onMouseEnter={() => setHovered(word.word)}
+              onMouseLeave={() => setHovered(undefined)}
+              title={description(word)}
+            >
+              <th scope="row">
+                <button
+                  type="button"
+                  className={styles.word}
+                  aria-label={description(word)}
+                  aria-pressed={selected === word.word}
+                  onClick={() => setSelected(word.word)}
+                  onFocus={() => setSelected(word.word)}
+                >
+                  {word.word}
+                </button>
+              </th>
+              <td>
+                <div className={styles.count}>
+                  {word.count.toLocaleString()}
+                  <span
+                    className={styles.countBar}
+                    aria-hidden="true"
+                    style={{ width: `${(100 * word.count) / maximum}%` }}
+                  >
+                    <span
+                      className={styles.userBar}
+                      style={{ width: `${(100 * word.user) / word.count}%` }}
+                    />
+                    <span
+                      className={styles.agentBar}
+                      style={{
+                        width: `${(100 * word.assistant) / word.count}%`,
+                      }}
+                    />
+                  </span>
+                </div>
+              </td>
+              <td>
+                {word.ratio === undefined
+                  ? "—"
+                  : `${word.ratio.toLocaleString(undefined, { notation: "compact", maximumFractionDigits: 1 })}×`}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       {displayed.length === 0 && <p>{t("speechVocabularyNoWords")}</p>}
       {unknown.length > 0 && (
         <div className={styles.unknown}>
@@ -192,6 +229,9 @@ export default function SpeechVocabularyChart({
               aria-pressed={selected === word.word}
               onFocus={() => setSelected(word.word)}
               onClick={() => setSelected(word.word)}
+              onMouseEnter={() => setHovered(word.word)}
+              onMouseLeave={() => setHovered(undefined)}
+              title={description(word)}
             >
               {word.word} · {word.count.toLocaleString()}
             </button>

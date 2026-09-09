@@ -506,9 +506,11 @@ closing Settings releases its progress timer.
 #### Vocabulary exploration
 
 Speech settings provide an **Explore vocabulary** action. Its default view
-shows distinctive recurring words as up to 18 bubbles; size reflects count,
-border color reflects the user/assistant mix, and tap or keyboard focus shows
-exact source counts. A **Most frequent** view and adjustable minimum count
+shows up to 18 distinctive recurring words in a compact table with counts and
+baseline-frequency ratios. In-cell bars have length proportional to count,
+split blue/purple for user/assistant contributions. Hover previews exact source
+counts; click or keyboard focus selects a word and retains its details after
+the pointer leaves. A **Most frequent** view and adjustable minimum count
 (initially six occurrences) make early scan results browsable. Totals update
 after each completed session, while message progress also advances during
 scanning. Candidate counts are requested only while exploration is open, using
