@@ -528,6 +528,8 @@ function getCapabilitiesForDeviceBridgeState(
 
 export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   const capabilities: string[] = [...BASE_CAPABILITIES];
+  if (options?.getSqliteStatus?.().state === "ready")
+    capabilities.push(SERVER_CAPABILITIES.speechVocabulary.name);
   if (options?.getArtifactViewerStatus?.().available)
     capabilities.push(SERVER_CAPABILITIES.artifactViewer.name);
   if (options?.sessionSandboxAvailability?.state === "available") {

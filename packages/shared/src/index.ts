@@ -1299,3 +1299,4 @@ export {
 export * from "./glossary/index.js";
 
 export type { SqliteStatus } from "./sqlite-status.js";
+export type { SpeechVocabularyStatus } from "./speech-vocabulary.js";

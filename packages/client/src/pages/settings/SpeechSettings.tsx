@@ -47,6 +47,7 @@ import { prewarmYaServerSpeechBackend } from "../../lib/speechProviders/YaServer
 import { SettingsItem } from "./SettingsItem";
 import { useSettingsPaneTitle } from "./SettingsPaneTitleContext";
 import { SettingsSection } from "./SettingsSection";
+import { SpeechVocabularyControls } from "./SpeechVocabularyControls";
 import { useSettingsUndoBaseline } from "./SettingsUndoContext";
 
 export function SpeechSettings() {
@@ -317,6 +318,10 @@ export function SpeechSettings() {
   return (
     <SettingsSection description={t("speechSettingsDescription")}>
       <div className="settings-group">
+        {serverHasCapability(
+          versionInfo,
+          SERVER_CAPABILITIES.speechVocabulary.name,
+        ) && <SpeechVocabularyControls />}
         <SettingsItem
           label={t("speechSettingsVoiceInputTitle")}
           description={t("speechSettingsVoiceInputDescription")}

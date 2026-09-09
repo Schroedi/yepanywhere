@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  speechVocabulary: {
+    name: "speech-vocabulary",
+    index: CAPABILITY_ID_ALLOCATIONS.speechVocabulary.id,
+    introducedIn: "0.8.2",
+  },
   artifactViewer: {
     name: "artifact-viewer",
     index: CAPABILITY_ID_ALLOCATIONS.artifactViewer.id,
@@ -159,6 +164,34 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  speechVocabulary: {
+    id: CAPABILITY_ID_ALLOCATIONS.speechVocabulary.id,
+    name: "speech-vocabulary",
+    kind: "permanent",
+    area: "speech",
+    introducedIn: "0.8.2",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.speechVocabulary.id,
+    },
+    description:
+      "Persistent opt-in speech vocabulary learning and Grok biasing when SQLite is ready.",
+    clientFallback: "Hide vocabulary controls and make no vocabulary requests.",
+    serverContract: {
+      routes: [
+        "GET /api/speech/vocabulary",
+        "PUT /api/speech/vocabulary",
+        "POST /api/speech/vocabulary/scan",
+        "POST /api/speech/vocabulary/reset",
+      ],
+      routeModules: ["packages/server/src/routes/speech-vocabulary.ts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Vocabulary availability depends on server storage configuration and readiness.",
+    },
+  },
   localSpeechModelSelection: {
     id: CAPABILITY_ID_ALLOCATIONS.localSpeechModelSelection.id,
     name: "local-speech-model-selection",

@@ -1,0 +1,99 @@
+.chart {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.controls label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.controls input,
+.controls select,
+.unknown button {
+  min-height: 44px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.controls input {
+  width: 100px;
+}
+
+.bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+}
+
+.bubble {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 3px;
+  padding: 12px;
+  border: 2px solid;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bubble strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bubble span {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bubble[aria-pressed="true"],
+.unknown button[aria-pressed="true"] {
+  box-shadow: 0 0 0 3px var(--text-secondary);
+}
+
+.bubble:focus-visible,
+.unknown button:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 4px;
+}
+
+.unknown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.unknown p {
+  flex-basis: 100%;
+}
+
+.detail {
+  min-height: 40px;
+}

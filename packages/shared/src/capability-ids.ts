@@ -408,6 +408,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "local-speech-model-selection",
     introducedIn: "0.8.2",
   },
+  speechVocabulary: {
+    id: 65,
+    direction: "server",
+    name: "speech-vocabulary",
+    introducedIn: "0.8.2",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

@@ -66,7 +66,10 @@ One connection belongs to each Hono generation and closes during the existing
 reload/shutdown disposal path. Separate profiles have separate databases.
 
 The initial schema reserves a YA application identity (`0x59414449`, ASCII
-`YADI`) and schema version 1; it creates no session, PR, or ticket tables.
+`YADI`). Schema version 2 adds speech vocabulary totals, contribution receipts,
+staging, and scan state; it creates no session-discovery, PR, or ticket tables.
+See [learned vocabulary](pluggable-speech-recognition.md#learned-vocabulary-contract)
+for retention, reset, and the independently gated feature.
 Ordered migrations update SQLite's `user_version` in one immediate transaction.
 Foreign keys are enabled and lock waits are bounded to 250 ms, including the
 migration lock. The initial implementation uses SQLite's default rollback

@@ -501,9 +501,18 @@ the same ledger:
 | 62 | server | 0.8.2 | `acli-commentary-rendering` |
 | 63 | server | 0.8.2 | `retained-session-collections` |
 | 64 | server | 0.8.2 | `local-speech-model-selection` |
+| 65 | server | 0.8.2 | `speech-vocabulary` |
 
 The code ledger is authoritative. The next client or server capability takes
-ID 65; retired rows stay in the ledger as reserved IDs.
+ID 66; retired rows stay in the ledger as reserved IDs.
+
+`speech-vocabulary` (ID 65, optional bit from 0.8.2) owns GET/PUT
+`/api/speech/vocabulary` and POST `.../scan` and `.../reset`. It is advertised
+only when SQLite is ready. The maintainer approved the v0.8.0/v0.8.1 optional
+corpus on 2026-09-08: both lack these endpoints. Without the capability,
+clients hide the vocabulary controls and issue no vocabulary requests. Existing
+speech and capability meanings remain unchanged. See
+[learned speech vocabulary](pluggable-speech-recognition.md#learned-vocabulary-contract).
 
 `local-speech-model-selection` gates per-request Whisper model overrides and
 recent Parakeet presets, including unified English on the isolated NeMo

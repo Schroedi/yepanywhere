@@ -248,6 +248,10 @@ import type {
 import { SafeRestartService } from "./services/SafeRestartService.js";
 import type { SharingService } from "./services/SharingService.js";
 import type { SpeechBackendRegistry } from "./services/voice/registry.js";
+import { VocabularyStore } from "./services/voice/VocabularyStore.js";
+import { VocabularyLearning } from "./services/voice/VocabularyLearning.js";
+import { vocabularySessions } from "./services/voice/vocabulary-sessions.js";
+import { createSpeechVocabularyRoutes } from "./routes/speech-vocabulary.js";
 import { CodexSessionReader } from "./sessions/codex-reader.js";
 import { createCodexSessionDiscoveryIndex } from "./sessions/codex-discovery.js";
 import { GeminiSessionReader } from "./sessions/gemini-reader.js";
@@ -813,7 +817,12 @@ export function createApp(options: AppOptions): AppResult {
     }
   };
   let retainedCollections: RetainedSessionCollections | undefined;
+  let vocabularyLearning: VocabularyLearning | undefined;
+  let unsubscribeVocabulary: (() => void) | undefined;
   const disposeSessionReaders = async (): Promise<void> => {
+    unsubscribeVocabulary?.();
+    options.speechBackendRegistry?.setVocabularySource(undefined);
+    await vocabularyLearning?.close();
     discoverySqlite.close();
     await retainedCollections?.dispose();
     await projectQueueScheduler?.dispose();
@@ -2011,6 +2020,37 @@ export function createApp(options: AppOptions): AppResult {
         changedPaths,
       ),
   });
+  const vocabularyDatabase = discoverySqlite.getDatabase();
+  if (vocabularyDatabase) {
+    const catalog = retainedCollections;
+    const learning = new VocabularyLearning(
+      new VocabularyStore(vocabularyDatabase),
+      (cutoff) =>
+        vocabularySessions(
+          catalog,
+          scanner,
+          heartbeatProviderResolutionDeps(),
+          cutoff,
+        ),
+    );
+    vocabularyLearning = learning;
+    options.speechBackendRegistry?.setVocabularySource(() =>
+      learning.store.keyterms(),
+    );
+    unsubscribeVocabulary = options.eventBus?.subscribe((event) => {
+      if (event.type === "session-catalog-updated" && !event.catalog.refreshing)
+        learning.scan(false);
+      if (
+        learning.store.settings().enabled &&
+        (event.type === "session-updated" ||
+          (event.type === "process-state-changed" &&
+            event.activity !== "in-turn"))
+      )
+        catalog.invalidate();
+    });
+    app.route("/api/speech", createSpeechVocabularyRoutes(learning));
+    learning.scan(false);
+  }
   app.route(
     "/api/inbox",
     createInboxRoutes({

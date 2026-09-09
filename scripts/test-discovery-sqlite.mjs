@@ -1,5 +1,8 @@
 // Runs the same contract against Node and the pinned desktop Bun. Accept the
 // npm staging storage directory to also verify the actual published modules.
+// Node 22/24 may emit its built-in SQLite ExperimentalWarning here. This is
+// intentional runtime provenance for the approved built-in driver, not a test
+// failure or a warning to intercept; Bun does not emit that Node notice.
 import assert from "node:assert/strict";
 import {
   mkdtempSync,
@@ -163,17 +166,27 @@ try {
     );
 
     const db2 = reopened.getDatabase();
+    const schemaVersion = db2.prepare("PRAGMA user_version").get().user_version;
     const migrations = [
-      { version: 1, sql: "" },
-      { version: 2, sql: "CREATE TABLE next_feature (id INTEGER)" },
+      ...Array.from({ length: schemaVersion }, (_, index) => ({
+        version: index + 1,
+        sql: "",
+      })),
+      {
+        version: schemaVersion + 1,
+        sql: "CREATE TABLE next_feature (id INTEGER)",
+      },
     ];
     assert.throws(() =>
       migrateDiscoveryDatabase(db2, [
         ...migrations,
-        { version: 3, sql: "INVALID SQL" },
+        { version: schemaVersion + 2, sql: "INVALID SQL" },
       ]),
     );
-    assert.equal(db2.prepare("PRAGMA user_version").get().user_version, 1);
+    assert.equal(
+      db2.prepare("PRAGMA user_version").get().user_version,
+      schemaVersion,
+    );
     assert.equal(
       db2
         .prepare("SELECT name FROM sqlite_schema WHERE name = 'next_feature'")
@@ -182,7 +195,10 @@ try {
     );
     migrateDiscoveryDatabase(db2, migrations);
     migrateDiscoveryDatabase(db2, migrations);
-    assert.equal(db2.prepare("PRAGMA user_version").get().user_version, 2);
+    assert.equal(
+      db2.prepare("PRAGMA user_version").get().user_version,
+      schemaVersion + 1,
+    );
     reopened.close();
     const databaseFile = join(dataDir, "discovery.sqlite");
     const newerBytes = readFileSync(databaseFile);

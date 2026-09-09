@@ -26,6 +26,18 @@ export class SpeechBackendRegistry {
     { info: SpeechBackendInfo; backend: SpeechBackend }
   >();
   private readonly validations = new Set<Promise<void>>();
+  private vocabularySource?: () => string[];
+
+  setVocabularySource(source: (() => string[]) | undefined): void {
+    this.vocabularySource = source;
+  }
+
+  keyterms(backendId: string, requested: string[] = []): string[] {
+    if (backendId !== "ya-grok") return requested;
+    return [...new Set([...requested, ...(this.vocabularySource?.() ?? [])])]
+      .filter((term) => term.length > 0 && term.length <= 50)
+      .slice(0, 100);
+  }
 
   /** Currently enabled backend ids in insertion order. */
   enabledIds(): string[] {

@@ -442,10 +442,129 @@ the newer NeMo model fit; the coexistence constraints below still apply.
 
 ## Keyterm Biasing
 
-Status 2026-09-08: requested immediately, not implemented. The
-[persistent unigram vocabulary gap](../gaps/speech-unigram-vocabulary.md)
-records default-off server-side learning, retrospective/live idempotent scans,
-retained counts while disabled, reset, and staged recognition integration.
+Status 2026-09-09: persistent vocabulary collection and Grok-through-YA
+biasing are implemented as independent, default-off Speech settings. SQLite
+must be ready (`YEP_SQLITE=auto`, using Node's or Bun's built-in adapter).
+Explicit `YEP_SQLITE=off` remains authoritative.
+
+### Learned vocabulary contract
+
+The server learns submitted user text and assistant text from durable provider
+history through the existing session readers and normalization. It does not
+learn unsubmitted browser drafts, tool arguments/results, reasoning blocks,
+explicit metadata messages, or compact summaries. Untimestamped records are
+excluded because they cannot be assigned to the requested history window.
+The catalog supplies source identity and recency; UI order and live partial
+message IDs are never learning inputs.
+
+Speech settings offer a numeric hours field and slider (1–8760 hours), a
+green Scan + Learn and red Stop + Clear actions, progress, and a separate
+recognition-biasing switch. Stop + Clear cancels the current scan and clears
+counts and checkpoints while preserving the opt-in settings.
+Enabling collection starts the selected retrospective scan. Catalog changes
+and completed/live session activity schedule coalesced subsequent learning.
+Disabling collection stops it without clearing committed counts or progress;
+recognition can independently continue using the saved vocabulary. Interrupted
+scans resume by reconciling incomplete sessions on reentry. Reset clears counts,
+contribution receipts, and scan checkpoints together; it cancels old work but
+keeps the two opt-in settings. A later explicit scan can relearn that history.
+Automatic catalog publications after reset learn only records timestamped
+after reset; stale catalog work cannot silently restore old history.
+
+Word counts use Unicode NFKC normalization and lowercase, retaining internal
+apostrophes, underscores, dots, and hyphens. Numeric-only tokens and tokens
+longer than 100 characters are excluded. User and assistant counts remain
+separate; no generated contribution is relabeled as user text.
+
+The app-data `discovery.sqlite` owns indexed word totals, message contribution
+receipts, and source scan checkpoints. A receipt fingerprints the durable
+role, timestamp, and complete extracted text using SHA-256. Exact duplicate
+records with those same fields in the same source session count once;
+identical text at different durable timestamps counts separately. Presentation
+IDs, record positions, read-window indexes, and metadata unrelated to the text
+do not affect the fingerprint. No vocabulary row stores a list of fingerprints.
+
+Each session's replacement contribution is staged in SQLite, in batches of
+32 messages. Counts, receipts, and source checkpoints commit atomically only
+after the session window finishes. Revised or removed text in that window
+subtracts its old contribution. Previously learned history outside the window
+is preserved. A file that changes during a scan is retried after catalog
+reconciliation rather than committing a mixed snapshot. Reset advances a
+persistent generation; an in-flight scan from an older generation cannot
+restore cleared data. Losing only source scan checkpoints causes a rescan,
+not double counting. Losing contribution receipts requires rebuilding counts
+with Reset, not treating the remaining totals as reconstructable provenance.
+
+The collector keeps only its current reader window and 32-message batch; it
+does not retain transcripts in its own cache. It reuses provider reader bounds
+and caches, including Codex compact-window paging where available. Cold reader
+costs remain those of the existing provider readers. The synchronous database
+transactions never await provider I/O; scan work yields between batches and
+windows. Disabling or disposing the service prevents further publication, and
+closing Settings releases its progress timer.
+
+#### Vocabulary exploration
+
+Speech settings provide an **Explore vocabulary** action. Its default view
+shows distinctive recurring words as up to 18 bubbles; size reflects count,
+border color reflects the user/assistant mix, and tap or keyboard focus shows
+exact source counts. A **Most frequent** view and adjustable minimum count
+(initially six occurrences) make early scan results browsable. Totals update
+after each completed session, while message progress also advances during
+scanning. Candidate counts are requested only while exploration is open, using
+GET `/api/speech/vocabulary?includeWords=1`; at most 2,000 words are returned,
+ordered by combined count then spelling. This is a bounded frequent-word view,
+not an exhaustive search of every learned outlier.
+
+The browser fetches Hermit Dave's English OpenSubtitles 2018 top-50,000
+unigram counts on first opening the view, pinned to FrequencyWords commit
+`525f9b560de45753a5ea01069454e72e9aa541c6`. The plain-text resource is
+approximately 623 KB, lives outside Git, and needs no runtime decoding library.
+The view links to its source and CC BY-SA 4.0 license. It sends no learned words,
+credentials, or referrer to that fixed public URL. Browser HTTP caching may
+reuse the response. A failed fetch leaves raw-count exploration available;
+reopening retries. There is no startup download or server reference cache.
+
+Baseline frequencies are normalized within that published list. Distinctive
+words must exceed their expected count, and rank by
+`(observed - expected) / sqrt(expected + 1)`. Smoothing limits the influence of
+tiny reference counts; this is exploratory ranking, not a significance test.
+Unknown words have no ratio and appear separately by count. Subtitle language,
+code, other languages, and differing tokenization make this a rough reference.
+
+Closing exploration aborts an outstanding reference fetch, releases its parsed
+reference map and candidate arrays, and stops detailed word requests. The full
+learned lexicon stays in SQLite, with bounded queries for display and recognition.
+Any future permanent server reference cache may retain about 10,000 word/frequency
+pairs; larger reference tables require eviction. Display-only resources may load
+on demand. Corpus-derived embeddings, cooccurrences, or occurrence references
+change collection and remain in the
+[semantic-map sketch](pluggable-speech-recognition.sketches.md).
+
+Recognition selects up to 100 terms of at most 50 characters, ranks by
+`4 * user_count + assistant_count`, breaks ties lexically, and excludes common
+English function words and terms never observed in user text. This is a
+deterministic first heuristic, not an established transcription-quality gain.
+Caller-supplied keyterms take priority within Grok's same limits. Batch and
+both direct-to-YA and relayed streaming requests use the same selection;
+request logs record exactly the selected terms, and retained batch audio
+metadata also records them. No new words are implicitly added to the
+send/cancel/wait command vocabulary.
+
+The optional `speech-vocabulary` capability (permanent ID 65, introduced in
+0.8.2) is advertised only with ready SQLite. It owns GET/PUT
+`/api/speech/vocabulary` and POST `.../scan` and `.../reset`. The approved
+optional release corpus is v0.8.0 (2026-08-31) and v0.8.1 (2026-09-05);
+both lack these routes. Without the capability, clients hide the controls and
+make no vocabulary request. Existing capabilities retain their meanings.
+
+Direct Grok does not consume learned vocabulary in version 1. Its later
+in-memory replica needs a separately approved snapshot/reset version and
+incremental synchronization contract. Deepgram and other backend integrations
+also remain future work. Whisper's full text before the insertion cursor is a
+separate context input, not a replacement for or use of unigram statistics.
+
+### Backend biasing primitives
 
 What the backends offer. xAI STT (batch and streaming) and Deepgram accept a
 repeatable `keyterm` parameter that biases recognition *toward* the listed
@@ -456,12 +575,10 @@ confidence, n-best alternatives, or any "score this audio against a command
 list" query, so a resemblance-style constrained-command match cannot be built
 from the API surface — only a thumb on the transcript scale.
 
-YA plumbing status. The batch path is plumbed except at the source:
-`POST /api/speech/transcribe` accepts `keyterms` and both cloud backends
-forward it (`routes/speech.ts`, `xaiSttBackend.ts`, `deepgramBackend.ts`), but
-no client code sends any. The streaming path has no keyterm support at all:
-the client WS start frame, the server's xAI streaming URL builder, and the
-direct-xAI `buildXaiSttUrl` would each need the parameter added.
+`POST /api/speech/transcribe` accepts explicit `keyterms`; Grok and Deepgram
+forward them. Learned terms currently augment Grok requests only. The server
+adds streaming Grok terms when opening the upstream session; browser-direct
+Grok has no learned-vocabulary integration.
 
 Candidate uses, in rough value order:
 

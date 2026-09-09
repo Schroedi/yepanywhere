@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { SqliteStatus } from "@yep-anywhere/shared";
+import { SPEECH_VOCABULARY_SCHEMA } from "../services/voice/vocabulary-schema.js";
 import {
   loadSqliteDriver,
   type SqliteDatabase,
@@ -23,7 +24,10 @@ export interface DiscoveryMigration {
 // YA discovery file identity (ASCII YADI). Version 1 reserves the format;
 // domain tables belong to the feature migrations that introduce their use.
 const APPLICATION_ID = 0x59414449;
-const MIGRATIONS: readonly DiscoveryMigration[] = [{ version: 1, sql: "" }];
+const MIGRATIONS: readonly DiscoveryMigration[] = [
+  { version: 1, sql: "" },
+  { version: 2, sql: SPEECH_VOCABULARY_SCHEMA },
+];
 
 function readRow(database: SqliteDatabase, sql: string) {
   const statement = database.prepare(sql);

@@ -365,6 +365,13 @@ async function transcribeWithAudit(
     context?: SpeechTranscriptionContext;
   },
 ): Promise<{ text: string; retention: SpeechAudioRetentionResult }> {
+  input.options = {
+    ...input.options,
+    keyterms: deps.speechBackendRegistry.keyterms(
+      input.backendId,
+      input.options.keyterms,
+    ),
+  };
   const requestId = randomUUID();
   const startedAtMs = Date.now();
   const startedAt = new Date(startedAtMs).toISOString();
@@ -378,6 +385,7 @@ async function transcribeWithAudit(
     audioBytes: input.audio.length,
     hasPrompt: !!input.options.prompt,
     keytermCount: input.options.keyterms?.length ?? 0,
+    keyterms: input.options.keyterms,
     context: input.context,
   };
 
@@ -400,6 +408,7 @@ async function transcribeWithAudit(
       backendId: input.backendId,
       model: input.options.model,
       mimeType: input.options.mimeType ?? DEFAULT_MIME_TYPE,
+      keyterms: input.options.keyterms,
       audio: input.audio,
       transcript: text,
       startedAt,
@@ -650,6 +659,7 @@ export function createSpeechWebSocketSession(
         }
         const smartTurn =
           backend.capabilities.smartTurn === true ? msg.smartTurn : undefined;
+        const keyterms = deps.speechBackendRegistry.keyterms(backendId);
 
         streamRequestId = randomUUID();
         streamStartedAtMs = Date.now();
@@ -661,6 +671,7 @@ export function createSpeechWebSocketSession(
             source: "ws",
             mode: "stream",
             backendId,
+            keyterms,
             mimeType,
             sampleRate,
             encoding,
@@ -683,6 +694,7 @@ export function createSpeechWebSocketSession(
             {
               mimeType,
               sampleRate,
+              keyterms,
               encoding,
               interimResults: true,
               endpointingMs: 250,
@@ -1103,6 +1115,7 @@ export function createSpeechRoutes(deps: SpeechRouteDeps): Hono {
               backend.capabilities.smartTurn === true
                 ? msg.smartTurn
                 : undefined;
+            const keyterms = deps.speechBackendRegistry.keyterms(backendId);
 
             streamRequestId = randomUUID();
             streamStartedAtMs = Date.now();
@@ -1114,6 +1127,7 @@ export function createSpeechRoutes(deps: SpeechRouteDeps): Hono {
                 source: "ws",
                 mode: "stream",
                 backendId,
+                keyterms,
                 mimeType,
                 sampleRate,
                 encoding,
@@ -1147,6 +1161,7 @@ export function createSpeechRoutes(deps: SpeechRouteDeps): Hono {
                 {
                   mimeType,
                   sampleRate,
+                  keyterms,
                   encoding,
                   interimResults: true,
                   endpointingMs: 250,
