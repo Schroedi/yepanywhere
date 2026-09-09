@@ -1,4 +1,29 @@
+import { randomUUID } from "node:crypto";
 import type { Plugin, ViteDevServer } from "vite";
+
+const guardId = "virtual:ya-manual-reload";
+const resolvedGuardId = `\0${guardId}`;
+const generationPath = "/@ya/dev-generation";
+
+function dynamicImports(
+  node: unknown,
+  positions: { offset: number; text: string }[] = [],
+): { offset: number; text: string }[] {
+  if (!node || typeof node !== "object") return positions;
+  if (Array.isArray(node)) {
+    for (const child of node) dynamicImports(child, positions);
+    return positions;
+  }
+  const syntax = node as { type?: string; start: number; end: number };
+  if (syntax.type === "ImportExpression") {
+    positions.push(
+      { offset: syntax.start, text: "__yaImportFresh(() => " },
+      { offset: syntax.end, text: ")" },
+    );
+  }
+  for (const child of Object.values(node)) dynamicImports(child, positions);
+  return positions;
+}
 
 interface ReloadNotifyOptions {
   /** API endpoint to notify (default: /api/dev/frontend-changed) */
@@ -16,12 +41,74 @@ export function reloadNotify(options: ReloadNotifyOptions = {}): Plugin {
   const { endpoint = "/api/dev/frontend-changed", enabled = true } = options;
 
   let server: ViteDevServer | null = null;
+  let generation = randomUUID();
 
   return {
     name: "reload-notify",
+    apply: "serve",
+    enforce: "post",
+
+    resolveId(id) {
+      if (enabled && id === guardId) return resolvedGuardId;
+    },
+
+    load(id) {
+      if (!enabled || id !== resolvedGuardId) return;
+      return `
+const generation = ${JSON.stringify(generation)};
+async function checkGeneration() {
+  const response = await fetch(${JSON.stringify(generationPath)}, { cache: "no-store" });
+  if (!response.ok) throw new Error("Could not check development source version");
+  const current = await response.json();
+  if (typeof current.generation !== "string") throw new Error("Invalid development source version");
+  if (current.generation !== generation) {
+    window.location.reload();
+    await new Promise(() => {});
+  }
+}
+export async function importFresh(load) {
+  await checkGeneration();
+  try {
+    const result = await load();
+    await checkGeneration();
+    return result;
+  } catch (error) {
+    await checkGeneration();
+    throw error;
+  }
+}`;
+    },
+
+    transform(code, id) {
+      if (
+        !enabled ||
+        id.includes("node_modules") ||
+        !/\.[cm]?[jt]sx?(?:\?|$)/.test(id)
+      )
+        return;
+      // Guard acquisition itself: catching a render error is already too late.
+      const positions = dynamicImports(this.parse(code));
+      if (positions.length === 0) return;
+      for (const { offset, text } of positions.sort(
+        (a, b) => b.offset - a.offset,
+      )) {
+        code = code.slice(0, offset) + text + code.slice(offset);
+      }
+      return {
+        code: `import { importFresh as __yaImportFresh } from "${guardId}";\n${code}`,
+        map: null,
+      };
+    },
 
     configureServer(_server) {
       server = _server;
+      if (!enabled) return;
+      server.middlewares.use((request, response, next) => {
+        if (request.url?.split("?", 1)[0] !== generationPath) return next();
+        response.setHeader("Content-Type", "application/json");
+        response.setHeader("Cache-Control", "no-store");
+        response.end(JSON.stringify({ generation }));
+      });
     },
 
     handleHotUpdate({ file }) {
@@ -40,6 +127,10 @@ export function reloadNotify(options: ReloadNotifyOptions = {}): Plugin {
       ) {
         return;
       }
+
+      generation = randomUUID();
+      const guard = server.moduleGraph.getModuleById(resolvedGuardId);
+      if (guard) server.moduleGraph.invalidateModule(guard);
 
       // Notify the backend about the file change
       const apiPort = process.env.VITE_API_PORT || process.env.PORT || "3400";
