@@ -49,10 +49,14 @@ size bound.
 The effective start is the later of the compact-boundary start and the
 turn-selector start. Consequently, `tailTurns=20` means "up to twenty turns
 within the authorized compact scope," not "return twenty turns even if that
-crosses older compactions." The browser preserves that twenty-turn narrowing
-for the unchanged default of two boundaries. A custom compact-boundary value
-uses the requested compact scope without that implicit turn selector, while
-Unlimited requests true full history.
+crosses older compactions." If `tailFrom` is older than the compact start, or
+is absent from a provider-omitted prefix, the selector clamps to the compact
+start. It must not return an empty page or clear `hasOlderMessages` while the
+reader omitted known-hidden bytes; Load older and older-history reverse search
+share that cursor. The browser preserves that twenty-turn narrowing for the
+unchanged default of two boundaries. A custom compact-boundary value uses the
+requested compact scope without that implicit turn selector, while Unlimited
+requests true full history.
 
 `fullHistory=1` is the explicit authorization to remove the default compact
 scope. It may be combined with `tailTurns` or `tailFrom` so the server selects

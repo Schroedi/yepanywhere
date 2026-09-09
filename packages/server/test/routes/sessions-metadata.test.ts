@@ -2597,6 +2597,88 @@ describe("Sessions metadata route", () => {
     });
   });
 
+  it("clamps tailFrom outside a Codex compact-tail instead of dropping older history", async () => {
+    const project = { ...createProject(), provider: "codex" as const };
+    const summary = {
+      ...createSummary(),
+      messageCount: 23,
+      provider: "codex" as const,
+    };
+    const tagEntry = (entry: CodexSessionEntry, offset: number) =>
+      tagCodexEntrySourceByteOffset(entry, offset);
+    const entries: CodexSessionEntry[] = [
+      tagEntry(
+        {
+          type: "compacted",
+          timestamp: "2026-03-10T09:40:00.000Z",
+          payload: { message: "Older compact summary." },
+        },
+        100,
+      ),
+      tagEntry(
+        {
+          type: "event_msg",
+          timestamp: "2026-03-10T09:41:00.000Z",
+          payload: { type: "user_message", message: "Visible tail turn." },
+        },
+        200,
+      ),
+      tagEntry(
+        {
+          type: "compacted",
+          timestamp: "2026-03-10T10:10:00.000Z",
+          payload: { message: "Current compact summary." },
+        },
+        500,
+      ),
+    ];
+    const loaded: LoadedSession = {
+      summary,
+      transcriptSnapshotUpdatedAt: summary.updatedAt,
+      readWindow: {
+        kind: "compact-tail",
+        omittedPrefix: true,
+        startByte: 100,
+        compactBoundaries: 2,
+      },
+      data: {
+        provider: "codex",
+        session: { entries },
+      },
+    };
+    const getSession = vi.fn(async () => loaded);
+    const reader = { getSession } as unknown as CodexSessionReader;
+    const routes = createSessionsRoutes({
+      supervisor: {
+        getProcessForSession: vi.fn(() => null),
+        wasEverOwned: vi.fn(() => false),
+      } as unknown as SessionsDeps["supervisor"],
+      scanner: {
+        getOrCreateProject: vi.fn(async () => project),
+      } as unknown as SessionsDeps["scanner"],
+      readerFactory: vi.fn(() => reader),
+      codexReaderFactory: vi.fn(() => reader),
+      sessionIndexService: {
+        getCachedSessionSummary: vi.fn(async () => summary),
+      } as unknown as NonNullable<SessionsDeps["sessionIndexService"]>,
+    });
+
+    const response = await routes.request(
+      `/projects/${project.id}/sessions/sess-1?tailCompactions=2&tailFrom=d68b96e1-4c6d-46b8-ad32-1c1012aeb891`,
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.messages[0]?.uuid).toMatch(/^codex-compacted-byte-100-/);
+    expect(body.pagination).toMatchObject({
+      hasOlderMessages: true,
+      truncatedBeforeMessageId: body.messages[0]?.uuid,
+      returnedMessageCount: body.messages.length,
+      totalCompactions: 2,
+      truncatedBy: "compact_boundary",
+    });
+  });
+
   it("rejects a bounded Codex window without a source cursor", async () => {
     const project = { ...createProject(), provider: "codex" as const };
     const summary = { ...createSummary(), provider: "codex" as const };
