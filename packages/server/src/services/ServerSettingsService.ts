@@ -15,6 +15,7 @@ import type {
   ClaudeAdditionalModelSelection,
   ClaudeSteerBackgroundBashSettings,
   ClientDefaults,
+  CodexCyberAccessProgram,
   CodexPlanToolMode,
   CodexReasoningSummary,
   HelperTargetConfig,
@@ -45,6 +46,7 @@ import {
   isHostAwakeMode,
   isCodexReasoningSummary,
   isCodexPlanToolMode,
+  isCodexCyberAccessProgram,
   parseClaudeAdditionalModelSelections,
   parseClaudeSteerBackgroundBashSettings,
 } from "@yep-anywhere/shared";
@@ -202,6 +204,11 @@ export interface ServerSettings {
   codexReasoningSummary: CodexReasoningSummary;
   /** Stored Codex plan-tool override; absent inherits the startup fallback. */
   codexPlanToolMode?: CodexPlanToolMode;
+  /**
+   * Stored Codex cyber access program requested per turn; absent inherits the
+   * startup fallback, which omits the field and keeps Codex's own choice.
+   */
+  codexCyberAccessProgram?: CodexCyberAccessProgram;
   /**
    * How the server handles Codex CLI updates:
    * - "auto": automatically run `npm install -g <pkg>@latest` when an update
@@ -413,6 +420,11 @@ function normalizeLoadedSettings(settings: ServerSettings): ServerSettings {
     : DEFAULT_CODEX_REASONING_SUMMARY;
   normalized.codexPlanToolMode = isCodexPlanToolMode(settings.codexPlanToolMode)
     ? settings.codexPlanToolMode
+    : undefined;
+  normalized.codexCyberAccessProgram = isCodexCyberAccessProgram(
+    settings.codexCyberAccessProgram,
+  )
+    ? settings.codexCyberAccessProgram
     : undefined;
   normalized.codexReloadSafeSessions =
     typeof settings.codexReloadSafeSessions === "boolean"

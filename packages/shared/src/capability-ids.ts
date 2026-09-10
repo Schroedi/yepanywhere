@@ -420,6 +420,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "speech-vocabulary-session-terms",
     introducedIn: "0.8.2",
   },
+  codexCyberAccessProgramSetting: {
+    id: 67,
+    direction: "server",
+    name: "codex-cyber-access-program-setting",
+    introducedIn: "0.8.2",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

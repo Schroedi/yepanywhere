@@ -204,7 +204,10 @@ import {
   getProvider,
   isProviderRuntimeHostAvailable,
 } from "./sdk/providers/index.js";
-import type { CodexPlanToolMode } from "@yep-anywhere/shared";
+import type {
+  CodexCyberAccessProgram,
+  CodexPlanToolMode,
+} from "@yep-anywhere/shared";
 import type { AgentProvider } from "./sdk/providers/types.js";
 import type {
   ClaudeSDK,
@@ -443,6 +446,8 @@ export interface AppOptions {
   codexCliPath?: string;
   /** Thread-scope Codex plan-tool override; provider default when omitted. */
   codexPlanToolMode?: CodexPlanToolMode;
+  /** Cyber access program requested per Codex turn; omitted when unset. */
+  codexCyberAccessProgram?: CodexCyberAccessProgram;
   /** Whether voice input is enabled. Default: true */
   voiceInputEnabled?: boolean;
   /** Validated server-routed speech backends for capability advertisement. */
@@ -561,6 +566,9 @@ export function createApp(options: AppOptions): AppResult {
       codexPlanToolMode:
         options.serverSettingsService?.getSetting("codexPlanToolMode") ??
         options.codexPlanToolMode,
+      codexCyberAccessProgram:
+        options.serverSettingsService?.getSetting("codexCyberAccessProgram") ??
+        options.codexCyberAccessProgram,
       codexReasoningSummary: options.serverSettingsService?.getSetting(
         "codexReasoningSummary",
       ),

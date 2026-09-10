@@ -4,8 +4,12 @@ import * as path from "node:path";
 import type { Level as LogLevel } from "pino";
 import {
   ALL_PERMISSION_MODES,
+  CODEX_CYBER_ACCESS_PROGRAMS,
   CODEX_PLAN_TOOL_MODES,
+  DEFAULT_CODEX_CYBER_ACCESS_PROGRAM,
+  isCodexCyberAccessProgram,
   isCodexPlanToolMode,
+  type CodexCyberAccessProgram,
   type CodexPlanToolMode,
 } from "@yep-anywhere/shared";
 import "./startupEnv.js";
@@ -29,6 +33,16 @@ function parseCodexPlanToolMode(value: string | undefined): CodexPlanToolMode {
   if (isCodexPlanToolMode(value)) return value;
   throw new Error(
     `YEP_CODEX_UPDATE_PLAN must be one of: ${CODEX_PLAN_TOOL_MODES.join(", ")}`,
+  );
+}
+
+function parseCodexCyberAccessProgram(
+  value: string | undefined,
+): CodexCyberAccessProgram {
+  if (value === undefined) return DEFAULT_CODEX_CYBER_ACCESS_PROGRAM;
+  if (isCodexCyberAccessProgram(value)) return value;
+  throw new Error(
+    `YEP_CODEX_CYBER_ACCESS_PROGRAM must be one of: ${CODEX_CYBER_ACCESS_PROGRAMS.join(", ")}`,
   );
 }
 
@@ -67,6 +81,8 @@ export interface Config {
   codexCliPath?: string;
   /** Startup fallback for Codex update_plan availability. */
   codexPlanToolMode: CodexPlanToolMode;
+  /** Startup fallback for the cyber access program requested per Codex turn. */
+  codexCyberAccessProgram: CodexCyberAccessProgram;
   /** Directory where Claude projects are stored */
   claudeProjectsDir: string;
   /** Claude sessions directory (~/.claude/projects) */
@@ -345,6 +361,9 @@ export function loadConfig(): Config {
     codexCliPath,
     codexPlanToolMode: parseCodexPlanToolMode(
       process.env.YEP_CODEX_UPDATE_PLAN,
+    ),
+    codexCyberAccessProgram: parseCodexCyberAccessProgram(
+      process.env.YEP_CODEX_CYBER_ACCESS_PROGRAM,
     ),
     claudeProjectsDir: process.env.CLAUDE_PROJECTS_DIR ?? claudeSessionsDir,
     claudeSessionsDir,

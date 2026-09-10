@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Add a Codex cyber access program provider setting. It defaults to letting
+  Codex choose, matching Codex's own terminal client, and can request the
+  standard or Daybreak programs on each turn for an enrolled account.
+
 ### Changed
 - Refresh Codex compatibility through CLI 0.154.0, including the regenerated
   app-server protocol subset, the new durable reasoning-effort history item,

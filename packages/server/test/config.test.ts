@@ -185,6 +185,33 @@ describe("loadConfig codex paths", () => {
     );
   });
 
+  it("defaults the Codex cyber access program to provider behavior", async () => {
+    const { loadConfig } = await import("../src/config.js");
+
+    expect(loadConfig().codexCyberAccessProgram).toBe("provider-default");
+  });
+
+  it.each([
+    "provider-default",
+    "standard",
+    "daybreak-blue",
+    "daybreak-red",
+  ] as const)("parses the %s Codex cyber access override", async (program) => {
+    vi.stubEnv("YEP_CODEX_CYBER_ACCESS_PROGRAM", program);
+    const { loadConfig } = await import("../src/config.js");
+
+    expect(loadConfig().codexCyberAccessProgram).toBe(program);
+  });
+
+  it("rejects an invalid Codex cyber access override", async () => {
+    vi.stubEnv("YEP_CODEX_CYBER_ACCESS_PROGRAM", "daybreak-purple");
+    const { loadConfig } = await import("../src/config.js");
+
+    expect(() => loadConfig()).toThrow(
+      "YEP_CODEX_CYBER_ACCESS_PROGRAM must be one of: provider-default, standard, daybreak-blue, daybreak-red",
+    );
+  });
+
   it("defaults Codex summary parser worker on when unset", async () => {
     const { loadConfig } = await import("../src/config.js");
     const config = loadConfig();

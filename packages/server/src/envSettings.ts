@@ -389,6 +389,12 @@ export const ENV_VAR_REGISTRY: EnvVarDescriptor[] = [
       "Fallback for the Codex Plan checklist tool setting (provider-default|disabled|enabled). A saved provider setting takes precedence.",
   },
   {
+    name: "YEP_CODEX_CYBER_ACCESS_PROGRAM",
+    group: "Providers & features",
+    description:
+      "Fallback for the Codex Cyber access program setting (provider-default|standard|daybreak-blue|daybreak-red). A saved provider setting takes precedence, and provider-default sends nothing so Codex chooses.",
+  },
+  {
     name: "OLLAMA_URL",
     group: "Providers & features",
     description:

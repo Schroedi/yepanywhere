@@ -5,6 +5,7 @@
 import {
   CODEX_REASONING_SUMMARIES,
   CODEX_PLAN_TOOL_MODES,
+  CODEX_CYBER_ACCESS_PROGRAMS,
   MAX_HEARTBEAT_TURN_TEXT_LENGTH,
   DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
   DEFAULT_PROMPT_CACHE_KEEPALIVE_INACTIVITY_MINUTES,
@@ -18,6 +19,7 @@ import {
   isHostAwakeMode,
   isCodexReasoningSummary,
   isCodexPlanToolMode,
+  isCodexCyberAccessProgram,
   isSubagentMaxDepth,
   isProjectQueueReadinessCommand,
   normalizeYaClientBaseUrl,
@@ -878,6 +880,24 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
           return c.json(
             {
               error: `codexPlanToolMode must be one of: ${CODEX_PLAN_TOOL_MODES.join(", ")}, or null`,
+            },
+            400,
+          );
+        }
+      }
+
+      if ("codexCyberAccessProgram" in body) {
+        if (
+          body.codexCyberAccessProgram === undefined ||
+          body.codexCyberAccessProgram === null
+        ) {
+          updates.codexCyberAccessProgram = undefined;
+        } else if (isCodexCyberAccessProgram(body.codexCyberAccessProgram)) {
+          updates.codexCyberAccessProgram = body.codexCyberAccessProgram;
+        } else {
+          return c.json(
+            {
+              error: `codexCyberAccessProgram must be one of: ${CODEX_CYBER_ACCESS_PROGRAMS.join(", ")}, or null`,
             },
             400,
           );

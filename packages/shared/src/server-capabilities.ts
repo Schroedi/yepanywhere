@@ -625,6 +625,28 @@ export const SERVER_CAPABILITIES = {
         "Hosted clients may outpace installed servers, and older servers do not expose the Codex plan-tool policy.",
     },
   },
+  codexCyberAccessProgramSetting: {
+    id: CAPABILITY_ID_ALLOCATIONS.codexCyberAccessProgramSetting.id,
+    name: "codex-cyber-access-program-setting",
+    kind: "permanent",
+    area: "providers",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Server persists the Codex cyber access program requested on each app-server turn.",
+    clientFallback:
+      "Hide the Codex cyber access program control and make no unsupported settings write.",
+    serverContract: {
+      routes: ["GET /api/settings", "PUT /api/settings"],
+      requestFields: ["settings.codexCyberAccessProgram"],
+      responseFields: ["settings.codexCyberAccessProgram"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Hosted clients may outpace installed servers, and older servers do not expose the Codex cyber access program policy.",
+    },
+  },
   codexStreamDurableIdAlignment: {
     id: CAPABILITY_ID_ALLOCATIONS.codexStreamDurableIdAlignment.id,
     name: "codex-stream-durable-id-alignment",
@@ -2436,6 +2458,8 @@ export const CODEX_REASONING_SUMMARY_SETTING_CAPABILITY =
   SERVER_CAPABILITIES.codexReasoningSummarySetting.name;
 export const CODEX_PLAN_TOOL_SETTING_CAPABILITY =
   SERVER_CAPABILITIES.codexPlanToolSetting.name;
+export const CODEX_CYBER_ACCESS_PROGRAM_SETTING_CAPABILITY =
+  SERVER_CAPABILITIES.codexCyberAccessProgramSetting.name;
 export const CODEX_STREAM_DURABLE_ID_ALIGNMENT_CAPABILITY =
   SERVER_CAPABILITIES.codexStreamDurableIdAlignment.name;
 export const CODEX_PAGINATED_ROLLOUT_LINEAGE_CAPABILITY =

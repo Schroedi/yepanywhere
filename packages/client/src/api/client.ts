@@ -10,6 +10,7 @@ import type {
   ClaudeAdditionalModelSelection,
   ClaudeSteerBackgroundBashSettings,
   ClientDefaults,
+  CodexCyberAccessProgram,
   CodexPlanToolMode,
   CodexReasoningSummary,
   ConnectionsResponse,
@@ -1756,6 +1757,11 @@ export interface ServerSettings {
   codexReasoningSummary?: CodexReasoningSummary;
   /** Stored Codex plan-tool override; null clears it to the startup fallback. */
   codexPlanToolMode?: CodexPlanToolMode | null;
+  /**
+   * Cyber access program requested on each Codex turn; null clears it to the
+   * startup fallback, which sends nothing and keeps Codex's own choice.
+   */
+  codexCyberAccessProgram?: CodexCyberAccessProgram | null;
   /** How the server handles Codex CLI updates */
   codexUpdatePolicy?: "auto" | "notify" | "off";
   /** Keep eligible local Linux Codex runtimes across YA server reloads. */

@@ -1058,6 +1058,7 @@ async function startServer() {
     codexSummaryParserWorkerMode: config.codexSummaryParserWorkerMode,
     codexCliPath: config.codexCliPath,
     codexPlanToolMode: config.codexPlanToolMode,
+    codexCyberAccessProgram: config.codexCyberAccessProgram,
     voiceInputEnabled: config.voiceInputEnabled,
     speechBackendRegistry,
     xaiSttApiKey: config.xaiSttApiKey,

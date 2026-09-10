@@ -96,6 +96,24 @@ limit and explicitly says V2 ignores it. The Providers caption must retain that
 limitation; YA must not imply that the setting constrains Codex V2 or Codex OSS
 without a separately verified control.
 
+## Per-Turn Cyber Access Program
+
+The server-wide **Cyber access program** setting names the access program YA
+requests on every user turn. **Let Codex choose** is the default and omits
+`cyberAccessProgram` from `turn/start` entirely, which is what Codex's own
+terminal client does. The three named selections send `standard`,
+`daybreakBlue`, and `daybreakRed` respectively. `YEP_CODEX_CYBER_ACCESS_PROGRAM`
+supplies the startup fallback and a saved setting takes precedence.
+
+The field is read per turn and not retained by Codex, so YA sends the current
+selection on each user turn rather than at thread scope. YA-internal helper
+turns, such as the ephemeral recap thread, never send it. Codex forwards the
+program only for ChatGPT-authenticated accounts, and upstream states plainly
+that requesting a program does not grant access, so the control must not be
+described as enabling anything. `Thread.daybreakEnabled` is a separate
+client-saved metadata flag that no Codex behavior reads; YA neither writes nor
+consumes it.
+
 ## App-server notification correlation
 
 YA stamps every app-server notification at the stdout boundary with a

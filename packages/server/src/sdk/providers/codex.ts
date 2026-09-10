@@ -11,9 +11,12 @@ import { homedir } from "node:os";
 import {
   CODEX_TOOL_CORRELATION_FIELD,
   type CodexAsyncUserInputQuestion,
+  type CodexCyberAccessProgram,
   type CodexPlanToolMode,
+  DEFAULT_CODEX_CYBER_ACCESS_PROGRAM,
   DEFAULT_CODEX_REASONING_SUMMARY,
   DEFAULT_SUBAGENT_MAX_DEPTH,
+  codexCyberAccessProgramWireValue,
   canonicalInvocationName,
   canonicalizeSkillInvocations,
   createCodexToolCorrelation,
@@ -1220,6 +1223,8 @@ export class CodexProvider implements AgentProvider {
     DEFAULT_CODEX_REASONING_SUMMARY;
   private getConfiguredPlanToolMode: () => CodexPlanToolMode = () =>
     "provider-default";
+  private getConfiguredCyberAccessProgram: () => CodexCyberAccessProgram = () =>
+    DEFAULT_CODEX_CYBER_ACCESS_PROGRAM;
   private getConfiguredSubagentMaxDepth: () => SubagentMaxDepth = () =>
     DEFAULT_SUBAGENT_MAX_DEPTH;
 
@@ -1245,6 +1250,10 @@ export class CodexProvider implements AgentProvider {
 
   setPlanToolModeGetter(getter: () => CodexPlanToolMode): void {
     this.getConfiguredPlanToolMode = getter;
+  }
+
+  setCyberAccessProgramGetter(getter: () => CodexCyberAccessProgram): void {
+    this.getConfiguredCyberAccessProgram = getter;
   }
 
   setSubagentMaxDepthGetter(getter: () => SubagentMaxDepth): void {
@@ -4157,7 +4166,23 @@ export class CodexProvider implements AgentProvider {
         turnPolicy,
         workspaceWriteSandboxPolicy,
       ),
+      ...this.buildTurnCyberAccessParams(),
     };
+  }
+
+  /**
+   * Codex resolves the access program per turn and forgets it afterward, so
+   * every user turn carries the current selection. Omitting the field keeps
+   * Codex's automatic choice, which is what the default does. YA-internal
+   * helper turns such as the recap thread never send it.
+   */
+  private buildTurnCyberAccessParams(): Partial<
+    Pick<TurnStartParams, "cyberAccessProgram">
+  > {
+    const wireValue = codexCyberAccessProgramWireValue(
+      this.getConfiguredCyberAccessProgram(),
+    );
+    return wireValue ? { cyberAccessProgram: wireValue } : {};
   }
 
   private buildTurnPermissionParams(
