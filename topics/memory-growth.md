@@ -147,6 +147,26 @@
   (`getSessionTranscriptMemoryStats`, also shown in Performance settings).
   A multi-day tab that balloons should be explained from those samples
   before anyone reaches for a live heap snapshot.
+- Arm that sampling before the failure, not during it. **Browser Diagnostics**
+  in Settings -> Development is the switch; it is stored per browser and per
+  origin, so a localhost tab and a hosted-client tab each need their own. Both
+  halves of the collection path outlive a renderer kill: flushed batches are
+  already in `{dataDir}/logs/client-logs/`, and unflushed ones replay from
+  IndexedDB when that origin next loads. A tab wedged badly enough to refuse
+  input can neither open DevTools nor start a diagnostics lease, so anything
+  that must be switched on by hand at the time is not an instrument for this
+  class of failure.
+- Samples carry `tabId`. Every tab of one origin shares the IndexedDB queue and
+  any tab may post another's entries, so a collected batch interleaves windows
+  and can duplicate a batch two tabs both read. Group by `tabId` before reading
+  a curve: without it, two windows on one session are indistinguishable from
+  one window alternating between a rendered transcript and an empty shell.
+- The heap number in those samples is coarse by browser policy: Chrome
+  quantizes `performance.memory` and refreshes it on a long interval. One
+  observed page reported an identical `usedJSHeapSize` for 148 seconds while
+  the DevTools protocol showed the heap moving the whole time. Read heap there
+  as an hours-scale trend, and take DOM node, row, and transcript-byte counts
+  as the honest 15-second signal.
 - The bounded active-window feature does not add a per-trim log or telemetry
   event. Existing 15-second client samples already show the outcome through
   DOM message-row counts and deduped live/warm transcript bytes; store coverage
