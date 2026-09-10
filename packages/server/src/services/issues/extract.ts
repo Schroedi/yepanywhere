@@ -66,7 +66,24 @@ export function issueUrl(
   return null;
 }
 
-export function extractIssueReferences(text: string): IssueReference[] {
+export interface ExtractOptions {
+  /**
+   * Uppercase project parts to ignore when a Jira key appears without a URL.
+   * A Jira browse URL still identifies its issue, so a real project sharing a
+   * blocked name keeps working through links.
+   */
+  blockedJiraProjects?: Iterable<string>;
+}
+
+export function extractIssueReferences(
+  text: string,
+  options: ExtractOptions = {},
+): IssueReference[] {
+  const blocked = new Set(
+    [...(options.blockedJiraProjects ?? [])].map((name) =>
+      name.trim().toUpperCase(),
+    ),
+  );
   const refs: IssueReference[] = [];
   const urls: Array<[number, number]> = [];
   for (const match of text.matchAll(/https?:\/\/[^\s<>"\])]+/g)) {
@@ -87,9 +104,12 @@ export function extractIssueReferences(text: string): IssueReference[] {
   const enclosed = (start: number) =>
     urls.some(([a, b]) => start >= a && start < b);
   for (const match of text.matchAll(
-    /\b([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#([1-9]\d*)\b|\b([A-Z][A-Z0-9_]*-[1-9]\d*)\b/g,
+    // A Jira project key is at least two characters, which keeps `H-1` and
+    // other one-letter prose out without consulting any list.
+    /\b([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#([1-9]\d*)\b|\b([A-Z][A-Z0-9_]+-[1-9]\d*)\b/g,
   )) {
     if (enclosed(match.index)) continue;
+    if (match[3] && blocked.has(match[3].split("-")[0]!)) continue;
     refs.push({
       key: match[3] ?? `${match[1]!.toLowerCase()}#${match[2]}`,
       identity: null,

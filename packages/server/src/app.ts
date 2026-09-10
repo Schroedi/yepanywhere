@@ -4,6 +4,7 @@ import {
   DEFAULT_ISSUE_SETTINGS,
 } from "./services/issues/IssueIndexer.js";
 import { createIssueRoutes } from "./routes/issues.js";
+import { IssueCredentials } from "./services/issues/credentials.js";
 import { getSessionSources } from "./sessions/provider-resolution.js";
 import type { HttpBindings } from "@hono/node-server";
 import { artifactViewerAgentEnvironment } from "./artifacts/agentEnvironment.js";
@@ -26,6 +27,7 @@ import type {
   UrlProjectId,
 } from "@yep-anywhere/shared";
 import {
+  DEFAULT_JIRA_KEY_BLOCKLIST,
   DEFAULT_HEARTBEAT_TURN_TEXT,
   DEFAULT_HEARTBEAT_TURNS_AFTER_MINUTES,
   DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
@@ -2079,7 +2081,16 @@ export function createApp(options: AppOptions): AppResult {
         null
       );
     };
-    const indexer = new IssueIndexer(new IssueStore(issueDatabase), {
+    const issueCredentials = new IssueCredentials({
+      dataDir: effectiveDataDir,
+    });
+    const issueStore = new IssueStore(
+      issueDatabase,
+      () =>
+        settings.getSetting("issueAssociations")?.jiraKeyBlocklist ??
+        DEFAULT_JIRA_KEY_BLOCKLIST,
+    );
+    const indexer = new IssueIndexer(issueStore, {
       settings: () =>
         settings.getSetting("issueAssociations") ?? DEFAULT_ISSUE_SETTINGS,
       candidates: async function* () {
@@ -2120,28 +2131,34 @@ export function createApp(options: AppOptions): AppResult {
     if (unsubscribe) issueDisposers.push(unsubscribe);
     app.route(
       "/api",
-      createIssueRoutes(indexer, settings, async (projectId, sessionId) => {
-        const canonical =
-          supervisor.getProcessForSession(sessionId)?.sessionId ?? sessionId;
-        if (canonical !== sessionId) return { available: false };
-        const metadata = options.sessionMetadataService?.getMetadata(sessionId);
-        if (
-          metadata?.workingProjectId &&
-          metadata.workingProjectId !== projectId
-        )
-          return { available: false };
-        const physicalProject = metadata?.transcriptProjectId ?? projectId;
-        const reader = await readerFor(physicalProject, metadata?.provider);
-        const summary = await reader?.getSessionSummary(
-          sessionId,
-          physicalProject as import("@yep-anywhere/shared").UrlProjectId,
-          { readMode: "head" },
-        );
-        return {
-          available: Boolean(summary),
-          title: metadata?.customTitle ?? summary?.title ?? undefined,
-        };
-      }),
+      createIssueRoutes(
+        indexer,
+        settings,
+        async (projectId, sessionId) => {
+          const canonical =
+            supervisor.getProcessForSession(sessionId)?.sessionId ?? sessionId;
+          if (canonical !== sessionId) return { available: false };
+          const metadata =
+            options.sessionMetadataService?.getMetadata(sessionId);
+          if (
+            metadata?.workingProjectId &&
+            metadata.workingProjectId !== projectId
+          )
+            return { available: false };
+          const physicalProject = metadata?.transcriptProjectId ?? projectId;
+          const reader = await readerFor(physicalProject, metadata?.provider);
+          const summary = await reader?.getSessionSummary(
+            sessionId,
+            physicalProject as import("@yep-anywhere/shared").UrlProjectId,
+            { readMode: "head" },
+          );
+          return {
+            available: Boolean(summary),
+            title: metadata?.customTitle ?? summary?.title ?? undefined,
+          };
+        },
+        issueCredentials,
+      ),
     );
     indexer.configure();
   }

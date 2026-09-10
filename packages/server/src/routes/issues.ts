@@ -2,8 +2,45 @@ import { Hono, type MiddlewareHandler } from "hono";
 import type { IssueSettings } from "@yep-anywhere/shared";
 import type { ServerSettingsService } from "../services/ServerSettingsService.js";
 import type { IssueIndexer } from "../services/issues/IssueIndexer.js";
+import type { IssueCredentials } from "../services/issues/credentials.js";
 import { issueUrl } from "../services/issues/extract.js";
 import { randomUUID } from "node:crypto";
+
+/** Rejects a confirmation block rather than storing a half-configured one. */
+function confirmation(
+  value: unknown,
+): IssueSettings["confirmation"] | undefined | null {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "object") return null;
+  const { enabled, jiraSite, jiraEmail } = value as Record<string, unknown>;
+  if (
+    typeof enabled !== "boolean" ||
+    typeof jiraSite !== "string" ||
+    typeof jiraEmail !== "string" ||
+    jiraSite.length > 512 ||
+    jiraEmail.length > 512
+  )
+    return null;
+  if (jiraSite && !/^https:\/\/[^\s/]+(\/[^\s]*)?$/.test(jiraSite)) return null;
+  return { enabled, jiraSite, jiraEmail };
+}
+
+/** Uppercase, deduplicated, bounded; undefined means keep the default list. */
+function blocklist(value: unknown): string[] | undefined | null {
+  if (value === undefined || value === null) return undefined;
+  if (
+    !Array.isArray(value) ||
+    value.length > 256 ||
+    value.some(
+      (name) =>
+        typeof name !== "string" || !/^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(name),
+    )
+  )
+    return null;
+  return [
+    ...new Set((value as string[]).map((name) => name.toUpperCase())),
+  ].sort();
+}
 
 export function createIssueRoutes(
   indexer: IssueIndexer,
@@ -12,23 +49,28 @@ export function createIssueRoutes(
     projectId: string,
     sessionId: string,
   ) => Promise<{ available: boolean; title?: string }>,
+  credentials?: IssueCredentials,
 ) {
   const routes = new Hono();
   routes.get("/issues/settings", (c) => c.json(indexer.coverage()));
   routes.put("/issues/settings", async (c) => {
     const body = (await c.req.json().catch(() => null)) as IssueSettings | null;
+    const confirm = body ? confirmation(body.confirmation) : null;
+    const blocked = body ? blocklist(body.jiraKeyBlocklist) : null;
     if (
       !body ||
       typeof body.enabled !== "boolean" ||
       !["viewed", "recent"].includes(body.scope) ||
       !Number.isInteger(body.recentDays) ||
       body.recentDays < 1 ||
-      body.recentDays > 90
+      body.recentDays > 90 ||
+      confirm === null ||
+      blocked === null
     )
       return c.json(
         {
           error:
-            "Expected enabled, scope (viewed/recent), and recentDays (1–90)",
+            "Expected enabled, scope (viewed/recent), recentDays (1–90), an https Jira site when confirmation is configured, and word-shaped blocked project keys",
         },
         400,
       );
@@ -37,9 +79,44 @@ export function createIssueRoutes(
         enabled: body.enabled,
         scope: body.scope,
         recentDays: body.recentDays,
+        ...(confirm ? { confirmation: confirm } : {}),
+        ...(blocked ? { jiraKeyBlocklist: blocked } : {}),
       },
     });
     return c.json(indexer.coverage());
+  });
+  // Presence and origin only; a stored key is never returned to a client, and
+  // this pair stays reachable while discovery is off so it can be set up first.
+  routes.get("/issues/credentials", async (c) =>
+    credentials
+      ? c.json({ credentials: await credentials.status() })
+      : c.json({ error: "Stored keys are unavailable on this server" }, 503),
+  );
+  routes.put("/issues/credentials", async (c) => {
+    const body = (await c.req.json().catch(() => null)) as {
+      provider?: unknown;
+      key?: unknown;
+    } | null;
+    const provider = body?.provider;
+    const key = body?.key ?? "";
+    if (
+      !body ||
+      (provider !== "github" && provider !== "jira") ||
+      typeof key !== "string" ||
+      key.length > 4096
+    )
+      return c.json({ error: "Expected provider (github/jira) and key" }, 400);
+    if (!credentials)
+      return c.json(
+        { error: "Stored keys are unavailable on this server" },
+        503,
+      );
+    try {
+      await credentials.store(provider, key.trim());
+    } catch {
+      return c.json({ error: "The key could not be saved" }, 500);
+    }
+    return c.json({ credentials: await credentials.status() });
   });
   const requireEnabled: MiddlewareHandler = async (c, next) => {
     if (!indexer.settings().enabled)

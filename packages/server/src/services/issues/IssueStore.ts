@@ -10,7 +10,11 @@ import {
   type IssueText,
 } from "./extract.js";
 
-import type { IssueItem, IssueEvidence } from "@yep-anywhere/shared";
+import {
+  DEFAULT_JIRA_KEY_BLOCKLIST,
+  type IssueItem,
+  type IssueEvidence,
+} from "@yep-anywhere/shared";
 export type { IssueItem, IssueEvidence } from "@yep-anywhere/shared";
 export interface IssueSource {
   sourceVersion?: string;
@@ -23,7 +27,12 @@ export const unresolvedId = (project: string, key: string) =>
 
 /** One connection owner; all statements finalize, all mutations commit synchronously. */
 export class IssueStore {
-  constructor(readonly database: SqliteDatabase) {}
+  constructor(
+    readonly database: SqliteDatabase,
+    /** Read per capture, so a settings change applies to the next message. */
+    private readonly blockedJiraProjects: () => Iterable<string> = () =>
+      DEFAULT_JIRA_KEY_BLOCKLIST,
+  ) {}
   rows(sql: string, ...values: SqliteValue[]): SqliteRow[] {
     const s = this.database.prepare(sql);
     try {
@@ -91,7 +100,9 @@ export class IssueStore {
     ownedStart = offset,
     ownedEnd = Number.POSITIVE_INFINITY,
   ): void {
-    const refs = extractIssueReferences(message.text).filter(
+    const refs = extractIssueReferences(message.text, {
+      blockedJiraProjects: this.blockedJiraProjects(),
+    }).filter(
       (ref) =>
         ref.start + offset >= ownedStart && ref.start + offset < ownedEnd,
     );

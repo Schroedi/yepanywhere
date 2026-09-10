@@ -8,6 +8,7 @@ import {
   migrateDiscoveryDatabase,
 } from "../../src/storage/discovery-sqlite.js";
 import { loadSqliteDriver } from "../../src/storage/sqlite.js";
+import { DEFAULT_JIRA_KEY_BLOCKLIST } from "@yep-anywhere/shared";
 import { IssueStore } from "../../src/services/issues/IssueStore.js";
 import {
   extractIssueReferences,
@@ -44,6 +45,28 @@ describe("issue reference extraction", () => {
       url: "https://github.com/owner/repo/pull/42",
       kind: "pr",
     });
+  });
+  it("ignores prose that is shaped like a bare Jira key", () => {
+    const text =
+      "UTF-8 and ISO-8601 and COVID-19 and an H-1 visa, but PROJ-7 is real";
+    expect(
+      extractIssueReferences(text, {
+        blockedJiraProjects: DEFAULT_JIRA_KEY_BLOCKLIST,
+      }).map((r) => r.key),
+    ).toEqual(["PROJ-7"]);
+    // A one-letter key cannot exist in Jira, so no list is needed for `H-1`.
+    expect(extractIssueReferences(text).map((r) => r.key)).toEqual([
+      "UTF-8",
+      "ISO-8601",
+      "COVID-19",
+      "PROJ-7",
+    ]);
+    // Blocking a name never hides an explicit URL for that same project.
+    expect(
+      extractIssueReferences("https://jira.example.test/browse/ISO-8601", {
+        blockedJiraProjects: DEFAULT_JIRA_KEY_BLOCKLIST,
+      }).map((r) => r.key),
+    ).toEqual(["ISO-8601"]);
   });
   it("requires explicit wording and an unambiguous local repository for bare numbers", () => {
     expect(
