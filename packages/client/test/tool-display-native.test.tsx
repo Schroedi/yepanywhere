@@ -3,14 +3,14 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   nativeDisplayCases,
   runNativeDisplayCase,
-} from "../../../../../../server/test/utils/native-tool-display-corpus";
-import { toolRegistry } from "..";
-import { displayProviders } from "../__fixtures__/displayProviders";
-import { toolDisplayDiagnostics } from "../displayDiagnostics";
+} from "../../server/test/utils/native-tool-display-corpus";
+import { toolRegistry } from "../src/components/renderers/tools";
+import { displayProviders } from "../src/components/renderers/tools/__fixtures__/displayProviders";
+import { toolDisplayDiagnostics } from "../src/components/renderers/tools/displayDiagnostics";
 import {
   runNativeDisplayLifecycle,
   runNativeDisplayOwnership,
-} from "../../../../../../server/test/utils/native-tool-display-lifecycle";
+} from "../../server/test/utils/native-tool-display-lifecycle";
 const context = {
   isStreaming: false,
   theme: "dark" as const,

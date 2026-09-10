@@ -530,3 +530,11 @@ account for facts present only in input. Independent provider-shape and failure
 controls complement mutation containment tests; mutation counts are not counts
 of independent semantic contracts. Bash views consume prepared object results
 without reparsing them; Conversation name and summary share one preparation.
+
+### Native display integration checks
+
+Native ingestion-to-rendering checks live in `packages/client/test/`, outside
+the browser application source tree. They still run with the client Vitest
+suite and are typechecked by `pnpm tools:typecheck` using the server-owned
+Node types. Client application builds must not pull provider adapters or
+server test harnesses into their TypeScript program through these tests.
