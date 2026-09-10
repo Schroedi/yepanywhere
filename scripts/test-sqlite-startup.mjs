@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -181,9 +181,45 @@ for (const state of [
       if (process.platform === "win32") {
         // bunx owns a separate server child on Windows. Killing only the
         // launcher leaves that child holding its cwd and SQLite files open.
-        execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
-          stdio: "pipe",
-          timeout: 10_000,
+        // Bun's Windows spawnSync timeout can expire immediately. Keep this
+        // asynchronous so the launcher pipes also drain while taskkill runs.
+        await new Promise((resolveKill, rejectKill) => {
+          const killer = spawn(
+            "taskkill",
+            ["/PID", String(child.pid), "/T", "/F"],
+            { stdio: ["ignore", "pipe", "pipe"] },
+          );
+          let killOutput = "";
+          const collectKillOutput = (chunk) => {
+            killOutput = (killOutput + chunk).slice(-2000);
+          };
+          killer.stdout.on("data", collectKillOutput);
+          killer.stderr.on("data", collectKillOutput);
+          const timer = setTimeout(() => {
+            killer.kill();
+            rejectKill(
+              new Error(
+                `Windows process-tree cleanup timed out: ${killOutput}`,
+              ),
+            );
+          }, 10_000);
+          killer.once("error", (error) => {
+            clearTimeout(timer);
+            rejectKill(error);
+          });
+          killer.once("close", (code) => {
+            if (code === 0 || exited) {
+              clearTimeout(timer);
+              resolveKill();
+            } else {
+              // The target may finish naturally before taskkill opens it,
+              // with Bun delivering its close event after the killer's.
+              completion.then(() => {
+                clearTimeout(timer);
+                resolveKill();
+              });
+            }
+          });
         });
       } else {
         child.kill("SIGTERM");
