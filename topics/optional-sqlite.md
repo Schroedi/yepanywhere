@@ -46,12 +46,25 @@ SQLite package, native installer, sidecar, or compiler is added to the core
 distribution. Desktop's pinned Bun is tested directly, independently of claims
 about newer Bun versions' Node compatibility.
 
+The adapter is `@yep-anywhere/shared/sqlite`. The server reaches it through
+`packages/server/src/storage/sqlite.ts`, which re-exports it so packaged
+`dist/storage/sqlite.js` keeps the path the runtime contract scripts load.
+Relay and push broker import it directly; one implementation serves all three
+rather than each carrying its own native addon.
+
 The adapter exposes synchronous prepared statements with positional parameters,
 SQL execution, transactions, and idempotent close. Values are strings, null,
 byte arrays, and numbers; integer inputs/results must fit JavaScript's safe
-integer range. A missing single row is `undefined` on both runtimes. Transaction
-callbacks must be synchronous; nested transactions and thenable results are
-rejected. Callers must not begin/commit transactions manually within a callback.
+integer range. A missing single row is `undefined` on both runtimes. `run`
+returns the affected `changes` count, which both runtimes report as a number.
+`get` and `all` take an optional row type that is the caller's assertion about
+its own SELECT, exactly as a cast would be; SQLite supplies no column types.
+BLOB columns come back as `Uint8Array` on both runtimes, never Node `Buffer`.
+A caller that cannot degrade without storage uses `openSqliteOrThrow`, which
+fails with a runtime-requirement message instead of returning undefined.
+Transaction callbacks must be synchronous; nested transactions and thenable
+results are rejected. Callers must not begin or commit transactions manually
+within a callback.
 Future indexing consumers must bound their synchronous work rather than place
 large scans on request paths.
 
@@ -108,8 +121,17 @@ the schema. An older reader that refuses this schema also loses discovery-gated
 speech capabilities/routes, while preserving the separate speech files. Recover
 by upgrading again or explicitly restoring a consistent pre-upgrade backup.
 
-Existing JSON metadata/caches, OpenCode's independently owned database and
-reader, and the relay/push-broker SQLite dependencies are unaffected.
+Existing JSON metadata/caches and OpenCode's independently owned database and
+reader are unaffected.
+
+Relay and push broker moved off `better-sqlite3` to this adapter on 2026-09-10,
+so the repository ships no native SQLite addon and needs no compiler on any
+host. Their `relay.db` and `push-broker.db` files are ordinary SQLite and were
+not migrated or rewritten. Unlike the server's optional discovery store, both
+exist to persist a registry, so a missing builtin is a startup failure rather
+than a degraded state. That removes the Rocky Linux 8 prebuild floor that
+previously broke both suites: the prebuilt binary required a newer glibc than
+enterprise Linux 8 provides, and no library path could satisfy it.
 
 ## Availability and frontend compatibility
 

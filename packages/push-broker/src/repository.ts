@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { SqliteDatabase } from "@yep-anywhere/shared/sqlite";
 import {
   generateOpaqueId,
   generateSecret,
@@ -32,7 +32,7 @@ export interface AuthenticatedSubscription {
 
 interface InstallationRow {
   id: string;
-  auth_hash: Buffer;
+  auth_hash: Uint8Array;
   provider: string;
   target_kind: string;
   target_value: string;
@@ -43,7 +43,7 @@ interface InstallationRow {
 interface SubscriptionRow {
   id: string;
   installation_id: string;
-  send_hash: Buffer;
+  send_hash: Uint8Array;
   provider: string;
   target_kind: string;
   target_value: string;
@@ -66,7 +66,7 @@ export class PushRepository {
   private readonly now: () => number;
 
   constructor(
-    private readonly db: Database.Database,
+    private readonly db: SqliteDatabase,
     options: PushRepositoryOptions = {},
   ) {
     this.maxSubscriptionsPerInstallation =
@@ -104,7 +104,7 @@ export class PushRepository {
   ): InstallationRecord | undefined {
     const row = this.db
       .prepare("SELECT * FROM installations WHERE id = ?")
-      .get(installationId) as InstallationRow | undefined;
+      .get<InstallationRow>(installationId);
 
     if (!verifySecret(installationSecret, row?.auth_hash) || !row) {
       return undefined;
@@ -148,8 +148,8 @@ export class PushRepository {
            FROM subscriptions
            WHERE installation_id = ? AND revoked_at IS NULL`,
         )
-        .get(installationId) as { count: number };
-      if (count.count >= this.maxSubscriptionsPerInstallation) {
+        .get<{ count: number }>(installationId);
+      if ((count?.count ?? 0) >= this.maxSubscriptionsPerInstallation) {
         throw new SubscriptionLimitError();
       }
 
@@ -169,7 +169,7 @@ export class PushRepository {
         );
 
       return { subscriptionId, sendSecret };
-    })();
+    });
   }
 
   authenticateSubscription(
@@ -190,7 +190,7 @@ export class PushRepository {
            ON installations.id = subscriptions.installation_id
          WHERE subscriptions.id = ? AND subscriptions.revoked_at IS NULL`,
       )
-      .get(subscriptionId) as SubscriptionRow | undefined;
+      .get<SubscriptionRow>(subscriptionId);
 
     if (!verifySecret(sendSecret, row?.send_hash) || !row) {
       return undefined;
@@ -223,26 +223,26 @@ export class PushRepository {
   countInstallations(): number {
     const row = this.db
       .prepare("SELECT COUNT(*) AS count FROM installations")
-      .get() as { count: number };
-    return row.count;
+      .get<{ count: number }>();
+    return row?.count ?? 0;
   }
 
   countActiveSubscriptions(installationId?: string): number {
     const row =
       installationId === undefined
-        ? (this.db
+        ? this.db
             .prepare(
               "SELECT COUNT(*) AS count FROM subscriptions WHERE revoked_at IS NULL",
             )
-            .get() as { count: number })
-        : (this.db
+            .get<{ count: number }>()
+        : this.db
             .prepare(
               `SELECT COUNT(*) AS count
                FROM subscriptions
                WHERE installation_id = ? AND revoked_at IS NULL`,
             )
-            .get(installationId) as { count: number });
-    return row.count;
+            .get<{ count: number }>(installationId);
+    return row?.count ?? 0;
   }
 }
 

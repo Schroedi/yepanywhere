@@ -15,6 +15,11 @@
       "source": "./src/server-runtime.ts",
       "import": "./dist/server-runtime.js",
       "types": "./dist/server-runtime.d.ts"
+    },
+    "./sqlite": {
+      "source": "./src/sqlite.ts",
+      "import": "./dist/sqlite.js",
+      "types": "./dist/sqlite.d.ts"
     }
   },
   "scripts": {

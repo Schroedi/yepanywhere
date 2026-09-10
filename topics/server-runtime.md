@@ -33,14 +33,18 @@ Updating Node or a user-installed Bun does not update Desktop's runtime.
 Standalone Bun execution uses `bunx --bun yepanywhere`: without `--bun`, Bun
 respects the CLI's Node shebang. Platform verification and exclusions are
 recorded below. Managed runners retain their separately tested Node 20.12
-execution-target contract; relay and push broker retain their native SQLite
+execution-target contract; relay and push broker retain their own database
 ownership. Android JavaScript CI uses the root workspace floor; Android native
 runtime requirements and provider execution targets do not change.
 
-Relay and push broker use `better-sqlite3` 13's Node-API addon on Node 22 or
-newer. The older V8-bound addon aborted during statement garbage collection
-in the Node 24 browser integration harness. Both services retain their existing
-database ownership and schemas; the core continues using runtime SQLite.
+Relay and push broker use the runtime's built-in SQLite through
+`@yep-anywhere/shared/sqlite`, as the core does. They briefly used
+`better-sqlite3` 13's Node-API addon, after its older V8-bound addon aborted
+during statement garbage collection in the Node 24 browser integration
+harness; the builtin removes that class of failure along with the native build
+itself. Both services retain their existing database ownership and schemas,
+and now require the same Node floor as the core because they depend on
+`node:sqlite`.
 
 ## Older-server compatibility
 

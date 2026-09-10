@@ -116,10 +116,11 @@ Do not raise unrelated execution floors mechanically:
   SQLite-free artifact with its own declared and tested range.
 - Android build tooling changes only when its JavaScript tasks actually need
   the new runtime.
-- Relay and push broker remain separate `better-sqlite3` consumers until an
-  owning migration removes that dependency. This plan removes native SQLite
-  pressure from the main server; it does not falsely claim that the entire
-  monorepo is native-addon-free.
+- Relay and push broker were separate `better-sqlite3` consumers when this plan
+  was written. This plan removed native SQLite pressure from the main server
+  only. The owning migration landed on 2026-09-10 and moved both onto the same
+  built-in adapter, so the monorepo now ships no SQLite addon; see
+  [optional SQLite](../../topics/optional-sqlite.md).
 
 ## Immediate Cutover And Remote Warning Contract
 
@@ -322,7 +323,8 @@ separate Maintainer follow-up.
 Fix the fresh npm peer/dependency contract and take sanitizer security updates.
 Delete the npm runtime-floor and Node-20 recursive-watch gaps in the commits
 that close them. Remove only resolved sanitizer audit exceptions; the remaining
-production advisories and Rocky Linux relay/push-broker gap stay open.
+production advisories stay open. The Rocky Linux relay/push-broker gap was
+closed on 2026-09-10 by moving both onto the built-in adapter.
 
 Update now-false runtime comments and active CI lanes. Preserve the separate
 managed-runner Node 20 floor, unrelated artifact floors, and historical
@@ -363,7 +365,8 @@ requires a separate approved plan and advance notice.
 
 - Frontend minimum-server cutoff and removal of older capability fallbacks.
 - Selecting or implementing individual JSON-to-SQLite migrations.
-- Migrating relay or push broker away from `better-sqlite3`.
+- Migrating relay or push broker away from `better-sqlite3` (deferred here;
+  done separately on 2026-09-10).
 - Suppressing SQLite warnings or automatically installing Node/Bun.
 - Raising managed-runner or provider-host execution-target floors without a
   concrete dependency on the main server's runtime.

@@ -162,9 +162,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.19.13
         version: 1.19.14(hono@4.13.5)
-      better-sqlite3:
-        specifier: ^13.0.3
-        version: 13.0.3
+      '@yep-anywhere/shared':
+        specifier: workspace:*
+        version: link:../shared
       firebase-admin:
         specifier: ^14.2.0
         version: 14.2.0
@@ -175,9 +175,6 @@ importers:
         specifier: ^10.1.0
         version: 10.3.1
     devDependencies:
-      '@types/better-sqlite3':
-        specifier: ^7.6.12
-        version: 7.6.13
       '@types/node':
         specifier: ^22.10.2
         version: 22.19.15
@@ -199,9 +196,6 @@ importers:
       '@yep-anywhere/shared':
         specifier: workspace:*
         version: link:../shared
-      better-sqlite3:
-        specifier: ^13.0.3
-        version: 13.0.3
       hono:
         specifier: ^4.13.5
         version: 4.13.5
@@ -215,9 +209,6 @@ importers:
         specifier: ^8.21.0
         version: 8.21.0
     devDependencies:
-      '@types/better-sqlite3':
-        specifier: ^7.6.12
-        version: 7.6.13
       '@types/node':
         specifier: ^22.10.2
         version: 22.19.15
@@ -1639,9 +1630,6 @@ packages:
   '@types/bcrypt@6.0.0':
     resolution: {integrity: sha512-/oJGukuH3D2+D+3H4JWLaAsJ/ji86dhRidzZ/Od7H/i8g+aCmvkeCc6Ni/f9uxGLSQVCRZkX2/lqEFG2BvWtlQ==}
 
-  '@types/better-sqlite3@7.6.13':
-    resolution: {integrity: sha512-NMv9ASNARoKksWtsq/SHakpYAYnhBrQgGD8zkLYk/jaK8jUGn08CfEdTRgYhMypUQAfzSP8W6gNLe0q19/t4VA==}
-
   '@types/caseless@0.12.5':
     resolution: {integrity: sha512-hWtVTC2q7hc7xZ/RLbxapMvDMgUnDvKvMOpKal4DrMyfGBUfB1oKaZlIRr6mJL+If3bAP6sV/QneGzF6tJjZDg==}
 
@@ -1948,10 +1936,6 @@ packages:
   bcrypt@6.0.0:
     resolution: {integrity: sha512-cU8v/EGSrnH+HnxV2z0J7/blxH8gq7Xh2JFT6Aroax7UohdmiJJlxApMxtKfuI7z68NvvVcmR78k2LbT6efhRg==}
     engines: {node: '>= 18'}
-
-  better-sqlite3@13.0.3:
-    resolution: {integrity: sha512-RbOBxmLBG8uvFUc15X9+9SFemKcQ0WBuISBVkpuiaUB2qblC8UWlHEjdWVoZ8AdhSwmoEgsiXKfopX0CQxaACQ==}
-    engines: {node: '>=22'}
 
   bidi-js@1.0.3:
     resolution: {integrity: sha512-RKshQI1R3YQ+n9YJz2QQ147P66ELpa1FQEg20Dk8oW9t2KgLbpDLLp9aGZ7y8WHSshDknG0bknqGw5/tyCs5tw==}
@@ -5111,10 +5095,6 @@ snapshots:
     dependencies:
       '@types/node': 22.19.15
 
-  '@types/better-sqlite3@7.6.13':
-    dependencies:
-      '@types/node': 22.19.15
-
   '@types/caseless@0.12.5':
     optional: true
 
@@ -5486,10 +5466,6 @@ snapshots:
     dependencies:
       node-addon-api: 8.5.0
       node-gyp-build: 4.8.4
-
-  better-sqlite3@13.0.3:
-    dependencies:
-      node-addon-api: 8.5.0
 
   bidi-js@1.0.3:
     dependencies:

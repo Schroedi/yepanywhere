@@ -175,9 +175,13 @@ step("Rewrite @yep-anywhere/shared imports", () => {
         // Ensure it starts with ./ for Node.js ESM resolution
         if (!relPath.startsWith(".")) relPath = `./${relPath}`;
 
-        const subpathRewritten = content.replaceAll(
-          "@yep-anywhere/shared/server-runtime",
-          relPath.replace(/index\.js$/, "server-runtime.js"),
+        // Each "./<name>" subpath in shared's exports map builds to
+        // dist/<name>.js, so one rule covers server-runtime, sqlite, and any
+        // subpath added later.
+        const subpathRewritten = content.replace(
+          /@yep-anywhere\/shared\/([A-Za-z0-9-]+)/g,
+          (_match: string, subpath: string) =>
+            relPath.replace(/index\.js$/, `${subpath}.js`),
         );
         const rewritten = subpathRewritten.replace(
           /(?<=(from\s+|import\(\s*))(["'])@yep-anywhere\/shared\2/g,

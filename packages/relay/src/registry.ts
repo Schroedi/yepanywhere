@@ -1,5 +1,5 @@
 import { isValidRelayUsername } from "@yep-anywhere/shared";
-import type Database from "better-sqlite3";
+import type { SqliteDatabase } from "@yep-anywhere/shared/sqlite";
 
 export interface UsernameRecord {
   username: string;
@@ -18,9 +18,9 @@ export interface UsernameRecord {
  * - Inactive usernames can be reclaimed after N days
  */
 export class UsernameRegistry {
-  private db: Database.Database;
+  private db: SqliteDatabase;
 
-  constructor(db: Database.Database) {
+  constructor(db: SqliteDatabase) {
     this.db = db;
   }
 
@@ -37,7 +37,7 @@ export class UsernameRegistry {
 
     const row = this.db
       .prepare("SELECT install_id FROM usernames WHERE username = ?")
-      .get(username) as { install_id: string } | undefined;
+      .get<{ install_id: string }>(username);
 
     if (!row) {
       return true; // Not registered
@@ -62,7 +62,7 @@ export class UsernameRegistry {
     // Check existing registration
     const existing = this.db
       .prepare("SELECT install_id FROM usernames WHERE username = ?")
-      .get(username) as { install_id: string } | undefined;
+      .get<{ install_id: string }>(username);
 
     if (existing) {
       if (existing.install_id !== installId) {
@@ -102,7 +102,7 @@ export class UsernameRegistry {
   get(username: string): UsernameRecord | undefined {
     return this.db
       .prepare("SELECT * FROM usernames WHERE username = ?")
-      .get(username) as UsernameRecord | undefined;
+      .get<UsernameRecord>(username);
   }
 
   /**
@@ -148,7 +148,7 @@ export class UsernameRegistry {
   list(): UsernameRecord[] {
     return this.db
       .prepare("SELECT * FROM usernames ORDER BY username")
-      .all() as UsernameRecord[];
+      .all<UsernameRecord>();
   }
 
   /**
@@ -157,7 +157,8 @@ export class UsernameRegistry {
   count(): number {
     const row = this.db
       .prepare("SELECT COUNT(*) as count FROM usernames")
-      .get() as { count: number };
-    return row.count;
+      .get<{ count: number }>();
+    // COUNT(*) always yields a row; treat its absence as an empty registry.
+    return row?.count ?? 0;
   }
 }
