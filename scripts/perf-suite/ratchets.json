@@ -148,6 +148,10 @@
               "max": 2,
               "rationale": "Recent fleet append p95 was 0.1 ms; this broad ceiling catches full-array normalization growth before optimizing the current sub-millisecond path."
             },
+            "profiles.serverDetail.appended.server.metadata.p95Ms": {
+              "max": 40,
+              "rationale": "Fresh provider child-session reads and command metadata previously shared the route clock (19.6 ms fleet append p95 on CI run 34479361388); budget this I/O independently while retaining the 5 ms slicing/anchor ceiling."
+            },
             "profiles.serverDetail.appended.server.route.p95Ms": {
               "max": 5,
               "rationale": "Recent fleet append slicing and anchor-search p95 was 0.6-0.7 ms."

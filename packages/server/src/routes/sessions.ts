@@ -3116,6 +3116,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     // The init message that normally carries these gets discarded from the SSE buffer
     // after ~30s, so we attach them to the REST response. Providers with known
     // native built-ins, such as Codex, can expose those while stopped.
+    const metadataStartMs = performance.now();
     const slashCommands = await getSessionSlashCommands(
       process,
       process?.provider ??
@@ -3134,6 +3135,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       sessionId,
       "fresh",
     );
+
+    const metadataMs = performance.now() - metadataStartMs;
 
     if (!session) {
       // Session file doesn't exist yet - only valid if we own the process
@@ -3497,10 +3500,11 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     const totalMs = performance.now() - requestStartMs;
     const detailTimings = {
       augment: roundedMs(augmentEndMs - sliceEndMs),
+      metadata: roundedMs(metadataMs),
       normalize: roundedMs(normalizeEndMs - readEndMs),
       project: roundedMs(projectResolvedMs - requestStartMs),
       read: roundedMs(readEndMs - projectResolvedMs),
-      route: roundedMs(sliceEndMs - normalizeEndMs),
+      route: roundedMs(sliceEndMs - normalizeEndMs - metadataMs),
       total: roundedMs(totalMs),
     };
     c.header(
@@ -3533,10 +3537,11 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           sessionId,
           timings: {
             augmentMs: roundedMs(augmentEndMs - sliceEndMs),
+            metadataMs: roundedMs(metadataMs),
             normalizeMs: roundedMs(normalizeEndMs - readEndMs),
             projectMs: roundedMs(projectResolvedMs - requestStartMs),
             readMs: roundedMs(readEndMs - projectResolvedMs),
-            routeMs: roundedMs(sliceEndMs - normalizeEndMs),
+            routeMs: roundedMs(sliceEndMs - normalizeEndMs - metadataMs),
             totalMs: roundedMs(totalMs),
           },
           totalMessageCount: session.messageCount,
@@ -3561,10 +3566,11 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           sessionId,
           timings: {
             augmentMs: roundedMs(augmentEndMs - sliceEndMs),
+            metadataMs: roundedMs(metadataMs),
             normalizeMs: roundedMs(normalizeEndMs - readEndMs),
             projectMs: roundedMs(projectResolvedMs - requestStartMs),
             readMs: roundedMs(readEndMs - projectResolvedMs),
-            routeMs: roundedMs(sliceEndMs - normalizeEndMs),
+            routeMs: roundedMs(sliceEndMs - normalizeEndMs - metadataMs),
             totalMs: roundedMs(totalMs),
           },
           totalMessageCount: session.messageCount,
@@ -3597,10 +3603,11 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           tailTurns: requestedTailTurns ?? null,
           timings: {
             augmentMs: roundedMs(augmentEndMs - sliceEndMs),
+            metadataMs: roundedMs(metadataMs),
             normalizeMs: roundedMs(normalizeEndMs - readEndMs),
             projectMs: roundedMs(projectResolvedMs - requestStartMs),
             readMs: roundedMs(readEndMs - projectResolvedMs),
-            routeMs: roundedMs(sliceEndMs - normalizeEndMs),
+            routeMs: roundedMs(sliceEndMs - normalizeEndMs - metadataMs),
             totalMs: roundedMs(totalMs),
           },
           totalMessageCount: session.messageCount,

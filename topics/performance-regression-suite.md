@@ -269,3 +269,9 @@ not provider speed. A one-second reap scenario does not establish multi-hour
 timer stability. Provider-backed timing, adapter parsing, transcript-write
 behavior, long-duration timer drift, and remote-relay effects require live
 calibration or a lower harness-level simulator.
+
+Session-detail `ya-metadata` measures dynamic commands, queue summaries and fresh
+provider child-session reads independently of `ya-route` slicing and anchor
+lookup. Suite version 9 includes that phase in non-overlapping totals and keeps
+the fleet append 5 ms route ceiling alongside a 40 ms metadata ceiling. Older
+execution revisions retain their original combined route clock.
