@@ -2,9 +2,10 @@
 
 Topic: issue-session-associations
 
-Status: implementation plan, 2026-09-10. The maintainer selected this bounded
-MVP and requested the plan; no feature code has landed. The proposed wire
-contract still needs the normal compatibility review before implementation.
+Status: implementation plan, revised after an independent Opus 5 xhigh review
+on 2026-09-10. The maintainer selected this bounded MVP and requested the plan
+and review; no feature code has landed. The proposed wire contract still needs
+the normal compatibility review before implementation.
 
 ## Outcome and scope
 
@@ -17,6 +18,11 @@ The complete first workflow is: paste a URL, add a title, associate sessions,
 discover supporting references, search by title/key/URL, inspect evidence, and
 navigate to the original issue or session. Correcting false matches and keeping
 the data through restart and schema upgrades are part of the MVP.
+
+Ship the manual workflow as the first useful increment. Persisted-message
+discovery is the next increment of this plan and remains required for its full
+completion; it must not hold manual linking hostage to a provider-reader rewrite.
+The first increment exposes no scan controls or promises of automatic discovery.
 
 All state belongs to one YA server's app-data database. Sessions may belong to
 different projects on that server. Multi-server aggregation, a controller,
@@ -38,8 +44,13 @@ tactical plans. Preserve these boundaries:
   plan does not reprioritize the publishing initiative.
 - [Built-in SQLite](../../topics/optional-sqlite.md): reuse
   `packages/server/src/storage/{sqlite,discovery-sqlite}.ts` and
-  `{dataDir}/discovery.sqlite`. Current code has schema versions 1-3; the topic
-  still describes version 2. Reconcile that description when migration work
+  `{dataDir}/discovery.sqlite`. Current code has schema versions 1-3. Version 3
+  drops the old vocabulary counts/receipt tables; only the unused
+  `speech_vocabulary_state` table remains. Active vocabulary settings and counts
+  live in `speech-vocabulary-state.json` and a separate local-disk
+  `speech-vocabulary.sqlite`. Discovery storage currently gates vocabulary
+  availability rather than owning its live data; issues would be its first
+  active data tenant. Correct the stale version-2 topic when migration work
   lands, and allocate the next version against the then-current tree.
 - [Cold-storage startup gap](../../gaps/sqlite-backed-cold-storage-startup.md):
   indexed cold queries are relevant; migrating existing JSON metadata stores
@@ -51,13 +62,26 @@ tactical plans. Preserve these boundaries:
   search here covers stored issues, not arbitrary transcript content. The
   selected-session scan does not establish a global search index.
 - [SQLite capability test gap](../../gaps/version-speech-session-terms-test.md):
-  inspect the known readiness assertion before adding another SQLite-dependent
-  capability. If fixed, isolate that correction and remove its gap in the
-  closing commit; do not change existing advertisements to satisfy the test.
+  inspect the recorded readiness assertion before adding another SQLite-dependent
+  capability. Concurrent work may already have corrected it or changed the
+  session-terms advertisement; recheck current code rather than assuming the
+  recorded failure still exists. If fixed here, isolate that correction and
+  remove its gap in the closing commit; do not change existing advertisements
+  merely to satisfy the test.
 - [Session ID remaps](../../topics/session-id-remap.md) and
   [working directories](../../topics/agent-working-directory-tracking.md):
   preserve canonical YA identity and distinguish effective project from
   provider transcript location.
+- [Session worktree file gap](../../gaps/session-worktree-file-links.md): YA
+  does not reliably retain the actual sibling worktree used by a session.
+  General worktree/branch inference is deferred. The narrow available precedent
+  is `SessionMetadata.workstreamId` and `WorkstreamService` lane metadata;
+  [Workstreams](../../topics/workstreams.md) remains a separate experiment.
+- `services/voice/vocabulary-sessions.ts` and `VocabularyLearning.ts` provide
+  precedents for persisted-session extraction, source-version validation,
+  coalescing, cancellation generations, and progress. Their compaction-window
+  paging does not bound source acquisition for every provider; reuse those
+  lifecycle concepts, not the whole-catalog scanner or its acquisition policy.
 
 T3 Code was inspected at `d29c56a5c` (2026-09-10) in `~/github/t3code`.
 Paths below are relative to that reference checkout, not YA dependencies:
@@ -87,9 +111,11 @@ of independent environments is a future reference only.
 ### Enablement and failure behavior
 
 Use one explicitly server-scoped, persistent experimental opt-in for this
-feature's retention and discovery. Settings must say it applies to this YA
-server. Do not build a generic settings or demand-lease framework to deliver
-it. The sidebar entry and session controls are hidden until enabled.
+feature's retention and discovery. Add `issueAssociationsEnabled?: boolean` to
+the existing `ServerSettingsService`, default false, following its
+`workstreamsEnabled` precedent. Settings must say it applies to this YA server.
+Do not build a generic settings or demand-lease framework to deliver it. The
+sidebar entry and session controls are hidden until enabled.
 
 Enabling creates no historical scan or tracker network request. SQLite may
 create empty tables as infrastructure before opt-in, but records are acquired
@@ -141,28 +167,39 @@ An explicit relink/confirm can restore a dismissed association.
 
 `session_issue_evidence` references the link and records:
 
-- kind: manual, message URL, branch key, or worktree key;
+- kind: manual, message URL, or workstream branch;
 - a bounded observed value and optional human explanation;
 - source occurrence time when known and a separate observation time;
 - stable message/turn reference where available, or a provider-owned source
   locator with its source generation; bounded excerpt for later explanation;
-- repository/project context and observed branch/worktree for Git evidence;
+- repository/project context, lane ID, and configured branch for Workstream
+  evidence, labeled as lane metadata rather than proof of a Git operation;
 - extractor version and a deterministic occurrence key for deduplication.
 
-Live and persisted sightings of the same occurrence converge. Different
-occurrences remain separate evidence. Stream deltas do not produce a record
-per token: inspect completed logical messages, and reconcile corrected messages
-by stable source identity. Do not invent source timestamps or message anchors.
-Historical evidence remains readable when its original source is unavailable;
-the UI then marks the source link unavailable rather than fabricating a jump.
+Extract message evidence only from persisted source records. Retries of the
+same occurrence converge; different occurrences remain separate evidence.
+Use a stable persisted message ID plus normalized URL, or a provider-owned
+source locator/generation when no message ID exists. A timestamp alone is not
+unique, and a content-only fingerprint must not merge repeated quotations in
+different messages. Rewrites invalidate scan coverage without erasing historical
+observations. An extractor-version change must not blindly duplicate existing
+occurrences. Do not invent source timestamps or message anchors. Historical
+evidence remains readable when its original source is unavailable; mark source
+navigation unavailable rather than fabricating a jump.
 
 Use foreign keys from evidence to links and links to issues. Sessions remain
 owned by the existing catalog, not copied into a new SQL sessions table.
 Missing/archived sessions do not cascade-delete metadata. Resolve current
 session titles and project membership through existing canonical services.
-Remapping a provisional session ID merges colliding links and evidence
-transactionally; preserve the latest explicit user decision, with dismissal
-winning an equal-time conflict, and never lose either side's observations.
+Resolve aliases on every write. Do not persist automatic observations under
+unresolved provisional launch IDs. Manual linking during that brief state
+returns a retryable session-not-ready result. The existing supervisor remap is
+the integration point, not only the public event, which can be omitted when
+the old ID was never published. Any remap of saved IDs merges colliding links
+and evidence transactionally; preserve the latest explicit user decision, with
+dismissal winning an equal-time conflict, and never lose observations through
+`UPDATE OR IGNORE` followed by deleting the losing row. Do not migrate the JSON
+session catalog into SQLite to solve this local merge.
 
 Unlink is a durable dismissal retaining evidence and a way to restore it.
 Deleting a saved issue explicitly removes its links/evidence after explaining
@@ -173,34 +210,62 @@ automatic expiry; search-index maintenance never purges them.
 
 ### Discovery and its limits
 
-Use one server-owned extractor over normalized, visible user/assistant messages
-YA already processes. Do not subscribe a second provider reader or change the
-transcript presentation pipeline. Exclude hidden prompts, reasoning, tool
-arguments/results, and incidental raw logs in this pass. Report these coverage
-limits in the scan result; full transcript/tool-output discovery is future work.
+Use one extractor over normalized, visible user/assistant messages from the
+persisted source. Do not attach per-process live-message subscriptions or change
+the transcript presentation pipeline. Exclude hidden prompts, reasoning, tool
+arguments/results, and incidental raw logs. Show those coverage limits; tool
+output discovery remains future work. Discovery is eventually visible after
+persistence and a bounded scan, not immediately on each live token.
 
-An explicit Scan this session action reads only the selected session through
-its existing reader. Share concurrent requests for that session/source
-generation and expose completion, partial progress, failure, and cancellation.
-Never report "no references" as a whole-session claim after a partial scan.
-Provider readers unable to honor bounds must return an unsupported/partial
-result rather than eagerly reading the complete transcript.
+Use exact changed-session/completed-turn signals already owned by the server
+to schedule a scan for that session, then resolve its canonical catalog entry.
+Do not transplant vocabulary's loop over the entire catalog onto each update.
+Changes while disabled and history older than the first admitted observation
+are not automatically backfilled. Persist source-version/position checkpoints
+and label coverage partial until an explicit retrospective scan covers it.
+Compare source generation before/after acquisition; invalidated work cannot
+advance a checkpoint or certify coverage. Idempotent batches may retain
+already-committed historical evidence while the source is reconciled.
 
-Starting bounds to implement and test: one active historical scan per server,
-no unbounded job queue, at most 8 MiB of source acquisition and 2,000 logical
-messages per requested pass, with a 30-second deadline and explicit continuation.
-Bound individual reads before acquisition, yield between batches, and cap SQL
-write batches at 100 evidence rows. Oversized records are skipped with reported
-coverage. Cap retained excerpts at 512 characters and input URLs at 4 KiB.
-These are product limits to validate on realistic fixtures, not performance
-claims. Persist resumable progress only for readers with stable locators;
-otherwise a retry rescans the bounded slice and deduplicates existing evidence.
+There is currently no provider-neutral bounded acquisition API.
+`ISessionReader.getSession` accepts presentation selectors, and the Claude
+reader loads `claudeTranscriptCache` before applying `afterMessageId`.
+`tailCompactions: 1` can still describe an arbitrarily large uncompacted file.
+An evidence-row limit cannot protect against that read. Explicitly budget an
+optional provider-owned bounded persisted-message iterator in step 4, sharing
+existing parsing/normalization helpers. Its contract takes source-byte and
+record limits, a deadline/abort signal, and an opaque cursor, and returns
+coverage/continuation information. It must bound acquisition before allocation,
+including oversized JSONL records. Existing full-detail readers need not change.
+Unsupported adapters report that status; they never silently fall back to a
+whole-transcript read. Prove Claude and Codex adapters first, including Codex
+lineage/compaction identity; manual associations work for all providers.
 
-Observe branches/worktrees only through existing session-specific facts.
-Match exact Jira keys to already-known, unambiguous issues; multiple matching
-tenants remain unresolved. GitHub shorthand additionally needs an exact
-repository identity. A bare number in a branch is insufficient. Do not assign
-the current branch of a shared checkout retrospectively to every session.
+Starting limits to implement and validate: one active scan per server, a
+coalescing pending set of at most 16 distinct sessions, at most 8 MiB acquired
+and 2,000 logical messages per pass, and a 30-second deadline. Queue overflow
+leaves explicit stale/partial coverage rather than spawning work or marking a
+session scanned. Closing the scan view releases its explicit demand; disable
+and shutdown cancel all work. Yield between acquisition/write batches and cap
+SQL batches at 100 evidence rows. Admission of further historical passes
+requires explicit continuation; unchanged sessions receive no timer-driven
+scan. Cap retained excerpts at 512 characters and URLs at 4 KiB. These are
+proposed starting limits, not measured performance claims.
+
+Scan this session requests a bounded retrospective pass through that same
+iterator, with progress, cancellation, continuation, and honest unsupported
+states. Identical requests share one session/source-generation owner. Durable
+checkpoints resume supported cursors; rewrites invalidate them without losing
+manual decisions. Restart restores checkpoints, not automatic whole-corpus
+work. An empty partial result never claims that the whole session has no links.
+
+Limit branch evidence to explicit YA Workstream membership and lane branch
+metadata. Capture what was known at observation time; a later lane branch does
+not prove what an older session checked out. Match exact Jira keys to
+already-known, unambiguous issues; multiple matching tenants stay unresolved.
+GitHub shorthand additionally needs exact repository identity. A bare number
+is insufficient. Missing lane metadata simply produces no branch evidence.
+Do not enable Workstreams or infer general tool cwd/worktree relationships here.
 No new Git polling, directory watcher, process scan, or per-session timer.
 
 ### Browsing and search
@@ -212,14 +277,21 @@ Session controls show the reverse association list and an add/link action.
 Provide restore access for dismissed associations without including them in
 ordinary counts. Distinguish untitled, empty, loading, unavailable, and failed.
 
-Search is case-insensitive literal substring matching over saved title/key/URL,
-with optional project filtering through associated sessions. Escape SQL LIKE
+Search is case-insensitive literal substring matching over saved title/key/URL.
+Without remote enrichment, title search covers manual titles and observed link
+labels only; key/URL search is useful immediately. Optional project filtering
+resolves associated sessions' current effective project through the catalog,
+not a frozen project ID stored on the link. Apply the filter before final page
+limits, using bounded candidate batches with a continuation cursor when needed;
+do not filter one SQL page and incorrectly declare no matches. Escape SQL LIKE
 metacharacters and bind inputs; searching `%` must search a literal percent.
 Start with SQL over these small records, not FTS or transcript indexing.
 Paginate both list and evidence reads (default 50, maximum 100), use stable
-cursors/order, and index canonical identity and reverse session lookups. A
-limit on returned rows does not bound SQL work: measure title-search latency
-at the declared fixture size and use a bounded auxiliary index if necessary.
+cursors/order, and index canonical identity and reverse session lookups. Keep
+pagination so long-lived evidence does not require a lossy retention cap. A
+limit on returned rows does not bound SQL work: validate straightforward LIKE
+queries on a realistic saved-issue fixture. A specialized text index needs
+observed evidence and a separate follow-up, not a speculative MVP dependency.
 
 Reuse existing components/theme tokens, CSS Modules, canonical session routes,
 and source-scoped requests. New UI strings go through English i18n keys.
@@ -230,10 +302,14 @@ requiring hover. The browser never becomes the metadata owner.
 
 Keep `PRAGMA user_version` as the schema authority and the YA application ID
 check. One ordered sequence owns the shared database; features do not maintain
-independent version counters. Extract existing versions into named, statically
-registered migration modules without changing their SQL. Freeze their contents
-rather than importing future mutable feature schema definitions. Retain SQL-only
-migrations until a real data conversion needs a synchronous callback.
+independent version counters. Copy the v2/v3 SQL constants from
+`services/voice/vocabulary-schema.ts` into named frozen migration modules,
+without changing their SQL; leave only the current vocabulary table schema in
+the voice module. Statically register them instead of importing future mutable
+feature definitions. Retain SQL-only migrations until a real data conversion
+needs a synchronous callback. Add a test helper to apply a migration prefix
+(the equivalent of T3's `toMigrationInclusive`) so old-format fixtures can be
+constructed with the actual historical migrations.
 
 Released migrations are append-only: do not renumber, edit, or reuse IDs.
 Resolve concurrent migration-number collisions before merge and verify fresh
@@ -250,12 +326,28 @@ future destructive conversion must be a consistent SQLite backup, not a live
 file copy; that conversion needs its own recovery plan before shipping.
 
 Newer schemas and foreign/corrupt files remain refused and untouched. There
-are no automatic down migrations or database resets. Downgrading YA below a
-schema migration can make the entire shared SQLite store unavailable, including
-other SQLite features. Disabling this experiment does not roll the schema back.
-Document that consequence and recovery (upgrade again, or explicitly restore a
-consistent pre-upgrade backup with its data-loss implications). Do not promise
-old-binary write compatibility merely because the migration was additive.
+are no automatic down migrations or database resets. At the reviewed baseline,
+an older reader of a newer issue schema reports SQLite `error`, removes both
+speech vocabulary capabilities, and does not mount the vocabulary routes
+because `app.ts` gates their initialization on the discovery database handle.
+It does not delete the issue database or vocabulary's separate durable files.
+Keep this concrete regression fixture alongside future tenants' expectations.
+Do not promise old-binary write compatibility merely because changes are additive.
+
+Disabling this experiment does not roll the schema back. Recovery is upgrading
+again, or explicitly restoring a consistent pre-upgrade backup with its data-loss
+implications. Mixed YA versions concurrently using one profile are not a
+supported way to test rollback. Even a no-op startup currently takes an
+immediate write lock; contention can return `error` after 250 ms without data
+loss. Preserve that behavior and test it rather than enlarging lock waits here.
+The status payload carries only `state`, so UI cannot diagnose downgrade versus
+corruption without a separately reviewed wire addition; details remain in logs.
+
+Keep the shared discovery file for this bounded first tenant. A separate
+`issues.sqlite` could isolate future migration availability failures, but adds
+another storage lifecycle/version owner. Reconsider only if mixed-version or
+independent recovery requirements justify it; do not couple issue retention to
+vocabulary's rebuildable scratch-storage or weaker durability policy.
 
 ## Proposed compatibility boundary
 
@@ -266,17 +358,22 @@ release corpus, proposed gate, and absent-gate behavior for maintainer review
 under [DEVELOPMENT.md](../../DEVELOPMENT.md#clientserver-compatibility-review).
 Do not reuse the September 8 corpus without checking for newer releases.
 
-Propose a new sparse optional `issue-session-associations-v1` capability,
-available only with the implementation and ready SQLite. Advertise support
-independently of the enabled setting so capable clients can show the opt-in;
-server routes independently enforce enablement and request authorization.
-The proposed surface covers settings/status, issue CRUD/search, reverse links,
-link confirmation/dismissal, paginated evidence, and selected-session scan
-start/status/cancel/continue. Final path names and payloads belong to that review.
+Propose a new sparse optional `issue-session-associations-v1` capability for
+settings/status, issue CRUD/search, reverse links, confirmation/dismissal, and
+paginated evidence. Follow the existing readiness-gated advertisement site in
+`routes/version.ts`, independently of the enabled setting, so capable clients
+can show the opt-in. Server routes independently enforce enablement and request
+authorization. Add a separate `issue-session-discovery-v1` capability when the
+persisted discovery increment lands, covering scan start/status/cancel/continue
+and per-provider support/coverage. Do not expand the manual capability to imply
+scan support on already-released servers. Final paths, payloads, and both
+increments' release corpora belong to their compatibility reviews.
 
-Absent capability: hide feature controls and send no feature requests. An
-unsupported direct URL gets a clear unavailable view. Existing capabilities,
-protocol levels, session payload semantics, and older fallbacks keep their
+Absent manual capability: hide feature controls and send no feature requests.
+Absent discovery capability: preserve manual browsing/linking, hide scan
+controls, and send no discovery requests. An unsupported direct URL gets a
+clear unavailable view. Existing capabilities, protocol levels, session payload
+semantics, and older fallbacks keep their
 meaning. Reads/writes use existing authenticated session-access boundaries;
 counts, excerpts, and source navigation must not expose inaccessible sessions
 or flow into public shares. Reads from one source server stay on that source.
@@ -291,7 +388,10 @@ future-only extensions in this plan or a sketches companion. Update the SQLite
 topic's current schema description and migration policy. Extract/freeze current
 migrations and add tests for empty, v1, v2, and v3 databases, rerun no-ops, failed
 upgrade rollback, contention, newer-schema refusal, and Node/Bun interchange.
-Retain existing vocabulary records and feature behavior in every fixture.
+Fixtures must preserve the historical v3 drop behavior, leave the separate
+active vocabulary files unchanged, and verify that a successfully upgraded
+discovery handle still enables vocabulary. Once issue records exist, every
+subsequent upgrade fixture must preserve their titles, decisions, and evidence.
 
 ### 2 — Persist issues, associations, and evidence
 
@@ -309,18 +409,30 @@ server startup without growing a general metadata hub. Implement the list,
 paste/search, issue detail, session reverse links, evidence display, and
 confirm/dismiss/restore/delete actions. At this point the complete manual
 workflow is usable, though the final MVP still requires discovery below.
-Prove disabled/old-server behavior, write failures, and cross-client refresh.
+This is a shippable increment with its own manual-only capability and completed
+topic contract. Prove disabled/old-server behavior, write failures, and
+cross-client refresh. The later discovery increment adds its own capability.
 Use explicit mutation invalidation and existing lifecycle refresh paths; if
 new events are needed, include them in the compatibility review, not polling.
 
 ### 4 — Discover references with bounded work
 
-Attach completed-message observation at an existing normalization seam, add
-the explicit selected-session scan, and consume trustworthy branch/worktree
-facts where available. Reuse one extractor across live and persisted paths.
-Test duplicate delivery, source rewrites, missing anchors, URL variants,
-namespace ambiguity, cancellation, limits, resume, disable, and deletion races.
+First implement and prove the optional bounded acquisition contract described
+above, with Claude/Codex adapters and an unsupported fallback for other readers.
+This is explicit provider-reader scope, not a property of the existing detail
+route. Reuse provider normalization without introducing a second transcript
+store or changing full-detail behavior. Read the owning provider topics and
+obtain any required protocol approval before changing those implementations.
+
+Then wire exact changed-session/completed-turn signals into one coalescing
+persisted-source scheduler, using vocabulary's generation/checkpoint lifecycle
+as precedent. Add the explicit selected-session scan and Workstream metadata
+evidence where available. Test duplicate sightings, source rewrites, missing
+anchors, URL variants, namespace ambiguity, acquisition ceilings, oversized
+records, queue saturation, cancellation, resume, disable, and deletion races.
 Unknown facts remain unknown. Every admitted job and subscription has teardown.
+Do not claim this increment complete if core provider discovery only returns
+unsupported; ship the already-complete manual increment while resolving it.
 
 ### 5 — Verify the complete workflow and document its limits
 
@@ -334,6 +446,8 @@ another reference, search the title after restart, and navigate to both sessions
 and their evidence. Dismiss a false match and rescan without restoring it.
 Disable/re-enable without losing data or triggering historical work. Verify
 GitHub issue/PR identity and old-server behavior through the same UI paths.
+Verify that issue evidence/excerpts never appear in public-share payloads, and
+that counts and project filters honor existing session-access boundaries.
 
 Run the repository-required lint, format, typecheck, unit, and browser checks,
 plus the client console scan and scoped CSS checks. Use the existing packaged
@@ -347,3 +461,38 @@ Finish with current observable contracts for enablement, retention, identity,
 search coverage, failure behavior, migration/downgrade handling, and access
 boundaries. Keep the roadmap status current. These checks establish the MVP;
 remote tracker refresh and multi-server aggregation are subsequent decisions.
+
+## Independent review and decisions
+
+Kyle requested a read-only Opus 5 xhigh review through YA at localhost:3400.
+The process API verified `claude-opus-5` and `effort: xhigh`; review session
+`56c01728-ad7c-423b-af13-306f16699ebc` examined this plan, the owning topics,
+actual YA seams, and T3 at `d29c56a5c`. Its result supported three tables and
+the existing migration runner, but recommended a smaller manual-first delivery
+and persisted-only discovery. The review is advisory, not compatibility approval.
+It targeted plan commit `7402c6a6c`; recheck its code observations against the
+implementation checkout, particularly concurrent capability/test corrections.
+
+Accepted: name the settings/advertisement seams; freeze the existing SQL
+literals concretely; correct vocabulary ownership and downgrade behavior;
+cite the worktree gap; narrow branch evidence to lane metadata; ship manual
+linking first; remove live observation and speculative text-index work; make
+project filtering and exclusion from public shares explicit.
+
+Adjusted rather than copied: vocabulary supplies useful scan lifecycle patterns,
+but neither compaction-window paging nor an evidence-row cap bounds source
+acquisition. Retain hard bounds and explicitly scope optional provider iterators;
+do not replace them with the review's suggested paging-only limit. Do not copy
+whole-catalog scans onto every change. Persisted-only ingestion also does not
+prove all catalog IDs canonical or make timestamp fingerprints unique.
+
+Kept despite suggested simplification: paginated evidence avoids a lossy cap
+on long-lived history; remap collisions require unioning evidence and preserving
+decisions, not ignoring updates then deleting leftovers. A read-only per-process
+subscription would not inherently violate quiescence if correctly owned, but
+its lifecycle and live/persisted reconciliation cost are unnecessary here.
+
+Tradeoff: discovery becomes eventual and initially supports only proven bounded
+adapters; it cannot delay the manual release. Title search initially covers
+user titles and observed labels, not a synchronized tracker catalog. These are
+explicit limits, not claims that the future integrations already exist.

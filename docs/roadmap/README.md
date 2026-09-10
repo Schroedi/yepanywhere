@@ -120,7 +120,7 @@ documents before defining work.
 | Direction | Existing context / decision still needed |
 | --- | --- |
 | Multi-machine experience across web and desktop | Extend the native-mobile direction through [source runtimes](../../topics/client-source-runtime-topology.md); decide the unified attention and navigation surface. |
-| Related work across repositories | The [Issues & PRs MVP plan](../tactical/125-issue-session-associations.md) defines opt-in, single-server issue/session links with durable evidence and SQLite migrations. Implementation has not started; wire compatibility review is the next prerequisite. Multi-server aggregation and tracker synchronization remain future work. |
+| Related work across repositories | The reviewed [Issues & PRs MVP plan](../tactical/125-issue-session-associations.md) stages manual single-server links before bounded persisted-message discovery, with durable evidence and SQLite migrations. Implementation has not started; wire compatibility review is the next prerequisite. Multi-server aggregation and tracker synchronization remain future work. |
 | Parallel work within one repository | Follow the [workstreams proposal](../../topics/workstreams.md), which uses ordinary lane clones; do not revive the old automatic-worktree sketch as an approved design. |
 | Scheduling | Follow [yacron](../../topics/yacron.md) and its [open gap](../../gaps/yacron-scheduler.md); the first management UI remains a design prerequisite. |
 | Agent command runtime | Opt-in [`ya-agent self`](../../topics/agent-self.md) implements ownership and model/effort evidence reporting. Use operator-managed global instructions initially; defer automatic advertisement, private input, broader session access, and scheduling integration. |
