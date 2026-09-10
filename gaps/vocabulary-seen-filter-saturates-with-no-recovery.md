@@ -39,6 +39,32 @@ contains the message timestamp, so the window and the dedupe key agree by
 construction. And learning already refuses a message whose timestamp does not
 parse (`VocabularyLearning.ts`), so no path depends on undated content.
 
+### Epsilon is sized by clock jumps, not by write latency
+
+Two hours is deliberately generous, and the reason is that harness and provider
+timestamps are not assumed to come from a monotonic, daylight-saving-immune
+clock. Epsilon has to absorb a wall-clock step: a daylight-saving shift is the
+named worst case at an hour, leaving an hour of margin, and a stepped or
+corrected host clock is the same class of event. Do not tune it down toward the
+ten-minute write interval; that interval bounds how much recounting a crash
+costs under Resolution B and has nothing to say about how far a clock can move.
+
+The watermark is monotonic in YA's own bookkeeping even though the timestamps it
+is compared against are not, which is where the two failure directions come
+from. Both undercount silently, so both deserve a test:
+
+- **A backward step larger than epsilon** gives newly produced messages
+  timestamps below the threshold, so they read as already counted and are
+  skipped.
+- **A forward step larger than epsilon** drags the watermark ahead of real
+  content, and everything produced after the clock is corrected then falls below
+  the threshold.
+
+The second is worse under a strictly monotonic watermark, because one message
+bearing an absurd future timestamp poisons it permanently. So advancing the
+watermark should be clamped to the present plus a small slack rather than
+accepting any timestamp a provider hands over.
+
 ## Resolution B: delete the durable filter (controversial)
 
 Keep no durable filter. Resume counting at the watermark and accept that a
@@ -52,9 +78,10 @@ or its moral equivalent. A stronger equivalent is already stored: counts and
 per-session checkpoints are written in the same batch, which is the property the
 store's own comment relies on to bound what a crash costs, so the `hasScanned`
 `{version, cutoff}` rows are already a consistent watermark that does not depend
-on filesystem timestamps. Either way the write interval bounds the error. It
-defaults to ten minutes, so "promptly updated" means up to ten minutes of
-recounting, and that is the number to sanity-check any epsilon against.
+on filesystem timestamps. Either way the write interval bounds the error: it
+defaults to ten minutes, so "promptly updated" means the resume can recount up
+to ten minutes of content. That is this resolution's sloppiness budget, and it
+is unrelated to epsilon above.
 
 ## Orthogonal: what is left may already exist
 
