@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { IssuesIcon } from "./IssuesIcon";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import styles from "./SidebarNavItem.module.css";
 
@@ -151,6 +152,7 @@ export const SidebarIcons = {
       <path d="M18 9a9 9 0 0 1-9 9" />
     </svg>
   ),
+  issues: <IssuesIcon />,
   recents: (
     <svg
       width="16"

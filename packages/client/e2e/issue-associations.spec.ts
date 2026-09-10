@@ -93,6 +93,16 @@ test("automatically discovers Jira and GitHub references from viewed and recent 
         })
         .toBe(id === "issues-view-one" ? 1 : 2);
     }
+    // The session header counts its own associations: the ticket key and the
+    // pull request written in this transcript.
+    await page.goto(
+      `${baseURL}/projects/${projectId}/sessions/issues-view-one`,
+    );
+    await expect(
+      page.getByRole("link", {
+        name: "2 issues and pull requests associated with this session",
+      }),
+    ).toBeVisible({ timeout: 30_000 });
     await page.goto(`${baseURL}/issues`);
     const search = page.getByRole("searchbox", {
       name: "Search ticket keys, titles, or paste an issue/PR URL",

@@ -5524,6 +5524,7 @@ function SessionPageContent({
               <SessionIssuesLink
                 sessionId={actualSessionId}
                 projectId={projectId}
+                messageCount={messages.length}
               />
             )}
             {!loading && effectiveProvider && (

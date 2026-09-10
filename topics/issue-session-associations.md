@@ -8,6 +8,8 @@ Implemented: 2026-09-10. Experimental and default off.
 
 Enable **Settings → Issues & PRs** on a server with ready SQLite. The sidebar
 then exposes issue search, and session headers link to their associated issues.
+One glyph stands for the feature in the settings list, the sidebar and that
+header link; the settings list carries it in every selectable icon style.
 Ordinary authenticated session viewing automatically captures references from
 persisted user/assistant text already delivered by the session route, including
 incremental updates and older pages. Manual linking is not an admission step.
@@ -35,6 +37,16 @@ unsupported, failed and outside-scope jobs. Counts describe acquired sources,
 not the whole transcript corpus. Empty search results explicitly refer to indexed
 content. The page refreshes while its worker is active; there is no idle global
 client poll. Refresh reloads results, rather than forcing a full scan.
+
+The session header link carries the count of that session's undismissed
+associations, read from one page of the same search route, so more than a full
+page reads as `100+`. Because indexing this session's own text starts when the
+session is opened, the first answer usually predates it: the header asks again
+a bounded number of times, sooner while the server reports active indexing, and
+restarts that sequence when the transcript grows. It then stops rather than
+polling. A count the server does not currently confirm shows no badge at all,
+so the number on screen is one the client actually read, and a later
+association can go unnoticed until the session is reopened or extended.
 
 ## Identity and evidence
 

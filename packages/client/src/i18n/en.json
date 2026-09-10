@@ -3281,5 +3281,7 @@
   "issuesDeleteHelp": "Delete this saved item and its associations and evidence? A later observation can rediscover it. Disabling discovery preserves data instead.",
   "issuesDeleteConfirm": "Delete item and evidence",
   "issuesCancel": "Cancel",
-  "issuesForSession": "Issues & PRs for this session"
+  "issuesForSession": "Issues & PRs for this session",
+  "issuesForSessionCountOne": "1 issue or pull request associated with this session",
+  "issuesForSessionCountMany": "{count} issues and pull requests associated with this session"
 }

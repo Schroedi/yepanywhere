@@ -1053,7 +1053,7 @@ export function Sidebar({
             {issuesEnabled && (
               <SidebarNavItem
                 to="/issues"
-                icon={SidebarIcons.allSessions}
+                icon={SidebarIcons.issues}
                 label={t("issuesTitle")}
                 onClick={onNavigate}
                 basePath={basePath}

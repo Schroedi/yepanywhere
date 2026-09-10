@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { issuesIconShape } from "../../components/IssuesIcon";
 import { useSettingsIconStyle } from "../../hooks/useSettingsIconStyle";
 
 /**
@@ -42,6 +43,7 @@ export const settingsCategoryEmojiIcons: Record<string, string> = {
   "cache-miss-billing": "🧾",
   "message-delivery": "📨",
   "source-control": "🔎",
+  issues: "🎫",
   storage: "🗄️",
   "agent-context": "📋",
   notifications: "🔔",
@@ -144,6 +146,8 @@ export const settingsCategoryIcons: Record<string, ReactNode> = {
       <path d="M7 10h6" />
     </Icon>
   ),
+
+  issues: <Icon>{issuesIconShape}</Icon>,
 
   storage: (
     <Icon>
