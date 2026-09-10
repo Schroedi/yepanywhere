@@ -386,3 +386,5 @@
   coverage, and native live/persisted rendering parity.
 - agent-instruction-consolidation - Canonical AGENTS instructions, harness
   pointers, and bounded deduplication of repository guidance.
+- issue-session-associations - Experimental single-server Jira/GitHub issue
+  and PR links, durable association evidence, and SQLite schema evolution.
