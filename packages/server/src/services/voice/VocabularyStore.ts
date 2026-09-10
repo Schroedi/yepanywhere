@@ -919,6 +919,13 @@ export class VocabularyStore {
     this.dirtyCheckpoints = new Set();
     this.state.generation++;
     this.state.resetAfter = Date.now();
+    // Stop and Clear discards learned state, and the floor is learned state:
+    // it records how far counting already reached. Left standing it would tell
+    // the relearn below that everything older was already counted, and a
+    // cleared store would silently refuse to learn it. The clearing belongs to
+    // the stop, not to the filter — a mode that dropped the filter entirely
+    // would still keep a floor, and stopping would still have to clear it.
+    this.state.seenFrom = 0;
     this.writeState();
     await this.saver.idle();
     this.database?.clear();

@@ -116,3 +116,32 @@ it("refuses to count content below the floor a second time", async () => {
     ),
   ).toBe(0);
 });
+
+it("clears the floor and the filter's disk reservation when learning is stopped", async () => {
+  vi.spyOn(getLogger(), "info").mockImplementation(() => {});
+  vi.spyOn(getLogger(), "warn").mockImplementation(() => {});
+  const { learning, store, dataDir, now } = fixture(80);
+
+  learning.configure({ enabled: true, biasing: false, hours: 24 });
+  await learning.settled();
+  await store.settled();
+  expect(store.seenFrom).toBeGreaterThan(0);
+  expect(statSync(join(dataDir, "speech-seen.bloom")).size).toBeGreaterThan(0);
+
+  await learning.reset();
+
+  // The floor is learned state, so stopping clears it with the counts. A
+  // surviving floor would tell the next scan that everything older than the
+  // last compaction was already counted, and a cleared store would refuse to
+  // learn it.
+  expect(store.seenFrom).toBe(0);
+  expect(learning.status().totals.words).toBe(0);
+  expect(() => statSync(join(dataDir, "speech-seen.bloom"))).toThrow();
+  expect(
+    store.observe(
+      "durable-session",
+      { source: "user", timestamp: now - 6 * HOUR, text: "distinctword0" },
+      store.settings().generation,
+    ),
+  ).toBeGreaterThan(0);
+});

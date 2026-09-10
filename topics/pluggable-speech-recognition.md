@@ -556,6 +556,22 @@ was off, then starts a scan. Stop + Clear cancels the current scan and clears
 counts, hashes, and checkpoints while preserving the opt-in settings.
 Enabling collection starts the selected retrospective scan. Catalog changes
 and completed/live session activity schedule coalesced subsequent learning.
+
+The hours setting says how far back to look, and that is all it says. It does
+not expire anything already collected: only Stop and Clear followed by a fresh
+start does that. It permits, and does not promise against, content before the
+window going uncollected. Nor does it promise that everything inside the window
+is collected — the floor described above can sit inside it after a compaction,
+and a scan counts nothing below the floor. So the setting bounds a scan's reach
+downward and guarantees nothing upward.
+
+Stop and Clear discards the floor along with the counts, receipts, and
+checkpoints. That coupling belongs to the stop rather than to the fingerprint
+filter: the floor records how far counting already reached, so any future mode
+that dedupes differently, or not at all, still keeps a floor and still has to
+clear it here. A floor that survived a clear would tell the next scan that
+everything older was already counted, and the cleared store would silently
+refuse to relearn it.
 Disabling collection stops it without clearing committed counts or progress;
 recognition can independently continue using the saved vocabulary. Interrupted
 scans resume by reconciling incomplete sessions on reentry. Reset clears counts,
