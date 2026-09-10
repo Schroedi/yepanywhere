@@ -2,303 +2,312 @@
 
 Topic: issue-session-associations
 
-Status: implementation plan, revised after an independent Opus 5 xhigh review
-on 2026-09-10. The maintainer selected this bounded MVP and requested the plan
-and review; no feature code has landed. The proposed wire contract still needs
-the normal compatibility review before implementation.
+Status: implementation plan, corrected to the maintainer's automatic-indexing
+MVP on 2026-09-10. No feature code has landed. Automatic evidence collection is
+required for the first release; manual-only linking is not a useful MVP for
+this request. The wire contract still needs the normal compatibility review.
 
 ## Outcome and scope
 
-Provide an experimental, default-off Issues & PRs sidebar surface that answers:
-"Where did we work on this ticket, and why are these sessions associated?"
-Support Jira tickets, GitHub issues, and GitHub PRs, with many sessions per item,
-many items per session, and multiple durable observations per association.
+Enable an experimental Issues & PRs section, then have YA discover ticket keys
+and issue/PR URLs in ordinary sessions, retain why each connection was found,
+and make the associated sessions searchable and navigable later. A user should
+not need to register every ticket or attach each session themselves.
 
-The complete first workflow is: paste a URL, add a title, associate sessions,
-discover supporting references, search by title/key/URL, inspect evidence, and
-navigate to the original issue or session. Correcting false matches and keeping
-the data through restart and schema upgrades are part of the MVP.
+The acceptance workflow starts with an empty issue database: view conversations
+mentioning a Jira key or GitHub issue/PR URL, let the indexer populate references
+and associations, then search the key/title/URL and inspect the source evidence.
+Paste-to-find, manual title editing, linking, confirmation, and dismissal are
+supporting controls for discovery and correction, not the primary workflow.
 
-Ship the manual workflow as the first useful increment. Persisted-message
-discovery is the next increment of this plan and remains required for its full
-completion; it must not hold manual linking hostage to a provider-reader rewrite.
-The first increment exposes no scan controls or promises of automatic discovery.
+Everything is scoped to one YA server's app data. One ticket may connect many
+sessions across projects, and one session may connect many tickets. Multi-server
+aggregation, controllers, replication, and cross-machine search remain future
+work. Existing source-scoped routing must still prevent querying server B for
+server A's records.
 
-All state belongs to one YA server's app-data database. Sessions may belong to
-different projects on that server. Multi-server aggregation, a controller,
-database replication, and shared search across machines are explicitly future
-work. Do not add their UI or infrastructure here. Existing client source
-scoping still applies: an item from server A must never be queried on server B.
+Defer branch/worktree discovery entirely in this MVP, including YA Workstreams.
+This is the deliberate scope reduction that protects automatic ticket discovery.
+Also defer tracker auth/synchronization, issue mutations, PR stacks, commit
+attribution, semantic matching, tool-output mining, and unbounded whole-corpus
+backfill. Do not build a generic arbitrary-entity graph framework.
 
-Also deferred: remote tracker authentication/synchronization, issue mutations,
-PR stacks, automatic completion/settlement, commit attribution, semantic
-matching, and automatic whole-corpus transcript indexing. This is a concrete
-issue/PR feature, not an extensible arbitrary-entity graph framework.
+## Existing work and source evidence
 
-## Existing work and reference audit
+Planning searched `tasks/` and `on-deck/` (absent), topics, tactical plans, and
+`gaps/`. Existing owners and constraints:
 
-Planning searched `tasks/` and `on-deck/` (both absent), `gaps/`, topics, and
-tactical plans. Preserve these boundaries:
-
-- [Roadmap](../roadmap/README.md): ticket/PR links are a later direction; this
-  plan does not reprioritize the publishing initiative.
+- [Roadmap](../roadmap/README.md): this remains a later product direction; the
+  plan does not reprioritize publishing.
 - [Built-in SQLite](../../topics/optional-sqlite.md): reuse
   `packages/server/src/storage/{sqlite,discovery-sqlite}.ts` and
-  `{dataDir}/discovery.sqlite`. Current code has schema versions 1-3. Version 3
-  drops the old vocabulary counts/receipt tables; only the unused
-  `speech_vocabulary_state` table remains. Active vocabulary settings and counts
-  live in `speech-vocabulary-state.json` and a separate local-disk
-  `speech-vocabulary.sqlite`. Discovery storage currently gates vocabulary
-  availability rather than owning its live data; issues would be its first
-  active data tenant. Correct the stale version-2 topic when migration work
-  lands, and allocate the next version against the then-current tree.
-- [Cold-storage startup gap](../../gaps/sqlite-backed-cold-storage-startup.md):
-  indexed cold queries are relevant; migrating existing JSON metadata stores
-  is separate work and this plan does not close that gap.
-- [Commit/session attribution](../../gaps/committed-change-session-attribution.md):
-  shares the evidence principle, but its opted-in Git notes writer is separate.
-  This feature writes no project files or Git metadata.
-- [All-session search](../../topics/all-session-content-search.md): title
-  search here covers stored issues, not arbitrary transcript content. The
-  selected-session scan does not establish a global search index.
+  `{dataDir}/discovery.sqlite`. Code currently has migrations 1-3. Version 3
+  removed the old vocabulary receipt/count tables; the remaining vocabulary
+  state table is unused by current code. Active settings/counts live in a JSON
+  settings file and separate `speech-vocabulary.sqlite`. Discovery readiness
+  still gates vocabulary startup. Correct the stale version-2 topic when the
+  migration work lands and allocate new IDs against the current tree.
+- [Cold-storage gap](../../gaps/sqlite-backed-cold-storage-startup.md): do not
+  add evidence blobs to the all-in-memory JSON session metadata store. Migrating
+  that existing store is separate work.
+- [All-session search](../../topics/all-session-content-search.md): this feature
+  indexes issue references, not a general full-text transcript corpus. Reuse its
+  visible-text/access principles without importing the whole search proposal.
+- [Session remaps](../../topics/session-id-remap.md) and
+  [working directories](../../topics/agent-working-directory-tracking.md): use
+  canonical YA session identity and current effective project mapping.
+- [Architecture mandates](../../topics/architecture-mandates.md): one bounded
+  acquisition/indexing owner, no repeated full-corpus parse or idle-session loops.
+- [Project storage](../../topics/project-directory-storage.md): no project files,
+  Git metadata, notes, or refs are written by this feature.
+- [Commit attribution](../../gaps/committed-change-session-attribution.md) and
+  [session worktree identity](../../gaps/session-worktree-file-links.md) are
+  related evidence problems, but neither is a dependency or closed by this work.
+- `services/voice/vocabulary-sessions.ts` and `VocabularyLearning.ts` show
+  persisted extraction, source-version checkpoints, coalescing, cancellation,
+  and progress. Reuse these concepts, not their whole-catalog scan policy or an
+  assumption that compaction paging bounds source reads.
 - [SQLite capability test gap](../../gaps/version-speech-session-terms-test.md):
-  inspect the recorded readiness assertion before adding another SQLite-dependent
-  capability. Concurrent work may already have corrected it or changed the
-  session-terms advertisement; recheck current code rather than assuming the
-  recorded failure still exists. If fixed here, isolate that correction and
-  remove its gap in the closing commit; do not change existing advertisements
-  merely to satisfy the test.
-- [Session ID remaps](../../topics/session-id-remap.md) and
-  [working directories](../../topics/agent-working-directory-tracking.md):
-  preserve canonical YA identity and distinguish effective project from
-  provider transcript location.
-- [Session worktree file gap](../../gaps/session-worktree-file-links.md): YA
-  does not reliably retain the actual sibling worktree used by a session.
-  General worktree/branch inference is deferred. The narrow available precedent
-  is `SessionMetadata.workstreamId` and `WorkstreamService` lane metadata;
-  [Workstreams](../../topics/workstreams.md) remains a separate experiment.
-- `services/voice/vocabulary-sessions.ts` and `VocabularyLearning.ts` provide
-  precedents for persisted-session extraction, source-version validation,
-  coalescing, cancellation generations, and progress. Their compaction-window
-  paging does not bound source acquisition for every provider; reuse those
-  lifecycle concepts, not the whole-catalog scanner or its acquisition policy.
+  recheck the recorded readiness assertion against concurrent corrections before
+  touching version tests. Preserve existing capability semantics; if an open gap
+  is fixed here, isolate that correction and remove its entry in that commit.
 
-T3 Code was inspected at `d29c56a5c` (2026-09-10) in `~/github/t3code`.
-Paths below are relative to that reference checkout, not YA dependencies:
+### What YA actually knows about Workstreams and branches
 
+`SessionMetadataService.ts` has optional `workstreamId` and a `setWorkstream`
+writer. `routes/sessions.ts` resolves it only when explicitly supplied, checks
+`workstreamsEnabled`, and persists it for a selected YA lane. `WorkstreamService`
+stores lane path/branch metadata. This is implemented experimental lane plumbing,
+not automatic discovery of arbitrary Git worktrees used by ordinary sessions.
+The read-only localhost:3400 check on 2026-09-10 returned
+`workstreamsEnabled: false`; the project workstreams route returned disabled.
+The maintainer has not used this feature. It must not constrain this MVP.
+
+The review's claim that there is no branch evidence outside Workstreams was
+also too strong: `shared/src/claude-sdk-schema/entry/BaseEntrySchema.ts` carries
+optional `gitBranch` and a `cwd`, and provider transcripts retain these facts.
+Those could later support provider-reported observations; they do not by
+themselves prove every tool's actual working directory or a repository mutation.
+Future branch/worktree discovery should compare provider metadata, tool cwd,
+and properly scoped Git observations, recording their provenance independently
+of whether YA created a lane. All such extraction is deferred here.
+
+### How T3 collects associations
+
+Read-only reference: `~/github/t3code` at `d29c56a5c`, 2026-09-10. Paths in this
+subsection are relative to that checkout, not YA runtime dependencies.
+
+- `apps/server/src/orchestration/ThreadPullRequestReactor.ts` groups eligible
+  threads by saved project/worktree/branch, reacts to thread metadata and turn
+  lifecycle changes, and performs a periodic sweep. It asks
+  `git/GitManager.ts::branchPullRequest` for the PR matching that branch.
+  GitManager resolves remotes/upstreams and calls the source-control provider's
+  `listChangeRequests`; it validates repository identity and caches lookups.
+  This is Git/remote-PR correlation, not arbitrary Jira-key transcript extraction.
+- `apps/server/src/git/linkCreatedPullRequest.ts` associates a PR produced or
+  opened by a T3 Git action with its thread, using source `created`.
+- `apps/server/src/mcp/toolkits/pullRequests/handlers.ts` implements
+  `link_pull_request`, scoped to the invoking thread, recording source `agent`.
+- `apps/server/src/orchestration/PullRequestSyncReactor.ts` refreshes known PR
+  summaries, groups requests by PR, and links host-reported stack members.
 - `apps/server/src/persistence/Migrations.ts` statically registers numbered
-  migrations through Effect's SQL migrator and tracks them in
-  `effect_sql_migrations`. Adopt explicit registration and old-data upgrade
-  fixtures; do not add Effect or replace YA's runner.
-- `Migrations/042_ProjectionThreadLinkedPullRequest.ts` and
-  `048_ProjectionThreadBranchPullRequest.ts` added single JSON fields.
-  `050_ProjectionThreadPullRequests.ts`, under the same persistence directory,
-  introduces `(thread_id, host, repository, number)` links and a reverse index,
-  backfills old links, and retains the legacy column.
-- `apps/server/src/persistence/ProjectionThreadPullRequests.ts` stores a link
-  source and cached snapshot/stack JSON. YA needs separate observations because
-  one association can have several independent reasons.
-- `packages/shared/src/threadPullRequests.ts` normalizes external identity,
-  supplies title/URL search terms, and hides dismissal tombstones. Preserve the
-  useful rule that automatic rediscovery does not reverse a user's dismissal.
+  migrations through Effect. Migrations 042/048 added single PR JSON columns;
+  050 added many-to-many links plus a reverse index and backfilled old links.
+  `ProjectionThreadPullRequests.ts` stores source and cached snapshot/stack JSON.
+  `packages/shared/src/threadPullRequests.ts` normalizes identity, exposes search
+  terms, and preserves hidden stack-dismissal tombstones.
 
-T3's persisted PR snapshot is a refreshable summary of remote title/state,
-branches, checks, etc.; it is not association evidence. Its client aggregation
-of independent environments is a future reference only.
+No general Jira/ticket-number transcript indexer was found in these paths.
+Borrow explicit discovery producers, stable external identity, deduplication,
+and dismissal protection. YA's initial producer is a deterministic reference
+extractor over session text; it does not require T3's Git actions, agent MCP,
+remote credentials, or Workstreams. A current PR snapshot is a cache, distinct
+from the historical evidence explaining an association.
 
-## Proposed product behavior
+## Automatic indexing contract
 
-### Enablement and failure behavior
+### Scope and controls
 
-Use one explicitly server-scoped, persistent experimental opt-in for this
-feature's retention and discovery. Add `issueAssociationsEnabled?: boolean` to
-the existing `ServerSettingsService`, default false, following its
-`workstreamsEnabled` precedent. Settings must say it applies to this YA server.
-Do not build a generic settings or demand-lease framework to deliver it. The
-sidebar entry and session controls are hidden until enabled.
+One server-scoped experimental opt-in enables the complete feature. Use the
+existing `ServerSettingsService` rather than a new settings framework. Proposed
+settings: `issueAssociationsEnabled` (false), `issueIndexScope` (`viewed` by
+default, or `recent`), and `issueIndexRecentDays` (7 by default; integer 1-90).
+Selecting recent mode explicitly authorizes bounded recent-session indexing.
 
-Enabling creates no historical scan or tracker network request. SQLite may
-create empty tables as infrastructure before opt-in, but records are acquired
-only while enabled. Disabling cancels scans, unregisters observers, rejects
-stale-client writes, and preserves existing records. Re-enabling does not
-silently catch up the intervening history. A generation fence prevents work
-started before disable/delete from publishing afterward.
+- **Viewed sessions:** normal authenticated session viewing automatically
+  indexes the persisted message window already delivered; loading older pages
+  indexes those pages too. There is no separate Scan click to make the feature
+  useful. Reuse normalized server-side data from the authorized detail read,
+  before public-share projection and without another full transcript read.
+  While a session has active view demand, completed turns trigger bounded
+  capture of newly persisted content. Closing the last view releases its
+  ongoing demand; a bounded in-flight batch may finish, but no idle loop remains.
+- **Sessions active in the last N days:** automatically admit sessions whose
+  catalog activity is within the window and continue eligible changed sessions.
+  The setting selects sessions by activity, not messages by timestamp: their
+  history may include older messages. State that explicitly in Settings. Viewed
+  older sessions may additionally contribute their viewed windows. Expanding N
+  queues newly eligible candidates; reducing N stops new background acquisition
+  outside it. Already retained metadata/evidence is not deleted as it ages out.
 
-Storage failure must never acknowledge an unsaved link. Surface an actionable
-error while ordinary sessions remain usable. If SQLite is unavailable, show
-unavailability in the supported settings surface rather than an empty issue
-list that appears to have lost data. No localStorage database fallback.
+Show coverage: viewed windows only, queued/indexing, indexed through a source
+position, stale, unsupported, or failed. An empty partial result cannot claim
+that no session mentions the ticket. A recent-window sweep returns results
+incrementally and is resumable after restart; it does not block server startup
+or the first usable issue list. Do not automatically backfill all history.
 
-### Issue identity and titles
+Disabled state hides the sidebar/controls, releases indexing demand, cancels
+background work, and rejects new acquisitions/writes from stale clients.
+Disabling preserves records. Re-enabling viewed mode waits for new view demand;
+re-enabling recent mode resumes the configured recent window. A generation fence
+prevents in-flight work from publishing after disable, deletion, or scope changes.
 
-Use a concrete `external_issues` table, with kind `jira-issue`, `github-issue`,
-or `github-pr`. An opaque local ID addresses the record; a unique normalized
-external key prevents duplicate records from different pasted URLs.
+### Extract references without preregistered issues
 
-- GitHub: host, normalized owner/repository, number, and kind. Recognize
-  ordinary `/issues/N` and `/pull/N` URLs, including suffixes such as `/files`.
-- Jira: host and normalized issue key from `/browse/KEY-N`. Only supported,
-  unambiguous URL forms are accepted in this slice; no URL resolution request.
-- Store the canonical navigation URL separately from the exact observed URL.
-  Fragments and tracking parameters must not create new items. Preserve a
-  useful comment/message fragment in evidence, without retaining credentials
-  or authentication query parameters.
-- Include the host in every identity. Do not treat `#123` as globally unique,
-  infer tracker kind from arbitrary URL shapes, or collapse Jira tenant names.
-  Nonstandard/self-hosted URLs require an explicit tracker interpretation;
-  unsupported forms produce a clear validation result.
+Use one deterministic extractor for both viewed windows and background batches:
 
-An issue can exist without a session link. It remains findable by URL/key when
-untitled. Keep an editable title override separate from an observed title and
-its provenance; manual text wins until explicitly cleared. A Markdown label
-may supply a candidate title when it is actually descriptive. Never invent a
-title or claim an observed label is an authoritative remote value.
+- Jira-style keys with token boundaries, such as `ABC-123`.
+- Full Jira issue, GitHub issue, and GitHub PR URLs.
+- Repository-qualified GitHub references such as `owner/repo#123`.
+- `#123` only when the text explicitly calls it an issue/PR and trustworthy
+  repository context is available; arbitrary bare numbers are not issue evidence.
 
-No remote cache is needed to ship. Add nullable cached summary fields only
-with a consumer, in a later migration; do not reserve PR-stack schema now.
+Create evidence and discovered associations automatically when identity resolves.
+Existing registered issues are not a prerequisite. Keep an unresolved reference
+searchable with its session/source when a Jira host, repository, or issue-vs-PR
+kind is unknown; uncertainty must not discard the ticket mention or invent a URL.
+Resolve with an explicit full URL in matching scoped context, an unambiguous
+existing mapping, or an operator-supplied project tracker/repository mapping.
+Different Jira tenants or repositories sharing a key/number never silently merge.
+Group unresolved search results by reference plus observed project/tracker
+context; the same text across unrelated contexts is not one canonical issue.
+A false-positive candidate can be dismissed; use supported patterns/configured
+prefixes rather than an LLM classification step. Case and delimiter normalization
+must be deterministic and tested.
 
-### Associations, evidence, and corrections
+The corpus is ordinary visible user/assistant message text. Exclude hidden
+instructions, reasoning, synthetic setup, tool arguments/results, and raw logs.
+A ticket-like string in conversation is evidence of mention, not evidence that
+work was implemented or completed. Provider-reported branch/cwd data is outside
+this first extractor. Remote title fetching and tracker mutation are absent.
+Titles can come from a descriptive Markdown label or manual override, with
+provenance. Key/URL search works before a title exists; do not fabricate titles.
 
-`session_issue_links` has a unique `(issue_id, session_id)` pair and state
-`discovered`, `confirmed`, or `dismissed`, with creation/update/decision times.
-Manual linking confirms; automatic evidence creates discovered links and does
-not downgrade confirmed links. Repeated observations do not change dismissal.
-An explicit relink/confirm can restore a dismissed association.
+### Acquisition and scheduling
 
-`session_issue_evidence` references the link and records:
+The viewed-window path adds no source read: consume the already-authorized
+persisted normalized records. It must cover normal detail-return branches and
+incremental page loads, not only one provider/happy path. Run extraction in
+bounded chunks outside response-critical synchronous work; never retain entire
+transcript arrays in an unbounded queue. Reject public-share traffic as an
+indexing trigger. Use exact persisted IDs/source locators and wait for durable
+identity when a live-only row has not yet been saved.
 
-- kind: manual, message URL, or workstream branch;
-- a bounded observed value and optional human explanation;
-- source occurrence time when known and a separate observation time;
-- stable message/turn reference where available, or a provider-owned source
-  locator with its source generation; bounded excerpt for later explanation;
-- repository/project context, lane ID, and configured branch for Workstream
-  evidence, labeled as lane metadata rather than proof of a Git operation;
-- extractor version and a deterministic occurrence key for deduplication.
+Recent-window indexing and unseen persisted tails need real bounded acquisition.
+`ISessionReader.getSession` currently has presentation selectors, not universal
+byte limits; Claude loads `claudeTranscriptCache` before filtering, and one
+compaction window can be arbitrarily large. Add an optional provider-owned
+bounded persisted-message iterator that reuses parsing/normalization helpers,
+with byte/record limits, deadline/abort signal, cursor and coverage information.
+Never silently fall back to loading an entire transcript. Prove Claude and
+Codex paths first, including lineage/compaction identity. Other providers retain
+automatic viewed-window indexing where normalized persisted text is available,
+and clearly report any unsupported background acquisition.
 
-Extract message evidence only from persisted source records. Retries of the
-same occurrence converge; different occurrences remain separate evidence.
-Use a stable persisted message ID plus normalized URL, or a provider-owned
-source locator/generation when no message ID exists. A timestamp alone is not
-unique, and a content-only fingerprint must not merge repeated quotations in
-different messages. Rewrites invalidate scan coverage without erasing historical
-observations. An extractor-version change must not blindly duplicate existing
-occurrences. Do not invent source timestamps or message anchors. Historical
-evidence remains readable when its original source is unavailable; mark source
-navigation unavailable rather than fabricating a jump.
+One server-owned worker coalesces view/turn/catalog signals by canonical session
+and source version. Viewed sessions have priority. Recent candidate enumeration
+is paged over catalog metadata; unchanged cold transcripts are never reparsed
+by a timer. Start with one active acquisition, at most 16 pending session IDs,
+8 MiB/2,000 logical records per batch, a 30-second batch deadline, and 100 rows
+per SQL transaction. Bound individual reads before allocation, including an
+oversized JSONL record. Yield between batches. These are starting limits to
+validate on fixtures, not measured performance claims.
 
-Use foreign keys from evidence to links and links to issues. Sessions remain
-owned by the existing catalog, not copied into a new SQL sessions table.
-Missing/archived sessions do not cascade-delete metadata. Resolve current
-session titles and project membership through existing canonical services.
-Resolve aliases on every write. Do not persist automatic observations under
-unresolved provisional launch IDs. Manual linking during that brief state
-returns a retryable session-not-ready result. The existing supervisor remap is
-the integration point, not only the public event, which can be omitted when
-the old ID was never published. Any remap of saved IDs merges colliding links
-and evidence transactionally; preserve the latest explicit user decision, with
-dismissal winning an equal-time conflict, and never lose observations through
-`UPDATE OR IGNORE` followed by deleting the losing row. Do not migrate the JSON
-session catalog into SQLite to solve this local merge.
+Batch limits mean automatic yielding/requeueing while scope/demand remains
+eligible, not requiring the user to click Continue for each batch. Fairness
+must prevent one large session starving others. Persist coverage and a
+candidate-enumeration cursor so queue saturation leaves discoverable pending
+work rather than silently losing sessions or retaining an unbounded queue.
+Source rewrites invalidate checkpoints without erasing historical evidence.
+Settings changes and shutdown cancel stale generations; failures use bounded
+retry/backoff and visible state, not an endless per-session poll loop.
 
-Unlink is a durable dismissal retaining evidence and a way to restore it.
-Deleting a saved issue explicitly removes its links/evidence after explaining
-that scope; it is not a permanent exclusion and a later new observation or
-requested scan may rediscover it. In-flight scans cannot undo deletion. Turning
-off the experiment is not deletion. Manual metadata and evidence have no
-automatic expiry; search-index maintenance never purges them.
+## Data, evidence, and corrections
 
-### Discovery and its limits
+Keep three domain tables, plus small operational indexing checkpoints as needed:
 
-Use one extractor over normalized, visible user/assistant messages from the
-persisted source. Do not attach per-process live-message subscriptions or change
-the transcript presentation pipeline. Exclude hidden prompts, reasoning, tool
-arguments/results, and incidental raw logs. Show those coverage limits; tool
-output discovery remains future work. Discovery is eventually visible after
-persistence and a bounded scan, not immediately on each live token.
+- `external_issues`: canonical external identity and URL, kind, observed title
+  and source, manual title override, timestamps. Host participates in identity.
+  Normalize GitHub owner/repository and number and Jira host/key. Strip navigation
+  suffixes/tracking parameters for identity; preserve safe source anchors in
+  evidence. No credentials or authentication query parameters are retained.
+- `session_issue_links`: unique `(issue_id, canonical YA session_id)`, state
+  `discovered`, `confirmed`, or `dismissed`, and creation/decision times.
+  Automatic discovery is visible without requiring confirmation. Manual actions
+  can confirm/correct it; new evidence never undoes dismissal.
+- `session_issue_evidence`: the source session, occurrence key, kind
+  `message-url`, `ticket-key`, or `manual`, observed value, bounded excerpt/note,
+  source locator, occurrence/observation times and extractor version. The link
+  reference is nullable while a raw reference awaits resolution; index unresolved
+  keys with their project/tracker context so searches already find the sessions.
+  When resolution succeeds, attach existing evidence to the canonical link
+  atomically. Suppression of an unresolved occurrence survives reindexing.
 
-Use exact changed-session/completed-turn signals already owned by the server
-to schedule a scan for that session, then resolve its canonical catalog entry.
-Do not transplant vocabulary's loop over the entire catalog onto each update.
-Changes while disabled and history older than the first admitted observation
-are not automatically backfilled. Persist source-version/position checkpoints
-and label coverage partial until an explicit retrospective scan covers it.
-Compare source generation before/after acquisition; invalidated work cannot
-advance a checkpoint or certify coverage. Idempotent batches may retain
-already-committed historical evidence while the source is reconciled.
+Operational checkpoints track source coverage and queued recent enumeration;
+these are rebuildable state, not a fourth user-facing entity. Do not call all
+of `discovery.sqlite` disposable. Evidence-to-link and link-to-issue references
+use foreign keys. Session records remain owned by the current catalog.
 
-There is currently no provider-neutral bounded acquisition API.
-`ISessionReader.getSession` accepts presentation selectors, and the Claude
-reader loads `claudeTranscriptCache` before applying `afterMessageId`.
-`tailCompactions: 1` can still describe an arbitrarily large uncompacted file.
-An evidence-row limit cannot protect against that read. Explicitly budget an
-optional provider-owned bounded persisted-message iterator in step 4, sharing
-existing parsing/normalization helpers. Its contract takes source-byte and
-record limits, a deadline/abort signal, and an opaque cursor, and returns
-coverage/continuation information. It must bound acquisition before allocation,
-including oversized JSONL records. Existing full-detail readers need not change.
-Unsupported adapters report that status; they never silently fall back to a
-whole-transcript read. Prove Claude and Codex adapters first, including Codex
-lineage/compaction identity; manual associations work for all providers.
+Deduplicate by stable persisted message ID/source occurrence and normalized
+reference. A timestamp or content-only hash is insufficient: distinct repeated
+mentions must survive, and a parser upgrade must not duplicate the same sighting.
+Extract URL and enclosed ticket-key text as one observation when they identify
+the same occurrence. Cap excerpts at 512 characters and URL inputs at 4 KiB;
+paginate evidence instead of imposing a lossy lifetime evidence-count cap.
 
-Starting limits to implement and validate: one active scan per server, a
-coalescing pending set of at most 16 distinct sessions, at most 8 MiB acquired
-and 2,000 logical messages per pass, and a 30-second deadline. Queue overflow
-leaves explicit stale/partial coverage rather than spawning work or marking a
-session scanned. Closing the scan view releases its explicit demand; disable
-and shutdown cancel all work. Yield between acquisition/write batches and cap
-SQL batches at 100 evidence rows. Admission of further historical passes
-requires explicit continuation; unchanged sessions receive no timer-driven
-scan. Cap retained excerpts at 512 characters and URLs at 4 KiB. These are
-proposed starting limits, not measured performance claims.
+Source-session identity exists even for unresolved observations. Resolve aliases
+on writes, avoid unresolved provisional launch IDs, and integrate saved-ID
+remaps with the supervisor's internal mapping, not just its optional public
+notification. Merge collisions by unioning evidence and preserving the latest
+explicit decision, with dismissal winning an equal-time tie. Missing sessions
+remain marked unavailable; archiving, project moves or missing transcripts do
+not erase evidence. Source anchors that no longer resolve are labeled unavailable.
 
-Scan this session requests a bounded retrospective pass through that same
-iterator, with progress, cancellation, continuation, and honest unsupported
-states. Identical requests share one session/source-generation owner. Durable
-checkpoints resume supported cursors; rewrites invalidate them without losing
-manual decisions. Restart restores checkpoints, not automatic whole-corpus
-work. An empty partial result never claims that the whole session has no links.
+Dismissal retains evidence and can be reversed explicitly. Deleting a saved
+issue explains that it removes its resolved links/evidence; a genuinely later
+observation may rediscover it. In-flight work cannot reverse deletion. Unresolved
+observations can be removed/dismissed explicitly without inventing an external
+issue. Disabling/index-window expiry is never a data purge. Manual titles,
+notes, decisions and historical observations have no automatic expiry.
 
-Limit branch evidence to explicit YA Workstream membership and lane branch
-metadata. Capture what was known at observation time; a later lane branch does
-not prove what an older session checked out. Match exact Jira keys to
-already-known, unambiguous issues; multiple matching tenants stay unresolved.
-GitHub shorthand additionally needs exact repository identity. A bare number
-is insufficient. Missing lane metadata simply produces no branch evidence.
-Do not enable Workstreams or infer general tool cwd/worktree relationships here.
-No new Git polling, directory watcher, process scan, or per-session timer.
+## Search and UI
 
-### Browsing and search
+The opt-in Issues & PRs sidebar lists automatically discovered issues/references,
+with key/title/provider, resolution state and associated-session count. Search
+stored keys, title and URLs with case-insensitive literal substring matching.
+Unresolved keys appear as unresolved, with their associated sessions and source
+text; external navigation waits for real identity. Opening an issue lists its
+sessions and expandable evidence. Session detail shows the reverse references.
+Paste a URL to find/resolve an item or add a missing association, not to seed the
+indexer. Confirmation, dismissal/restore and manual titles remain available.
 
-The sidebar entry opens a list of saved issues with kind/provider, key, title,
-and visible associated-session count. A detail view lists sessions with their
-confirmation state, expandable evidence, and external/source navigation.
-Session controls show the reverse association list and an add/link action.
-Provide restore access for dismissed associations without including them in
-ordinary counts. Distinguish untitled, empty, loading, unavailable, and failed.
+Show indexing coverage beside results, including provider limitations and the
+selected recent window. Do not make lack of remote titles look like index failure.
+Use bound SQL with escaped LIKE metacharacters; no FTS/semantic search machinery.
+Paginate list/evidence reads (default 50, maximum 100), index canonical identity,
+reference keys, session reverse lookups and checkpoint ownership. Apply project
+filters using current catalog membership before final page limits; a bounded
+candidate continuation must not pretend a filtered first page is all results.
 
-Search is case-insensitive literal substring matching over saved title/key/URL.
-Without remote enrichment, title search covers manual titles and observed link
-labels only; key/URL search is useful immediately. Optional project filtering
-resolves associated sessions' current effective project through the catalog,
-not a frozen project ID stored on the link. Apply the filter before final page
-limits, using bounded candidate batches with a continuation cursor when needed;
-do not filter one SQL page and incorrectly declare no matches. Escape SQL LIKE
-metacharacters and bind inputs; searching `%` must search a literal percent.
-Start with SQL over these small records, not FTS or transcript indexing.
-Paginate both list and evidence reads (default 50, maximum 100), use stable
-cursors/order, and index canonical identity and reverse session lookups. Keep
-pagination so long-lived evidence does not require a lossy retention cap. A
-limit on returned rows does not bound SQL work: validate straightforward LIKE
-queries on a realistic saved-issue fixture. A specialized text index needs
-observed evidence and a separate follow-up, not a speculative MVP dependency.
-
-Reuse existing components/theme tokens, CSS Modules, canonical session routes,
-and source-scoped requests. New UI strings go through English i18n keys.
-Long URLs/titles and evidence actions must work on desktop and phone without
-requiring hover. The browser never becomes the metadata owner.
+Reuse existing theme/components, CSS Modules, English i18n keys, session routes
+and client source runtime. Long keys/URLs and evidence controls work on phone
+without hover. All records stay server-owned. Existing session-access controls
+apply to counts, unresolved references, excerpts and navigation. Public shares
+neither trigger indexing nor receive issue metadata. Storage failure never
+acknowledges unsaved data or masquerades as an empty list; no localStorage fallback.
 
 ## SQLite migration policy
+
 
 Keep `PRAGMA user_version` as the schema authority and the YA application ID
 check. One ordered sequence owns the shared database; features do not maintain
@@ -349,150 +358,106 @@ another storage lifecycle/version owner. Reconsider only if mixed-version or
 independent recovery requirements justify it; do not couple issue retention to
 vocabulary's rebuildable scratch-storage or weaker durability policy.
 
-## Proposed compatibility boundary
+## Compatibility and implementation sequence
 
-No wire changes are approved by this documentation commit. Before editing
-shared types/routes/client consumers, inspect the latest two stable releases
-and all stable releases in the preceding 14 days, then present the exact
-release corpus, proposed gate, and absent-gate behavior for maintainer review
-under [DEVELOPMENT.md](../../DEVELOPMENT.md#clientserver-compatibility-review).
-Do not reuse the September 8 corpus without checking for newer releases.
+The first public capability covers the automatic MVP, not a manual-only release.
+Propose sparse optional `issue-session-associations-v1` for settings/scope,
+issue/reference search, association/evidence reads and corrections, view
+indexing admission, and coverage/progress. Advertise only with implemented
+indexing and ready SQLite, independently of opt-in; routes separately enforce
+policy, authorization and per-provider background availability. An absent bit
+hides controls and sends no new requests. Existing SQLite status can explain
+unavailability without guessing a detailed failure reason.
 
-Propose a new sparse optional `issue-session-associations-v1` capability for
-settings/status, issue CRUD/search, reverse links, confirmation/dismissal, and
-paginated evidence. Follow the existing readiness-gated advertisement site in
-`routes/version.ts`, independently of the enabled setting, so capable clients
-can show the opt-in. Server routes independently enforce enablement and request
-authorization. Add a separate `issue-session-discovery-v1` capability when the
-persisted discovery increment lands, covering scan start/status/cancel/continue
-and per-provider support/coverage. Do not expand the manual capability to imply
-scan support on already-released servers. Final paths, payloads, and both
-increments' release corpora belong to their compatibility reviews.
+Before editing wire types/routes/client consumers, inspect the latest two stable
+releases and all stable releases from the preceding 14 days, then present the
+exact corpus, paths/fields/events, gate and fallback for maintainer review under
+[DEVELOPMENT.md](../../DEVELOPMENT.md#clientserver-compatibility-review).
+Do not infer approval from this document or expand existing capability meanings.
 
-Absent manual capability: hide feature controls and send no feature requests.
-Absent discovery capability: preserve manual browsing/linking, hide scan
-controls, and send no discovery requests. An unsupported direct URL gets a
-clear unavailable view. Existing capabilities, protocol levels, session payload
-semantics, and older fallbacks keep their
-meaning. Reads/writes use existing authenticated session-access boundaries;
-counts, excerpts, and source navigation must not expose inaccessible sessions
-or flow into public shares. Reads from one source server stay on that source.
+### 1 — Pin the automatic contract and migration upgrades
 
-## Implementation sequence
+Complete compatibility review. Freeze current SQL migrations and add prefix
+upgrade fixtures for empty/v1/v2/v3 databases, repeat startup, failure rollback,
+contention, newer-schema refusal, and Node/Bun interchange. Preserve historical
+v3 behavior and active vocabulary's separate files/readiness. Correct the SQLite
+topic. Begin the owning `topics/issue-session-associations.md` as behavior lands;
+keep speculative future extensions out of the implemented contract.
 
-### 1 — Pin contracts and migration upgrades
+### 2 — Persist extracted references and their evidence
 
-Complete the compatibility review above. Create the owning
-`topics/issue-session-associations.md` as implemented behavior lands, leaving
-future-only extensions in this plan or a sketches companion. Update the SQLite
-topic's current schema description and migration policy. Extract/freeze current
-migrations and add tests for empty, v1, v2, and v3 databases, rerun no-ops, failed
-upgrade rollback, contention, newer-schema refusal, and Node/Bun interchange.
-Fixtures must preserve the historical v3 drop behavior, leave the separate
-active vocabulary files unchanged, and verify that a successfully upgraded
-discovery handle still enables vocabulary. Once issue records exist, every
-subsequent upgrade fixture must preserve their titles, decisions, and evidence.
+Implement canonical URL/key extraction, unresolved observations, context-aware
+resolution and merge, three domain tables, indexing checkpoints, and the focused
+service. Add idempotent writes, source/session remaps, dismissal/delete fences,
+search, pagination and current-project filtering. Pure extractor tests must
+begin with an empty issue registry and find real ticket keys and URLs.
 
-### 2 — Persist issues, associations, and evidence
+### 3 — Deliver automatic viewed-session indexing
 
-Add the next migration and a focused issue service under server services,
-with prepared/bound SQL and explicit transaction ownership. Add URL identity
-helpers and defensive payload validation in shared code only where consumed.
-Implement title override/provenance, link state transitions, deduplication,
-remap handling, pagination, deletion fences, and unavailable-session behavior.
-Test manual and discovered data across restart and schema upgrades.
+Connect the extractor to authorized persisted-message windows already loaded
+for session views, including older-page and incremental paths. Add view-demand
+ownership and bounded acquisition for newly persisted tails on core providers.
+Verify viewing two ordinary sessions automatically creates searchable evidence
+without manual linkage, Workstreams, or remote credentials. Add the sidebar,
+search/detail/reverse-reference UI and correction controls around this behavior.
+The feature does not ship at a manual-only intermediate milestone.
 
-### 3 — Expose the manual workflow and experimental UI
+### 4 — Add configurable recent-session indexing
 
-Add the reviewed capability, opt-in, and dedicated routes; compose them into
-server startup without growing a general metadata hub. Implement the list,
-paste/search, issue detail, session reverse links, evidence display, and
-confirm/dismiss/restore/delete actions. At this point the complete manual
-workflow is usable, though the final MVP still requires discovery below.
-This is a shippable increment with its own manual-only capability and completed
-topic contract. Prove disabled/old-server behavior, write failures, and
-cross-client refresh. The later discovery increment adds its own capability.
-Use explicit mutation invalidation and existing lifecycle refresh paths; if
-new events are needed, include them in the compatibility review, not polling.
+Implement bounded provider iterators and recent catalog enumeration, incremental
+checkpoints, automatic fair continuation, progress and scope changes. Use exact
+changed-session signals and metadata invalidation rather than reparsing the
+whole catalog on every event. Prove Claude/Codex support, capture source identity
+across compaction/lineage, and advertise other adapters' limitations honestly.
+The configured recent scope is part of this plan's complete MVP. A deliberate
+viewed-only release can be discussed separately if this step proves costly;
+that would still include automatic extraction, never a manual-only substitute.
 
-### 4 — Discover references with bounded work
+### 5 — Verify the automatic workflow and observable contracts
 
-First implement and prove the optional bounded acquisition contract described
-above, with Claude/Codex adapters and an unsupported fallback for other readers.
-This is explicit provider-reader scope, not a property of the existing detail
-route. Reuse provider normalization without introducing a second transcript
-store or changing full-detail behavior. Read the owning provider topics and
-obtain any required protocol approval before changing those implementations.
+Required end-to-end scenario: start empty with Workstreams disabled. View two
+sessions mentioning `ABC-123`, one also mentioning a GitHub PR URL. Without
+creating a manual link, find the key and PR, see both sessions and their source
+evidence, resolve the Jira host from a later explicit URL/context, and search
+again after restart. Test a manually edited title, but do not depend on it for
+the initial discovery. Dismiss a false match and reindex without restoring it.
 
-Then wire exact changed-session/completed-turn signals into one coalescing
-persisted-source scheduler, using vocabulary's generation/checkpoint lifecycle
-as precedent. Add the explicit selected-session scan and Workstream metadata
-evidence where available. Test duplicate sightings, source rewrites, missing
-anchors, URL variants, namespace ambiguity, acquisition ceilings, oversized
-records, queue saturation, cancellation, resume, disable, and deletion races.
-Unknown facts remain unknown. Every admitted job and subscription has teardown.
-Do not claim this increment complete if core provider discovery only returns
-unsupported; ship the already-complete manual increment while resolving it.
+In recent mode, configure N, discover an unopened eligible session, verify
+out-of-window sessions are not scanned, and change N. Prove bounded acquisition,
+fair automatic continuation, restart recovery, source rewrites, repeated views,
+duplicate deliveries, unresolved namespace conflicts, large records, queue
+saturation, disable/re-enable and deletion races. Reaching a scan batch limit
+must not quietly require manual work to complete automatic indexing.
 
-### 5 — Verify the complete workflow and document its limits
+Use realistic multi-project fixtures, long titles, repeated mentions and missing
+transcripts. Verify access isolation and absence from public-share payloads.
+Run repository-required lint, formatting, typecheck, unit and browser checks,
+client console scan and scoped CSS checks. Verify packaged SQLite on supported
+Node/pinned Bun and Linux/macOS/Windows; state any unavailable host validation.
+Inspect fresh-server desktop/phone captures per UI testing requirements. Check
+that index work does not delay session opening and that cold-idle work quiesces;
+follow measurement-host rules for any regression claims.
 
-Use realistic fixtures containing multiple projects, the same ticket on two
-sessions, two tickets on one session, several evidence occurrences, duplicate
-URLs, long titles, false positives, and a missing transcript. Exercise manual
-and automatic paths, then restart and upgrade an older fixture database.
+Finish with current topic contracts for automatic scope/coverage, identity,
+resolution, retention, failure behavior, migrations and access boundaries. Keep
+the roadmap current. No implementation is complete merely because manual CRUD
+and an empty sidebar work.
 
-Acceptance scenario: paste a Jira URL, set a title, link two sessions, discover
-another reference, search the title after restart, and navigate to both sessions
-and their evidence. Dismiss a false match and rescan without restoring it.
-Disable/re-enable without losing data or triggering historical work. Verify
-GitHub issue/PR identity and old-server behavior through the same UI paths.
-Verify that issue evidence/excerpts never appear in public-share payloads, and
-that counts and project filters honor existing session-access boundaries.
+## Review decisions and maintainer correction
 
-Run the repository-required lint, format, typecheck, unit, and browser checks,
-plus the client console scan and scoped CSS checks. Use the existing packaged
-SQLite harness on supported Node and pinned Bun, with Linux/macOS/Windows
-coverage; state any unavailable host validation rather than claiming it.
-Inspect fresh-server desktop/phone captures per the UI testing contract.
-Measure query latency, bounded scan responsiveness, and retained memory on a
-declared fixture; follow the measurement-host requirements for regression claims.
+The independent YA review used verified `claude-opus-5`, `effort: xhigh`, session
+`56c01728-ad7c-423b-af13-306f16699ebc`, reviewing plan `7402c6a6c` and T3
+`d29c56a5c`. Keep its useful findings: three tables, frozen SQL, actual bounded
+acquisition work, concrete downgrade behavior, no speculative remote cache,
+source-aware dedupe, and separation of link state from evidence.
 
-Finish with current observable contracts for enablement, retention, identity,
-search coverage, failure behavior, migration/downgrade handling, and access
-boundaries. Keep the roadmap status current. These checks establish the MVP;
-remote tracker refresh and multi-server aggregation are subsequent decisions.
+The maintainer rejected the subsequent manual-first ship boundary and Workstream
+restriction. Those recommendations do not define the requested product: evidence
+collection must provide value for normal existing sessions. This version restores
+automatic indexing as a release criterion and cuts branch/worktree inference
+instead. Future Git evidence should be discovered independently of YA lane creation.
 
-## Independent review and decisions
-
-Kyle requested a read-only Opus 5 xhigh review through YA at localhost:3400.
-The process API verified `claude-opus-5` and `effort: xhigh`; review session
-`56c01728-ad7c-423b-af13-306f16699ebc` examined this plan, the owning topics,
-actual YA seams, and T3 at `d29c56a5c`. Its result supported three tables and
-the existing migration runner, but recommended a smaller manual-first delivery
-and persisted-only discovery. The review is advisory, not compatibility approval.
-It targeted plan commit `7402c6a6c`; recheck its code observations against the
-implementation checkout, particularly concurrent capability/test corrections.
-
-Accepted: name the settings/advertisement seams; freeze the existing SQL
-literals concretely; correct vocabulary ownership and downgrade behavior;
-cite the worktree gap; narrow branch evidence to lane metadata; ship manual
-linking first; remove live observation and speculative text-index work; make
-project filtering and exclusion from public shares explicit.
-
-Adjusted rather than copied: vocabulary supplies useful scan lifecycle patterns,
-but neither compaction-window paging nor an evidence-row cap bounds source
-acquisition. Retain hard bounds and explicitly scope optional provider iterators;
-do not replace them with the review's suggested paging-only limit. Do not copy
-whole-catalog scans onto every change. Persisted-only ingestion also does not
-prove all catalog IDs canonical or make timestamp fingerprints unique.
-
-Kept despite suggested simplification: paginated evidence avoids a lossy cap
-on long-lived history; remap collisions require unioning evidence and preserving
-decisions, not ignoring updates then deleting leftovers. A read-only per-process
-subscription would not inherently violate quiescence if correctly owned, but
-its lifecycle and live/persisted reconciliation cost are unnecessary here.
-
-Tradeoff: discovery becomes eventual and initially supports only proven bounded
-adapters; it cannot delay the manual release. Title search initially covers
-user titles and observed labels, not a synchronized tracker catalog. These are
-explicit limits, not claims that the future integrations already exist.
+Do not copy the review's suggestions that compaction paging is a source-byte
+bound, that catalog IDs eliminate all remap cases, or that timestamps uniquely
+identify observations. Likewise, evidence pagination preserves durable history;
+a small expected row count is not justification for a lossy lifetime cap.
