@@ -136,6 +136,10 @@ The shared settings service persists `issueAssociations: { enabled, scope,
 recentDays }`. The bit requires ready SQLite and the installed indexing owner,
 independently of opt-in; data routes also require enablement and ordinary app
 authorization. Without it clients hide all controls and make no issue requests.
+The Issues & PRs sidebar and direct page links open `/issues` locally and in
+direct remote mode, or `/-/relay/:relayUsername/issues` in relay mode (beneath
+the hosted client base when configured). Refresh preserves the issue browser
+and its session/project scope; these routes must not fall back to Projects.
 Selections and requests belong to the current source runtime; switching servers
 remounts the browser before another server can receive the previous selection.
 No existing capability meaning or protocol floor changes. This unpublished v1
@@ -170,4 +174,5 @@ credentials. The retired tactical 125 plan and independent Opus review are retai
 in Git history under this topic's commit series.
 
 Validation owners: `test/storage/{issues,issue-indexing,issue-routes}.test.ts` and
-`client/e2e/issue-associations.spec.ts`, plus packaged SQLite runtime checks.
+`client/e2e/{issue-associations,remote-issues}.spec.ts`, plus packaged SQLite
+runtime checks. Remote navigation coverage uses the production client bundle.
