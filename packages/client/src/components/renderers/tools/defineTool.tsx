@@ -27,7 +27,7 @@ export interface PreparedToolDisplay {
   readonly reason?: "input" | "result";
   readonly status: DisplayStatus;
   readonly isError: boolean;
-  getDisplayName(): string;
+  getDisplayName(status?: DisplayStatus): string;
   getUseSummary(context?: ToolSummaryContext): string | undefined;
   getResultSummary(context?: ToolSummaryContext): string | undefined;
   renderToolUse(context: RenderContext): ReactNode;
@@ -59,7 +59,9 @@ export function defineTool<
   const T extends string,
 >(
   contract: DisplayContract<I, R>,
-  callbacks: ToolCallbacks<z.output<I>, z.output<R>> & { tool: T },
+  callbacks: ToolCallbacks<NoInfer<z.output<I>>, NoInfer<z.output<R>>> & {
+    tool: T;
+  },
 ): CheckedToolDefinition & { readonly tool: T } {
   const operations = [
     "renderToolUse",
@@ -89,10 +91,8 @@ export function defineTool<
         reason,
         kind,
       } = prepareDisplay(contract, record);
-      const name = () =>
-        (record.status === "pending"
-          ? callbacks.pendingDisplayName
-          : undefined) ??
+      const name = (status = record.status) =>
+        (status === "pending" ? callbacks.pendingDisplayName : undefined) ??
         callbacks.displayName ??
         callbacks.tool;
       const raw = (context: RenderContext) => (
@@ -152,12 +152,12 @@ export function defineTool<
         reason,
         status: record.status,
         isError,
-        getDisplayName: () =>
+        getDisplayName: (status = record.status) =>
           (input.success
             ? safeSummary(() =>
-                callbacks.displayNameForCall?.(input.data, record.status),
+                callbacks.displayNameForCall?.(input.data, status),
               )
-            : undefined) ?? name(),
+            : undefined) ?? name(status),
         getUseSummary: (context) =>
           input.success
             ? safeSummary(() => callbacks.getUseSummary?.(input.data, context))
@@ -372,58 +372,58 @@ interface ToolCallbacks<TInput, TResult> {
    * carries — e.g. a backgrounded Bash run keeps reading "Running" after
    * the tool call itself completed. Return undefined to fall through.
    */
-  displayNameForCall?(
+  displayNameForCall?: (
     input: TInput,
     status: "pending" | "complete" | "error" | "aborted" | "incomplete",
-  ): string | undefined;
+  ) => string | undefined;
   /** Render the tool_use block (what Claude wants to do) */
-  renderToolUse(input: TInput, context: ToolDisplayContext): ReactNode;
+  renderToolUse: (input: TInput, context: ToolDisplayContext) => ReactNode;
   /** Render the tool_result block (what happened) */
-  renderToolResult(
+  renderToolResult: (
     result: TResult,
     isError: boolean,
     context: ToolDisplayContext,
     input?: TInput,
-  ): ReactNode;
+  ) => ReactNode;
   /** Summary for collapsed tool_use view */
-  getUseSummary?(input: TInput, context?: ToolSummaryContext): string;
+  getUseSummary?: (input: TInput, context?: ToolSummaryContext) => string;
   /** Summary for collapsed tool_result view */
-  getResultSummary?(
+  getResultSummary?: (
     result: TResult,
     isError: boolean,
     input?: TInput,
     context?: ToolSummaryContext,
-  ): string;
+  ) => string;
   /**
    * Render an interactive summary that replaces the expand/collapse behavior.
    * When provided, the row won't expand - instead clicking invokes this component.
    */
-  renderInteractiveSummary?(
+  renderInteractiveSummary?: (
     input: TInput,
     result: TResult | undefined,
     isError: boolean,
     context: ToolDisplayContext,
-  ): ReactNode;
+  ) => ReactNode;
   /**
    * Render a preview shown in the collapsed state (below the header).
    * Used to show a condensed view of input/output without expanding.
    */
-  renderCollapsedPreview?(
+  renderCollapsedPreview?: (
     input: TInput,
     result: TResult | undefined,
     isError: boolean,
     context: ToolDisplayContext,
-  ): ReactNode;
+  ) => ReactNode;
   /**
    * Render inline without the standard tool row wrapper.
    * When provided, bypasses the entire tool-row structure (no header, chevrons, margins).
    * The tool has complete control over its rendering.
    */
-  renderInline?(
+  renderInline?: (
     input: TInput,
     result: TResult | undefined,
     isError: boolean,
     status: ToolCallItem["status"],
     context: ToolDisplayContext,
-  ): ReactNode;
+  ) => ReactNode;
 }

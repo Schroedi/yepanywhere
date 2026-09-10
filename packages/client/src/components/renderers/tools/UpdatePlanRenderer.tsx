@@ -98,8 +98,12 @@ export const updatePlanRenderer = defineTool(toolDisplayContracts.UpdatePlan, {
     return null;
   },
 
-  renderToolResult() {
-    return null;
+  renderToolResult(result, isError) {
+    return (
+      <div className={isError ? "todo-error" : "todo-summary"}>
+        {extractResultMessage(result)}
+      </div>
+    );
   },
 
   renderInline(input, result, isError, status) {

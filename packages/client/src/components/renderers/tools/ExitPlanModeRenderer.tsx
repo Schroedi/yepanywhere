@@ -32,8 +32,14 @@ export const exitPlanModeRenderer = defineTool(
       return null;
     },
 
-    renderToolResult() {
-      return null;
+    renderToolResult(result, isError) {
+      if (isError) return <div className={styles.error}>{result.message}</div>;
+      return (
+        <PlanContent
+          plan={result.plan ?? result.message}
+          renderedHtml={result._renderedHtml}
+        />
+      );
     },
 
     // Render inline without any tool-row wrapper - full control over rendering

@@ -16,6 +16,8 @@ function typeChecks() {
       input.path.toUpperCase();
       // @ts-expect-error Inspection records are not rich callback context.
       void context.toolUseResult;
+      // @ts-expect-error A checked callback cannot retrieve raw nested inputs.
+      void context.getToolUse;
       // @ts-expect-error Only schema output reaches the callback.
       input.missing.toUpperCase();
       return null;
@@ -25,6 +27,22 @@ function typeChecks() {
       // @ts-expect-error Nested callback values retain their inferred type.
       result.lines.map((line) => line.nonexistent());
       return null;
+    },
+  });
+  defineTool(contract, {
+    tool: "narrow-callback",
+    // @ts-expect-error Explicit annotations cannot demand unchecked fields.
+    renderToolUse(input: { path: string; missing: string }) {
+      return input.missing.toUpperCase();
+    },
+    renderToolResult: () => null,
+  });
+  defineTool(contract, {
+    tool: "narrow-result",
+    renderToolUse: () => null,
+    // @ts-expect-error Result callbacks cannot narrow nested schema output.
+    renderToolResult(result: { lines: string[]; missing: string }) {
+      return result.missing.toUpperCase();
     },
   });
   defineTool(

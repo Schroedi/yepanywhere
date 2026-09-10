@@ -57,9 +57,10 @@ export function BashModalContent({
   projectPathLinks?: RenderContext["projectPathLinks"];
 }) {
   // Normalize result to handle both structured and string formats
-  const result = rawResult
-    ? normalizeBashResult(rawResult, isError)
-    : undefined;
+  const result =
+    typeof rawResult === "string"
+      ? normalizeBashResult(rawResult, isError)
+      : rawResult;
   const command = getBashCommand(input);
   const stdout = result?.stdout || "";
   const stderr = result?.stderr || "";

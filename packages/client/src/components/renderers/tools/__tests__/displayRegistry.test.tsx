@@ -1,3 +1,7 @@
+import {
+  displayExpectations,
+  displayOperationNames,
+} from "../__fixtures__/displayExpectations";
 import { displayProviders } from "../__fixtures__/displayProviders";
 import { diagnosticToolNames } from "../../../../lib/validateToolResult";
 import { cleanup, render } from "@testing-library/react";
@@ -59,7 +63,18 @@ function mutations(value: unknown, path = "root"): Array<[string, unknown]> {
       if (child && typeof child === "object") {
         const nested = Array.isArray(child) ? child[0] : child;
         if (nested && typeof nested === "object") {
-          for (const nestedKey of Object.keys(nested))
+          for (const nestedKey of Object.keys(nested)) {
+            const deleted = { ...nested };
+            Reflect.deleteProperty(deleted, nestedKey);
+            cases.push([
+              `${path}.${key}.${nestedKey}:deleted`,
+              {
+                ...value,
+                [key]: Array.isArray(child)
+                  ? [deleted, ...child.slice(1)]
+                  : deleted,
+              },
+            ]);
             cases.push([
               `${path}.${key}.${nestedKey}:null`,
               {
@@ -69,6 +84,7 @@ function mutations(value: unknown, path = "root"): Array<[string, unknown]> {
                   : { ...nested, [nestedKey]: null },
               },
             ]);
+          }
         }
       }
     }
@@ -122,17 +138,24 @@ for (const [tool, variants] of Object.entries(displayFixtures)) {
         expect(prepared.kind).toBe(
           variant === "plain-text" ? "partial" : "rich",
         );
-        let visible = summaries(prepared);
+        summaries(prepared);
+        const expectations = Reflect.get(
+          Reflect.get(displayExpectations, tool),
+          variant,
+        );
         for (const [operation, node] of displayOperations(prepared).entries()) {
           const mounted = render(displayProviders(node));
           expect(
             mounted.container.querySelector('[data-tool-display="raw"]'),
             `${tool}/${variant}/${operation}`,
           ).toBeNull();
-          visible += mounted.container.textContent;
+          const expected = expectations[operation];
+          const label = `${tool}/${variant}/${displayOperationNames[operation]}`;
+          if (expected === null)
+            expect(mounted.container.innerHTML, label).toBe("");
+          else expect(mounted.container.textContent, label).toContain(expected);
           mounted.unmount();
         }
-        expect(visible).toContain(fixture.text);
       });
       it("preserves lifecycle status and retries corrected records", () => {
         for (const status of [
@@ -173,8 +196,9 @@ for (const [tool, variants] of Object.entries(displayFixtures)) {
           input: undefined,
         });
         const metadata = toolDefinitions.find((d) => d.tool === tool);
+        const supportsStandalone = metadata?.standaloneResult;
         expect(prepared.kind).toBe(
-          metadata?.standaloneResult
+          supportsStandalone
             ? variant === "plain-text"
               ? "partial"
               : "rich"
@@ -185,7 +209,20 @@ for (const [tool, variants] of Object.entries(displayFixtures)) {
         );
         expect(
           !!mounted.container.querySelector('[data-tool-display="raw"]'),
-        ).toBe(!metadata?.standaloneResult);
+        ).toBe(!supportsStandalone);
+        if (supportsStandalone) {
+          const standalone: Record<string, string> = {
+            "Write/file": "contract content",
+            "Read/image": "image",
+            "TaskCreate/event": "Task created",
+            "TaskUpdate/event": "Task updated",
+          };
+          const expected =
+            standalone[`${tool}/${variant}`] ??
+            Reflect.get(Reflect.get(displayExpectations, tool), variant)[1];
+          expect(expected).not.toBeNull();
+          expect(mounted.container.textContent).toContain(expected);
+        }
       });
       for (const field of ["input", "result"] as const) {
         for (const [mutation, value] of mutations(record[field], field)) {

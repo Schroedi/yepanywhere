@@ -74,7 +74,7 @@ export type KillShellResult = z.output<
 >;
 export type TextFile = z.output<typeof schemas.TextFileDisplaySchema>;
 export type ImageFile = z.output<typeof schemas.MediaFileDisplaySchema>;
-export type PdfFile = ImageFile;
+export type PdfFile = z.output<typeof schemas.PdfFileDisplaySchema>;
 export type PatchHunk = z.output<typeof schemas.PatchHunkDisplaySchema>;
 export type Question = z.output<typeof schemas.QuestionDisplaySchema>;
 export type Todo = z.output<typeof schemas.TodoDisplaySchema>;

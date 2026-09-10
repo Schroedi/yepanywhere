@@ -72,7 +72,9 @@ function WebSearchToolResult({
 
   // Flatten results from potentially nested structure
   const allResults =
-    result.results?.flatMap((r) => r.content || []).filter(Boolean) || [];
+    result.results
+      ?.flatMap((r) => (typeof r === "string" ? [] : r.content))
+      .filter(Boolean) || [];
 
   return (
     <div className="websearch-result">
@@ -126,7 +128,9 @@ export const webSearchRenderer = defineTool(toolDisplayContracts.WebSearch, {
   getResultSummary(result, isError) {
     if (isError) return "Error";
     const r = result;
-    const count = r?.results?.flatMap((res) => res.content || []).length || 0;
+    const count =
+      r?.results?.flatMap((res) => (typeof res === "string" ? [] : res.content))
+        .length || 0;
     return `${count} results`;
   },
 });

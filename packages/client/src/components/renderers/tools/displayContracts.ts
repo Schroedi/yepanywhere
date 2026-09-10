@@ -75,16 +75,20 @@ const highlight = {
 };
 export const MediaFileDisplaySchema = z.object({
   base64: string,
+  filePath: optionalString,
   type: string,
   originalSize: optionalNumber,
   dimensions: z
     .object({
-      originalWidth: number,
-      originalHeight: number,
-      displayWidth: number,
-      displayHeight: number,
+      originalWidth: optionalNumber,
+      originalHeight: optionalNumber,
+      displayWidth: optionalNumber,
+      displayHeight: optionalNumber,
     })
     .optional(),
+});
+export const PdfFileDisplaySchema = MediaFileDisplaySchema.extend({
+  type: string.default("application/pdf"),
 });
 export const ReadDisplayResultSchema = z.union([
   z.object({
@@ -100,8 +104,13 @@ export const ReadDisplayResultSchema = z.union([
     ...highlight,
   }),
   z.object({
-    type: z.enum(["image", "pdf"]),
+    type: z.literal("image"),
     file: MediaFileDisplaySchema,
+    ...highlight,
+  }),
+  z.object({
+    type: z.literal("pdf"),
+    file: PdfFileDisplaySchema,
     ...highlight,
   }),
 ]);
@@ -172,6 +181,10 @@ export const EditDisplayResultSchema = z.object({
   structuredPatch: z.array(PatchHunkDisplaySchema).optional(),
   content: optionalString,
 });
+export const EditDisplayFailureSchema = z.union([
+  z.string().transform((content) => ({ content })),
+  z.object({ content: string }),
+]);
 export const BashDisplayInputSchema = z
   .object({
     command: optionalString,
@@ -253,26 +266,46 @@ export const TaskDisplayResultSchema = z.object({
   agentId: optionalString,
   content: z
     .array(
-      z.object({
-        type: string,
-        id: optionalString,
-        text: optionalString,
-        summary: z
-          .array(
-            z.union([
-              string,
-              z.object({ type: optionalString, text: optionalString }),
-            ]),
-          )
-          .optional(),
-        thinking: optionalString,
-        signature: optionalString,
-        name: optionalString,
-        input: z.json().optional(),
-        tool_use_id: optionalString,
-        content: optionalString,
-        is_error: z.boolean().optional(),
-      }),
+      z
+        .object({
+          type: string,
+          id: optionalString,
+          text: optionalString,
+          _renderedHtml: optionalString,
+          summary: z
+            .array(
+              z.union([
+                string,
+                z.object({ type: optionalString, text: optionalString }),
+              ]),
+            )
+            .optional(),
+          thinking: optionalString,
+          signature: optionalString,
+          name: optionalString,
+          input: z.json().optional(),
+          tool_use_id: optionalString,
+          content: optionalString,
+          is_error: z.boolean().optional(),
+        })
+        .superRefine((block, ctx) => {
+          const required =
+            block.type === "tool_use"
+              ? ["name", "id"]
+              : block.type === "text"
+                ? ["text"]
+                : block.type === "tool_result"
+                  ? ["tool_use_id"]
+                  : [];
+          for (const key of required) {
+            if (typeof Reflect.get(block, key) !== "string")
+              ctx.addIssue({
+                code: "custom",
+                path: [key],
+                message: `Missing ${block.type} ${key}`,
+              });
+          }
+        }),
     )
     .default([]),
   totalDurationMs: number.default(0),
@@ -281,13 +314,28 @@ export const TaskDisplayResultSchema = z.object({
   isAsync: z.boolean().optional(),
   outputFile: optionalString,
 });
+export const TaskDisplayFailureSchema = z.union([
+  TaskDisplayResultSchema,
+  z.union([string, z.object({ content: string })]).transform((value) => ({
+    status: "failed" as const,
+    content: [
+      { type: "text", text: typeof value === "string" ? value : value.content },
+    ],
+    totalDurationMs: 0,
+    totalTokens: 0,
+    totalToolUseCount: 0,
+  })),
+]);
 export const WebSearchDisplayInputSchema = z.object({ query: string });
 export const WebSearchDisplayResultSchema = z.object({
   query: string,
   results: z.array(
-    z.object({ content: z.array(z.object({ title: string, url: string })) }),
+    z.union([
+      string,
+      z.object({ content: z.array(z.object({ title: string, url: string })) }),
+    ]),
   ),
-  durationSeconds: number,
+  durationSeconds: optionalNumber,
 });
 export const WebFetchDisplayInputSchema = z.object({
   url: string,
@@ -310,11 +358,16 @@ export const ExitPlanModeDisplayInputSchema = z.object({
   _renderedHtml: optionalString,
 });
 export const ExitPlanModeDisplayResultSchema = z.object({
+  message: optionalString,
   plan: optionalString,
   isAgent: z.boolean().optional(),
   filePath: optionalString,
   _renderedHtml: optionalString,
 });
+export const ExitPlanModeDisplayFailureSchema = z.union([
+  string.transform((message) => ({ message })),
+  z.object({ message: string }),
+]);
 export const UpdatePlanDisplayInputSchema = z.object({
   explanation: optionalString,
   plan: z.array(z.object({ step: string, status: string })).optional(),
@@ -365,15 +418,23 @@ export const TaskOutputDisplayInputSchema = z.object({
   timeout: optionalNumber,
 });
 export const TaskOutputDisplayResultSchema = z.object({
-  retrieval_status: z.enum(["completed", "timeout", "running"]),
-  task: z.object({
-    task_id: string,
-    task_type: z.enum(["local_bash", "agent"]),
-    status: z.enum(["running", "completed", "failed"]),
-    description: string,
-    output: string,
-    exitCode: number.nullable(),
-  }),
+  retrieval_status: z.enum([
+    "completed",
+    "timeout",
+    "running",
+    "success",
+    "not_ready",
+  ]),
+  task: z
+    .object({
+      task_id: optionalString,
+      task_type: z.enum(["local_bash", "local_agent", "agent"]).optional(),
+      status: z.enum(["running", "completed", "failed"]).optional(),
+      description: optionalString,
+      output: optionalString,
+      exitCode: number.nullable().optional(),
+    })
+    .optional(),
 });
 export const KillShellDisplayInputSchema = z.object({ shell_id: string });
 export const KillShellDisplayResultSchema = z.object({
@@ -469,6 +530,13 @@ export const GoalDisplayResultSchema = z.union([
   goal.extend({
     goal: goal.nullable().optional(),
     message: optionalString,
+    content: optionalString,
+    error: z
+      .union([
+        string,
+        z.object({ message: optionalString, detail: optionalString }),
+      ])
+      .optional(),
     remainingTokens: number.nullable().optional(),
     remaining_tokens: number.nullable().optional(),
   }),

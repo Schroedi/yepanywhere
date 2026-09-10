@@ -142,7 +142,14 @@ schemas to grant rich access. Shared utilities belong in owned helper modules.
 
 Add independent positive controls for every variant to the exhaustive
 `__fixtures__/displayFixtures.ts` manifest. Describe source provenance or the
-reason a variant is synthetic. The registry suite mounts all operations,
+reason a variant is synthetic. Add per-operation expectations to the exhaustive
+`displayExpectations.ts` manifest, including explicit intentionally empty
+operations and meaningful standalone output. Include a failure control when a
+failure contract is declared. Keep provider-shape controls independent of the
+display fixtures: `observed-tool-display-specimens.ts` distinguishes sanitized
+observed JSONL shapes, SDK-declaration controls, and synthetic adapter probes.
+Reconstructed SDK envelopes are not captured live traffic.
+The registry suite mounts all operations,
 mutates nested fields, and checks lifecycle, raw inspection and zero unexpected
 exception catches. Add native live/durable pairs to
 `server/test/utils/native-tool-display-corpus.ts` for distinct provider seams.

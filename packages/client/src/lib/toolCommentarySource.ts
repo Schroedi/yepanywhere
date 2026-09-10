@@ -2,7 +2,10 @@ import { decodeCodeModeOutput, initialAcliFormat } from "@yep-anywhere/shared";
 import { normalizeBashResult } from "./bashResult";
 import type { ToolCallItem } from "../types/renderItems";
 
-type Invocation = Pick<ToolCallItem, "toolName" | "toolInput" | "toolResult">;
+type Invocation = Pick<
+  ToolCallItem,
+  "toolName" | "toolInput" | "toolResult" | "status"
+>;
 
 function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -20,7 +23,10 @@ export function readToolCommentaryOutput(props: Invocation) {
       props.toolName.toLowerCase(),
     )
   ) {
-    const shell = normalizeBashResult(raw, props.toolResult?.isError ?? false);
+    const shell = normalizeBashResult(
+      raw,
+      props.toolResult?.isError ?? props.status === "error",
+    );
     return {
       stdout: shell.stdout ?? "",
       stderr: shell.stderr ?? "",

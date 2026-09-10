@@ -54,3 +54,36 @@ for (const width of [1000, 375])
     ).toBeLessThanOrEqual(width);
     expect(errors).toEqual([]);
   });
+
+for (const width of [1000, 375])
+  test(`preserves reviewed provider semantics at ${width}px`, async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => {
+      if (["error", "warning"].includes(message.type()))
+        errors.push(message.text());
+    });
+    await page.setViewportSize({ width, height: width === 1000 ? 600 : 812 });
+    await page.goto(`${base}e2e/fixtures/tool-display-contracts.html?review`);
+    await expect(
+      page.getByRole("link", { name: "Contract reference" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("reference.pdf", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("Declined", { exact: true })).toBeVisible();
+    await expect(page.getByText("+checked", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(
+        "Preserve provider output and verify each display operation.",
+      ),
+    ).toBeVisible();
+    await expect(page.locator('[data-tool-display="raw"]')).toHaveCount(0);
+    await expect(page.getByTestId("catches")).toHaveText("0");
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+    expect(errors).toEqual([]);
+  });

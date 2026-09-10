@@ -1,4 +1,9 @@
 // biome-ignore-all lint/complexity/useLiteralKeys: Bracket access exercises private production adapter seams while retaining their actual parameter types; no visibility-erasing assertion.
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ClaudeSessionReader } from "../../src/sessions/reader.js";
+import { observedDisplayCases } from "./observed-tool-display-specimens.js";
 import { createHash } from "node:crypto";
 import type {
   ClaudeSessionEntry,
@@ -14,6 +19,7 @@ import {
 } from "../../../client/src/components/renderers/tools/toolDisplayContracts.js";
 import type { ToolCallItem } from "../../../client/src/types/renderItems.js";
 import { ClaudeProvider } from "../../src/sdk/providers/claude.js";
+import { CodexOSSProvider } from "../../src/sdk/providers/codex-oss.js";
 import { CodexProvider } from "../../src/sdk/providers/codex.js";
 import type { LoadedSession } from "../../src/sessions/types.js";
 import {
@@ -45,8 +51,21 @@ function loaded(data: UnifiedSession): LoadedSession {
 }
 export interface NativeDisplayCase {
   id: string;
-  provider: "claude" | "codex" | "gemini" | "opencode" | "grok" | "pi";
+  provider:
+    | "claude"
+    | "codex"
+    | "codex-oss"
+    | "gemini"
+    | "opencode"
+    | "grok"
+    | "pi";
   rawOutput?: unknown;
+  provenance?: string;
+  expectedKind?: "rich" | "partial" | "raw";
+  expectedOperation?:
+    | "renderToolResult"
+    | "renderInline"
+    | "renderCollapsedPreview";
   commandItem?: boolean;
   tool: ToolDisplayName;
   input: unknown;
@@ -186,113 +205,16 @@ nativeDisplayCases.push(
 
 export async function runNativeDisplayCase(fixture: NativeDisplayCase) {
   const callId = `display-${fixture.id}`;
-  const hash = createHash("sha256").update(fixture.id).digest("hex");
-  const useUuid =
-    `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4000-8000-${hash.slice(12, 24)}` as const;
-  const resultUuid =
-    `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4000-8001-${hash.slice(12, 24)}` as const;
   if (fixture.provider === "claude") {
+    const { use, result, entries } = claudeDisplayRecords(fixture);
     const provider = new ClaudeProvider();
-    // Invoke the production native SDK adapter, before normalizeStreamMessage.
-    // This deterministic native-message seam needs no CLI, account, or tokens.
-    const use = {
-      type: "assistant",
-      uuid: useUuid,
-      session_id: "display-corpus",
-      parent_tool_use_id: null,
-      message: {
-        id: "native-use",
-        type: "message",
-        role: "assistant",
-        model: "fixture",
-        container: null,
-        context_management: null,
-        diagnostics: null,
-        stop_details: null,
-        stop_reason: null,
-        stop_sequence: null,
-        usage: {
-          cache_creation: {
-            ephemeral_5m_input_tokens: 0,
-            ephemeral_1h_input_tokens: 0,
-          },
-          inference_geo: null,
-          iterations: null,
-          output_tokens_details: null,
-          server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
-          service_tier: null,
-          speed: null,
-          input_tokens: 1,
-          output_tokens: 1,
-          cache_creation_input_tokens: 0,
-          cache_read_input_tokens: 0,
-        },
-        content: [
-          {
-            type: "tool_use",
-            id: callId,
-            name: fixture.tool,
-            input: z.record(z.string(), z.unknown()).parse(fixture.input),
-          },
-        ],
-      },
-    } satisfies Parameters<ClaudeProvider["convertMessage"]>[0];
-    const result = {
-      type: "user",
-      uuid: resultUuid,
-      session_id: "display-corpus",
-      parent_tool_use_id: null,
-      tool_use_result: fixture.result,
-      message: {
-        role: "user",
-        content: [
-          {
-            type: "tool_result",
-            tool_use_id: callId,
-            content:
-              typeof fixture.result === "string"
-                ? fixture.result
-                : "Tool completed",
-            is_error: fixture.isError ?? false,
-          },
-        ],
-      },
-    } satisfies Parameters<ClaudeProvider["convertMessage"]>[0];
-    const entries: ClaudeSessionEntry[] = [
-      {
-        type: "assistant",
-        isSidechain: false,
-        userType: "external",
-        cwd: "/tmp",
-        version: "2.1.258",
-        uuid: use.uuid,
-        parentUuid: null,
-        timestamp,
-        sessionId: "display-corpus",
-        message: use.message,
-      },
-      {
-        type: "user",
-        isSidechain: false,
-        userType: "external",
-        cwd: "/tmp",
-        version: "2.1.258",
-        uuid: result.uuid,
-        parentUuid: use.uuid,
-        timestamp,
-        sessionId: "display-corpus",
-        message: result.message,
-        toolUseResult: fixture.result,
-      },
-    ];
-    const live = await runStreamPipeline([
-      provider["convertMessage"](use),
-      provider["convertMessage"](result),
-    ]);
-    const durable = await runPersistedPipeline(
-      loaded({ provider: "claude", session: { messages: entries } }),
-    );
-    return { live, durable };
+    return {
+      live: await runStreamPipeline([
+        provider["convertMessage"](use),
+        provider["convertMessage"](result),
+      ]),
+      durable: await readClaudeDisplayEntries(entries),
+    };
   }
   if (fixture.provider === "gemini") return runGeminiPair(fixture);
   if (fixture.provider === "opencode") return runOpenCodePair(fixture);
@@ -324,47 +246,77 @@ export async function runNativeDisplayCase(fixture: NativeDisplayCase) {
         ? fixture.result
         : JSON.stringify(fixture.result),
   };
-  const messages = fixture.commandItem
-    ? provider["convertNotificationToSDKMessages"](
-        {
-          method: "item/completed",
-          params: {
-            threadId: "display-corpus",
-            turnId: "display-turn",
-            item: {
-              id: callId,
-              type: "commandExecution",
-              command: z.object({ cmd: z.string() }).parse(fixture.input).cmd,
-              status: "completed",
-              aggregatedOutput: z.string().parse(fixture.result),
-              exitCode: 0,
-            },
-          },
-        },
-        "display-corpus",
-        new Map(),
-        state,
-      )
-    : [use, result].flatMap((item) =>
-        provider["convertNotificationToSDKMessages"](
+  const messages =
+    fixture.provider === "codex-oss"
+      ? new CodexOSSProvider()["convertItemToSDKMessages"](
           {
-            method: "rawResponseItem/completed",
-            params: {
-              threadId: "display-corpus",
-              turnId: "display-turn",
-              item,
-            },
+            type: "command_execution",
+            id: callId,
+            command: z.object({ command: z.string() }).parse(fixture.input)
+              .command,
+            aggregated_output: z.string().parse(fixture.rawOutput),
+            exit_code: 0,
+            status: "completed",
           },
           "display-corpus",
-          new Map(),
-          state,
-        ),
-      );
+          `${callId}-message`,
+          true,
+        )
+      : fixture.commandItem
+        ? provider["convertNotificationToSDKMessages"](
+            {
+              method: "item/completed",
+              params: {
+                threadId: "display-corpus",
+                turnId: "display-turn",
+                item: {
+                  id: callId,
+                  type: "commandExecution",
+                  command: z.object({ cmd: z.string() }).parse(fixture.input)
+                    .cmd,
+                  status: "completed",
+                  aggregatedOutput: z.string().parse(fixture.result),
+                  exitCode: 0,
+                },
+              },
+            },
+            "display-corpus",
+            new Map(),
+            state,
+          )
+        : [use, result].flatMap((item) =>
+            provider["convertNotificationToSDKMessages"](
+              {
+                method: "rawResponseItem/completed",
+                params: {
+                  threadId: "display-corpus",
+                  turnId: "display-turn",
+                  item,
+                },
+              },
+              "display-corpus",
+              new Map(),
+              state,
+            ),
+          );
   const live = await runStreamPipeline(messages);
   const entries: import("@yep-anywhere/shared").CodexSessionEntry[] = [
     use,
     result,
   ].map((payload) => ({ type: "response_item", timestamp, payload }));
+  if (fixture.provider === "codex-oss") {
+    entries.splice(1, 0, {
+      type: "event_msg",
+      timestamp,
+      payload: {
+        type: "exec_command_end",
+        call_id: callId,
+        aggregated_output: fixture.rawOutput,
+        exit_code: 0,
+        status: "completed",
+      },
+    });
+  }
   const durable = await runPersistedPipeline(
     loaded({ provider: "codex", session: { entries } }),
   );
@@ -867,3 +819,122 @@ for (const fixture of nativeDisplayCases.filter(
     result: String(fixture.result).split("Output:\n")[1] ?? "",
   });
 }
+
+export function claudeDisplayRecords(fixture: NativeDisplayCase) {
+  const callId = `display-${fixture.id}`;
+  const hash = createHash("sha256").update(fixture.id).digest("hex");
+  const useUuid =
+    `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4000-8000-${hash.slice(12, 24)}` as const;
+  const resultUuid =
+    `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4000-8001-${hash.slice(12, 24)}` as const;
+  const use = {
+    type: "assistant",
+    uuid: useUuid,
+    session_id: "display-corpus",
+    parent_tool_use_id: null,
+    message: {
+      id: "native-use",
+      type: "message",
+      role: "assistant",
+      model: "fixture",
+      container: null,
+      context_management: null,
+      diagnostics: null,
+      stop_details: null,
+      stop_reason: null,
+      stop_sequence: null,
+      usage: {
+        cache_creation: {
+          ephemeral_5m_input_tokens: 0,
+          ephemeral_1h_input_tokens: 0,
+        },
+        inference_geo: null,
+        iterations: null,
+        output_tokens_details: null,
+        server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+        service_tier: null,
+        speed: null,
+        input_tokens: 1,
+        output_tokens: 1,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      },
+      content: [
+        {
+          type: "tool_use",
+          id: callId,
+          name: fixture.tool,
+          input: z.record(z.string(), z.unknown()).parse(fixture.input),
+        },
+      ],
+    },
+  } satisfies Parameters<ClaudeProvider["convertMessage"]>[0];
+  const result = {
+    type: "user",
+    uuid: resultUuid,
+    session_id: "display-corpus",
+    parent_tool_use_id: null,
+    tool_use_result: fixture.result,
+    message: {
+      role: "user",
+      content: [
+        {
+          type: "tool_result",
+          tool_use_id: callId,
+          content:
+            typeof fixture.result === "string"
+              ? fixture.result
+              : "Tool completed",
+          is_error: fixture.isError ?? false,
+        },
+      ],
+    },
+  } satisfies Parameters<ClaudeProvider["convertMessage"]>[0];
+  const entries: ClaudeSessionEntry[] = [
+    {
+      type: "assistant",
+      isSidechain: false,
+      userType: "external",
+      cwd: "/tmp",
+      version: "2.1.258",
+      uuid: use.uuid,
+      parentUuid: null,
+      timestamp,
+      sessionId: "display-corpus",
+      message: use.message,
+    },
+    {
+      type: "user",
+      isSidechain: false,
+      userType: "external",
+      cwd: "/tmp",
+      version: "2.1.258",
+      uuid: result.uuid,
+      parentUuid: use.uuid,
+      timestamp,
+      sessionId: "display-corpus",
+      message: result.message,
+      toolUseResult: fixture.result,
+    },
+  ];
+  return { use, result, entries };
+}
+
+/** Exercise the real JSONL reader, including DAG selection and parsing. */
+export async function readClaudeDisplayEntries(entries: ClaudeSessionEntry[]) {
+  const directory = await mkdtemp(join(tmpdir(), "ya-display-reader-"));
+  try {
+    await writeFile(
+      join(directory, "display-corpus.jsonl"),
+      `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
+    );
+    const reader = new ClaudeSessionReader({ sessionDir: directory });
+    const session = await reader.getSession("display-corpus", projectId);
+    if (!session) throw new Error("Native Claude specimen was not read");
+    return await runPersistedPipeline(session);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+nativeDisplayCases.push(...observedDisplayCases);

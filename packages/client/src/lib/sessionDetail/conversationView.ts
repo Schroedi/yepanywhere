@@ -274,16 +274,20 @@ function getRecentActivity(
 ): ConversationRecentActivity | null {
   if (item.type === "tool_call") {
     const renderer = toolRegistry.metadata(item.toolName);
-    const label = toolRegistry.getDisplayName(
-      item.toolName,
-      "pending",
-      item.toolInput,
-    );
+    const prepared = toolRegistry.prepare(item.toolName, {
+      input: item.toolInput,
+      result: item.toolResult?.structured ?? item.toolResult?.content,
+      status: item.status,
+      isError: item.toolResult?.isError,
+    });
+    const label = prepared.getDisplayName("pending");
     const summary = getToolSummary(
       item.toolName,
       item.toolInput,
       item.toolResult,
       item.status,
+      undefined,
+      prepared,
     );
     const preview = getToolActivityPreview(item, renderer.tool, summary);
     return {

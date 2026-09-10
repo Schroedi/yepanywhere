@@ -16,6 +16,7 @@ export interface DisplayContract<I extends z.ZodType, R extends z.ZodType> {
   failure?: z.ZodType<z.output<R>>;
   variants: readonly [string, ...string[]];
   standaloneResult: boolean;
+  standaloneResultSchema?: z.ZodType<z.output<R>>;
 }
 
 /** Bounded, data-only preparation shared by native parity and mounted dispatch.
@@ -28,7 +29,11 @@ export function prepareDisplay<I extends z.ZodType, R extends z.ZodType>(
 ) {
   const isError = record.isError ?? record.status === "error";
   const input = contract.input.safeParse(record.input);
-  const resultSchema = isError ? contract.failure : contract.result;
+  const resultSchema = isError
+    ? contract.failure
+    : record.input === undefined
+      ? (contract.standaloneResultSchema ?? contract.result)
+      : contract.result;
   const result =
     record.result === undefined
       ? undefined

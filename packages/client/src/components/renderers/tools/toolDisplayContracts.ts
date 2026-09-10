@@ -1,4 +1,9 @@
-import { PlainToolOutputSchema } from "./displayContracts";
+import {
+  EditDisplayFailureSchema,
+  TaskDisplayFailureSchema,
+  ExitPlanModeDisplayFailureSchema,
+  PlainToolOutputSchema,
+} from "./displayContracts";
 import {
   AskUserQuestionDisplayInputSchema,
   AskUserQuestionDisplayResultSchema,
@@ -90,6 +95,10 @@ export const toolDisplayContracts = {
     partialResult: PlainToolOutputSchema,
     input: ExitPlanModeDisplayInputSchema,
     result: ExitPlanModeDisplayResultSchema,
+    failure: ExitPlanModeDisplayFailureSchema,
+    standaloneResultSchema: ExitPlanModeDisplayResultSchema.refine((value) =>
+      Boolean(value.plan || value._renderedHtml || value.message),
+    ),
     variants: ["standard", "plain-text"],
     standaloneResult: true,
   },
@@ -109,6 +118,11 @@ export const toolDisplayContracts = {
     input: UpdatePlanDisplayInputSchema,
     result: UpdatePlanDisplayResultSchema,
     failure: UpdatePlanDisplayResultSchema,
+    standaloneResultSchema: UpdatePlanDisplayResultSchema.refine((value) =>
+      typeof value === "string"
+        ? value.trim().length > 0
+        : Boolean(value.message?.trim()),
+    ),
     variants: ["standard"],
     standaloneResult: true,
   },
@@ -129,6 +143,7 @@ export const toolDisplayContracts = {
     partialResult: PlainToolOutputSchema,
     input: TaskDisplayInputSchema,
     result: TaskDisplayResultSchema,
+    failure: TaskDisplayFailureSchema,
     variants: ["standard", "asynchronous", "plain-text"],
     standaloneResult: false,
   },
@@ -201,6 +216,13 @@ export const toolDisplayContracts = {
     partialResult: PlainToolOutputSchema,
     input: EditDisplayInputSchema,
     result: EditDisplayResultSchema,
+    failure: EditDisplayFailureSchema,
+    standaloneResultSchema: EditDisplayResultSchema.refine(
+      (value) =>
+        value.filePath !== undefined ||
+        value.structuredPatch !== undefined ||
+        value.content !== undefined,
+    ),
     variants: [
       "replacement",
       "patch",

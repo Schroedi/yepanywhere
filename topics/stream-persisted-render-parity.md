@@ -350,20 +350,21 @@ failure for a declared rich/partial specimen. No CLI, credentials, or paid
 provider session is required. The persisted harness includes the production
 TaskList snapshot pass before rich augments.
 
-Coverage ownership (synthetic native envelopes, invented non-private values):
+Coverage ownership (invented values; evidence classes distinguished below):
 
 | Provider seam | Paired tool variants |
 | --- | --- |
-| Claude SDK `convertMessage` / native JSONL normalization | Read text/dedup/image/PDF/text-only; Write file/ack/rejection; Edit replacement/text-only; Bash; Glob; Grep files/content/count/text-only; TodoWrite; Task complete/async/text-only; search/fetch; questions; plan exit; background shell/task output; kill; task create/update events |
+| Claude SDK `convertMessage` / actual JSONL reader and normalization | Read text/dedup/image/PDF/text-only; Write file/ack/rejection; Edit replacement/text-only; Bash; Glob; Grep files/content/count/text-only; TodoWrite; Task complete/async/text-only; search/fetch; questions; plan exit; background shell/task output; kill; task create/update events |
 | Codex app-server raw-response notifications / rollout response items | goals, plan, stdin, image, spawn; multi-call Exec; custom apply_patch; code-mode Web; shell-recognized Read/Grep/heredoc Write/Bash |
 | Codex commandExecution notifications / durable shell calls | Read, Grep and heredoc Write; structured bodies, status and checked values agree |
 | Gemini CLI native events / session JSON | read_file, replace, write_file (including rejection), glob, search_file_content, run_shell_command |
 | OpenCode SSE parts / stored message parts | read, edit, write, glob, grep, bash, todowrite, task, webfetch, websearch, question, apply_patch |
 | Pi AgentSession events / native message-node reader | read, write, edit replacements, bash, grep; both sides use pi-tools normalization |
-| Grok ACP updates / updates-JSONL reader | Write/SearchReplace result; both sides use the shared Grok normalizer |
+| Grok ACP updates / updates-JSONL reader | Write/SearchReplace, ReadFile, and Bash results; both sides use the shared Grok normalizer |
+| Codex OSS command_execution / rollout execution records | Bash and shell-recognized Read, including file actions |
 
 The matrix deliberately does not claim every provider emits every renderer
-variant. Additional Grok tool conversions, legacy Codex OSS events, Pi custom
+variant. Additional Grok tool conversions, non-shell Codex OSS events, Pi custom
 extensions, and Gemini ACP's input-less call notifications retain their owning
 provider adapter tests and universal display fallback; no new rich variant is
 claimed for those paths here. Gemini ACP cannot supply a complete Write input
@@ -392,3 +393,36 @@ per provider and 8 MB per file: 3,522 Claude rows (2.1.201–2.1.258) and 8,607
 Codex rows (0.145.0–0.153.2). Only aggregate tool/field/version counts were kept
 locally. Committed fixtures contain invented values, not transcript excerpts.
 Codex adapter source was checked against the declared rust-v0.154.0 reference.
+
+### Evidence added after the display-contract review
+
+The original display-derived native envelopes remain adapter/containment
+controls. They do not establish observed-provider coverage. Independent controls
+in `observed-tool-display-specimens.ts` retain field presence and nesting from
+inactive Claude Code 2.1.223 JSONL: mixed WebSearch link groups/commentary, Read
+text, Read image dimensions, and Edit replacement results. All values are
+invented replacements. The exact source version and evidence class accompany
+each control; live SDK envelopes are reconstructed, not captured.
+
+The independent PDF and partially specified image-dimension controls follow
+installed Agent SDK 0.3.258 declarations; no local specimen for those shapes was
+found in the bounded scan. That scan examined 30 inactive files below 8 MB each
+per provider, excluding files modified in the preceding hour. Claude versions
+were 2.1.201, 2.1.220, 2.1.223, 2.1.238, and 2.1.258; Codex versions were
+0.147.0, 0.149.1, 0.152.1, and 0.153.2. Private source locators and raw observations
+remain in ignored local storage. Tests have no dependency on that storage.
+
+The Claude pairs now pass through `ClaudeSessionReader.getSession`, including
+JSONL parsing and DAG selection. Multi-record prefixes cover a rejected Write
+and a corrected neighboring call, preserving order, identity, error text,
+classification and mounted output. A live unfinished call with active-work
+knowledge is pending; the same frozen JSONL tail without that knowledge is
+incomplete. Terminal prefixes must converge exactly. Separate child JSONL and
+metadata-sidecar controls verify child call order, exclusion from the parent
+history, and the sidecar's launch-tool-to-agent mapping against live SDK parent
+ids. They do not fabricate parent ids inside current child history.
+
+The expanded tests still do not prove every distinct provider conversion or
+observed specimen promised by tactical 124. Remaining coverage is recorded in
+`gaps/tool-display-native-provider-coverage.md`; transport wiring and paid live
+sessions are not exercised by these deterministic conversion/reader controls.

@@ -1,3 +1,4 @@
+import { toolRegistry } from "../../renderers/tools";
 import {
   act,
   fireEvent,
@@ -176,6 +177,29 @@ describe("ToolCallRow commentary integration", () => {
       ).toContain("_acli");
       expect(compiled.at(-1)?.workflow?.markers[0]?.kind).toBe("end");
       expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["Bash", "Exec"])(
+    "preserves %s error status through commentary when the result flag is absent",
+    async (toolName) => {
+      const prepare = vi.spyOn(toolRegistry, "prepare");
+      const output = `${banner}{"value":"failed output"}`;
+      const content =
+        toolName === "Exec"
+          ? JSON.stringify([{ type: "text", text: output }])
+          : output;
+      const toolResult = { content, isError: false };
+      Reflect.deleteProperty(toolResult, "isError");
+      render(row(content, false, { toolName, status: "error", toolResult }));
+      await waitFor(() => {
+        const calls = prepare.mock.calls.filter(
+          ([name, record]) => name === toolName && record.status === "error",
+        );
+        expect(calls.length).toBeGreaterThan(0);
+        for (const [, record] of calls)
+          expect(record.isError ?? record.status === "error").toBe(true);
+      });
     },
   );
 

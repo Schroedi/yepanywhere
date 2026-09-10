@@ -118,7 +118,7 @@ function CodeModeBoundary(props: InvocationProps) {
           ...props.toolResult,
           content: part.text,
           structured: undefined,
-          isError: props.toolResult?.isError ?? false,
+          isError: props.toolResult?.isError ?? props.status === "error",
         },
         replaceText: (text) => ({
           ...block,
@@ -202,7 +202,7 @@ function CodeModeBoundary(props: InvocationProps) {
           ...props.toolResult,
           content: JSON.stringify(blocks),
           structured: blocks,
-          isError: props.toolResult?.isError ?? false,
+          isError: props.toolResult?.isError ?? props.status === "error",
         },
         workflow,
       )}
@@ -291,8 +291,9 @@ function InvocationBoundary(props: InvocationProps) {
         toolName: props.toolName,
         toolInput: props.toolInput,
         toolResult: props.toolResult,
+        status: props.status,
       }),
-    [props.toolResult, props.toolInput, props.toolName],
+    [props.toolResult, props.toolInput, props.toolName, props.status],
   );
   const [mode, setMode] = useState<"commentary" | "raw" | null>(null);
   const declared = [output.stdout, output.stderr].some((text) =>
@@ -450,14 +451,14 @@ function CommentaryOutput(
     return {
       ...props.toolResult,
       content: projection.stdout,
-      isError: props.toolResult?.isError ?? false,
+      isError: props.toolResult?.isError ?? props.status === "error",
       structured: props.output.shell
         ? { ...props.output.shell, stdout: projection.stdout, stderr }
         : props.output.stderr
           ? { stdout: projection.stdout, stderr }
           : undefined,
     };
-  }, [props.toolResult, props.output, projection]);
+  }, [props.toolResult, props.output, projection, props.status]);
   const projectedInput = useMemo(() => {
     const input = record(props.toolInput);
     return input
@@ -487,7 +488,7 @@ function CommentaryOutput(
             <BashModalContent
               input={props.toolInput as BashInput}
               result={projectedResult?.structured as BashResult}
-              isError={props.toolResult?.isError ?? false}
+              isError={props.toolResult?.isError ?? props.status === "error"}
               projectPathLinks={props.toolResult?.projectPathLinks}
             />
           ) : (

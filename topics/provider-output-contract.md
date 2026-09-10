@@ -341,6 +341,12 @@ nonempty array of only `input_text` items, readable content is the concatenated
 text. Mixed, image, audio, resource, and encrypted arrays retain their
 structured JSON envelope (with the ordinary inline-media sanitization rules).
 
+Codex OSS command-execution messages forward the shared normalizer's
+`_displayActions`, matching rollout-derived file actions. Shell-recognized Read
+calls keep the same file affordances before and after reload. Native OSS parity
+uses the durable `exec_command_end` record for result text and exit code;
+function-output wrappers alone are not the authoritative execution record.
+
 ## Command execution metadata (exit code, runtime)
 
 Command-like tool results (Bash and shell-session polls such as Codex

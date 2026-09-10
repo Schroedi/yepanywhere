@@ -152,7 +152,10 @@ function BashToolResult({
   );
 
   // Normalize result to handle both structured and string formats
-  const result = normalizeBashResult(rawResult, isError);
+  const result =
+    typeof rawResult === "string"
+      ? normalizeBashResult(rawResult, isError)
+      : rawResult;
 
   useEffect(() => {
     if (enabled && rawResult && typeof rawResult === "object") {
@@ -345,9 +348,9 @@ function BashCollapsedPreview({
   const previewResult = rawResult ?? getPreviewResultFromInput(input);
   // Normalize result to handle both structured and string formats
   const result =
-    previewResult !== undefined
+    typeof previewResult === "string"
       ? normalizeBashResult(previewResult, isError)
-      : undefined;
+      : previewResult;
 
   useEffect(() => {
     if (enabled && rawResult && typeof rawResult === "object") {

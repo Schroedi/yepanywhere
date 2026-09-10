@@ -492,3 +492,41 @@ console warnings. Dedicated throw tests assert local recovery and neighboring
 usability. Type fixtures and parser-backed architecture checks prevent common
 registration, fixture and callback-access omissions. See provider-authoring for
 the new-tool procedure and stream/persisted parity for native coverage limits.
+
+### Required display semantics and review regressions
+
+The callback contract uses function-valued properties with strict parameter
+checking. A callback cannot explicitly require a field absent from its schema;
+compile-fail controls cover annotated input and result parameters as well as
+inferred property access. Schemas alone determine inference at registration.
+
+Claude search results may mix commentary strings and link groups; valid links
+remain links. PDF Read results do not require an image MIME field. Image
+metadata may provide only original dimensions. TaskOutput retains `success`,
+`not_ready`, and `local_agent`, and does not invent an exit code when absent.
+Task text retains checked `_renderedHtml`. Nested tool-use blocks require an id
+and name before entering nested dispatch; malformed blocks use inspection
+without requiring a rendering exception.
+
+Supported Edit and Task rejections retain their specialized failure views and
+original error detail. A declined Edit with a checked proposed patch still
+shows that patch. Edit acknowledgements remain visible text rather than an
+invented empty before/after diff. Goal failures retain string, content, and
+nested message/detail forms. Other failures without an explicit checked failure
+contract remain inspectable raw records. Failure eligibility is independent of
+success schemas; commentary must retain an absent error flag's status fallback,
+including when status changes without replacing the output object.
+
+ExitPlanMode and UpdatePlan standalone results display their plan or
+acknowledgement. Standalone Edit requires a result fact (path, patch, or text);
+an empty object is insufficient. Input-only augmentation is not fabricated
+when the original input is missing. Original unknown fields remain available
+for inspection, not trusted rich access.
+
+`displayExpectations.ts` requires a separate semantic expectation for each
+variant/operation. An intentional empty operation is explicit; another
+operation's summary cannot satisfy its assertion. Standalone expectations
+account for facts present only in input. Independent provider-shape and failure
+controls complement mutation containment tests; mutation counts are not counts
+of independent semantic contracts. Bash views consume prepared object results
+without reparsing them; Conversation name and summary share one preparation.

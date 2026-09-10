@@ -129,7 +129,7 @@ export const displayFixtures = {
       input: read,
       result: {
         type: "pdf",
-        file: { base64: "cGRm", type: "application/pdf" },
+        file: { filePath: file.filePath, base64: "cGRm", originalSize: 3 },
       },
       text: "PDF",
       provenance: claude,

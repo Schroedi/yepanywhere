@@ -55,7 +55,7 @@ function isCompleteTextFile(file: ReadResult["file"]): file is TextFile {
   return "content" in file && typeof file.content === "string";
 }
 function getResultFilePath(file: ReadResult["file"]): string {
-  return "filePath" in file ? file.filePath : "";
+  return "filePath" in file ? (file.filePath ?? "") : "";
 }
 
 /**
@@ -493,7 +493,12 @@ function ImageFileResult({
             </>
           )}
           {hasDimensions && sizeKB > 0 && " "}
-          {sizeKB > 0 && <>({sizeKB}\u202fkb)</>}
+          {sizeKB > 0 && (
+            <>
+              ({sizeKB}
+              {"\u202f"}kb)
+            </>
+          )}
         </div>
       )}
       {expanded && (
@@ -563,7 +568,10 @@ function PdfFileResult({
       <div className="read-pdf-result">
         <ReadFilePathSummary displayPath={displayPath} filePath={filePath}>
           {sizeKB > 0 && (
-            <span className="file-line-count-inline">({sizeKB}\u202fkb)</span>
+            <span className="file-line-count-inline">
+              ({sizeKB}
+              {"\u202f"}kb)
+            </span>
           )}
           <span className="file-line-count-inline">PDF</span>
         </ReadFilePathSummary>
@@ -580,7 +588,10 @@ function PdfFileResult({
       >
         {fileName}
         {sizeKB > 0 && (
-          <span className="file-line-count">({sizeKB}\u202fkb)</span>
+          <span className="file-line-count">
+            ({sizeKB}
+            {"\u202f"}kb)
+          </span>
         )}
         <span className="file-line-count">Open PDF</span>
       </button>
@@ -644,7 +655,10 @@ function ReadToolResult({
         {showValidationWarning && validationErrors && (
           <SchemaWarning toolName="Read" errors={validationErrors} />
         )}
-        <PdfFileResult file={result.file} filePath={input?.file_path} />
+        <PdfFileResult
+          file={result.file}
+          filePath={input?.file_path ?? result.file.filePath}
+        />
       </>
     );
   }
@@ -655,7 +669,10 @@ function ReadToolResult({
         {showValidationWarning && validationErrors && (
           <SchemaWarning toolName="Read" errors={validationErrors} />
         )}
-        <ImageFileResult file={result.file} filePath={input?.file_path} />
+        <ImageFileResult
+          file={result.file}
+          filePath={input?.file_path ?? result.file.filePath}
+        />
       </>
     );
   }

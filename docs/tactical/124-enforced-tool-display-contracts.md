@@ -2,14 +2,17 @@
 
 Topic: tool-display-contracts
 
-Status: implemented 2026-09-10. All 26 specialized registrations use checked
-schema-bound dispatch; no legacy allowlist remains. Durable contracts and the
-bounded native coverage matrix live in the linked owning topics. Validation
-includes root lint/typecheck/tests, registry mutation and native mounted suites,
-and desktop/phone browser recovery checks. Final verification evidence is
-recorded in the implementation commit.
+Status: checked registration and bounded review corrections implemented
+2026-09-10. All 26 specialized registrations use schema-bound dispatch. The
+review corrected supported shapes, failure/standalone output, callback variance,
+commentary error state, per-operation expectations, and native reader evidence.
+Original step 5 is still only partially evidenced: observed specimens and
+conversion coverage do not yet span every distinct provider path. See
+`gaps/tool-display-native-provider-coverage.md`; the older completion statement
+below must not be interpreted as full native-corpus sign-off.
 
-Validation record:
+Validation record for the initial implementation (superseded by the correction
+commit's validation for touched behavior):
 
 - 976 registry mutation/lifecycle controls; 80 native paired specimens mounted
   on both delivery paths; 81 native server checks including variant accounting.
@@ -30,6 +33,23 @@ Validation record:
 - Validation ran on macOS. No Linux/Windows native filesystem behavior changed;
   those operating systems were not run locally. Native cases use deterministic
   injected messages, not paid live provider sessions.
+
+## Review correction validation
+
+- Full workspace run: client 5,666 passed; server 4,947 passed, 54 skipped;
+  shared 719, relay 130 and push broker 44 passed. No watcher retry was needed.
+- After the final label, partial-task and empty-standalone corrections, focused
+  client checks passed 1,352 tests (including 1,077 registry controls and 94
+  native mounted checks); native server checks passed 98. No runtime warnings.
+- Root lint, formatter and typecheck checks passed, including the annotated
+  callback compile-fail probes and clean server-fixture typecheck scope.
+- Four browser cases cover recovery and restored semantics at 1000x600 and
+  375x812. Final captures were inspected sequentially and archived in
+  `.artifacts/ui-testing/2026-09-10-tool-display-review-corrections/`.
+- Console budgets are unchanged. CSS ownership remains coupled/scattered;
+  no independently owned extraction was identified. Validation ran on macOS;
+  Linux and Windows were not run locally. Test filesystem writes use portable
+  temporary-directory APIs and unconditional cleanup.
 
 ## Motivation and requested outcome
 
@@ -462,5 +482,8 @@ cast-count audit or a promised tiny custom checker is not a completion proof.
 The maintainer accepted the schema-derived model and the qualifications above.
 The implementation steps now specify preparation after commentary transforms,
 named Edit alternatives, standalone-result capabilities per definition, and a
-distinct but coordinated developer-diagnostic inventory. The implementation now follows these boundaries; the review notes above are
-retained as design history.
+distinct but coordinated developer-diagnostic inventory. The review notes above are retained as design history. The correction pass
+keeps safe public operations over private parsed values rather than exposing
+a fully phase-correlated prepared-value union; that representation is an
+explicit design qualification, not a claim that all intended guarantees have
+been mechanically proved.

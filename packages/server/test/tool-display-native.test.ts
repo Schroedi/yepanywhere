@@ -5,6 +5,79 @@ import {
   runNativeDisplayCase,
 } from "./utils/native-tool-display-corpus.ts";
 import { normalizeRenderItemsForComparison } from "./utils/render-parity-harness.ts";
+import {
+  runNativeDisplayLifecycle,
+  runNativeDisplayOwnership,
+} from "./utils/native-tool-display-lifecycle.js";
+
+it.each([1, 2, 3, 4])(
+  "preserves ordered lifecycle facts at native prefix %s",
+  async (prefix) => {
+    const pair = await runNativeDisplayLifecycle(prefix);
+    const expected =
+      prefix < 3
+        ? ["display-lifecycle/rejected"]
+        : ["display-lifecycle/rejected", "display-lifecycle/corrected"];
+    for (const side of [pair.live, pair.durable]) {
+      const unfinished = side === pair.live ? "pending" : "incomplete";
+      const calls = side.renderItems.filter(
+        (item) => item.type === "tool_call",
+      );
+      expect(calls.map((call) => call.id)).toEqual(expected);
+      expect(calls.map((call) => call.status)).toEqual(
+        prefix === 1
+          ? [unfinished]
+          : prefix === 2
+            ? ["error"]
+            : prefix === 3
+              ? ["error", unfinished]
+              : ["error", "complete"],
+      );
+      expect(calls.map((call) => preparedNativeRecord(call).kind)).toEqual(
+        prefix < 3 ? ["raw"] : ["raw", "rich"],
+      );
+    }
+    // A frozen unclosed JSONL call is incomplete; only the live caller supplies
+    // active-work knowledge. Terminal prefixes converge without that exception.
+    if (prefix % 2 === 0)
+      expect(normalizeRenderItemsForComparison(pair.live.renderItems)).toEqual(
+        normalizeRenderItemsForComparison(pair.durable.renderItems),
+      );
+  },
+);
+
+it("keeps child call ordering separate and recovers the parent launch link from the sidecar", async () => {
+  const pair = await runNativeDisplayOwnership();
+  expect(pair.mappings).toContainEqual(
+    expect.objectContaining({
+      toolUseId: pair.parentId,
+      agentId: "review-child",
+    }),
+  );
+  expect(
+    pair.liveMessages.every(
+      (message) => message.parent_tool_use_id === pair.parentId,
+    ),
+  ).toBe(true);
+  expect(
+    pair.parent.renderItems
+      .filter((item) => item.type === "tool_call")
+      .map((item) => item.id),
+  ).toEqual([pair.parentId]);
+  for (const side of [pair.live, pair.durable]) {
+    const calls = side.renderItems.filter((item) => item.type === "tool_call");
+    expect(calls.map((call) => [call.id, call.status])).toEqual([
+      ["display-lifecycle/rejected", "error"],
+      ["display-lifecycle/corrected", "complete"],
+    ]);
+    expect(
+      calls.map(preparedNativeRecord).map((record) => record.kind),
+    ).toEqual(["raw", "rich"]);
+  }
+  expect(normalizeRenderItemsForComparison(pair.live.renderItems)).toEqual(
+    normalizeRenderItemsForComparison(pair.durable.renderItems),
+  );
+});
 for (const fixture of nativeDisplayCases)
   describe(fixture.id, () => {
     it("converges through native adapters, durable normalization, compilation and display preparation", async () => {
@@ -31,15 +104,16 @@ for (const fixture of nativeDisplayCases)
         preparedNativeRecord(durableCall),
       );
       expect(preparedNativeRecord(liveCall).kind).toBe(
-        fixture.isError
-          ? "raw"
-          : (fixture.id.endsWith("plain-text") &&
-                fixture.tool !== "Write" &&
-                fixture.tool !== "Bash") ||
-              fixture.id === "codex/Edit/patch" ||
-              fixture.id === "pi/Grep/native"
-            ? "partial"
-            : "rich",
+        fixture.expectedKind ??
+          (fixture.isError
+            ? "raw"
+            : (fixture.id.endsWith("plain-text") &&
+                  fixture.tool !== "Write" &&
+                  fixture.tool !== "Bash") ||
+                fixture.id === "codex/Edit/patch" ||
+                fixture.id === "pi/Grep/native"
+              ? "partial"
+              : "rich"),
       );
       // Deliberate non-display metadata exceptions; never erase result facts
       // or a display classification to obtain parity.

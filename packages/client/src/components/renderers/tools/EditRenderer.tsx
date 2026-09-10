@@ -1697,6 +1697,19 @@ function EditToolResult({
     );
   }
 
+  // An acknowledgement has no replacement body. Preserve its text instead of
+  // inventing an empty before/after diff (also useful without the original input).
+  if (
+    result.content &&
+    !result.structuredPatch?.length &&
+    result.oldString === undefined &&
+    result.newString === undefined &&
+    input?.old_string === undefined &&
+    input?.new_string === undefined
+  ) {
+    return <div className="edit-result">{result.content}</div>;
+  }
+
   // Handle case where result doesn't have structuredPatch
   // Use input data as fallback when result data is missing
   if (!result?.structuredPatch || result.structuredPatch.length === 0) {

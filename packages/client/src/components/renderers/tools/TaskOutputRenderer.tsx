@@ -130,8 +130,8 @@ function TaskOutputToolResult({
       {task && (
         <div className="taskoutput-task">
           <div className="taskoutput-task-status">
-            <StatusIndicator status={task.status} />
-            {task.exitCode !== null && (
+            {task.status && <StatusIndicator status={task.status} />}
+            {task.exitCode != null && (
               <span
                 className={`badge ${task.exitCode === 0 ? "badge-success" : "badge-error"}`}
               >
