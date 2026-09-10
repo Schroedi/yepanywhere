@@ -97,6 +97,16 @@ worker batch. Settings, catalog and completed-session signals drive admission.
 An unchanged failed source is not retried by an endless loop; a changed source
 version permits another attempt.
 
+A catalog sweep costs write transactions only for sessions whose working
+project actually moved. Ownership can change only for a session that already
+has a job or evidence row, so one read names that set before the sweep begins
+and every other candidate is skipped without opening a transaction. The
+observable requirement is that admitting an unchanged catalog of any size
+performs no writes: SQLite takes a file lock per transaction, and an idle
+server was previously taking roughly one lock per known session per catalog
+publication, which is fatal on the network filesystems
+[optional SQLite](optional-sqlite.md) now refuses.
+
 Provider-owned acquisition uses 64 KiB reads, an 8 MiB/2,000-record batch budget,
 a 30-second acquisition deadline and a 1 MiB individual JSONL record limit.
 Oversized/malformed records leave partial coverage. Codex lineage traversal is
