@@ -136,7 +136,7 @@ function IssueBrowser() {
     }
   };
   return (
-    <div className={styles.page}>
+    <main className={styles.page}>
       <div className={styles.controls}>
         <input
           type="search"
@@ -413,6 +413,6 @@ function IssueBrowser() {
           </section>
         )}
       </div>
-    </div>
+    </main>
   );
 }

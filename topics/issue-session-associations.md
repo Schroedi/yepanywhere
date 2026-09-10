@@ -25,6 +25,9 @@ background adapter.
 Search uses literal, case-insensitive substrings of stored keys, URLs and titles.
 Pasting a full URL finds its canonical record. Search and evidence pages default
 to 50 rows and accept at most 100. Project/session filters apply before the limit.
+The browser content scrolls vertically within the app while its page header
+remains visible. Long result lists, pagination controls, and association evidence
+remain reachable at desktop and phone widths.
 An unresolved reference is useful and searchable before a tracker host is known.
 Its detail can resolve it by supplying the matching full URL. Markdown labels
 supply observed titles; a user can override a resolved item's title. YA makes no
@@ -174,5 +177,5 @@ credentials. The retired tactical 125 plan and independent Opus review are retai
 in Git history under this topic's commit series.
 
 Validation owners: `test/storage/{issues,issue-indexing,issue-routes}.test.ts` and
-`client/e2e/{issue-associations,remote-issues}.spec.ts`, plus packaged SQLite
+`client/e2e/{issue-associations,issues-scroll,remote-issues}.spec.ts`, plus packaged SQLite
 runtime checks. Remote navigation coverage uses the production client bundle.
