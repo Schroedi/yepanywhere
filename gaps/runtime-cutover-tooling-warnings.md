@@ -13,7 +13,8 @@ Two broader checks still report explicitly retained diagnostics:
 - `pnpm install --no-frozen-lockfile` and Desktop's resource preparation report
   deprecated `@hono/node-ws@1.3.0`, `@types/diff@8.0.0`, and transitive
   `@ungap/structured-clone@1.3.0`, `glob@10.5.0`, `node-domexception@1.0.0`,
-  `prebuild-install@7.1.3`, `uuid@9.0.1`, `whatwg-encoding@3.1.1`. Desktop also
+  `uuid@9.0.1`, `whatwg-encoding@3.1.1`. The Node-API SQLite addon update removed
+  `prebuild-install` and its deprecation. Desktop also
   reports "Shared workspace lockfile detected but configuration forces legacy
   deploy implementation." Replacing the WebSocket/deployment dependency paths
   needs their own transport and desktop artifact validation; keep the current

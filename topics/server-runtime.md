@@ -37,6 +37,11 @@ execution-target contract; relay and push broker retain their native SQLite
 ownership. Android JavaScript CI uses the root workspace floor; Android native
 runtime requirements and provider execution targets do not change.
 
+Relay and push broker use `better-sqlite3` 13's Node-API addon on Node 22 or
+newer. The older V8-bound addon aborted during statement garbage collection
+in the Node 24 browser integration harness. Both services retain their existing
+database ownership and schemas; the core continues using runtime SQLite.
+
 ## Older-server compatibility
 
 The engine floor changes immediately for new server releases. There is no

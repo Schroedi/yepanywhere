@@ -1,6 +1,6 @@
 # SQLite workspaces cannot load the native prebuild on Rocky Linux 8
 
-The installed `better-sqlite3@11.10.0` native module requires
+The previously installed `better-sqlite3@11.10.0` native module requires
 `GLIBCXX_3.4.31`, while Rocky Linux 8.10's system `libstdc++.so.6` provides
 symbols only through `GLIBCXX_3.4.25`. Tests that construct a database
 therefore fail before exercising YA behavior:
@@ -24,3 +24,8 @@ rather than dozens of database-test failures.
 
 Found 2026-08-11 while validating the pnpm 10 toolchain upgrade under Node 20
 and Node 24.
+
+Relay and push broker now use `better-sqlite3@13.0.3` for its Node-API addon
+and require Node 22 or newer. The old Node 20 result no longer describes the
+supported runtime. Rocky Linux 8 prebuild compatibility has not been rechecked
+with the new addon, so this host-support decision remains open.
