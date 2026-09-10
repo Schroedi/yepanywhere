@@ -313,3 +313,9 @@ therefore read the same stable message IDs even between live-process snapshots.
 This fixture writer is part of the simulated leg; the real provider SDK's writer
 remains outside the measured boundary. The no-browser-diagnostics assertion and
 verified-idle release assertion remain required.
+
+Semantic browser setup and replay run with idle reaping disabled. After Chromium
+closes, the specialized driver sets the one-second deadline through the public
+settings API, verifies the remaining raw subscriber retains the idle provider
+past that deadline, then measures release after its final unsubscribe. Failures
+include the owned-server diagnostic tail rather than discarding that evidence.

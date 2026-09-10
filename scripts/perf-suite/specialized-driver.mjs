@@ -1,4 +1,4 @@
-import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
@@ -557,7 +557,9 @@ export async function measureOwnedProviderLifecycle({
     driver: "specialized",
     envOverrides: {
       ENABLED_PROVIDERS: "claude",
-      IDLE_TIMEOUT: String(scenario.idleReapSeconds),
+      // Browser setup/replay is independent of the accelerated reap clock.
+      IDLE_TIMEOUT: "-1",
+      LOG_LEVEL: "debug",
       USE_MOCK_SDK: "false",
       YEP_PERF_TRANSCRIPT_DIR: path.dirname(fixture.sessionFiles[0].file),
       YEP_PERF_SIM_STREAM_CHUNKS: String(scenario.streamChunks),
@@ -737,6 +739,28 @@ export async function measureOwnedProviderLifecycle({
       },
     );
 
+    await requestJson(`${server.baseUrl}/api/settings`, {
+      method: "PUT",
+      json: { idleReapHours: scenario.idleReapSeconds / 3600 },
+      timeoutMs: config.server.requestTimeoutMs,
+    });
+    // The raw observer remains subscribed after Chromium closes. Prove that
+    // viewer retention survives a full deadline before timing unsubscribe.
+    await new Promise((resolve) =>
+      setTimeout(resolve, scenario.idleReapSeconds * 1500),
+    );
+    const retained = await requestJson(
+      `${server.baseUrl}/api/sessions/${sessionId}/process`,
+      {
+        timeoutMs: config.server.requestTimeoutMs,
+      },
+    );
+    if (retained.body?.process?.state !== "idle") {
+      throw new Error(
+        "subscribed idle provider was released before unsubscribe",
+      );
+    }
+
     const reapStartedAtMs = performance.now();
     socket.send(JSON.stringify({ type: "unsubscribe", subscriptionId }));
     socket.close();
@@ -761,6 +785,7 @@ export async function measureOwnedProviderLifecycle({
         textBytes,
         textDeltaCount: textDeltas.length,
         rawBeforeEnriched: true,
+        retainedWhileSubscribedPastIdleDeadline: true,
         ownershipReleasedAfterVerifiedIdle: true,
         semanticAction: semanticAction.correctness,
       },
@@ -788,6 +813,14 @@ export async function measureOwnedProviderLifecycle({
       serverLog: server.logPath,
       serverStartupMs: round(server.startupMs),
     };
+  } catch (error) {
+    const serverLog = await readFile(server.logPath, "utf8").catch(
+      () => "unavailable",
+    );
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}\nOwned-provider log tail:\n${serverLog.slice(-24000)}`,
+      { cause: error },
+    );
   } finally {
     socket?.terminate();
     server.log.end();
