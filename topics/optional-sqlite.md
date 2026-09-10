@@ -14,6 +14,14 @@ Verified: 2026-09-10
 `YEP_SQLITE` accepts `off` or `auto`. An unset value means `auto`; invalid values
 are configuration errors. Changes take effect after restarting the server.
 
+The discovery database is only as fast as the filesystem holding the data
+directory. Both adapters are synchronous and SQLite takes a file lock per
+transaction, so a data directory on a network filesystem puts a network round
+trip on the event loop for every transaction and can stall the server outright.
+Nothing checks this yet; `YEP_DATA_DIR` is the manual escape, and
+[the data-directory placement gap](../gaps/data-dir-filesystem-unchecked-for-sqlite-locks.md)
+carries the measurements and the proposed default.
+
 This default is infrastructure, not a feature opt-in. Independent features
 still govern learning, indexing, retention, and their own background work.
 An explicit `off` is a development/recovery escape hatch: SQLite-dependent
