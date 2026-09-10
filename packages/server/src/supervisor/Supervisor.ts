@@ -1295,6 +1295,7 @@ export class Supervisor {
         ) ?? Promise.resolve(),
       setModelFn: setModel,
       runProviderCommandFn: runProviderCommand,
+      providerInitializesOnFirstMessage: true,
       publishAgentctlSessionIdFn: publishAgentctlSessionId,
       permissionMode: effectiveMode,
       provider: "claude", // Real SDK is always Claude
@@ -2006,6 +2007,7 @@ export class Supervisor {
         ) ?? Promise.resolve(),
       setModelFn: setModel,
       runProviderCommandFn: runProviderCommand,
+      providerInitializesOnFirstMessage: true,
       publishAgentctlSessionIdFn: publishAgentctlSessionId,
       permissionMode: effectiveMode,
       provider: "claude", // Real SDK is always Claude
@@ -2251,6 +2253,8 @@ export class Supervisor {
         ) ?? Promise.resolve(),
       setModelFn: setModel,
       runProviderCommandFn: runProviderCommand,
+      providerInitializesOnFirstMessage:
+        activeProvider.initializesOnFirstMessage === true,
       appendConversationContextFn: result.appendConversationContext,
       initializedSessionId: result.initializedSessionId,
       publishAgentctlSessionIdFn: publishAgentctlSessionId,
@@ -2507,6 +2511,8 @@ export class Supervisor {
         ) ?? Promise.resolve(),
       setModelFn: setModel,
       runProviderCommandFn: runProviderCommand,
+      providerInitializesOnFirstMessage:
+        activeProvider.initializesOnFirstMessage === true,
       appendConversationContextFn: result.appendConversationContext,
       initializedSessionId: result.initializedSessionId,
       publishAgentctlSessionIdFn: publishAgentctlSessionId,

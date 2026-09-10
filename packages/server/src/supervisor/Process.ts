@@ -915,6 +915,12 @@ export interface ProcessConstructorOptions extends ProcessOptions {
     argument?: string,
   ) => Promise<ProviderCommandResult>;
   /**
+   * Whether this provider starts its session only when the first message
+   * arrives, so waiting for its session id before delivering input would wait
+   * for an event that message itself has to trigger.
+   */
+  providerInitializesOnFirstMessage?: boolean;
+  /**
    * Publish the provider's real session id to environment bridges that affect
    * future tool shells spawned by the provider child process.
    */
@@ -1089,6 +1095,7 @@ export class Process {
   private publishAgentctlSessionIdFn:
     | ((sessionId: string) => void | Promise<void>)
     | null;
+  private readonly providerStartsOnFirstMessage: boolean;
 
   /** Resolvers waiting for the real session ID */
   private sessionIdResolvers: Array<(id: string) => void> = [];
@@ -1235,6 +1242,8 @@ export class Process {
     this._pidResolver = options.pid;
     this.setModelFn = options.setModelFn ?? null;
     this.runProviderCommandFn = options.runProviderCommandFn ?? null;
+    this.providerStartsOnFirstMessage =
+      options.providerInitializesOnFirstMessage === true;
     this.publishAgentctlSessionIdFn =
       options.publishAgentctlSessionIdFn ?? null;
     this._isProcessAlive = options.isProcessAlive ?? null;
@@ -2366,6 +2375,20 @@ export class Process {
 
   get supportsNativeCommands(): boolean {
     return this.runProviderCommandFn !== null;
+  }
+
+  /** Whether the provider has reported the canonical session id for this run. */
+  get providerSessionIdSettled(): boolean {
+    return this.sessionIdResolved;
+  }
+
+  /**
+   * Whether the provider is still waiting for its first message to start. A
+   * native command sent now would be the message that starts it, so it cannot
+   * be dispatched out of band ahead of that delivery.
+   */
+  get awaitingFirstMessageToStart(): boolean {
+    return this.providerStartsOnFirstMessage && !this.sessionIdResolved;
   }
 
   async appendConversationContext(

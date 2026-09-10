@@ -256,6 +256,12 @@ restarts; an active goal is not restored that way because Claude reports it
 itself. Clearing a paused goal needs no provider text. Reissuing the live
 objective reads it rather than spending a turn re-acknowledging it.
 
+A `/goal` that is a session's first message — a new session, or the first
+message after its process was reaped — is delivered as that prompt instead of
+being dispatched out of band, because Claude has no session yet to command
+(`session-context-actions.md`). Claude installs the hook itself and the
+transcript row raises the flag as usual.
+
 YA sends this goal text on Claude's most urgent command-queue lane. The lower
 lanes wait for a delivery boundary a goal loop never reaches on its own:
 releasing the Stop hook is what ends the turn, and that release is the message

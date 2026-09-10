@@ -452,6 +452,13 @@ export interface AgentProvider {
    */
   readonly supportsLaunchCompactPercentOverride?: boolean;
   /**
+   * Whether the provider starts its session only once the first message is
+   * delivered, so its init event — and with it the canonical session id —
+   * cannot arrive while YA holds input back. Optional; absent means the
+   * provider reports init on its own after startup.
+   */
+  readonly initializesOnFirstMessage?: boolean;
+  /**
    * Prompt-cache keepalive capability. Absence means YA must not show or
    * schedule keepalive for this provider.
    */

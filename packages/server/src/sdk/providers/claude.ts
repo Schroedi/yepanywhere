@@ -1032,6 +1032,10 @@ export class ClaudeProvider implements AgentProvider {
   readonly supportsNativeRecaps = false;
   readonly supportsNativePromptSuggestions: boolean = true;
   readonly supportsLaunchCompactPercentOverride: boolean = true;
+  // Claude Code streams nothing until it has a prompt: the SDK emits its init
+  // message when the first turn starts, so the session id only exists once YA
+  // has delivered a message.
+  readonly initializesOnFirstMessage = true;
   readonly promptCacheKeepalive?: PromptCacheKeepaliveProviderInfo = {
     supportsNoContextPollutionNudge: true,
     defaultMode: "auto" as const,
