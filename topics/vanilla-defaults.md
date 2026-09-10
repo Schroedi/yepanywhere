@@ -71,6 +71,11 @@ defaults to Off, so an agent or installed skill named `/done` continues to
 receive the user's text. Opting into Hidden enables YA's local command without
 adding chrome; visible narrowing tiers also show its toolbar button.
 
+A configurable, visible resource-protection limit may default safer than the
+first-party harness only when invisible nested fan-out can cause unpredictable
+token or quota burn, the provider default remains an explicit choice, and the
+Maintainer has authorized the exact exception.
+
 ## Known Exceptions
 
 The server runtime upgrade notice is default-visible and nonblocking, authorized

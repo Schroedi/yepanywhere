@@ -79,7 +79,7 @@ jobs:
         with:
           node-version: 22.16.0
       # Advisories triaged as unreachable are listed in auditConfig.ignoreGhsas
-      # (pnpm-workspace.yaml) with rationale in DEVELOPMENT.md
+      # (pnpm-workspace.yaml) with rationale in docs/development/dependencies.md
       # "Known-unreachable advisories".
       # A failure here means a new, untriaged advisory: fix it or triage it in both
       # places — never ignore without a table entry.

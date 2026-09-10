@@ -5,6 +5,12 @@
 
 Topic: ui-design
 
+Read this topic before choosing fixtures or rendering/export commands for UI
+appearance or interaction proposals, including prose discussions of UI ideas.
+Respect explicit prose-only requests and the user's visual-verification
+handoff. For a requested mockup, a source file or dev-server URL alone is not a
+viewable handoff; use the capture and delivery workflow below.
+
 ## Design language and component owners
 
 Start with the actual surface being proposed: `pages/ProjectsPage.tsx` and

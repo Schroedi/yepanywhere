@@ -4,8 +4,9 @@ If `AGENTS.local.md` exists, read it before acting. Its machine-local
 instructions take precedence over this file.
 
 Before implementation planning or repository changes, read and follow
-[DEVELOPMENT.md](DEVELOPMENT.md). Read the applicable topic documents before
-choosing an approach.
+[DEVELOPMENT.md](DEVELOPMENT.md). Follow its task-reading triggers for applicable
+development guides and topic documents before choosing an approach; recheck
+them when the task expands.
 
 Before planning or implementing new work, search `tasks/` and the relevant
 `gaps/` directories. Read and cite matching defects, follow-ups, or plans

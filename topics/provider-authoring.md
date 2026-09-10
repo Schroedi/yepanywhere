@@ -112,8 +112,8 @@ items; a green unit test on one path is not proof the settled render converges.
 
 - **Validate a provider's persisted sessions** against the schemas:
   `npx tsx scripts/validate-jsonl.ts [path]` (see
-  [session validation](../DEVELOPMENT.md#validating-session-data)). This is the
-  fastest way to learn a format's real shape and catch schema gaps.
+  [session validation](../docs/development/providers.md#validating-session-data)).
+  This is the fastest way to learn a format's real shape and catch schema gaps.
 - **Capture live SDK objects**: run with `LOG_SDK_MESSAGES=true` →
   `~/.yep-anywhere/logs/sdk-raw.jsonl`, then
   `npx tsx scripts/validate-tool-results.ts` to check `tool_use_result` shapes.

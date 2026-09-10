@@ -150,11 +150,14 @@ presents beside its own output. A hand-rolled `playwright screenshot` pair
 writes files only the agent can read, so the maintainer sees nothing and has
 to ask for the pictures.
 
-Use the browser control capability described in
-[DEVELOPMENT.md](../DEVELOPMENT.md#ui-tweak-visual-verification) for interactive checks
-when it has an available backend. If setup or discovery reports no browser,
-or the browser inventory is empty, fall back to the repository's installed
-Playwright dependency, which is what the capture command already uses.
+Use an available browser-control capability for interactive web UI checks.
+If setup or discovery reports no browser, or the browser inventory is empty,
+immediately fall back to the repository's installed Playwright dependency,
+which is what the capture command already uses. Do not stop or keep retrying a
+desktop-only backend.
+
+For multi-step interaction testing, add or run a focused `@playwright/test`
+case under `packages/client/e2e/`.
 
 Choose an unused base port and its next two ports for the server under test;
 the example uses 4000–4002. That port belongs to the throwaway server being

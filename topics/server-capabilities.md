@@ -565,26 +565,54 @@ class entirely.
 
 ## Minimum Compatibility Horizons
 
-Capability fallbacks are user-facing support contracts, not rollout
-conveniences. Before a current client depends on a server contract absent from
-a stable release, classify the feature and inspect:
+Hosted clients can update before installed servers. Capability fallbacks are
+user-facing support contracts, not rollout conveniences.
 
-- for an ordinary optional feature, the latest two stable releases and every
-  stable release from the preceding 14 days;
-- for core functionality, the latest two stable releases and every stable
-  release from the preceding 60 days.
+Before making the client depend on a server route, response field, event, or
+changed semantic that is absent from a supported stable release, read
+this topic and [remote hosted compatibility](remote-hosted-compatibility.md).
+Identify whether the feature is core or optional and inspect every stable
+server release in the applicable minimum horizon:
 
-These are minimum horizons. Reaching the end of one only makes a fallback
-eligible for maintainer review; it does not remove the fallback, expand an
-existing capability, or raise a compatibility floor automatically. Preserve a
-cheap fallback longer when practical.
+- optional features: the latest two stable releases and every stable release
+  from the preceding 14 days;
+- core functionality: the latest two stable releases and every stable release
+  from the preceding 60 days.
 
-Before implementation, record the release corpus, new routes/fields/events,
-capability or protocol decision, exact absent-capability behavior, and proof
-that the fallback makes no unsupported request. A maintainer must approve that
-plan. Any proposal to reuse or broaden an already-advertised capability needs
-particular scrutiny: an older server has already claimed the old meaning and
-cannot acquire new routes retroactively.
+Then present a compatibility plan before editing the client/server contract:
+name the releases, new routes/fields/events, proposed capability or protocol
+gate, exact behavior when it is absent, proof that the fallback makes no
+unsupported request, and whether any existing capability meaning or older
+capable fallback changes. Pause for maintainer approval. An
+originating request that already states and approves those decisions satisfies
+the pause; do not ask twice.
+
+Use an available structured async or blocking question form for this approval.
+Use plain text only when neither question form is available.
+
+Never expand an already-advertised capability to cover a contract older servers
+do not provide. A new client must not call a new endpoint until its gate is
+known present. Passing a support horizon permits human review only; it never
+automatically removes a fallback or raises a compatibility floor. Security
+exceptions follow [hard development rules](hard-development-rules.md).
+
+Preserve a cheap fallback longer when practical.
+
+Default a new global capability to `version-implied` when every official build
+from its introducing release onward provides the contract. Use an explicit
+sparse capability bit only when support is clearly experimental or
+withdrawable, or can vary by build, host, or configuration. A version-implied
+capability still receives a permanent ID for registry identity and source-ahead
+advertisement, but released peers normally infer it from the version and do not
+send a positive ID. An exceptional withdrawal uses the standard negative
+capability set; do not classify anticipated variability as version-implied.
+
+Suggested approval prompt:
+
+> Compatibility review for `<feature>`: releases `<corpus>` lack
+> `<routes/fields/events>`. I propose `<capability/protocol>`; without it the
+> client `<fallback>` and makes no unsupported requests. Existing capability
+> meanings and older capable behavior remain unchanged. Approve?
 
 ### Planned storage policy gates
 

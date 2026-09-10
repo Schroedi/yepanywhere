@@ -145,6 +145,25 @@ startup, parsing, transcript production, or provider teardown.
 Standalone mock legs do not bootstrap a detached provider host. The specialized
 wrapper explicitly supplies its simulated host and owns that host's teardown.
 
+## Performance Measurement Hosts
+
+Before treating benchmark output as regression evidence, follow this topic.
+The host need not be fully uncontended, but the run must record its automatic
+capacity key plus start/end CPU pressure, load, available physical/effective
+RAM, and swap evidence, with
+enough headroom for the scenario. If contention is uncertain, run a small
+speculative sample first and expand only when it reproduces. Compare historical
+baselines and machine-specific ratchets only within one capacity key; portable
+checked-in ceilings may run on any host whose samples show enough headroom, but
+they are not same-machine historical evidence.
+
+Small low-cost cloud instances may be created for performance verification
+without a separate permission question. The launch still gets the normal
+big-effect gate record and must install an external TTL or cleanup guard before
+the instance starts. Record provider, region, instance class, and instance ID;
+verify deletion after success or failure, including attached disks, reserved
+addresses, and other paid resources.
+
 ## Host capacity and history
 
 Every result carries `host.capacity.capacityKey`, derived from platform,
