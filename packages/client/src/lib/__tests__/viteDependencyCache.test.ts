@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { chromium } from "@playwright/test";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -9,7 +9,11 @@ import { reloadNotify } from "../../../vite-plugin-reload-notify";
 
 describe("Vite dependency cache isolation", () => {
   it("keeps a lazy page coherent after source changes in manual mode", async () => {
-    const directory = await mkdtemp(resolve(tmpdir(), "ya-vite-generation-"));
+    // Vite canonicalizes module IDs. Keep manually emitted watcher paths in
+    // the same namespace on hosts where tmpdir() traverses a symlink (macOS).
+    const directory = await realpath(
+      await mkdtemp(resolve(tmpdir(), "ya-vite-generation-")),
+    );
     let server: Awaited<ReturnType<typeof createServer>> | undefined;
     let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
     try {
