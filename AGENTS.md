@@ -214,6 +214,13 @@ inspected by the agent against the request before claiming completion. Read and
 inspect the captures sequentially, one image at a time; never batch image reads.
 In-progress captures are optional.
 
+Take those captures with `pnpm -s artifact:capture <url> --json`. One call
+serves both readers: the agent opens the returned PNGs to judge the result, and
+the maintainer examines the same capture through the links and previews the
+call presents beside its output. A hand-rolled `playwright screenshot` pair
+writes files only the agent can read, so the maintainer sees nothing and has to
+ask for the pictures.
+
 Run final captures against a fresh dev-server process started from the current
 worktree; do not reuse an already-running server. Use an unused port and, when
 needed, a disposable data directory so the user's live server stays untouched.

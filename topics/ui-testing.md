@@ -114,19 +114,31 @@ seven days in the run's `e2e-failures-<attempt>` artifact.
 
 ### Browser capture command
 
-Use the browser control tool listed in `CLAUDE.md` when it has an
-available backend. If setup or discovery reports no browser, or the
-browser inventory is empty, immediately fall back to the repository's
-installed Playwright command:
+Capture through `pnpm -s artifact:capture`. One call serves both audiences:
+the agent opens the returned PNGs to judge the result, and the maintainer
+examines the same capture through the links and image previews that the call
+presents beside its own output. A hand-rolled `playwright screenshot` pair
+writes files only the agent can read, so the maintainer sees nothing and has
+to ask for the pictures.
 
-Choose an unused base port and its next two ports; the example uses
-4000–4002. Launch the fresh server in its own shell with separate data and
-the overlay suppressions. If you choose another port, use it in both capture
-commands too.
+Use the browser control tool listed in `CLAUDE.md` for interactive checks when
+it has an available backend. If setup or discovery reports no browser, or the
+browser inventory is empty, fall back to the repository's installed Playwright
+dependency, which is what the capture command already uses.
+
+Choose an unused base port and its next two ports for the server under test;
+the example uses 4000–4002. That port belongs to the throwaway server being
+photographed and never appears in the handoff. Launch it in its own shell with
+separate data, a private provider-host runtime directory created mode `700`,
+and the overlay suppressions. Without that private directory the launcher
+refuses to start beside an already-running YA server.
 
 ```bash
+UI_DIR="$PWD/.artifacts/ui-testing/$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$UI_DIR/host" && chmod 700 "$UI_DIR/host"
 PORT=4000 \
-YEP_DATA_DIR="$PWD/.artifacts/ui-testing/$(date -u +%Y%m%dT%H%M%SZ)-server" \
+YEP_DATA_DIR="$UI_DIR/server" \
+YEP_PROVIDER_HOST_RUNTIME_DIR="$UI_DIR/host" \
 VITE_DISABLE_ONBOARDING=true \
 VITE_DISABLE_CLI_UPDATE_NOTIFICATIONS=true \
 pnpm dev
@@ -135,27 +147,39 @@ pnpm dev
 Once that server is ready, capture from another shell:
 
 ```bash
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-ARTIFACT_DIR="$REPO_ROOT/.artifacts/ui-testing/$(date +%F)-topic"
-mkdir -p "$ARTIFACT_DIR"
-pnpm --filter @yep-anywhere/client exec playwright screenshot \
-  --ignore-https-errors \
-  --block-service-workers \
-  --wait-for-timeout 500 \
-  --viewport-size "1000,600" \
-  https://localhost:4000/ \
-  "$ARTIFACT_DIR/desktop.png"
-pnpm --filter @yep-anywhere/client exec playwright screenshot \
-  --ignore-https-errors \
-  --block-service-workers \
-  --wait-for-timeout 500 \
-  --viewport-size "375,812" \
-  https://localhost:4000/ \
-  "$ARTIFACT_DIR/mobile.png"
+pnpm -s artifact:capture http://127.0.0.1:4000/settings/providers --json
+```
+
+Address the server by `127.0.0.1` rather than `localhost`, which can resolve
+to an unrelated IPv6 listener on the same port. The command writes
+`desktop.png` at 1000×600 and `phone.png` at 375×812 into a fresh directory
+and returns their absolute paths. Those paths are the whole delivery: the YA
+client resolves an absolute path through its own file viewer on the standard
+YA port, so the maintainer opens the images from the tool output without a
+grant, an artifact origin, or any reference to the port under test. `--ya-url`
+is rejected for URL input and is not needed. `topics/ui-design.md` owns the
+command's full contract.
+
+When the target sits below the fold or needs a driven state, pass
+`--interact <module.mjs>`; the module receives `{ page, viewport }` and runs in
+each viewport before the screenshot. Scrolling a settings row into view is
+enough:
+
+```js
+export default async ({ page }) => {
+  const item = page.locator('[data-settings-item="provider-codex-plan-tool"]');
+  await item.waitFor({ state: "visible", timeout: 20000 });
+  await item.scrollIntoViewIfNeeded();
+};
 ```
 
 Read and inspect `desktop.png` alone and finish its notes before making a
-separate image-read call for `mobile.png`.
+separate image-read call for `phone.png`. Presentation to the maintainer is
+not a substitute for that inspection, and it is not a read receipt.
+
+Reach for a bare `playwright screenshot` pair only when artifact capture cannot
+reach the state at all. It writes files the maintainer never sees, so say so in
+the handoff and paste the paths yourself.
 
 For multi-step flows, add or run a focused `@playwright/test` case under
 `packages/client/e2e/`. If Playwright itself is unavailable, use another
