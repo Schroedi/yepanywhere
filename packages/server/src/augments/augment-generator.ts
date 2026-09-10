@@ -51,7 +51,7 @@ export interface Augment {
 }
 
 export interface AugmentGeneratorConfig {
-  languages: string[]; // Languages to pre-load for sync highlighting
+  languages: string[]; // Languages to load when finalized code first needs highlighting
 }
 
 export interface AugmentGenerator {
@@ -73,7 +73,7 @@ export interface AugmentGenerator {
 }
 
 /**
- * Creates an AugmentGenerator instance with pre-loaded syntax highlighting.
+ * Creates an AugmentGenerator. Syntax highlighting initializes on finalized code.
  *
  * @param config - Configuration for languages and theme
  * @returns Promise that resolves to an AugmentGenerator
@@ -86,12 +86,20 @@ export async function createAugmentGenerator(
     (lang) => lang in bundledLanguages,
   ) as BundledLanguage[];
 
-  // Create highlighter with CSS variables theme for light/dark mode support
-  const highlighter = await createHighlighter({
-    themes: [cssVarsTheme],
-    langs:
-      validLanguages.length > 0 ? validLanguages : ["javascript", "typescript"],
-  });
+  // Prose, lists and pending code do not need Shiki. Share initialization
+  // between concurrent finalized blocks without charging ordinary Markdown
+  // its cold grammar/WASM cost.
+  let highlighterPromise: Promise<Highlighter> | undefined;
+  const getHighlighter = (): Promise<Highlighter> => {
+    highlighterPromise ??= createHighlighter({
+      themes: [cssVarsTheme],
+      langs:
+        validLanguages.length > 0
+          ? validLanguages
+          : ["javascript", "typescript"],
+    });
+    return highlighterPromise;
+  };
 
   // Track loaded languages for sync checking
   const loadedLanguages = new Set<string>(validLanguages);
@@ -103,7 +111,11 @@ export async function createAugmentGenerator(
       safeMarkdownOptions?: SafeMarkdownRenderOptions,
     ): Promise<Augment> {
       if (block.type === "code") {
-        const html = await renderCodeBlock(block, highlighter, loadedLanguages);
+        const html = await renderCodeBlock(
+          block,
+          await getHighlighter(),
+          loadedLanguages,
+        );
         return { blockIndex, html, type: block.type };
       }
 

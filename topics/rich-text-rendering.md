@@ -538,3 +538,7 @@ the browser application source tree. They still run with the client Vitest
 suite and are typechecked by `pnpm tools:typecheck` using the server-owned
 Node types. Client application builds must not pull provider adapters or
 server test harnesses into their TypeScript program through these tests.
+
+Completed Markdown prose and pending code do not initialize Shiki. The augment
+generator shares one lazy highlighter initialization when its first finalized
+code block needs syntax highlighting, preserving highlighted final output.
