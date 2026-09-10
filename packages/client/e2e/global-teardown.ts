@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, rmSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { stopProviderHostRuntime } from "./support/provider-host-runtime.js";
 
 // Session file stores the path to the unique temp directory for this test run
 const SESSION_FILE = join(tmpdir(), "claude-e2e-session");
@@ -75,6 +76,10 @@ export default async function globalTeardown() {
       }
     }
   }
+
+  // The provider host detached into its own process group, so the signals
+  // above never reached it, and nothing else owns this run's runtime directory.
+  await stopProviderHostRuntime(join(tempDir, "provider-host"));
 
   if (keepTemp) {
     console.log(`[E2E] Keeping temp directory for debugging: ${tempDir}`);

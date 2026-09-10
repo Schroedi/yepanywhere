@@ -37,6 +37,7 @@ let E2E_CLAUDE_SESSIONS_DIR: string;
 let E2E_CODEX_SESSIONS_DIR: string;
 let E2E_GEMINI_SESSIONS_DIR: string;
 let E2E_DATA_DIR: string;
+let E2E_PROVIDER_HOST_RUNTIME_DIR: string;
 
 /**
  * Wait for a port file to be written with a valid port number.
@@ -95,6 +96,12 @@ export default async function globalSetup() {
   E2E_CODEX_SESSIONS_DIR = join(E2E_TEST_DIR, "codex", "sessions");
   E2E_GEMINI_SESSIONS_DIR = join(E2E_TEST_DIR, "gemini", "tmp");
   E2E_DATA_DIR = join(E2E_TEST_DIR, "yep-anywhere");
+  // The provider host otherwise lives at a per-user path under XDG_RUNTIME_DIR
+  // shared by every YA server on the machine. A developer's own running YA
+  // holds that path with a host built from whatever sources it started with,
+  // so this server would find an incompatible host, decline to replace it, and
+  // serve the whole suite in its "provider host is not running" degraded mode.
+  E2E_PROVIDER_HOST_RUNTIME_DIR = join(E2E_TEMP_DIR, "provider-host");
 
   // Create isolated test directories
   console.log(`[E2E] Creating isolated test directories at ${E2E_TEST_DIR}`);
@@ -1153,6 +1160,7 @@ export default async function globalSetup() {
         CODEX_SESSIONS_DIR: E2E_CODEX_SESSIONS_DIR,
         GEMINI_SESSIONS_DIR: E2E_GEMINI_SESSIONS_DIR,
         YEP_DATA_DIR: E2E_DATA_DIR,
+        YEP_PROVIDER_HOST_RUNTIME_DIR: E2E_PROVIDER_HOST_RUNTIME_DIR,
       },
       stdio: ["ignore", "pipe", "pipe"],
       detached: true,

@@ -16,6 +16,17 @@ const __dirname = dirname(__filename);
 const repoRoot = join(__dirname, "..", "..", "..", "..");
 const serverRoot = join(repoRoot, "packages", "server");
 
+/** The run-wide provider-host directory, falling back to this server's own. */
+function providerHostRuntimeDir(serverTempDir: string): string {
+  const sessionFile = join(tmpdir(), "claude-e2e-session");
+  const runTempDir = existsSync(sessionFile)
+    ? readFileSync(sessionFile, "utf-8").trim()
+    : "";
+  const base =
+    runTempDir && existsSync(runTempDir) ? runTempDir : serverTempDir;
+  return join(base, "provider-host");
+}
+
 export interface MockClaudeSession {
   assistantContent?: string;
   content: string;
@@ -221,6 +232,13 @@ export async function startYaServerProcess(
     CODEX_SESSIONS_DIR: codexSessionsDir,
     GEMINI_SESSIONS_DIR: geminiSessionsDir,
     YEP_DATA_DIR: dataDir,
+    // Without this the server reaches for the per-user provider-host runtime
+    // path, which a developer's own running YA already holds with a host built
+    // from different sources. This server would then decline to replace it and
+    // run every test in degraded mode. Share the run's directory so these
+    // servers attach to the host global setup already started, and global
+    // teardown has a single host to stop.
+    YEP_PROVIDER_HOST_RUNTIME_DIR: providerHostRuntimeDir(tempDir),
     ...options.env,
   };
   if (childEnv.FORCE_COLOR) {

@@ -105,6 +105,26 @@ Navigation URLs use the server's bound loopback address: a listener bound to
 `127.0.0.1` is opened at that address, since `localhost` may resolve to an
 unrelated IPv6 listener using the same port.
 
+That helper also picks each server's port. Asking Vite for port 0 does not
+work: it tests the configured port with `!port`, so the "let the operating
+system choose" request silently becomes Vite's 5173 default, and a fixture
+inheriting `strictPort: true` from `vite.config.ts` then fails outright the
+moment anything else in the run holds 5173. The helper therefore reserves a
+real free port itself and leaves `strictPort` off, so a fixture asking for an
+arbitrary port gets one whatever else is running on the machine.
+
+Test servers also need their own provider-host runtime directory. The default
+path lives under `XDG_RUNTIME_DIR` and is shared by every YA server the user
+runs, so a developer's own YA holds it with a host built from whatever sources
+that server started with. A test server finds an incompatible host there,
+correctly declines to replace it, and then serves the entire suite in its
+degraded "provider host is not running" mode, whose banner covers the app
+header and swallows clicks on it. Global setup names a directory inside the
+run's temp directory through `YEP_PROVIDER_HOST_RUNTIME_DIR`, per-test servers
+share that same one, and global teardown stops the resulting host: it detached
+into its own process group, so the signals aimed at the server processes never
+reach it and nothing else would ever reclaim that directory.
+
 Export checks build their required mockup bundle from the checked-out source;
 they must work without pre-existing `.artifacts` output. The relay artifact
 fixture accepts its dedicated generated HTTPS certificate in its browser
