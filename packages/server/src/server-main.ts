@@ -912,7 +912,7 @@ async function startServer() {
   console.log(`Server URL: ${effectiveLocalhostUrl}`);
 
   // Detect ADB and create emulator bridge service (lazy start)
-  const adbPath = detectAdb();
+  const adbPath = await detectAdb();
   let deviceBridgeService: DeviceBridgeService | undefined;
   if (adbPath) {
     deviceBridgeService = new DeviceBridgeService({

@@ -122,6 +122,9 @@ Windows smoke teardown terminates the owned launcher process tree (including
 the server below `bunx`) asynchronously (avoiding Bun's Windows synchronous
 spawn timeout) and waits for its stdio to close before deleting the
 fixture. File deletion uses bounded asynchronous retries for released handles.
+Optional ADB PATH discovery uses an asynchronous, shell-free lookup with a
+five-second deadline before falling back to SDK locations. A missing or stalled
+Android tool lookup must not block the server event loop.
 Startup readiness requires a responsive `/api/version` within the same startup
 deadline as port publication; transient connection/time-out failures retry that
 read-only probe, while any HTTP response still undergoes the full assertions.
