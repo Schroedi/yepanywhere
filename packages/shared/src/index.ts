@@ -805,6 +805,7 @@ export {
   getLogicalParentUuid,
   isConversationEntry,
   isInjectedContinuationPrompt,
+  isLocalCommandEchoTurn,
   isSyntheticNoResponseTurn,
   getMessageContent,
 } from "./claude-sdk-schema/guards.js";

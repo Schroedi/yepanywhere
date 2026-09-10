@@ -665,6 +665,19 @@ export class Supervisor {
    * retriggering on the idle boundary produced by compaction itself.
    */
   private compactThresholdCheckedAssistantVersion = new Map<string, number>();
+  /**
+   * Assistant-output version observed when a compaction last settled, keyed by
+   * process id. Compaction rewrites the context, but the durable usage summary
+   * still reports the pre-compaction token count until the next real turn is
+   * recorded, so the true size is unknown until then.
+   */
+  private compactionSettledAtAssistantVersion = new Map<string, number>();
+  /**
+   * Processes with a threshold compaction already started. Each attempt holds a
+   * message subscription until the provider answers or the wait expires, so a
+   * second attempt must never start while the first is outstanding.
+   */
+  private thresholdCompactionInFlight = new Set<string>();
   private interruptTimeoutMs: number;
   private sessionMetadataService?: SessionMetadataService;
   private notificationService?: NotificationService;
@@ -1669,9 +1682,11 @@ export class Supervisor {
    * been crossed. This deliberately spends occasional unnecessary provider
    * compute so a later user request never has to initiate and await compaction.
    *
-   * One assistant-output version is considered once. The compact operation's
-   * own idle boundary therefore cannot recursively trigger another compact,
-   * even if the durable usage summary has not caught up yet.
+   * One assistant-output version is considered once, and nothing is
+   * reconsidered until a real turn follows the last settled compaction. The
+   * compact operation's own idle boundary therefore cannot recursively trigger
+   * another compact, even though the durable usage summary keeps reporting the
+   * pre-compaction token count until that next turn is recorded.
    */
   private async maybeCompactAfterIdle(process: Process): Promise<void> {
     if (this.isAutomationPausedUntilUserTurn(process.sessionId)) return;
@@ -1679,6 +1694,7 @@ export class Supervisor {
     if (typeof percent !== "number" || percent <= 0 || percent >= 100) return;
     if (process.state.type !== "idle") return;
     if (process.isRetainingProviderWork()) return;
+    if (this.thresholdCompactionInFlight.has(process.id)) return;
     const provider = this.resolveProvider({ providerName: process.provider });
     if (
       !shouldYaOrchestrateCompactThreshold(
@@ -1694,6 +1710,18 @@ export class Supervisor {
       assistantActivityVersion <= 0 ||
       this.compactThresholdCheckedAssistantVersion.get(process.id) ===
         assistantActivityVersion
+    ) {
+      return;
+    }
+    // Context size after a compaction is unknown until the session produces a
+    // turn under the rewritten context. Reading the pre-compaction total back
+    // and acting on it is what turned one threshold compaction into thousands.
+    const compactedAtVersion = this.compactionSettledAtAssistantVersion.get(
+      process.id,
+    );
+    if (
+      compactedAtVersion !== undefined &&
+      assistantActivityVersion <= compactedAtVersion
     ) {
       return;
     }
@@ -1730,6 +1758,7 @@ export class Supervisor {
     }
     if (!crossesCompactThreshold(percent, contextWindow, inputTokens)) return;
 
+    this.thresholdCompactionInFlight.add(process.id);
     try {
       const attempt = await this.tryResumeCompaction(process, {
         expectedInputIntentVersion: inputIntentVersion,
@@ -1758,6 +1787,8 @@ export class Supervisor {
         },
         "Idle threshold compaction errored",
       );
+    } finally {
+      this.thresholdCompactionInFlight.delete(process.id);
     }
   }
 
@@ -4900,6 +4931,15 @@ export class Supervisor {
         this.unregisterProcess(process);
       } else if (event.type === "message") {
         this.dirtyFileEditorService?.observeMessage(process, event.message);
+        if (
+          isCompactBoundaryMessage(event.message) ||
+          isCompactSuccessStatus(event.message)
+        ) {
+          this.compactionSettledAtAssistantVersion.set(
+            process.id,
+            process.assistantActivityVersion,
+          );
+        }
         if (event.message.type === "user") {
           this.clearTerminalProviderStatus(
             process.sessionId,
@@ -5250,6 +5290,8 @@ export class Supervisor {
     this.assertProviderOwnershipSettled(process, "unregister");
     this.observedProcessIds.delete(process.id);
     this.compactThresholdCheckedAssistantVersion.delete(process.id);
+    this.compactionSettledAtAssistantVersion.delete(process.id);
+    this.thresholdCompactionInFlight.delete(process.id);
     this.cacheMissBillingMonitor.forgetProcess(process.id);
     this.activationCoordinator.discardProcess(process);
     this.pendingForkedRecapRequests.delete(process.id);

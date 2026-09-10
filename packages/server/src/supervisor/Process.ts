@@ -30,6 +30,7 @@ import {
   clampPatientPatienceSeconds,
   hasInvocationCandidate,
   isClaudeProviderName,
+  isLocalCommandEchoTurn,
   normalizeRecapAfterSeconds,
   stripPatientQueuePrefix,
 } from "@yep-anywhere/shared";
@@ -4783,8 +4784,11 @@ export class Process {
 
         // Capture assistant text for the recap buffer (topics/recaps.md).
         // Stream_event partials are skipped — we only want completed assistant
-        // turns so the recap input is coherent.
-        if (message.type === "assistant") {
+        // turns so the recap input is coherent. A slash command's own output
+        // arrives in the same assistant shape but is neither agent prose nor
+        // agent activity, so it belongs in neither the recap buffer nor the
+        // activity counter.
+        if (message.type === "assistant" && !isLocalCommandEchoTurn(message)) {
           this._assistantActivityVersion += 1;
           const text = extractMessageText(message);
           if (text) {
