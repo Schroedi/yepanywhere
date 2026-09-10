@@ -142,6 +142,8 @@ multi-quality score.
 Routine server/browser/built-client runs use an in-process post-provider mock
 and disable provider discovery. They cannot support claims about provider
 startup, parsing, transcript production, or provider teardown.
+Standalone mock legs do not bootstrap a detached provider host. The specialized
+wrapper explicitly supplies its simulated host and owns that host's teardown.
 
 ## Host capacity and history
 

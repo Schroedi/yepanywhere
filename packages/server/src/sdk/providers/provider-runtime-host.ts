@@ -229,7 +229,9 @@ export async function ensureProviderRuntimeHost(): Promise<boolean> {
     return true;
   }
   if (process.platform !== "linux") return false;
-  if (process.env.VITEST) {
+  // Mock servers must not discover or bootstrap an ambient real-provider host.
+  // A wrapper may still supply an explicit simulated host for lifecycle tests.
+  if (process.env.VITEST || process.env.USE_MOCK_SDK === "true") {
     return await initializeProviderRuntimeHost();
   }
   if (!process.env.YEP_SERVER_GENERATION?.trim()) {

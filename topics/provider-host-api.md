@@ -70,6 +70,9 @@ performs verified bounded recovery when an identified host is nonresponsive.
 Hono receives the discovered endpoint and token through private environment
 state. A host started by the wrapper retains wrapper IPC as its terminal-owner
 channel; a separately started foreground host retains its terminal instead.
+Standalone `USE_MOCK_SDK=true` servers do not discover or start an ambient
+provider host. An explicitly supplied wrapper host remains available for
+simulated lifecycle tests; mock mode alone never acquires a real-provider owner.
 
 Compatibility includes exact launch source, not only protocol version. The
 descriptor binds the canonical checkout root and a content digest over the dev

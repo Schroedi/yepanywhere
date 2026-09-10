@@ -30,6 +30,7 @@ import {
 } from "../../../../../scripts/provider-runtime-discovery.mjs";
 import {
   closeProviderRuntimeHostRegistration,
+  ensureProviderRuntimeHost,
   initializeProviderRuntimeHost,
   startHostedProviderSession,
 } from "../../../src/sdk/providers/provider-runtime-host.js";
@@ -364,6 +365,7 @@ function processGroupAlive(processGroupId: number): boolean {
 afterEach(async () => {
   closeProviderRuntimeHostRegistration();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   await Promise.all(
     temporaryPaths
       .splice(0)
@@ -372,6 +374,19 @@ afterEach(async () => {
 });
 
 describe.skipIf(process.platform !== "linux")("ProviderRuntimeHost", () => {
+  it("does not bootstrap an ambient host for a standalone mock server", async () => {
+    const runtimeRoot = await mkdtemp(join(tmpdir(), "mock-provider-host-"));
+    temporaryPaths.push(runtimeRoot);
+    vi.stubEnv("VITEST", undefined);
+    vi.stubEnv("USE_MOCK_SDK", "true");
+    vi.stubEnv("YEP_PROVIDER_HOST_RUNTIME_DIR", runtimeRoot);
+    vi.stubEnv("YEP_PROVIDER_RUNTIME_SOCKET", undefined);
+    vi.stubEnv("YEP_PROVIDER_RUNTIME_TOKEN", undefined);
+
+    expect(await ensureProviderRuntimeHost()).toBe(false);
+    expect(existsSync(join(runtimeRoot, "host.json"))).toBe(false);
+  });
+
   it("publishes one private stable descriptor for a foreground host", async () => {
     const runtimeRoot = await mkdtemp(join(tmpdir(), "provider-host-stable-"));
     temporaryPaths.push(runtimeRoot);
@@ -1687,7 +1702,9 @@ describe.skipIf(process.platform !== "linux")("ProviderRuntimeHost", () => {
     process.env.YEP_PROVIDER_RUNTIME_SOCKET = controlSocketPath;
     process.env.YEP_PROVIDER_RUNTIME_TOKEN = "callback-token";
     process.env.YEP_SERVER_GENERATION = "callbacks";
-    expect(await initializeProviderRuntimeHost()).toBe(true);
+    vi.stubEnv("VITEST", undefined);
+    vi.stubEnv("USE_MOCK_SDK", "true");
+    expect(await ensureProviderRuntimeHost()).toBe(true);
     let approvalCount = 0;
     const session = await startHostedProviderSession(
       "claude",
