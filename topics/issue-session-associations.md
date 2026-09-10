@@ -29,8 +29,9 @@ Pasting a full URL finds its canonical record. Search and evidence pages default
 to 50 rows and accept at most 100. Project/session filters apply before the limit.
 An unresolved reference is useful and searchable before a tracker host is known.
 Its detail can resolve it by supplying the matching full URL. Markdown labels
-supply observed titles; a user can override a resolved item's title. YA makes no
-tracker requests, fetches no remote titles and changes no external issues.
+supply observed titles; a user can override a resolved item's title. Discovery
+itself makes no tracker request and changes no external issue; the only
+outbound requests come from the opt-in confirmation step below.
 
 Coverage distinguishes viewed windows, queued/indexing, indexed, partial,
 unsupported, failed and outside-scope jobs. Counts describe acquired sources,
@@ -47,6 +48,45 @@ restarts that sequence when the transcript grows. It then stops rather than
 polling. A count the server does not currently confirm shows no badge at all,
 so the number on screen is one the client actually read, and a later
 association can go unnoticed until the session is reopened or extended.
+
+## Tracker confirmation
+
+Shape alone cannot separate a bare Jira key from ordinary prose: `UTF-8`,
+`ISO-8601`, `COVID-19`, `RFC-2119` and `SHA-256` all match the pattern. Two
+defences need no network. A Jira project key is at least two characters, which
+excludes `H-1` structurally. `jiraKeyBlocklist` names project parts to ignore,
+prefilled with the common offenders and editable to any list, including none.
+Blocking applies only to keys seen without a URL, so a tracker whose real
+project key is on the list keeps working through browse links.
+
+**Settings → Issues & PRs** then offers opt-in confirmation, off by default:
+turning it on is what authorizes an outbound request carrying a credential.
+With it on, a reference seen for the first time gets exactly one lookup, GitHub
+by repository and number and Jira by key against the configured site and
+account email. A confirmed reference gains the tracker's own summary, the first
+title that does not depend on someone having written a Markdown link. A missing
+item is recorded as rejected, and a failed or unauthorized lookup as
+unreachable.
+
+One question per reference is the whole retry policy, and it lives in the
+schema rather than in a scheduler. `issue_confirmations` takes a pending row
+when a reference is first captured, and only while confirmation is on, so
+enabling the feature never sets a backlog loose. The insert ignores conflicts,
+so a reference holding any verdict, unreachable included, is never asked about
+again by itself. Nothing polls. `POST /api/issues/confirm` is the only second
+question and belongs to an explicit user action. Verdicts are per project, and
+the most decisive one wins across projects: one project confirming a key
+settles it even if another recorded only an outage.
+
+Credentials resolve from a key stored in Settings, then environment variables
+(`YEP_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`; `YEP_JIRA_API_TOKEN`,
+`JIRA_API_TOKEN`, `ATLASSIAN_API_TOKEN`), then, for GitHub, the signed-in `gh`
+CLI. The settings pane names every source and says whether it is present; no
+route returns a key to a client. Stored keys are written to
+`{dataDir}/issue-credentials.json` with owner-only permissions rather than into
+server settings, which the settings route hands to any authenticated client.
+Both credential routes stay reachable while discovery is off, so an
+installation can be configured before it is turned on.
 
 ## Identity and evidence
 
@@ -136,9 +176,9 @@ Settings changes, deletion, remaps and shutdown abort stale generations. Closing
 the final view releases the existing session-view demand; this feature adds no
 independent tail watcher or recurring per-session task.
 
-Operational tables `issue_index_jobs`, `issue_resolution_jobs` and
-`issue_deleted_snapshots` retain checkpoints, resolution continuations and deletion
-fences. SQL statements finalize; startup migrations do no provider acquisition.
+Operational tables `issue_index_jobs`, `issue_resolution_jobs`,
+`issue_deleted_snapshots` and `issue_confirmations` retain checkpoints,
+resolution continuations, deletion fences and tracker verdicts. SQL statements finalize; startup migrations do no provider acquisition.
 Storage errors do not acknowledge unsaved writes or become successful empty lists.
 The server owns disposal and awaits indexing before closing its database.
 
@@ -151,7 +191,9 @@ preceding 14 days on 2026-09-10. Sparse optional capability
 
 - `GET /api/issues`, `GET /api/issues/evidence`;
 - `GET /api/issues/settings`, `PUT /api/issues/settings`;
+- `GET /api/issues/credentials`, `PUT /api/issues/credentials`;
 - `POST /api/issues/decision`, `POST /api/issues/resolve`;
+- `POST /api/issues/confirm`;
 - `PATCH /api/issues/item`, `DELETE /api/issues/item`.
 
 The shared settings service persists `issueAssociations: { enabled, scope,
@@ -166,7 +208,8 @@ review for subsequent changes.
 
 [SQLite storage](optional-sqlite.md) owns migration policy. Frozen historical
 v2/v3 SQL moved out of the mutable vocabulary schema. Migration 4 adds the domain
-and indexing tables; migration 5 adds resolution/deletion continuations. Prefix
+and indexing tables; migration 5 adds resolution/deletion continuations;
+migration 6 adds the one-verdict-per-reference confirmation table. Prefix
 fixtures test fresh installation, each historical upgrade, repeat initialization,
 rollback and old-reader refusal. No down migrations, resets, WAL switch or longer
 lock timeout were added. An older binary refusing the newer discovery schema
@@ -176,8 +219,11 @@ untouched. Use a newer binary or explicitly restore a consistent older backup.
 ## Boundaries and references
 
 Deferred: branch/worktree inference (including YA Workstreams), Git/commit
-attribution, tracker credentials/synchronization, remote snapshots, semantic
-matching, tool-output mining and multi-server aggregation. This feature does not
+attribution, tracker synchronization, remote snapshots, semantic matching,
+tool-output mining and multi-server aggregation. Credentials are now used, but
+only to ask whether a reference exists: YA writes nothing to a tracker, mirrors
+no tracker state, and makes no request for a reference it has already asked
+about. This feature does not
 close the [cold-storage startup gap](../gaps/sqlite-backed-cold-storage-startup.md),
 [commit attribution gap](../gaps/committed-change-session-attribution.md) or
 [worktree identity gap](../gaps/session-worktree-file-links.md).
@@ -191,5 +237,10 @@ YA's initial producer is visible session text and needs no YA Workstream or remo
 credentials. The retired tactical 125 plan and independent Opus review are retained
 in Git history under this topic's commit series.
 
-Validation owners: `test/storage/{issues,issue-indexing,issue-routes}.test.ts` and
+Validation owners:
+`test/storage/{issues,issue-indexing,issue-routes,issue-credentials,issue-confirmation}.test.ts`,
+`client/src/pages/settings/__tests__/IssueSettings.test.tsx`,
+`client/src/components/__tests__/SessionIssuesLink.test.tsx` and
 `client/e2e/issue-associations.spec.ts`, plus packaged SQLite runtime checks.
+The GitHub confirmation path was also exercised against the live API with a
+real credential; the Jira path is covered against a stub.
