@@ -27,9 +27,7 @@ function fixture() {
   return fixtureWithOptions({});
 }
 
-function fixtureWithOptions(
-  options: Omit<VocabularyStoreOptions, "scratchDir"> = {},
-) {
+function fixtureWithOptions(options: VocabularyStoreOptions = {}) {
   const dataDir = mkdtempSync(join(tmpdir(), "ya-speech-vocabulary-"));
   let learning: VocabularyLearning;
   let version = "v1";
@@ -73,6 +71,7 @@ function fixtureWithOptions(
     rmSync(dataDir, { recursive: true });
   });
   return {
+    dataDir,
     get learning() {
       return learning;
     },
@@ -103,8 +102,7 @@ function fixtureWithOptions(
 }
 
 /** Modification times of everything the learned table keeps on local disk. */
-function tableWrites(): Record<string, number> {
-  const root = process.env.YEP_SCRATCH_DIR!;
+function tableWrites(root: string): Record<string, number> {
   const seen: Record<string, number> = {};
   const walk = (dir: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -134,7 +132,7 @@ describe("persistent speech learning through its routes", () => {
   it("respects the write-interval floor", async () => {
     const f = fixtureWithOptions({ writeIntervalMs: 2_000 });
     await f.enable();
-    const before = tableWrites();
+    const before = tableWrites(f.dataDir);
     const now = new Date();
     f.change([
       {
@@ -150,11 +148,11 @@ describe("persistent speech learning through its routes", () => {
     ]);
     f.learning.scan();
     await setTimeout(50);
-    expect(tableWrites()).toEqual(before);
+    expect(tableWrites(f.dataDir)).toEqual(before);
     await setTimeout(2_100);
     await f.learning.settled();
     await waitForIdle(f.learning);
-    expect(tableWrites()).not.toEqual(before);
+    expect(tableWrites(f.dataDir)).not.toEqual(before);
   });
 
   it("reads the write interval from env", async () => {
@@ -162,7 +160,7 @@ describe("persistent speech learning through its routes", () => {
       env: { ...process.env, YEP_SPEECH_VOCABULARY_WRITE_SECONDS: "2" },
     });
     await f.enable();
-    const before = tableWrites();
+    const before = tableWrites(f.dataDir);
     const now = new Date();
     f.change([
       {
@@ -178,11 +176,11 @@ describe("persistent speech learning through its routes", () => {
     ]);
     f.learning.scan();
     await setTimeout(500);
-    expect(tableWrites()).toEqual(before);
+    expect(tableWrites(f.dataDir)).toEqual(before);
     await setTimeout(2_000);
     await f.learning.settled();
     await waitForIdle(f.learning);
-    expect(tableWrites()).not.toEqual(before);
+    expect(tableWrites(f.dataDir)).not.toEqual(before);
   });
 
   it("writes nothing when a scan finds nothing new", async () => {
@@ -190,7 +188,7 @@ describe("persistent speech learning through its routes", () => {
     await f.enable();
     await f.learning.store.settled();
     const revision = f.learning.store.revision;
-    const before = tableWrites();
+    const before = tableWrites(f.dataDir);
     expect(Object.keys(before).length).toBeGreaterThan(0);
 
     // A live session republishes the catalog every few seconds, and each
@@ -202,7 +200,7 @@ describe("persistent speech learning through its routes", () => {
     }
     await f.learning.store.settled();
     expect(f.learning.store.revision).toBe(revision);
-    expect(tableWrites()).toEqual(before);
+    expect(tableWrites(f.dataDir)).toEqual(before);
   });
 
   it("reenters the real durable Claude reader without changing contributions", async () => {

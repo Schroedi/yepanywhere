@@ -64,11 +64,15 @@ export class VocabularyDatabase implements VocabularyTable {
     const database = driver.open(path);
     try {
       database.exec("PRAGMA busy_timeout = 250");
-      // The table is regenerable, so durability across an operating-system
-      // crash is not worth an fsync per commit; WAL plus normal synchronous
-      // keeps a scan's writes off the critical path.
+      // Counts are relearnable, so no fsync is worth putting on a scan's write
+      // path. Write-ahead logging with synchronous off keeps commits off the
+      // critical path entirely; a power loss or kernel crash can drop recent
+      // counts, and an ordinary process crash cannot, which is the trade the
+      // maintainer asked for. The journal mode stays write-ahead rather than
+      // memory or off, because those risk a corrupt file rather than lost
+      // counts, and this database also carries per-session scan checkpoints.
       database.exec("PRAGMA journal_mode = WAL");
-      database.exec("PRAGMA synchronous = NORMAL");
+      database.exec("PRAGMA synchronous = OFF");
       database.exec(SPEECH_VOCABULARY_TABLE_SCHEMA);
       return new VocabularyDatabase(database);
     } catch (error) {

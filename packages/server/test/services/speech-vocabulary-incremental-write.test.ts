@@ -45,7 +45,6 @@ function fixture() {
   const dataDir = mkdtempSync(join(tmpdir(), "ya-vocabulary-incremental-"));
   const table = new RecordingTable();
   const store = new VocabularyStore(dataDir, {
-    scratchDir: join(dataDir, "scratch"),
     seenBytes: 1 << 20,
     writeIntervalMs: 0,
     openTable: () => table,

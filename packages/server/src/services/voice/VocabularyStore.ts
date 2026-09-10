@@ -1,12 +1,16 @@
 import { createHash } from "node:crypto";
 import {
+  copyFileSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   renameSync,
+  rmSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { rm } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { setImmediate as yieldToLoop } from "node:timers/promises";
 import {
@@ -20,11 +24,8 @@ import {
   VOCABULARY_FLUSH_COUNTS,
 } from "@yep-anywhere/shared";
 import { createCoalescingSaver } from "../../lib/coalescingSaver.js";
-import {
-  parseByteSize,
-  reserveScratchSpace,
-  type ScratchSpace,
-} from "../../lib/scratchSpace.js";
+import { statFilesystem } from "../../lib/filesystemKind.js";
+import { parseByteSize } from "../../lib/scratchSpace.js";
 import { getLogger } from "../../logging/logger.js";
 import { BlockedBloom, BloomFile } from "./blocked-bloom.js";
 import { DistinctiveTop, distinctiveScore } from "./distinctive-top.js";
@@ -57,11 +58,60 @@ type Counts = { user: number; assistant: number };
  */
 const ESCAPE_SHARE = 0.2;
 
-/** Settings only; the learned table lives on local disk. */
+/**
+ * All three live in the data directory. That directory is local disk whenever
+ * this feature can run at all: learning is gated on discovery SQLite being
+ * ready, and startup refuses to open that database on a network filesystem
+ * (topics/optional-sqlite.md). The earlier separate reservation existed to
+ * escape a data directory that might be a share, which is now prevented rather
+ * than worked around.
+ */
 const STATE_FILE = "speech-vocabulary-state.json";
 const DATABASE_FILE = "speech-vocabulary.sqlite";
 const SEEN_FILE = "speech-seen.bloom";
+/** Leaf of the reserved directory previous versions placed the big files in. */
 const SCRATCH_PURPOSE = "speech-vocabulary";
+
+/**
+ * Bytes the filter may take without filling the disk it shares with the rest
+ * of the data directory. Matches the reservation's old headroom rule, which is
+ * the part of it worth keeping now that the placement search is gone.
+ */
+const DISK_HEADROOM_BYTES = 1024 * 1024 * 1024;
+
+/**
+ * Directories earlier versions could have reserved for the table and filter,
+ * newest choice first. Probed read-only: unlike the reservation this replaces,
+ * naming a candidate must not create it.
+ */
+function reservedDirectories(
+  dataDir: string,
+  env: NodeJS.ProcessEnv,
+): string[] {
+  const leaf = `${SCRATCH_PURPOSE}-${createHash("sha256")
+    .update(dataDir)
+    .digest("hex")
+    .slice(0, 12)}`;
+  const override = env.YEP_SCRATCH_DIR?.trim();
+  const cacheHome = env.XDG_CACHE_HOME?.trim() || join(homedir(), ".cache");
+  return [
+    ...(override ? [join(override, leaf)] : []),
+    join(cacheHome, "yep-anywhere", leaf),
+    join(tmpdir(), "yep-anywhere", leaf),
+    join(dataDir, SCRATCH_PURPOSE),
+  ];
+}
+
+function affordable(dir: string, requested: number): number {
+  try {
+    const free = statFilesystem(dir).freeBytes;
+    return Math.min(requested, Math.max(0, free - DISK_HEADROOM_BYTES));
+  } catch {
+    // An uninspectable directory is not a reason to shrink the filter; the
+    // write itself will report a real problem.
+    return requested;
+  }
+}
 
 /** Files the earlier whole-table-rewrite layout left in the data directory. */
 const LEGACY_WORDS_FILE = "speech-words.json";
@@ -134,8 +184,6 @@ interface PersistedState {
 }
 
 export interface VocabularyStoreOptions {
-  /** Overrides the local-disk reservation; tests point this at a temp dir. */
-  scratchDir?: string;
   /** Overrides the fingerprint filter's size. */
   seenBytes?: number;
   /** Overrides the shortest interval between two writes of the table. */
@@ -181,7 +229,7 @@ export class VocabularyStore {
   private writeTimer: ReturnType<typeof setTimeout> | undefined;
   private lastWriteAt = Date.now();
   private readonly writeIntervalMs: number;
-  private readonly scratch: ScratchSpace;
+  private readonly env: NodeJS.ProcessEnv;
   private readonly seenBytes: number;
   private seen: BlockedBloom | undefined;
   private seenFile: BloomFile | undefined;
@@ -224,29 +272,16 @@ export class VocabularyStore {
     options: VocabularyStoreOptions = {},
   ) {
     const env = options.env ?? process.env;
+    this.env = env;
     this.openDatabase = options.openTable ?? VocabularyDatabase.open;
     const requested =
       options.seenBytes ??
       parseByteSize(env.YEP_SPEECH_VOCABULARY_BYTES, DEFAULT_SEEN_BYTES);
-    this.scratch = options.scratchDir
-      ? {
-          dir: options.scratchDir,
-          bytes: requested,
-          requested,
-          degraded: false,
-          reason: `${options.scratchDir} (caller supplied)`,
-        }
-      : reserveScratchSpace({
-          purpose: SCRATCH_PURPOSE,
-          bytes: requested,
-          dataDir,
-          minimumBytes: MINIMUM_SEEN_BYTES,
-          env,
-        });
     // An explicit size is taken as given; a size the disk cut down still gets
     // a floor, since a filter of a few kilobytes would dedupe nothing.
     this.seenBytes =
-      options.seenBytes ?? Math.max(MINIMUM_SEEN_BYTES, this.scratch.bytes);
+      options.seenBytes ??
+      Math.max(MINIMUM_SEEN_BYTES, affordable(dataDir, requested));
     this.writeIntervalMs =
       options.writeIntervalMs ??
       parseWriteIntervalMs(env, DEFAULT_WRITE_INTERVAL_MS);
@@ -259,11 +294,11 @@ export class VocabularyStore {
   }
 
   private get databasePath(): string {
-    return join(this.scratch.dir, DATABASE_FILE);
+    return join(this.dataDir, DATABASE_FILE);
   }
 
   private get seenPath(): string {
-    return join(this.scratch.dir, SEEN_FILE);
+    return join(this.dataDir, SEEN_FILE);
   }
 
   /**
@@ -396,7 +431,8 @@ export class VocabularyStore {
    */
   private openTable(): void {
     try {
-      mkdirSync(this.scratch.dir, { recursive: true });
+      mkdirSync(this.dataDir, { recursive: true });
+      this.adoptReservedFiles();
       this.database = this.openDatabase(this.databasePath);
     } catch (error) {
       // Losing the table costs relearning, not correctness. Refusing to run
@@ -428,9 +464,62 @@ export class VocabularyStore {
   }
 
   /**
+   * Move the table and filter out of the directory earlier versions reserved
+   * for them outside the data directory. Both are recreated from nothing if
+   * this fails, so a copy that cannot complete is logged and dropped rather
+   * than made fatal; the cost is relearning, and the table is the small one.
+   */
+  private adoptReservedFiles(): void {
+    for (const candidate of reservedDirectories(this.dataDir, this.env)) {
+      const from = join(candidate, DATABASE_FILE);
+      if (!existsSync(from) || existsSync(this.databasePath)) continue;
+      try {
+        // Same filesystem renames; a reserved directory elsewhere copies.
+        renameSync(from, this.databasePath);
+      } catch {
+        try {
+          copyFileSync(from, this.databasePath);
+          rmSync(from, { force: true });
+        } catch (error) {
+          getLogger().warn(
+            { component: "speech", err: error, path: from },
+            "Speech vocabulary table could not be moved into the data directory",
+          );
+          return;
+        }
+      }
+      // The write-ahead log and shared-memory file belong to the old path and
+      // are rebuilt on open; carrying them across would be wrong, not merely
+      // unnecessary, because their content is relative to a database this
+      // process is about to reopen elsewhere.
+      for (const suffix of ["-wal", "-shm"])
+        rmSync(`${from}${suffix}`, { force: true });
+      // The filter is a quarter gigabyte and only saves relearning what the
+      // table's own checkpoints already prevent rescanning, so it is renamed
+      // when that is free and abandoned when it would mean copying that much
+      // on the startup path.
+      const filter = join(candidate, SEEN_FILE);
+      let movedFilter = false;
+      try {
+        if (existsSync(filter) && !existsSync(this.seenPath)) {
+          renameSync(filter, this.seenPath);
+          movedFilter = true;
+        }
+      } catch {
+        rmSync(filter, { force: true });
+      }
+      getLogger().info(
+        { component: "speech", from: candidate, to: this.dataDir, movedFilter },
+        "Moved the speech vocabulary table into the data directory",
+      );
+      return;
+    }
+  }
+
+  /**
    * Attach the fingerprint filter. Deferred until a scan needs it, because the
-   * reservation is large and a server whose owner never turned learning on
-   * should not pay for it.
+   * filter is large and a server whose owner never turned learning on should
+   * not pay for it.
    */
   async load(): Promise<void> {
     if (this.loaded) return;
@@ -440,7 +529,7 @@ export class VocabularyStore {
     getLogger().info(
       {
         component: "speech",
-        scratch: this.scratch.reason,
+        dataDir: this.dataDir,
         seenBytes: this.seenBytes,
         seenCount: this.filter.count,
         words: this.wordCounts.size,

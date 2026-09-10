@@ -29,7 +29,6 @@ function fixture() {
     content: `distinctword${index}`,
   }));
   const store = new VocabularyStore(dataDir, {
-    scratchDir: join(dataDir, "scratch"),
     seenBytes: 64,
   });
   const learning = new VocabularyLearning(store, async function* () {
