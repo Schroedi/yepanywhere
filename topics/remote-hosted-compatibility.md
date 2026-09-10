@@ -257,7 +257,7 @@ one-release-old client is still a defect.
 
 Upstream (`origin`/kzahel) is a different matter entirely: those users run
 their own servers and clients on their own schedule, so nothing here relaxes
-the review CLAUDE.md requires for changes on that path.
+the review AGENTS.md requires for changes on that path.
 
 ## Server runtime cutover
 

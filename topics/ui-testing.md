@@ -141,10 +141,11 @@ presents beside its own output. A hand-rolled `playwright screenshot` pair
 writes files only the agent can read, so the maintainer sees nothing and has
 to ask for the pictures.
 
-Use the browser control tool listed in `CLAUDE.md` for interactive checks when
-it has an available backend. If setup or discovery reports no browser, or the
-browser inventory is empty, fall back to the repository's installed Playwright
-dependency, which is what the capture command already uses.
+Use the browser control capability described in
+[AGENTS.md](../AGENTS.md#ui-tweak-visual-verification) for interactive checks
+when it has an available backend. If setup or discovery reports no browser,
+or the browser inventory is empty, fall back to the repository's installed
+Playwright dependency, which is what the capture command already uses.
 
 Choose an unused base port and its next two ports for the server under test;
 the example uses 4000–4002. That port belongs to the throwaway server being

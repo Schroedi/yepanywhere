@@ -16,7 +16,7 @@ See also:
 category, while Notifications has a related push-subscription device surface),
 [vanilla-defaults](vanilla-defaults.md) (the fix must not change behavior for
 real devices — default-preserving), and the browser-control guidance in
-`CLAUDE.md` (headless Playwright was the contamination source).
+`AGENTS.md` (headless Playwright was the contamination source).
 
 ## What the Devices UI shows
 

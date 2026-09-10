@@ -1,4 +1,14 @@
-Read and follow `CLAUDE.md` for repo context and instructions, and `DEVELOPMENT.md` for dev/contributor policy (setup, commands, contribution ethos). For architectural context (server message routing, client render pipeline, transports, auth state, large-scope refactor proposals), start at `ARCHITECTURE.md` rather than re-deriving from source.
+# Yep Anywhere Agent Instructions
+
+This is the canonical entry point for repository agent instructions.
+Read and follow [agent operations](topics/agent-operations.md) for project
+context and operational instructions, and [DEVELOPMENT.md](DEVELOPMENT.md)
+for dev/contributor policy (setup, commands, contribution ethos). Both are
+required reading before acting in this repository.
+
+For architectural context (server message routing, client render pipeline,
+transports, auth state, large-scope refactor proposals), start at
+[ARCHITECTURE.md](ARCHITECTURE.md) rather than re-deriving from source.
 
 For product priorities, read the [Roadmap](docs/roadmap/README.md) before
 proposing or reprioritizing work. It is the canonical initiative overview;
@@ -37,6 +47,10 @@ file-viewer link for later reopening. The topic owns authentication options,
 delivery, and preview settings. A source file or dev-server URL alone is not
 a viewable mockup handoff. Respect explicit prose-only requests and the user's
 visual-verification handoff.
+
+## Device Control Testing
+
+Use the Android emulator only when testing the device-control/device-bridge feature. Check with `source ~/.profile && adb devices` and deploy/test on the emulator for changes that touch device streaming, `/api/devices`, `deviceBridge`, or `packages/device-bridge`. For general client, server, web UI, provider, relay, or rendering changes, do not require emulator testing.
 
 ## Cross-Platform Behavior And Tests
 
@@ -207,6 +221,15 @@ cover all useful behavior. Read the topic before adding or enabling any
 user-visible feature that is not configurable default-off.
 
 ## UI Tweak Visual Verification
+
+Use an available browser-control capability for interactive web UI testing. If
+browser setup or discovery reports that no browser is available, or the browser
+inventory is empty, do not stop or keep retrying a desktop-only backend.
+Immediately fall back to YA's installed Playwright dependency.
+
+Before browser verification, read `topics/ui-testing.md`.
+For multi-step interaction testing, add or run a focused `@playwright/test`
+case under `packages/client/e2e/`.
 
 By default, any UI tweak or layout/control-placement request ends with rendered
 browser captures of the final result at 1000×600 and a phone width (375×812),
@@ -398,6 +421,25 @@ deliberately comparing a newer Codex version, state that mismatch explicitly
 and do not treat it as evidence for the pinned runtime without checking the
 matching tag. The Claude SDK is not open source, so it is not included.
 
+## After Editing Code
+
+After editing TypeScript or other source files, verify your changes compile and pass checks:
+
+```bash
+pnpm lint          # Biome linter
+pnpm format:check  # Biome formatter verification (does not write)
+pnpm typecheck     # TypeScript type checking (fast, no emit)
+pnpm test          # Unit tests for non-Android workspaces
+pnpm test:e2e      # E2E tests (if UI changes)
+```
+
+For site changes (marketing pages in `site/`):
+```bash
+cd site && npm run build   # Astro check + build (or: pnpm site:build from root)
+```
+
+Fix any errors before considering the task complete.
+
 ## Zero-Warning Commits
 
 Before committing, the checks you run must be warning-free, not merely
@@ -428,6 +470,10 @@ The working tree may contain concurrent human or agent edits. Avoid reverting
 or tidying unrelated changes unless the task directly requires them.
 
 ## Commit Message Guidance
+
+Do not add assistant co-author trailers or generated-with banners. Preserve
+explicitly required provenance such as `Contributing-model:` when applicable;
+that trailer is not a generated-with banner.
 
 Aim for a <=65 char subject, and strictly enforce a 72-column line wrap
 for the body. Prefer bullet lists in the commit body when items are

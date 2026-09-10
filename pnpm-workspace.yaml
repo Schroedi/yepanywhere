@@ -14,7 +14,8 @@ supportedArchitectures:
 # repo reports all three of these as ignored. Silently losing
 # onlyBuiltDependencies would re-enable arbitrary dependency install scripts,
 # so keep them where every supported pnpm reads them. Rationale for the
-# individual entries is in CLAUDE.md ("Dependency Security Maintenance").
+# individual entries is in topics/agent-operations.md
+# ("Dependency Security Maintenance").
 overrides:
   "bn.js": "5.2.3"
   "fast-uri": "3.1.6"

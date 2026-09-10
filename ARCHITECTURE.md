@@ -332,7 +332,7 @@ example.
 hosts or transient cloud VMs.
 
 **Trigger.** Defer until YA actually runs somewhere multi-user, or a
-threat-model review flags the gap. Note in `CLAUDE.md`/`DEVELOPMENT.md` if
+threat-model review flags the gap. Note in `AGENTS.md`/`DEVELOPMENT.md` if
 multi-user becomes a target.
 
 ### Unified pub/sub abstraction

@@ -384,3 +384,5 @@
   YA-owned pause/resume and the session header flag.
 - tool-display-contracts - Checked renderer registration, exhaustive display
   coverage, and native live/persisted rendering parity.
+- agent-instruction-consolidation - Canonical AGENTS instructions, harness
+  pointers, and bounded deduplication of repository guidance.
