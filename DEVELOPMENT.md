@@ -5,7 +5,7 @@ planning implementation or making repository changes, including documentation
 and configuration changes. Read the applicable topic documents before choosing
 an approach. General discussion and read-only orientation do not require the
 full development workflow; applicable topic-reading triggers still apply.
-[AGENTS.md](AGENTS.md) supplies the agent entry rules and topic map.
+[AGENTS.md](AGENTS.md) supplies the agent entry rules.
 
 Navigation:
 
@@ -648,6 +648,10 @@ The path stays a searchable handle:
 `git show <sha>^:docs/tactical/<name>.md` prints the file back.
 
 ## Commit Message Guidance
+
+Do not add assistant co-author trailers or generated-with banners. Preserve
+explicitly required provenance such as `Contributing-model:` when applicable;
+that trailer is not a generated-with banner.
 
 Aim for a <=65 char subject, and strictly enforce a 72-column line wrap
 for the body. Prefer bullet lists in the commit body when items are

@@ -42,10 +42,9 @@ these mechanisms.
 
 ## Contributor instruction files in this repository
 
-Root [AGENTS.md](../AGENTS.md) is the canonical entry point for agents working
-on YA. `CLAUDE.md` contains only `@AGENTS.md`; Gemini and Cursor point directly
-to AGENTS. The entry point retains local-amendment precedence, task/gap
-discovery, agent-specific conventions, and topic-reading triggers.
+[AGENTS.md](../AGENTS.md) directs agents to the contributor guide and relevant
+topics. If `AGENTS.local.md` exists, agents must read it before acting; its
+machine-local instructions take precedence over AGENTS.
 
 [DEVELOPMENT.md](../DEVELOPMENT.md) owns the shared contributor workflow and
 operational reference. Agents must read it before implementation planning or
