@@ -15,6 +15,21 @@ names the cure — "Recovering means emptying it and relearning the retained
 window". Nothing reads that getter, and nothing empties anything. The 256 MB
 default postpones the problem rather than solving it.
 
+## How urgent this is: not very
+
+Measured for the actual shape — 256 MiB, 8 hashes, all 8 bits inside one
+64-byte block, so 4,194,304 blocks — the false-positive rate reaches 0.1% at
+**137.6 million messages**, and the 12-bits-per-key mark the code calls full
+sits at 179.0 million and 0.407%. Block imbalance costs about 6% against an
+idealized filter, which would reach 0.1% at 147.0 million. The maintainer's host
+had inserted 15,655 messages, where the rate is around 1.8e-15 percent.
+
+So saturation is a real dead end with no exit, and it is roughly four orders of
+magnitude away. Treat it as a design debt to clear deliberately rather than an
+incident. The live cost is the other end of the same fact: 256 MiB is reserved
+in the data directory to hold what is currently fifteen thousand messages, and
+a time-bounded filter would need a tiny fraction of it.
+
 So this entry has two possible resolutions, and they are not equally settled.
 
 ## Resolution A: bound the filter in time (uncontroversial)
