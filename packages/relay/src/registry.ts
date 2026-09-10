@@ -1,5 +1,8 @@
 import { isValidRelayUsername } from "@yep-anywhere/shared";
-import type { SqliteDatabase } from "@yep-anywhere/shared/sqlite";
+import type {
+  SqliteDatabase,
+  SqliteStatement,
+} from "@yep-anywhere/shared/sqlite";
 
 export interface UsernameRecord {
   username: string;
@@ -19,9 +22,24 @@ export interface UsernameRecord {
  */
 export class UsernameRegistry {
   private db: SqliteDatabase;
+  /**
+   * One prepared statement per distinct SQL, reused for the registry's life.
+   * Preparing per call repeats SQLite's parse and plan work on every request,
+   * and under Bun each statement also stays alive until the database closes.
+   */
+  private readonly prepared = new Map<string, SqliteStatement>();
 
   constructor(db: SqliteDatabase) {
     this.db = db;
+  }
+
+  private statement(sql: string): SqliteStatement {
+    let statement = this.prepared.get(sql);
+    if (!statement) {
+      statement = this.db.prepare(sql);
+      this.prepared.set(sql, statement);
+    }
+    return statement;
   }
 
   /**
@@ -35,9 +53,9 @@ export class UsernameRegistry {
       return false;
     }
 
-    const row = this.db
-      .prepare("SELECT install_id FROM usernames WHERE username = ?")
-      .get<{ install_id: string }>(username);
+    const row = this.statement(
+      "SELECT install_id FROM usernames WHERE username = ?",
+    ).get<{ install_id: string }>(username);
 
     if (!row) {
       return true; // Not registered
@@ -60,9 +78,9 @@ export class UsernameRegistry {
     const now = new Date().toISOString();
 
     // Check existing registration
-    const existing = this.db
-      .prepare("SELECT install_id FROM usernames WHERE username = ?")
-      .get<{ install_id: string }>(username);
+    const existing = this.statement(
+      "SELECT install_id FROM usernames WHERE username = ?",
+    ).get<{ install_id: string }>(username);
 
     if (existing) {
       if (existing.install_id !== installId) {
@@ -70,18 +88,16 @@ export class UsernameRegistry {
       }
 
       // Update last_seen_at for existing owner
-      this.db
-        .prepare("UPDATE usernames SET last_seen_at = ? WHERE username = ?")
-        .run(now, username);
+      this.statement(
+        "UPDATE usernames SET last_seen_at = ? WHERE username = ?",
+      ).run(now, username);
       return true;
     }
 
     // New registration
-    this.db
-      .prepare(
-        "INSERT INTO usernames (username, install_id, registered_at, last_seen_at) VALUES (?, ?, ?, ?)",
-      )
-      .run(username, installId, now, now);
+    this.statement(
+      "INSERT INTO usernames (username, install_id, registered_at, last_seen_at) VALUES (?, ?, ?, ?)",
+    ).run(username, installId, now, now);
     return true;
   }
 
@@ -91,27 +107,27 @@ export class UsernameRegistry {
    */
   updateLastSeen(username: string): void {
     const now = new Date().toISOString();
-    this.db
-      .prepare("UPDATE usernames SET last_seen_at = ? WHERE username = ?")
-      .run(now, username);
+    this.statement(
+      "UPDATE usernames SET last_seen_at = ? WHERE username = ?",
+    ).run(now, username);
   }
 
   /**
    * Get a username record.
    */
   get(username: string): UsernameRecord | undefined {
-    return this.db
-      .prepare("SELECT * FROM usernames WHERE username = ?")
-      .get<UsernameRecord>(username);
+    return this.statement(
+      "SELECT * FROM usernames WHERE username = ?",
+    ).get<UsernameRecord>(username);
   }
 
   /**
    * Check if a username is registered (by any installId).
    */
   isRegistered(username: string): boolean {
-    const row = this.db
-      .prepare("SELECT 1 FROM usernames WHERE username = ?")
-      .get(username);
+    const row = this.statement(
+      "SELECT 1 FROM usernames WHERE username = ?",
+    ).get(username);
     return row !== undefined;
   }
 
@@ -124,9 +140,9 @@ export class UsernameRegistry {
     cutoff.setDate(cutoff.getDate() - days);
     const cutoffIso = cutoff.toISOString();
 
-    const result = this.db
-      .prepare("DELETE FROM usernames WHERE last_seen_at < ?")
-      .run(cutoffIso);
+    const result = this.statement(
+      "DELETE FROM usernames WHERE last_seen_at < ?",
+    ).run(cutoffIso);
 
     return result.changes;
   }
@@ -136,9 +152,9 @@ export class UsernameRegistry {
    * Used for testing or administrative cleanup.
    */
   delete(username: string): boolean {
-    const result = this.db
-      .prepare("DELETE FROM usernames WHERE username = ?")
-      .run(username);
+    const result = this.statement(
+      "DELETE FROM usernames WHERE username = ?",
+    ).run(username);
     return result.changes > 0;
   }
 
@@ -146,18 +162,18 @@ export class UsernameRegistry {
    * Get all registered usernames (for debugging/admin).
    */
   list(): UsernameRecord[] {
-    return this.db
-      .prepare("SELECT * FROM usernames ORDER BY username")
-      .all<UsernameRecord>();
+    return this.statement(
+      "SELECT * FROM usernames ORDER BY username",
+    ).all<UsernameRecord>();
   }
 
   /**
    * Get the count of registered usernames.
    */
   count(): number {
-    const row = this.db
-      .prepare("SELECT COUNT(*) as count FROM usernames")
-      .get<{ count: number }>();
+    const row = this.statement("SELECT COUNT(*) as count FROM usernames").get<{
+      count: number;
+    }>();
     // COUNT(*) always yields a row; treat its absence as an empty registry.
     return row?.count ?? 0;
   }

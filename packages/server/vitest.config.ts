@@ -15,6 +15,14 @@ export default defineConfig({
   },
   test: {
     exclude: ["node_modules/**", "dist/**"],
+    env: {
+      // Fail a caller that prepares SQLite statements per call instead of
+      // reusing one. Node cannot show that leak (StatementSync has no
+      // finalize), while Bun retains every statement until close, so without
+      // this the ordinary test path cannot catch it. Not a config.ts knob, so
+      // hermetic-env leaves it alone. See packages/shared/src/sqlite.ts.
+      YEP_SQLITE_STATEMENT_CEILING: "64",
+    },
     // Strip developer-shell config env (e.g. YEP_DEFERRED_JOIN_WINDOW_S) before
     // each file so the suite reproduces identically everywhere. See the setup file.
     setupFiles: ["./test/setup/hermetic-env.ts"],

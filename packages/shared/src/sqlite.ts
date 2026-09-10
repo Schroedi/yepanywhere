@@ -47,17 +47,60 @@ export interface SqliteDriver {
   open(path: string): SqliteDatabase;
 }
 
+/**
+ * Live-statement ceiling, off unless `YEP_SQLITE_STATEMENT_CEILING` is set.
+ *
+ * Preparing the same SQL on every call is invisible on Node, where StatementSync
+ * has no finalize and the collector reclaims each one, and unbounded on Bun,
+ * where every statement stays alive until the database closes. A Node-only test
+ * run therefore cannot see the difference between reusing a statement and
+ * leaking one. Test flows set this so that pattern fails where it is written,
+ * rather than in a Bun deployment nobody exercised.
+ */
+function statementCeiling(): number | undefined {
+  const configured = process.env.YEP_SQLITE_STATEMENT_CEILING;
+  if (!configured) return undefined;
+  const ceiling = Number(configured);
+  if (!Number.isInteger(ceiling) || ceiling < 1) {
+    throw new Error(
+      `YEP_SQLITE_STATEMENT_CEILING must be a positive integer, got ${configured}`,
+    );
+  }
+  return ceiling;
+}
+
+function ceilingExceeded(live: Map<NativeStatement, string>, ceiling: number) {
+  const repeats = new Map<string, number>();
+  for (const sql of live.values())
+    repeats.set(sql, (repeats.get(sql) ?? 0) + 1);
+  const [worstSql = "", worstCount = 0] = [...repeats].sort(
+    (a, b) => b[1] - a[1],
+  )[0] ?? ["", 0];
+  return new Error(
+    `SQLite statements live (${live.size}) passed YEP_SQLITE_STATEMENT_CEILING=${ceiling}. ` +
+      `Most repeated (${worstCount}x): ${worstSql.replace(/\s+/g, " ").trim()}. ` +
+      "Reuse one prepared statement per SQL instead of preparing per call, or finalize when done.",
+  );
+}
+
 function wrapDatabase(native: NativeDatabase): SqliteDatabase {
   let closed = false;
   let inTransaction = false;
   // Bun 1.3.14 close(false) leaves prepare() statements alive and close(true)
   // throws while they exist. Finalize them explicitly before releasing the file.
   const statements = new Set<NativeStatement>();
+  const ceiling = statementCeiling();
+  // Tracked on both runtimes when checking, so Node sees Bun's retention.
+  const live = new Map<NativeStatement, string>();
   return {
     exec: (sql) => native.exec(sql),
     prepare(sql) {
       let statement: NativeStatement | undefined = native.prepare(sql);
       if (statement.finalize) statements.add(statement);
+      if (ceiling !== undefined) {
+        live.set(statement, sql);
+        if (live.size > ceiling) throw ceilingExceeded(live, ceiling);
+      }
       const active = () => {
         if (closed || !statement) throw new Error("SQLite statement is closed");
         return statement;
@@ -77,6 +120,7 @@ function wrapDatabase(native: NativeDatabase): SqliteDatabase {
           if (!statement) return;
           if (!closed) statement.finalize?.();
           statements.delete(statement);
+          live.delete(statement);
           statement = undefined;
         },
       };
@@ -112,6 +156,7 @@ function wrapDatabase(native: NativeDatabase): SqliteDatabase {
       if (closed) return;
       for (const statement of statements) statement.finalize?.();
       statements.clear();
+      live.clear();
       native.close();
       closed = true;
     },

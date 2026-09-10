@@ -109,6 +109,41 @@ dependencies. Before adding a runtime dep:
 
 Rule of thumb: if a dep is essentially a one-file helper, write the file.
 
+## Runtime-Portable SQLite
+
+`@yep-anywhere/shared/sqlite` is deliberately the *intersection* of the SQLite
+backends YA supports: `node:sqlite` on Node, `bun:sqlite` on Bun. Server, relay
+and push broker all go through it. Keep backend-only capability behind that
+boundary. `node:sqlite` also offers `columns()`, `iterate()`, `setReadBigInts()`,
+`setReturnArrays()` and the named-parameter toggles; the adapter exposes none of
+them, and no Bun equivalent either. Where the backends differ in type, the
+contract takes the narrower common one: a BLOB is a `Uint8Array`, never a Node
+`Buffer`.
+
+`finalize()` is the one deliberate exception, because the concept itself is not
+symmetric — Bun statements own native resources and Node's do not. The adapter
+offers it to every caller and makes it a no-op where the runtime has no such
+concept.
+
+The failure this prevents is invisible on the runtime most people test. A caller
+that prepares the same SQL on every call looks free on Node, where
+`StatementSync` has no `finalize` and the collector reclaims each statement, and
+retains every statement until close on Bun. So `pnpm test` sets
+`YEP_SQLITE_STATEMENT_CEILING` in each package's vitest config, and that pattern
+fails where it is written rather than in a Bun deployment nobody exercised. Reuse
+one prepared statement per SQL. Do not raise a package's ceiling to make a
+regression pass.
+
+If complying carries a real performance cost, do not widen the interface
+quietly. Measure the cost, state it in the commit message and in the discussion,
+and get maintainer consensus across every deployment that uses the adapter —
+standalone Node server, Bun server, Desktop's pinned Bun, relay, push broker —
+before revising the boundary. The disclosure is the contract: an unexplained
+backend-specific call is a defect even when it is faster.
+
+See also [optional SQLite](topics/optional-sqlite.md) for the adapter's full
+behavior contract, schema ownership and migration rules.
+
 ## Architecture
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the entry-point map of how

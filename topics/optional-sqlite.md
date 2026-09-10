@@ -46,6 +46,21 @@ SQLite package, native installer, sidecar, or compiler is added to the core
 distribution. Desktop's pinned Bun is tested directly, independently of claims
 about newer Bun versions' Node compatibility.
 
+The adapter surface is the intersection of the supported backends, so a caller
+cannot depend on one runtime's extras: `columns`, `iterate`, `setReadBigInts`,
+`setReturnArrays` and the named-parameter toggles stay behind the boundary, and
+differing types narrow to the common one. `finalize` is the single deliberate
+exception, offered to every caller and a no-op where the runtime has no such
+concept. Widening that boundary for performance requires a measured cost stated
+in the commit and maintainer consensus across every deployment; see
+[DEVELOPMENT.md](../DEVELOPMENT.md) § Runtime-Portable SQLite.
+
+`YEP_SQLITE_STATEMENT_CEILING` fails an open database once its live prepared
+statements pass the given count, naming the most repeated SQL. It is unset in
+production and set in each package's vitest config, because preparing per call
+is free-looking on Node and unbounded on Bun. Reusing one statement per SQL
+keeps the count flat regardless of request volume.
+
 The adapter is `@yep-anywhere/shared/sqlite`. The server reaches it through
 `packages/server/src/storage/sqlite.ts`, which re-exports it so packaged
 `dist/storage/sqlite.js` keeps the path the runtime contract scripts load.
