@@ -61,9 +61,16 @@ from. Both undercount silently, so both deserve a test:
   the threshold.
 
 The second is worse under a strictly monotonic watermark, because one message
-bearing an absurd future timestamp poisons it permanently. So advancing the
-watermark should be clamped to the present plus a small slack rather than
-accepting any timestamp a provider hands over.
+bearing an absurd future timestamp poisons it permanently. Detect that outlier
+and refuse to let it advance the watermark. Do not clamp it to the present plus
+a slack: clamping writes down a synthesized time that no content actually
+carries, and the watermark's whole job is to state when content was really last
+seen. An implausible reading is evidence the clock is wrong, not evidence about
+the content, so the watermark should advance from the highest timestamp that
+passed the plausibility test and stand still otherwise.
+
+The message itself is still counted. Downgrading a timestamp means distrusting
+it as a clock reading, never discarding the text it came with.
 
 ## Resolution B: delete the durable filter (controversial)
 
