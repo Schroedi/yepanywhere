@@ -218,6 +218,67 @@ export default async function globalSetup() {
     `[E2E] Created scroll memory session at ${scrollMemorySessionFile}`,
   );
 
+  // A mermaid fence and an ordinary highlighted fence, so one fixture covers
+  // both the per-language renderer and the language label.
+  const mermaidDiagram = [
+    "```mermaid",
+    "sequenceDiagram",
+    "  participant Phone",
+    "  participant Server",
+    "  participant Claude",
+    "  Phone->>Server: send prompt",
+    "  Server->>Claude: start turn",
+    "  Claude-->>Server: stream tokens",
+    "  Server-->>Phone: rendered augments",
+    "```",
+  ].join("\n");
+  const codeFenceMarkdown = [
+    "Supervising a turn moves through three hops.",
+    "",
+    mermaidDiagram,
+    "",
+    "The server owns the process, so a disconnect does not stop it:",
+    "",
+    "```typescript",
+    "export function streamTurn(prompt: string): AsyncIterable<Augment> {",
+    "  return supervisor.start(prompt);",
+    "}",
+    "```",
+  ].join("\n");
+  const codeFenceSessionFile = join(
+    mockSessionDir,
+    "code-fence-mermaid-001.jsonl",
+  );
+  writeFileSync(
+    codeFenceSessionFile,
+    [
+      {
+        type: "user",
+        cwd: mockProjectPath,
+        message: { role: "user", content: "Diagram how a turn reaches Claude" },
+        timestamp: "2026-01-05T00:00:00.000Z",
+        uuid: "code-fence-user-1",
+      },
+      {
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: codeFenceMarkdown }],
+        },
+        timestamp: "2026-01-05T00:00:01.000Z",
+        uuid: "code-fence-assistant-1",
+        parentUuid: "code-fence-user-1",
+      },
+    ]
+      .map((message) => JSON.stringify(message))
+      .join("\n"),
+  );
+  writeFileSync(
+    join(mockProjectPath, "diagram-notes.md"),
+    ["# Turn flow", "", mermaidDiagram, ""].join("\n"),
+  );
+  console.log(`[E2E] Created code fence session at ${codeFenceSessionFile}`);
+
   const providerChildSessionId = "provider-child-layout-001";
   writeFileSync(
     join(mockSessionDir, `${providerChildSessionId}.jsonl`),

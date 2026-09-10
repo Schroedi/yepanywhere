@@ -97,6 +97,9 @@ export default defineConfig(({ command }) => ({
     // client source is already public (open-source repo + npm package).
     sourcemap: true,
     emptyOutDir: !isWatchMode, // Don't empty in watch mode to avoid race conditions
+    // Same reason as the local client build: Mermaid's lazily imported chunks
+    // sit just under 700 kB and are never part of the initial load.
+    chunkSizeWarningLimit: 750,
     rollupOptions: {
       input: {
         main: resolve(__dirname, "remote.html"),

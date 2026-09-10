@@ -1,8 +1,8 @@
 - new session project selection
 - Rich rendering for agent output via yepanywhere
 - [Code-fence language renderers](code-fence-renderers.md) (info-string
-  normalization, the `language-*` marker, and a proposed per-language renderer
-  registry with Mermaid as the motivating case)
+  normalization, the `language-*` marker, the hover/tap language label, and the
+  per-language renderer registry with Mermaid diagrams as its one member)
 - Task-list rendering from incremental Claude `Task*` events (problem framing)
 - Codex GPT-5.5 model and protocol compatibility
 - Pluggable speech recognition providers

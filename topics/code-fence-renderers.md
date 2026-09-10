@@ -1,15 +1,14 @@
 # Code-Fence Language Renderers
 
 > How YA reduces a fenced code block's info string to one normalized language
-> name, marks every rendered block with that name, and — proposed —
-> dispatches a registered per-language renderer such as Mermaid instead of
-> syntax highlighting.
+> name, marks every rendered block with that name, and dispatches a registered
+> per-language renderer such as Mermaid instead of syntax highlighting.
 
-Status: the normalization and the language marker described in the first two
-sections are implemented. The language affordance, the renderer registry, and
-the Mermaid renderer are a proposal; nothing dispatches on language yet beyond
-the pre-existing `ansi` and `toon` cases. No open questions block
-implementation.
+Status: implemented. `normalizeCodeBlockLanguage` and the `language-*` marker
+run server-side; `useCodeFenceRenderers` labels blocks and dispatches renderers
+client-side; `mermaidRenderer` is the one registered renderer. The pre-existing
+`ansi` and `toon` cases still live inside `renderCodeWithHighlighter` as
+server-side branches rather than registry members.
 
 See also [`rich-text-rendering.md`](rich-text-rendering.md) for the surrounding
 render pipeline and [`active-content-security.md`](active-content-security.md)
@@ -56,15 +55,33 @@ markdown-it's default fence rule, which emits `language-<first word of info>`
 with the original case preserved. Bringing that path onto the same
 normalization is unresolved.
 
-## Proposed: default language affordance
+`useCodeFenceRenderers` lowercases the name it reads out of the class, so
+renderer dispatch and the language label already agree across both paths. That
+is a client-side tolerance for the gap above, not a substitute for closing it:
+the emitted class itself still differs between the two paths, so anything that
+matches on the class text rather than reading it is still exposed.
 
-The default treatment for a marked code block is a tooltip on hover and the
-same text on tap for touch, naming the language. No visible chrome, no badge,
-no layout change — the existing default is not buggy, so the label stays a
-non-disturbing addition. A block with no language, or one whose info string
-normalizes away, shows nothing.
+## The default language affordance
 
-## Proposed: renderer registry
+A marked code block names its language on hover and on tap. It adds no visible
+chrome, no badge in the resting state, and no layout change: the existing
+default is not buggy, so the label stays a non-disturbing addition. A block
+with no language, or one whose info string normalizes away, shows nothing.
+
+Three details are load-bearing:
+
+- The label is a CSS pseudo-element fed by the block's own data attribute, so
+  it can never enter a text selection or a copied code block. A real element
+  inside the `<pre>` would.
+- Pointer devices reveal it on hover; keyboards reveal it on focus, which the
+  highlighter's `tabindex` already provides. A tap sets a data attribute that
+  clears itself, so touch reaches the same label without turning it into
+  permanent chrome.
+- The block carries an `aria-label` but deliberately no `title`. A native
+  tooltip on every code block would fire while reading or selecting code, a
+  second behind the label and saying the same word.
+
+## The renderer registry
 
 Dispatch is a lookup in a map keyed by normalized language name. Two properties
 matter more than the shape of the map:
@@ -78,31 +95,48 @@ matter more than the shape of the map:
   Whatever a renderer needs, it acquires at registration or on its own first
   use, not per occurrence.
 
-Existing per-language handling should be resolved into the registry rather than
-left as a parallel branch. `ansi` and `toon` are already language-keyed special
-cases inside `renderCodeWithHighlighter`, and Shiki highlighting is the default
-when nothing else claims the language.
+`registry.ts` holds the map, `renderers.ts` holds the one call per member, and
+`mermaidRenderer.ts` holds the only member today. A renderer takes the source
+text and either returns markup or declines. Declining leaves the highlighted
+source in place, so an unparseable diagram is still readable.
 
-A renderer takes the normalized language plus the source text and either
-produces a rendered result or declines. Declining falls back to ordinary
-highlighting, so an unparseable diagram is still readable as its source.
+`ansi` and `toon` remain language-keyed branches inside
+`renderCodeWithHighlighter` rather than registry members. They belong here
+eventually — the registry is where language-keyed rendering should live — but
+they run server-side and produce HTML for the augment stream, so folding them
+in means the registry has to span both halves. That is a separate change.
 
-## Proposed: Mermaid
+## Mermaid
 
 Mermaid is the motivating case and the reason the registry has a client half:
-it lays diagrams out against a live DOM, so it cannot run in the server
-augment generator. The split is therefore:
+it lays diagrams out against a live DOM, so it cannot run in the server augment
+generator. The split is therefore:
 
 - The server emits nothing special. A ```` ```mermaid ```` fence produces the
   ordinary marked code block. No new server dependency, no sanitizer
   relaxation, and a client that does not implement the renderer still shows
   readable diagram source.
-- The client finds `pre > code.language-mermaid` inside an already-rendered
-  container, replaces the `<pre>` with the produced diagram, and marks the
-  result so a re-render of the same content is idempotent. Mermaid itself is a
-  lazy dynamic import, so sessions without diagrams never pay for it.
-- On a Mermaid parse or render failure, the code block is left exactly as it
-  was.
+- `useCodeFenceRenderers` finds `pre > code.language-mermaid` inside an
+  already-rendered container and wraps the block so the diagram and its source
+  can each be the visible view. Mermaid itself is a dynamic import, so a
+  session with no diagrams never downloads it.
+- On a parse or render failure the code block is left exactly as it was.
+
+Two consequences of the dynamic import are worth knowing before touching the
+build. Mermaid's core chunk and its per-diagram-type chunks each sit near
+700 kB, which is above Vite's default 500 kB warning and therefore above YA's
+warning-free build policy. Both client configs raise
+`chunkSizeWarningLimit` to 750 kB on the grounds that these chunks arrive only
+when a transcript contains a diagram and never enter the initial load. The
+ceiling still has to catch an *entry* chunk reaching that size, which is what
+the policy was protecting.
+
+The render cache is keyed on renderer, source text, and resolved light/dark
+appearance. Keying on appearance is what makes a theme switch redraw a diagram
+with the new palette instead of reusing stale SVG; the hook watches
+`data-theme` and the system color-scheme query to trigger that pass. Entries
+hold rendered SVG, so the cache is bounded and evicts the oldest rather than
+growing for the life of the tab.
 
 ### Inline SVG from a reviewed renderer is allowed
 
@@ -130,11 +164,20 @@ and does not affect Mermaid.
 The user-facing control for a rendered diagram is the ordinary source-or-
 rendered choice YA already offers everywhere else, not a security setting. A
 Mermaid block renders as a diagram by default and toggles back to its
-highlighted source on demand, reusing the existing render-mode affordance
-rather than introducing a per-language control. Rendering by default is the
-deliberate choice here: showing diagram source where a diagram was requested is
-the defect this feature exists to fix, so it is not a case of disturbing a
-sound default.
+highlighted source on demand, reusing the Σ affordance and hover behavior of
+the fixed-font panels rather than introducing a per-language control.
+Rendering by default is the deliberate choice here: showing diagram source
+where a diagram was requested is the defect this feature exists to fix, so it
+is not a case of disturbing a sound default.
+
+The toggle's accessible name says which thing it switches — "Show diagram
+source", not "Show source". An assistant message carries its own
+source/rendered toggle, so the bare label leaves two same-named buttons in one
+message. Any renderer added later needs a distinguishing noun for the same
+reason.
+
+Where a hover pointer does not exist, the toggle is always visible instead of
+fading in, because it is then the only way back to source.
 
 ## Streaming
 
@@ -147,3 +190,8 @@ Two consequences for the renderer contract: an incomplete source is "not yet",
 never an error, and a renderer must not do expensive work per token. The
 natural point to attempt a render is the completed-block augment; a client that
 does attempt earlier should gate retries on the source actually having changed.
+
+`useCodeFenceRenderers` implements that with one attempt per exact source text,
+recorded on the block. A growing source produces a new key and is retried; a
+source that declined is not retried in a loop. Mutation bursts coalesce to one
+pass per animation frame, so per-token cost is a scan rather than a render.

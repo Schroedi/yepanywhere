@@ -38,6 +38,11 @@ export default defineConfig(({ command }) => ({
   cacheDir: `node_modules/.vite-local-${vitePort}`,
   build: {
     assetsInlineLimit: shouldInlineClientAsset,
+    // Mermaid's core and its per-diagram-type chunks are each near 700 kB and
+    // arrive only when a transcript actually contains a ```mermaid fence, so
+    // they never touch the initial load this warning exists to protect. The
+    // ceiling still has to catch an entry chunk growing past that size.
+    chunkSizeWarningLimit: 750,
     rollupOptions: {
       output: {
         // Match the hosted build's stable framework boundary so application

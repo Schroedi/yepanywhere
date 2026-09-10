@@ -16,6 +16,10 @@ import { useRenderModeToggle } from "../../contexts/RenderModeContext";
 import { useOptionalSessionMetadata } from "../../contexts/SessionMetadataContext";
 import type { CommentAnchor } from "../../lib/commentAnchors";
 import { useStreamingMarkdownContext } from "../../contexts/StreamingMarkdownContext";
+import {
+  codeFenceRootClass,
+  useCodeFenceRenderers,
+} from "../../hooks/useCodeFenceRenderers";
 import { useStreamingMarkdown } from "../../hooks/useStreamingMarkdown";
 import { useI18n } from "../../i18n";
 import { registerMarkdownCopySource } from "../../lib/markdownSelectionCopy";
@@ -216,6 +220,7 @@ export const TextBlock = memo(function TextBlock({
   useLocalMediaInlinePreviews(copySourceRef, undefined, undefined, {
     suppressAutomaticImages: turnImageGallery?.available === true,
   });
+  useCodeFenceRenderers(copySourceRef);
   const handleContentClick = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       const content = copySourceRef.current;
@@ -386,7 +391,7 @@ export const TextBlock = memo(function TextBlock({
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: keyboard activation remains on the descendant links/controls */}
       <div
         ref={copySourceRef}
-        className="text-block-content"
+        className={`text-block-content ${codeFenceRootClass}`}
         onClick={handleContentClick}
         onContextMenu={handleContextMenu}
       >
