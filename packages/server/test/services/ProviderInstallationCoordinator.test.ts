@@ -414,11 +414,7 @@ describe("ProviderInstallationCoordinator", () => {
     expect(defaultOwnerProbe.aliveState(process.pid)).toBe("alive");
     // Far beyond any realistic pid_max, so nothing occupies it.
     expect(defaultOwnerProbe.aliveState(0x7fffffff)).toBe("missing");
-    if (process.platform !== "win32") {
-      await expect(
-        defaultOwnerProbe.startId(process.pid),
-      ).resolves.toBeTruthy();
-    }
+    await expect(defaultOwnerProbe.startId(process.pid)).resolves.toBeTruthy();
   });
 
   it("uses Windows process creation time as the owner generation", async () => {

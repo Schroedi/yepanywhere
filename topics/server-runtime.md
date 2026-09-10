@@ -113,10 +113,9 @@ range, CLI/direct-entry rejection, clean npm installation, storage contracts,
 and Node/Bun file interoperability. Bun uses Desktop's exact 1.3.14 pin. Fresh-package checks exercise the forced
 Bun CLI, HTTP/WebSocket ping, a real child shell/agent CLI and the compiled
 math/sanitizer renderer.
-Full packaged startup is exercised on Linux/macOS; Windows startup remains
-excluded under the existing
-[isolated fixture gap](../gaps/windows-packaged-startup-provider-identity.md).
-That exclusion is not evidence of a Windows Desktop failure. Windows Desktop
+Full packaged startup is exercised on Linux, macOS and Windows. The
+[Windows investigation](../gaps/windows-packaged-startup-provider-identity.md)
+tracks the restored coverage until the matrix confirms it. Windows Desktop
 manual verification is a separate Maintainer follow-up; this cutover does not
 claim it. Public standalone Bun platform claims remain limited to verified
 artifact behavior; the matrix does not promise every provider on every OS.

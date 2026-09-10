@@ -26,9 +26,15 @@ captured error in `services/installationOwnerProbe.ts` using both inherited
 and isolated profiles. Do not bypass process identity or owner-only ACL
 requirements. This is separate from SQLite loading and storage ownership.
 
-The Optional SQLite workflow gates only full-server startup on Windows.
-Packaged SQLite module loading, the real storage contract, Node/Bun file
-interoperability, and Node 20 fallback continue to run on all three platforms.
-Restore Windows startup steps when this gap is fixed.
+On 2026-09-10, the current assembled npm package passed all three isolated
+startup states on a Windows ARM64 VM with Node 24.10.0 ARM64 and Node 24.20.0
+x64. Both inherited and isolated PowerShell process identity probes succeeded.
+Bun 1.3.14 x64 passed disabled startup but a later emulated launch timed out
+without output. This does not establish native x64 Bun behavior.
+
+The runtime workflow now restores full Windows Node and Bun startup, including
+the clean npm installation. The real process-identity unit check also runs on
+Windows. Retire this gap only after the restored GitHub Windows matrix passes;
+do not infer success from the local Node checks alone.
 
 Found 2026-09-08 while validating optional SQLite support across platforms.

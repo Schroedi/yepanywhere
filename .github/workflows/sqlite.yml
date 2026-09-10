@@ -38,9 +38,9 @@ jobs:
       - name: Clean npm installation and full startup
         if: runner.os != 'Windows'
         run: node scripts/agent-self-package-smoke.mjs --startup --bun-runtime="$(command -v bun)"
-      - name: Clean Windows npm installation and agent command
+      - name: Clean Windows npm installation and full startup
         if: runner.os == 'Windows'
-        run: node scripts/agent-self-package-smoke.mjs
+        run: node scripts/agent-self-package-smoke.mjs --startup --bun-runtime="$((Get-Command bun).Source)"
       - name: Attach locked runtime dependencies to npm distribution
         # Exercise the published modules with the repository's tested dependency
         # versions, rather than re-resolving npm ranges to unrelated newer deps.
@@ -52,13 +52,8 @@ jobs:
       - name: Node reads Bun file
         run: node scripts/test-discovery-sqlite.mjs ready dist/npm-package/dist/storage shared-runtime.sqlite
       - name: Node distribution startup
-        # Full Windows boot currently fails in provider coordination before
-        # SQLite initializes; see gaps/windows-packaged-startup-provider-identity.md.
-        # Storage, entry-point rejection and clean npm installation still run on Windows.
-        if: runner.os != 'Windows'
         run: node scripts/test-sqlite-startup.mjs ready
       - name: Bun distribution startup
-        if: runner.os != 'Windows'
         run: bun scripts/test-sqlite-startup.mjs ready
       - uses: actions/setup-node@v6
         with:
