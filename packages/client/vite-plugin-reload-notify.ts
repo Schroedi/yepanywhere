@@ -54,18 +54,63 @@ export function reloadNotify(options: ReloadNotifyOptions = {}): Plugin {
 
     load(id) {
       if (!enabled || id !== resolvedGuardId) return;
+      // The guard has two possible answers and they are not the same event.
+      // "The source generation moved" means this page is running against a
+      // build that no longer exists, and reloading is the only correct
+      // response. "I could not ask" means the dev server is restarting or
+      // busy, which says nothing about the source at all. Throwing on the
+      // second one failed the whole route through Suspense and showed the
+      // fatal client error screen, so a dev-server restart looked like a code
+      // defect. Ask again a few times, then let the import proceed: a
+      // possibly-stale chunk in development is a smaller harm than a dead
+      // route, and the post-import check still catches a real move once the
+      // server answers again.
       return `
 const generation = ${JSON.stringify(generation)};
-async function checkGeneration() {
-  const response = await fetch(${JSON.stringify(generationPath)}, { cache: "no-store" });
-  if (!response.ok) throw new Error("Could not check development source version");
+const ASK_TIMEOUT_MS = 2000;
+const ASK_ATTEMPTS = 3;
+const ASK_RETRY_MS = 250;
+let warnedUnreachable = false;
+
+async function askGeneration() {
+  const response = await fetch(${JSON.stringify(generationPath)}, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(ASK_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error("dev source version endpoint returned " + response.status);
   const current = await response.json();
-  if (typeof current.generation !== "string") throw new Error("Invalid development source version");
-  if (current.generation !== generation) {
-    window.location.reload();
-    await new Promise(() => {});
+  if (typeof current.generation !== "string") {
+    throw new Error("dev source version endpoint returned no generation");
+  }
+  return current.generation;
+}
+
+async function checkGeneration() {
+  let lastError;
+  for (let attempt = 0; attempt < ASK_ATTEMPTS; attempt++) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, ASK_RETRY_MS));
+    try {
+      const current = await askGeneration();
+      warnedUnreachable = false;
+      if (current !== generation) {
+        window.location.reload();
+        await new Promise(() => {});
+      }
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!warnedUnreachable) {
+    warnedUnreachable = true;
+    console.warn(
+      "[reload-notify] The dev server did not answer the source-version check, so this module loaded unverified. " +
+        "This is a dev-server availability problem, not a version mismatch: " +
+        (lastError && lastError.message ? lastError.message : lastError),
+    );
   }
 }
+
 export async function importFresh(load) {
   await checkGeneration();
   try {

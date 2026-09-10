@@ -223,18 +223,23 @@ export class ErrorBoundary extends Component<Props, State> {
     this.setState({ copyStatus: copied ? "copied" : "failed" });
   };
 
-  // Check if the error looks like a property access error (common in version mismatches)
+  /**
+   * Whether the frontend and server are actually running different versions.
+   *
+   * This used to guess from the error message: any "cannot read properties of
+   * undefined" or "is not a function" was reported as a probable version
+   * mismatch. Those are the two most ordinary JavaScript faults there are, so
+   * the notice fired on plain bugs and sent the reader to update an
+   * installation that was already current. Both versions are known here — the
+   * client's is compiled in and the server's was just fetched — so compare
+   * them and say nothing when they agree. A server that did not answer leaves
+   * `serverVersion` null, which the diagnostic below already reports as
+   * unknown; an unanswered request is not evidence of a mismatch.
+   */
   isLikelyVersionMismatch(): boolean {
-    const { error } = this.state;
-    if (!error) return false;
-
-    const msg = error.message.toLowerCase();
-    return (
-      msg.includes("cannot read properties of undefined") ||
-      msg.includes("cannot read property") ||
-      msg.includes("is not a function") ||
-      msg.includes("is undefined")
-    );
+    const { serverVersion } = this.state;
+    if (!serverVersion) return false;
+    return serverVersion !== getClientVersion();
   }
 
   render() {
