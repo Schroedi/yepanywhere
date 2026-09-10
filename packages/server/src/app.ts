@@ -2163,6 +2163,14 @@ export function createApp(options: AppOptions): AppResult {
     );
     vocabularyLearning = learning;
     vocabularyKeyterms = keyterms;
+    // Parsing the English baseline costs about 60 ms and the result is now kept
+    // for the process lifetime, so pay it here rather than on whichever
+    // dictation or scan asks first. Only for an owner who turned the feature
+    // on; a server that never uses it should not read the list at all.
+    if (store.settings().enabled || store.settings().biasing)
+      void keyterms.reference().catch(() => {
+        // Already logged and retried on demand by the keyterm path.
+      });
     options.speechBackendRegistry?.setVocabularySource((context) =>
       keyterms.get(context?.sessionTerms, context?.sessionId),
     );

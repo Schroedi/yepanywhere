@@ -96,7 +96,7 @@ it("sends learned spelling, drops contractions, and rations capitalized common w
   expect(selected).not.toContain("ya");
 });
 
-it("does no disabled work, coalesces first use, reuses disk after reboot, and evicts its map", async () => {
+it("does no disabled work, coalesces first use, reuses disk after reboot, and retains its map", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
   const f = fixture();
   const fetch = vi
@@ -121,11 +121,14 @@ it("does no disabled work, coalesces first use, reuses disk after reboot, and ev
     unlinkSync(join(f.dir, cache));
     expect(await reopened.get()).toEqual(["compiler"]);
     expect(fetch).toHaveBeenCalledTimes(1);
+    // The parsed list is kept for the process lifetime, so neither a long idle
+    // period nor losing the downloaded file costs a dictation request a reparse
+    // or a second download.
     await vi.advanceTimersByTimeAsync(30 * 60_000 + 1);
     expect(await reopened.get()).toEqual(["compiler"]);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(await reopened.get(["compiler"])).toEqual(["compiler"]);
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(1);
     await f.store.reset();
     expect(await reopened.get()).toEqual([]);
   } finally {

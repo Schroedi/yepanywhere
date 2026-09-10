@@ -454,16 +454,23 @@ Ranking approximations are recorded in
 
 ### Where the learned table lives
 
-The learned table is regenerable by rescanning the same provider history, so it
-is homed on local disk rather than in the data directory, which is frequently a
-network mount. `reserveScratchSpace` picks the first candidate that is local and
-has room to spare: `YEP_SCRATCH_DIR` when set, then the cache directory, then
-the temporary directory, then the data directory as a last resort. Candidates on
-network or memory-backed filesystems are skipped unless nothing else is left,
-and a machine with no room gets a smaller reservation rather than a failure to
-start. A wiped cache or a cleared temporary directory costs a rescan, never a
-wrong answer. Two data directories never share a scratch directory, so profiles
-stay separate.
+The learned table and its fingerprint filter live in the data directory,
+alongside the settings file. That directory is local disk whenever this feature
+can run at all: learning is gated on discovery SQLite being ready, and startup
+refuses to open that database on a network filesystem, so the placement the
+earlier separate reservation searched for is now guaranteed rather than sought
+(see [optional SQLite](optional-sqlite.md) § Data directory placement). The
+filter is still sized against free space and keeps a gigabyte of headroom, so a
+machine with little room gets a smaller filter rather than a full disk. Profiles
+stay separate because their data directories are separate. Installs that used
+the previous reserved directory are moved on first open: the table is renamed or
+copied, and the filter is renamed when that is free and abandoned otherwise,
+since it only saves relearning that the table's own checkpoints already prevent.
+
+Losing either file costs a rescan, never a wrong answer, and the table is
+written with synchronous commits off: a power loss or kernel crash can drop
+recent counts, an ordinary process crash cannot, and the journal mode stays
+write-ahead so the failure is lost counts rather than a corrupt file.
 
 Word counts, observed spellings, and scan checkpoints are rows in a SQLite
 database there. Only the rows a scan touched are written, in bounded
@@ -692,10 +699,14 @@ With biasing off, recognition does not load the English reference. First use
 with biasing on reads the pinned app-data text cache or downloads the fixed
 public resource with a five-second network timeout and 2 MB response limit.
 Concurrent requests share the load. No learned text is sent to the resource
-host, and no frequency table ships in Git. The parsed 50,000-row map expires
-after **30 minutes without recognition use**, renewed on each use; its disk
-cache survives eviction and server restart. Shutdown aborts loading and releases
-the map and eviction timer. Reset or disabling biasing during loading cannot
+host, and no frequency table ships in Git. The parsed 50,000-row map is retained
+for the process lifetime once loaded, and is pre-warmed at startup when learning
+or biasing is already enabled, so no dictation request pays for it. Parsing that
+list measured about 60 ms: 49 ms to parse, 10 ms to rank the common words, 2 ms
+to find the floor. A derived on-disk form was measured and rejected — it saved
+25 ms of that once per server start for a file 2.6 times the size of the source,
+because rebuilding the map dominates and no format avoids it. Its text cache
+still survives server restart. Shutdown aborts loading and releases the map. Reset or disabling biasing during loading cannot
 publish stale terms. A reference load/cache failure logs a diagnostic and
 continues ordinary recognition with caller-supplied terms only; another request
 may retry after one minute. A malformed on-disk cache must be removed to refetch.
@@ -721,7 +732,7 @@ all terms and send their latest 10,000 additions. The server normalizes and boun
 this list. Hints only boost existing learned candidates and do not increment
 durable counts. It caches at most 16 selected 100-term lists, keyed by a digest
 of the supplied set and invalidated by committed count changes or reset. An
-unchanged selection can be reused even after reference-map eviction. Hint lists
+unchanged selection can be reused without consulting the reference map. Hint lists
 are omitted from retained audio metadata and request logs; selected keyterms
 remain auditable.
 

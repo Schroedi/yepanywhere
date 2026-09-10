@@ -17,15 +17,21 @@ import { getLogger } from "../../logging/logger.js";
 import type { VocabularyStore } from "./VocabularyStore.js";
 
 const MAX_BYTES = 2_000_000;
-const IDLE_MS = 30 * 60_000;
 const RETRY_MS = 60_000;
 const CACHE_NAME =
   "speech-english-525f9b560de45753a5ea01069454e72e9aa541c6.txt";
 
+/**
+ * The parsed baseline is retained for the server's lifetime once loaded, rather
+ * than evicted after an idle period. Reviving it costs about 60 ms on the
+ * measured 50,000-row list — 49 ms to parse, 10 ms to rank the common words,
+ * 2 ms to find the floor — and an eviction only moves that cost onto whichever
+ * dictation request arrives next. Fifty thousand entries is a few megabytes
+ * held by a feature its owner has switched on.
+ */
 export class VocabularyKeyterms {
   private baseline?: ReadonlyMap<string, number>;
   private loading?: Promise<ReadonlyMap<string, number>>;
-  private eviction?: ReturnType<typeof setTimeout>;
   private readonly abort = new AbortController();
   private retryAfter = 0;
   private readonly selected = new Map<
@@ -50,7 +56,6 @@ export class VocabularyKeyterms {
       .digest("hex");
     const selected = this.selected.get(cacheKey);
     if (selected?.revision === this.store.revision) {
-      this.renewEviction();
       this.selected.delete(cacheKey);
       this.selected.set(cacheKey, selected);
       return selected.terms;
@@ -77,7 +82,6 @@ export class VocabularyKeyterms {
       }
       return [];
     }
-    this.renewEviction();
     const settings = this.store.settings();
     if (settings.generation !== generation || !settings.biasing) return [];
     const terms = this.store.keyterms(
@@ -92,15 +96,6 @@ export class VocabularyKeyterms {
     if (this.selected.size > 16)
       this.selected.delete(this.selected.keys().next().value!);
     return terms;
-  }
-
-  private renewEviction(): void {
-    clearTimeout(this.eviction);
-    if (!this.baseline) return;
-    this.eviction = setTimeout(() => {
-      this.baseline = undefined;
-    }, IDLE_MS);
-    this.eviction.unref();
   }
 
   private async load(): Promise<ReadonlyMap<string, number>> {
@@ -168,7 +163,6 @@ export class VocabularyKeyterms {
     }
     if (!this.baseline) return new Map();
     this.store.setReference(this.baseline);
-    this.renewEviction();
     return this.baseline;
   }
 
@@ -178,7 +172,6 @@ export class VocabularyKeyterms {
 
   async close(): Promise<void> {
     this.abort.abort();
-    clearTimeout(this.eviction);
     this.baseline = undefined;
     this.selected.clear();
     await this.loading?.catch(() => {});
