@@ -4,13 +4,8 @@
 // intentional runtime provenance for the approved built-in driver, not a test
 // failure or a warning to intercept; Bun does not emit that Node notice.
 import assert from "node:assert/strict";
-import {
-  mkdtempSync,
-  existsSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -272,5 +267,10 @@ try {
   );
 } finally {
   for (const connection of connections.reverse()) connection.close();
-  rmSync(temporary, { recursive: true, force: true });
+  await rm(temporary, {
+    recursive: true,
+    force: true,
+    maxRetries: 3,
+    retryDelay: 100,
+  });
 }

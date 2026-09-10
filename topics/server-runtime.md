@@ -118,6 +118,9 @@ range, CLI/direct-entry rejection, clean npm installation, storage contracts,
 and Node/Bun file interoperability. Bun uses Desktop's exact 1.3.14 pin. Fresh-package checks exercise the forced
 Bun CLI, HTTP/WebSocket ping, a real child shell/agent CLI and the compiled
 math/sanitizer renderer.
+Windows smoke teardown terminates the owned launcher process tree (including
+the server below `bunx`) and waits for its stdio to close before deleting the
+fixture. File deletion uses bounded asynchronous retries for released handles.
 Full packaged startup is exercised on Linux, macOS and Windows. The
 [Windows investigation](../gaps/windows-packaged-startup-provider-identity.md)
 tracks the restored coverage until the matrix confirms it. Windows Desktop

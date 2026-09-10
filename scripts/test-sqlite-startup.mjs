@@ -1,12 +1,7 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-} from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -110,6 +105,8 @@ for (const state of [
   const completion = new Promise((resolveExit) => {
     child.once("exit", () => {
       exited = true;
+    });
+    child.once("close", () => {
       resolveExit();
     });
     child.once("error", (error) => {
@@ -180,13 +177,24 @@ for (const state of [
       `SQLite server startup passed (${process.versions.bun ? "Bun" : "Node"}, ${state})`,
     );
   } finally {
-    if (!exited) child.kill("SIGTERM");
+    if (!exited) {
+      if (process.platform === "win32") {
+        // bunx owns a separate server child on Windows. Killing only the
+        // launcher leaves that child holding its cwd and SQLite files open.
+        execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+          stdio: "pipe",
+          timeout: 10_000,
+        });
+      } else {
+        child.kill("SIGTERM");
+      }
+    }
     const killTimer = setTimeout(() => {
       if (!exited) child.kill("SIGKILL");
     }, 10_000);
     await completion;
     clearTimeout(killTimer);
-    rmSync(temporary, {
+    await rm(temporary, {
       recursive: true,
       force: true,
       maxRetries: 3,
