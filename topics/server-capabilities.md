@@ -70,6 +70,11 @@ fallback. The earlier `compact-v1` query, `optionalCapabilityBits`, and
 `capabilityExtensions` remain readable for compatibility with intermediate
 source builds, but new clients do not negotiate that representation.
 
+An untagged source checkout may report a bare commit hash instead of semver.
+Its advertisements must still include implemented version-implied contracts,
+including `subagent-max-depth-setting`, in every supported encoding. The
+provider-depth control must remain usable without fetching release tags.
+
 `git-file-diff-projections` owns the exact file-viewer manifest and per-file
 diff routes. Releases `0.6.2` and `0.7.0` have neither route. A client without
 the capability hides every file-viewer diff selector and sends no projection

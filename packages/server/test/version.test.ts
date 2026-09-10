@@ -12,6 +12,7 @@ import {
   SERVER_CAPABILITIES,
   SESSION_SANDBOXING_CAPABILITY,
   SESSION_SANDBOXING_STATUS_CAPABILITY,
+  SUBAGENT_MAX_DEPTH_SETTING_CAPABILITY,
   VOICE_INPUT_CAPABILITY,
   serverHasCapability,
 } from "@yep-anywhere/shared";
@@ -50,6 +51,32 @@ describe("GET /version", () => {
   ) {
     global.fetch = vi.fn(handler) as unknown as typeof fetch;
   }
+
+  it("advertises subagent depth on an untagged source build in every encoding", async () => {
+    mockFetch(() => new Response(JSON.stringify({ version: "0.8.1" })));
+    const { createVersionRoutes } = await importVersion();
+    const routes = createVersionRoutes({
+      getCurrentVersionInfo: async () => ({
+        version: "5756cfd",
+        installSource: "source",
+      }),
+      getSessionSandboxAvailability: async () => ({
+        state: "unsupported-platform",
+        platform: "test",
+      }),
+    });
+    for (const query of [
+      "/",
+      "/?clientVersion=0.8.1",
+      "/?capabilities=compact-v1",
+    ]) {
+      const version = await (await routes.request(query)).json();
+      expect(version.current).toBe("5756cfd");
+      expect(
+        serverHasCapability(version, SUBAGENT_MAX_DEPTH_SETTING_CAPABILITY),
+      ).toBe(true);
+    }
+  });
 
   it.each(["disabled", "unsupported", "ready", "error"] as const)(
     "reports retained SQLite %s status and gates vocabulary in every encoding",
