@@ -382,3 +382,5 @@
   history when the live user-echo notice is dropped.
 - claude-goal-controls - Claude `/goal` state read from its transcript, with
   YA-owned pause/resume and the session header flag.
+- tool-display-contracts - Checked renderer registration, exhaustive display
+  coverage, and native live/persisted rendering parity.
