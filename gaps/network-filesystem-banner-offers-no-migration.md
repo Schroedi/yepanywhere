@@ -35,7 +35,15 @@ What makes the move itself its own piece of work rather than a banner tweak:
   together.
 - **The server is holding those files open**, including an append-only log with
   no rotation, so a live move is not a `rename`. The realistic shape is: copy to
-  the chosen directory, verify, then have the *next* start use it.
+  the chosen directory, verify, then have the *next* start use it. The banner
+  should raise with no live handles into the directory, which is why the
+  vocabulary placement signal wants the same refuse-rather-than-open behavior
+  as SQLite; see
+  [the vocabulary placement gap](vocabulary-scratch-placement-is-never-surfaced.md).
+- **One banner serves both placement reasons.** The signal carries a reason
+  text and the banner is otherwise identical whether SQLite refused at startup
+  or vocabulary learning degraded onto the same directory, so the user gets one
+  instruction and one migration offer rather than two of each.
 - **Which means it needs a restart, and restarts are the user's.** Where the new
   location is recorded so the next start finds it is the open design question.
   `YEP_DATA_DIR` lives in the launcher's environment and the server cannot set
