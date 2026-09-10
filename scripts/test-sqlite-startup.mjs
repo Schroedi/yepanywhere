@@ -121,8 +121,8 @@ for (const state of [
   child.stdout.on("data", collect);
   child.stderr.on("data", collect);
   try {
-    // Cold PowerShell processes used by existing provider ACL checks can make
-    // full Windows startup substantially slower than the SQLite initialization.
+    // Cold PowerShell host probes can make full Windows startup substantially
+    // slower than the SQLite initialization.
     const deadline =
       Date.now() + (process.platform === "win32" ? 120_000 : 30_000);
     while (!existsSync(portFile) && !exited && Date.now() < deadline)
@@ -155,6 +155,13 @@ for (const state of [
     assert.equal(response.status, 200, output);
     const version = await response.json();
     assert.deepEqual(version.sqlite, { state });
+    assert.equal(
+      existsSync(
+        join(temporary, ".yep-anywhere", "provider-installations", "codex-cli"),
+      ),
+      false,
+      "Claude-only startup must not initialize the excluded Codex installation",
+    );
     assert.equal(
       version.capabilities.includes("speech-vocabulary"),
       state === "ready",

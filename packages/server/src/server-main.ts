@@ -476,6 +476,17 @@ function readExpectedCodexVersionFromPackageJson(): string | null {
 }
 
 async function warnIfCodexVersionMismatch(): Promise<void> {
+  // An excluded provider must not perform installation/ACL work merely to
+  // produce an optional advisory. Empty configuration exposes all providers.
+  if (
+    config.enabledProviders.length > 0 &&
+    !config.enabledProviders.some(
+      (provider) => provider === "codex" || provider === "codex-oss",
+    )
+  ) {
+    return;
+  }
+
   const expectedRaw = readExpectedCodexVersionFromPackageJson();
   if (!expectedRaw) {
     return;

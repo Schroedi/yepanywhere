@@ -10,7 +10,7 @@ env:
 jobs:
   sqlite:
     # Restored Windows coverage runs twelve cold Node/Bun launches across
-    # clean npm and locked dependencies; PowerShell ACL checks dominate them.
+    # clean npm and locked dependencies; Windows host probes dominate them.
     timeout-minutes: ${{ matrix.os == 'windows-latest' && 30 || 15 }}
     strategy:
       fail-fast: false

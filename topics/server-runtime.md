@@ -122,6 +122,11 @@ Windows smoke teardown terminates the owned launcher process tree (including
 the server below `bunx`) asynchronously (avoiding Bun's Windows synchronous
 spawn timeout) and waits for its stdio to close before deleting the
 fixture. File deletion uses bounded asynchronous retries for released handles.
+The startup Codex-version advisory respects `ENABLED_PROVIDERS`: it runs for
+`codex`, `codex-oss`, or the default all-provider configuration. Excluding that
+family avoids unrelated installation/ACL work; checks for actual Codex use remain
+unchanged. The Claude-only packaged smoke asserts no Codex coordination state
+is created.
 Optional ADB PATH discovery uses an asynchronous, shell-free lookup with a
 five-second deadline before falling back to SDK locations. A missing or stalled
 Android tool lookup must not block the server event loop.
