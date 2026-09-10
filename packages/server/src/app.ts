@@ -5,6 +5,7 @@ import {
 } from "./services/issues/IssueIndexer.js";
 import { createIssueRoutes } from "./routes/issues.js";
 import { IssueCredentials } from "./services/issues/credentials.js";
+import { IssueConfirmer } from "./services/issues/confirm.js";
 import { getSessionSources } from "./sessions/provider-resolution.js";
 import type { HttpBindings } from "@hono/node-server";
 import { artifactViewerAgentEnvironment } from "./artifacts/agentEnvironment.js";
@@ -27,7 +28,6 @@ import type {
   UrlProjectId,
 } from "@yep-anywhere/shared";
 import {
-  DEFAULT_JIRA_KEY_BLOCKLIST,
   DEFAULT_HEARTBEAT_TURN_TEXT,
   DEFAULT_HEARTBEAT_TURNS_AFTER_MINUTES,
   DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
@@ -839,6 +839,7 @@ export function createApp(options: AppOptions): AppResult {
   };
   let retainedCollections: RetainedSessionCollections | undefined;
   let issueIndexer: IssueIndexer | undefined;
+  let issueConfirmer: IssueConfirmer | undefined;
   const issueDisposers: Array<() => void> = [];
   let vocabularyLearning: VocabularyLearning | undefined;
   let vocabularyKeyterms: VocabularyKeyterms | undefined;
@@ -846,6 +847,7 @@ export function createApp(options: AppOptions): AppResult {
   const disposeSessionReaders = async (): Promise<void> => {
     for (const dispose of issueDisposers) dispose();
     await issueIndexer?.close();
+    await issueConfirmer?.close();
     unsubscribeVocabulary?.();
     options.speechBackendRegistry?.setVocabularySource(undefined);
     await vocabularyKeyterms?.close();
@@ -2084,15 +2086,17 @@ export function createApp(options: AppOptions): AppResult {
     const issueCredentials = new IssueCredentials({
       dataDir: effectiveDataDir,
     });
-    const issueStore = new IssueStore(
-      issueDatabase,
-      () =>
-        settings.getSetting("issueAssociations")?.jiraKeyBlocklist ??
-        DEFAULT_JIRA_KEY_BLOCKLIST,
-    );
+    const issueSettings = () =>
+      settings.getSetting("issueAssociations") ?? DEFAULT_ISSUE_SETTINGS;
+    const issueStore = new IssueStore(issueDatabase, issueSettings);
+    const confirmer = new IssueConfirmer(issueStore, {
+      settings: issueSettings,
+      credentials: issueCredentials,
+    });
+    issueConfirmer = confirmer;
     const indexer = new IssueIndexer(issueStore, {
-      settings: () =>
-        settings.getSetting("issueAssociations") ?? DEFAULT_ISSUE_SETTINGS,
+      settings: issueSettings,
+      confirm: () => confirmer.schedule(),
       candidates: async function* () {
         yield* (await catalog.read()).rows;
       },
@@ -2158,6 +2162,7 @@ export function createApp(options: AppOptions): AppResult {
           };
         },
         issueCredentials,
+        confirmer,
       ),
     );
     indexer.configure();

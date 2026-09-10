@@ -24,6 +24,8 @@ export interface IssueIndexerDeps {
   ) => Promise<IssueTextBatch | null>;
   viewed?: (sessionId: string) => boolean;
   projectForSession?: (sessionId: string) => string | undefined;
+  /** Called after captures land, so freshly seen references can be asked about. */
+  confirm?: () => void;
 }
 
 /** One fair worker and durable queue, independent of client count or corpus size. */
@@ -202,6 +204,7 @@ export class IssueIndexer {
       .finally(() => {
         this.viewBytes -= bytes;
         this.viewTasks.delete(task);
+        this.deps.confirm?.();
         this.kick();
       });
     this.viewTasks.add(task);
@@ -329,6 +332,7 @@ export class IssueIndexer {
         }
         await yieldTurn();
       }
+      this.deps.confirm?.();
       if (!processed) return;
     }
   }

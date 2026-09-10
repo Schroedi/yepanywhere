@@ -14,6 +14,7 @@ import {
   DEFAULT_JIRA_KEY_BLOCKLIST,
   type IssueItem,
   type IssueEvidence,
+  type IssueSettings,
 } from "@yep-anywhere/shared";
 export type { IssueItem, IssueEvidence } from "@yep-anywhere/shared";
 export interface IssueSource {
@@ -30,8 +31,11 @@ export class IssueStore {
   constructor(
     readonly database: SqliteDatabase,
     /** Read per capture, so a settings change applies to the next message. */
-    private readonly blockedJiraProjects: () => Iterable<string> = () =>
-      DEFAULT_JIRA_KEY_BLOCKLIST,
+    private readonly settings: () => IssueSettings = () => ({
+      enabled: false,
+      scope: "viewed",
+      recentDays: 7,
+    }),
   ) {}
   rows(sql: string, ...values: SqliteValue[]): SqliteRow[] {
     const s = this.database.prepare(sql);
@@ -100,8 +104,10 @@ export class IssueStore {
     ownedStart = offset,
     ownedEnd = Number.POSITIVE_INFINITY,
   ): void {
+    const settings = this.settings();
     const refs = extractIssueReferences(message.text, {
-      blockedJiraProjects: this.blockedJiraProjects(),
+      blockedJiraProjects:
+        settings.jiraKeyBlocklist ?? DEFAULT_JIRA_KEY_BLOCKLIST,
     }).filter(
       (ref) =>
         ref.start + offset >= ownedStart && ref.start + offset < ownedEnd,
@@ -120,6 +126,17 @@ export class IssueStore {
             ).length
           )
             continue;
+          // A fresh sighting queues exactly one confirmation, and only while
+          // confirmation is on, so turning it on never asks about a backlog.
+          // OR IGNORE is the whole retry policy: a reference that already has
+          // a verdict, even an unreachable one, is never asked about again.
+          if (settings.confirmation?.enabled)
+            this.run(
+              "INSERT OR IGNORE INTO issue_confirmations(project_id,provider,ref_key,state,checked_at) VALUES (?,?,?,'pending',0)",
+              source.projectId,
+              ref.provider,
+              ref.key,
+            );
           let identity = ref.identity;
           if (identity) {
             this.run(
@@ -258,7 +275,13 @@ export class IssueStore {
       FROM external_issues i JOIN observations e ON e.issue_id=i.id GROUP BY i.id
       UNION ALL
       SELECT NULL,ref_key,NULL,NULL,provider,'unknown',COUNT(DISTINCT session_id),current_project FROM observations WHERE link_id IS NULL GROUP BY current_project,provider,ref_key
-    ) SELECT * FROM items WHERE ref_key LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\' ORDER BY ref_key,context,id LIMIT ? OFFSET ?`,
+    ) SELECT items.*,
+      -- The most decisive verdict for this reference: one project confirming
+      -- it settles the key even when another only recorded an outage.
+      (SELECT c.state FROM issue_confirmations c WHERE c.ref_key=items.ref_key
+        ORDER BY CASE c.state WHEN 'confirmed' THEN 0 WHEN 'rejected' THEN 1 WHEN 'unreachable' THEN 2 ELSE 3 END LIMIT 1) AS confirm_state,
+      (SELECT c.title FROM issue_confirmations c WHERE c.ref_key=items.ref_key AND c.state='confirmed' AND c.title IS NOT NULL LIMIT 1) AS confirm_title
+      FROM items WHERE ref_key LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\' ORDER BY ref_key,context,id LIMIT ? OFFSET ?`,
       dismissed ? 1 : 0,
       project,
       project,
@@ -281,6 +304,16 @@ export class IssueStore {
       kind: String(row.kind),
       sessionCount: Number(row.count),
       unresolved: row.id === null,
+      ...(row.confirm_state
+        ? {
+            confirmation: {
+              state: String(row.confirm_state) as NonNullable<
+                IssueItem["confirmation"]
+              >["state"],
+              title: (row.confirm_title as string | null) ?? null,
+            },
+          }
+        : {}),
     }));
   }
   private selector(id: string): { sql: string; values: SqliteValue[] } {

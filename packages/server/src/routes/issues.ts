@@ -3,6 +3,7 @@ import type { IssueSettings } from "@yep-anywhere/shared";
 import type { ServerSettingsService } from "../services/ServerSettingsService.js";
 import type { IssueIndexer } from "../services/issues/IssueIndexer.js";
 import type { IssueCredentials } from "../services/issues/credentials.js";
+import type { IssueConfirmer } from "../services/issues/confirm.js";
 import { issueUrl } from "../services/issues/extract.js";
 import { randomUUID } from "node:crypto";
 
@@ -50,6 +51,7 @@ export function createIssueRoutes(
     sessionId: string,
   ) => Promise<{ available: boolean; title?: string }>,
   credentials?: IssueCredentials,
+  confirmer?: IssueConfirmer,
 ) {
   const routes = new Hono();
   routes.get("/issues/settings", (c) => c.json(indexer.coverage()));
@@ -185,6 +187,25 @@ export function createIssueRoutes(
     } catch {
       return c.json({ error: "Evidence unavailable" }, 503);
     }
+  });
+  // The only way to ask a tracker about a reference twice. Automatic lookups
+  // happen once per newly seen reference and never repeat on their own.
+  routes.post("/issues/confirm", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (
+      !body ||
+      typeof body.projectId !== "string" ||
+      typeof body.key !== "string" ||
+      !body.key ||
+      body.key.length > 4096 ||
+      (body.provider !== "github" && body.provider !== "jira")
+    )
+      return c.json({ error: "Expected projectId, provider and key" }, 400);
+    if (!confirmer || !indexer.settings().confirmation?.enabled)
+      return c.json({ error: "Tracker confirmation is off" }, 403);
+    confirmer.recheck(body.projectId, body.provider, body.key);
+    await confirmer.drain();
+    return c.json({ ok: true });
   });
   routes.post("/issues/decision", async (c) => {
     const body = await c.req.json().catch(() => null);

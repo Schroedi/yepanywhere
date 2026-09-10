@@ -14,6 +14,7 @@ import {
 
 import { ISSUE_RESOLUTION_SCHEMA } from "./migrations/005-issue-resolution.js";
 import { ISSUE_SCHEMA } from "./migrations/004-issues.js";
+import { ISSUE_CONFIRMATION_SCHEMA } from "./migrations/006-issue-confirmation.js";
 
 export type SqliteMode = "off" | "auto" | "on";
 
@@ -37,6 +38,7 @@ export const DISCOVERY_MIGRATIONS: readonly DiscoveryMigration[] = [
   { version: 3, sql: SPEECH_VOCABULARY_SET_SCHEMA },
   { version: 4, sql: ISSUE_SCHEMA },
   { version: 5, sql: ISSUE_RESOLUTION_SCHEMA },
+  { version: 6, sql: ISSUE_CONFIRMATION_SCHEMA },
 ];
 
 /** Construct fixtures with the actual historical schema, never a parallel SQL copy. */

@@ -102,6 +102,15 @@ export interface IssueItem {
   kind: string;
   sessionCount: number;
   unresolved: boolean;
+  /**
+   * What the tracker said when this reference was first seen, when
+   * confirmation is on. Absent means nothing was ever asked.
+   */
+  confirmation?: {
+    state: "pending" | "confirmed" | "rejected" | "unreachable";
+    /** The tracker's own summary, present only for a confirmed reference. */
+    title: string | null;
+  };
 }
 export interface IssueEvidence {
   id: number;

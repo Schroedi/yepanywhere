@@ -238,7 +238,7 @@ describe("durable issue evidence", () => {
 });
 
 describe("append-only discovery migrations", () => {
-  it.each([0, 1, 2, 3, 4, 5])(
+  it.each([0, 1, 2, 3, 4, 5, 6])(
     "upgrades prefix %i without losing unrelated data",
     (prefix) => {
       const db = loadSqliteDriver()!.open(":memory:");
@@ -254,7 +254,9 @@ describe("append-only discovery migrations", () => {
         migrateDiscoveryDatabase(db);
         migrateDiscoveryDatabase(db);
         const store = new IssueStore(db);
-        expect(store.rows("PRAGMA user_version")[0]?.user_version).toBe(5);
+        expect(store.rows("PRAGMA user_version")[0]?.user_version).toBe(
+          DISCOVERY_MIGRATIONS.length,
+        );
         if (prefix)
           expect(store.rows("SELECT value FROM retained")[0]?.value).toBe(
             "keep",
@@ -263,7 +265,9 @@ describe("append-only discovery migrations", () => {
         expect(() =>
           migrateDiscoveryDatabase(db, DISCOVERY_MIGRATIONS.slice(0, 3)),
         ).toThrow("newer");
-        expect(store.rows("PRAGMA user_version")[0]?.user_version).toBe(5);
+        expect(store.rows("PRAGMA user_version")[0]?.user_version).toBe(
+          DISCOVERY_MIGRATIONS.length,
+        );
       } finally {
         db.close();
       }
