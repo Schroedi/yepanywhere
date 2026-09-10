@@ -73,6 +73,9 @@ function getTestPaths(): E2EPaths {
 
 // Export paths for tests to use instead of hardcoded homedir() paths
 export const e2ePaths = {
+  get clientDist() {
+    return join(getTempDir(), "client-dist");
+  },
   get tempDir() {
     return getTestPaths().tempDir;
   },

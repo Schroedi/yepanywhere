@@ -92,6 +92,8 @@ session-pointer file selects another run's ports, profiles, or provider host.
 Built local/remote clients live inside that run directory, and failure evidence
 uses a unique subdirectory of `test-results`, so another invocation cannot
 replace served assets or delete its reports while it is running.
+Auxiliary servers that serve the built client use `e2ePaths.clientDist`;
+they must not depend on a pre-existing workspace `packages/client/dist`.
 
 The shared E2E installation seeds both transcript files and successful-provider
 enrollment through `InstallService`. Retained collection reads intentionally
