@@ -27,7 +27,16 @@ Pasting a full URL finds its canonical record. Search and evidence pages default
 to 50 rows and accept at most 100. Project/session filters apply before the limit.
 The browser content scrolls vertically within the app while its page header
 remains visible. Long result lists, pagination controls, and association evidence
-remain reachable at desktop and phone widths.
+remain reachable at desktop and phone widths. Controls and evidence cards use the
+app theme colors, typography and focus states. Results occupy the available width
+until evidence is selected; phone layouts stack the result and evidence.
+
+A shared ticket glyph identifies Issues & PRs in the sidebar, settings category
+(including emoji icon mode), and the session header. The session shortcut is a
+compact button-style link; on phones it keeps its accessible name and tooltip
+while showing only the icon with a 44-pixel touch target. Discovery settings use
+the standard searchable settings rows and toggle, with scope guidance above
+the control.
 An unresolved reference is useful and searchable before a tracker host is known.
 Its detail can resolve it by supplying the matching full URL. Markdown labels
 supply observed titles; a user can override a resolved item's title. YA makes no

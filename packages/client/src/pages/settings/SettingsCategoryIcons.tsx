@@ -1,3 +1,4 @@
+import { IssueIcon } from "../../components/IssueIcon";
 import type { ReactNode } from "react";
 import { useSettingsIconStyle } from "../../hooks/useSettingsIconStyle";
 
@@ -36,6 +37,7 @@ function Icon(props: {
 
 export const settingsCategoryEmojiIcons: Record<string, string> = {
   appearance: "🎨",
+  issues: "🎟️",
   performance: "⚡",
   toolbar: "🎛️",
   model: "🧠",
@@ -59,6 +61,7 @@ export const settingsCategoryEmojiIcons: Record<string, string> = {
 };
 
 export const settingsCategoryIcons: Record<string, ReactNode> = {
+  issues: <IssueIcon size={22} />,
   appearance: (
     <Icon strokeWidth={2.5}>
       {/* A font specimen in a card + prominent color swatches. Clean large letter + bigger color blocks + thicker stroke for visual weight matching others. */}

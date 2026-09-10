@@ -2,153 +2,243 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px;
+  padding: var(--space-4);
   max-width: 1100px;
   margin: 0 auto;
   width: 100%;
   box-sizing: border-box;
+  font-size: var(--font-size-base);
+  line-height: 1.5;
 }
 .controls,
 .actions,
 .choice {
   display: flex;
-  gap: 10px;
+  gap: var(--space-2);
   align-items: center;
   flex-wrap: wrap;
 }
 .choice {
-  flex-wrap: nowrap;
+  width: fit-content;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }
 .choice input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0 4px 0 0;
+  accent-color: var(--accent-primary);
   flex-shrink: 0;
 }
 .controls {
-  margin: 12px 0;
+  margin: 0 0 var(--space-3);
 }
 .controls input {
   flex: 1;
   min-width: 160px;
 }
-.page input,
-.page select,
-.settings input,
-.settings select {
+.page input:not([type="checkbox"]),
+.page select {
   color: var(--text-primary);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 9px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  padding: 9px 12px;
+  min-height: 36px;
   max-width: 100%;
   box-sizing: border-box;
+  font: inherit;
+  font-size: var(--font-size-sm);
 }
 .page button,
-.settings button {
-  color: var(--text-primary);
+.page .settingsLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
   cursor: pointer;
-  min-height: 40px;
+  min-height: 36px;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  line-height: 1.4;
+  text-decoration: none;
 }
-.page button:disabled,
-.settings button:disabled {
+.page button:hover:not(:disabled),
+.page .settingsLink:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.page :is(button, input, select, a):focus-visible {
+  outline: 2px solid var(--focus-border);
+  outline-offset: 2px;
+}
+.page button:disabled {
   opacity: 0.5;
   cursor: default;
 }
 .page a {
-  color: var(--text-link, var(--accent-color));
+  color: var(--link-color);
+  text-decoration: none;
+}
+.page a:hover {
+  text-decoration: underline;
 }
 .coverage {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 14px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin: 12px 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin: var(--space-3) 0 var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .columns {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(300px, 1.5fr);
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
   align-items: start;
+}
+.withDetail {
+  grid-template-columns: minmax(220px, 1fr) minmax(300px, 1.5fr);
 }
 .list {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
   min-width: 0;
 }
 .page .item {
   text-align: left;
   display: grid;
-  gap: 5px;
+  justify-content: stretch;
+  gap: 6px;
   width: 100%;
-  padding: 12px;
+  padding: 12px 14px;
+  background: var(--bg-surface);
   overflow-wrap: anywhere;
 }
-.item span,
+.item > span,
 .item small {
-  color: var(--text-secondary);
-  font-size: 12px;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 400;
 }
-.page .selected {
-  border-color: var(--accent-color);
-  background: var(--bg-tertiary);
+.item .itemTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+}
+.itemTitle svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+.item small {
+  width: fit-content;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warning-color) 9%, transparent);
+  color: var(--warning-color);
+}
+.page .selected,
+.page .selected:hover:not(:disabled) {
+  border-color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 7%, var(--bg-surface));
 }
 .detail {
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  padding: var(--space-4);
   min-width: 0;
   overflow-wrap: anywhere;
 }
 .detail h2 {
-  font-size: 18px;
+  font-size: var(--font-size-base);
+  font-weight: 600;
   flex: 1;
   margin: 0;
 }
+.detail > a {
+  display: inline-block;
+  font-size: var(--font-size-sm);
+  margin: var(--space-2) 0 var(--space-4);
+}
 .detail h3 {
-  font-size: 14px;
-  margin-top: 20px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  margin: var(--space-4) 0 var(--space-2);
+  color: var(--text-secondary);
 }
 .evidence {
-  border-top: 1px solid var(--border-color);
-  padding: 14px 0;
+  border-top: 1px solid var(--border-subtle);
+  padding: var(--space-3) 0;
+  font-size: var(--font-size-sm);
+}
+.evidence > a {
+  display: inline-block;
+  font-weight: 500;
 }
 .evidence p {
   white-space: pre-wrap;
-  margin: 10px 0;
+  margin: var(--space-2) 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  line-height: 1.6;
 }
 .evidence small {
   display: block;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
 }
 .settings {
   display: grid;
-  gap: 12px;
-  margin: 12px 0;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
 }
 .settings p {
   margin: 0;
   color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+.page .danger {
+  color: var(--error-color);
+  margin-top: var(--space-3);
 }
 .empty {
-  padding: 20px;
-  color: var(--text-secondary);
+  padding: var(--space-4);
+  margin: 0;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
 }
 @media (max-width: 700px) {
-  .columns {
+  .withDetail {
     grid-template-columns: minmax(0, 1fr);
   }
-  .page {
-    padding: 12px;
-  }
+  .page,
   .detail {
-    padding: 12px;
+    padding: var(--space-3);
   }
   .page button,
-  .settings button {
+  .page .settingsLink,
+  .page input:not([type="checkbox"]) {
+    min-height: 44px;
+  }
+  .choice {
     min-height: 44px;
   }
 }

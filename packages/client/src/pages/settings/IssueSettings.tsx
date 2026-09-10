@@ -9,9 +9,10 @@ import { useCurrentSourceRuntime } from "../../contexts/SourceRuntimeContext";
 import { useServerSettings } from "../../hooks/useServerSettings";
 import { useVersion } from "../../hooks/useVersion";
 import { useI18n } from "../../i18n";
+import { SettingsItem } from "./SettingsItem";
 import { SettingsSection } from "./SettingsSection";
 import { useSettingsPaneTitle } from "./SettingsPaneTitleContext";
-import styles from "../IssuesPage.module.css";
+import styles from "./IssueSettings.module.css";
 
 export function IssueSettings() {
   const { t } = useI18n();
@@ -23,7 +24,10 @@ export function IssueSettings() {
     SERVER_CAPABILITIES.issueSessionAssociations.name,
   );
   return (
-    <SettingsSection title={t("issuesTitle")}>
+    <SettingsSection
+      title={t("issuesTitle")}
+      description={t("issuesDescription")}
+    >
       {supported ? (
         <IssueSettingsControls key={runtime.sourceKey} />
       ) : (
@@ -83,21 +87,37 @@ function IssueSettingsControls() {
   };
   return (
     <div className={styles.settings}>
-      <p>{t("issuesDescription")}</p>
-      <label className={styles.choice}>
-        <input
-          type="checkbox"
-          checked={settings?.enabled ?? false}
-          disabled={!settings || busy}
-          onChange={(e) =>
-            settings && void save({ ...settings, enabled: e.target.checked })
-          }
-        />
-        {t("issuesEnable")}
-      </label>
-      <label className={styles.choice}>
-        {t("issuesScope")}
+      <SettingsItem
+        as="label"
+        id="issue-discovery-enabled"
+        label={t("issuesEnable")}
+        description={t("issuesRetention")}
+      >
+        <span className={`toggle-switch ${styles.toggle}`}>
+          <input
+            type="checkbox"
+            aria-label={t("issuesEnable")}
+            checked={settings?.enabled ?? false}
+            disabled={!settings || busy}
+            onChange={(e) =>
+              settings && void save({ ...settings, enabled: e.target.checked })
+            }
+          />
+          <span className="toggle-slider" />
+        </span>
+      </SettingsItem>
+      <SettingsItem
+        id="issue-discovery-scope"
+        label={t("issuesScope")}
+        className={styles.scopeRow}
+        description={
+          settings?.scope === "recent"
+            ? t("issuesRecentHelp")
+            : t("issuesViewedHelp")
+        }
+      >
         <select
+          className={styles.control}
           aria-label={t("issuesScope")}
           value={settings?.scope ?? "viewed"}
           disabled={!settings || busy}
@@ -112,11 +132,11 @@ function IssueSettingsControls() {
           <option value="viewed">{t("issuesViewed")}</option>
           <option value="recent">{t("issuesRecent")}</option>
         </select>
-      </label>
+      </SettingsItem>
       {settings?.scope === "recent" && (
-        <label className={styles.choice}>
-          {t("issuesDays")}
+        <SettingsItem id="issue-discovery-days" label={t("issuesDays")}>
           <input
+            className={styles.days}
             type="number"
             aria-label={t("issuesDays")}
             min={1}
@@ -130,14 +150,8 @@ function IssueSettingsControls() {
               else e.target.value = String(settings.recentDays);
             }}
           />
-        </label>
+        </SettingsItem>
       )}
-      <p>
-        {settings?.scope === "recent"
-          ? t("issuesRecentHelp")
-          : t("issuesViewedHelp")}
-      </p>
-      <p>{t("issuesRetention")}</p>
       {error && <p role="alert">{error}</p>}
     </div>
   );

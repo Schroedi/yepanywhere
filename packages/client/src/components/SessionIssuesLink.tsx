@@ -1,3 +1,5 @@
+import { IssueIcon } from "./IssueIcon";
+import styles from "./SessionIssuesLink.module.css";
 import { Link } from "react-router-dom";
 import { useIssuesEnabled } from "../hooks/useIssuesEnabled";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
@@ -16,9 +18,12 @@ export function SessionIssuesLink({
   return (
     <Link
       title={t("issuesForSession")}
+      aria-label={t("issuesForSession")}
+      className={styles.link}
       to={`${base}/issues?${new URLSearchParams({ sessionId, projectId })}`}
     >
-      {t("issuesTitle")}
+      <IssueIcon />
+      <span className={styles.label}>{t("issuesTitle")}</span>
     </Link>
   );
 }

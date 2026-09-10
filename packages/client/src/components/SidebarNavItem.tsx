@@ -1,3 +1,4 @@
+import { IssueIcon } from "./IssueIcon";
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ThinkingIndicator } from "./ThinkingIndicator";
@@ -8,6 +9,7 @@ import styles from "./SidebarNavItem.module.css";
  * Extracted to avoid duplication across components.
  */
 export const SidebarIcons = {
+  issues: <IssueIcon />,
   bang: (
     <svg
       width="16"
