@@ -1,10 +1,8 @@
-import { existsSync, readFileSync, rmSync, unlinkSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { stopProviderHostRuntime } from "./support/provider-host-runtime.js";
 
-// Session file stores the path to the unique temp directory for this test run
-const SESSION_FILE = join(tmpdir(), "claude-e2e-session");
+import { getE2ERunDirectory } from "./support/run-directory.js";
 
 export default async function globalTeardown() {
   const keepTemp =
@@ -12,16 +10,9 @@ export default async function globalTeardown() {
     process.env.E2E_KEEP_TEMP === "true" ||
     process.env.E2E_KEEP_TEMP === "yes";
 
-  // Read the session file to find our temp directory
-  if (!existsSync(SESSION_FILE)) {
-    console.log("[E2E] No session file found, nothing to clean up");
-    return;
-  }
-
-  const tempDir = readFileSync(SESSION_FILE, "utf-8").trim();
-  if (!tempDir || !existsSync(tempDir)) {
-    console.log("[E2E] Temp directory not found, cleaning up session file");
-    unlinkSync(SESSION_FILE);
+  const tempDir = getE2ERunDirectory();
+  if (!tempDir) {
+    console.log("[E2E] No run directory found, nothing to clean up");
     return;
   }
 
@@ -94,10 +85,5 @@ export default async function globalTeardown() {
     console.error("[E2E] Error removing temp directory:", err);
   }
 
-  // Clean up the session file
-  try {
-    unlinkSync(SESSION_FILE);
-  } catch {
-    // Ignore if already deleted
-  }
+  delete process.env.YEP_E2E_RUN_DIR;
 }

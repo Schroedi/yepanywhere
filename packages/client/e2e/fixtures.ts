@@ -1,24 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test as base } from "@playwright/test";
 
-// Session file stores the path to the unique temp directory for this test run
-const SESSION_FILE = join(tmpdir(), "claude-e2e-session");
+import { getE2ERunDirectory } from "./support/run-directory.js";
 
-/**
- * Get the temp directory for this test run from the session file.
- */
 function getTempDir(): string {
-  if (existsSync(SESSION_FILE)) {
-    const tempDir = readFileSync(SESSION_FILE, "utf-8").trim();
-    if (tempDir && existsSync(tempDir)) {
-      return tempDir;
-    }
-  }
-  throw new Error(
-    `Session file not found or invalid: ${SESSION_FILE}. Did global-setup run?`,
-  );
+  const tempDir = getE2ERunDirectory();
+  if (tempDir) return tempDir;
+  throw new Error("Run directory unavailable. Did global-setup run?");
 }
 
 /**

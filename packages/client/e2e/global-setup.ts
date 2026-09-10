@@ -3,21 +3,18 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
-import { hostname, tmpdir } from "node:os";
+import { hostname } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { InstallService } from "../../server/src/services/InstallService.js";
 
+import { createE2ERunDirectory } from "./support/run-directory.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-// Session file stores the path to the unique temp directory for this test run
-// This is the only fixed-path file - everything else goes in the unique temp dir
-const SESSION_FILE = join(tmpdir(), "claude-e2e-session");
 
 // These will be set after creating the unique temp directory
 let E2E_TEMP_DIR: string;
@@ -73,11 +70,8 @@ export default async function globalSetup() {
 
   // Create a unique temp directory for this test run
   // This prevents collisions between parallel test runs
-  E2E_TEMP_DIR = mkdtempSync(join(tmpdir(), "claude-e2e-"));
+  E2E_TEMP_DIR = createE2ERunDirectory();
   console.log(`[E2E] Using temp directory: ${E2E_TEMP_DIR}`);
-
-  // Write session file so teardown can find our temp directory
-  writeFileSync(SESSION_FILE, E2E_TEMP_DIR);
 
   // Set up file paths within the unique temp directory
   PORT_FILE = join(E2E_TEMP_DIR, "port");
@@ -1029,8 +1023,8 @@ export default async function globalSetup() {
 
   const repoRoot = join(__dirname, "..", "..", "..");
   const serverRoot = join(repoRoot, "packages", "server");
-  const clientDist = join(repoRoot, "packages", "client", "dist");
-  const remoteClientDist = join(repoRoot, "packages", "client", "dist-remote");
+  const clientDist = join(E2E_TEMP_DIR, "client-dist");
+  const remoteClientDist = join(E2E_TEMP_DIR, "remote-dist");
 
   // Build shared first (client depends on it), then client
   console.log("[E2E] Building shared package...");
@@ -1040,22 +1034,47 @@ export default async function globalSetup() {
   });
 
   console.log("[E2E] Building client...");
-  execSync("pnpm --filter @yep-anywhere/client build", {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      // Global first-run overlays are outside this suite's contracts and can
-      // arrive after a page-specific readiness check, obscuring its controls.
-      VITE_DISABLE_CLI_UPDATE_NOTIFICATIONS: "true",
-      VITE_DISABLE_ONBOARDING: "true",
-      VITE_E2E_SOURCE_TRANSPORT_SMOKE: "true",
+  execFileSync(
+    "pnpm",
+    [
+      "--filter",
+      "@yep-anywhere/client",
+      "build",
+      "--outDir",
+      clientDist,
+      "--emptyOutDir",
+    ],
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        // Global first-run overlays are outside this suite's contracts and can
+        // arrive after a page-specific readiness check, obscuring its controls.
+        VITE_DISABLE_CLI_UPDATE_NOTIFICATIONS: "true",
+        VITE_DISABLE_ONBOARDING: "true",
+        VITE_E2E_SOURCE_TRANSPORT_SMOKE: "true",
+      },
+      stdio: "inherit",
     },
-    stdio: "inherit",
-  });
+  );
 
   console.log("[E2E] Building remote client production preview...");
-  execSync(
-    "pnpm --filter @yep-anywhere/client exec vite build --config vite.config.remote.ts --base /",
+  execFileSync(
+    "pnpm",
+    [
+      "--filter",
+      "@yep-anywhere/client",
+      "exec",
+      "vite",
+      "build",
+      "--config",
+      "vite.config.remote.ts",
+      "--base",
+      "/",
+      "--outDir",
+      remoteClientDist,
+      "--emptyOutDir",
+    ],
     {
       cwd: repoRoot,
       env: {
@@ -1292,6 +1311,7 @@ export default async function globalSetup() {
       cwd: join(repoRoot, "packages", "client"),
       env: {
         ...process.env,
+        YEP_E2E_REMOTE_DIST: remoteClientDist,
         VITE_PORT_FILE: REMOTE_PREVIEW_PORT_FILE,
       },
       stdio: ["ignore", "pipe", "pipe"],
@@ -1324,6 +1344,3 @@ export default async function globalSetup() {
   );
   remotePreviewProcess.unref();
 }
-
-// Export session file path for teardown
-export { SESSION_FILE };

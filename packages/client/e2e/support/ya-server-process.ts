@@ -11,6 +11,8 @@ import { hostname, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { getE2ERunDirectory } from "./run-directory.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const repoRoot = join(__dirname, "..", "..", "..", "..");
@@ -18,12 +20,7 @@ const serverRoot = join(repoRoot, "packages", "server");
 
 /** The run-wide provider-host directory, falling back to this server's own. */
 function providerHostRuntimeDir(serverTempDir: string): string {
-  const sessionFile = join(tmpdir(), "claude-e2e-session");
-  const runTempDir = existsSync(sessionFile)
-    ? readFileSync(sessionFile, "utf-8").trim()
-    : "";
-  const base =
-    runTempDir && existsSync(runTempDir) ? runTempDir : serverTempDir;
+  const base = getE2ERunDirectory() ?? serverTempDir;
   return join(base, "provider-host");
 }
 

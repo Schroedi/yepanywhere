@@ -86,6 +86,13 @@ than treating the banner as unrelated visual noise.
 
 ### Browser integration fixture isolation
 
+Each Playwright invocation owns a unique temporary directory, passed from
+setup to workers and teardown through `YEP_E2E_RUN_DIR`. No machine-wide
+session-pointer file selects another run's ports, profiles, or provider host.
+Built local/remote clients live inside that run directory, and failure evidence
+uses a unique subdirectory of `test-results`, so another invocation cannot
+replace served assets or delete its reports while it is running.
+
 The shared E2E installation seeds both transcript files and successful-provider
 enrollment through `InstallService`. Retained collection reads intentionally
 exclude never-used stores; transcript fixtures alone do not establish the
