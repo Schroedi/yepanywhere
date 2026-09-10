@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Refresh Codex compatibility through CLI 0.154.0, including the regenerated
+  app-server protocol subset, the new durable reasoning-effort history item,
+  and the migrated approval path fields.
 - Require Node.js `^22.16 || ^23.11 || >=24.10` for new server releases;
   Bun 1.3.14 or newer uses `bunx --bun yepanywhere`. Desktop retains its
   private pinned Bun. Unsupported CLI/direct launches exit before app startup.
