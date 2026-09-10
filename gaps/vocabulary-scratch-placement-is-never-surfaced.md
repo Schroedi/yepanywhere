@@ -49,6 +49,13 @@ to close and reopen them. The two conditions do not arrive equal on that point:
   the vocabulary database is open alongside it, both in the directory the user
   is about to be offered a move of.
 
+**Update, `df8027084`:** both files now live in the data directory, so the
+reservation and its last-resort fallback are gone and the placement question is
+settled by the data directory's own placement. What remains open is the signal:
+nothing still tells a client that speech vocabulary storage is affected, and the
+banner keys only on the SQLite refusal. The sections below record the reasoning
+that survived the move.
+
 ## Split the placement decision: the bloom file may share, the database may not
 
 The two vocabulary files are placed together today because they share one

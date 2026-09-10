@@ -34,11 +34,25 @@ What makes the move itself its own piece of work rather than a banner tweak:
   owns. Logs, indexes, uploads, the session catalog, and every JSON store go
   together.
 - **The server is holding those files open**, including an append-only log with
-  no rotation, so a live move is not a `rename`. The realistic shape is: copy to
-  the chosen directory, verify, then have the *next* start use it. The offer is
-  only usable when nothing holds the directory open, and learning keeps its
-  bloom file open there by design, so with learning enabled the banner warns
-  without a working button unless a close-and-reopen sequence is built. See
+  no rotation, so a live move is not a `rename`. The whole point is to land on a
+  different filesystem, which makes it a copy, and a copy invalidates every open
+  descriptor rather than following it. That is what forces the close-and-reopen
+  below.
+- **A mid-operation move is a supportable option, at a stated price.** Not
+  every migration has to wait for the next start. It can happen while the server
+  runs, on the condition that everything holding a descriptor in the data
+  directory closes before the copy and reopens after it, with no writes in
+  between. Enumerating those holders is the work, and the set is larger than
+  this server's own stores: it includes the unrotated log, the session catalog,
+  the JSON stores, the vocabulary table and its filter, and any descriptor a
+  provider process opened there. A provider is a separate process YA does not
+  get to reopen files inside, so either the enumeration proves providers hold
+  nothing in the data directory, or those providers are part of the sequence.
+  Do not build the copy before that set is known and closable.
+- **Otherwise the offer only appears when nothing holds the directory.** That is
+  the cheap version and it is worth shipping first: with learning enabled the
+  bloom file is open there by design, so the banner warns without a button until
+  the sequence above exists. See
   [the vocabulary placement gap](vocabulary-scratch-placement-is-never-surfaced.md).
 - **One banner serves both placement reasons.** The signal carries a reason
   text and the banner is otherwise identical whether SQLite refused at startup
