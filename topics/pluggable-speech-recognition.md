@@ -507,9 +507,25 @@ previous layout's files write immediately instead of waiting; the old files are
 deleted only after the adopting write lands, so a server killed inside the
 interval still has them.
 
-When the filter passes its design load, YA empties it along with everything
-counted through it and relearns the retained window, since a filter that can no
-longer tell new text from old would silently stop counting. Settings, which a
+The filter has two responses to filling up, and the cheap one gets the first
+chance. At a false-positive rate of a tenth of a percent — 137.6 million
+messages for the 256 MB default, against the 179.0 million at which the filter
+is called full — YA compacts it: a replacement filter is built from the last
+epsilon of history in the same small yielding steps a scan uses, then swapped in
+by rename, and a floor is recorded at the moment the rebuild started. Learned
+counts are untouched. The floor is what makes the forgetting safe: content at or
+before it counts as already seen without consulting the filter, so the messages
+the rebuild dropped cannot be counted twice. Epsilon defaults to two hours and
+`YEP_SPEECH_VOCABULARY_EPSILON_HOURS` moves it; hours rather than minutes
+because provider timestamps are not assumed to come from a monotonic,
+daylight-saving-immune clock, so the window has to absorb a wall-clock step.
+Compaction backs off for an hour, since a window that cannot fit the filter
+would otherwise rebuild in a loop.
+
+Only if the filter still passes its design load does YA empty it along with
+everything counted through it and relearn the retained window, since a filter
+that can no longer tell new text from old would silently stop counting. That
+path discards learned counts, which is why compaction exists to precede it. Settings, which a
 rescan cannot rebuild, stay in `{dataDir}/speech-vocabulary-state.json`, written
 through a temporary file and a rename so no reader sees a partial file. An
 unreadable settings file reverts to defaults with a logged warning rather than

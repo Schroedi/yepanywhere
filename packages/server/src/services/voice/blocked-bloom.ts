@@ -1,4 +1,4 @@
-import { open, type FileHandle } from "node:fs/promises";
+import { open, rename, type FileHandle } from "node:fs/promises";
 
 /**
  * One cache line, and the whole of a key's evidence. Every bit a key sets falls
@@ -31,6 +31,49 @@ export function bloomBytes(bytes: number): number {
 /** Keys a filter of `bytes` holds before it is considered full. */
 export function bloomCapacity(bytes: number): number {
   return Math.floor((bytes * 8) / BITS_PER_KEY);
+}
+
+/**
+ * False-positive rate for `keys` in a filter of this shape. Blocking is what
+ * makes this worth computing rather than quoting the textbook formula: keys are
+ * spread over blocks by hash, so a block's load is Poisson around the mean and
+ * the fuller blocks dominate the rate. Averaging the per-block rate over that
+ * distribution is about 6% pessimistic against an unblocked filter of the same
+ * size, and that difference is the point.
+ */
+export function bloomFalsePositiveRate(
+  bytes: number,
+  hashes: number,
+  keys: number,
+): number {
+  const blocks = bloomBytes(bytes) / BLOCK_BYTES;
+  const mean = keys / blocks;
+  if (mean <= 0) return 0;
+  let rate = 0;
+  let weight = Math.exp(-mean);
+  for (let load = 0; load < 100_000; load++) {
+    if (load > mean && weight < 1e-15) break;
+    const occupancy = 1 - (1 - 1 / (BLOCK_BYTES * 8)) ** (hashes * load);
+    rate += weight * occupancy ** hashes;
+    weight = (weight * mean) / (load + 1);
+  }
+  return rate;
+}
+
+/** Keys this shape holds before its false-positive rate passes `target`. */
+export function bloomLoadForRate(
+  bytes: number,
+  hashes: number,
+  target: number,
+): number {
+  let low = 0;
+  let high = bloomCapacity(bytes) * 4;
+  while (high - low > 1) {
+    const middle = Math.floor((low + high) / 2);
+    if (bloomFalsePositiveRate(bytes, hashes, middle) < target) low = middle;
+    else high = middle;
+  }
+  return low;
 }
 
 function field(digest: Uint8Array, bit: number, width: number): number {
@@ -193,7 +236,7 @@ export class BloomFile {
 
   constructor(
     private readonly path: string,
-    private readonly filter: BlockedBloom,
+    private filter: BlockedBloom,
   ) {}
 
   /**
@@ -248,6 +291,40 @@ export class BloomFile {
     header.writeBigUInt64LE(BigInt(this.filter.bytes), 16);
     header.writeBigUInt64LE(BigInt(this.filter.count), 24);
     await handle.write(header, 0, HEADER_BYTES, 0);
+  }
+
+  /**
+   * Put `replacement` in this file's place. The rebuild that produced it ran
+   * for minutes beside a filter that stayed in use, so the swap has to be the
+   * one step that cannot half-happen: write the whole thing to a sibling, then
+   * rename over. A crash leaves either the old complete filter or the new one,
+   * and the caller adopts the same filter in memory.
+   */
+  async replace(replacement: BlockedBloom): Promise<void> {
+    const staging = `${this.path}.rebuilding`;
+    const handle = await open(staging, "w");
+    try {
+      const header = Buffer.alloc(HEADER_BYTES);
+      MAGIC.copy(header);
+      header.writeUInt32LE(replacement.hashes, 8);
+      header.writeBigUInt64LE(BigInt(replacement.bytes), 16);
+      header.writeBigUInt64LE(BigInt(replacement.count), 24);
+      await handle.write(header, 0, HEADER_BYTES, 0);
+      for (let index = 0; index * CHUNK_BYTES < replacement.bytes; index++) {
+        const { bytes, offset } = replacement.chunk(index);
+        await handle.write(bytes, 0, bytes.length, HEADER_BYTES + offset);
+      }
+      // The rename is only atomic against a crash if the bytes are on disk
+      // before it happens.
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await this.close();
+    await rename(staging, this.path);
+    replacement.takeDirty();
+    this.filter = replacement;
+    await this.load();
   }
 
   async close(): Promise<void> {

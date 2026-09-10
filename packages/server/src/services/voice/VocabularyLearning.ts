@@ -5,10 +5,11 @@ import {
 } from "@yep-anywhere/shared";
 import { getLogger } from "../../logging/logger.js";
 import type { Message } from "../../supervisor/types.js";
-import type {
-  VocabularyStore,
-  VocabularySettings,
-  VocabularyMessage,
+import {
+  vocabularyFingerprint,
+  type VocabularyStore,
+  type VocabularySettings,
+  type VocabularyMessage,
 } from "./VocabularyStore.js";
 
 export interface VocabularySession {
@@ -22,6 +23,53 @@ const MESSAGE_BURST = 16;
 
 /** Shortest interval between two relearns of a full fingerprint filter. */
 const RELEARN_COOLDOWN_MS = 24 * 3600_000;
+/** Shortest interval between two compactions, for a window that cannot fit. */
+const COMPACT_COOLDOWN_MS = 3600_000;
+
+/**
+ * How far back a compacted filter still remembers individual messages.
+ * Deliberately hours rather than minutes: provider timestamps are not assumed
+ * to come from a monotonic, daylight-saving-immune clock, so the window has to
+ * absorb a wall-clock step. A daylight-saving shift is the worst named case at
+ * an hour, and two leaves an hour of margin.
+ */
+const DEFAULT_EPSILON_HOURS = 2;
+
+function parseEpsilonMs(env: NodeJS.ProcessEnv): number {
+  const raw = env.YEP_SPEECH_VOCABULARY_EPSILON_HOURS;
+  const parsed = raw ? Number.parseFloat(raw) : Number.NaN;
+  const hours =
+    Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_EPSILON_HOURS;
+  return hours * 3600_000;
+}
+
+/**
+ * The text a message contributes, or nothing when it contributes none. Shared
+ * with compaction so a rebuilt filter fingerprints exactly what the counting
+ * path fingerprinted; two copies of this would silently stop agreeing.
+ */
+export function vocabularyMessage(
+  message: Message,
+): VocabularyMessage | undefined {
+  const timestamp = Date.parse(message.timestamp ?? "");
+  if (!Number.isFinite(timestamp)) return undefined;
+  if (message.type !== "user" && message.type !== "assistant") return undefined;
+  if (message.isMeta || message.isCompactSummary) return undefined;
+  const content = message.message?.content ?? message.content;
+  const text =
+    typeof content === "string"
+      ? content
+      : Array.isArray(content)
+        ? content
+            .filter(
+              (block) =>
+                block?.type === "text" && typeof block.text === "string",
+            )
+            .map((block) => block.text)
+            .join("\n")
+        : "";
+  return { source: message.type, timestamp, text } satisfies VocabularyMessage;
+}
 
 export class VocabularyLearning {
   private work?: Promise<void>;
@@ -30,6 +78,8 @@ export class VocabularyLearning {
   private requested = false;
   private retrospective = false;
   private relearnAfter = 0;
+  private compactAfter = 0;
+  private readonly epsilonMs: number;
   private readonly flushAfter: number;
   private readonly reference?: () => Promise<ReadonlyMap<string, number>>;
   private progress = {
@@ -47,10 +97,12 @@ export class VocabularyLearning {
     options: {
       reference?: () => Promise<ReadonlyMap<string, number>>;
       flushAfter?: number;
+      env?: NodeJS.ProcessEnv;
     } = {},
   ) {
     this.reference = options.reference;
     this.flushAfter = options.flushAfter ?? VOCABULARY_FLUSH_COUNTS;
+    this.epsilonMs = parseEpsilonMs(options.env ?? process.env);
   }
 
   status(includeWords = false): SpeechVocabularyStatus {
@@ -117,34 +169,9 @@ export class VocabularyLearning {
           if (!active()) break;
           for (const message of page) {
             if (!active()) break;
-            const timestamp = Date.parse(message.timestamp ?? "");
-            if (!Number.isFinite(timestamp) || timestamp < cutoff) continue;
-            if (message.type !== "user" && message.type !== "assistant")
-              continue;
-            if (message.isMeta || message.isCompactSummary) continue;
-            const content = message.message?.content ?? message.content;
-            const text =
-              typeof content === "string"
-                ? content
-                : Array.isArray(content)
-                  ? content
-                      .filter(
-                        (block) =>
-                          block?.type === "text" &&
-                          typeof block.text === "string",
-                      )
-                      .map((block) => block.text)
-                      .join("\n")
-                  : "";
-            this.store.observe(
-              session.key,
-              {
-                source: message.type,
-                timestamp,
-                text,
-              } satisfies VocabularyMessage,
-              generation,
-            );
+            const observed = vocabularyMessage(message);
+            if (!observed || observed.timestamp < cutoff) continue;
+            this.store.observe(session.key, observed, generation);
             this.progress.messages++;
             burst++;
             if (this.store.pendingCount >= this.flushAfter)
@@ -167,6 +194,14 @@ export class VocabularyLearning {
         if (!this.store.idle) await this.store.flush();
       } else this.store.discardPending();
       if (active()) this.progress.state = "idle";
+      // Compaction first: it keeps every learned count, and it triggers far
+      // below the load at which the filter is called full.
+      if (
+        this.store.seenOverloaded &&
+        active() &&
+        Date.now() >= this.compactAfter
+      )
+        await this.compact(active);
       if (
         this.store.seenSaturated &&
         active() &&
@@ -181,6 +216,50 @@ export class VocabularyLearning {
       this.progress.error =
         error instanceof Error ? error.message : String(error);
     }
+  }
+
+  /**
+   * Rebuild the filter over the last epsilon of history and raise the floor to
+   * match, so it holds recent fingerprints instead of every one ever seen. The
+   * counts are untouched: this is the answer that makes the full clear below a
+   * last resort rather than the only move.
+   *
+   * The rebuild runs in the same small yielding steps as a scan and fills a
+   * second filter, so the live one keeps answering throughout; the swap is one
+   * rename. A message that arrives during the rebuild can be missed by it, and
+   * is then protected only by its session's scan checkpoint until that session
+   * changes — acceptable for an event this rare, and the reason the floor is
+   * set to where the rebuild started rather than where it finished.
+   */
+  private async compact(active: () => boolean): Promise<void> {
+    this.compactAfter = Date.now() + COMPACT_COOLDOWN_MS;
+    const from = Date.now() - this.epsilonMs;
+    const replacement = this.store.beginSeenCompaction();
+    let messages = 0;
+    let burst = 0;
+    for await (const session of this.sessions(from)) {
+      if (!active()) return;
+      for await (const page of session.messages()) {
+        if (!active()) return;
+        for (const message of page) {
+          const observed = vocabularyMessage(message);
+          if (!observed || observed.timestamp < from) continue;
+          replacement.add(vocabularyFingerprint(session.key, observed));
+          messages++;
+          if (++burst >= MESSAGE_BURST) {
+            burst = 0;
+            await yieldToLoop();
+          }
+        }
+      }
+      await yieldToLoop();
+    }
+    if (!active()) return;
+    await this.store.commitSeenCompaction(replacement, from);
+    getLogger().info(
+      { component: "speech", messages, from: new Date(from).toISOString() },
+      "Compacted the speech vocabulary fingerprint filter to its recent window",
+    );
   }
 
   /**

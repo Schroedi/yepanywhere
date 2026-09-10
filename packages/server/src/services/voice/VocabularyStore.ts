@@ -27,7 +27,7 @@ import { createCoalescingSaver } from "../../lib/coalescingSaver.js";
 import { statFilesystem } from "../../lib/filesystemKind.js";
 import { parseByteSize } from "../../lib/scratchSpace.js";
 import { getLogger } from "../../logging/logger.js";
-import { BlockedBloom, BloomFile } from "./blocked-bloom.js";
+import { BlockedBloom, BloomFile, bloomLoadForRate } from "./blocked-bloom.js";
 import { DistinctiveTop, distinctiveScore } from "./distinctive-top.js";
 import {
   VocabularyDatabase,
@@ -127,6 +127,16 @@ const DEFAULT_SEEN_BYTES = 256 * 1024 * 1024;
 const MINIMUM_SEEN_BYTES = 1024 * 1024;
 
 /**
+ * False-positive rate at which the filter is compacted to a recent window. A
+ * false positive drops one message from the counts, so this is a quality knob
+ * rather than a correctness one; a tenth of a percent is far below the rate at
+ * which the filter is called full, which is the point. Compaction keeps every
+ * learned count, so it should happen long before the saturation path, which
+ * discards them.
+ */
+const SEEN_TARGET_RATE = 0.001;
+
+/**
  * Shortest interval between two writes of the table. Learning observes text as
  * fast as agents produce it, and every observation would otherwise become a
  * commit. Waiting also shrinks the work rather than merely delaying it: a word
@@ -181,6 +191,13 @@ interface PersistedState {
   biasing: boolean;
   hours: number;
   resetAfter: number;
+  /**
+   * Content at or before this time is counted, and the filter no longer holds
+   * its fingerprints. Set when the filter is compacted to a recent window:
+   * without it, a rebuilt filter would let every older message a rescan
+   * re-reads count a second time.
+   */
+  seenFrom: number;
 }
 
 export interface VocabularyStoreOptions {
@@ -224,6 +241,7 @@ export class VocabularyStore {
     biasing: false,
     hours: 24,
     resetAfter: 0,
+    seenFrom: 0,
   };
   private loaded = false;
   private writeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -232,6 +250,8 @@ export class VocabularyStore {
   private readonly env: NodeJS.ProcessEnv;
   private readonly seenBytes: number;
   private seen: BlockedBloom | undefined;
+  /** Load at which `SEEN_TARGET_RATE` is reached; solved once per filter shape. */
+  private overloadAt: number | undefined;
   private seenFile: BloomFile | undefined;
   private database: VocabularyTable | undefined;
   private readonly openDatabase: (path: string) => VocabularyTable | undefined;
@@ -256,6 +276,51 @@ export class VocabularyStore {
    */
   get seenSaturated(): boolean {
     return this.seen?.saturated ?? false;
+  }
+
+  /**
+   * The filter's false-positive rate has reached `SEEN_TARGET_RATE`. This is
+   * the compaction trigger and it fires far below `seenSaturated`: rebuilding
+   * from a recent window keeps every learned count, while the saturation path
+   * discards them all, so the cheap answer must get the first chance.
+   */
+  get seenOverloaded(): boolean {
+    const filter = this.seen;
+    if (!filter) return false;
+    this.overloadAt ??= bloomLoadForRate(
+      filter.bytes,
+      filter.hashes,
+      SEEN_TARGET_RATE,
+    );
+    return filter.count >= this.overloadAt;
+  }
+
+  /** Content at or before this time counts as already seen without the filter. */
+  get seenFrom(): number {
+    return this.state.seenFrom;
+  }
+
+  /** An empty filter of the same shape, to be filled with a recent window. */
+  beginSeenCompaction(): BlockedBloom {
+    return new BlockedBloom(this.seenBytes);
+  }
+
+  /**
+   * Adopt a rebuilt filter and raise the floor to the window it covers. Order
+   * matters: the floor is what stops the messages this filter deliberately
+   * forgot from counting twice, so it is recorded in the same step, and the
+   * file is replaced by rename so a crash cannot leave a filter that knows
+   * less than the floor claims.
+   */
+  async commitSeenCompaction(
+    replacement: BlockedBloom,
+    from: number,
+  ): Promise<void> {
+    this.state.seenFrom = from;
+    this.writeState();
+    this.seen = replacement;
+    this.overloadAt = undefined;
+    await this.seenFile?.replace(replacement);
   }
 
   /**
@@ -328,6 +393,7 @@ export class VocabularyStore {
       biasing: raw.biasing === true,
       hours: Number(raw.hours ?? 24),
       resetAfter: Number(raw.resetAfter ?? 0),
+      seenFrom: Number(raw.seenFrom ?? 0),
     };
     // Checkpoints used to share this file. Keep them until the table adopts
     // them, so an upgrade does not rescan every session.
@@ -657,6 +723,9 @@ export class VocabularyStore {
     generation: number,
   ): number {
     if (!this.accepts(generation)) return 0;
+    // Below the floor the filter has no opinion, because compaction dropped
+    // those fingerprints on purpose. The floor is the answer instead.
+    if (message.timestamp < this.state.seenFrom) return 0;
     const fingerprint = vocabularyFingerprint(sessionKey, message);
     if (!this.filter.add(fingerprint)) return 0;
     const counts = new Map<string, number>();
