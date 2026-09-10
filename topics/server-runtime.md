@@ -122,6 +122,9 @@ Windows smoke teardown terminates the owned launcher process tree (including
 the server below `bunx`) asynchronously (avoiding Bun's Windows synchronous
 spawn timeout) and waits for its stdio to close before deleting the
 fixture. File deletion uses bounded asynchronous retries for released handles.
+Startup readiness requires a responsive `/api/version` within the same startup
+deadline as port publication; transient connection/time-out failures retry that
+read-only probe, while any HTTP response still undergoes the full assertions.
 Full packaged startup is exercised on Linux, macOS and Windows. The
 [Windows investigation](../gaps/windows-packaged-startup-provider-identity.md)
 tracks the restored coverage until the matrix confirms it. Windows Desktop

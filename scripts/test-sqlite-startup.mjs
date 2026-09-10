@@ -132,9 +132,26 @@ for (const state of [
       `Server failed to start: ${spawnError ?? ""}\n${output}`,
     );
     const port = Number(readFileSync(portFile, "utf8"));
-    const response = await fetch(`http://127.0.0.1:${port}/api/version`, {
-      signal: AbortSignal.timeout(10_000),
-    });
+    // Publishing a listening port can precede the first responsive request
+    // during cold Windows initialization. Readiness shares the startup budget;
+    // a single timed-out GET must not reject an otherwise healthy launch.
+    let response;
+    let readinessError;
+    while (!exited && Date.now() < deadline) {
+      try {
+        response = await fetch(`http://127.0.0.1:${port}/api/version`, {
+          signal: AbortSignal.timeout(Math.min(10_000, deadline - Date.now())),
+        });
+        break;
+      } catch (error) {
+        readinessError = error;
+        await delay(50);
+      }
+    }
+    assert.ok(
+      response,
+      `Server never became responsive: ${readinessError}\n${output}`,
+    );
     assert.equal(response.status, 200, output);
     const version = await response.json();
     assert.deepEqual(version.sqlite, { state });
