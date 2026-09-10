@@ -1,3 +1,5 @@
+import { prepareToolDisplay } from "../renderers/tools/displayContracts";
+import { RawToolDisplay, ToolDisplayBoundary } from "./ToolDisplayBoundary";
 import {
   type CSSProperties,
   type MouseEvent,
@@ -537,20 +539,41 @@ function useNearViewportHydration(
 }
 
 export const ToolCallRow = memo(function ToolCallRow(props: Props) {
+  const originalOutput =
+    props.toolResult?.structured ?? props.toolResult?.content;
   return (
-    <ToolCommentaryBoundary {...props}>
-      {(toolInput, toolResult, workflow) => (
-        <ToolCallRowContent
-          {...props}
-          toolInput={toolInput}
-          toolResult={toolResult}
-          workflow={workflow}
-          originalOutput={
-            props.toolResult?.structured ?? props.toolResult?.content
+    <ToolDisplayBoundary {...props} toolResult={originalOutput}>
+      <ToolCommentaryBoundary {...props}>
+        {(toolInput, toolResult, workflow) => {
+          const output = toolResult?.structured ?? toolResult?.content;
+          if (
+            prepareToolDisplay(
+              props.toolName,
+              toolInput,
+              output,
+              toolResult?.isError ?? props.status === "error",
+            ).kind === "raw"
+          ) {
+            return (
+              <RawToolDisplay
+                {...props}
+                toolInput={toolInput}
+                toolResult={output}
+              />
+            );
           }
-        />
-      )}
-    </ToolCommentaryBoundary>
+          return (
+            <ToolCallRowContent
+              {...props}
+              toolInput={toolInput}
+              toolResult={toolResult}
+              workflow={workflow}
+              originalOutput={originalOutput}
+            />
+          );
+        }}
+      </ToolCommentaryBoundary>
+    </ToolDisplayBoundary>
   );
 });
 

@@ -428,3 +428,42 @@ formulas as literal text, matching the experience in their editor.
 - Edit diff rich render does not yet inline-expand image links. This would help
   Markdown edits that add or update `![image](...)`, but it should share the
   local-media hydration path rather than adding a second image loader.
+
+## Malformed and partial tool records
+
+A valid SDK message or persisted JSONL record does not guarantee valid tool
+arguments or a complete successful result. Providers can retain rejected calls
+and interrupted inputs, and result schemas intentionally permit partial data.
+Those records remain readable; display validation must not reject a session,
+rewrite the transcript, or infer missing content as an empty successful result.
+
+Before invoking rich tool rendering, the client checks its display requirements.
+The initial bounded contracts cover Read, Write, Edit (including raw patch
+strings), AskUserQuestion, ViewImage, Task/Agent, and spawn_agent inputs, plus
+Read, Write, Edit, and AskUserQuestion successful object results. Display types
+for Read/Write inputs, text files, patch hunks, and questions derive from the
+same Zod schemas used by these checks. Provider schemas and advisory schema
+warnings remain separate; they describe retained records rather than proving
+that every rich renderer can consume them.
+
+When required display data is missing or has the wrong type, the tool row
+shows its name and actual status, the original output when available, and
+inspectable original input. A failed Write missing `file_path` or `content`
+shows the provider's validation error without deriving a path or splitting
+missing content. Partial successful Read files, Edit hunks without lines, and
+questions without options use the same fallback. No successful result is
+relabeled as a failed execution merely because its preview is unavailable.
+Unknown augmentation fields are retained, and Claude Read dedup records with a
+file path but no body keep their distinct “unchanged” display.
+
+Every tool row also contains unexpected React rendering exceptions locally,
+including exceptions from commentary and nested tool displays. Adjacent rows
+and the surrounding session remain usable; the affected row keeps its raw
+record and local error visible. Updated input, output, status, or tool identity
+retries rich rendering. This containment is a last resort, not a claim that all
+provider/tool shapes now have exhaustive display schemas. It does not catch
+unrelated asynchronous callbacks or event-handler errors.
+
+Regression coverage renders malformed records through the combined tool row
+in collapsed and expanded states, checks complete and read-dedup controls, and
+mounts an intentionally failing renderer to verify containment and recovery.

@@ -1,3 +1,4 @@
+import { prepareToolDisplay } from "./displayContracts";
 import type { ReactNode } from "react";
 import { canonicalizeToolName } from "../../../lib/toolNames";
 import type { ToolCallItem } from "../../../types/renderItems";
@@ -29,6 +30,9 @@ class ToolRendererRegistry {
     input: unknown,
     context: RenderContext,
   ): ReactNode {
+    if (prepareToolDisplay(toolName, input, undefined, false).kind === "raw") {
+      return this.fallback.renderToolUse(input, context);
+    }
     return this.get(toolName).renderToolUse(input, context);
   }
 
@@ -39,6 +43,11 @@ class ToolRendererRegistry {
     context: RenderContext,
     input?: unknown,
   ): ReactNode {
+    if (
+      prepareToolDisplay(toolName, input, result, isError, false).kind === "raw"
+    ) {
+      return this.fallback.renderToolResult(result, isError, context, input);
+    }
     return this.get(toolName).renderToolResult(result, isError, context, input);
   }
 
@@ -59,6 +68,11 @@ class ToolRendererRegistry {
     isError: boolean,
     context: RenderContext,
   ): ReactNode {
+    if (prepareToolDisplay(toolName, input, result, isError).kind === "raw") {
+      return result === undefined
+        ? this.fallback.renderToolUse(input, context)
+        : this.fallback.renderToolResult(result, isError, context, input);
+    }
     const renderer = this.get(toolName);
     if (renderer.renderCollapsedPreview) {
       return renderer.renderCollapsedPreview(input, result, isError, context);
@@ -73,6 +87,11 @@ class ToolRendererRegistry {
     isError: boolean,
     context: RenderContext,
   ): ReactNode {
+    if (prepareToolDisplay(toolName, input, result, isError).kind === "raw") {
+      return result === undefined
+        ? this.fallback.renderToolUse(input, context)
+        : this.fallback.renderToolResult(result, isError, context, input);
+    }
     const renderer = this.get(toolName);
     if (renderer.renderInteractiveSummary) {
       return renderer.renderInteractiveSummary(input, result, isError, context);
@@ -93,6 +112,11 @@ class ToolRendererRegistry {
     status: ToolCallItem["status"],
     context: RenderContext,
   ): ReactNode {
+    if (prepareToolDisplay(toolName, input, result, isError).kind === "raw") {
+      return result === undefined
+        ? this.fallback.renderToolUse(input, context)
+        : this.fallback.renderToolResult(result, isError, context, input);
+    }
     const renderer = this.get(toolName);
     if (renderer.renderInline) {
       return renderer.renderInline(input, result, isError, status, context);

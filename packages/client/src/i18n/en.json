@@ -1,4 +1,11 @@
 {
+  "toolDisplay.rawNotice": "Rich preview unavailable. Showing the original tool data.",
+  "toolDisplay.input": "Input",
+  "toolDisplay.status.pending": "In progress",
+  "toolDisplay.status.complete": "Completed",
+  "toolDisplay.status.error": "Failed",
+  "toolDisplay.status.aborted": "Stopped",
+  "toolDisplay.status.incomplete": "Incomplete",
   "speechVocabularyTitle": "Learned speech vocabulary",
   "speechVocabularyStorageDisabled": "SQLite storage is disabled on this server. Set YEP_SQLITE=auto and restart the server to make vocabulary controls available.",
   "speechVocabularyStorageUnavailable": "SQLite storage could not initialize on this server. Check the server logs, resolve the storage error, and restart to make vocabulary controls available.",

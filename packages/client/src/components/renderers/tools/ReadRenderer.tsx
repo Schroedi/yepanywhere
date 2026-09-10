@@ -1,3 +1,4 @@
+import { TextFileDisplaySchema } from "./displayContracts";
 import {
   type ReactNode,
   useCallback,
@@ -69,8 +70,7 @@ function getFileName(filePath: string): string {
  * content-less dedup shape is excluded.
  */
 function isCompleteTextFile(file: unknown): file is TextFile {
-  const f = file as Partial<TextFile> | null | undefined;
-  return typeof f?.content === "string" && typeof f.numLines === "number";
+  return TextFileDisplaySchema.safeParse(file).success;
 }
 
 function getResultFilePath(file: unknown): string {

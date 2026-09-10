@@ -1,3 +1,12 @@
+import type { z } from "zod";
+import type {
+  ReadDisplayInputSchema,
+  WriteDisplayInputSchema,
+  TextFileDisplaySchema,
+  PatchHunkDisplaySchema,
+  QuestionDisplaySchema,
+  AskUserQuestionDisplayInputSchema,
+} from "./displayContracts";
 import type { ReactNode } from "react";
 import type { ProjectPathLinkTarget } from "@yep-anywhere/shared";
 import type { UserQuestionAnswers } from "../../../types";
@@ -30,11 +39,7 @@ export interface BashResult {
 /**
  * Read tool types
  */
-export interface ReadInput {
-  file_path: string;
-  offset?: number;
-  limit?: number;
-}
+export type ReadInput = z.infer<typeof ReadDisplayInputSchema>;
 
 export interface PdfFile {
   base64: string;
@@ -47,13 +52,7 @@ export interface ReadResult {
   file: TextFile | ImageFile | PdfFile;
 }
 
-export interface TextFile {
-  filePath: string;
-  content: string;
-  numLines: number;
-  startLine: number;
-  totalLines: number;
-}
+export type TextFile = z.infer<typeof TextFileDisplaySchema>;
 
 export interface ImageFile {
   base64: string;
@@ -87,21 +86,12 @@ export interface EditResult {
   structuredPatch: PatchHunk[];
 }
 
-export interface PatchHunk {
-  oldStart: number;
-  oldLines: number;
-  newStart: number;
-  newLines: number;
-  lines: string[]; // Prefixed with ' ', '-', or '+'
-}
+export type PatchHunk = z.infer<typeof PatchHunkDisplaySchema>;
 
 /**
  * Write tool types
  */
-export interface WriteInput {
-  file_path: string;
-  content: string;
-}
+export type WriteInput = z.infer<typeof WriteDisplayInputSchema>;
 
 export interface WriteResult {
   type: "text";
@@ -233,19 +223,11 @@ export interface WebFetchResult {
 /**
  * AskUserQuestion tool types
  */
-export interface AskUserQuestionInput {
-  questions: Question[];
-}
+export type AskUserQuestionInput = z.infer<
+  typeof AskUserQuestionDisplayInputSchema
+>;
 
-export interface Question {
-  id?: string;
-  question: string;
-  header: string;
-  options: Array<{ label: string; description: string; preview?: string }>;
-  multiSelect: boolean;
-  isOther?: boolean;
-  isSecret?: boolean;
-}
+export type Question = z.infer<typeof QuestionDisplaySchema>;
 
 export interface AskUserQuestionResult {
   questions: Question[];

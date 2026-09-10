@@ -1,4 +1,5 @@
 import { toolRegistry } from "../tools";
+import { prepareToolDisplay } from "../tools/displayContracts";
 import type { ContentBlock, ContentRenderer, RenderContext } from "../types";
 
 interface ToolUseBlock extends ContentBlock {
@@ -43,6 +44,12 @@ export const toolUseRenderer: ContentRenderer<ToolUseBlock> = {
   },
   getSummary(block) {
     const toolBlock = block as ToolUseBlock;
+    if (
+      prepareToolDisplay(toolBlock.name, toolBlock.input, undefined, false)
+        .kind === "raw"
+    ) {
+      return toolBlock.name;
+    }
     const renderer = toolRegistry.get(toolBlock.name);
     return renderer.getUseSummary?.(toolBlock.input) || toolBlock.name;
   },
