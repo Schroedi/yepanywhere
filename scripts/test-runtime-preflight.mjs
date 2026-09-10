@@ -61,19 +61,26 @@ try {
     }
   }
   if (!rejectActualRuntime) {
-    const help = spawnSync(
-      process.execPath,
-      [join(packageDir, "dist/cli.js"), "--help"],
-      {
-        encoding: "utf8",
-        timeout: 10_000,
-        env: environment,
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-    assert.equal(help.status, 0, help.stderr);
-    assert.match(help.stdout, /bunx --bun yepanywhere/);
-    assert.equal(help.stderr, "");
+    for (const flag of ["--help", "-h", "--version", "-v"]) {
+      const info = spawnSync(
+        process.execPath,
+        [join(packageDir, "dist/cli.js"), flag],
+        {
+          encoding: "utf8",
+          timeout: 10_000,
+          env: { ...environment, YEP_DATA_DIR: join(temporary, "data") },
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      );
+      assert.equal(info.status, 0, info.stderr);
+      if (flag === "--help" || flag === "-h") {
+        assert.match(info.stdout, /bunx --bun yepanywhere/);
+      } else {
+        assert.equal(info.stdout.trim(), `yepanywhere v${manifest.version}`);
+      }
+      assert.equal(info.stderr, "");
+      assert.equal(existsSync(join(temporary, "data")), false);
+    }
   }
   console.log("Packaged CLI and direct-server runtime preflight passed");
 } finally {

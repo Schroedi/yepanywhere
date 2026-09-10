@@ -7,7 +7,6 @@ import {
 } from "@yep-anywhere/shared/server-runtime";
 
 checkServerRuntime();
-await import("./startupEnv.js");
 
 /**
  * CLI entry point for yepanywhere
@@ -196,19 +195,30 @@ function showVersion(): void {
 
 // Parse command line arguments
 const args = process.argv.slice(2);
+const isBrowserDebugCommand = args[0] === "browser-debug";
 
-if (args[0] === "browser-debug") {
-  await runBrowserDebugCommand(args.slice(1));
-  process.exit(0);
-}
-
-if (args.includes("--help") || args.includes("-h")) {
+// Informational commands must work before application dependencies are loaded.
+// The browser-debug subcommand owns its own help and argument handling.
+if (
+  !isBrowserDebugCommand &&
+  (args.includes("--help") || args.includes("-h"))
+) {
   showHelp();
   process.exit(0);
 }
 
-if (args.includes("--version") || args.includes("-v")) {
+if (
+  !isBrowserDebugCommand &&
+  (args.includes("--version") || args.includes("-v"))
+) {
   showVersion();
+  process.exit(0);
+}
+
+await import("./startupEnv.js");
+
+if (isBrowserDebugCommand) {
+  await runBrowserDebugCommand(args.slice(1));
   process.exit(0);
 }
 

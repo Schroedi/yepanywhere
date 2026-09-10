@@ -15,6 +15,9 @@ application dependencies, opening storage, launching provider processes, or
 binding listeners. Rejection prints the observed runtime, accepted range and
 official runtime upgrade link, then exits nonzero. Help/version use the same
 preflight. Bun identity wins over its Node compatibility version.
+On supported runtimes, CLI help and version exit before application dependency
+loading or environment migration. They work in the assembled npm distribution
+before its runtime dependencies are installed and do not create a data directory.
 
 Node uses `node:sqlite`; Bun uses `bun:sqlite`. The core adds no native SQLite
 package, installer, compiler requirement or sidecar. The Node experimental
