@@ -6,6 +6,7 @@ import {
 import { createIssueRoutes } from "./routes/issues.js";
 import { getSessionSources } from "./sessions/provider-resolution.js";
 import type { HttpBindings } from "@hono/node-server";
+import { artifactViewerAgentEnvironment } from "./artifacts/agentEnvironment.js";
 import { ArtifactServer } from "./artifacts/ArtifactServer.js";
 import {
   validateArtifactConfig,
@@ -1359,6 +1360,7 @@ export function createApp(options: AppOptions): AppResult {
             const serverUrl = browserDebugConnection?.baseUrl ?? wakeBaseUrl;
             return {
               ...(serverUrl ? { AGENT_SERVER_URL: serverUrl } : {}),
+              ...artifactViewerAgentEnvironment(artifactServer, serverUrl),
               ...(browserDebugConnection
                 ? browserDebugService.getAgentEnvironment(
                     browserDebugConnection.baseUrl,

@@ -41,6 +41,13 @@ export interface CaptureOptions {
   out?: string;
   yaUrl?: string;
   audience?: "local" | "public";
+  /**
+   * Local artifact origin the session already knows, from
+   * `AGENT_ARTIFACT_VIEWER_ORIGIN`. Present means the user's YA has interactive
+   * delivery configured and listening, so the capability and health round trips
+   * are unnecessary. Absent means ask the server as before.
+   */
+  artifactOrigin?: string;
   yaHeaders?: Record<string, string>;
   readySelector?: string;
   timeoutMs?: number;
@@ -124,49 +131,72 @@ async function createDelivery(
       status: "skipped",
       reason: "Local capture; no YA server selected",
     };
-  const version = await apiJson<
-    ServerCapabilitySource & { artifactViewer?: ArtifactViewerStatus }
-  >(options, "/api/version");
-  const config = version.artifactViewer;
-  if (!serverHasCapability(version, SERVER_CAPABILITIES.artifactViewer.name))
-    return {
-      status: "skipped",
-      reason: "Server does not advertise interactive artifact delivery",
-    };
   const audience = options.audience ?? "local";
-  const value =
-    audience === "local" ? config?.localOrigin : config?.publicOrigin;
-  if (!config?.available || !value)
-    return {
-      status: "skipped",
-      reason: `${audience} artifact origin is disabled or unconfigured`,
-    };
+  // The session marker already answers "is interactive delivery configured and
+  // listening", so trust it for the local audience and skip both round trips.
+  const announced =
+    audience === "local" ? options.artifactOrigin?.trim() : undefined;
+  let value = announced;
+  if (!value) {
+    const version = await apiJson<
+      ServerCapabilitySource & { artifactViewer?: ArtifactViewerStatus }
+    >(options, "/api/version");
+    const config = version.artifactViewer;
+    if (!serverHasCapability(version, SERVER_CAPABILITIES.artifactViewer.name))
+      return {
+        status: "skipped",
+        reason: "Server does not advertise interactive artifact delivery",
+      };
+    value = audience === "local" ? config?.localOrigin : config?.publicOrigin;
+    if (!config?.available || !value)
+      return {
+        status: "skipped",
+        reason: `${audience} artifact origin is disabled or unconfigured`,
+      };
+  }
   const origin = httpUrl(value);
+  // A misconfigured or unreachable artifact origin costs the interactive link,
+  // never the captures: report the reason and let the caller keep its images.
   if (
     origin.origin !== value ||
     origin.hostname === httpUrl(options.yaUrl).hostname
   )
-    throw new Error("Artifact configuration must name an isolated origin");
-  // Use the browser's resolver for configured *.localhost hosts as the viewer does.
-  const probe = await browser.newContext({ serviceWorkers: "block" });
-  try {
-    const healthUrl = new URL("/health", origin).href;
-    await probe.route("**/*", (route) =>
-      route.request().url() === healthUrl
-        ? route.continue()
-        : route.abort("blockedbyclient"),
-    );
-    const page = await probe.newPage();
-    const health = await page.goto(healthUrl, { timeout: 2500 });
-    if (!health?.ok() || (await health.json()).artifactViewer !== 1)
-      throw new Error("Configured artifact origin failed its health check");
-  } finally {
-    await probe.close();
+    return {
+      status: "skipped",
+      reason: "Artifact configuration does not name an isolated origin",
+    };
+  if (!announced) {
+    // Use the browser's resolver for configured *.localhost hosts as the viewer does.
+    const probe = await browser.newContext({ serviceWorkers: "block" });
+    try {
+      const healthUrl = new URL("/health", origin).href;
+      await probe.route("**/*", (route) =>
+        route.request().url() === healthUrl
+          ? route.continue()
+          : route.abort("blockedbyclient"),
+      );
+      const page = await probe.newPage();
+      const health = await page
+        .goto(healthUrl, { timeout: 2500 })
+        .catch(() => null);
+      const body = health?.ok() ? await health.json().catch(() => null) : null;
+      if (body?.artifactViewer !== 1)
+        return {
+          status: "skipped",
+          reason: "Configured artifact origin failed its health check",
+        };
+    } finally {
+      await probe.close();
+    }
   }
+  // A refused grant is the other way delivery can fall through, and it is what
+  // a marker left over from a since-disabled viewer produces.
   const grant = await apiJson<ArtifactViewerGrant>(options, "/api/artifacts", {
     path,
     audience,
-  });
+  }).catch((error: unknown) => (error as Error).message);
+  if (typeof grant === "string")
+    return { status: "skipped", reason: `Artifact grant refused: ${grant}` };
   if (
     httpUrl(grant.url).origin !== origin.origin ||
     !/^\/a\/[A-Za-z0-9_-]+\/.+/.test(new URL(grant.url).pathname) ||

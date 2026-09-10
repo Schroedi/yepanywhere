@@ -132,6 +132,18 @@ Existing HTTP(S) input uses its own URL and ignores the informational default.
 Capability, configuration, and authentication checks remain in force. No YA
 control-plane credential is published to make automatic URL discovery work.
 
+`AGENT_ARTIFACT_VIEWER_ORIGIN` is the isolated artifact origin a session may
+request a grant on, published only when the viewer is available with a local
+origin configured *and* `AGENT_SERVER_URL` is a loopback base. Whether
+interactive delivery is configured belongs to the user's YA server, not to the
+sandbox an agent runs in, so publishing the origin saves the capture tool a
+capability query and an origin health probe it would otherwise need to discover
+the same fact. Absence is not a denial: it means ask the server, which is what a
+remote executor does, since the local origin resolves only on the YA host. The
+marker conveys no authentication and no permission to create a grant. A stale
+value costs the interactive link and never the captures, because a rejected or
+unreachable origin degrades to an images-only result carrying its reason.
+
 Canonical launch/session outputs are addressed to the agent, so they carry no
 product prefix: `filterEnvForChildProcess` drops inherited `YEP_*` on the way
 into a provider child, and an unprefixed `AGENT_*` value needs no allowlist

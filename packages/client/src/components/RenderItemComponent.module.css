@@ -145,7 +145,7 @@
  * measured from, and the drop decision would flap on and off.
  */
 .activityHeightReserve[data-previous-thinking="dropped"]
-  :global(.conversation-thinking-preview[data-preview-slot="previous"]) {
+:global(.conversation-thinking-preview[data-preview-slot="previous"]) {
   height: 0;
   border-width: 0;
   visibility: hidden;

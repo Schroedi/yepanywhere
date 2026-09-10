@@ -154,7 +154,7 @@ are not a requirement to read every neighboring document.
 | Any change in `packages/client`, UI copy, or a chatty client console | [Client development](docs/development/client.md): English-only i18n additions and `pnpm console:scan`. |
 | Client styles, a legacy stylesheet, or a React component emitting legacy global classes | [CSS architecture](topics/css-architecture.md): CSS Modules, containment, and the `css:touched` ownership check. Run `pnpm css:check` for style changes. |
 | UI appearance/interaction proposals or mockup authoring/export | [UI design](topics/ui-design.md), before choosing fixtures or rendering/export commands. Prose-only requests remain prose-only. |
-| UI tweaks or browser verification | [UI testing](topics/ui-testing.md): final desktop/phone captures by default, browser fallback, and explicit user-owned visual verification. |
+| UI tweaks or browser verification | [UI testing](topics/ui-testing.md): final desktop/phone captures by default, produced through the repository's artifact capture facility so the images are presented rather than only archived; browser fallback and explicit user-owned visual verification. |
 | UI rendering boundaries or shared views | [UI architecture](topics/ui-architecture.md). |
 | Rendering or rich-renderer changes | [Rendering performance](packages/client/RENDERING_PERFORMANCE.md). |
 | Benchmark/regression evidence or measurement-host selection | [Performance regression suite](topics/performance-regression-suite.md#performance-measurement-hosts), before treating measurements as regression evidence. |

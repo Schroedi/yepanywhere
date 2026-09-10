@@ -31,9 +31,11 @@ with: pnpm --filter @yep-anywhere/client exec playwright install chromium
 
 Local files use a fresh browser-only HTTP origin rooted at the entry directory;
 no listening port or YA server is required. Existing output is never overwritten.
---ya-url checks capability/configuration before probing or creating a grant.
+--ya-url checks capability/configuration before probing or creating a grant,
+unless AGENT_ARTIFACT_VIEWER_ORIGIN already names the session's artifact origin.
 Disabled/unconfigured delivery skips those requests and captures locally.
-Hosting failures are errors; use --local-only for local captures.
+A misconfigured or unreachable artifact origin also skips; captures still land.
+Use --local-only to make no YA requests at all.
 URL input uses that existing URL without creating or renewing a grant.
 --interact runs once per fresh viewport before --ready-selector and capture.
 It may click, fill, and await UI state; it executes as local Node code, not sandboxed page content.
@@ -114,6 +116,7 @@ export function parseCaptureArgs(
     out: values.out,
     yaUrl,
     audience: values.audience as "local" | "public" | undefined,
+    artifactOrigin: env.AGENT_ARTIFACT_VIEWER_ORIGIN?.trim() || undefined,
     readySelector: values["ready-selector"],
     timeoutMs,
     allowNetwork: values["allow-network"],

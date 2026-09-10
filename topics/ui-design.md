@@ -213,19 +213,31 @@ pnpm -s artifact:capture path/to/index.html --ya-url https://your-ya-host --audi
 For local HTML it defaults to the launcher's informational `AGENT_SERVER_URL`.
 An explicit URL wins; `--local-only` disables YA requests even inside a YA
 session. Without either URL source, capture stays local. The server must see
-the same absolute HTML path. With a server selected, the helper reads
-`/api/version` once and checks the
+the same absolute HTML path. With a server selected and no announced origin,
+the helper reads `/api/version` once and checks the
 artifact capability, availability, and selected local/public origin. An absent
 capability or disabled/unconfigured selected origin skips both the health probe
 and grant request, and still produces local captures and the file-viewer link.
 It does not guess another audience, enable hosting, or change settings.
 
-For an enabled origin, a credential-free health probe precedes grant creation;
-both PNGs then render the returned artifact URL, verifying that delivery path.
+A session launched by YA already knows that answer:
+`AGENT_ARTIFACT_VIEWER_ORIGIN` carries the isolated local origin when the
+viewer is available and reachable, so the helper skips both the capability
+query and the health probe and requests the grant directly. See
+`topics/ya-env-vars.md` on child launch markers. The marker is only present for
+a loopback session and the local audience; without it the helper asks the
+server as above.
+
+For an enabled origin discovered by query, a credential-free health probe
+precedes grant creation; both PNGs then render the returned artifact URL,
+verifying that delivery path.
 The success result retains that grant for the user and includes its expiration.
-A failed capture revokes the grant it created. Explicit hosting failures are
-reported rather than silently claimed as working delivery; use `--local-only`
-when only local captures are needed.
+A failed capture revokes the grant it created. A non-isolated origin or a
+failed health probe skips delivery with that reason rather than failing the
+run, so a misconfigured or momentarily unreachable artifact service costs the
+interactive link and never the captures. Explicit hosting failures for an
+origin that did mint a grant are still reported rather than silently claimed as
+working delivery; use `--local-only` when only local captures are needed.
 
 Authentication is optional and explicit: `--ya-headers` reads a private JSON
 object of string request headers, for example a supported session Cookie or

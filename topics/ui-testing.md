@@ -61,9 +61,10 @@ build. When there is no explicit handoff, use the default capture workflow.
    dialogs cannot obscure the surface under test. These are Vite startup
    inputs; setting them only on the later screenshot command has no effect.
 3. Navigate to the affected view (page, panel, or control).
-4. Take screenshots at:
-   - desktop width exactly `1000x600`,
-   - narrow mobile width exactly `375x812`.
+4. Produce the captures through the artifact capture facility, never a raw
+   screenshot call. It writes both required sizes, desktop width exactly
+   `1000x600` and narrow mobile width exactly `375x812`, and it presents them
+   beside the tool call so the maintainer sees the pictures without asking.
    Read and inspect the desktop image alone and finish its notes before reading
    the mobile image. Never pass multiple images to one image-reading call.
 5. For each screenshot, confirm:
@@ -74,7 +75,9 @@ build. When there is no explicit handoff, use the default capture workflow.
 6. Archive reviewed screenshots under a readable path (for example,
    `.artifacts/ui-testing/<yyyy-mm-dd>-<topic>/...`), and cite the
    file names in the final response (and the task note when one
-   exists).
+   exists). Archiving is bookkeeping, not delivery: a path in the final
+   response is something the maintainer has to go open, so it never replaces
+   step 4's presentation.
 7. Leave a short reviewer note about what changed and what was
    visually confirmed.
 
@@ -150,6 +153,14 @@ presents beside its own output. A hand-rolled `playwright screenshot` pair
 writes files only the agent can read, so the maintainer sees nothing and has
 to ask for the pictures.
 
+This facility is repository-owned: the command, the browser dependency, and the
+presentation helpers all live in this checkout, so it applies to every clone
+and every harness. There is nothing to configure and nothing to detect. When
+the user's YA has an isolated artifact origin the result also carries an
+interactive link, and when it does not the same call still delivers the images
+with a stated reason. So route captures through it unconditionally rather than
+deciding first whether delivery will succeed.
+
 Use an available browser-control capability for interactive web UI checks.
 If setup or discovery reports no browser, or the browser inventory is empty,
 immediately fall back to the repository's installed Playwright dependency,
@@ -210,9 +221,33 @@ Read and inspect `desktop.png` alone and finish its notes before making a
 separate image-read call for `phone.png`. Presentation to the maintainer is
 not a substitute for that inspection, and it is not a read receipt.
 
-Reach for a bare `playwright screenshot` pair only when artifact capture cannot
-reach the state at all. It writes files the maintainer never sees, so say so in
-the handoff and paste the paths yourself.
+When the state needs a whole Playwright test to reach it — a mocked transport,
+a streaming provider, seeded authentication — the capture command's `--interact`
+module is often still enough, and a `@playwright/test` case that owns its own
+browser is covered too. In a case under `packages/client/e2e/`, call
+`recordUiCapture` from `e2e/support/ui-capture.ts` instead of `page.screenshot`.
+It writes the PNG and records its viewport, and global teardown then presents
+the whole run through the same helper the capture command uses. Recording is
+opt-in through `YEP_E2E_UI_CAPTURE_DIR`, so an ordinary test run writes and
+presents nothing:
+
+```bash
+YEP_E2E_UI_CAPTURE_DIR="$PWD/.artifacts/ui-testing/$(date -u +%Y%m%d)-<topic>" \
+  pnpm --filter @yep-anywhere/client exec playwright test e2e/<spec>.spec.ts
+```
+
+For a browser workflow outside that harness, import `writeCapturePreview` and
+`emitCapturePreview` from `packages/client/scripts/artifact-capture.ts` and hand
+them the PNGs already written. They produce the same `capture.json`, `links.md`,
+and image presentation without navigating, recapturing, or touching the caller's
+browser; `topics/ui-design.md` owns their contract. Either way, a spec that
+writes screenshots and stops there has verified nothing the maintainer can see.
+
+A bare screenshot pair with no presentation step remains allowed, because a
+partly delivered check beats a skipped one. Its cost is that the maintainer
+sees nothing, so say plainly in the handoff that the images were not presented,
+paste the paths, and treat it as the exception rather than the shape to reach
+for.
 
 For multi-step flows, add or run a focused `@playwright/test` case under
 `packages/client/e2e/`. If Playwright itself is unavailable, use another
@@ -240,6 +275,8 @@ Complete either the agent-owned or user-owned branch.
 - [ ] Layout works at the mobile width without horizontal overflow.
 - [ ] Screenshots at 1000×600 and 375×812 were captured, read one image at a
       time, inspected by the agent, and cited for human review.
+- [ ] The captures were presented beside a tool call through the artifact
+      capture facility, or the handoff states that they were not and why.
 
 ### User-owned visual verification
 

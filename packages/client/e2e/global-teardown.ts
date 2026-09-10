@@ -1,10 +1,14 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { stopProviderHostRuntime } from "./support/provider-host-runtime.js";
+import { presentUiCaptures } from "./support/ui-capture.js";
 
 import { getE2ERunDirectory } from "./support/run-directory.js";
 
 export default async function globalTeardown() {
+  // Hand any recorded screenshots to the shared presentation helper before the
+  // run directory goes away, so the maintainer sees the images beside the call.
+  await presentUiCaptures();
   const keepTemp =
     process.env.E2E_KEEP_TEMP === "1" ||
     process.env.E2E_KEEP_TEMP === "true" ||

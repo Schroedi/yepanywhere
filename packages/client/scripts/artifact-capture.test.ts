@@ -52,6 +52,7 @@ async function serverFixture({
   capable = true,
   available = true,
   broken = false,
+  healthy = true,
 } = {}) {
   const requests: {
     path: string;
@@ -80,7 +81,8 @@ async function serverFixture({
         );
         break;
       case "/health":
-        response.end('{"artifactViewer":1}');
+        if (!healthy) response.statusCode = 503;
+        response.end(healthy ? '{"artifactViewer":1}' : "{}");
         break;
       case "/api/artifacts": {
         const chunks = [];
@@ -163,6 +165,47 @@ describe("portable artifact capture", () => {
       ]);
     },
   );
+
+  it("takes the session's announced artifact origin without asking the server", async () => {
+    const files = await fixture();
+    const server = await serverFixture({ capable: false, available: false });
+    const result = await captureArtifact({
+      ...files,
+      yaUrl: server.yaUrl,
+      artifactOrigin: server.artifactUrl,
+    });
+    // The marker comes from the user's YA, so neither the capability answer nor
+    // the origin health probe adds anything: only the grant request is made.
+    expect(result.delivery.status).toBe("created");
+    expect(
+      server.requests.map((item) => item.path).filter((path) => path !== "/"),
+    ).not.toContain("/api/version");
+    expect(server.requests.map((item) => item.path)).not.toContain("/health");
+  });
+
+  it("keeps the captures when the announced origin cannot mint a grant", async () => {
+    const files = await fixture();
+    const server = await serverFixture();
+    // An origin sharing the YA hostname is not the isolated origin the viewer
+    // needs. That costs the interactive link, never the images.
+    const result = await captureArtifact({
+      ...files,
+      yaUrl: server.yaUrl,
+      artifactOrigin: server.yaUrl,
+    });
+    expect(result.delivery).toMatchObject({ status: "skipped" });
+    expect(result.markdown).toContain("isolated origin");
+    expect(result.screenshots).toHaveLength(2);
+  });
+
+  it("keeps the captures when a configured origin fails its health check", async () => {
+    const files = await fixture();
+    const server = await serverFixture({ healthy: false });
+    const result = await captureArtifact({ ...files, yaUrl: server.yaUrl });
+    expect(result.delivery).toMatchObject({ status: "skipped" });
+    expect(result.markdown).toContain("health check");
+    expect(result.screenshots).toHaveLength(2);
+  });
 
   it("captures through a configured grant without leaking YA headers, and retains the delivered grant", async () => {
     const files = await fixture();

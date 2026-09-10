@@ -1,11 +1,10 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import {
   type PublicSessionShareResponse,
   toUrlProjectId,
 } from "@yep-anywhere/shared";
 import { expect, test } from "./fixtures.js";
+import { recordUiCapture } from "./support/ui-capture.js";
 
 /**
  * Conversation view's two thinking previews at tablet heights, and the prose
@@ -246,16 +245,6 @@ async function readLiveEdgeHeadroom(page: Page) {
   });
 }
 
-async function capture(page: Page, name: string) {
-  const directory = process.env.YEP_E2E_UI_CAPTURE_DIR;
-  if (!directory) return;
-  mkdirSync(directory, { recursive: true });
-  await page.screenshot({
-    animations: "disabled",
-    path: join(directory, name),
-  });
-}
-
 const TABLET = { width: 820, height: 700 };
 /** Wide enough to still wrap, too short for both cards at any useful height. */
 const SHORT_WINDOW = { width: 820, height: 250 };
@@ -301,15 +290,15 @@ test("a wrapped previous card takes only the room left in the viewport", async (
   expect(headroom.headroomPx).toBeGreaterThanOrEqual(
     2 * headroom.proseLinePx - 1,
   );
-  await capture(page, "tablet.png");
+  await recordUiCapture(page, "tablet");
 
   await page.setViewportSize(DESKTOP);
   await expect(page.locator(".conversation-activity-row")).toBeVisible();
-  await capture(page, "desktop.png");
+  await recordUiCapture(page, "desktop");
 
   await page.setViewportSize(PHONE);
   await expect(page.locator(".conversation-activity-row")).toBeVisible();
-  await capture(page, "phone.png");
+  await recordUiCapture(page, "phone");
 });
 
 test("a short window drops the previous card instead of clipping the current one", async ({
@@ -330,7 +319,7 @@ test("a short window drops the previous card instead of clipping the current one
   expect(geometry.latestTop ?? 0).toBeGreaterThanOrEqual(
     geometry.viewportTop - 1,
   );
-  await capture(page, "short-window.png");
+  await recordUiCapture(page, "short-window");
 });
 
 test("thinking the turn spoke past and resumed work after is not previewed", async ({
