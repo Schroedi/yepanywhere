@@ -13,7 +13,7 @@
   transitive package directly.
 Re-audit the exact consuming paths when their triggers fire, then update the
 corresponding dependencies with their own compatibility tests.
-`pnpm-workspace.yaml` `auditConfig.ignoreGhsas` and `topics/agent-operations.md`
+`pnpm-workspace.yaml` `auditConfig.ignoreGhsas` and `DEVELOPMENT.md`
 **Known-unreachable advisories** carry the current justification and revisit
 triggers. The former `body-parser` advisory is no longer present; a prior,
 distinct direct `sanitize-html` finding was patched in place because that

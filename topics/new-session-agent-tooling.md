@@ -96,7 +96,7 @@ it.
 
 Commands and fragments identify sessions by canonical YA session id —
 which is usually the provider session id — never by provider-native
-resume handles (`AGENTS.md` § Provider Session Identity). A session's
+resume handles (`DEVELOPMENT.md` § Provider Session Identity). A session's
 own id is already delivered as `AGENTCTL_SESSION_ID`; the fragment
 should say so rather than introduce a second name for the same value.
 

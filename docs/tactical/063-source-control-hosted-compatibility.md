@@ -125,8 +125,8 @@ The approval prompt should be reusable:
 An originating request that already states and approves all five decisions
 satisfies the pause; agents should not ask the same question twice.
 
-This mandate belongs in `AGENTS.md`, imported by `CLAUDE.md`, with the
-human-facing version in `DEVELOPMENT.md`. A pull-request checklist repeats the
+This mandate belongs in `DEVELOPMENT.md`, with a reading trigger in
+`AGENTS.md` (imported by `CLAUDE.md`). A pull-request checklist repeats the
 evidence for reviewers.
 
 ## Automated Guardrails

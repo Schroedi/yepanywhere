@@ -85,7 +85,7 @@ its network confinement remain enforced. Changing the general loopback trust
 model is separate from adding these commands.
 
 Scripts speak canonical YA session ids (usually equal to the provider
-session id), per `AGENTS.md` § Provider Session Identity. Provider-native
+session id), per `DEVELOPMENT.md` § Provider Session Identity. Provider-native
 ids stay internal resume/debug detail.
 
 ## The search gap

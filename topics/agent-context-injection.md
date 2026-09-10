@@ -40,6 +40,21 @@ carry-forward, bounded provider reinjection, lossy conversation summary, and a
 later action-triggered reread. “The model probably remembers it” names none of
 these mechanisms.
 
+## Contributor instruction files in this repository
+
+Root [AGENTS.md](../AGENTS.md) is the canonical entry point for agents working
+on YA. `CLAUDE.md` contains only `@AGENTS.md`; Gemini and Cursor point directly
+to AGENTS. The entry point retains local-amendment precedence, task/gap
+discovery, agent-specific conventions, and topic-reading triggers.
+
+[DEVELOPMENT.md](../DEVELOPMENT.md) owns the shared contributor workflow and
+operational reference. Agents must read it before implementation planning or
+repository changes, including documentation and configuration edits, and read
+applicable topics before choosing an approach. General discussion and read-only
+orientation do not require the full development workflow; applicable topic
+triggers still apply. This is an instruction to read the guide, not a guarantee
+that a harness automatically injects or preserves its contents.
+
 ## Current YA placement
 
 `buildEffectiveAgentContext` in `packages/shared/src/agent-context.ts` composes

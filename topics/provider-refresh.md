@@ -72,8 +72,8 @@ its runtime leases, verification, and cache-generation contract.
      changes architecture or product behavior.
 5. Enact source refreshes only after the provider-specific gate is satisfied.
    Codex compatibility edits, for example, are covered by the Codex version bump
-   audit rule in `AGENTS.md`: the read-only drift check is allowed immediately;
-   code edits should be explicitly approved.
+   audit rule in `DEVELOPMENT.md`: the read-only drift check is allowed
+   immediately; code edits should be explicitly approved.
 
 ## Pi
 

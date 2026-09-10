@@ -142,7 +142,7 @@ writes files only the agent can read, so the maintainer sees nothing and has
 to ask for the pictures.
 
 Use the browser control capability described in
-[AGENTS.md](../AGENTS.md#ui-tweak-visual-verification) for interactive checks
+[DEVELOPMENT.md](../DEVELOPMENT.md#ui-tweak-visual-verification) for interactive checks
 when it has an available backend. If setup or discovery reports no browser,
 or the browser inventory is empty, fall back to the repository's installed
 Playwright dependency, which is what the capture command already uses.

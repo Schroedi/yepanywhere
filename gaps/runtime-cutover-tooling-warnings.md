@@ -19,7 +19,7 @@ Two broader checks still report explicitly retained diagnostics:
   needs their own transport and desktop artifact validation; keep the current
   physical resource layout rather than removing the legacy flag just to hide
   its warning. The install-script block list also prints its existing ignored
-  scripts, intentionally explained in `topics/agent-operations.md`.
+  scripts, intentionally explained in `DEVELOPMENT.md`.
 
 Fresh npm installation of the cutover artifact, unlike workspace maintenance,
 completed without package-manager warnings. No global warning filter or raised
