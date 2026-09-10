@@ -62,7 +62,7 @@ export interface EmojiFontOptions {
 
 function xdgDir(variable: string, fallback: string[]): string {
   const configured = process.env[variable];
-  return configured && configured.startsWith("/")
+  return configured?.startsWith("/")
     ? configured
     : join(homedir(), ...fallback);
 }

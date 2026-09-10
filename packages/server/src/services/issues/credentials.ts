@@ -70,22 +70,22 @@ export class IssueCredentials {
     Partial<Record<IssueCredentialProvider, string>>
   > {
     if (this.stored) return this.stored;
-    if (!this.path) return (this.stored = {});
-    const raw = await readFile(this.path, "utf8").catch(() => null);
-    if (raw === null) return (this.stored = {});
+    const keys: Partial<Record<IssueCredentialProvider, string>> = {};
+    const raw = this.path
+      ? await readFile(this.path, "utf8").catch(() => null)
+      : null;
     try {
-      const parsed: unknown = JSON.parse(raw);
-      const keys: Partial<Record<IssueCredentialProvider, string>> = {};
+      const parsed = raw === null ? {} : (JSON.parse(raw) as unknown);
       for (const provider of PROVIDERS) {
         const value = (parsed as Record<string, unknown>)?.[provider];
         if (typeof value === "string" && value) keys[provider] = value;
       }
-      return (this.stored = keys);
     } catch {
       // A corrupt file is not a reason to serve a key from somewhere else
       // silently; treat it as no stored key and let the caller store again.
-      return (this.stored = {});
     }
+    this.stored = keys;
+    return keys;
   }
 
   /** A GitHub CLI answer is reused briefly so one page of UI costs one spawn. */
