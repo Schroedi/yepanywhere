@@ -450,6 +450,24 @@ export function SessionListItem({
     return null;
   };
 
+  // Project name and status letter close a compact row. They sit outside the
+  // title area so the hover ... overlay covers only title text, and they stay
+  // their own navigation target rather than disappearing under that overlay.
+  const compactActivityIndicator =
+    mode === "compact" ? getCompactActivityIndicator() : null;
+  const compactTrailing =
+    mode === "compact" &&
+    ((showProjectName && projectName) || compactActivityIndicator) ? (
+      <>
+        {showProjectName && projectName && (
+          <span className="session-list-item__project-compact">
+            {projectName}
+          </span>
+        )}
+        {compactActivityIndicator}
+      </>
+    ) : null;
+
   // Format relative time for card mode
   const formatRelativeTime = (timestamp: string): string => {
     const now = Date.now();
@@ -577,6 +595,7 @@ export function SessionListItem({
     isBtwAside && "btw-aside-session",
     isSelected && "selected",
     isArchived && "archived",
+    mode === "compact" && styles.compactRow,
     mode === "compact" &&
       providerChildren.length > 0 &&
       styles.compactWithProviderChildren,
@@ -981,12 +1000,6 @@ export function SessionListItem({
                     </span>
                   )}
                 </span>
-                {showProjectName && projectName && (
-                  <span className="session-list-item__project-compact">
-                    {projectName}
-                  </span>
-                )}
-                {getCompactActivityIndicator()}
               </>
             )}
           </Link>
@@ -1021,6 +1034,18 @@ export function SessionListItem({
           />
         )}
       </div>
+      {compactTrailing && (
+        <Link
+          to={sessionHref}
+          tabIndex={-1}
+          className={styles.compactTrailing}
+          onClick={handleSessionClick}
+          onMouseDown={handleSessionMouseDown}
+          onAuxClick={handleSessionAuxClick}
+        >
+          {compactTrailing}
+        </Link>
+      )}
       <span className={styles.questions}>
         <SessionAsyncQuestionsButton
           sessionId={sessionId}

@@ -263,7 +263,7 @@ export function SidebarNavItem({
   return accessory ? (
     <div className={styles.row}>
       {link}
-      {accessory}
+      <span className={styles.accessory}>{accessory}</span>
     </div>
   ) : (
     link

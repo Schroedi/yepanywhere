@@ -288,12 +288,17 @@ masquerade as a known zero.
 
 Session-row question counts sit outside the title area's hover-menu overlay.
 The menu and count retain separate, non-overlapping click targets on desktop
-and touch layouts, including compact sidebar rows.
+and touch layouts, including compact sidebar rows. A compact row's trailing
+project name and status letter share that protection: the overlay may cover
+title text only, and they remain visible and clickable while it is shown.
 
 Click or right-click a count to open previews directly. Aggregate menus group
 questions by session, with the most recently updated session last; questions
 within each group remain oldest-first. Compact counts retain an icon and
-accessible description. Menus may be wider than the button and choose the
+accessible description. Where space is tightest — a sidebar session row, the
+sidebar Inbox entry, a crowded composer — the control is the icon plus any
+current count and never spells out its name, so it cannot crowd out the title
+beside it. Menus may be wider than the button and choose the
 available space above or below it. Dismissal and successful inline submission
 update all mounted surfaces in the same tab, including sessions whose
 transcripts have never been opened. Draft typing does not redraw every count.

@@ -345,7 +345,11 @@ export function AsyncQuestionsButton({
             )}
           </>
         ) : (
-          <span>{t("asyncQuestionsTitle")}</span>
+          // The tightest tier (sidebar rows, the Inbox entry, a crowded
+          // composer) keeps the icon alone. Spelling out "Questions" there
+          // costs ~100px and squeezes the session title it sits beside; the
+          // accessible name and tooltip still carry the wording.
+          compact !== "late" && <span>{t("asyncQuestionsTitle")}</span>
         )}
       </button>
       {open &&
