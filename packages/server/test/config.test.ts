@@ -90,6 +90,8 @@ describe("optional SQLite configuration", () => {
     expect(loadConfig().sqliteMode).toBe("auto");
     vi.stubEnv("YEP_SQLITE", "auto");
     expect(loadConfig().sqliteMode).toBe("auto");
+    vi.stubEnv("YEP_SQLITE", "on");
+    expect(loadConfig().sqliteMode).toBe("on");
     vi.stubEnv("YEP_SQLITE", "off");
     vi.stubEnv("YEP_DESKTOP", "1");
     expect(loadConfig().sqliteMode).toBe("off");
@@ -98,7 +100,9 @@ describe("optional SQLite configuration", () => {
   it("rejects misspelled modes instead of silently enabling storage", async () => {
     vi.stubEnv("YEP_SQLITE", "yes");
     const { loadConfig } = await import("../src/config.js");
-    expect(() => loadConfig()).toThrow("YEP_SQLITE must be one of: off, auto");
+    expect(() => loadConfig()).toThrow(
+      "YEP_SQLITE must be one of: off, auto, on",
+    );
   });
 });
 

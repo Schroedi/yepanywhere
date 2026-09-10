@@ -66,14 +66,22 @@ export class IssueIndexer {
     const signal = this.controller.signal;
     this.enumeration = (async () => {
       const cutoff = Date.now() - this.settings().recentDays * 86400_000;
+      // Every catalog publication re-enumerates the whole corpus, so an
+      // unconditional ownership write here is one write transaction per known
+      // session per publication — thousands of file locks a minute on an idle
+      // server, none of which can change a row. Only a session that already
+      // has a row can move, and a row created later during this sweep carries
+      // its own project, so one read up front replaces all of them.
+      const owned = this.store.ownedSessions();
       let count = 0;
       for await (const row of this.deps.candidates()) {
         if (signal.aborted) return;
         // Current project ownership updates independently of scan eligibility.
-        this.store.updateProject(
-          row.sessionId,
-          this.deps.projectForSession?.(row.sessionId) ?? row.projectId,
-        );
+        if (owned.has(row.sessionId))
+          this.store.updateProject(
+            row.sessionId,
+            this.deps.projectForSession?.(row.sessionId) ?? row.projectId,
+          );
         if (
           (this.settings().scope === "recent" &&
             Date.parse(row.updatedAt) >= cutoff) ||

@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { SqliteStatus } from "@yep-anywhere/shared";
+import { networkFilesystemName } from "../lib/filesystemKind.js";
 import {
   SPEECH_VOCABULARY_SCHEMA,
   SPEECH_VOCABULARY_SET_SCHEMA,
@@ -14,12 +15,12 @@ import {
 import { ISSUE_RESOLUTION_SCHEMA } from "./migrations/005-issue-resolution.js";
 import { ISSUE_SCHEMA } from "./migrations/004-issues.js";
 
-export type SqliteMode = "off" | "auto";
+export type SqliteMode = "off" | "auto" | "on";
 
 export function parseSqliteMode(value: string | undefined): SqliteMode {
   if (value === undefined || value === "auto") return "auto";
-  if (value === "off") return "off";
-  throw new Error("YEP_SQLITE must be one of: off, auto");
+  if (value === "off" || value === "on") return value;
+  throw new Error("YEP_SQLITE must be one of: off, auto, on");
 }
 
 export interface DiscoveryMigration {
@@ -103,6 +104,7 @@ export function migrateDiscoveryDatabase(
 export class DiscoverySqliteService {
   private database: SqliteDatabase | undefined;
   private state: SqliteStatus["state"] = "disabled";
+  private networkFilesystem: string | undefined;
   private readonly onError: ((error: unknown) => void) | undefined;
 
   constructor(options: {
@@ -110,6 +112,8 @@ export class DiscoverySqliteService {
     mode: SqliteMode;
     loadDriver?: () => SqliteDriver | undefined;
     onError?: (error: unknown) => void;
+    /** Injected by tests; production probes the real data directory. */
+    probeNetworkFilesystem?: (dir: string) => string | undefined;
   }) {
     this.onError = options.onError;
     if (options.mode === "off") return;
@@ -120,6 +124,28 @@ export class DiscoverySqliteService {
         return;
       }
       mkdirSync(options.dataDir, { recursive: true });
+      // Both adapters are synchronous and SQLite takes an advisory lock per
+      // transaction, so on a share every one of those locks is a network round
+      // trip taken on the event loop. A busy server spends most of each second
+      // in uninterruptible sleep and stops answering requests at all. Losing
+      // the features this database backs is a far smaller harm, so refuse
+      // rather than open. `on` is the escape for a share fast enough to take it.
+      const network =
+        options.mode === "on"
+          ? undefined
+          : (options.probeNetworkFilesystem ?? networkFilesystemName)(
+              options.dataDir,
+            );
+      if (network) {
+        this.state = "error";
+        this.networkFilesystem = network;
+        options.onError?.(
+          new Error(
+            `Refusing to open ${join(options.dataDir, "discovery.sqlite")}: the data directory is on ${network}, where every SQLite lock is a network round trip that stalls the server. Set YEP_DATA_DIR to a directory on local disk, or YEP_SQLITE=on to open it anyway.`,
+          ),
+        );
+        return;
+      }
       this.database = driver.open(join(options.dataDir, "discovery.sqlite"));
       // A short, bounded wait also applies while obtaining the migration lock.
       this.database.exec("PRAGMA busy_timeout = 250");
@@ -140,7 +166,12 @@ export class DiscoverySqliteService {
   }
 
   getStatus(): SqliteStatus {
-    return { state: this.state };
+    return {
+      state: this.state,
+      ...(this.networkFilesystem
+        ? { networkFilesystem: this.networkFilesystem }
+        : {}),
+    };
   }
 
   /** Consumers must still gate their own feature contract before using this. */

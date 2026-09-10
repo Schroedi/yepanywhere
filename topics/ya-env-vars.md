@@ -48,10 +48,12 @@ rest of the server module graph is evaluated.
 
 ## Optional discovery storage
 
-`YEP_SQLITE=off|auto` controls optional discovery storage at server startup.
-Servers default to `auto`; an explicit `off` disables storage. The desktop
-launcher preserves that same default and explicit choices. Invalid values fail
-configuration parsing.
+`YEP_SQLITE=off|auto|on` controls optional discovery storage at server startup.
+Servers default to `auto`; an explicit `off` disables storage. `auto` refuses to
+open the database when the data directory is on a network filesystem, and `on`
+opens it there anyway for an operator who has measured their own share. The
+desktop launcher preserves that same default and explicit choices. Invalid values
+fail configuration parsing.
 There is no legacy alias. See [optional SQLite storage](optional-sqlite.md) for
 runtime support, database location, and nonfatal initialization failures.
 
@@ -226,7 +228,7 @@ value, because the child has no other way to express one.
 | `MAINTENANCE_PORT` | Port for the out-of-band maintenance server. Unset or 0 means it never starts, so a launch that may need to diagnose a wedged server must name it. |
 | `VITE_PORT` | Override vite dev port. |
 | `YEP_PROFILE` | Profile suffix → `~/.yep-anywhere-<profile>/`. |
-| `YEP_DATA_DIR` | Full data-dir path override. |
+| `YEP_DATA_DIR` | Full data-dir path override. Either variable is an explicit placement choice; see [optional SQLite](optional-sqlite.md#when-ya-may-choose-the-directory-for-the-user). |
 | `CLAUDE_CONFIG_DIR` | Claude Code config dir (sessions scanned from `<dir>/projects/`). |
 
 ### Development & UI testing

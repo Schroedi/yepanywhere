@@ -10,6 +10,7 @@ import {
 } from "../../src/services/issues/IssueIndexer.js";
 import { readIssueTextBatch } from "../../src/sessions/issue-text-reader.js";
 import type { SessionCatalogRow } from "../../src/sessions/catalog-types.js";
+import type { SqliteDatabase } from "../../src/storage/sqlite.js";
 const dirs: string[] = [];
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -383,4 +384,67 @@ it("deletion fences an in-flight batch without losing other references in the sa
     { id: "later", text: "https://github.com/a/b/pull/42" },
   );
   expect(store.list("a/b#42")).toHaveLength(1);
+});
+it("sweeps a catalog for moved projects without a write transaction per session", async () => {
+  const dir = directory();
+  const service = new DiscoverySqliteService({ dataDir: dir, mode: "auto" });
+  const database = service.getDatabase()!;
+  let transactions = 0;
+  // SQLite takes a file lock per transaction, and on a network data directory
+  // each lock is a round trip on the event loop, so the count itself is the
+  // contract: a sweep costs transactions only for sessions that really moved.
+  const counted: SqliteDatabase = {
+    ...database,
+    transaction<T>(operation: () => T): T {
+      transactions += 1;
+      return database.transaction(operation);
+    },
+  };
+  const store = new IssueStore(counted);
+  let project = "p";
+  const rows = Array.from(
+    { length: 200 },
+    (_, i) =>
+      ({
+        sessionId: `s${i}`,
+        projectId: project,
+        sourceVersion: "one",
+        updatedAt: new Date().toISOString(),
+        location: { kind: "file", path: "unused" },
+      }) as SessionCatalogRow,
+  );
+  const indexer = new IssueIndexer(store, {
+    settings: () => ({ enabled: true, scope: "viewed", recentDays: 7 }),
+    candidates: async function* () {
+      yield* rows.map(
+        (row) => ({ ...row, projectId: project }) as SessionCatalogRow,
+      );
+    },
+    read: async () => null,
+  });
+  cleanup.push(async () => {
+    await indexer.close();
+    service.close();
+  });
+
+  indexer.refresh();
+  await indexer.settled();
+  expect(transactions).toBe(0);
+
+  // One session gains evidence, so it is the only one a later sweep can move.
+  store.capture(
+    { sessionId: "s7", projectId: "p", sourceVersion: "one" },
+    { id: "m", text: "ABC-123" },
+  );
+  transactions = 0;
+  project = "moved";
+  indexer.refresh();
+  await indexer.settled();
+  expect(transactions).toBe(1);
+  expect(store.evidence(store.list()[0]!.id)[0]?.projectId).toBe("moved");
+
+  transactions = 0;
+  indexer.refresh();
+  await indexer.settled();
+  expect(transactions).toBe(1);
 });

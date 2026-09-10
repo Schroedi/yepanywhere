@@ -108,12 +108,13 @@ pnpm start
 
 Open http://localhost:3400 in your browser. The app auto-detects installed CLI agents.
 
-**Before the first launch, check where your home directory lives.** YA keeps a
-SQLite database in `~/.yep-anywhere`, and SQLite takes a file lock per
-transaction. On a local disk that lock is free. On a network home directory
-(NFS, SMB, or any mounted share) each one is a network round trip, which is
-slow enough to stall the server. Point `YEP_DATA_DIR` at a directory on local
-disk if your home directory is on a share:
+**Keep the data directory on local disk.** YA keeps a SQLite database in
+`~/.yep-anywhere`, and SQLite takes a file lock per transaction. On a local disk
+that lock is free. On a network home directory (NFS, SMB, or any mounted share)
+each one is a network round trip, slow enough to stall the server. YA checks at
+startup and leaves the database closed on a share rather than stall, which costs
+you issue associations and learned speech vocabulary until you move it. Point
+`YEP_DATA_DIR` at local disk:
 
 ```bash
 YEP_DATA_DIR=/scratch/$USER/.yep-anywhere yepanywhere

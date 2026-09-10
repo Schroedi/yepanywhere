@@ -9,18 +9,76 @@ Topic: optional-sqlite
 
 Verified: 2026-09-10
 
+See also: [YA environment variables](ya-env-vars.md) for `YEP_SQLITE` and
+`YEP_DATA_DIR`.
+
 ## Startup policy
 
-`YEP_SQLITE` accepts `off` or `auto`. An unset value means `auto`; invalid values
-are configuration errors. Changes take effect after restarting the server.
+`YEP_SQLITE` accepts `off`, `auto` or `on`. An unset value means `auto`; invalid
+values are configuration errors. Changes take effect after restarting the server.
+
+## Data directory placement
 
 The discovery database is only as fast as the filesystem holding the data
 directory. Both adapters are synchronous and SQLite takes a file lock per
 transaction, so a data directory on a network filesystem puts a network round
-trip on the event loop for every transaction and can stall the server outright.
-Nothing checks this yet; `YEP_DATA_DIR` is the manual escape, and
-[the data-directory placement gap](../gaps/data-dir-filesystem-unchecked-for-sqlite-locks.md)
-carries the measurements and the proposed default.
+trip on the event loop for every transaction. Measured on an NFSv4 home with an
+effectively empty database, the main thread spent 95% of samples in
+uninterruptible sleep on `fcntl`, event-loop delay reached 6.5–10.7 s per
+one-minute sample, and `GET /health` took 4–13 s while the dev frontend proxy
+returned 502. The same database on local NVMe answered the same read
+transactions in 0.008 ms.
+
+So `auto` identifies the data directory's filesystem before opening anything.
+On a network filesystem it opens no database, reports `error`, and names the
+filesystem in the status so a client can advise moving the data directory.
+Losing this database's features is a far smaller harm than a server that stops
+answering. `on` skips the check and opens the database wherever the data
+directory is, for an operator who has measured their own share; `off` still
+disables storage entirely. `YEP_DATA_DIR` remains the way to place the data
+directory on local disk and is what the refusal message and the client banner
+recommend.
+
+Classification is positive evidence only. `packages/server/src/lib/filesystemKind.ts`
+owns the one table of filesystem identities, shared with scratch-space
+selection, and names a category — network, memory-backed or a userspace FUSE
+driver — because those callers fear different things. Only the network category
+refuses SQLite: a FUSE mount names who implements the filesystem rather than
+where the bytes live, and a memory-backed one takes locks locally. A filesystem
+the table does not name, an uninspectable directory, and every platform whose
+`statfs` numbers this table does not carry, currently macOS and Windows, are all
+treated as local disk, so the check can cost a working install nothing.
+
+Callers must not turn a large corpus into one transaction per item. Even on
+local disk that is a lock per item; on a share it is the failure above. The
+[issue/session association](issue-session-associations.md) catalog sweep is the
+worked example: it reads the set of sessions a write could affect once, rather
+than opening a write transaction per catalog row.
+
+### When YA may choose the directory for the user
+
+YA may offer to place the data directory only when both hold: no explicit
+`YEP_DATA_DIR` or named `YEP_PROFILE`, and the default `~/.yep-anywhere` does
+not exist yet. Either condition alone is the wrong trigger. An absent variable
+fires on every start for the majority who never set one and are already on
+local disk, and an absent directory alone would offer to relocate a directory
+the user pinned deliberately, which
+[hard development rules](hard-development-rules.md) § User Configuration Is
+Authoritative forbids. When the directory already exists the question is no
+longer selection but migration, with existing session metadata to preserve.
+
+"First run" is not a separate condition to test: onboarding state lives at
+`{dataDir}/onboarding.json`, so it is read from the directory whose location is
+being decided, and the desktop runtime reports onboarding complete by default
+and never writes that file at all. Directory absence is what first run means
+here.
+
+The filesystem refusal above deliberately has the opposite trigger and applies
+to every resolved data directory, including an explicit `YEP_DATA_DIR`. Setting
+that variable is an authoritative choice of location; it is not a claim that
+the location can take file locks, and the consequence of being wrong is a
+server that stops answering rather than a preference YA disagrees with.
+`YEP_SQLITE=on` is the explicit way to accept that cost.
 
 This default is infrastructure, not a feature opt-in. Independent features
 still govern learning, indexing, retention, and their own background work.
@@ -184,13 +242,24 @@ enterprise Linux 8 provides, and no library path could satisfy it.
 `GET /api/version` has an additive optional field:
 
 ```ts
-sqlite?: { state: "disabled" | "unsupported" | "ready" | "error" };
+sqlite?: {
+  state: "disabled" | "unsupported" | "ready" | "error";
+  networkFilesystem?: string;
+};
 ```
 
 An absent field means that source server does not report SQLite state. A
 frontend must not infer readiness from its own runtime, desktop presence, or
 server semver. The field passes through the existing source-scoped version
 snapshot, including legacy and negotiated capability encodings.
+
+`networkFilesystem` is present only when placement was the reason for `error`,
+and it carries a filesystem name such as `NFS`, never a path or an exception
+message. Both the local and hosted clients render it as one dismissible banner
+recommending `YEP_DATA_DIR` on local disk, dismissed per named filesystem so the
+advice returns if a later data directory lands on a different share. A client
+that cannot see the field, talking to a server that does not send it, shows no
+banner, which is the behavior every released client already has.
 
 No generic SQLite capability ID is allocated. Future session discovery routes
 must receive their own exact optional capability, advertised only when their

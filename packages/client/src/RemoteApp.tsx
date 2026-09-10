@@ -32,6 +32,7 @@ import { HostOfflineModal } from "./components/HostOfflineModal";
 import { ProviderHostDegradedBanner } from "./components/ProviderHostDegradedBanner";
 import { ReloadBanner, ReloadBannerStack } from "./components/ReloadBanner";
 import { RemoteCompatibilityNotices } from "./components/RemoteCompatibilityNotices";
+import { StorageFilesystemBanner } from "./components/StorageFilesystemBanner";
 import { StartupShell } from "./components/StartupShell";
 import { ClientSummarySourceBinding } from "./contexts/ClientSummarySourceBinding";
 import {
@@ -122,6 +123,7 @@ function ConnectedAppContentInner({ children }: { children: ReactNode }) {
   return (
     <>
       <ProviderHostDegradedBanner />
+      <StorageFilesystemBanner />
       <RemoteCompatibilityNotices
         versionInfo={versionInfo}
         runtimeNotice={{ runtime: versionInfo?.serverRuntime, sourceKey, t }}

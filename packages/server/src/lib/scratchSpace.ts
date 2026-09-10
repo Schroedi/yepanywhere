@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, statfsSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { statFilesystem } from "./filesystemKind.js";
 
 /**
  * Home for regenerable YA state that wants local disk rather than the data
@@ -29,28 +30,6 @@ export interface ScratchSpace {
  * for an optional feature is not acceptable behavior.
  */
 const HEADROOM_BYTES = 1024 * 1024 * 1024;
-
-/**
- * Filesystems that are not local disk. Network mounts defeat the purpose, and
- * a memory-backed filesystem would charge the reservation to RAM twice for a
- * table that is already resident. Linux reports these in `statfs`; other
- * platforms report a type this list does not name, and are accepted on the
- * space check alone.
- */
-const FOREIGN_FILESYSTEMS = new Map<number, string>([
-  [0x6969, "NFS"],
-  [0xff534d42, "CIFS"],
-  [0xfe534d42, "SMB2"],
-  [0x65735546, "FUSE"],
-  [0x5346414f, "AFS"],
-  [0x01021997, "9P"],
-  [0x00c36400, "Ceph"],
-  [0x01161970, "GFS2"],
-  [0x7461636f, "OCFS2"],
-  [0x0bd00bd0, "Lustre"],
-  [0x01021994, "tmpfs"],
-  [0x858458f6, "ramfs"],
-]);
 
 export interface ReserveScratchSpaceOptions {
   /** Short name of the feature that owns the directory, e.g. `speech-vocabulary`. */
@@ -112,13 +91,17 @@ function candidates(
   ];
 }
 
+/**
+ * Every kind this module can name defeats the purpose of scratch space: a
+ * network mount is slower than the data directory it was meant to escape, a
+ * memory-backed one charges the reservation to RAM twice, and a FUSE mount is
+ * either of those wearing a userspace driver.
+ */
 function freeBytes(dir: string): { free: number; foreign?: string } {
-  const stat = statfsSync(dir);
+  const facts = statFilesystem(dir);
   return {
-    free: Number(stat.bavail) * Number(stat.bsize),
-    ...(FOREIGN_FILESYSTEMS.has(Number(stat.type))
-      ? { foreign: FOREIGN_FILESYSTEMS.get(Number(stat.type)) }
-      : {}),
+    free: facts.freeBytes,
+    ...(facts.kind ? { foreign: facts.kind.name } : {}),
   };
 }
 

@@ -388,3 +388,5 @@
   pointers, and bounded deduplication of repository guidance.
 - issue-session-associations - Experimental single-server Jira/GitHub issue
   and PR links, durable association evidence, and SQLite schema evolution.
+- optional-sqlite - Built-in SQLite discovery storage: runtime adapters, data
+  directory placement, and the transaction cost callers must respect.

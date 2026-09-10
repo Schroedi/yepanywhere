@@ -40,6 +40,19 @@ export class IssueStore {
       s.finalize();
     }
   }
+  /**
+   * Sessions that have a row `updateProject` could change. A sweep over a
+   * whole session catalog consults this once instead of opening a write
+   * transaction per candidate: SQLite takes a file lock per transaction, so
+   * thousands of guaranteed-empty updates are thousands of locks.
+   */
+  ownedSessions(): Set<string> {
+    return new Set(
+      this.rows(
+        "SELECT session_id FROM issue_index_jobs UNION SELECT session_id FROM session_issue_evidence",
+      ).map((row) => String(row.session_id)),
+    );
+  }
   updateProject(sessionId: string, projectId: string): void {
     this.database.transaction(() => {
       this.run(

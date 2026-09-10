@@ -43,3 +43,57 @@ describe("optional discovery storage failure isolation", () => {
     }
   });
 });
+
+describe("data directory placement", () => {
+  const dataDir = () => {
+    const dir = mkdtempSync(join(tmpdir(), "ya-sqlite-placement-"));
+    return {
+      dir,
+      [Symbol.dispose]: () => rmSync(dir, { recursive: true, force: true }),
+    };
+  };
+
+  it("refuses a network data directory and names the filesystem", () => {
+    using data = dataDir();
+    const open = vi.fn();
+    const onError = vi.fn();
+    const service = new DiscoverySqliteService({
+      dataDir: data.dir,
+      mode: "auto",
+      loadDriver: () => ({ open }),
+      probeNetworkFilesystem: () => "NFS",
+      onError,
+    });
+    expect(service.getStatus()).toEqual({
+      state: "error",
+      networkFilesystem: "NFS",
+    });
+    expect(service.getDatabase()).toBeUndefined();
+    expect(open).not.toHaveBeenCalled();
+    expect(String(onError.mock.calls[0]?.[0])).toContain("YEP_DATA_DIR");
+  });
+
+  it("opens a local data directory and reports no filesystem advice", () => {
+    using data = dataDir();
+    const service = new DiscoverySqliteService({
+      dataDir: data.dir,
+      mode: "auto",
+      probeNetworkFilesystem: () => undefined,
+    });
+    expect(service.getStatus()).toEqual({ state: "ready" });
+    service.close();
+  });
+
+  it("opens a network data directory when the operator asks for it", () => {
+    using data = dataDir();
+    const probe = vi.fn(() => "NFS");
+    const service = new DiscoverySqliteService({
+      dataDir: data.dir,
+      mode: "on",
+      probeNetworkFilesystem: probe,
+    });
+    expect(service.getStatus()).toEqual({ state: "ready" });
+    expect(probe).not.toHaveBeenCalled();
+    service.close();
+  });
+});
