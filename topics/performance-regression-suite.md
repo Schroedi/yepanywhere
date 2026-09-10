@@ -283,3 +283,10 @@ measured 19.114 MiB for all three eight-response herds, versus the pre-feature
 13.107 MiB baseline. The 24 MiB ceiling replaces that obsolete 16 MiB budget;
 the harness also requires rendered assistant Markdown and reports its byte
 contribution, so removing rendering cannot masquerade as an optimization.
+
+The simulated provider persists its deterministic user/assistant fixture rows
+before publishing each final assistant/result pair. Browser REST catch-up can
+therefore read the same stable message IDs even between live-process snapshots.
+This fixture writer is part of the simulated leg; the real provider SDK's writer
+remains outside the measured boundary. The no-browser-diagnostics assertion and
+verified-idle release assertion remain required.

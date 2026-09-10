@@ -559,6 +559,7 @@ export async function measureOwnedProviderLifecycle({
       ENABLED_PROVIDERS: "claude",
       IDLE_TIMEOUT: String(scenario.idleReapSeconds),
       USE_MOCK_SDK: "false",
+      YEP_PERF_TRANSCRIPT_DIR: path.dirname(fixture.sessionFiles[0].file),
       YEP_PERF_SIM_STREAM_CHUNKS: String(scenario.streamChunks),
       YEP_PERF_SIM_STREAM_CHUNK_BYTES: String(scenario.streamChunkBytes),
       YEP_PERF_SIM_STREAM_DELAY_MS: String(scenario.streamDelayMs),

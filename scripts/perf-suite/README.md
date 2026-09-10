@@ -306,3 +306,10 @@ provider child-session reads independently of `ya-route` slicing and anchor
 lookup. Suite version 9 includes that phase in non-overlapping totals and keeps
 the fleet append 5 ms route ceiling alongside a 40 ms metadata ceiling. Older
 execution revisions retain their original combined route clock.
+
+The simulated provider persists its deterministic user/assistant fixture rows
+before publishing each final assistant/result pair. Browser REST catch-up can
+therefore read the same stable message IDs even between live-process snapshots.
+This fixture writer is part of the simulated leg; the real provider SDK's writer
+remains outside the measured boundary. The no-browser-diagnostics assertion and
+verified-idle release assertion remain required.
