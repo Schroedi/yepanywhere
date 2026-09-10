@@ -801,4 +801,94 @@ describe("selectConversationThinkingPreviews", () => {
     ]);
     expect(summary(expanded).expanded).toBe(true);
   });
+
+  it("drops thinking the turn has already spoken past and gone back to work", () => {
+    const items: RenderItem[] = [
+      {
+        type: "thinking",
+        id: "earlier",
+        thinking: "Earlier",
+        status: "complete",
+        sourceMessages: [],
+      },
+      {
+        type: "thinking",
+        id: "stale",
+        thinking: "Stale",
+        status: "complete",
+        sourceMessages: [],
+      },
+      { type: "text", id: "answer", text: "Here it is.", sourceMessages: [] },
+      tool("run", 3_000, {
+        toolName: "Bash",
+        toolInput: { command: "pnpm test" },
+      }),
+    ];
+
+    // The turn answered and then resumed work: the thoughts behind that answer
+    // are accounted for by the answer itself, so the run shows its count alone.
+    expect(selectConversationThinkingPreviews(items)).toEqual([]);
+    expect(
+      summary(projectConversationView(items, { active: true, nowMs: 4_000 }))
+        .thinkingPreviews,
+    ).toBeUndefined();
+  });
+
+  it("keeps the superseded thought only from after that prose", () => {
+    const items: RenderItem[] = [
+      {
+        type: "thinking",
+        id: "stale",
+        thinking: "Stale",
+        status: "complete",
+        sourceMessages: [],
+      },
+      { type: "text", id: "answer", text: "Here it is.", sourceMessages: [] },
+      {
+        type: "thinking",
+        id: "previous",
+        thinking: "Previous",
+        status: "complete",
+        sourceMessages: [],
+      },
+      {
+        type: "thinking",
+        id: "current",
+        thinking: "Current",
+        status: "streaming",
+        sourceMessages: [],
+      },
+    ];
+
+    expect(
+      selectConversationThinkingPreviews(items).map((preview) => preview.id),
+    ).toEqual(["current", "previous"]);
+  });
+
+  it("keeps thinking whose prose ended the turn, for the glance and rollup", () => {
+    const items: RenderItem[] = [
+      {
+        type: "thinking",
+        id: "latest",
+        thinking: "Planning",
+        status: "complete",
+        sourceMessages: [],
+      },
+      tool("run", 2_000, {
+        toolName: "Bash",
+        toolInput: { command: "pnpm test" },
+      }),
+      { type: "text", id: "answer", text: "Here it is.", sourceMessages: [] },
+    ];
+
+    // Nothing resumed after the answer, so the thought is still the freshest
+    // thing the turn said about itself; the 5s auto-hide takes it away instead.
+    expect(
+      selectConversationThinkingPreviews(items).map((preview) => preview.id),
+    ).toEqual(["latest"]);
+    expect(
+      summary(projectConversationView(items, { active: false, nowMs: 3_000 }))
+        .hasFollowingConversationText,
+    ).toBe(true);
+  });
 });

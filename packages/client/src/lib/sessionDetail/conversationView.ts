@@ -364,16 +364,48 @@ function getRecentActivities(
 }
 
 /**
+ * Where thinking stops being a candidate for preview.
+ *
+ * Agent-authored prose closes off the thinking that produced it: once the turn
+ * has said something and *then* gone back to work, the reader is following the
+ * fresh run of activity summarized beside the previews, and a thought from
+ * before that prose is too stale to be one of the two shown. Prose with no
+ * activity after it is a different case — the thought is still the most recent
+ * thing the turn did, and the completed-turn glance and rollup carry it away on
+ * their own schedule.
+ *
+ * @returns that prose item's index, or -1 when no thinking is stale.
+ */
+function findStaleThinkingBoundaryIndex(items: readonly RenderItem[]): number {
+  let sawActivityAfterProse = false;
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (!item) continue;
+    if (item.type === "text") {
+      if (item.text.trim().length > 0 && sawActivityAfterProse) return index;
+      continue;
+    }
+    if (isConversationViewActivity(item)) sawActivityAfterProse = true;
+  }
+  return -1;
+}
+
+/**
  * Keep the latest thinking block. While it is streaming, also keep the
  * immediately preceding completed block so a new turn starts with context;
  * once the latest block completes, the superseded preview disappears.
  * Ordering is by preview priority rather than transcript position.
+ *
+ * Both candidates are drawn from after the staleness boundary above, so a run
+ * of activity that resumed after the turn already spoke shows its count alone
+ * rather than a thought the prose has superseded.
  */
 export function selectConversationThinkingPreviews(
   items: readonly RenderItem[],
 ): ConversationThinkingPreview[] {
+  const staleBoundaryIndex = findStaleThinkingBoundaryIndex(items);
   let latestIndex = -1;
-  for (let index = items.length - 1; index >= 0; index -= 1) {
+  for (let index = items.length - 1; index > staleBoundaryIndex; index -= 1) {
     if (items[index]?.type === "thinking") {
       latestIndex = index;
       break;
@@ -395,7 +427,7 @@ export function selectConversationThinkingPreviews(
   ];
   if (latest.status !== "streaming") return previews;
 
-  for (let index = latestIndex - 1; index >= 0; index -= 1) {
+  for (let index = latestIndex - 1; index > staleBoundaryIndex; index -= 1) {
     const candidate = items[index];
     if (candidate?.type !== "thinking" || candidate.status !== "complete") {
       continue;
