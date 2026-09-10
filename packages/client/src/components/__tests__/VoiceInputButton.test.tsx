@@ -155,6 +155,20 @@ vi.mock("../SpeechWaveform", () => ({
 }));
 
 describe("VoiceInputButton", () => {
+  it("keeps inactive server models out of browser recognition options when capabilities arrive", () => {
+    const view = render(
+      <VoiceInputButton onTranscript={vi.fn()} speechMethod="browser-native" />,
+    );
+    expect(observedSpeechOptions.at(-1)?.parakeetModel).toBeUndefined();
+    expect(observedSpeechOptions.at(-1)?.whisperModel).toBeUndefined();
+    versionState.capabilities.push("local-speech-model-selection");
+    view.rerender(
+      <VoiceInputButton onTranscript={vi.fn()} speechMethod="browser-native" />,
+    );
+    expect(observedSpeechOptions.at(-1)?.parakeetModel).toBeUndefined();
+    expect(observedSpeechOptions.at(-1)?.whisperModel).toBeUndefined();
+  });
+
   it("passes a saved Whisper choice only after the server capability is known", () => {
     const view = render(
       <VoiceInputButton onTranscript={vi.fn()} speechMethod="ya-whisper" />,

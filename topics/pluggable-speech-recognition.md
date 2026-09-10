@@ -119,6 +119,9 @@ streaming/confidence surface exists.
   committed for that index, and a higher index remains a distinct result. A
   recognizer restart clears that index ownership before accepting results from
   the new run.
+  Server model-selection options are passed only to their owning backend.
+  Discovering Parakeet or Whisper capabilities must not recreate an active
+  browser-native recognizer or interrupt its next result.
 - `YaServerProvider` captures microphone audio with `MediaRecorder`, buffers a
   complete utterance, and posts it to `/api/speech/transcribe` through the
   shared client API helper. Remote/SecureConnection clients therefore use the

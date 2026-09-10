@@ -46,6 +46,7 @@ import {
   type SpeechMethodId,
 } from "../lib/speechProviders/methods";
 import {
+  isParakeetModelBackend,
   reconcileParakeetBackendForModel,
   requestedParakeetModel,
 } from "../lib/speechProviders/parakeetModels";
@@ -322,10 +323,14 @@ export const VoiceInputButton = forwardRef(function VoiceInputButton(
     reducePlayback,
     unspokenPunctuation,
     onAudioSamples: showWaveform ? publishSpeechWaveformSamples : undefined,
-    parakeetModel: requestedParakeetModel(parakeetSpeechModel, recentModels),
-    whisperModel: recentModels
-      ? whisperSpeechModel?.trim() || undefined
-      : undefined,
+    parakeetModel:
+      speechMethod !== null && isParakeetModelBackend(speechMethod)
+        ? requestedParakeetModel(parakeetSpeechModel, recentModels)
+        : undefined,
+    whisperModel:
+      speechMethod === "ya-whisper" && recentModels
+        ? whisperSpeechModel?.trim() || undefined
+        : undefined,
     openRelayedSpeechSocket,
     onResult: handleResult,
     onInterimResult: handleInterim,
