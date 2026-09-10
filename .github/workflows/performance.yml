@@ -70,7 +70,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Chromium
-        if: matrix.driver == 'browser' || matrix.driver == 'built-client'
+        if: matrix.driver != 'server'
         run: pnpm -F @yep-anywhere/client exec playwright install chromium
 
       - name: Run capacity-keyed ${{ matrix.summary }} ratchet

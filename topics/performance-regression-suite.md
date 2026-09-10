@@ -121,6 +121,8 @@ provider-runtime worker exercises YA's real runtime host, proxy, supervisor,
 subscription, augmentation, and idle release. It must produce the configured
 thinking-capable stream, raw final message, and same-id enriched replacement,
 then release verified-idle ownership after the final viewer unsubscribes.
+Its semantic-action replay also launches Chromium, so CI must install the
+Playwright browser for this driver as well as the browser and built-client legs.
 
 The public-share leg creates a real frozen share against a local simulated
 relay, verifies bounded chunk metadata, drives the configured reader herd
