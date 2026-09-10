@@ -213,7 +213,7 @@ describe("persistent speech learning through its routes", () => {
     const timestamp = new Date().toISOString();
     writeFileSync(
       join(sessionDir, `${sessionId}.jsonl`),
-      [
+      `${[
         {
           type: "user",
           uuid: "user-1",
@@ -233,7 +233,7 @@ describe("persistent speech learning through its routes", () => {
         },
       ]
         .map((row) => JSON.stringify(row))
-        .join("\n") + "\n",
+        .join("\n")}\n`,
     );
     for (let pass = 0; pass < 2; pass++) {
       const reader = new SessionReader({ sessionDir });

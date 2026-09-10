@@ -121,7 +121,7 @@ describe("session detail compact-tail pagination", () => {
     const sessionPath = join(codexSessionsDir, `rollout-${sessionId}.jsonl`);
     await writeFile(
       sessionPath,
-      [
+      `${[
         {
           type: "session_meta",
           timestamp,
@@ -151,7 +151,7 @@ describe("session detail compact-tail pagination", () => {
         ]),
       ]
         .map((entry) => JSON.stringify(entry))
-        .join("\n") + "\n",
+        .join("\n")}\n`,
     );
     const index = new SessionIndexService({
       dataDir: join(testDir, "indexes"),

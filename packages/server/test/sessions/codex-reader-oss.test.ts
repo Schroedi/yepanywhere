@@ -2476,7 +2476,7 @@ describe("CodexSessionReader - OSS Support", () => {
       "after-compact",
     );
 
-    const partial = Buffer.from(JSON.stringify(message("partial-😀")) + "\n");
+    const partial = Buffer.from(`${JSON.stringify(message("partial-😀"))}\n`);
     const split = partial.indexOf(Buffer.from("😀")) + 2;
     await appendFile(sessionPath, partial.subarray(0, split));
     await reader.getSession(sessionId, projectId, "after-compact", options);

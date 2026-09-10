@@ -49,7 +49,7 @@ describe("acli tool output publication", () => {
     stream.appendSnapshot(
       stdout,
       true,
-      lineBanner + "diagnostic\n" + line("Unsequenced"),
+      `${lineBanner}diagnostic\n${line("Unsequenced")}`,
     );
     await tick();
     expect(snapshots.at(-1)).toMatchObject({
@@ -70,7 +70,7 @@ describe("acli tool output publication", () => {
       undefined,
       false,
     ).appendSnapshot(
-      lineBanner + "maybe stdout\n" + line("Unknown channel"),
+      `${lineBanner}maybe stdout\n${line("Unknown channel")}`,
       true,
     );
     await tick();
@@ -80,7 +80,7 @@ describe("acli tool output publication", () => {
   it("keeps late declarations and malformed notes literal", async () => {
     const snapshots: AcliOutputProjection[] = [];
     const render = vi.fn(async (texts: string[]) => texts);
-    const source = "data\n" + lineBanner + line("Too late");
+    const source = `data\n${lineBanner}${line("Too late")}`;
     new AcliToolOutput(render, (value) => snapshots.push(value)).appendSnapshot(
       source,
       true,
@@ -88,8 +88,7 @@ describe("acli tool output publication", () => {
     await tick();
     expect(snapshots.at(-1)?.stdout).toBe(source);
     expect(render).not.toHaveBeenCalled();
-    const malformed =
-      lineBanner + "# _acli.commentary: \n# ordinary\n" + lineBanner;
+    const malformed = `${lineBanner}# _acli.commentary: \n# ordinary\n${lineBanner}`;
     new AcliToolOutput(render, (value) => snapshots.push(value)).appendSnapshot(
       malformed,
       true,
@@ -115,7 +114,7 @@ describe("acli tool output publication", () => {
       stderr: line("Retained"),
       failed: true,
     });
-    expect(stream.appendSnapshot("data\n", true, stderr + "new")).toBe(false);
+    expect(stream.appendSnapshot("data\n", true, `${stderr}new`)).toBe(false);
     expect(stream.appendSnapshot("replacement\n", true, stderr)).toBe(false);
   });
 

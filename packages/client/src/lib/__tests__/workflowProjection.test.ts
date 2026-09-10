@@ -106,7 +106,7 @@ describe("workflow tag projection", () => {
 
   it("activates from decoded commentary without interpreting arbitrary JSON strings", () => {
     const note = (text: string) =>
-      JSON.stringify({ _acli: { commentary: [{ text }] } }) + "\n";
+      `${JSON.stringify({ _acli: { commentary: [{ text }] } })}\n`;
     const source =
       "# acli: 1 +commentary\n" +
       note('@@visualization-schema/1 ["build"]') +

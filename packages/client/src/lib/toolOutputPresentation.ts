@@ -22,7 +22,7 @@ export function isAcliMetadata(source: string): boolean {
 function indentJson(source: string): string {
   JSON.parse(source);
   const tokens =
-    source.match(/"(?:\\.|[^"\\])*"|[{}\[\],:]|[^\s{}\[\],:]+/g) ?? [];
+    source.match(/"(?:\\.|[^"\\])*"|[{}[\],:]|[^\s{}[\],:]+/g) ?? [];
   let depth = 0;
   let result = "";
   const newline = () => `\n${"  ".repeat(depth)}`;
@@ -59,7 +59,7 @@ export function presentToolOutput(source: string): ToolOutputPart[] {
     }
     if (!fence && isAcliMetadata(frame))
       return { kind: "metadata", source: frame, text: frame };
-    if (!fence && /^[\s]*[\[{]/.test(frame)) {
+    if (!fence && /^[\s]*[[{]/.test(frame)) {
       try {
         return { kind: "json", source: frame, text: indentJson(frame) };
       } catch {
