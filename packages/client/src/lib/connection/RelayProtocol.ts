@@ -19,6 +19,7 @@ import type {
   UploadedFile,
   YepMessage,
 } from "@yep-anywhere/shared";
+import { API_REQUEST_DEADLINE_MS } from "../../api/requestDeadline";
 import { getOrCreateBrowserProfileId } from "../storageKeys";
 import { generateUUID } from "../uuid";
 import type {
@@ -637,7 +638,7 @@ export class RelayProtocol {
         }
         this.pendingRequests.delete(id);
         reject(new Error("Request timeout"));
-      }, 30000);
+      }, API_REQUEST_DEADLINE_MS);
 
       this.pendingRequests.set(id, {
         resolve: (response: RelayResponse) => {
@@ -731,7 +732,7 @@ export class RelayProtocol {
         }
         this.pendingRequests.delete(id);
         reject(new Error("Request timeout"));
-      }, 30000);
+      }, API_REQUEST_DEADLINE_MS);
 
       this.pendingRequests.set(id, {
         resolve: (response: RelayResponse) => {

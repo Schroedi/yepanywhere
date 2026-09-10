@@ -503,6 +503,10 @@ describe("TextBlock", () => {
         cache: "no-cache",
         credentials: "include",
         headers: expect.any(Headers),
+        // Every API request carries the shared deadline, so a server that
+        // accepts the connection and then stops answering still ends this
+        // request. See api/requestDeadline.ts.
+        signal: expect.any(AbortSignal),
       },
     );
     expect(screen.getByRole("dialog").textContent).toContain("probe.json");
