@@ -920,13 +920,46 @@ export async function measurePublicShareHerd({
       })),
       config.server.requestTimeoutMs,
     );
+    let renderedAssistantMessages = 0;
+    let assistantHtmlBytes = 0;
     for (const [index, body] of herd.bodies.entries()) {
+      const messages = bodyArray(
+        body?.session,
+        "messages",
+        `public share ${index}`,
+      );
       assertCount(
-        bodyArray(body?.session, "messages", `public share ${index}`).length,
+        messages.length,
         scenario.initialTurns * 2,
         `public share ${index} message count`,
       );
+      for (const message of messages) {
+        if (message.type !== "assistant") continue;
+        const content = message.message?.content ?? message.content;
+        const html = Array.isArray(content)
+          ? content
+              .filter((block) => block.type === "text")
+              .map((block) => block._html ?? "")
+              .join("\n")
+          : message._html;
+        if (
+          typeof html !== "string" ||
+          !html.includes("<p>") ||
+          !html.includes(target.detail.sessionId)
+        ) {
+          throw new Error(
+            `public share ${index} omitted rendered assistant Markdown`,
+          );
+        }
+        renderedAssistantMessages += 1;
+        assistantHtmlBytes += Buffer.byteLength(html);
+      }
     }
+    assertCount(
+      renderedAssistantMessages,
+      scenario.initialTurns * scenario.concurrentClients,
+      "public share rendered assistant messages",
+    );
     const settledMemory = await sampleMemory(
       server.inspectorUrl,
       server.maintenanceUrl,
@@ -938,6 +971,7 @@ export async function measurePublicShareHerd({
         frozenShare: true,
         legacyResponses: herd.bodies.length,
         modernChunkMetadata: true,
+        renderedAssistantMessages,
         relayStatus: "waiting",
       },
       latency: {
@@ -957,6 +991,7 @@ export async function measurePublicShareHerd({
         ),
       },
       processManifest: await readProcessManifest(server.processManifestPath),
+      assistantHtmlMiB: bytesToMiB(assistantHtmlBytes),
       responseMiB: bytesToMiB(
         herd.bytes.reduce((sum, value) => sum + value, 0),
       ),
@@ -1084,6 +1119,7 @@ export async function measureSpecializedRepetition({
     semanticAction: ownedProvider.semanticAction,
     responseMiB: {
       publicShareHerd: publicShare.responseMiB,
+      publicShareAssistantHtml: publicShare.assistantHtmlMiB,
     },
     memory: publicShare.memory,
   };

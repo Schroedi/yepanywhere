@@ -275,3 +275,11 @@ provider child-session reads independently of `ya-route` slicing and anchor
 lookup. Suite version 9 includes that phase in non-overlapping totals and keeps
 the fleet append 5 ms route ceiling alongside a 40 ms metadata ceiling. Older
 execution revisions retain their original combined route clock.
+
+The specialized public-share byte budget includes safe assistant Markdown HTML
+introduced by `ced769acc` (see [public transcript media](media-rendering-and-routing.md#read-only-shares)).
+CI run [34479361388](https://github.com/kzahel/yepanywhere/actions/runs/34479361388)
+measured 19.114 MiB for all three eight-response herds, versus the pre-feature
+13.107 MiB baseline. The 24 MiB ceiling replaces that obsolete 16 MiB budget;
+the harness also requires rendered assistant Markdown and reports its byte
+contribution, so removing rendering cannot masquerade as an optimization.
