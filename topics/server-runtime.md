@@ -126,7 +126,9 @@ Startup readiness requires a responsive `/api/version` within the same startup
 deadline as port publication; transient connection/time-out failures retry that
 read-only probe, while any HTTP response still undergoes the full assertions.
 Full packaged startup is exercised on Linux, macOS and Windows. The
-[Windows investigation](../gaps/windows-packaged-startup-provider-identity.md)
+Windows matrix has a 30-minute job budget for the restored clean-install and
+locked-dependency Node/Bun launches; individual startup deadlines remain bounded.
+The [Windows investigation](../gaps/windows-packaged-startup-provider-identity.md)
 tracks the restored coverage until the matrix confirms it. Windows Desktop
 manual verification is a separate Maintainer follow-up; this cutover does not
 claim it. Public standalone Bun platform claims remain limited to verified
