@@ -296,3 +296,10 @@ closes, the specialized driver sets the one-second deadline through the public
 settings API, verifies the remaining raw subscriber retains the idle provider
 past that deadline, then measures release after its final unsubscribe. Failures
 include the owned-server diagnostic tail rather than discarding that evidence.
+
+The owned fixture creates its session with explicit `thinking: "disabled"`,
+matching the browser's initial setting for the simulated model. An unspecified
+launch value followed by the browser's explicit disabled value is a real
+launch-setting change and restarts the worker, which invalidates this replay's
+stable-process and prior-turn assumptions. The deterministic worker still emits
+its synthetic thinking block to exercise that transport/rendering shape.
