@@ -49,13 +49,34 @@ to close and reopen them. The two conditions do not arrive equal on that point:
   the vocabulary database is open alongside it, both in the directory the user
   is about to be offered a move of.
 
-So the cleanest way to hold the constraint is to make the vocabulary path behave
-like the SQLite one: when the reservation degrades onto a network filesystem,
-decline to open its files and raise the signal, rather than opening them and
-warning afterwards. That keeps "banner showing" and "nothing open in the data
-directory" the same state, and leaves the migration with nothing to close. The
-alternative is a real close-and-reopen sequence around the move, which is more
-machinery for a case the refusal makes impossible.
+## Split the placement decision: the bloom file may share, the database may not
+
+The two vocabulary files are placed together today because they share one
+reservation, but they do not deserve the same verdict.
+
+The bloom file may continue on a network filesystem. It is lock-free, it is the
+learning feature's own working set, and refusing it would disable learning to
+avoid a cost the user can accept.
+
+The database may not, and the reason is stronger than the general lock argument.
+It runs in write-ahead logging mode (`vocabulary-database.ts:70`), which SQLite
+does not support over a network filesystem because the shared-memory file has to
+be memory mapped. The pragma's returned mode is not checked, and SQLite's
+behavior when it cannot enter that mode is to stay in the previous one — which
+is the rollback journal, one file lock per transaction, exactly the mode that
+produced the original outage. So a vocabulary database on a share does not fail
+loudly; it quietly becomes the thing this whole line of work exists to prevent.
+Verify that fallback before relying on this description.
+
+## The consequence for the migration button
+
+Accepting the bloom file on a share means that whenever learning is enabled, a
+live handle sits in the data directory. So in that state the banner can warn but
+cannot offer a working move, and
+[the migration gap](network-filesystem-banner-offers-no-migration.md) only has a
+usable button when nothing holds the directory open. Making the offer work while
+learning is on requires a real close-and-reopen sequence around the copy, which
+is separate machinery and should not be assumed.
 
 Found 2026-09-10, raised by the maintainer while reviewing the data-directory
 filesystem check: the lock-free half of speech vocabulary deserves the same

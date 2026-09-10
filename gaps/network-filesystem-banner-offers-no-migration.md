@@ -35,10 +35,10 @@ What makes the move itself its own piece of work rather than a banner tweak:
   together.
 - **The server is holding those files open**, including an append-only log with
   no rotation, so a live move is not a `rename`. The realistic shape is: copy to
-  the chosen directory, verify, then have the *next* start use it. The banner
-  should raise with no live handles into the directory, which is why the
-  vocabulary placement signal wants the same refuse-rather-than-open behavior
-  as SQLite; see
+  the chosen directory, verify, then have the *next* start use it. The offer is
+  only usable when nothing holds the directory open, and learning keeps its
+  bloom file open there by design, so with learning enabled the banner warns
+  without a working button unless a close-and-reopen sequence is built. See
   [the vocabulary placement gap](vocabulary-scratch-placement-is-never-surfaced.md).
 - **One banner serves both placement reasons.** The signal carries a reason
   text and the banner is otherwise identical whether SQLite refused at startup
