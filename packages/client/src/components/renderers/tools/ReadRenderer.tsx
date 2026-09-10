@@ -1,4 +1,5 @@
-import { TextFileDisplaySchema } from "./displayContracts";
+import { toolDisplayContracts } from "./toolDisplayContracts";
+import { defineTool } from "./defineTool";
 import {
   type ReactNode,
   useCallback,
@@ -36,17 +37,11 @@ import type {
   ReadInput,
   ReadResult,
   TextFile,
-  ToolRenderer,
 } from "./types";
 import styles from "./ReadRenderer.module.css";
 
 /** Extended result type with server-rendered syntax highlighting */
-interface ReadResultWithAugment extends ReadResult {
-  _highlightedContentHtml?: string;
-  _highlightedLanguage?: string;
-  _highlightedTruncated?: boolean;
-  _renderedMarkdownHtml?: string;
-}
+type ReadResultWithAugment = ReadResult;
 
 /**
  * Extract filename from path
@@ -55,27 +50,12 @@ function getFileName(filePath: string): string {
   return getPathBasename(filePath);
 }
 
-/**
- * Runtime check that a Read result `file` is a fully-populated text file.
- *
- * The Zod schema marks every TextFile field `.optional()`, so `result.file as
- * TextFile` is unsound: a successful (non-error) Read can return a `file` with
- * only `filePath`. Claude Code's read-dedup does exactly this — when a file is
- * unchanged since the last Read it skips re-sending the body ("Wasted call —
- * file unchanged since your last Read") and omits `content`/`numLines`. Use this
- * guard instead of casting so the incomplete case is handled explicitly rather
- * than crashing in `undefined.replace(...)` or printing "undefined lines".
- *
- * A genuinely empty file still passes (content: "", numLines: 0); only the
- * content-less dedup shape is excluded.
- */
-function isCompleteTextFile(file: unknown): file is TextFile {
-  return TextFileDisplaySchema.safeParse(file).success;
+/** Narrow the checked union without parsing the record again. */
+function isCompleteTextFile(file: ReadResult["file"]): file is TextFile {
+  return "content" in file && typeof file.content === "string";
 }
-
-function getResultFilePath(file: unknown): string {
-  const f = file as { filePath?: unknown } | null | undefined;
-  return typeof f?.filePath === "string" ? f.filePath : "";
+function getResultFilePath(file: ReadResult["file"]): string {
+  return "filePath" in file ? file.filePath : "";
 }
 
 /**
@@ -642,7 +622,10 @@ function ReadToolResult({
     enabled && validationErrors && !isToolIgnored("Read");
 
   if (isError || !result?.file) {
-    const errorResult = result as unknown as { content?: unknown } | undefined;
+    const errorResult =
+      result && typeof result === "object" && "content" in result
+        ? result
+        : undefined;
     return (
       <div className="read-error">
         {showValidationWarning && validationErrors && (
@@ -661,10 +644,7 @@ function ReadToolResult({
         {showValidationWarning && validationErrors && (
           <SchemaWarning toolName="Read" errors={validationErrors} />
         )}
-        <PdfFileResult
-          file={result.file as PdfFile}
-          filePath={input?.file_path}
-        />
+        <PdfFileResult file={result.file} filePath={input?.file_path} />
       </>
     );
   }
@@ -675,10 +655,7 @@ function ReadToolResult({
         {showValidationWarning && validationErrors && (
           <SchemaWarning toolName="Read" errors={validationErrors} />
         )}
-        <ImageFileResult
-          file={result.file as ImageFile}
-          filePath={input?.file_path}
-        />
+        <ImageFileResult file={result.file} filePath={input?.file_path} />
       </>
     );
   }
@@ -838,31 +815,25 @@ function ReadInteractiveSummary({
   );
 }
 
-export const readRenderer: ToolRenderer<ReadInput, ReadResult> = {
+export const readRenderer = defineTool(toolDisplayContracts.Read, {
   tool: "Read",
 
   renderToolUse(input, _context) {
-    return <ReadToolUse input={input as ReadInput} />;
+    return <ReadToolUse input={input} />;
   },
 
   renderToolResult(result, isError, _context, input) {
-    return (
-      <ReadToolResult
-        input={input as ReadInput | undefined}
-        result={result as ReadResultWithAugment}
-        isError={isError}
-      />
-    );
+    return <ReadToolResult input={input} result={result} isError={isError} />;
   },
 
   getUseSummary(input) {
-    return getFileName((input as ReadInput).file_path);
+    return getFileName(input.file_path);
   },
 
   getResultSummary(result, isError, input?) {
-    if (isError && input) return getFileName((input as ReadInput).file_path);
+    if (isError && input) return getFileName(input.file_path);
     if (isError) return "Error";
-    const r = result as ReadResultWithAugment;
+    const r = result;
     if (!r?.file) return "Reading...";
     if (r.type === "pdf") return "PDF";
     if (r.type === "image") return "Image";
@@ -872,11 +843,7 @@ export const readRenderer: ToolRenderer<ReadInput, ReadResult> = {
 
   renderInteractiveSummary(input, result, isError, _context) {
     return (
-      <ReadInteractiveSummary
-        input={input as ReadInput}
-        result={result as ReadResultWithAugment | undefined}
-        isError={isError}
-      />
+      <ReadInteractiveSummary input={input} result={result} isError={isError} />
     );
   },
-};
+});

@@ -184,7 +184,8 @@ describe("CodeModeExecRenderer", () => {
         }),
       ),
     );
-    expect(container.textContent).toBe(
+    expect(container.querySelector('[data-tool-display="raw"]')).not.toBeNull();
+    expect(container.querySelector("pre")?.textContent).toBe(
       typeof result === "string" ? result : JSON.stringify(result, null, 2),
     );
   });

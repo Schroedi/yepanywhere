@@ -1,4 +1,5 @@
-import type { ToolRenderer } from "./types";
+import { toolDisplayContracts } from "./toolDisplayContracts";
+import { defineTool } from "./defineTool";
 import { decodeCodeModeOutput } from "@yep-anywhere/shared";
 import { useI18n } from "../../../i18n";
 import { ToolOutputText } from "../../ToolOutputText";
@@ -6,22 +7,14 @@ import { isAcliMetadata } from "../../../lib/toolOutputPresentation";
 import styles from "./CodeModeExecRenderer.module.css";
 import { formatCommandDuration } from "../../../lib/shellToolOutput";
 
-interface CodeModeCall {
-  input: unknown;
-  toolName: string;
-}
-
-interface CodeModeExecInput {
-  calls: CodeModeCall[];
-  source: string;
-}
-
-function isCodeModeExecInput(input: unknown): input is CodeModeExecInput {
-  return (
-    !!input &&
-    typeof input === "object" &&
-    Array.isArray((input as CodeModeExecInput).calls)
-  );
+type CodeModeExecInput = import("zod").z.output<
+  typeof toolDisplayContracts.Exec.input
+>;
+type CodeModeCall = CodeModeExecInput["calls"][number];
+function isCodeModeExecInput(
+  input: CodeModeExecInput | undefined,
+): input is CodeModeExecInput {
+  return input !== undefined;
 }
 
 function getCallPreview(call: CodeModeCall): string {
@@ -30,7 +23,7 @@ function getCallPreview(call: CodeModeCall): string {
     call.input &&
     typeof call.input === "object"
   ) {
-    const command = (call.input as Record<string, unknown>).cmd;
+    const command = call.input.cmd;
     if (typeof command === "string" && command.trim()) {
       return command.trim();
     }
@@ -38,7 +31,7 @@ function getCallPreview(call: CodeModeCall): string {
   return call.toolName;
 }
 
-function getCallCountSummary(input: unknown): string {
+function getCallCountSummary(input: CodeModeExecInput | undefined): string {
   if (!isCodeModeExecInput(input) || input.calls.length === 0) {
     return "done";
   }
@@ -91,7 +84,7 @@ function ExecOutput({
 }: {
   result: unknown;
   isError: boolean;
-  input?: unknown;
+  input?: CodeModeExecInput;
 }) {
   const { t } = useI18n();
   const raw =
@@ -168,7 +161,7 @@ function ExecOutput({
   );
 }
 
-export const codeModeExecRenderer: ToolRenderer = {
+export const codeModeExecRenderer = defineTool(toolDisplayContracts.Exec, {
   tool: "Exec",
   displayName: "Exec",
 
@@ -203,4 +196,4 @@ export const codeModeExecRenderer: ToolRenderer = {
   getResultSummary(_result, isError, input) {
     return isError ? "failed" : getCallCountSummary(input);
   },
-};
+});

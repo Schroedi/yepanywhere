@@ -241,10 +241,12 @@ describe("tool display boundary", () => {
 
   it("validates standalone registry rendering as well as combined rows", () => {
     const html = renderToStaticMarkup(
-      toolRegistry.renderToolUse(
-        "Write",
-        {},
-        { isStreaming: false, theme: "dark" },
+      providers(
+        toolRegistry.renderToolUse(
+          "Write",
+          {},
+          { isStreaming: false, theme: "dark" },
+        ),
       ),
     );
     expect(html).toContain("{}");

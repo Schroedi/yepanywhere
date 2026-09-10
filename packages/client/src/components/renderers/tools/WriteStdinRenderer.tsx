@@ -1,3 +1,5 @@
+import { toolDisplayContracts } from "./toolDisplayContracts";
+import { defineTool } from "./defineTool";
 import { type ReactNode, useState } from "react";
 import {
   extractDetachedCellId,
@@ -9,12 +11,7 @@ import { getPathBasename, makeDisplayPath } from "../../../lib/text";
 import { ActivityDetailModal } from "../../ActivityDetailModal";
 import { AnsiText } from "../../ui/AnsiText";
 import { FixedFontMathToggle } from "../../ui/FixedFontMathToggle";
-import type {
-  ToolRenderer,
-  ToolSummaryContext,
-  WriteStdinInput,
-  WriteStdinResult,
-} from "./types";
+import type { ToolSummaryContext } from "./types";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -303,10 +300,7 @@ function ReadViaPtyFile({
   );
 }
 
-export const writeStdinRenderer: ToolRenderer<
-  WriteStdinInput,
-  WriteStdinResult
-> = {
+export const writeStdinRenderer = defineTool(toolDisplayContracts.WriteStdin, {
   tool: "WriteStdin",
   displayName: "Shell",
   pendingDisplayName: "Waiting",
@@ -477,4 +471,4 @@ export const writeStdinRenderer: ToolRenderer<
       <ReadViaPtyFile filePath={linkedFilePath} output={parsed.output} inline />
     );
   },
-};
+});

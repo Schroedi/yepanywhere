@@ -438,13 +438,33 @@ Those records remain readable; display validation must not reject a session,
 rewrite the transcript, or infer missing content as an empty successful result.
 
 Before invoking rich tool rendering, the client checks its display requirements.
-The initial bounded contracts cover Read, Write, Edit (including raw patch
-strings), AskUserQuestion, ViewImage, Task/Agent, and spawn_agent inputs, plus
-Read, Write, Edit, and AskUserQuestion successful object results. Display types
-for Read/Write inputs, text files, patch hunks, and questions derive from the
-same Zod schemas used by these checks. Provider schemas and advisory schema
-warnings remain separate; they describe retained records rather than proving
-that every rich renderer can consume them.
+Every specialized registration binds input, result and optional failure/partial
+schemas to private callbacks with `defineTool`. `toolDisplayContracts.ts` owns
+all registered variants; `tools/index.tsx` enforces exact registration coverage.
+Types derive from schema output. Public callers receive safe prepared operations
+or inert metadata, never unchecked callbacks. Summaries and dynamic names use
+the same boundary as collapsed, expanded, inline, standalone and nested views.
+
+Preparation is data-only, bounded to the displayed record and shared across row
+operations after commentary transforms its input/output. There is no transcript
+scan or unbounded cache. The prepared record carries parsed values, execution
+status and rich/partial/raw classification. Rejections use an explicit failure
+schema or raw inspection, never a success parser. The effective error flag is
+`isError ?? status === "error"` for every operation; pending, incomplete and
+aborted remain distinct states. Standalone support is declared per tool.
+
+Known consumed augments (highlights, Markdown, diffs, media, project links and
+task snapshots) are checked explicitly. Nested Task content checks its block
+fields and retains JSON tool arguments only for the nested checked dispatcher;
+those arguments do not become trusted inputs to the parent renderer. Original
+records remain separately owned by inspection infrastructure. Plain text from
+providers lacking structured metadata gets an explicit partial presentation
+with checked input previews. Read dedup and the named Edit replacement, raw
+patch, augmented, changes and target-only alternatives remain usable.
+
+Provider schemas and advisory warnings stay separate; they describe retained
+records rather than proving rich rendering eligibility. Unknown tools retain
+ordinary disclosure behavior with generic original-data inspection.
 
 When required display data is missing or has the wrong type, the tool row
 shows its name and actual status, the original output when available, and
@@ -464,6 +484,11 @@ retries rich rendering. This containment is a last resort, not a claim that all
 provider/tool shapes now have exhaustive display schemas. It does not catch
 unrelated asynchronous callbacks or event-handler errors.
 
-Regression coverage renders malformed records through the combined tool row
-in collapsed and expanded states, checks complete and read-dedup controls, and
-mounts an intentionally failing renderer to verify containment and recovery.
+Registry-driven controls mount every declared variant and operation, assert
+semantic content, damage nested fields deterministically, and exercise lifecycle
+and standalone requirements. Unexpected synchronous and React boundary catches
+are counted; ordinary positive/negative controls require zero catches and zero
+console warnings. Dedicated throw tests assert local recovery and neighboring
+usability. Type fixtures and parser-backed architecture checks prevent common
+registration, fixture and callback-access omissions. See provider-authoring for
+the new-tool procedure and stream/persisted parity for native coverage limits.

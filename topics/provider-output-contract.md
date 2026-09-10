@@ -102,7 +102,7 @@ mention here.
 ### Optional client schema diagnostics
 
 The browser's developer **Schema Validation** setting is default-off. When it
-is off, tool renderers do not run their result schemas and the client shows no
+is off, tool renderers do not run their advisory provider-result schemas and the client shows no
 schema-diagnostic chrome. It is a provider-contract diagnostic, not a stream
 health check or a response-delivery mechanism.
 
@@ -118,6 +118,18 @@ runs the same schema so deferral does not leave a summary gap; the renderer
 still owns its inline warning once hydrated. Results that have never entered
 the mounted transcript have not been parsed and therefore cannot appear in the
 summary.
+
+Bounded client display checks run independently of this setting. They grant
+access only to checked callback data and never reject retained server records.
+The 14 diagnostic entries and the deliberately omitted display tools are
+accounted for in the registry inventory test; a provider diagnostic cannot
+substitute for a display contract. Malformed rows still contribute diagnostic
+issues even when rich content cannot mount.
+
+Gemini durable tool results retain their text and failure flag in the result
+block. The routing envelope (`tool_use_id`, `content`) is not a structured tool
+result. New clients also accept that older-server envelope as checked text, so
+the normalization correction does not introduce a server capability dependency.
 
 ## The normalized message envelope
 

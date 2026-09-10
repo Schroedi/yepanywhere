@@ -1968,9 +1968,16 @@ function convertGeminiMessages(
                 type: "user",
                 message: {
                   role: "user",
-                  content: [{ type: "tool_result", ...toolUseResult }],
+                  content: [
+                    {
+                      type: "tool_result",
+                      ...toolUseResult,
+                      ...(toolCall.status === "error"
+                        ? { is_error: true }
+                        : {}),
+                    },
+                  ],
                 },
-                toolUseResult,
                 timestamp: toolCall.timestamp ?? assistantMsg.timestamp,
               });
             }

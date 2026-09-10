@@ -2,9 +2,34 @@
 
 Topic: tool-display-contracts
 
-Status: approved design, 2026-09-10, after independent review and maintainer
-discussion. Implementation is pending on another machine with a broader
-session-history corpus. This change records and publishes the plan only.
+Status: implemented 2026-09-10. All 26 specialized registrations use checked
+schema-bound dispatch; no legacy allowlist remains. Durable contracts and the
+bounded native coverage matrix live in the linked owning topics. Validation
+includes root lint/typecheck/tests, registry mutation and native mounted suites,
+and desktop/phone browser recovery checks. Final verification evidence is
+recorded in the implementation commit.
+
+Validation record:
+
+- 976 registry mutation/lifecycle controls; 80 native paired specimens mounted
+  on both delivery paths; 81 native server checks including variant accounting.
+- Full client suite: 5,534 passed. Full server rerun: 4,930 passed, 54 skipped.
+  Root test invocation also passed shared (719), relay (130), push broker (44).
+  Its unrelated watcher classification race is recorded in
+  `gaps/file-watcher-baseline-event-classification-race.md`; the isolated test
+  and complete server rerun passed without changing watcher code.
+- Root lint and format checks clean; root typecheck includes compile-fail
+  fixtures and the clean server fixture scope. Nine architecture probes pass.
+- Browser fixture passes at both required sizes, including a width assertion,
+  recovery/disclosure and zero page/console errors. Final captures inspected
+  sequentially and archived at
+  `.artifacts/ui-testing/2026-09-10-tool-display-contracts/{desktop,phone}.png`.
+- Console budgets unchanged (110 chatty sites, 61 warn and 92 error sites).
+  CSS module checks pass; coupled/scattered legacy ownership prevented bounded
+  extraction. Only the new partial-text wrapping rule uses a new module.
+- Validation ran on macOS. No Linux/Windows native filesystem behavior changed;
+  those operating systems were not run locally. Native cases use deterministic
+  injected messages, not paid live provider sessions.
 
 ## Motivation and requested outcome
 
@@ -437,5 +462,5 @@ cast-count audit or a promised tiny custom checker is not a completion proof.
 The maintainer accepted the schema-derived model and the qualifications above.
 The implementation steps now specify preparation after commentary transforms,
 named Edit alternatives, standalone-result capabilities per definition, and a
-distinct but coordinated developer-diagnostic inventory. Implementation remains
-pending on the selected machine; this commit publishes the agreed plan only.
+distinct but coordinated developer-diagnostic inventory. The implementation now follows these boundaries; the review notes above are
+retained as design history.

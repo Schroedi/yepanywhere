@@ -1,6 +1,5 @@
 import { decodeCodeModeOutput, initialAcliFormat } from "@yep-anywhere/shared";
-import { normalizeBashResult } from "../components/renderers/tools/BashRenderer";
-import type { BashResult } from "../components/renderers/tools/types";
+import { normalizeBashResult } from "./bashResult";
 import type { ToolCallItem } from "../types/renderItems";
 
 type Invocation = Pick<ToolCallItem, "toolName" | "toolInput" | "toolResult">;
@@ -21,10 +20,7 @@ export function readToolCommentaryOutput(props: Invocation) {
       props.toolName.toLowerCase(),
     )
   ) {
-    const shell = normalizeBashResult(
-      raw as BashResult | string | undefined,
-      props.toolResult?.isError ?? false,
-    );
+    const shell = normalizeBashResult(raw, props.toolResult?.isError ?? false);
     return {
       stdout: shell.stdout ?? "",
       stderr: shell.stderr ?? "",

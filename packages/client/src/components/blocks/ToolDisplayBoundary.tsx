@@ -1,3 +1,4 @@
+import { toolDisplayDiagnostics } from "../renderers/tools/displayDiagnostics";
 import { Component, type ReactNode } from "react";
 import { useI18n } from "../../i18n";
 import type { ToolCallItem } from "../../types/renderItems";
@@ -80,6 +81,10 @@ export class ToolDisplayBoundary extends Component<
       return { error: null, record: props };
     }
     return null;
+  }
+
+  componentDidCatch() {
+    toolDisplayDiagnostics.renderCatches++;
   }
 
   render() {

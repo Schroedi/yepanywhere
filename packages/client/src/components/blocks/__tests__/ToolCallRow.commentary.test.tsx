@@ -48,7 +48,20 @@ function row(
                 <ToolCallRow
                   id="command"
                   toolName="Bash"
-                  toolInput={{ command: "report --jsonl" }}
+                  toolInput={
+                    overrides.toolName === "Exec"
+                      ? {
+                          source:
+                            "text(await tools.exec_command({cmd: 'report --jsonl'}))",
+                          calls: [
+                            {
+                              toolName: "exec_command",
+                              input: { cmd: "report --jsonl" },
+                            },
+                          ],
+                        }
+                      : { command: "report --jsonl" }
+                  }
                   status={pending ? "pending" : "complete"}
                   toolResult={{
                     content: stdout,

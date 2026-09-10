@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.test.json",
+  "compilerOptions": { "jsx": "react-jsx", "types": ["node"] },
+  "include": [
+    "../client/src/vite-env.d.ts",
+    "test/tool-display-native.test.ts",
+    "test/utils/native-tool-display-corpus.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

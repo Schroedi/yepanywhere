@@ -201,17 +201,19 @@ describe("ToolCallRow", () => {
     setStableToolPreviewRenderingPreference(false);
 
     render(
-      <ToolCallRow
-        id="tool-schema-offscreen"
-        toolName="Read"
-        toolInput={{ file_path: "/tmp/example" }}
-        toolResult={{
-          content: "",
-          isError: false,
-          structured: { type: "invalid" },
-        }}
-        status="complete"
-      />,
+      <I18nProvider>
+        <ToolCallRow
+          id="tool-schema-offscreen"
+          toolName="Read"
+          toolInput={{ file_path: "/tmp/example" }}
+          toolResult={{
+            content: "",
+            isError: false,
+            structured: { type: "invalid" },
+          }}
+          status="complete"
+        />
+      </I18nProvider>,
     );
 
     await waitFor(() => {

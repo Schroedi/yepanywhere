@@ -129,3 +129,30 @@ items; a green unit test on one path is not proof the settled render converges.
 - Per-provider "JSONL object shapes" are only in code/schemas; a generated
   schema reference (from the Zod types) would document the normalized objects
   without a drift risk.
+
+## Adding a specialized tool display
+
+Provider validity does not prove renderability. Add the consumed fields to a
+bounded client display schema in `components/renderers/tools/displayContracts.ts`,
+declare its input/result/failure, supported variants and standalone policy in
+`toolDisplayContracts.ts`, then bind callbacks with `defineTool`. Callback
+arguments are schema outputs. Do not import a renderer outside the registry,
+retrieve callbacks, assert payloads into display types, or use permissive
+schemas to grant rich access. Shared utilities belong in owned helper modules.
+
+Add independent positive controls for every variant to the exhaustive
+`__fixtures__/displayFixtures.ts` manifest. Describe source provenance or the
+reason a variant is synthetic. The registry suite mounts all operations,
+mutates nested fields, and checks lifecycle, raw inspection and zero unexpected
+exception catches. Add native live/durable pairs to
+`server/test/utils/native-tool-display-corpus.ts` for distinct provider seams.
+Both the server parity suite and the mounted client suite execute those pairs;
+synthetic variants and unavailable native facts must have explicit coverage
+notes in the parity topic. Keep developer diagnostic inventory separate.
+
+Root `typecheck` includes client positive/negative type fixtures and the clean
+`server/tsconfig.tool-display-tests.json` scope; this does not mark the broader
+server-test typing gap closed. Root `test` runs registry and native suites.
+Root `lint` includes `tools:check`, with parser-backed negative probes for
+private imports, callback access and concrete payload assertion patterns.
+These gates detect specific escapes, not arbitrary TypeScript unsoundness.

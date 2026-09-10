@@ -338,3 +338,57 @@ today's Codex heuristic) is **not yet implemented**; the exitCode fix above is
 the point fix. Track that work under bash-result-contract, and require a
 stream+persisted parity fixture whenever a provider gains a new structured
 field.
+
+## Native ingestion through tool display
+
+`server/test/utils/native-tool-display-corpus.ts` feeds deterministic native
+messages into production adapters before the existing parity harness. Server
+checks compare compiled records and data-only prepared values/classification;
+`client/.../tools/__tests__/displayNative.test.tsx` runs the same pairs and mounts
+both outputs with semantic content expectations. A safe raw fallback is a test
+failure for a declared rich/partial specimen. No CLI, credentials, or paid
+provider session is required. The persisted harness includes the production
+TaskList snapshot pass before rich augments.
+
+Coverage ownership (synthetic native envelopes, invented non-private values):
+
+| Provider seam | Paired tool variants |
+| --- | --- |
+| Claude SDK `convertMessage` / native JSONL normalization | Read text/dedup/image/PDF/text-only; Write file/ack/rejection; Edit replacement/text-only; Bash; Glob; Grep files/content/count/text-only; TodoWrite; Task complete/async/text-only; search/fetch; questions; plan exit; background shell/task output; kill; task create/update events |
+| Codex app-server raw-response notifications / rollout response items | goals, plan, stdin, image, spawn; multi-call Exec; custom apply_patch; code-mode Web; shell-recognized Read/Grep/heredoc Write/Bash |
+| Codex commandExecution notifications / durable shell calls | Read, Grep and heredoc Write; structured bodies, status and checked values agree |
+| Gemini CLI native events / session JSON | read_file, replace, write_file (including rejection), glob, search_file_content, run_shell_command |
+| OpenCode SSE parts / stored message parts | read, edit, write, glob, grep, bash, todowrite, task, webfetch, websearch, question, apply_patch |
+| Pi AgentSession events / native message-node reader | read, write, edit replacements, bash, grep; both sides use pi-tools normalization |
+| Grok ACP updates / updates-JSONL reader | Write/SearchReplace result; both sides use the shared Grok normalizer |
+
+The matrix deliberately does not claim every provider emits every renderer
+variant. Additional Grok tool conversions, legacy Codex OSS events, Pi custom
+extensions, and Gemini ACP's input-less call notifications retain their owning
+provider adapter tests and universal display fallback; no new rich variant is
+claimed for those paths here. Gemini ACP cannot supply a complete Write input
+from its current notification adapter. Unknown/provider-defined tools retain
+raw inspection without a schema registration. Existing provider tests remain
+responsible for transport wiring and variants not declared above.
+
+Write highlighting, Edit structured-patch-only/changes/target-only records and
+TaskList snapshots have explicit synthetic controls: these are YA augmentation
+or incomplete compatibility shapes rather than fabricated native histories.
+Native file pairs also exercise production highlighting. Registry controls check
+all declared alternate shapes, and browser coverage includes nested rejected
+Write, partial text, pending-to-complete, disclosure, and corrected input.
+
+Two bounded native comparison exceptions are asserted before comparison:
+Grok's reader retains final ACP `status` as extra input metadata while live
+emission keeps it on execution state; Codex commandExecution labels empty output
+`(no output)` while rollout output is empty. Neither changes checked result
+facts, execution status, identity, or rendered content. The corpus does not
+invent durable parent links for independently retained child transcripts;
+compiled ownership is compared as supplied, with nested mounting checked by the
+Task/ToolCallRow suites and browser fixture.
+
+A bounded local census on 2026-09-10 inspected at most 20 recent inactive files
+per provider and 8 MB per file: 3,522 Claude rows (2.1.201–2.1.258) and 8,607
+Codex rows (0.145.0–0.153.2). Only aggregate tool/field/version counts were kept
+locally. Committed fixtures contain invented values, not transcript excerpts.
+Codex adapter source was checked against the declared rust-v0.154.0 reference.

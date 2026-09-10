@@ -1,4 +1,4 @@
-import { prepareToolDisplay } from "../renderers/tools/displayContracts";
+import type { PreparedToolDisplay } from "../renderers/tools/defineTool";
 import { RawToolDisplay, ToolDisplayBoundary } from "./ToolDisplayBoundary";
 import {
   type CSSProperties,
@@ -544,38 +544,60 @@ export const ToolCallRow = memo(function ToolCallRow(props: Props) {
   return (
     <ToolDisplayBoundary {...props} toolResult={originalOutput}>
       <ToolCommentaryBoundary {...props}>
-        {(toolInput, toolResult, workflow) => {
-          const output = toolResult?.structured ?? toolResult?.content;
-          if (
-            prepareToolDisplay(
-              props.toolName,
-              toolInput,
-              output,
-              toolResult?.isError ?? props.status === "error",
-            ).kind === "raw"
-          ) {
-            return (
-              <RawToolDisplay
-                {...props}
-                toolInput={toolInput}
-                toolResult={output}
-              />
-            );
-          }
-          return (
-            <ToolCallRowContent
-              {...props}
-              toolInput={toolInput}
-              toolResult={toolResult}
-              workflow={workflow}
-              originalOutput={originalOutput}
-            />
-          );
-        }}
+        {(toolInput, toolResult, workflow) => (
+          <PreparedToolCallRow
+            {...props}
+            toolInput={toolInput}
+            toolResult={toolResult}
+            workflow={workflow}
+            originalOutput={originalOutput}
+          />
+        )}
       </ToolCommentaryBoundary>
     </ToolDisplayBoundary>
   );
 });
+
+function PreparedToolCallRow(props: Props & { originalOutput?: unknown }) {
+  const output = props.toolResult?.structured ?? props.toolResult?.content;
+  const prepared = useMemo(
+    () =>
+      toolRegistry.prepare(props.toolName, {
+        input: props.toolInput,
+        result: output,
+        status: props.status,
+        isError: props.toolResult?.isError,
+      }),
+    [
+      props.toolName,
+      props.toolInput,
+      output,
+      props.status,
+      props.toolResult?.isError,
+    ],
+  );
+  const metadata = toolRegistry.metadata(props.toolName);
+  const { enabled, reportValidationError } = useSchemaValidationContext();
+  useEffect(() => {
+    if (prepared.kind !== "raw" || !enabled || !props.toolResult?.structured)
+      return;
+    const validation = validateToolResult(
+      metadata.tool,
+      props.toolResult.structured,
+    );
+    if (!validation.valid && validation.errors)
+      reportValidationError(metadata.tool, validation.errors);
+  }, [
+    prepared.kind,
+    enabled,
+    props.toolResult?.structured,
+    metadata.tool,
+    reportValidationError,
+  ]);
+  if (prepared.kind === "raw" && metadata.registered)
+    return <RawToolDisplay {...props} toolResult={output} />;
+  return <ToolCallRowContent {...props} prepared={prepared} />;
+}
 
 const ToolCallRowContent = memo(function ToolCallRowContent({
   id,
@@ -588,7 +610,8 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
   startTimestampMs,
   resultTimestampMs,
   originalOutput,
-}: Props & { originalOutput?: unknown }) {
+  prepared,
+}: Props & { originalOutput?: unknown; prepared: PreparedToolDisplay }) {
   const [summaryExpanded, setSummaryExpanded] = useRememberedDisclosureState(
     id,
     "interactive-summary",
@@ -662,7 +685,7 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
     status,
     noOutputBashResult !== null,
   );
-  const rendererToolName = toolRegistry.get(toolName).tool;
+  const rendererToolName = toolRegistry.metadata(toolName).tool;
   useEffect(() => {
     if (
       !schemaValidationEnabled ||
@@ -684,7 +707,9 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
     structuredResult,
   ]);
   const mayHaveCollapsedPreview =
-    toolRegistry.hasCollapsedPreview(toolName) && !suppressCollapsedPreview;
+    (prepared.kind === "partial" ||
+      toolRegistry.hasCollapsedPreview(toolName)) &&
+    !suppressCollapsedPreview;
   const isEditTool = rendererToolName === "Edit";
   const isReadTool = rendererToolName === "Read";
   const isBashTool = rendererToolName === "Bash";
@@ -748,22 +773,18 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
   );
 
   const interactiveSummaryContent = useMemo(() => {
-    if (!canRenderInteractiveSummary || !shouldHydrateRichContent) {
+    if (
+      !canRenderInteractiveSummary ||
+      !toolRegistry.hasInteractiveSummary(toolName) ||
+      !shouldHydrateRichContent
+    ) {
       return null;
     }
-    return toolRegistry.renderInteractiveSummary(
-      toolName,
-      toolInput,
-      structuredResult,
-      toolResult?.isError ?? false,
-      interactiveSummaryContext,
-    );
+    return prepared.renderInteractiveSummary(interactiveSummaryContext);
   }, [
     toolName,
-    toolInput,
-    structuredResult,
-    toolResult,
     interactiveSummaryContext,
+    prepared,
     shouldHydrateRichContent,
     canRenderInteractiveSummary,
   ]);
@@ -774,7 +795,13 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
     interactiveSummaryContent !== false;
 
   const collapsedPreviewContent = useMemo(() => {
-    if (suppressCollapsedPreview || !shouldHydrateRichContent) {
+    if (
+      suppressCollapsedPreview ||
+      (prepared.kind !== "partial" &&
+        !toolRegistry.hasCollapsedPreview(toolName) &&
+        !workflow?.view) ||
+      !shouldHydrateRichContent
+    ) {
       return null;
     }
     if (
@@ -796,22 +823,15 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
         />
       );
     }
-    return toolRegistry.renderCollapsedPreview(
-      toolName,
-      toolInput,
-      structuredResult,
-      toolResult?.isError ?? false,
-      renderContext,
-    );
+    return prepared.renderCollapsedPreview(renderContext);
   }, [
+    toolName,
     suppressCollapsedPreview,
     workflow,
     originalOutput,
-    toolName,
-    toolInput,
-    structuredResult,
     toolResult,
     renderContext,
+    prepared,
     shouldHydrateRichContent,
   ]);
 
@@ -943,10 +963,24 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
   };
 
   const summary = useMemo(() => {
-    return getToolSummary(toolName, toolInput, toolResult, status, {
-      projectPath: sessionMetadata?.projectPath ?? null,
-    });
-  }, [toolName, toolInput, toolResult, status, sessionMetadata?.projectPath]);
+    return getToolSummary(
+      toolName,
+      toolInput,
+      toolResult,
+      status,
+      {
+        projectPath: sessionMetadata?.projectPath ?? null,
+      },
+      prepared,
+    );
+  }, [
+    toolName,
+    toolInput,
+    toolResult,
+    status,
+    sessionMetadata?.projectPath,
+    prepared,
+  ]);
   const headerCommand = isBashTool
     ? getDisplayBashCommandFromInput(toolInput)
     : "";
@@ -1141,7 +1175,7 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
   if (toolResult?.media?.length) {
     return (
       <ToolResultMediaRows
-        displayName={toolRegistry.getDisplayName(toolName, status, toolInput)}
+        displayName={prepared.getDisplayName()}
         media={toolResult.media}
         sourcePath={getToolResultImageSourcePath(
           toolName,
@@ -1157,14 +1191,7 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
   if (hasInlineRenderer) {
     return (
       <div className="tool-inline timeline-item">
-        {toolRegistry.renderInline(
-          toolName,
-          toolInput,
-          structuredResult,
-          toolResult?.isError ?? false,
-          status,
-          renderContext,
-        )}
+        {prepared.renderInline(renderContext)}
       </div>
     );
   }
@@ -1285,7 +1312,7 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
         )}
 
         <span className="tool-name" onPointerEnter={handleToolNamePointerEnter}>
-          {toolRegistry.getDisplayName(toolName, status, toolInput)}
+          {prepared.getDisplayName()}
         </span>
 
         {hasInteractiveSummary && canRenderInteractiveSummary ? (
@@ -1438,8 +1465,7 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
         <div className="tool-row-content">
           <ToolRowCollapseStrip onCollapse={() => setDotExpanded(false)} />
           <ToolResultExpanded
-            toolName={toolName}
-            toolInput={toolInput}
+            prepared={prepared}
             toolResult={toolResult}
             context={renderContext}
           />
@@ -1459,15 +1485,10 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
           ) : status === "pending" ||
             status === "aborted" ||
             status === "incomplete" ? (
-            <ToolUseExpanded
-              toolName={toolName}
-              toolInput={toolInput}
-              context={renderContext}
-            />
+            <ToolUseExpanded prepared={prepared} context={renderContext} />
           ) : (
             <ToolResultExpanded
-              toolName={toolName}
-              toolInput={toolInput}
+              prepared={prepared}
               toolResult={toolResult}
               context={renderContext}
             />
@@ -1659,48 +1680,29 @@ function BashNoOutputExpanded({ command }: { command: string }) {
 }
 
 function ToolUseExpanded({
-  toolName,
-  toolInput,
+  prepared,
   context,
 }: {
-  toolName: string;
-  toolInput: unknown;
+  prepared: PreparedToolDisplay;
   context: RenderContext;
 }) {
   return (
-    <div className="tool-use-expanded">
-      {toolRegistry.renderToolUse(toolName, toolInput, context)}
-    </div>
+    <div className="tool-use-expanded">{prepared.renderToolUse(context)}</div>
   );
 }
-
 function ToolResultExpanded({
-  toolName,
-  toolInput,
+  prepared,
   toolResult,
   context,
 }: {
-  toolName: string;
-  toolInput: unknown;
+  prepared: PreparedToolDisplay;
   toolResult: ToolResultData | undefined;
   context: RenderContext;
 }) {
-  if (!toolResult) {
-    return <div className="tool-no-result">No result data</div>;
-  }
-
-  // Use structured result if available, otherwise fall back to content
-  const result = toolResult.structured ?? toolResult.content;
-
+  if (!toolResult) return <div className="tool-no-result">No result data</div>;
   return (
     <div className="tool-result-expanded">
-      {toolRegistry.renderToolResult(
-        toolName,
-        result,
-        toolResult.isError,
-        context,
-        toolInput,
-      )}
+      {prepared.renderToolResult(context)}
     </div>
   );
 }

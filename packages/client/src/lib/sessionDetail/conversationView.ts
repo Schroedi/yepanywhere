@@ -105,7 +105,7 @@ export function conversationViewSurfaceReason(
   if (item.status === "error" || item.status === "incomplete") {
     return "error";
   }
-  if (toolRegistry.get(item.toolName).tool === "UpdatePlan") {
+  if (toolRegistry.metadata(item.toolName).tool === "UpdatePlan") {
     return "importance";
   }
   if (
@@ -273,7 +273,7 @@ function getRecentActivity(
   item: RenderItem,
 ): ConversationRecentActivity | null {
   if (item.type === "tool_call") {
-    const renderer = toolRegistry.get(item.toolName);
+    const renderer = toolRegistry.metadata(item.toolName);
     const label = toolRegistry.getDisplayName(
       item.toolName,
       "pending",

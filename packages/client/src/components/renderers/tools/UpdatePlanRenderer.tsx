@@ -1,9 +1,6 @@
-import type {
-  ToolRenderer,
-  UpdatePlanInput,
-  UpdatePlanResult,
-  UpdatePlanStep,
-} from "./types";
+import { toolDisplayContracts } from "./toolDisplayContracts";
+import { defineTool } from "./defineTool";
+import type { UpdatePlanStep } from "./types";
 
 type NormalizedPlanStatus = "pending" | "in_progress" | "completed";
 
@@ -93,10 +90,7 @@ function extractResultMessage(result: unknown): string | undefined {
   return undefined;
 }
 
-export const updatePlanRenderer: ToolRenderer<
-  UpdatePlanInput,
-  UpdatePlanResult
-> = {
+export const updatePlanRenderer = defineTool(toolDisplayContracts.UpdatePlan, {
   tool: "UpdatePlan",
   displayName: "Update plan",
 
@@ -183,4 +177,4 @@ export const updatePlanRenderer: ToolRenderer<
     }
     return extractResultMessage(result) || "Plan updated";
   },
-};
+});

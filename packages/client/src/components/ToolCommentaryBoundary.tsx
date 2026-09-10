@@ -35,7 +35,7 @@ import {
 import type { ToolCallItem, ToolResultData } from "../types/renderItems";
 import { AcliCommentary } from "./AcliCommentary";
 import { ActivityDetailModal } from "./ActivityDetailModal";
-import { BashModalContent } from "./renderers/tools/BashRenderer";
+import { BashModalContent } from "./renderers/tools/BashOutputDetail";
 import type { BashInput, BashResult } from "./renderers/tools/types";
 
 interface Props {
