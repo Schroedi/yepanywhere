@@ -193,6 +193,7 @@ let supervisorForShutdown:
 let disposeAppForShutdown:
   | Awaited<ReturnType<typeof createApp>>["disposeSessionReaders"]
   | null = null;
+let stopNotificationsForShutdown: (() => void) | null = null;
 let deviceBridgeForShutdown: DeviceBridgeService | null = null;
 let projectGlossarySubscriptionsForShutdown: ProjectGlossarySubscriptionManager | null =
   null;
@@ -219,6 +220,9 @@ async function gracefulShutdown(signal: string): Promise<void> {
     return;
   }
   isShuttingDown = true;
+  // Shutdown is intentional on every platform, whether providers are aborted
+  // locally or detached to the Linux host. Cleanup is not new task activity.
+  stopNotificationsForShutdown?.();
 
   console.log(`[Shutdown] Received ${signal}, cleaning up...`);
 
@@ -981,6 +985,7 @@ async function startServer() {
     supervisor,
     scanner,
     disposeSessionReaders,
+    stopNotifications,
     glossaryIndexService,
     externalTracker,
     resolveAbsoluteFilePaths,
@@ -1077,6 +1082,7 @@ async function startServer() {
     allowedImagePaths: config.allowedImagePaths,
   });
   markStartup("app created");
+  stopNotificationsForShutdown = stopNotifications;
   await artifactServer.configure(artifactServer.config);
   disposeAppForShutdown = disposeSessionReaders;
 

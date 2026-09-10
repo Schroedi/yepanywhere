@@ -553,6 +553,8 @@ export interface SupervisorOptions {
   ) => void;
   /** Callback to fetch session summary for initial metadata reconciliation */
   onSessionSummary?: OnSessionSummaryCallback;
+  /** Notification policy only; called before a supported manual turn stop. */
+  onSessionStopRequested?: (sessionId: string) => void;
   /** Best-effort transcript recovery for sessions without a launch snapshot. */
   recoverSessionLaunchSettings?: RecoverSessionLaunchSettingsCallback;
   /** Callback to read the current heartbeat-turn settings for a session */
@@ -630,6 +632,7 @@ export class Supervisor {
     provider: ProviderName,
   ) => void;
   private onSessionSummary?: OnSessionSummaryCallback;
+  private onSessionStopRequested?: (sessionId: string) => void;
   private recoverSessionLaunchSettings?: RecoverSessionLaunchSettingsCallback;
   private staleCheckTimer: ReturnType<typeof setInterval>;
   private getHeartbeatTurnSettings?: (
@@ -715,6 +718,7 @@ export class Supervisor {
     this.getSessionChildEnv = options.getSessionChildEnv;
     this.onContextWindowObserved = options.onContextWindowObserved;
     this.onSessionSummary = options.onSessionSummary;
+    this.onSessionStopRequested = options.onSessionStopRequested;
     this.recoverSessionLaunchSettings = options.recoverSessionLaunchSettings;
     this.getHeartbeatTurnSettings = options.getHeartbeatTurnSettings;
     this.getHeartbeatTurnCandidates = options.getHeartbeatTurnCandidates;
@@ -4609,6 +4613,10 @@ export class Supervisor {
   ): Promise<{ success: boolean; supported: boolean; hardAborted?: boolean }> {
     const process = this.processes.get(processId);
     if (!process) return { success: false, supported: false };
+
+    if (process.supportsInterrupt) {
+      this.onSessionStopRequested?.(process.sessionId);
+    }
 
     await this.pauseRecapsUntilUserTurn(processId);
 

@@ -471,6 +471,8 @@ export interface AppResult {
   readerFactory: (project: Project) => ISessionReader;
   /** Close cached session readers and their owned parser workers. */
   disposeSessionReaders: () => Promise<void>;
+  /** Stop session/inactivity push generation before provider shutdown. */
+  stopNotifications: () => void;
   /** Shared resolver used by the artifact route and glossary subscriptions. */
   glossaryIndexService: GlossaryIndexService;
   /** Global external-session observer and its bounded background diagnostics. */
@@ -1299,7 +1301,16 @@ export function createApp(options: AppOptions): AppResult {
       : (getProvider(providerName) ?? undefined);
   };
 
+  let pushNotifier: PushNotifier | undefined;
+  let inactivityPushNotifier: InactivityPushNotifier | undefined;
+  const stopNotifications = () => {
+    pushNotifier?.dispose();
+    inactivityPushNotifier?.dispose();
+  };
+
   supervisor = new Supervisor({
+    onSessionStopRequested: (sessionId) =>
+      pushNotifier?.suppressSession(sessionId),
     sdk: options.sdk,
     realSdk: options.realSdk,
     provider:
@@ -1572,7 +1583,7 @@ export function createApp(options: AppOptions): AppResult {
   // Create PushNotifier if push notifications are enabled
   // This sends push notifications when sessions need user input
   if (options.eventBus && options.pushService) {
-    new PushNotifier({
+    pushNotifier = new PushNotifier({
       eventBus: options.eventBus,
       pushService: options.pushService,
       supervisor,
@@ -1580,7 +1591,7 @@ export function createApp(options: AppOptions): AppResult {
   }
 
   if (options.eventBus && options.pushService && options.projectQueueService) {
-    new InactivityPushNotifier({
+    inactivityPushNotifier = new InactivityPushNotifier({
       eventBus: options.eventBus,
       pushService: options.pushService,
       supervisor,
@@ -2840,6 +2851,7 @@ export function createApp(options: AppOptions): AppResult {
     scanner,
     readerFactory,
     disposeSessionReaders,
+    stopNotifications,
     glossaryIndexService,
     externalTracker,
     resolveAbsoluteFilePaths: localResourcePathPolicy.findAllowedFilePaths,
