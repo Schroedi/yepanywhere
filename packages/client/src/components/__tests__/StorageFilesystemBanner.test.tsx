@@ -8,7 +8,9 @@ import {
 } from "../StorageFilesystemBanner";
 
 const version = vi.hoisted(() => ({
-  value: null as { sqlite?: { state: string; networkFilesystem?: string } } | null,
+  value: null as {
+    sqlite?: { state: string; networkFilesystem?: string };
+  } | null,
 }));
 
 vi.mock("../../hooks/useVersion", () => ({
@@ -62,9 +64,9 @@ describe("StorageFilesystemBanner", () => {
     const first = renderBanner();
     fireEvent.click(screen.getByRole("button"));
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(window.localStorage.getItem(storageFilesystemDismissKey("NFS"))).toBe(
-      "dismissed",
-    );
+    expect(
+      window.localStorage.getItem(storageFilesystemDismissKey("NFS")),
+    ).toBe("dismissed");
     first.unmount();
 
     renderBanner();
