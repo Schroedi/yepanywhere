@@ -107,6 +107,12 @@ including through symlinks. Requests outside the document origin fail unless
 YA cookies, or existing tab is reused. This is a static-bundle renderer, not a
 development server or backend API emulator.
 
+Before the browser starts it also makes a color emoji font available to this
+host, so YA's emoji-bearing UI photographs as itself rather than as fallback
+boxes; [UI testing](ui-testing.md#emoji-need-a-font-on-the-capture-host) owns
+that contract, including the one-download-per-machine cache and what a host
+without fontconfig reports instead.
+
 It waits for network idle and fonts, and accepts `--ready-selector <css>` for
 an application-specific ready state. Load failures, console errors, missing
 assets, and operation timeouts fail the command. Browser warnings remain visible

@@ -10,6 +10,7 @@ import { hostname } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { InstallService } from "../../server/src/services/InstallService.js";
+import { ensureColorEmojiFont } from "../scripts/emoji-font.js";
 
 import { createE2ERunDirectory } from "./support/run-directory.js";
 
@@ -64,6 +65,11 @@ function shouldStartRelay(): boolean {
 }
 
 export default async function globalSetup() {
+  // Screenshots of emoji-bearing UI are only truthful when the host has a color
+  // emoji font; this installs one once per machine and is silent afterwards.
+  const emojiFont = await ensureColorEmojiFont();
+  if (emojiFont.status !== "present")
+    console.log(`[E2E] Emoji font: ${emojiFont.detail}`);
   const serverLogLevel = process.env.E2E_SERVER_LOG_LEVEL ?? "warn";
   const serverFileLogLevel =
     process.env.E2E_SERVER_FILE_LOG_LEVEL ?? serverLogLevel;

@@ -22,6 +22,7 @@ import {
   SERVER_CAPABILITIES,
   type ServerCapabilitySource,
 } from "../../shared/src/server-capabilities";
+import { ensureColorEmojiFont } from "./emoji-font";
 
 const serverRequire = createRequire(
   new URL("../../server/package.json", import.meta.url),
@@ -244,6 +245,8 @@ export async function captureArtifact(options: CaptureOptions) {
   await mkdir(dirname(output), { recursive: true });
   // Each capture owns a new directory; existing output is never overwritten.
   await mkdir(output);
+  // Before the browser starts, so emoji in the page render as themselves.
+  const emojiFont = await ensureColorEmojiFont();
   const browser = await chromium.launch();
   const screenshots: {
     name: string;
@@ -253,6 +256,7 @@ export async function captureArtifact(options: CaptureOptions) {
   }[] = [];
   let delivery: ArtifactDelivery = { status: "skipped", reason: "Not started" };
   const warnings = new Set<string>();
+  if (emojiFont.status === "unavailable") warnings.add(emojiFont.detail);
   try {
     delivery = isUrl
       ? {

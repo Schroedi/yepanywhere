@@ -161,6 +161,14 @@ interactive link, and when it does not the same call still delivers the images
 with a stated reason. So route captures through it unconditionally rather than
 deciding first whether delivery will succeed.
 
+That default is what "use headless Chromium" means here: any reason to open a
+headless browser against this UI goes through this command, or through a
+`packages/client/e2e/` case that records with `recordUiCapture`. Whether an
+interactive artifact is actually created is the YA installation's decision,
+carried by its own configuration and the launcher's environment, and the
+capture reports which way it went. It is never a question the caller answers by
+inspecting configuration first.
+
 Use an available browser-control capability for interactive web UI checks.
 If setup or discovery reports no browser, or the browser inventory is empty,
 immediately fall back to the repository's installed Playwright dependency,
@@ -257,6 +265,25 @@ browser automation path or a manual browser session:
 2. Resize viewport to desktop + mobile dimensions.
 3. Capture screenshots via the tool or OS-level capture.
 4. Attach the files where reviewers can review them directly.
+
+### Emoji need a font on the capture host
+
+Headless Chromium draws emoji only from a color emoji font installed on the
+host, and Linux servers commonly ship none. YA uses emoji in its own UI — the
+Emoji settings-icon style is a whole icon set — and transcripts carry them
+constantly, so a font-less host photographs them as blank or monochrome boxes
+that read as a UI defect rather than a missing font.
+
+Both capture paths therefore call `ensureColorEmojiFont` from
+`packages/client/scripts/emoji-font.ts` before they launch a browser. It asks
+local fontconfig first, so a host that already has an emoji font makes no
+network request at all. A host without one downloads a pinned, digest-checked
+Noto Color Emoji once into `~/.cache/yepanywhere/fonts`, installs it into the
+user font directory, and is found locally from then on: at most one request per
+machine, never one per capture, and no root. macOS and Windows supply their own
+and are left alone. When the install cannot happen — no fontconfig, no network
+— the capture still succeeds and carries the reason in its warnings, and emoji
+in those images say nothing about the UI.
 
 ## Verification acceptance checklist
 
