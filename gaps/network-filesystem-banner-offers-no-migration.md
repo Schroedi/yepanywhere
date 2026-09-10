@@ -43,19 +43,22 @@ What makes the move itself its own piece of work rather than a banner tweak:
 - **The old directory must not be deleted by YA.** A copy that leaves the
   original in place is recoverable; anything else is a destructive action on the
   user's only copy of their session metadata.
-- **Finishing the move should attempt to open storage, not just report success.**
-  The point of the migration is the database, so completion wants to retry
-  initialization against the new directory and tell the user it worked. Nothing
-  supports that today: `DiscoverySqliteService` is built once per Hono
-  generation and deliberately never retries, which
+- **Finishing the move should end in storage actually opening, and that
+  happens at startup.** The point of the migration is the database, so the user
+  needs to see that it worked rather than a report that files were copied. The
+  open belongs where it already is: constructing the app graph opens the
+  database and wires its consumers. Do not add a lazy open on first consumer
+  use, and do not mutate a running graph to hand a late-arriving database to
+  features that already started without one. Today `DiscoverySqliteService` is
+  built once and deliberately never retries, which
   [optional SQLite](../topics/optional-sqlite.md) states as a contract
-  ("version requests do not probe storage or retry initialization"). The
-  consumers are wired the same way — `app.ts:2061` and `app.ts:2148` each call
-  `getDatabase()` once and skip wiring the feature when it returns nothing — so
-  a database that arrives later reaches nobody. Either the migration ends in a
-  Hono generation reload, or the service grows a real re-initialize path and
-  those two call sites stop being one-shot. That choice is the crux of this
-  entry, and it is worth settling before the copy logic, not after.
+  ("version requests do not probe storage or retry initialization"), and
+  `app.ts:2061` and `app.ts:2148` each call `getDatabase()` once and skip
+  wiring their feature when it returns nothing. All of that stays. The
+  migration therefore concludes by needing a start against the new location,
+  and the design question is only how the user gets one — the existing reload
+  path rebuilds the app graph, while a process restart is the user's to
+  perform.
 
 Until then the banner's manual instruction is correct and sufficient — a user
 who follows it gets a working server.
