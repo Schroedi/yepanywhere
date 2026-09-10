@@ -72,6 +72,21 @@ passed the plausibility test and stand still otherwise.
 The message itself is still counted. Downgrading a timestamp means distrusting
 it as a clock reading, never discarding the text it came with.
 
+Corroboration is the practical test, and the stream of events makes it easy.
+Rather than judging one timestamp against the host clock, advance the watermark
+only to a time that several later observations agree has passed: a high quantile
+over a recent window, or the highest value that some number of subsequent events
+have exceeded. One outlier then cannot move it by construction, and the test
+needs no reference to the local clock, which matters because the local clock is
+the thing we already said not to trust.
+
+The price is that the official time lags real time, and that price is the right
+way round. A watermark that lags leaves more content inside the window, so the
+filter is consulted for messages that did not need it: wasted lookups, no lost
+counts. A watermark that runs ahead skips content and undercounts silently. So
+smoothing trades the harmless failure for the harmful one, and the lag it costs
+is minutes against an epsilon already measured in hours.
+
 ## Resolution B: delete the durable filter (controversial)
 
 Keep no durable filter. Resume counting at the watermark and accept that a
