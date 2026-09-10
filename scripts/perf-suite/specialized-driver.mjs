@@ -589,7 +589,7 @@ export async function measureOwnedProviderLifecycle({
           model: "perf-simulated-thinking-model",
           // Match the browser's canonical setting. Leaving this unspecified
           // makes its first send a launch-setting change and restarts the worker.
-          thinking: "disabled",
+          thinking: "off",
         },
         method: "POST",
         timeoutMs: config.server.requestTimeoutMs,
