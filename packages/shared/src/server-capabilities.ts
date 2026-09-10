@@ -184,8 +184,8 @@ export const SERVER_CAPABILITIES = {
     clientFallback:
       "Omit context.sessionTerms and preserve existing speech recognition.",
     serverContract: {
-      routes: ["POST /api/speech/transcribe", "WS /api/speech/ws"],
-      routeModules: ["packages/server/src/routes/speech.ts"],
+      routes: ["POST /api/speech/transcribe", "GET /api/speech/ws"],
+      // Extends requests on shared speech routes; it does not own the module.
       requestFields: ["context.sessionTerms"],
     },
     lifecycle: {

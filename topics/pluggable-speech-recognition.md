@@ -729,6 +729,10 @@ is v0.8.0 and v0.8.1; both lack session hints. Without it, the browser neither
 maintains nor sends the hint set, and existing recognition continues. The older
 `speech-vocabulary` capability retains its original meaning.
 
+The session-terms contract extends the request payload on the existing
+transcription route and WebSocket GET upgrade. It does not own the whole
+speech route module or gate its key, prewarm, and other recognition routes.
+
 The [project-specific vocabulary gap](../gaps/project-specific-speech-vocabulary.md)
 tracks project-wide selection beyond the active-session bonus. Durable learned
 counts remain installation-wide; no per-project occurrence records are added.
