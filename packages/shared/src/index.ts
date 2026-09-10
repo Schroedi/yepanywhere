@@ -1337,3 +1337,12 @@ export {
   COMMON_VOCABULARY_LIMIT,
   VOCABULARY_FLUSH_COUNTS,
 } from "./speech-vocabulary.js";
+
+export type {
+  IssueSettings,
+  IssueItem,
+  IssueEvidence,
+  IssueCoverage,
+  IssueSearchResult,
+  IssueEvidenceResult,
+} from "./issues.js";

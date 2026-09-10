@@ -1,3 +1,7 @@
+import {
+  readIssueTextBatch,
+  type IssueReadOptions,
+} from "./issue-text-reader.js";
 /**
  * CodexSessionReader - Reads Codex sessions from disk.
  *
@@ -837,6 +841,29 @@ export class CodexSessionReader implements ISessionReader {
     } catch {
       return null;
     }
+  }
+
+  async readIssueTextBatch(sessionId: string, options: IssueReadOptions) {
+    options.signal.throwIfAborted();
+    const file = await this.findSessionFile(sessionId);
+    if (!file) throw new Error("Session source unavailable");
+    if (file.filePath.endsWith(".gz"))
+      throw new Error("Compressed issue indexing is unavailable");
+    const lineage = await resolveCodexRolloutLineage({
+      requestedSessionId: sessionId,
+      leafFilePath: file.filePath,
+      resolveRolloutPath: (id) => this.findRolloutPathById(id),
+      maxSegments: 32,
+      signal: options.signal,
+    });
+    const segments = lineage.referenceBacked
+      ? lineage.segments.map((segment) => ({
+          path: segment.filePath,
+          end: segment.end?.end_byte_offset,
+          ordinal: true,
+        }))
+      : [{ path: file.filePath }];
+    return readIssueTextBatch("codex", segments, options);
   }
 
   async getSession(

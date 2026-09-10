@@ -1,3 +1,4 @@
+import { useIssuesEnabled } from "../hooks/useIssuesEnabled";
 import {
   DEVICE_BRIDGE_CAPABILITY,
   DEVICE_BRIDGE_DOWNLOAD_CAPABILITY,
@@ -341,6 +342,7 @@ export function Sidebar({
   const location = useLocation();
   const remoteConnection = useOptionalRemoteConnection();
   const { settings: serverSettings } = useServerSettings();
+  const issuesEnabled = useIssuesEnabled();
   const publicSharesEnabled = serverSettings?.publicSharesEnabled ?? false;
   const { status: publicShareStatus } = usePublicShareStatus({
     poll: publicSharesEnabled,
@@ -1048,6 +1050,15 @@ export function Sidebar({
               onClick={onNavigate}
               basePath={basePath}
             />
+            {issuesEnabled && (
+              <SidebarNavItem
+                to="/issues"
+                icon={SidebarIcons.allSessions}
+                label={t("issuesTitle")}
+                onClick={onNavigate}
+                basePath={basePath}
+              />
+            )}
             {bangHistoryVisible && (
               <SidebarNavItem
                 to="/bang-commands"

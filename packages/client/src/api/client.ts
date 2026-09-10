@@ -1650,6 +1650,7 @@ export const DEFAULT_FILE_ACCESS: FileAccessSettings = {
 
 /** Server-wide settings that persist across restarts */
 export interface ServerSettings {
+  issueAssociations?: import("@yep-anywhere/shared").IssueSettings;
   /** Where new YA-owned project state is written. */
   projectDirectoryStorage?: "app-data" | "project";
   /** Whether new live tool-result images receive durable copies. */

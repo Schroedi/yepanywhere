@@ -454,6 +454,7 @@ export interface DeviceBridgeStatus {
 export interface VersionRouteOptions {
   /** Read retained startup state; never probe storage in the version route. */
   getSqliteStatus?: () => SqliteStatus;
+  getIssueAssociationsAvailable?: () => boolean;
   getArtifactViewerStatus?: () => ArtifactViewerStatus;
   /** Test/service override for the process-generation version snapshot. */
   getCurrentVersionInfo?: () => Promise<CurrentVersionInfo>;
@@ -540,6 +541,8 @@ export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   const capabilities: string[] = [...BASE_CAPABILITIES];
   if (options?.getSqliteStatus?.().state === "ready") {
     capabilities.push(SERVER_CAPABILITIES.speechVocabulary.name);
+    if (options.getIssueAssociationsAvailable?.())
+      capabilities.push(SERVER_CAPABILITIES.issueSessionAssociations.name);
     capabilities.push(SERVER_CAPABILITIES.speechVocabularySessionTerms.name);
   }
   if (options?.getArtifactViewerStatus?.().available)

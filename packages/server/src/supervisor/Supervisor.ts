@@ -631,6 +631,16 @@ export class Supervisor {
     contextWindow: number,
     provider: ProviderName,
   ) => void;
+  private issueSessionRemapObserver?: (oldId: string, newId: string) => void;
+  observeSessionIdRemaps(
+    observer: (oldId: string, newId: string) => void,
+  ): () => void {
+    this.issueSessionRemapObserver = observer;
+    return () => {
+      if (this.issueSessionRemapObserver === observer)
+        this.issueSessionRemapObserver = undefined;
+    };
+  }
   private onSessionSummary?: OnSessionSummaryCallback;
   private onSessionStopRequested?: (sessionId: string) => void;
   private recoverSessionLaunchSettings?: RecoverSessionLaunchSettingsCallback;
@@ -5006,6 +5016,15 @@ export class Supervisor {
           this.recapPausedSessionIds.add(event.newSessionId);
         }
         this.sessionToProcess.set(event.newSessionId, process.id);
+        try {
+          this.issueSessionRemapObserver?.(
+            event.oldSessionId,
+            event.newSessionId,
+          );
+        } catch (error) {
+          log.warn({ error }, "Issue evidence session remap failed");
+        }
+
         this.everOwnedSessions.add(event.newSessionId);
         void this.sessionMetadataService
           ?.remapSessionId(event.oldSessionId, event.newSessionId)

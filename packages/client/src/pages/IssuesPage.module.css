@@ -1,0 +1,151 @@
+.page {
+  padding: 16px;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+.controls,
+.actions,
+.choice {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.choice {
+  flex-wrap: nowrap;
+}
+.choice input[type="checkbox"] {
+  flex-shrink: 0;
+}
+.controls {
+  margin: 12px 0;
+}
+.controls input {
+  flex: 1;
+  min-width: 160px;
+}
+.page input,
+.page select,
+.settings input,
+.settings select {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 9px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.page button,
+.settings button {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 9px 12px;
+  cursor: pointer;
+  min-height: 40px;
+}
+.page button:disabled,
+.settings button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.page a {
+  color: var(--text-link, var(--accent-color));
+}
+.coverage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 12px 0;
+}
+.columns {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(300px, 1.5fr);
+  gap: 20px;
+  align-items: start;
+}
+.list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.page .item {
+  text-align: left;
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+.item span,
+.item small {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.page .selected {
+  border-color: var(--accent-color);
+  background: var(--bg-tertiary);
+}
+.detail {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.detail h2 {
+  font-size: 18px;
+  flex: 1;
+  margin: 0;
+}
+.detail h3 {
+  font-size: 14px;
+  margin-top: 20px;
+}
+.evidence {
+  border-top: 1px solid var(--border-color);
+  padding: 14px 0;
+}
+.evidence p {
+  white-space: pre-wrap;
+  margin: 10px 0;
+}
+.evidence small {
+  display: block;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.settings {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+}
+.settings p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.empty {
+  padding: 20px;
+  color: var(--text-secondary);
+}
+@media (max-width: 700px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .page {
+    padding: 12px;
+  }
+  .detail {
+    padding: 12px;
+  }
+  .page button,
+  .settings button {
+    min-height: 44px;
+  }
+}

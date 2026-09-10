@@ -790,3 +790,16 @@ advertisement.
 The audit complements, rather than replaces, released-server behavior
 fixtures. A capability may be registered perfectly while the client still
 mounts its consumers before checking it.
+
+## Experimental issue/session associations
+
+The approved 2026-09-10 optional review used v0.8.0 and v0.8.1 (latest two stable
+releases and all releases in the preceding 14 days). Optional sparse capability
+`issue-session-associations-v1`, permanent ID 68, covers automatic discovery,
+settings/scope, issue/reference search, evidence and corrections. It requires
+ready SQLite and the indexing owner, independently of the default-off opt-in.
+Absent support hides settings/sidebar/session controls and sends no issue requests.
+Existing capabilities and protocol levels keep their meanings. The unpublished v1
+contract may evolve before release; released changes need the usual review. See
+[issue/session associations](issue-session-associations.md#compatibility-and-migrations)
+for exact routes, fields and source-switch behavior.

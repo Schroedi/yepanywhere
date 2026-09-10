@@ -1,3 +1,4 @@
+import { visibleIssueText } from "../services/issues/extract.js";
 import type {
   ClaudeSessionEntry,
   CodexAsyncUserInputQuestion,
@@ -68,6 +69,7 @@ interface CodexToolUseConversion {
   context: CodexToolCallContext;
 }
 
+const issueSourceIds = new WeakMap<Message, string>();
 const CODEX_CONTEXT_COMPACTED_DEDUPE_WINDOW_MS = 5000;
 const CODEX_PROVIDER_FORK_TURN_ID = Symbol("codexProviderForkTurnId");
 const CODEX_NORMALIZATION_SOURCE = Symbol("codexNormalizationSource");
@@ -103,6 +105,11 @@ function tagCodexMessageSourceByteOffset(
   const sourceByteOffset = (entry as CodexEntryWithSourceByteOffset)[
     CODEX_SOURCE_BYTE_OFFSET
   ];
+  const ordinal = (entry as { ordinal?: unknown }).ordinal;
+  if (Number.isSafeInteger(ordinal))
+    issueSourceIds.set(message, `codex-ordinal-${ordinal}`);
+  else if (sourceByteOffset !== undefined)
+    issueSourceIds.set(message, `codex-byte-${sourceByteOffset}`);
   if (sourceByteOffset === undefined) return message;
   Object.defineProperty(message, CODEX_MESSAGE_SOURCE_BYTE_OFFSET, {
     configurable: false,
@@ -2147,4 +2154,28 @@ function convertOpenCodeToolResultPart(
       part.state?.attachments,
     ),
   };
+}
+
+/** The issue index shares the transcript parser's visibility and identity rules. */
+export function normalizeIssueEntries(
+  provider: "claude" | "codex",
+  entries: Array<ClaudeSessionEntry | CodexSessionEntry>,
+): import("../services/issues/extract.js").IssueText[] {
+  const messages =
+    provider === "claude"
+      ? (entries as ClaudeSessionEntry[]).map((entry, index) =>
+          convertClaudeMessage(entry, index, new Set()),
+        )
+      : convertCodexEntries(entries as CodexSessionEntry[], "issue-index");
+  return messages.flatMap((message) => {
+    const text = issueMessageText(message);
+    return text ? [text] : [];
+  });
+}
+
+export function issueMessageText(
+  message: Message,
+): import("../services/issues/extract.js").IssueText | null {
+  const text = visibleIssueText(message);
+  return text ? { ...text, sourceId: issueSourceIds.get(message) } : null;
 }

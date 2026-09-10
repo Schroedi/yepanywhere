@@ -420,6 +420,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "speech-vocabulary-session-terms",
     introducedIn: "0.8.2",
   },
+  issueSessionAssociations: {
+    id: 68,
+    direction: "server",
+    name: "issue-session-associations-v1",
+    introducedIn: "0.8.2",
+  },
   codexCyberAccessProgramSetting: {
     id: 67,
     direction: "server",

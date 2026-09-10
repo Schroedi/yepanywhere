@@ -4,12 +4,15 @@ import type { SqliteStatus } from "@yep-anywhere/shared";
 import {
   SPEECH_VOCABULARY_SCHEMA,
   SPEECH_VOCABULARY_SET_SCHEMA,
-} from "../services/voice/vocabulary-schema.js";
+} from "./migrations/002-003-vocabulary.js";
 import {
   loadSqliteDriver,
   type SqliteDatabase,
   type SqliteDriver,
 } from "./sqlite.js";
+
+import { ISSUE_RESOLUTION_SCHEMA } from "./migrations/005-issue-resolution.js";
+import { ISSUE_SCHEMA } from "./migrations/004-issues.js";
 
 export type SqliteMode = "off" | "auto";
 
@@ -27,11 +30,27 @@ export interface DiscoveryMigration {
 // YA discovery file identity (ASCII YADI). Version 1 reserves the format;
 // domain tables belong to the feature migrations that introduce their use.
 const APPLICATION_ID = 0x59414449;
-const MIGRATIONS: readonly DiscoveryMigration[] = [
+export const DISCOVERY_MIGRATIONS: readonly DiscoveryMigration[] = [
   { version: 1, sql: "" },
   { version: 2, sql: SPEECH_VOCABULARY_SCHEMA },
   { version: 3, sql: SPEECH_VOCABULARY_SET_SCHEMA },
+  { version: 4, sql: ISSUE_SCHEMA },
+  { version: 5, sql: ISSUE_RESOLUTION_SCHEMA },
 ];
+
+/** Construct fixtures with the actual historical schema, never a parallel SQL copy. */
+export function discoveryMigrationPrefix(
+  version: number,
+): readonly DiscoveryMigration[] {
+  if (
+    !Number.isInteger(version) ||
+    version < 1 ||
+    version > DISCOVERY_MIGRATIONS.length
+  ) {
+    throw new Error("Invalid discovery migration prefix");
+  }
+  return DISCOVERY_MIGRATIONS.slice(0, version);
+}
 
 function readRow(database: SqliteDatabase, sql: string) {
   const statement = database.prepare(sql);
@@ -44,7 +63,7 @@ function readRow(database: SqliteDatabase, sql: string) {
 
 export function migrateDiscoveryDatabase(
   database: SqliteDatabase,
-  migrations: readonly DiscoveryMigration[] = MIGRATIONS,
+  migrations: readonly DiscoveryMigration[] = DISCOVERY_MIGRATIONS,
 ): void {
   if (
     migrations.length === 0 ||

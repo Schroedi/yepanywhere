@@ -1,3 +1,4 @@
+import { SessionIssuesLink } from "../components/SessionIssuesLink";
 import type {
   BangCommandTranscriptDisplayObject,
   EffortLevel,
@@ -5517,6 +5518,12 @@ function SessionPageContent({
                       })
                     : undefined
                 }
+              />
+            )}
+            {!loading && actualSessionId && (
+              <SessionIssuesLink
+                sessionId={actualSessionId}
+                projectId={projectId}
               />
             )}
             {!loading && effectiveProvider && (

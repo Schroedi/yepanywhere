@@ -1,3 +1,4 @@
+import { ServerSettingsService } from "../../src/services/ServerSettingsService.js";
 import { randomUUID } from "node:crypto";
 import { appendFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -39,7 +40,7 @@ describe("session detail compact-tail pagination", () => {
         sessionId: name,
         uuid: "u1",
         timestamp: timestamp(1),
-        message: { role: "user", content: "u1" },
+        message: { role: "user", content: "OLDISSUE-101" },
       },
       {
         type: "assistant",
@@ -95,7 +96,7 @@ describe("session detail compact-tail pagination", () => {
         uuid: "u3",
         parentUuid: "cb2",
         timestamp: timestamp(7),
-        message: { role: "user", content: "u3" },
+        message: { role: "user", content: "NEWISSUE-303" },
       },
     ];
 
@@ -219,6 +220,40 @@ describe("session detail compact-tail pagination", () => {
     }
   });
 
+  it("captures only the delivered persisted issue window, then older history on demand", async () => {
+    const sessionId = "issue-paging";
+    await writeSession(sessionId);
+    const dataDir = join(testDir, "app-data");
+    const settings = new ServerSettingsService({ dataDir });
+    await settings.initialize();
+    await settings.updateSettings({
+      issueAssociations: { enabled: true, scope: "viewed", recentDays: 7 },
+    });
+    const { app, disposeSessionReaders } = createApp({
+      sdk: new MockClaudeSDK(),
+      projectsDir: testDir,
+      codexSessionsDir,
+      dataDir,
+      serverSettingsService: settings,
+    });
+    const path = `/api/projects/${projectId}/sessions/${sessionId}`;
+    const found = async () =>
+      (await (await app.request("/api/issues")).json()).items.map(
+        (item: { key: string }) => item.key,
+      );
+    try {
+      expect((await app.request(path)).status).toBe(200);
+      await vi.waitFor(async () =>
+        expect(await found()).toEqual(["NEWISSUE-303"]),
+      );
+      expect((await app.request(`${path}?fullHistory=1`)).status).toBe(200);
+      await vi.waitFor(async () =>
+        expect(await found()).toContain("OLDISSUE-101"),
+      );
+    } finally {
+      await disposeSessionReaders();
+    }
+  });
   it("defaults exactly two compact boundaries to a compact tail", async () => {
     const sessionId = "sess-compact-exact";
     await writeSession(sessionId);

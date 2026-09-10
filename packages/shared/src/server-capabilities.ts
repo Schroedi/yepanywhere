@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  issueSessionAssociations: {
+    name: "issue-session-associations-v1",
+    index: CAPABILITY_ID_ALLOCATIONS.issueSessionAssociations.id,
+    introducedIn: "0.8.2",
+  },
   speechVocabularySessionTerms: {
     name: "speech-vocabulary-session-terms",
     index: CAPABILITY_ID_ALLOCATIONS.speechVocabularySessionTerms.id,
@@ -169,6 +174,37 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  issueSessionAssociations: {
+    id: CAPABILITY_ID_ALLOCATIONS.issueSessionAssociations.id,
+    name: "issue-session-associations-v1",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.8.2",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.issueSessionAssociations.id,
+    },
+    description:
+      "Opt-in automatic issue/PR discovery, scoped search, durable evidence and corrections with ready SQLite.",
+    clientFallback: "Hide issue controls and send no issue requests.",
+    serverContract: {
+      routes: [
+        "GET /api/issues",
+        "GET /api/issues/settings",
+        "PUT /api/issues/settings",
+        "GET /api/issues/evidence",
+        "POST /api/issues/decision",
+        "POST /api/issues/resolve",
+        "PATCH /api/issues/item",
+        "DELETE /api/issues/item",
+      ],
+      routeModules: ["packages/server/src/routes/issues.ts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Experimental feature depends on optional SQLite availability.",
+    },
+  },
   speechVocabularySessionTerms: {
     id: CAPABILITY_ID_ALLOCATIONS.speechVocabularySessionTerms.id,
     name: "speech-vocabulary-session-terms",

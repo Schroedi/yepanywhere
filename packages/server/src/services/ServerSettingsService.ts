@@ -93,6 +93,8 @@ export type ToolResultMediaPreservation =
 
 /** Server-wide settings */
 export interface ServerSettings {
+  /** Experimental issue discovery; absent means disabled, viewed scope. */
+  issueAssociations?: import("@yep-anywhere/shared").IssueSettings;
   artifactViewer?: ArtifactViewerConfig;
   /** Where YA writes new project-scoped state. */
   projectDirectoryStorage: ProjectDirectoryStorage;

@@ -39,6 +39,9 @@ const AgentsPage = lazy(() =>
     default: AgentsPage,
   })),
 );
+const IssuesPage = lazy(() =>
+  import("./pages/IssuesPage").then((m) => ({ default: m.IssuesPage })),
+);
 const BangCommandsPage = lazy(() =>
   import("./pages/BangCommandsPage").then(({ BangCommandsPage }) => ({
     default: BangCommandsPage,
@@ -309,6 +312,10 @@ if (import.meta.env.DEV && window.location.port === String(__VITE_DEV_PORT__)) {
                     <Route
                       path="/agents"
                       element={routeModule(<AgentsPage />)}
+                    />
+                    <Route
+                      path="/issues"
+                      element={routeModule(<IssuesPage />)}
                     />
                     <Route path="/inbox" element={routeModule(<InboxPage />)} />
                     <Route

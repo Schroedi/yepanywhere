@@ -160,6 +160,10 @@ export interface RecoveredSessionLaunchSettings {
  * For example, ClaudeSessionReader has getAgentSession() for subagent support.
  */
 export interface ISessionReader {
+  readIssueTextBatch?(
+    sessionId: string,
+    options: import("./issue-text-reader.js").IssueReadOptions,
+  ): Promise<import("./issue-text-reader.js").IssueTextBatch>;
   /**
    * Release any reader-owned resources such as parser child processes.
    */

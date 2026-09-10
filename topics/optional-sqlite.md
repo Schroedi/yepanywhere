@@ -7,7 +7,7 @@
 
 Topic: optional-sqlite
 
-Verified: 2026-09-08
+Verified: 2026-09-10
 
 ## Startup policy
 
@@ -73,21 +73,40 @@ One connection belongs to each Hono generation and closes during the existing
 reload/shutdown disposal path. Separate profiles have separate databases.
 
 The initial schema reserves a YA application identity (`0x59414449`, ASCII
-`YADI`). Schema version 2 adds speech vocabulary totals, contribution receipts,
-staging, and scan state; it creates no session-discovery, PR, or ticket tables.
-See [learned vocabulary](pluggable-speech-recognition.md#learned-vocabulary-contract)
-for retention, reset, and the independently gated feature.
-Ordered migrations update SQLite's `user_version` in one immediate transaction.
+`YADI`). Historical version 2 added speech vocabulary tables; version 3 removed
+its receipts/counts/staging tables. The remaining vocabulary state table is no
+longer used: active learning settings and counts live in their separate JSON and
+`speech-vocabulary.sqlite` files. See
+[learned vocabulary](pluggable-speech-recognition.md#learned-vocabulary-contract).
+Versions 4 and 5 add [issue/session associations](issue-session-associations.md):
+three durable domain tables and operational indexing/resolution/deletion state.
+Opening the database does not enable that experiment.
+
+One statically registered, consecutive migration sequence owns `user_version`.
+Historical SQL lives in frozen named modules; released migrations are append-only.
+Do not edit, renumber or reuse them, or import mutable current feature schemas.
+`discoveryMigrationPrefix(version)` builds historical fixtures with the actual
+migration prefix. Resolve concurrent number collisions before landing.
+Additive changes are preferred; data conversions need preservation/rollback
+fixtures and a recovery plan. Provider reads and large backfills belong in bounded
+resumable post-startup work, never migration initialization. A future destructive
+conversion's backup must be a consistent SQLite backup, not a live file copy.
+
+Pending migrations and version advancement run in one immediate transaction.
 Foreign keys are enabled and lock waits are bounded to 250 ms, including the
-migration lock. The initial implementation uses SQLite's default rollback
-journal; a future indexing workload may justify changing journal policy.
+migration lock. The default rollback journal remains unchanged. Even a no-op
+startup takes the immediate lock; concurrent mixed-version profile use is not
+supported, and contention may report error without data loss.
 
 An existing foreign database, malformed database, or newer schema is refused.
 YA does not reset or delete it. A failed migration rolls back its statements
 and schema version. Initialization closes a partially opened connection before
-retaining error status. The database is not declared disposable: future feature
-contracts must distinguish reconstructable indexes from manual links and
-historical evidence that cannot be reconstructed.
+retaining error status. The database is not disposable: issue decisions, manual titles and historical
+evidence must survive independently of rebuildable indexing checkpoints.
+There are no automatic down migrations. Disabling a feature does not roll back
+the schema. An older reader that refuses this schema also loses discovery-gated
+speech capabilities/routes, while preserving the separate speech files. Recover
+by upgrading again or explicitly restoring a consistent pre-upgrade backup.
 
 Existing JSON metadata/caches, OpenCode's independently owned database and
 reader, and the relay/push-broker SQLite dependencies are unaffected.

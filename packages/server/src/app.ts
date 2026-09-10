@@ -1,3 +1,10 @@
+import { IssueStore } from "./services/issues/IssueStore.js";
+import {
+  IssueIndexer,
+  DEFAULT_ISSUE_SETTINGS,
+} from "./services/issues/IssueIndexer.js";
+import { createIssueRoutes } from "./routes/issues.js";
+import { getSessionSources } from "./sessions/provider-resolution.js";
 import type { HttpBindings } from "@hono/node-server";
 import { ArtifactServer } from "./artifacts/ArtifactServer.js";
 import {
@@ -828,10 +835,14 @@ export function createApp(options: AppOptions): AppResult {
     }
   };
   let retainedCollections: RetainedSessionCollections | undefined;
+  let issueIndexer: IssueIndexer | undefined;
+  const issueDisposers: Array<() => void> = [];
   let vocabularyLearning: VocabularyLearning | undefined;
   let vocabularyKeyterms: VocabularyKeyterms | undefined;
   let unsubscribeVocabulary: (() => void) | undefined;
   const disposeSessionReaders = async (): Promise<void> => {
+    for (const dispose of issueDisposers) dispose();
+    await issueIndexer?.close();
     unsubscribeVocabulary?.();
     options.speechBackendRegistry?.setVocabularySource(undefined);
     await vocabularyKeyterms?.close();
@@ -1618,6 +1629,7 @@ export function createApp(options: AppOptions): AppResult {
     "/api/version",
     createVersionRoutes({
       getSqliteStatus: () => discoverySqlite.getStatus(),
+      getIssueAssociationsAvailable: () => Boolean(issueIndexer),
       getArtifactViewerStatus: () => ({
         ...artifactServer.config,
         available: artifactServer.available,
@@ -1876,6 +1888,8 @@ export function createApp(options: AppOptions): AppResult {
   app.route(
     "/api",
     createSessionsRoutes({
+      onIssueWindow: (source, messages) =>
+        issueIndexer?.observe(source, messages),
       supervisor,
       scanner,
       readerFactory,
@@ -2042,6 +2056,93 @@ export function createApp(options: AppOptions): AppResult {
         changedPaths,
       ),
   });
+  const issueDatabase = discoverySqlite.getDatabase();
+  if (issueDatabase && options.serverSettingsService) {
+    const catalog = retainedCollections;
+    const settings = options.serverSettingsService;
+    const readerFor = async (
+      projectId: string,
+      provider?: import("@yep-anywhere/shared").ProviderName,
+    ) => {
+      const project = await scanner.getProject(projectId);
+      if (!project) return null;
+      const sources = getSessionSources(
+        project,
+        heartbeatProviderResolutionDeps(),
+        provider,
+      );
+      return (
+        sources.find((source) => source.provider === provider)?.reader ??
+        sources[0]?.reader ??
+        null
+      );
+    };
+    const indexer = new IssueIndexer(new IssueStore(issueDatabase), {
+      settings: () =>
+        settings.getSetting("issueAssociations") ?? DEFAULT_ISSUE_SETTINGS,
+      candidates: async function* () {
+        yield* (await catalog.read()).rows;
+      },
+      projectForSession: (id) =>
+        options.sessionMetadataService?.getMetadata(id)?.workingProjectId,
+      read: async (row, readOptions) => {
+        const reader = await readerFor(row.projectId, row.provider);
+        return reader?.readIssueTextBatch?.(row.sessionId, readOptions) ?? null;
+      },
+    });
+    issueIndexer = indexer;
+    issueDisposers.push(
+      settings.onSettingsChanged((next, previous) => {
+        if (next.issueAssociations !== previous.issueAssociations)
+          indexer.configure();
+      }),
+    );
+    const unmap = supervisor.observeSessionIdRemaps?.((oldId, newId) =>
+      indexer.remap(oldId, newId),
+    );
+    if (unmap) issueDisposers.push(unmap);
+    const unsubscribe = options.eventBus?.subscribe((event) => {
+      if (event.type === "session-catalog-updated" && !event.catalog.refreshing)
+        indexer.refresh();
+      if (event.type === "session-metadata-changed" && event.projectId)
+        indexer.store.updateProject(event.sessionId, event.projectId);
+      if (
+        indexer.settings().enabled &&
+        indexer.settings().scope === "recent" &&
+        (event.type === "session-updated" ||
+          (event.type === "process-state-changed" &&
+            event.activity !== "in-turn"))
+      )
+        catalog.invalidate();
+    });
+    if (unsubscribe) issueDisposers.push(unsubscribe);
+    app.route(
+      "/api",
+      createIssueRoutes(indexer, settings, async (projectId, sessionId) => {
+        const canonical =
+          supervisor.getProcessForSession(sessionId)?.sessionId ?? sessionId;
+        if (canonical !== sessionId) return { available: false };
+        const metadata = options.sessionMetadataService?.getMetadata(sessionId);
+        if (
+          metadata?.workingProjectId &&
+          metadata.workingProjectId !== projectId
+        )
+          return { available: false };
+        const physicalProject = metadata?.transcriptProjectId ?? projectId;
+        const reader = await readerFor(physicalProject, metadata?.provider);
+        const summary = await reader?.getSessionSummary(
+          sessionId,
+          physicalProject as import("@yep-anywhere/shared").UrlProjectId,
+          { readMode: "head" },
+        );
+        return {
+          available: Boolean(summary),
+          title: metadata?.customTitle ?? summary?.title ?? undefined,
+        };
+      }),
+    );
+    indexer.configure();
+  }
   const vocabularyDatabase = discoverySqlite.getDatabase();
   if (vocabularyDatabase) {
     const catalog = retainedCollections;

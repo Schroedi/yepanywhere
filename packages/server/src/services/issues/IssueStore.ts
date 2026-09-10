@@ -1,0 +1,387 @@
+import { createHash } from "node:crypto";
+import type {
+  SqliteDatabase,
+  SqliteRow,
+  SqliteValue,
+} from "../../storage/sqlite.js";
+import {
+  extractIssueReferences,
+  issueExcerpt,
+  type IssueText,
+} from "./extract.js";
+
+import type { IssueItem, IssueEvidence } from "@yep-anywhere/shared";
+export type { IssueItem, IssueEvidence } from "@yep-anywhere/shared";
+export interface IssueSource {
+  sourceVersion?: string;
+  sessionId: string;
+  projectId: string;
+}
+const escaped = (value: string) => `%${value.replace(/[\\%_]/g, "\\$&")}%`;
+export const unresolvedId = (project: string, key: string) =>
+  `ref:${JSON.stringify([project, key])}`;
+
+/** One connection owner; all statements finalize, all mutations commit synchronously. */
+export class IssueStore {
+  constructor(readonly database: SqliteDatabase) {}
+  rows(sql: string, ...values: SqliteValue[]): SqliteRow[] {
+    const s = this.database.prepare(sql);
+    try {
+      return s.all(...values);
+    } finally {
+      s.finalize();
+    }
+  }
+  run(sql: string, ...values: SqliteValue[]): void {
+    const s = this.database.prepare(sql);
+    try {
+      s.run(...values);
+    } finally {
+      s.finalize();
+    }
+  }
+  updateProject(sessionId: string, projectId: string): void {
+    this.database.transaction(() => {
+      this.run(
+        "UPDATE issue_index_jobs SET project_id=? WHERE session_id=? AND project_id!=?",
+        projectId,
+        sessionId,
+        projectId,
+      );
+      this.run(
+        "UPDATE session_issue_evidence SET project_id=? WHERE session_id=? AND project_id!=?",
+        projectId,
+        sessionId,
+        projectId,
+      );
+    });
+  }
+  private link(issue: string, session: string): number {
+    this.run(
+      "INSERT OR IGNORE INTO session_issue_links(issue_id,session_id) VALUES (?,?)",
+      issue,
+      session,
+    );
+    return Number(
+      this.rows(
+        "SELECT id FROM session_issue_links WHERE issue_id=? AND session_id=?",
+        issue,
+        session,
+      )[0]!.id,
+    );
+  }
+  /** At most 25 observations per transaction (up to 100 domain-row writes). */
+  capture(
+    source: IssueSource,
+    message: IssueText,
+    offset = 0,
+    ownedStart = offset,
+    ownedEnd = Number.POSITIVE_INFINITY,
+  ): void {
+    const refs = extractIssueReferences(message.text).filter(
+      (ref) =>
+        ref.start + offset >= ownedStart && ref.start + offset < ownedEnd,
+    );
+    for (let start = 0; start < refs.length; start += 25)
+      this.database.transaction(() => {
+        for (const ref of refs.slice(start, start + 25)) {
+          if (
+            source.sourceVersion &&
+            this.rows(
+              "SELECT 1 FROM issue_deleted_snapshots WHERE project_id=? AND ref_key=? AND session_id=? AND source_version=?",
+              source.projectId,
+              ref.key,
+              source.sessionId,
+              source.sourceVersion,
+            ).length
+          )
+            continue;
+          let identity = ref.identity;
+          if (identity) {
+            this.run(
+              `INSERT INTO external_issues(id,ref_key,url,provider,kind,title,created_at) VALUES (?,?,?,?,?,?,?)
+            ON CONFLICT(id) DO UPDATE SET kind=CASE WHEN external_issues.kind='pr' THEN 'pr' ELSE excluded.kind END,url=CASE WHEN external_issues.kind='pr' THEN external_issues.url ELSE excluded.url END,title=COALESCE(external_issues.title,excluded.title)`,
+              identity,
+              ref.key,
+              ref.url,
+              ref.provider,
+              ref.kind,
+              ref.title,
+              Date.now(),
+            );
+          } else {
+            // Only observations in this project establish a namespace mapping.
+            const matches = this.rows(
+              `SELECT DISTINCT i.id FROM external_issues i JOIN session_issue_links l ON l.issue_id=i.id
+            JOIN session_issue_evidence e ON e.link_id=l.id WHERE e.project_id=? AND i.ref_key=? AND e.kind IN ('message-url','manual','contextual-number') LIMIT 2`,
+              source.projectId,
+              ref.key,
+            );
+            if (matches.length === 1) identity = String(matches[0]!.id);
+          }
+          const link = identity ? this.link(identity, source.sessionId) : null;
+          const occurrence = createHash("sha256")
+            .update(
+              JSON.stringify([
+                message.sourceId ?? message.id,
+                offset + ref.start,
+                ref.key,
+              ]),
+            )
+            .digest("hex");
+          this.run(
+            `INSERT INTO session_issue_evidence(session_id,project_id,occurrence,ref_key,provider,link_id,kind,observed_value,excerpt,message_id,observed_at,source_time)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,occurrence) DO UPDATE SET
+          link_id=COALESCE(session_issue_evidence.link_id,excluded.link_id), project_id=excluded.project_id`,
+            source.sessionId,
+            source.projectId,
+            occurrence,
+            ref.key,
+            ref.provider,
+            link,
+            ref.contextual
+              ? "contextual-number"
+              : ref.url
+                ? "message-url"
+                : "ticket-key",
+            ref.contextual
+              ? message.text.slice(ref.start, ref.end)
+              : (ref.url ?? ref.key),
+            issueExcerpt(
+              message.text.slice(
+                Math.max(0, ref.start - 140),
+                Math.max(0, ref.start - 140) + 512,
+              ),
+            ),
+            message.id,
+            Date.now(),
+            message.timestamp ?? null,
+          );
+          if (identity)
+            this.run(
+              "INSERT OR IGNORE INTO issue_resolution_jobs VALUES (?,?)",
+              source.projectId,
+              ref.key,
+            );
+        }
+      });
+    this.processResolutions();
+  }
+  /** A bounded resolution batch; the index worker resumes remaining durable jobs. */
+  processResolutions(): boolean {
+    const job = this.rows("SELECT * FROM issue_resolution_jobs LIMIT 1")[0];
+    if (!job) return false;
+    this.database.transaction(() => {
+      const project = String(job.project_id),
+        key = String(job.ref_key);
+      const candidates = this.rows(
+        `SELECT DISTINCT i.id FROM external_issues i JOIN session_issue_links l ON l.issue_id=i.id JOIN session_issue_evidence e ON e.link_id=l.id WHERE e.project_id=? AND i.ref_key=? AND e.kind IN ('message-url','manual','contextual-number') LIMIT 2`,
+        project,
+        key,
+      );
+      let pending: SqliteRow[] = [];
+      if (candidates.length === 1) {
+        const id = String(candidates[0]!.id);
+        pending = this.rows(
+          "SELECT id,session_id FROM session_issue_evidence WHERE project_id=? AND ref_key=? AND link_id IS NULL LIMIT 25",
+          project,
+          key,
+        );
+        for (const evidence of pending)
+          this.run(
+            "UPDATE session_issue_evidence SET link_id=? WHERE id=?",
+            this.link(id, String(evidence.session_id)),
+            evidence.id!,
+          );
+      } else if (candidates.length > 1) {
+        pending = this.rows(
+          `SELECT e.id,l.state FROM session_issue_evidence e JOIN session_issue_links l ON l.id=e.link_id WHERE e.project_id=? AND e.ref_key=? AND e.kind='ticket-key' AND l.state!='confirmed' LIMIT 25`,
+          project,
+          key,
+        );
+        for (const evidence of pending)
+          this.run(
+            "UPDATE session_issue_evidence SET suppressed=MAX(suppressed,?),link_id=NULL WHERE id=?",
+            evidence.state === "dismissed" ? 1 : 0,
+            evidence.id!,
+          );
+      }
+      if (pending.length < 25)
+        this.run(
+          "DELETE FROM issue_resolution_jobs WHERE project_id=? AND ref_key=?",
+          project,
+          key,
+        );
+    });
+    return true;
+  }
+  list(
+    query = "",
+    project = "",
+    session = "",
+    dismissed = false,
+    limit = 50,
+    offset = 0,
+  ): IssueItem[] {
+    const rows = this.rows(
+      `WITH observations AS (
+      SELECT e.*,l.issue_id,l.state,COALESCE(j.project_id,e.project_id) AS current_project
+      FROM session_issue_evidence e LEFT JOIN session_issue_links l ON l.id=e.link_id LEFT JOIN issue_index_jobs j ON j.session_id=e.session_id
+      WHERE (?=1 OR (e.suppressed=0 AND COALESCE(l.state,'discovered')!='dismissed'))
+      AND (?='' OR COALESCE(j.project_id,e.project_id)=?) AND (?='' OR e.session_id=?)
+    ), items AS (
+      SELECT i.id,i.ref_key,COALESCE(i.manual_title,i.title) AS title,i.url,i.provider,i.kind,COUNT(DISTINCT e.session_id) AS count,NULL AS context
+      FROM external_issues i JOIN observations e ON e.issue_id=i.id GROUP BY i.id
+      UNION ALL
+      SELECT NULL,ref_key,NULL,NULL,provider,'unknown',COUNT(DISTINCT session_id),current_project FROM observations WHERE link_id IS NULL GROUP BY current_project,provider,ref_key
+    ) SELECT * FROM items WHERE ref_key LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' OR url LIKE ? ESCAPE '\\' ORDER BY ref_key,context,id LIMIT ? OFFSET ?`,
+      dismissed ? 1 : 0,
+      project,
+      project,
+      session,
+      session,
+      escaped(query),
+      escaped(query),
+      escaped(query),
+      limit,
+      offset,
+    );
+    return rows.map((row) => ({
+      id: row.id
+        ? String(row.id)
+        : unresolvedId(String(row.context), String(row.ref_key)),
+      key: String(row.ref_key),
+      title: row.title as string | null,
+      url: row.url as string | null,
+      provider: String(row.provider),
+      kind: String(row.kind),
+      sessionCount: Number(row.count),
+      unresolved: row.id === null,
+    }));
+  }
+  private selector(id: string): { sql: string; values: SqliteValue[] } {
+    if (!id.startsWith("ref:")) return { sql: "l.issue_id=?", values: [id] };
+    const parsed: unknown = JSON.parse(id.slice(4));
+    if (
+      !Array.isArray(parsed) ||
+      parsed.length !== 2 ||
+      parsed.some((x) => typeof x !== "string")
+    )
+      throw new Error("Invalid reference");
+    return {
+      sql: "e.link_id IS NULL AND COALESCE(j.project_id,e.project_id)=? AND e.ref_key=?",
+      values: parsed,
+    };
+  }
+  evidence(id: string, limit = 50, offset = 0): IssueEvidence[] {
+    const match = this.selector(id);
+    return this.rows(
+      `SELECT e.*,COALESCE(j.project_id,e.project_id) AS current_project,CASE WHEN e.suppressed=1 THEN 'dismissed' ELSE COALESCE(l.state,'discovered') END AS state FROM session_issue_evidence e LEFT JOIN session_issue_links l ON l.id=e.link_id LEFT JOIN issue_index_jobs j ON j.session_id=e.session_id WHERE ${match.sql} ORDER BY e.id DESC LIMIT ? OFFSET ?`,
+      ...match.values,
+      limit,
+      offset,
+    ).map((row) => ({
+      id: Number(row.id),
+      sessionId: String(row.session_id),
+      projectId: String(row.current_project),
+      messageId: String(row.message_id),
+      excerpt: String(row.excerpt),
+      value: String(row.observed_value),
+      kind: String(row.kind),
+      observedAt: Number(row.observed_at),
+      sourceTime: row.source_time as string | null,
+      state: String(row.state),
+    }));
+  }
+  decide(
+    id: string,
+    session: string,
+    state: "confirmed" | "dismissed" | "discovered",
+  ): void {
+    this.database.transaction(() => {
+      if (!id.startsWith("ref:"))
+        this.run(
+          "UPDATE session_issue_links SET state=?,decision_at=? WHERE issue_id=? AND session_id=?",
+          state,
+          Date.now(),
+          id,
+          session,
+        );
+      else {
+        const match = this.selector(id);
+        this.run(
+          `UPDATE session_issue_evidence SET suppressed=? WHERE id IN (SELECT e.id FROM session_issue_evidence e LEFT JOIN session_issue_links l ON l.id=e.link_id LEFT JOIN issue_index_jobs j ON j.session_id=e.session_id WHERE ${match.sql} AND e.session_id=?)`,
+          state === "dismissed" ? 1 : 0,
+          ...match.values,
+          session,
+        );
+      }
+    });
+  }
+  title(id: string, title: string | null): void {
+    this.run("UPDATE external_issues SET manual_title=? WHERE id=?", title, id);
+  }
+  delete(id: string): void {
+    const match = this.selector(id);
+    this.database.transaction(() => {
+      this.run(
+        `INSERT OR IGNORE INTO issue_deleted_snapshots SELECT COALESCE(j.project_id,e.project_id),e.ref_key,e.session_id,j.source_version FROM session_issue_evidence e LEFT JOIN session_issue_links l ON l.id=e.link_id JOIN issue_index_jobs j ON j.session_id=e.session_id WHERE ${match.sql}`,
+        ...match.values,
+      );
+      if (!id.startsWith("ref:"))
+        this.run("DELETE FROM external_issues WHERE id=?", id);
+      else
+        this.run(
+          `DELETE FROM session_issue_evidence WHERE id IN (SELECT e.id FROM session_issue_evidence e LEFT JOIN session_issue_links l ON l.id=e.link_id LEFT JOIN issue_index_jobs j ON j.session_id=e.session_id WHERE ${match.sql})`,
+          ...match.values,
+        );
+    });
+  }
+  remap(oldId: string, newId: string): void {
+    this.database.transaction(() => {
+      for (const link of this.rows(
+        "SELECT * FROM session_issue_links WHERE session_id=?",
+        oldId,
+      )) {
+        const target = this.link(String(link.issue_id), newId);
+        this.run(
+          `UPDATE session_issue_links SET state=?,decision_at=? WHERE id=? AND (decision_at<? OR (decision_at=? AND ?='dismissed'))`,
+          link.state!,
+          link.decision_at!,
+          target,
+          link.decision_at!,
+          link.decision_at!,
+          link.state!,
+        );
+        this.run(
+          "UPDATE session_issue_evidence SET link_id=? WHERE link_id=?",
+          target,
+          link.id!,
+        );
+      }
+      this.run(
+        "UPDATE session_issue_evidence SET suppressed=1 WHERE session_id=? AND occurrence IN (SELECT occurrence FROM session_issue_evidence WHERE session_id=? AND suppressed=1)",
+        newId,
+        oldId,
+      );
+      this.run(
+        "DELETE FROM session_issue_evidence WHERE session_id=? AND occurrence IN (SELECT occurrence FROM session_issue_evidence WHERE session_id=?)",
+        oldId,
+        newId,
+      );
+      this.run(
+        "UPDATE session_issue_evidence SET session_id=? WHERE session_id=?",
+        newId,
+        oldId,
+      );
+      this.run("DELETE FROM session_issue_links WHERE session_id=?", oldId);
+      this.run(
+        "INSERT OR IGNORE INTO issue_deleted_snapshots SELECT project_id,ref_key,?,source_version FROM issue_deleted_snapshots WHERE session_id=?",
+        newId,
+        oldId,
+      );
+      this.run("DELETE FROM issue_deleted_snapshots WHERE session_id=?", oldId);
+      this.run("DELETE FROM issue_index_jobs WHERE session_id=?", oldId);
+    });
+  }
+}

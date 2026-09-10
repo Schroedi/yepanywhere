@@ -94,6 +94,8 @@ export async function resolveCodexRolloutLineage(options: {
   requestedSessionId: string;
   leafFilePath: string;
   resolveRolloutPath: ResolveCodexRolloutPath;
+  maxSegments?: number;
+  signal?: AbortSignal;
 }): Promise<CodexRolloutLineage> {
   const { requestedSessionId, leafFilePath, resolveRolloutPath } = options;
   const canonicalMeta = await readCodexSessionMeta(leafFilePath);
@@ -120,6 +122,13 @@ export async function resolveCodexRolloutLineage(options: {
   let end: CodexHistoryPosition | undefined;
 
   for (;;) {
+    options.signal?.throwIfAborted();
+    if (options.maxSegments !== undefined && seen.size >= options.maxSegments) {
+      throw new CodexRolloutLineageError(
+        requestedSessionId,
+        "bounded lineage limit reached",
+      );
+    }
     if (seen.has(rolloutId)) {
       throw new CodexRolloutLineageError(requestedSessionId, "cycle detected");
     }

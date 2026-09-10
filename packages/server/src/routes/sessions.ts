@@ -264,6 +264,10 @@ function isQueueFullResponse(
 }
 
 export interface SessionsDeps {
+  onIssueWindow?: (
+    source: { sessionId: string; projectId: string },
+    messages: readonly Message[],
+  ) => void;
   supervisor: Supervisor;
   scanner: ProjectScanner;
   readerFactory: (project: Project) => ISessionReader;
@@ -3384,6 +3388,16 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       paginationInfo = sliced.pagination;
     }
     const sliceEndMs = performance.now();
+
+    if (!publicShare) {
+      deps.onIssueWindow?.(
+        {
+          sessionId: process?.sessionId ?? session.id,
+          projectId: effectiveProjectId,
+        },
+        session.messages,
+      );
+    }
 
     // Normalization carries sanitized inline image bytes as private symbol
     // metadata. Consume those candidates before generic response detachment,

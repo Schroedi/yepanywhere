@@ -1,4 +1,5 @@
 import {
+  SERVER_CAPABILITIES,
   DEVICE_BRIDGE_AVAILABLE_CAPABILITY,
   DEVICE_BRIDGE_CAPABILITY,
   DEVICE_BRIDGE_DOWNLOAD_CAPABILITY,
@@ -78,6 +79,9 @@ const CATEGORY_COMPONENTS: Record<string, React.ComponentType> = {
     import("./SourceControlSettings").then((m) => ({
       default: m.SourceControlSettings,
     })),
+  ),
+  issues: lazy(() =>
+    import("./IssueSettings").then((m) => ({ default: m.IssueSettings })),
   ),
   storage: lazy(() =>
     import("./StorageSettings").then((m) => ({ default: m.StorageSettings })),
@@ -288,6 +292,15 @@ export function SettingsLayout() {
       0,
       getEmulatorCategory((key) => t(key as never)),
     );
+  }
+  if (
+    !serverHasCapability(
+      versionInfo,
+      SERVER_CAPABILITIES.issueSessionAssociations.name,
+    )
+  ) {
+    const index = categories.findIndex((item) => item.id === "issues");
+    if (index >= 0) categories.splice(index, 1);
   }
   // Two-column settings can fit before the persistent app sidebar can.
   const effectiveCategory =
