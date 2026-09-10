@@ -67,10 +67,10 @@ Planning searched `tasks/` and `on-deck/` (absent), topics, tactical plans, and
   persisted extraction, source-version checkpoints, coalescing, cancellation,
   and progress. Reuse these concepts, not their whole-catalog scan policy or an
   assumption that compaction paging bounds source reads.
-- [SQLite capability test gap](../../gaps/version-speech-session-terms-test.md):
-  recheck the recorded readiness assertion against concurrent corrections before
-  touching version tests. Preserve existing capability semantics; if an open gap
-  is fixed here, isolate that correction and remove its entry in that commit.
+- The SQLite speech-capability readiness assertion was corrected in
+  [3318f1259](https://github.com/kzahel/yepanywhere/commit/3318f1259) and the version
+  suite passes. Preserve the existing capability semantics; this is no longer
+  an open prerequisite for issue association work.
 
 ### What YA actually knows about Workstreams and branches
 

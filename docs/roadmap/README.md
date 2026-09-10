@@ -31,7 +31,13 @@ The release outcome is decided; the first mobile release design remains open.
 - [Desktop CI](../../.github/workflows/desktop-ci.yml) packages and signs
   desktop releases. [Nightly Desktop](../../.github/workflows/nightly-desktop.yml)
   publishes verified `main` changes to Latest; the first signed nightlies and
-  the unchanged-source skip have passed release validation.
+  the unchanged-source skip have passed release validation. The
+  [2026-09-10 nightly run](https://github.com/kzahel/yepanywhere/actions/runs/34450193826)
+  is blocked by a release-creation authorization error (HTTP 403); credential
+  repair is excluded from the current CI repair work.
+- The [server runtime matrix](https://github.com/kzahel/yepanywhere/actions/runs/34485119811)
+  now passes full packaged startup on Linux, macOS and Windows across all four
+  Node versions and the pinned Bun runtime, including clean npm installations.
 - [Android CI](../../.github/workflows/android-app-ci.yml) tests and builds
   application artifacts but does not publish them to Google Play. Android
   implementation exists; neither native mobile app is publicly published.

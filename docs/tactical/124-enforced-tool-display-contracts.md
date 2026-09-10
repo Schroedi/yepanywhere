@@ -18,9 +18,9 @@ commit's validation for touched behavior):
   on both delivery paths; 81 native server checks including variant accounting.
 - Full client suite: 5,534 passed. Full server rerun: 4,930 passed, 54 skipped.
   Root test invocation also passed shared (719), relay (130), push broker (44).
-  Its unrelated watcher classification race is recorded in
-  `gaps/file-watcher-baseline-event-classification-race.md`; the isolated test
-  and complete server rerun passed without changing watcher code.
+  The unrelated watcher classification test race was subsequently fixed in
+  [3351fcd47](https://github.com/kzahel/yepanywhere/commit/3351fcd47) by controlling
+  pending-baseline event ordering; production watcher behavior was unchanged.
 - Root lint and format checks clean; root typecheck includes compile-fail
   fixtures and the clean server fixture scope. Nine architecture probes pass.
 - Browser fixture passes at both required sizes, including a width assertion,

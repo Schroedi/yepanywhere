@@ -129,9 +129,10 @@ checks verify Node/Bun interoperability.
 `scripts/test-sqlite-startup.mjs` checks real packaged `/api/version` state and
 runtime identity in disposable profiles. The Server Runtime And SQLite workflow
 also verifies fresh npm installation rather than only attached workspace deps.
-Linux/macOS run full startup. Windows retains the existing
-[startup fixture exclusion](../gaps/windows-packaged-startup-provider-identity.md)
-while checking package installation, runtime preflight and storage modules.
+Linux, macOS and Windows run full Node/Bun startup across disabled, ready and
+error SQLite states. The [restored matrix](https://github.com/kzahel/yepanywhere/actions/runs/34485119811)
+passed all twelve OS/Node combinations on 2026-09-10; Windows no longer excludes
+full packaged startup.
 Node 20 is no longer a supported main-server runtime; an old running server
 remains compatible with the hosted frontend. See [server runtimes](server-runtime.md).
 

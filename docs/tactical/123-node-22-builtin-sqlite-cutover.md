@@ -310,11 +310,12 @@ provider-owned child shell/CLI, shutdown and shared SQLite files. Keep
 Desktop's exact bundled Bun unchanged. Public standalone platform claims must
 match actual evidence, not merely SQLite module tests.
 
-The existing `gaps/windows-packaged-startup-provider-identity.md` concerns an
-isolated npm-startup fixture; it is not evidence that Windows Desktop is broken.
-Keep it explicit, with no weakening of process identity checks. The Maintainer
-will verify Windows Desktop in a separate session; do not claim that manual
-verification here. Record unavailable OS validation in the handoff.
+The isolated Windows npm-startup gap was resolved on 2026-09-10 with bounded
+process-identity probes, asynchronous process-tree cleanup and full startup
+coverage. The [restored matrix](https://github.com/kzahel/yepanywhere/actions/runs/34485119811)
+passed without bypassing process identity or owner-only ACL checks. This is
+packaged runtime evidence; Windows Desktop manual verification remains a
+separate Maintainer follow-up.
 
 ### 4 — close the runtime and dependency debt
 

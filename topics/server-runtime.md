@@ -128,10 +128,11 @@ read-only probe, while any HTTP response still undergoes the full assertions.
 Full packaged startup is exercised on Linux, macOS and Windows. The
 Windows matrix has a 30-minute job budget for the restored clean-install and
 locked-dependency Node/Bun launches; individual startup deadlines remain bounded.
-The [Windows investigation](../gaps/windows-packaged-startup-provider-identity.md)
-tracks the restored coverage until the matrix confirms it. Windows Desktop
-manual verification is a separate Maintainer follow-up; this cutover does not
-claim it. Public standalone Bun platform claims remain limited to verified
+The [restored runtime matrix](https://github.com/kzahel/yepanywhere/actions/runs/34485119811)
+passed all twelve OS/Node combinations on 2026-09-10, including every Windows
+Node/Bun startup state with both clean npm and locked dependencies. Windows
+Desktop manual verification is a separate Maintainer follow-up; this runtime
+validation does not claim it. Public standalone Bun platform claims remain limited to verified
 artifact behavior; the matrix does not promise every provider on every OS.
 
 Local cutover evidence (macOS arm64, 2026-09-08): clean npm startup passed on
