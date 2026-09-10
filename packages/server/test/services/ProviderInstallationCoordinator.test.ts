@@ -429,10 +429,27 @@ describe("ProviderInstallationCoordinator", () => {
         "-NoProfile",
         "-NonInteractive",
         "-Command",
-        "((Get-Process -Id 4242 -ErrorAction Stop).StartTime.ToUniversalTime().Ticks)",
+        "[System.Diagnostics.Process]::GetProcessById(4242).StartTime.ToUniversalTime().Ticks",
       ],
-      { encoding: "utf8", timeout: 5_000 },
+      { encoding: "utf8", timeout: 15_000 },
     );
+  });
+
+  it("keeps Windows probe failures conservative while preserving our own startup cause", async () => {
+    const failure = new Error("PowerShell timed out");
+    const ownerProbe = createDefaultOwnerProbe({
+      platform: "win32",
+      execFile: vi.fn(async () => {
+        throw failure;
+      }),
+    });
+    await expect(ownerProbe.startId(4242)).resolves.toBeNull();
+    await expect(ownerProbe.startId(process.pid)).rejects.toBe(failure);
+    const invalidProbe = createDefaultOwnerProbe({
+      platform: "win32",
+      execFile: vi.fn(async () => ({ stdout: "unexpected output" })),
+    });
+    await expect(invalidProbe.startId(4242)).resolves.toBeNull();
   });
 
   it("publishes a cross-process source generation after failure", async () => {
