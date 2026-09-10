@@ -23,6 +23,11 @@ overrides:
 
 onlyBuiltDependencies:
   - bcrypt
+
+# Version 13 ships Node-API binaries for our Linux/macOS/Windows x64/arm64
+# hosts. pnpm 10 still invokes node-gyp for binding.gyp despite gypfile:false;
+# that unnecessary configure step requires Visual Studio on Windows.
+ignoredBuiltDependencies:
   - better-sqlite3
 
 auditConfig:

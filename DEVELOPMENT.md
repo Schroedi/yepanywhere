@@ -722,8 +722,13 @@ deps).
 
 Dependency install scripts (preinstall/install/postinstall) are blocked by
 default via `onlyBuiltDependencies` in `pnpm-workspace.yaml`; only
-`bcrypt` and `better-sqlite3` (native node-gyp/prebuild builds) may run
-theirs. This neutralizes the `"preinstall": "node setup.mjs"` vector used
+`bcrypt` may run its native build. `better-sqlite3` 13 ships Node-API binaries
+for Linux (glibc/musl), macOS and Windows on x64/arm64, so it is explicitly
+listed in `ignoredBuiltDependencies`. pnpm 10 otherwise runs an unnecessary
+`node-gyp` configure despite upstream's `gypfile: false`, requiring Visual
+Studio even when the Windows binary is already present. Unsupported relay/
+broker architectures require a separately reviewed source-build setup.
+This neutralizes the `"preinstall": "node setup.mjs"` vector used
 by npm supply-chain attacks. If a newly added dep needs its build script,
 `pnpm install` warns `build scripts that were ignored: <pkg>` and the
 package will be missing its native binary at runtime — vet the script,
