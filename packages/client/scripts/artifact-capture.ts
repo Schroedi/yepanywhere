@@ -12,7 +12,7 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { chromium, type Page } from "@playwright/test";
 import type {
   ArtifactViewerGrant,
   ArtifactViewerStatus,
@@ -45,8 +45,8 @@ export interface CaptureOptions {
   /**
    * Local artifact origin the session already knows, from
    * `AGENT_ARTIFACT_VIEWER_ORIGIN`. Present means the user's YA has interactive
-   * delivery configured and listening, so the capability and health round trips
-   * are unnecessary. Absent means ask the server as before.
+   * delivery configured, so the capability round trip is unnecessary. Absent
+   * means ask the server as before.
    */
   artifactOrigin?: string;
   yaHeaders?: Record<string, string>;
@@ -125,7 +125,6 @@ async function apiJson<T>(
 async function createDelivery(
   options: CaptureOptions,
   path: string,
-  browser: Browser,
 ): Promise<ArtifactDelivery> {
   if (!options.yaUrl)
     return {
@@ -133,11 +132,9 @@ async function createDelivery(
       reason: "Local capture; no YA server selected",
     };
   const audience = options.audience ?? "local";
-  // The session marker already answers "is interactive delivery configured and
-  // listening", so trust it for the local audience and skip both round trips.
-  const announced =
-    audience === "local" ? options.artifactOrigin?.trim() : undefined;
-  let value = announced;
+  // The session marker already answers "is interactive delivery configured",
+  // so trust it for the local audience and skip the round trip.
+  let value = audience === "local" ? options.artifactOrigin?.trim() : undefined;
   if (!value) {
     const version = await apiJson<
       ServerCapabilitySource & { artifactViewer?: ArtifactViewerStatus }
@@ -156,8 +153,8 @@ async function createDelivery(
       };
   }
   const origin = httpUrl(value);
-  // A misconfigured or unreachable artifact origin costs the interactive link,
-  // never the captures: report the reason and let the caller keep its images.
+  // A misconfigured artifact origin costs the interactive link, never the
+  // captures: report the reason and let the caller keep its images.
   if (
     origin.origin !== value ||
     origin.hostname === httpUrl(options.yaUrl).hostname
@@ -166,32 +163,11 @@ async function createDelivery(
       status: "skipped",
       reason: "Artifact configuration does not name an isolated origin",
     };
-  if (!announced) {
-    // Use the browser's resolver for configured *.localhost hosts as the viewer does.
-    const probe = await browser.newContext({ serviceWorkers: "block" });
-    try {
-      const healthUrl = new URL("/health", origin).href;
-      await probe.route("**/*", (route) =>
-        route.request().url() === healthUrl
-          ? route.continue()
-          : route.abort("blockedbyclient"),
-      );
-      const page = await probe.newPage();
-      const health = await page
-        .goto(healthUrl, { timeout: 2500 })
-        .catch(() => null);
-      const body = health?.ok() ? await health.json().catch(() => null) : null;
-      if (body?.artifactViewer !== 1)
-        return {
-          status: "skipped",
-          reason: "Configured artifact origin failed its health check",
-        };
-    } finally {
-      await probe.close();
-    }
-  }
-  // A refused grant is the other way delivery can fall through, and it is what
-  // a marker left over from a since-disabled viewer produces.
+  // Whether the origin resolves is not this tool's question. A browser maps
+  // `*.localhost` to loopback itself (RFC 6761) with no hosts file and no
+  // flag, which is why the configured default is spelled that way. Enabled or
+  // not is the whole decision, and the grant request below is the authority on
+  // it: a viewer that is off or has since been disabled refuses the grant.
   const grant = await apiJson<ArtifactViewerGrant>(options, "/api/artifacts", {
     path,
     audience,
@@ -264,7 +240,7 @@ export async function captureArtifact(options: CaptureOptions) {
           url: httpUrl(options.input).href,
           expiresAt: null,
         }
-      : await createDelivery(options, file!, browser);
+      : await createDelivery(options, file!);
     const url =
       delivery.status === "skipped"
         ? `${localOrigin}/${encodeURIComponent(basename(file!))}`

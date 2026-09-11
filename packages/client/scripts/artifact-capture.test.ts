@@ -198,12 +198,15 @@ describe("portable artifact capture", () => {
     expect(result.screenshots).toHaveLength(2);
   });
 
-  it("keeps the captures when a configured origin fails its health check", async () => {
+  it("never probes the configured origin for reachability", async () => {
     const files = await fixture();
     const server = await serverFixture({ healthy: false });
     const result = await captureArtifact({ ...files, yaUrl: server.yaUrl });
-    expect(result.delivery).toMatchObject({ status: "skipped" });
-    expect(result.markdown).toContain("health check");
+    // Enabled or not is the whole decision, and the grant request answers it.
+    // Whether the origin resolves belongs to the browser, which maps
+    // `*.localhost` to loopback on its own.
+    expect(result.delivery.status).toBe("created");
+    expect(server.requests.map((item) => item.path)).not.toContain("/health");
     expect(result.screenshots).toHaveLength(2);
   });
 

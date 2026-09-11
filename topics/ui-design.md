@@ -118,7 +118,7 @@ an application-specific ready state. Load failures, console errors, missing
 assets, and operation timeouts fail the command. Browser warnings remain visible
 in the JSON `warnings` array and Markdown handoff; captures with warnings do not
 certify a clean page. `--timeout-ms` defaults
-to 30000 per browser/API operation; health probes have a 2500ms deadline.
+to 30000 per browser/API operation.
 Capturing succeeds only after both viewports and the output manifest are
 written. A successful capture does not certify appearance or test interaction:
 the agent must open and inspect both PNGs sequentially before handing them off.
@@ -222,25 +222,28 @@ session. Without either URL source, capture stays local. The server must see
 the same absolute HTML path. With a server selected and no announced origin,
 the helper reads `/api/version` once and checks the
 artifact capability, availability, and selected local/public origin. An absent
-capability or disabled/unconfigured selected origin skips both the health probe
-and grant request, and still produces local captures and the file-viewer link.
+capability or disabled/unconfigured selected origin skips the grant request,
+and still produces local captures and the file-viewer link.
 It does not guess another audience, enable hosting, or change settings.
 
 A session launched by YA already knows that answer:
 `AGENT_ARTIFACT_VIEWER_ORIGIN` carries the isolated local origin when the
-viewer is available and reachable, so the helper skips both the capability
-query and the health probe and requests the grant directly. See
+viewer is available, so the helper skips the capability query and requests the
+grant directly. See
 `topics/ya-env-vars.md` on child launch markers. The marker is only present for
 a loopback session and the local audience; without it the helper asks the
 server as above.
 
-For an enabled origin discovered by query, a credential-free health probe
-precedes grant creation; both PNGs then render the returned artifact URL,
-verifying that delivery path.
+Enabled or not is the whole delivery decision, and the grant request is its
+authority: a viewer that is off, or was disabled after a marker was published,
+refuses the grant. Whether the origin *resolves* is never asked, because a
+browser maps `*.localhost` to loopback itself under RFC 6761 with no hosts
+file and no flag, which is what the default local origin relies on. Both PNGs
+render the returned artifact URL, verifying that delivery path.
 The success result retains that grant for the user and includes its expiration.
 A failed capture revokes the grant it created. A non-isolated origin or a
-failed health probe skips delivery with that reason rather than failing the
-run, so a misconfigured or momentarily unreachable artifact service costs the
+refused grant skips delivery with that reason rather than failing the
+run, so a misconfigured artifact service costs the
 interactive link and never the captures. Explicit hosting failures for an
 origin that did mint a grant are still reported rather than silently claimed as
 working delivery; use `--local-only` when only local captures are needed.
@@ -356,8 +359,7 @@ If **Run interactive preview** produces the browser's blocked-content page,
 check the parent YA document's CSP as well as the artifact response. A stale
 Vite process may still serve `default-src 'self'` without the current
 `frame-src 'self' blob: http: https:` directive from `vite-plugin-csp.ts`.
-That policy blocks the separate artifact host even when its health check and
-grant work. It requires an operator-owned frontend restart and a page reload;
+That policy blocks the separate artifact host even when its grant works. It requires an operator-owned frontend restart and a page reload;
 ordinary module hot reload does not establish that the HTML policy is current.
 The viewer now replaces an enforced frame-policy failure with an explanation
 and a link to open the granted document in a separate tab. That link remains
