@@ -21,6 +21,10 @@ import type {
 import { makeDisplayPath } from "../../lib/text";
 import type { ToolCallItem } from "../../types/renderItems";
 import { MessageAge } from "../MessageAge";
+import {
+  collectExploredImages,
+  ExploredImageStrip,
+} from "./ExploredImageStrip";
 import { toolRegistry } from "../renderers/tools";
 import type { RenderContext } from "../renderers/types";
 import { SessionFilePathLink } from "../SessionFilePathLink";
@@ -166,6 +170,7 @@ export const ExploredToolGroup = memo(function ExploredToolGroup({
     ? t("explorationCollapse")
     : t("explorationExpand");
   const rawParents = projection.parents.filter(parentNeedsRawDetails);
+  const exploredImages = collectExploredImages(projection.parents);
   const bodyId = `${accessibilityId}-body`;
   const intrinsicHeight = estimateExplorationGroupHeightPx({
     detailRowCount: rawParents.length,
@@ -302,6 +307,11 @@ export const ExploredToolGroup = memo(function ExploredToolGroup({
                 );
               })}
             </div>
+          )}
+          {/* Outside the entry list: that list is a short scrolling box, and
+              thumbnails inside it would push every filename out of view. */}
+          {expanded && exploredImages.length > 0 && (
+            <ExploredImageStrip images={exploredImages} />
           )}
         </div>
       </div>

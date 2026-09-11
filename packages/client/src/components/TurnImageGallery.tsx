@@ -173,9 +173,7 @@ function GalleryThumbnail({
           />
         ) : (
           <span className={styles.placeholder}>
-            {error
-              ? t("turnImageGalleryUnavailable")
-              : t("turnImageGalleryLoading")}
+            {error ? t("inlineImageUnavailable") : t("inlineImageLoading")}
           </span>
         )}
       </button>

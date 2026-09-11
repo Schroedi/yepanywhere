@@ -440,6 +440,84 @@ export default async function globalSetup() {
   );
   console.log(`[E2E] Created transcript specimen at ${transcriptSpecimenFile}`);
 
+  // Grouped image reads whose results carry metadata and a path but no bytes:
+  // the shape YA stores once it materializes tool-result media. The strip in the
+  // explored group re-reads these files, so they must exist in the project.
+  const exploredImageNames = ["diagram.png", "badge.png"];
+  const exploredImageSources = [
+    join(__dirname, "..", "public", "icon-192.png"),
+    join(__dirname, "..", "public", "icon-512.png"),
+  ];
+  for (const [index, name] of exploredImageNames.entries()) {
+    const source = exploredImageSources[index];
+    if (source) copyFileSync(source, join(mockProjectPath, name));
+  }
+  const exploredImageMessages = [
+    {
+      type: "user",
+      cwd: mockProjectPath,
+      message: { role: "user", content: "Look at the two screenshots" },
+      timestamp: "2026-01-01T00:00:00.000Z",
+      uuid: "explored-images-user-1",
+    },
+    {
+      type: "assistant",
+      message: {
+        role: "assistant",
+        content: exploredImageNames.map((name, index) => ({
+          type: "tool_use",
+          id: `explored-image-${index}`,
+          name: "Read",
+          input: { file_path: join(mockProjectPath, name) },
+        })),
+      },
+      timestamp: "2026-01-01T00:00:01.000Z",
+      uuid: "explored-images-assistant-1",
+      parentUuid: "explored-images-user-1",
+    },
+    ...exploredImageNames.map((name, index) => ({
+      type: "user",
+      message: {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: `explored-image-${index}`,
+            content: `Read image ${name}`,
+          },
+        ],
+      },
+      toolUseResult: {
+        type: "image",
+        file: {
+          type: "image/png",
+          originalSize: 4096,
+          dimensions: {
+            originalWidth: 192,
+            originalHeight: 192,
+            displayWidth: 192,
+            displayHeight: 192,
+          },
+        },
+      },
+      timestamp: `2026-01-01T00:00:0${2 + index}.000Z`,
+      uuid: `explored-images-result-${index}`,
+      parentUuid: "explored-images-assistant-1",
+    })),
+    {
+      type: "assistant",
+      message: { role: "assistant", content: "Both screenshots look right." },
+      timestamp: "2026-01-01T00:00:05.000Z",
+      uuid: "explored-images-assistant-2",
+      parentUuid: "explored-images-result-1",
+    },
+  ];
+  writeFileSync(
+    join(mockSessionDir, "explored-images-001.jsonl"),
+    exploredImageMessages.map((message) => JSON.stringify(message)).join("\n"),
+  );
+  console.log("[E2E] Created explored image-read session");
+
   const historySearchSessionFile = join(
     mockSessionDir,
     "history-search-001.jsonl",

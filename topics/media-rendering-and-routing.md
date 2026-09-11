@@ -99,6 +99,20 @@ and the route it pulls from.
   unmaterialized `Read` results retain their base64 renderer as a compatibility
   fallback. The same handle and row play Grok session `videos/*.mp4`
   tool results as `<video>` when the stored mime is `video/mp4`.
+- **`Read` image result without inline bytes** — inline bytes are optional in
+  the `Read` display contract, because a materialized result keeps its metadata
+  and path and drops the provider's base64. `ReadRenderer` prefers inline bytes
+  when present and otherwise reads the file back through `/api/local-image`,
+  so the row shows the image instead of falling back to raw JSON. Requiring
+  `base64` there was the reason a stripped result printed "Rich preview
+  unavailable".
+- **Images inside a grouped exploration** — `ExploredImageStrip`
+  (`blocks/ExploredImageStrip.tsx`) lists the image reads a collapsed
+  "Explored" group would otherwise show only by filename. It sits below the
+  entry list rather than inside it, since that list is a short scrolling box.
+  Its `+ / -` toggle takes its initial state from Expand Inline Media by
+  Default; thumbnails load lazily through `/api/local-image` and open
+  `LocalMediaModal` with prev/next across the strip.
 - **Embedded media inside rendered Markdown/HTML** — an `![](...)` image or
   video that appears inline within an assistant/user message body.
   `useLocalMediaInlinePreviews` (`components/LocalMediaModal.tsx`) hydrates the

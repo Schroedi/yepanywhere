@@ -73,8 +73,10 @@ const highlight = {
   _highlightedTruncated: z.boolean().optional(),
   _renderedMarkdownHtml: optionalString,
 };
+// Inline bytes are optional: once YA materializes tool-result media, the stored
+// result keeps only its metadata and path, and the row re-reads the file.
 export const MediaFileDisplaySchema = z.object({
-  base64: string,
+  base64: optionalString,
   filePath: optionalString,
   type: string,
   originalSize: optionalNumber,
