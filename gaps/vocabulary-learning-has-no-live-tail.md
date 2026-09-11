@@ -53,6 +53,13 @@ flag, is the shape. Points to settle while building it:
   handles exactly that, so live observations must enter it.
 - Streaming deltas must not each count as a message. The live path needs the
   same finalized-message test the subscription uses, not raw deltas.
+- Both heaps update, not just the session one. `observe` already does this:
+  `considerWord` scores against the current total and offers the word to the
+  global heap, and the session heap then takes the same score with the
+  fivefold multiplier. Routing arrivals through `observe` therefore keeps the
+  global 500 and the per-session 100 in step by construction, and any live path
+  that skipped straight to the session heap would leave the global list frozen
+  between scans.
 
 Found 2026-09-11 after the maintainer pointed out that the online top-N was
 specified to be fed by a live tail, and that no such feed exists.
