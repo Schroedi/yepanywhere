@@ -39,7 +39,17 @@ its default of ten minutes. A watermark stronger than a file modification time
 is already stored: counts and per-session checkpoints are written in the same
 batch, so the `hasScanned` `{version, cutoff}` rows are already consistent.
 
-## Resuming after a pause needs an anchor, not a window
+## Resuming after a pause needs a live feed, not an anchor
+
+**Superseded.** The section below proposed a stored "collect from this instant"
+so that zero hours could mean live collection. That was making a replay window
+impersonate arrival. The real answer is
+[the missing live tail](vocabulary-learning-has-no-live-tail.md): a message that
+arrives while collection is on qualifies without any timestamp test, replay
+stays gated by the window, and nothing needs anchoring. Kept because the
+measurement and the skip-or-cover reasoning still hold for the replay half.
+
+## The anchor proposal, superseded
 
 The maintainer proposes that resuming collection sets hours to zero, meaning
 collect from now on rather than replay the gap. That cannot be expressed by the
