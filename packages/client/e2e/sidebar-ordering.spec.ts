@@ -139,8 +139,15 @@ test("sidebar follows user visits and sends while background work stays put", as
         .getByRole("button", { name: "Open sidebar", exact: true })
         .click();
       const list = page.locator(".sidebar:visible #sidebar-last-24-hours-list");
-      const links = list.locator('a[href*="/sessions/sidebar-"]');
+      // A compact row links to its session twice: the title link and the
+      // trailing project-name link. Match only the title link, so an index is
+      // a row, and assert the count so a third link per row fails loudly here
+      // instead of silently shifting what nth(1) clicks.
+      const links = list.locator(
+        'a.session-list-item__link[href*="/sessions/sidebar-"]',
+      );
       const titles = links.locator(".session-list-item__title-text");
+      await expect(links).toHaveCount(3);
       await expect(titles).toHaveText(["Session A", "Session B", "Session C"]);
       const target = links.nth(1);
       await target.hover();
