@@ -5,7 +5,10 @@
     "../client/src/vite-env.d.ts",
     "../client/test/tool-display-native.test.tsx",
     "test/tool-display-native.test.ts",
-    "test/utils/native-tool-display-corpus.ts"
+    "test/utils/native-tool-display-corpus.ts",
+    "../../scripts/audit-tool-displays.ts",
+    "../../scripts/tool-display-audit.ts",
+    "test/tool-display-audit.test.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }

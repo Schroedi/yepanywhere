@@ -431,6 +431,61 @@ formulas as literal text, matching the experience in their editor.
 
 ## Malformed and partial tool records
 
+### Historical tool display audit
+
+`pnpm tools:audit` scans historical Codex and Claude transcripts offline to
+find registered tool rows rejected by display contracts. With no roots it scans
+`CODEX_HOME/{sessions,archived_sessions}` and `CLAUDE_CONFIG_DIR/projects`, using
+the normal `~/.codex` and `~/.claude` defaults. Repeat `--codex PATH` or
+`--claude PATH` for files, alternate profiles, or copied trees; explicit roots
+replace defaults. Claude subagent JSONL files are included recursively. The
+reported provider is the transcript family, not an inferred gateway/OSS backend.
+
+The command uses production JSONL/Claude cache parsing, Codex lineage resolution,
+session normalization, task snapshots, persisted augments, and transcript
+compilation before testing final tool rows. It does not apply API tail limits.
+Claude's production active-branch selection still applies; discarded branches
+are not independently replayed. Referenced ancestors must be inside the chosen
+Codex roots. Copied/forked histories can count the same underlying execution
+more than once. Plain and compressed twins at the same path count once, with
+the plain representation preferred. Zstd is read without unpacking files and
+requires a Node runtime supporting native zstd (Node 24 is recommended).
+
+Only explicit report exports write files: `--output REPORT.json` writes the
+main JSON report, and optional `--locations PRIVATE.json` writes the separate
+file-id-to-path map. Both refuse existing destinations and use owner-only file
+permissions where supported. Without `--output`, JSON goes to stdout; progress
+goes to stderr. No provider/server/index is started, no model calls are made,
+and no transcript or media is rewritten, fetched, or preserved. Each file runs
+in its own worker with a 2 GiB V8 heap ceiling and a 120-second timeout;
+`--timeout-seconds N` changes the deadline. Memory still scales with one full
+transcript, and a worker failure is reported rather than losing the scan.
+
+Reports contain revision/dirty-state provenance, coverage counts, parsing/read
+failures, per-file warnings, and bounded structural examples grouped by family,
+version, tool, reason, and shape. Payload strings, arbitrary object keys, raw
+exception/Zod messages, paths, and call identifiers are omitted or hashed.
+Only known structural vocabulary and allowlisted block types survive. Keep the
+optional locations file private. Examples are shape witnesses, not replayable
+fixtures; inspect locally and sanitize deliberately before adding a test.
+
+Successful raw, error raw, and unfinished raw rows are separate categories.
+Unknown tool registrations are counted separately. Targeted alias-loss checks
+cover Shell `cellId`/`command`/`cmd` and create-goal `tokenBudget`; this is not
+exhaustive detection of stripped fields. There is no browser mounting, media
+materialization, commentary transformation, live-event replay, or proof that an
+accepted renderer retains every affordance. Raw candidates require triage.
+
+Exit 0 means the selected scan completed, even with candidates. Optional
+`--fail-on-findings` returns 1 for successful raw or targeted alias-loss findings.
+Exit 2 means invalid invocation or incomplete coverage: failures, malformed
+records, changing files, skipped symlinks/unrecognized Codex filenames,
+discovery errors, no audited files, or a `--limit N` excluding discovered files.
+Absent default roots are counted without failing an otherwise valid scan;
+missing explicit roots are errors. A partial report retains completed files.
+
+### Display boundary contract
+
 A valid SDK message or persisted JSONL record does not guarantee valid tool
 arguments or a complete successful result. Providers can retain rejected calls
 and interrupted inputs, and result schemas intentionally permit partial data.
