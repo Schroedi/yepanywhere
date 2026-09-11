@@ -29,7 +29,8 @@ export function createArtifactRoutes(options: {
     try {
       config = validateArtifactConfig(
         await c.req.json(),
-        options.server.config.expiryHours,
+        options.server.config.expiryDays,
+        options.server.config.deleteOnExpiry,
       );
       const requestHost = new URL(
         `http://${c.req.header("Host") ?? new URL(c.req.url).host}`,
@@ -78,11 +79,15 @@ export function createArtifactRoutes(options: {
     const body = await c.req.json<unknown>();
     if (!body || typeof body !== "object")
       return c.json({ error: "Invalid artifact request" }, 400);
-    const { path, projectId, audience } = body as Record<string, unknown>;
+    const { path, projectId, audience, owned } = body as Record<
+      string,
+      unknown
+    >;
     if (
       typeof path !== "string" ||
       (audience !== "local" && audience !== "public") ||
-      (projectId !== undefined && typeof projectId !== "string")
+      (projectId !== undefined && typeof projectId !== "string") ||
+      (owned !== undefined && typeof owned !== "boolean")
     )
       return c.json(
         {
@@ -96,7 +101,13 @@ export function createArtifactRoutes(options: {
       if (!project) return c.json({ error: "Project not found" }, 404);
       filePath = resolve(project.path, filePath);
     }
-    return c.json(await options.server.createGrant(filePath, audience));
+    return c.json(
+      await options.server.createGrant(
+        filePath,
+        audience,
+        owned as boolean | undefined,
+      ),
+    );
   });
   routes.delete("/artifacts/:id", (c) => {
     options.server.revoke(c.req.param("id"));

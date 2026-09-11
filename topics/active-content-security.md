@@ -411,18 +411,17 @@ deadlines; it affects newly created links. Saving unchanged settings likewise
 preserves grants. Manual inventory/revocation controls remain deferred in
 [the revocation UI gap](../gaps/artifact-grant-revocation-ui.md).
 
-Days are the stored and transported unit, `expiryDays`. A saved `expiryHours`
-from an earlier install is read once and rounded up to whole days, and
+Days are the stored and transported unit, `expiryDays`, and
 `version.artifactViewer` reports both fields so an older client keeps its
-hours slider and its gate. An older client that omits either field preserves
-the saved lifetime; one that writes `expiryHours` sets the same lifetime
-through the old unit and cannot express more than its own 168-hour ceiling.
+hours slider and its gate. An `expiryHours` value, whether saved by an earlier
+install or written by an older client, is converted by rounding up to whole
+days: a two-hour lifetime becomes one day. Expiry shorter than a day is
+therefore no longer expressible, which is the price of the unit people
+actually reason about for a shared link. An older client that omits both
+fields preserves the saved lifetime, and one that writes hours cannot exceed
+its own 168-hour ceiling.
 
 #### Grants survive restart
-
-> Contract agreed 2026-09-11 and being implemented; until the paired code
-> lands, restart still discards grants and nothing is deleted. This note goes
-> away with the implementation.
 
 Grants outlive the server process. A link that says it expires in seven days
 is usable for seven days, across restarts, upgrades and crashes, because the

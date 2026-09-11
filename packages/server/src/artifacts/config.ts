@@ -2,25 +2,59 @@ export interface ArtifactConfig {
   port: number;
   localOrigin?: string;
   publicOrigin?: string;
+  /** Days a new link lives; the stored and transported unit. */
+  expiryDays?: number;
+  /** Derived from days, so an older client keeps its hours control. */
   expiryHours?: number;
+  /** Default ownership for a grant that does not state one. */
+  deleteOnExpiry?: boolean;
 }
+
+/** A week is long enough to open a link again, short enough to forget. */
+export const DEFAULT_ARTIFACT_EXPIRY_DAYS = 7;
+export const MAX_ARTIFACT_EXPIRY_DAYS = 30;
+/** An earlier install stored hours; its ceiling was a week. */
+const MAX_LEGACY_EXPIRY_HOURS = 168;
 
 export function validateArtifactConfig(
   value: unknown,
-  defaultExpiryHours = 24,
+  defaultExpiryDays = DEFAULT_ARTIFACT_EXPIRY_DAYS,
+  defaultDeleteOnExpiry = false,
 ): ArtifactConfig {
   if (!value || typeof value !== "object")
     throw new Error("Artifact configuration must be an object");
   const input = value as Record<string, unknown>;
-  const expiryHours =
-    input.expiryHours === undefined ? defaultExpiryHours : input.expiryHours;
+  // Days win when both are present; an hours-only writer is an older client
+  // or a settings file saved before days existed, and is rounded up so its
+  // lifetime never silently shortens.
+  let expiryDays = input.expiryDays;
+  if (expiryDays === undefined && input.expiryHours !== undefined) {
+    const hours = input.expiryHours;
+    if (
+      typeof hours !== "number" ||
+      !Number.isInteger(hours) ||
+      hours < 1 ||
+      hours > MAX_LEGACY_EXPIRY_HOURS
+    )
+      throw new Error("Artifact expiry must be whole hours from 1 to 168");
+    expiryDays = Math.ceil(hours / 24);
+  }
+  if (expiryDays === undefined) expiryDays = defaultExpiryDays;
   if (
-    typeof expiryHours !== "number" ||
-    !Number.isInteger(expiryHours) ||
-    expiryHours < 1 ||
-    expiryHours > 168
+    typeof expiryDays !== "number" ||
+    !Number.isInteger(expiryDays) ||
+    expiryDays < 1 ||
+    expiryDays > MAX_ARTIFACT_EXPIRY_DAYS
   )
-    throw new Error("Artifact expiry must be whole hours from 1 to 168");
+    throw new Error(
+      `Artifact expiry must be whole days from 1 to ${MAX_ARTIFACT_EXPIRY_DAYS}`,
+    );
+  const deleteOnExpiry =
+    input.deleteOnExpiry === undefined
+      ? defaultDeleteOnExpiry
+      : input.deleteOnExpiry;
+  if (typeof deleteOnExpiry !== "boolean")
+    throw new Error("Artifact deleteOnExpiry must be true or false");
   if (
     typeof input.port !== "number" ||
     !Number.isInteger(input.port) ||
@@ -39,7 +73,12 @@ export function validateArtifactConfig(
   };
   const config = readArtifactConfig(env);
   if (!config) throw new Error("Artifact port must be from 1 to 65535");
-  return { ...config, expiryHours };
+  return {
+    ...config,
+    expiryDays,
+    expiryHours: expiryDays * 24,
+    deleteOnExpiry,
+  };
 }
 
 export function readArtifactConfig(

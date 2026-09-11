@@ -13,6 +13,12 @@ import {
 } from "../routes/local-resource-policy.js";
 import { openMutableFileSnapshot } from "../routes/mutable-file-cache.js";
 import { validateArtifactConfig, type ArtifactConfig } from "./config.js";
+import {
+  deletableDirectory,
+  GrantStore,
+  type PendingDeletion,
+  type StoredGrant,
+} from "./GrantStore.js";
 import { registerArtifactOrigins } from "../middleware/allowed-hosts.js";
 
 const MAX_GRANTS = 256;
@@ -30,13 +36,18 @@ const ARTIFACT_CSP = [
   "form-action 'none'",
 ].join("; ");
 
-interface Grant {
-  id: string;
-  token: string;
-  root: string;
-  entry: string;
-  expiresAt: number;
+interface Grant extends StoredGrant {
   files: Set<string>;
+}
+
+/** How often expiry is noticed without traffic; deletions owe a deadline. */
+const SWEEP_MS = 60_000;
+
+export interface ArtifactServerOptions {
+  /** Where grants and pending deletions survive a restart. */
+  stateDir?: string;
+  /** Directories an owning grant may never delete, whatever a caller says. */
+  protectedPaths?: readonly (string | undefined)[];
 }
 
 export class ArtifactServer {
@@ -45,13 +56,25 @@ export class ArtifactServer {
   private listener: Server | undefined;
   private listening = false;
 
+  private readonly store: GrantStore;
+  private readonly protectedPaths: readonly (string | undefined)[];
+  private deletions: PendingDeletion[] = [];
+  private sweepTimer?: ReturnType<typeof setInterval>;
+  /** Restore runs once; every path that reads grants waits for it. */
+  readonly ready: Promise<void>;
+
   constructor(
     public config: ArtifactConfig,
     private readonly policy: ReturnType<typeof createLocalResourcePathPolicy>,
+    options: ArtifactServerOptions = {},
   ) {
     this.config = validateArtifactConfig(config);
+    this.store = new GrantStore(options.stateDir);
+    this.protectedPaths = options.protectedPaths ?? [];
+    this.ready = this.restore();
     registerArtifactOrigins([config.localOrigin, config.publicOrigin]);
     this.app.use("*", async (c, next) => {
+      await this.ready;
       if (!this.matchesHost(c.req.header("Host") ?? new URL(c.req.url).host))
         return c.text("Unknown artifact host", 421);
       c.header("Content-Security-Policy", ARTIFACT_CSP);
@@ -162,6 +185,64 @@ export class ArtifactServer {
     });
   }
 
+  /**
+   * Adopt saved grants, drop the ones that expired while the server was down,
+   * and settle anything they owed. A grant that expired unnoticed still owes
+   * its deletion, so the queue is read before the first request is served.
+   */
+  private async restore(): Promise<void> {
+    const state = await this.store.load();
+    const now = Date.now();
+    this.deletions = state.deletions;
+    for (const stored of state.grants) {
+      if (stored.expiresAt > now) {
+        this.grants.set(stored.token, { ...stored, files: new Set() });
+        continue;
+      }
+      if (stored.owned) this.owe(stored.root, stored.expiresAt);
+    }
+    this.sweepTimer = setInterval(() => void this.sweep(), SWEEP_MS);
+    this.sweepTimer.unref?.();
+    await this.sweep();
+  }
+
+  private owe(root: string, dueAt: number): void {
+    if (!this.deletions.some((pending) => pending.root === root))
+      this.deletions.push({ root, dueAt });
+  }
+
+  private persist(): Promise<void> {
+    return this.store.save(
+      [...this.grants.values()].map(({ files: _files, ...stored }) => stored),
+      this.deletions,
+    );
+  }
+
+  /** Expire grants, pay the deletions they owe, and save what remains. */
+  private async sweep(): Promise<void> {
+    const now = Date.now();
+    for (const [token, grant] of this.grants) {
+      if (grant.expiresAt > now) continue;
+      this.grants.delete(token);
+      if (grant.owned) this.owe(grant.root, grant.expiresAt);
+    }
+    const due = this.deletions.filter((pending) => pending.dueAt <= now);
+    if (due.length) {
+      // A directory that failed to delete is dropped rather than retried
+      // forever; the grant is gone either way and nothing is served from it.
+      for (const pending of due) await GrantStore.deleteDirectory(pending.root);
+      this.deletions = this.deletions.filter((pending) => pending.dueAt > now);
+    }
+    await this.persist();
+  }
+
+  /** Awaitable sweep for callers that must observe the result. */
+  async settleExpired(): Promise<void> {
+    await this.ready;
+    await this.sweep();
+    await this.store.settled();
+  }
+
   get available(): boolean {
     return Boolean(this.config.localOrigin) || this.listening;
   }
@@ -189,7 +270,15 @@ export class ArtifactServer {
     registerArtifactOrigins([config.localOrigin, config.publicOrigin]);
     try {
       if (!this.listening && config.publicOrigin) await this.start();
-      if (deliveryChanged) this.grants.clear();
+      if (deliveryChanged) {
+        // Changing where artifacts are served revokes outstanding links, and
+        // an owning grant pays its deletion on revocation.
+        for (const [token, grant] of this.grants) {
+          this.grants.delete(token);
+          if (grant.owned) this.owe(grant.root, Date.now());
+        }
+        void this.sweep();
+      }
     } catch (error) {
       this.listener = undefined;
       this.config = previous;
@@ -214,6 +303,11 @@ export class ArtifactServer {
 
   async close(): Promise<void> {
     this.listening = false;
+    // Persisted grants outlive the process; only this listener stops here.
+    clearInterval(this.sweepTimer);
+    this.sweepTimer = undefined;
+    // A half-written state file would lose grants a caller already holds.
+    await this.store.settled();
     this.grants.clear();
     const listener = this.listener;
     this.listener = undefined;
@@ -225,7 +319,12 @@ export class ArtifactServer {
     }
   }
 
-  async createGrant(filePath: string, audience: "local" | "public") {
+  async createGrant(
+    filePath: string,
+    audience: "local" | "public",
+    owned?: boolean,
+  ) {
+    await this.ready;
     const origin =
       audience === "local" ? this.config.localOrigin : this.config.publicOrigin;
     if (!origin)
@@ -252,24 +351,37 @@ export class ArtifactServer {
         message: "Close an artifact viewer before opening another",
       });
     const token = randomBytes(32).toString("base64url");
+    const root = dirname(allowed.file.resolvedPath);
+    // Ownership is refused rather than honoured for a directory that is
+    // plainly not a disposable bundle; the grant is still created, borrowing.
+    const wants = owned ?? this.config.deleteOnExpiry === true;
     const grant: Grant = {
       id: randomUUID(),
       token,
-      root: dirname(allowed.file.resolvedPath),
+      root,
       entry: basename(allowed.file.resolvedPath),
-      expiresAt: now + this.config.expiryHours! * 60 * 60 * 1000,
+      expiresAt: now + this.config.expiryDays! * 24 * 60 * 60 * 1000,
+      owned: wants && (await deletableDirectory(root, this.protectedPaths)),
       files: new Set(),
     };
     this.grants.set(token, grant);
+    // The caller is handed a URL, so the grant must already be durable.
+    await this.persist();
     return {
       id: grant.id,
       url: `${origin}/a/${token}/${encodeURIComponent(grant.entry)}`,
       expiresAt: grant.expiresAt,
+      owned: grant.owned,
     };
   }
 
+  /** Revoking an owning grant pays its deletion now, not at its old deadline. */
   revoke(id: string): void {
     for (const [token, grant] of this.grants)
-      if (grant.id === id) this.grants.delete(token);
+      if (grant.id === id) {
+        this.grants.delete(token);
+        if (grant.owned) this.owe(grant.root, Date.now());
+      }
+    void this.sweep();
   }
 }

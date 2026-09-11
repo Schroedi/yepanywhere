@@ -786,6 +786,14 @@ export function createApp(options: AppOptions): AppResult {
   artifactServer = new ArtifactServer(
     validateArtifactConfig(artifactConfig),
     localResourcePathPolicy,
+    {
+      stateDir: options.dataDir
+        ? join(options.dataDir, "artifacts")
+        : undefined,
+      // An owning grant may never delete YA's own state or the checkout it
+      // runs from, however the request was phrased.
+      protectedPaths: [options.dataDir, process.cwd()],
+    },
   );
   app.route(
     "/api",

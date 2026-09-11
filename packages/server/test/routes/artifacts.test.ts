@@ -99,11 +99,11 @@ it("configures, creates, and revokes artifacts through the app's public routes",
         await call("/api/artifacts/config", "PUT", {
           port: 4402,
           localOrigin: "http://artifacts.localhost:3400",
-          expiryHours: 2,
+          expiryDays: 2,
         })
       ).status,
     ).toBe(200);
-    expect(settings.getSetting("artifactViewer")?.expiryHours).toBe(2);
+    expect(settings.getSetting("artifactViewer")?.expiryDays).toBe(2);
     const response = await call("/api/artifacts", "POST", {
       path: entry,
       audience: "local",
@@ -281,10 +281,10 @@ it("expires each link at its original lifetime after an expiry-only settings cha
     createLocalResourcePathPolicy({ allowedPaths: [directory] }),
   );
   const original = await server.createGrant(entry, "local");
-  expect(original.expiresAt).toBe(now + 24 * 3600_000);
-  await server.configure({ ...server.config, expiryHours: 2 });
+  expect(original.expiresAt).toBe(now + 7 * 24 * 3600_000);
+  await server.configure({ ...server.config, expiryDays: 2 });
   const shorter = await server.createGrant(entry, "local");
-  expect(shorter.expiresAt).toBe(now + 2 * 3600_000);
+  expect(shorter.expiresAt).toBe(now + 2 * 24 * 3600_000);
   clock.mockReturnValue(shorter.expiresAt - 1);
   expect(
     (await server.app.request(shorter.url, { method: "HEAD" })).status,
@@ -299,19 +299,41 @@ it("expires each link at its original lifetime after an expiry-only settings cha
   await server.close();
 });
 
-it("validates whole expiry hours and preserves the current setting for legacy writes", () => {
-  expect(validateArtifactConfig({ port: 4402 }).expiryHours).toBe(24);
-  expect(validateArtifactConfig({ port: 4402 }, 48).expiryHours).toBe(48);
-  for (const expiryHours of [1, 168]) {
-    expect(
-      validateArtifactConfig({ port: 4402, expiryHours }).expiryHours,
-    ).toBe(expiryHours);
+it("validates whole expiry days, rounding a legacy hours write up to a day", () => {
+  expect(validateArtifactConfig({ port: 4402 }).expiryDays).toBe(7);
+  expect(validateArtifactConfig({ port: 4402 }, 3).expiryDays).toBe(3);
+  for (const expiryDays of [1, 30]) {
+    expect(validateArtifactConfig({ port: 4402, expiryDays }).expiryDays).toBe(
+      expiryDays,
+    );
+  }
+  // Hours remain readable for an older client and a settings file written
+  // before days existed; anything under a day becomes one day.
+  expect(validateArtifactConfig({ port: 4402, expiryHours: 2 })).toMatchObject({
+    expiryDays: 1,
+    expiryHours: 24,
+  });
+  expect(
+    validateArtifactConfig({ port: 4402, expiryHours: 168 }).expiryDays,
+  ).toBe(7);
+  // Days win when a client sends both.
+  expect(
+    validateArtifactConfig({ port: 4402, expiryDays: 3, expiryHours: 168 })
+      .expiryDays,
+  ).toBe(3);
+  for (const expiryDays of [0, 31, 1.5, "7", null, NaN]) {
+    expect(() => validateArtifactConfig({ port: 4402, expiryDays })).toThrow(
+      "whole days",
+    );
   }
   for (const expiryHours of [0, 169, 1.5, "24", null, NaN]) {
     expect(() => validateArtifactConfig({ port: 4402, expiryHours })).toThrow(
       "whole hours",
     );
   }
+  expect(() =>
+    validateArtifactConfig({ port: 4402, deleteOnExpiry: "yes" }),
+  ).toThrow("true or false");
 });
 
 it("keeps launch overrides explicit and rejects shared-loopback origins", () => {
