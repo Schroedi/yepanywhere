@@ -139,12 +139,23 @@ request a grant on, published only when the viewer is available with a local
 origin configured *and* `AGENT_SERVER_URL` is a loopback base. Whether
 interactive delivery is configured belongs to the user's YA server, not to the
 sandbox an agent runs in, so publishing the origin saves the capture tool a
-capability query and an origin health probe it would otherwise need to discover
-the same fact. Absence is not a denial: it means ask the server, which is what a
+capability query it would otherwise need to discover the same fact. Absence is
+not a denial: it means ask the server, which is what a
 remote executor does, since the local origin resolves only on the YA host. The
 marker conveys no authentication and no permission to create a grant. A stale
 value costs the interactive link and never the captures, because a rejected or
 unreachable origin degrades to an images-only result carrying its reason.
+
+Its value is the same for every session on a server, so it travels with
+`AGENT_SERVER_URL` and the browser-debug pair through
+`pickStaticAgentEnvironment`, the narrowing the provider runtime host applies
+before handing a computed child environment to a worker that has no other
+source for it. Session-scoped values such as the minted wake token stay out of
+that set. Omitting a name there is silent: the server still computes the marker
+and every session started through the host loses it, which reads downstream as
+"this server has no artifact viewer" rather than as a plumbing fault. Observed
+2026-09-11, when a capture presented the throwaway server's own page URL as its
+interactive link because delivery had nothing configured to offer.
 
 Canonical launch/session outputs are addressed to the agent, so they carry no
 product prefix: `filterEnvForChildProcess` drops inherited `YEP_*` on the way

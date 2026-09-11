@@ -5,6 +5,11 @@ import { quoteShellWord } from "../../utils/posixShell.js";
 
 const AGENTCTL_SESSION_ID_ENV = "AGENTCTL_SESSION_ID";
 const ORIGINAL_BASH_ENV_ENV = "YEP_ORIGINAL_BASH_ENV";
+/**
+ * Session-scoped names the bridge file owns. `extendEnv` drops them from a
+ * spawn environment so a reused process cannot inherit a previous session's
+ * values; the bridge writes the current ones back for each shell.
+ */
 const SESSION_CHILD_ENV_NAMES = [
   "AGENT_SERVER_URL",
   "AGENT_ARTIFACT_VIEWER_ORIGIN",
@@ -13,8 +18,16 @@ const SESSION_CHILD_ENV_NAMES = [
   "YEP_BROWSER_DEBUG_AGENT_URL",
   "YEP_BROWSER_DEBUG_CALLER_TOKEN",
 ] as const;
+/**
+ * The subset whose value is the same for every session on this server, so it
+ * survives the provider-runtime-host boundary: the host narrows the computed
+ * child environment to these names before handing it to the worker, which has
+ * no other way to learn them. Keep this a subset of the names above, and keep
+ * genuinely per-session values (the minted wake token and its URL) out of it.
+ */
 const STATIC_AGENT_ENV_NAMES = [
   "AGENT_SERVER_URL",
+  "AGENT_ARTIFACT_VIEWER_ORIGIN",
   "YEP_BROWSER_DEBUG_AGENT_URL",
   "YEP_BROWSER_DEBUG_CALLER_TOKEN",
 ] as const;

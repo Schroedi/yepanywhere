@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   copyAgentctlBashEnvInto,
   createAgentctlSessionEnvBridge,
+  pickStaticAgentEnvironment,
 } from "../../../src/sdk/providers/agentctl-session-env.js";
 
 function runBash(env: NodeJS.ProcessEnv): string {
@@ -213,6 +214,45 @@ describe("agentctl session env bridge", () => {
           stdio: ["ignore", "pipe", "pipe"],
         }),
       ).toBe("sess-copy");
+    } finally {
+      bridge.cleanup();
+    }
+  });
+  it("carries the artifact origin across the provider-host boundary", () => {
+    // The host narrows the computed child environment to these names before
+    // the worker sees it, and the worker has no other source for them. An
+    // origin dropped here leaves the agent's capture tool with no interactive
+    // delivery on a server that has one configured.
+    expect(
+      pickStaticAgentEnvironment({
+        AGENT_SERVER_URL: "http://127.0.0.1:3400/",
+        AGENT_ARTIFACT_VIEWER_ORIGIN: "http://artifacts.localhost:3400",
+        YEP_SESSION_WAKE_URL: "http://127.0.0.1:3400/wake",
+        YEP_SESSION_WAKE_TOKEN: "per-session-secret",
+      }),
+    ).toEqual({
+      AGENT_SERVER_URL: "http://127.0.0.1:3400/",
+      AGENT_ARTIFACT_VIEWER_ORIGIN: "http://artifacts.localhost:3400",
+    });
+  });
+  bashIt("publishes the artifact origin to tool subprocesses", () => {
+    const bridge = createAgentctlSessionEnvBridge();
+    try {
+      const env = bridge.extendEnv({
+        ...bridgeTestEnv(),
+        AGENT_ARTIFACT_VIEWER_ORIGIN: "http://stale.invalid",
+      });
+      expect(env.AGENT_ARTIFACT_VIEWER_ORIGIN).toBeUndefined();
+      bridge.publishSessionId("session", {
+        AGENT_ARTIFACT_VIEWER_ORIGIN: "http://artifacts.localhost:3400",
+      });
+      expect(
+        execFileSync(
+          "bash",
+          ["-c", 'printf "%s" "$AGENT_ARTIFACT_VIEWER_ORIGIN"'],
+          { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] },
+        ),
+      ).toBe("http://artifacts.localhost:3400");
     } finally {
       bridge.cleanup();
     }
