@@ -2120,7 +2120,7 @@ export function createApp(options: AppOptions): AppResult {
     if (unmap) issueDisposers.push(unmap);
     const unsubscribe = options.eventBus?.subscribe((event) => {
       if (event.type === "session-catalog-updated" && !event.catalog.refreshing)
-        indexer.refresh();
+        indexer.refresh(event.catalog);
       if (event.type === "session-metadata-changed" && event.projectId)
         indexer.store.updateProject(event.sessionId, event.projectId);
       if (

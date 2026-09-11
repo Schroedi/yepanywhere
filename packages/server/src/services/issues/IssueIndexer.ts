@@ -15,6 +15,12 @@ export const DEFAULT_ISSUE_SETTINGS: IssueSettings = {
   scope: "viewed",
   recentDays: 7,
 };
+/** Identifies one published catalog generation, so a sweep can skip a repeat. */
+export interface CatalogMark {
+  catalogEpoch: string;
+  catalogGeneration: number;
+}
+
 export interface IssueIndexerDeps {
   settings: () => IssueSettings;
   candidates: () => AsyncIterable<Readonly<SessionCatalogRow>>;
@@ -34,6 +40,11 @@ export class IssueIndexer {
   private work?: Promise<void>;
   private enumeration?: Promise<void>;
   private refreshPending = false;
+  /** Catalog mark the last completed sweep covered. */
+  private sweptMark?: string;
+  /** What a sweep queued behind the running one should cover. */
+  private pendingCatalog?: CatalogMark;
+  private pendingForced = false;
   private closed = false;
   private viewTasks = new Set<Promise<void>>();
   private viewBytes = 0;
@@ -52,19 +63,38 @@ export class IssueIndexer {
     this.controller.abort();
     this.controller = new AbortController();
     this.lastError = null;
+    // Settings decide what a sweep admits, so a change invalidates the mark.
+    this.sweptMark = undefined;
     this.store.run(
       "UPDATE issue_index_jobs SET state='queued' WHERE state='indexing'",
     );
     if (!this.settings().enabled || this.closed) return;
     this.refresh();
   }
-  refresh(): void {
+  /**
+   * Sweep the catalog. Pass the publication's catalog mark to make it a no-op
+   * when nothing has changed since the last completed sweep: the catalog
+   * republishes every few seconds on an active server, and re-walking an
+   * identical corpus to reach the same conclusions is the cost this avoids.
+   * Callers with their own reason to sweep — a settings change, a remap — pass
+   * nothing and always run.
+   */
+  refresh(catalog?: CatalogMark): void {
     if (this.closed || !this.settings().enabled) return;
+    const mark = catalog
+      ? `${catalog.catalogEpoch}:${catalog.catalogGeneration}`
+      : undefined;
+    if (mark !== undefined && mark === this.sweptMark) return;
     if (this.enumeration) {
       this.refreshPending = true;
+      // A caller with its own reason to sweep stays forced; a marked caller
+      // only supplies the mark the rerun should claim.
+      if (catalog) this.pendingCatalog = catalog;
+      else this.pendingForced = true;
       return;
     }
     this.refreshPending = false;
+    const running = mark;
     const signal = this.controller.signal;
     this.enumeration = (async () => {
       const cutoff = Date.now() - this.settings().recentDays * 86400_000;
@@ -94,16 +124,23 @@ export class IssueIndexer {
         if (++count % 100 === 0) await yieldTurn();
       }
     })()
+      .then(() => {
+        // Only a sweep that ran to completion may retire its mark.
+        if (!signal.aborted && running !== undefined) this.sweptMark = running;
+      })
       .catch(() => {
         if (!signal.aborted) this.lastError = "Catalog unavailable";
       })
       .finally(() => {
         this.enumeration = undefined;
+        const pending = this.pendingForced ? undefined : this.pendingCatalog;
+        this.pendingCatalog = undefined;
+        this.pendingForced = false;
         if (
           (signal !== this.controller.signal || this.refreshPending) &&
           this.settings().enabled
         )
-          this.refresh();
+          this.refresh(pending);
         this.kick();
       });
   }

@@ -448,3 +448,57 @@ it("sweeps a catalog for moved projects without a write transaction per session"
   await indexer.settled();
   expect(transactions).toBe(1);
 });
+it("skips a republished catalog that has not changed, and still sweeps on demand", async () => {
+  const dir = directory();
+  const service = new DiscoverySqliteService({ dataDir: dir, mode: "auto" });
+  const store = new IssueStore(service.getDatabase()!);
+  let enumerations = 0;
+  const rows = Array.from(
+    { length: 5 },
+    (_, i) =>
+      ({
+        sessionId: `s${i}`,
+        projectId: "p",
+        sourceVersion: "one",
+        updatedAt: new Date().toISOString(),
+        location: { kind: "file", path: "unused" },
+      }) as SessionCatalogRow,
+  );
+  const indexer = new IssueIndexer(store, {
+    settings: () => ({ enabled: true, scope: "viewed", recentDays: 7 }),
+    candidates: async function* () {
+      enumerations++;
+      yield* rows;
+    },
+    read: async () => null,
+  });
+  cleanup.push(async () => {
+    await indexer.close();
+    service.close();
+  });
+
+  const mark = { catalogEpoch: "e1", catalogGeneration: 7 };
+  indexer.refresh(mark);
+  await indexer.settled();
+  expect(enumerations).toBe(1);
+
+  // The catalog republishes every few seconds; an unchanged generation must
+  // cost nothing at all, not merely less than it used to.
+  for (let repeat = 0; repeat < 5; repeat++) indexer.refresh(mark);
+  await indexer.settled();
+  expect(enumerations).toBe(1);
+
+  indexer.refresh({ catalogEpoch: "e1", catalogGeneration: 8 });
+  await indexer.settled();
+  expect(enumerations).toBe(2);
+
+  // A rebuilt catalog reuses generation numbers, so the epoch has to count.
+  indexer.refresh({ catalogEpoch: "e2", catalogGeneration: 8 });
+  await indexer.settled();
+  expect(enumerations).toBe(3);
+
+  // A caller with its own reason always runs, whatever the catalog says.
+  indexer.refresh();
+  await indexer.settled();
+  expect(enumerations).toBe(4);
+});

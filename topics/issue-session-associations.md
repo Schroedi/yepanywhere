@@ -149,6 +149,14 @@ worker batch. Settings, catalog and completed-session signals drive admission.
 An unchanged failed source is not retried by an endless loop; a changed source
 version permits another attempt.
 
+A republished catalog that has not changed costs nothing. Admission is keyed
+to the publication's epoch and generation, so the sweep that already covered
+that pair returns immediately rather than re-walking an identical corpus, which
+matters because an active server republishes every few seconds. A caller with
+its own reason to sweep — a settings change, a session-id remap — is not keyed
+and always runs, and only a sweep that ran to completion retires its mark, so
+an aborted one is repeated rather than assumed.
+
 A catalog sweep costs write transactions only for sessions whose working
 project actually moved. Ownership can change only for a session that already
 has a job or evidence row, so one read names that set before the sweep begins
