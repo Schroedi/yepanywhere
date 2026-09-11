@@ -25,4 +25,9 @@ turn every provider's transport into a new integration project. Delete this
 entry only when the remaining matrix has explicit independent evidence or an
 approved narrower obligation.
 
+[Tactical 127](../docs/tactical/127-captured-provider-fixtures.md) proposes a
+small real-provider capture baseline, offline replay through production
+ingestion, and mounted presentation assertions in normal tests and CI. The
+plan is pending and does not close the broader coverage gaps above.
+
 Found 2026-09-10 during the independent tactical 124 implementation review.
