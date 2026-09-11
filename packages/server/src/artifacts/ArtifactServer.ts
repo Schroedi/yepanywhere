@@ -259,7 +259,11 @@ export class ArtifactServer {
   }
 
   async configure(config: ArtifactConfig): Promise<void> {
-    config = validateArtifactConfig(config, this.config.expiryHours);
+    config = validateArtifactConfig(
+      config,
+      this.config.expiryDays,
+      this.config.deleteOnExpiry,
+    );
     const previous = this.config;
     const deliveryChanged =
       config.port !== previous.port ||
@@ -360,7 +364,10 @@ export class ArtifactServer {
     const root = dirname(allowed.file.resolvedPath);
     // Ownership is refused rather than honoured for a directory that is
     // plainly not a disposable bundle; the grant is still created, borrowing.
-    const wants = owned ?? this.config.deleteOnExpiry === true;
+    // Ownership is never inherited from configuration: a preview of a file
+    // the user already had must not delete it when the viewer closes. Only a
+    // caller that produced the directory says so, by asking.
+    const wants = owned === true;
     // Ownership freezes the fileset: exactly what is here now is what this
     // grant may remove later, whatever else the directory collects.
     const frozen =

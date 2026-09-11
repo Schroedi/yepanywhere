@@ -456,13 +456,16 @@ never removed, and a directory still holding anything is left standing.
 Ownership is refused, and the grant created as borrowing, when the directory
 holds more files than an artifact bundle plausibly has.
 
-Ownership is fixed when the grant is created and is never inferred later.
-`POST /api/artifacts` accepts `owned`; a request that omits it takes the
-server's configured default. The `ArtifactServer` component's own default,
-absent configuration, is to borrow. YA ships the setting **Delete artifacts
-when their link expires**, on by default, so captures and previews YA itself
-creates clean up after themselves. Changing that setting is not retroactive in
-either direction: existing grants keep the mode they were created with.
+Ownership is fixed when the grant is created and is never inferred later, and
+it is never inherited from configuration. `POST /api/artifacts` grants
+ownership only to a request that asks for it with `owned`; everything else
+borrows. That asymmetry is deliberate: an interactive preview of a file the
+user already had must not delete it when the viewer closes, and only the
+caller that produced a directory can know it is disposable. YA's capture
+command asks, because it wrote the directory it is publishing. The setting
+**Delete captured artifacts when their link expires**, on by default, is what
+that caller consults. Changing it is not retroactive in either direction:
+existing grants keep the mode they were created with.
 
 A pending deletion is part of the persisted state, so a server that stops
 between expiry and deletion still deletes on its next start. Deletion is

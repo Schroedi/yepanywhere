@@ -185,13 +185,13 @@ test("saves artifact expiry without revoking links, alongside addresses and port
     page.getByLabel("Local artifact address", { exact: true }),
   ).toHaveValue(instance.artifactServer.config.localOrigin!);
   const original = await instance.artifactServer.createGrant(entry, "local");
-  const slider = page.getByRole("slider", { name: "Link expiry (hours)" });
-  await expect(slider).toHaveValue("24");
+  const slider = page.getByRole("slider", { name: "Link expiry (days)" });
+  await expect(slider).toHaveValue("7");
   await slider.focus();
   await slider.press("Home");
   await slider.press("ArrowRight");
   await expect(slider).toHaveValue("2");
-  const numeric = page.getByRole("spinbutton", { name: "Link expiry (hours)" });
+  const numeric = page.getByRole("spinbutton", { name: "Link expiry (days)" });
   await expect(numeric).toHaveValue("2");
   await numeric.fill("12");
   await numeric.press("Tab");
@@ -203,12 +203,12 @@ test("saves artifact expiry without revoking links, alongside addresses and port
   );
   await page.getByRole("button", { name: "Save artifact settings" }).click();
   expect((await saved).ok()).toBe(true);
-  await expect.poll(() => instance.artifactServer.config.expiryHours).toBe(12);
+  await expect.poll(() => instance.artifactServer.config.expiryDays).toBe(12);
   const persisted = new ServerSettingsService({
     dataDir: join(directory, "data"),
   });
   await persisted.initialize();
-  expect(persisted.getSetting("artifactViewer")?.expiryHours).toBe(12);
+  expect(persisted.getSetting("artifactViewer")?.expiryDays).toBe(12);
   expect(
     (
       await instance.artifactServer.app.request(original.url, {
@@ -218,8 +218,9 @@ test("saves artifact expiry without revoking links, alongside addresses and port
   ).toBe(200);
   const start = Date.now();
   const shorter = await instance.artifactServer.createGrant(entry, "local");
-  expect(shorter.expiresAt).toBeGreaterThanOrEqual(start + 12 * 3600_000);
-  expect(shorter.expiresAt).toBeLessThanOrEqual(Date.now() + 12 * 3600_000);
+  const twelveDays = 12 * 24 * 3600_000;
+  expect(shorter.expiresAt).toBeGreaterThanOrEqual(start + twelveDays);
+  expect(shorter.expiresAt).toBeLessThanOrEqual(Date.now() + twelveDays);
   const artifacts = resolve(
     clientRoot,
     "../../.artifacts/ui-testing/2026-09-07-artifact-viewer",
@@ -275,12 +276,15 @@ test("omits expiry controls and writes when older metadata lacks the field", asy
 }) => {
   await instance.artifactServer.configure({
     ...instance.artifactServer.config,
-    expiryHours: 48,
+    expiryDays: 2,
   });
   await page.route("**/api/version*", async (route) => {
     const response = await route.fetch();
     const body = await response.json();
+    // An older server advertises neither unit, so no expiry control appears.
     delete body.artifactViewer.expiryHours;
+    delete body.artifactViewer.expiryDays;
+    delete body.artifactViewer.deleteOnExpiry;
     await route.fulfill({ response, json: body });
   });
   await page.goto(`${base}/e2e/fixtures/artifact-viewer.html?settings`);
@@ -289,7 +293,7 @@ test("omits expiry controls and writes when older metadata lacks the field", asy
   ).toBeVisible();
   await expect(page.getByRole("slider")).toHaveCount(0);
   await expect(
-    page.getByRole("spinbutton", { name: "Link expiry (hours)" }),
+    page.getByRole("spinbutton", { name: "Link expiry (days)" }),
   ).toHaveCount(0);
   const write = page.waitForRequest(
     (request) =>
@@ -297,7 +301,7 @@ test("omits expiry controls and writes when older metadata lacks the field", asy
       request.method() === "PUT",
   );
   await page.getByRole("button", { name: "Save artifact settings" }).click();
-  expect((await write).postDataJSON()).not.toHaveProperty("expiryHours");
+  expect((await write).postDataJSON()).not.toHaveProperty("expiryDays");
   await expect(page.getByRole("status")).toHaveText("Artifact settings saved");
-  expect(instance.artifactServer.config.expiryHours).toBe(48);
+  expect(instance.artifactServer.config.expiryDays).toBe(2);
 });

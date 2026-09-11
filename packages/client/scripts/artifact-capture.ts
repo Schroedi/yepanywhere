@@ -49,6 +49,8 @@ export interface CaptureOptions {
    * means ask the server as before.
    */
   artifactOrigin?: string;
+  /** Let the grant delete the captured directory at expiry; default true. */
+  ownArtifact?: boolean;
   yaHeaders?: Record<string, string>;
   readySelector?: string;
   timeoutMs?: number;
@@ -171,6 +173,9 @@ async function createDelivery(
   const grant = await apiJson<ArtifactViewerGrant>(options, "/api/artifacts", {
     path,
     audience,
+    // This command wrote the directory it is publishing, so it can be the one
+    // to clean it up; the server still refuses ownership it considers unsafe.
+    owned: options.ownArtifact !== false,
   }).catch((error: unknown) => (error as Error).message);
   if (typeof grant === "string")
     return { status: "skipped", reason: `Artifact grant refused: ${grant}` };

@@ -92,7 +92,7 @@ describe("durable artifact grants", () => {
       expiryDays: 1,
       deleteOnExpiry: true,
     });
-    const grant = await server.createGrant(entry, "local");
+    const grant = await server.createGrant(entry, "local", true);
     expect(grant.owned).toBe(true);
     expect(await exists(bundle)).toBe(true);
 
@@ -110,7 +110,7 @@ describe("durable artifact grants", () => {
       expiryDays: 1,
       deleteOnExpiry: true,
     });
-    await first.createGrant(entry, "local");
+    await first.createGrant(entry, "local", true);
     await first.settleExpired();
     await first.close();
     expect(await exists(bundle)).toBe(true);
@@ -128,7 +128,7 @@ describe("durable artifact grants", () => {
   it("deletes on revocation and leaves a borrowed directory alone", async () => {
     const { base, bundle, entry } = await workspace();
     const owning = serverFor(base, { deleteOnExpiry: true });
-    const owned = await owning.createGrant(entry, "local");
+    const owned = await owning.createGrant(entry, "local", true);
     owning.revoke(owned.id);
     await owning.settleExpired();
     expect(await exists(bundle)).toBe(false);
@@ -149,7 +149,7 @@ describe("durable artifact grants", () => {
     const { base, bundle, entry } = await workspace();
     await mkdir(join(bundle, ".git"), { recursive: true });
     const server = serverFor(base, { deleteOnExpiry: true });
-    const grant = await server.createGrant(entry, "local");
+    const grant = await server.createGrant(entry, "local", true);
     expect(grant.owned).toBe(false);
     await server.settleExpired();
     expect(await exists(entry)).toBe(true);
@@ -173,7 +173,7 @@ describe("durable artifact grants", () => {
     const now = Date.now();
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);
     const server = serverFor(base, { expiryDays: 1, deleteOnExpiry: true });
-    const grant = await server.createGrant(entry, "local");
+    const grant = await server.createGrant(entry, "local", true);
     expect(grant.owned).toBe(true);
 
     // Written after the grant existed, so the grant has no claim on it.
@@ -193,17 +193,17 @@ describe("durable artifact grants", () => {
     const now = Date.now();
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);
     const server = serverFor(base, { expiryDays: 1, deleteOnExpiry: true });
-    await server.createGrant(entry, "local");
+    await server.createGrant(entry, "local", true);
     clock.mockReturnValue(now + 25 * 3600_000);
     await server.settleExpired();
     expect(await exists(bundle)).toBe(false);
     await server.close();
   });
 
-  it("keeps ownership per grant when the default changes", async () => {
+  it("never inherits ownership from configuration", async () => {
     const { base, entry } = await workspace();
     const server = serverFor(base, { deleteOnExpiry: true });
-    const owned = await server.createGrant(entry, "local");
+    const owned = await server.createGrant(entry, "local", true);
     await server.configure({ ...server.config, deleteOnExpiry: false });
     expect(owned.owned).toBe(true);
     const borrowed = await server.createGrant(entry, "local");
