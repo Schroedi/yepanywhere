@@ -404,14 +404,67 @@ Responses are streamed, range-capable, and marked `no-store`. Closing/stopping
 the preview revokes its grant; offline revocation falls back to expiry. This
 does not erase files already read or artifact-origin local storage.
 
-The saved **Link expiry (hours)** slider and paired numeric field accept whole
-hours from 1 through 168, defaulting to 24 hours. The lifetime is fixed when
-each grant is created.
-Changing only expiry preserves existing grants and their original deadlines;
-it affects newly created links. Saving unchanged settings likewise preserves
-grants. An older client that omits `expiryHours` preserves the saved lifetime.
-Server restart still discards all grants. Manual inventory/revocation controls
-remain deferred in [the revocation UI gap](../gaps/artifact-grant-revocation-ui.md).
+The saved **Link expiry (days)** slider and paired numeric field accept whole
+days from 1 through 30, defaulting to 7. The lifetime is fixed when each grant
+is created. Changing only expiry preserves existing grants and their original
+deadlines; it affects newly created links. Saving unchanged settings likewise
+preserves grants. Manual inventory/revocation controls remain deferred in
+[the revocation UI gap](../gaps/artifact-grant-revocation-ui.md).
+
+Days are the stored and transported unit, `expiryDays`. A saved `expiryHours`
+from an earlier install is read once and rounded up to whole days, and
+`version.artifactViewer` reports both fields so an older client keeps its
+hours slider and its gate. An older client that omits either field preserves
+the saved lifetime; one that writes `expiryHours` sets the same lifetime
+through the old unit and cannot express more than its own 168-hour ceiling.
+
+#### Grants survive restart
+
+> Contract agreed 2026-09-11 and being implemented; until the paired code
+> lands, restart still discards grants and nothing is deleted. This note goes
+> away with the implementation.
+
+Grants outlive the server process. A link that says it expires in seven days
+is usable for seven days, across restarts, upgrades and crashes, because the
+lifetime a user was shown is the contract rather than an accident of process
+lifetime.
+
+State lives in `{dataDir}/artifacts/grants.json`, written atomically inside a
+directory created mode 700. That file holds live bearer tokens, so its
+protection is the directory's: anyone who can read it holds every unexpired
+artifact URL. It never holds artifact content, and artifact files keep the
+permissions their producer gave them.
+
+Restoring drops grants that expired while the server was down, and applies the
+same limits and validation as a fresh grant. Address or listener-port changes
+revoke outstanding grants as before, and a revoked or expired grant is removed
+from the file, not merely from memory. Unreadable or corrupt state is reported
+and discarded rather than blocking startup: the cost is that outstanding links
+stop working, which is the previous behaviour of every restart.
+
+#### Owned artifacts are deleted when their link expires
+
+A grant is created either **owning** its directory or **borrowing** it. A
+borrowed grant never deletes anything: expiry only withdraws access, which is
+what every grant did before this contract existed. An owning grant deletes its
+granted directory tree when the grant expires or is revoked, because the
+directory existed only to be delivered.
+
+Ownership is fixed when the grant is created and is never inferred later.
+`POST /api/artifacts` accepts `owned`; a request that omits it takes the
+server's configured default. The `ArtifactServer` component's own default,
+absent configuration, is to borrow. YA ships the setting **Delete artifacts
+when their link expires**, on by default, so captures and previews YA itself
+creates clean up after themselves. Changing that setting is not retroactive in
+either direction: existing grants keep the mode they were created with.
+
+A pending deletion is part of the persisted state, so a server that stops
+between expiry and deletion still deletes on its next start. Deletion is
+refused, and the grant is created as borrowing instead, when the directory is
+a Git working tree, a home directory, the checkout root, or the YA data
+directory; a directory that holds a repository or an operator's home is not a
+disposable artifact bundle, whatever a caller claims. A deletion that fails is
+recorded and dropped rather than retried forever.
 
 The frame remains in the existing viewer owner while parked; no cooperative
 suspension or CPU/memory containment is claimed. Dedicated HTML viewport,
@@ -429,6 +482,9 @@ presence independently gates PUT `/api/artifacts/config` and the settings UI.
 The optional `version.artifactViewer.expiryHours` field additionally gates
 the expiry slider and its write field. Earlier artifact-capable servers omit
 it, so clients retain their existing settings UI and fixed 24-hour expiry.
+`version.artifactViewer.expiryDays` gates the day-unit control and the
+deletion setting; a client seeing only `expiryHours` keeps the hours control,
+writes hours, and neither shows nor changes ownership.
 The same v0.8.0/v0.8.1 corpus lacks artifact configuration entirely; the
 maintainer approved this additive metadata gate on 2026-09-07. The existing
 `artifact-viewer` capability is not broadened to imply configurable expiry.
