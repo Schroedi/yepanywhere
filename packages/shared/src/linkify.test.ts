@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { containsLinkifiableUrl, splitUrlSegments } from "../linkify";
+import { containsLinkifiableUrl, splitUrlSegments } from "./linkify.js";
 
 describe("splitUrlSegments", () => {
   it("returns one text segment when there is no URL", () => {

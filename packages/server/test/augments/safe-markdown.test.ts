@@ -807,3 +807,42 @@ describe("renderSafeMarkdown — Quarto includes", () => {
     }
   });
 });
+
+describe("renderSafeMarkdown — URLs in fixed-font contexts", () => {
+  it("links a URL inside a fenced block without altering the text", () => {
+    const html = renderSafeMarkdown(
+      "```\nopen http://artifacts.localhost:3400/a/tok/index.html now\n```",
+    );
+    expect(html).toContain(
+      '<a href="http://artifacts.localhost:3400/a/tok/index.html">http://artifacts.localhost:3400/a/tok/index.html</a>',
+    );
+    expect(html).toContain("<pre><code>open ");
+    expect(html).toContain(" now\n</code></pre>");
+  });
+
+  it("keeps the language class and escapes the rest of the block", () => {
+    const html = renderSafeMarkdown(
+      '```bash\ncurl "https://example.test/a?b=1&c=2" <x>\n```',
+    );
+    expect(html).toContain('<code class="language-bash">');
+    expect(html).toContain(
+      '<a href="https://example.test/a?b=1&amp;c=2">https://example.test/a?b=1&amp;c=2</a>',
+    );
+    expect(html).toContain("&lt;x&gt;");
+  });
+
+  it("links a URL in inline code", () => {
+    const html = renderSafeMarkdown("try `https://example.test/x` first");
+    expect(html).toContain(
+      '<code><a href="https://example.test/x">https://example.test/x</a></code>',
+    );
+  });
+
+  it("leaves a non-web scheme and ordinary code alone", () => {
+    const html = renderSafeMarkdown(
+      "```\njavascript:alert(1) and file:///etc/passwd and const x = 1;\n```",
+    );
+    expect(html).not.toContain("<a ");
+    expect(html).toContain("const x = 1;");
+  });
+});

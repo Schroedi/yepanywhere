@@ -1352,3 +1352,10 @@ export type {
   IssueSearchResult,
   IssueEvidenceResult,
 } from "./issues.js";
+
+export {
+  containsLinkifiableUrl,
+  splitUrlSegments,
+  type LinkifySegment,
+  type SplitUrlSegmentsOptions,
+} from "./linkify.js";
