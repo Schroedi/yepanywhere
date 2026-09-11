@@ -23,5 +23,12 @@ an approach.
 For UI proposals or mockups, read [UI design](topics/ui-design.md) before
 choosing fixtures, rendering, or export commands.
 
+When `AGENT_ARTIFACT_VIEWER_ORIGIN` is set, this session can present images and
+documents to the user, so deliver every screenshot, mockup, or generated report
+through the repository's artifact capture facility. Writing a file and naming
+its path delivers nothing the user can see.
+[UI testing](topics/ui-testing.md) owns the commands and the invocations that
+silently skip presentation.
+
 The working tree may contain concurrent human or agent edits. Avoid reverting
 or tidying unrelated changes unless the task directly requires them.

@@ -169,6 +169,29 @@ carried by its own configuration and the launcher's environment, and the
 capture reports which way it went. It is never a question the caller answers by
 inspecting configuration first.
 
+#### A file the user cannot see is not a handoff
+
+Three invocations write correct images and present nothing, which reads to the
+agent as success and to the user as an empty answer:
+
+- `--local-only` disables every YA request by design. Reserve it for when the
+  server must not be contacted at all, not as a precaution: the capture command
+  neither restarts nor mutates the running server.
+- `page.screenshot()` inside a `packages/client/e2e/` case writes a PNG and
+  emits no manifest, links, or commentary. Use `recordUiCapture` from
+  `e2e/support/ui-capture.ts` with `YEP_E2E_UI_CAPTURE_DIR` set, so global
+  teardown presents the run.
+- Images already on disk, from any producer, are packaged and presented by
+  `writeCapturePreview` and `emitCapturePreview` from
+  `packages/client/scripts/artifact-capture.ts`.
+
+Naming a path in a message is not delivery. `AGENT_ARTIFACT_VIEWER_ORIGIN`
+names the session's artifact origin when the launcher published one, and its
+presence means presentation is available and expected. Observed 2026-09-10: a
+settings pane and a session header were captured with `--local-only` and with
+bare `page.screenshot()`, so the maintainer saw only file paths until the same
+images were re-emitted through the helper.
+
 Use an available browser-control capability for interactive web UI checks.
 If setup or discovery reports no browser, or the browser inventory is empty,
 immediately fall back to the repository's installed Playwright dependency,
