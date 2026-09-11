@@ -25,7 +25,9 @@ simple excess count.
 - **Bounded heaps, not the full lexicon.** A global distinctive heap
   keeps about 500 terms; each learned session keeps its own 100 with
   the session multiplier already applied. A recognition request merges
-  those heaps and takes 100. Terms outside both heaps are omitted until
+  those heaps by word and takes 100; the session entry replaces the
+  global one rather than adding to it, so the multiplier is exactly
+  fivefold and there is no global contribution left to subtract. Terms outside both heaps are omitted until
   a rebuild. Session state lives on the server (session key from the
   speech context); the client still *may* send `sessionTerms`, but that
   is not required for the overlay.

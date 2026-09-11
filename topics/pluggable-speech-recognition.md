@@ -626,7 +626,13 @@ tokenize; new messages are tailed. Scan work yields in small bursts so the Node
 process stays responsive. Distinctive ranking uses
 `(observed - expected) / sqrt(expected + 1)` from this topic, not raw
 excess count. The server keeps a global top-500 heap and a per-session
-top-100 with the session multiplier; a recognition request merges them.
+top-100 with the session multiplier already applied. A recognition request
+merges them by word, and the session entry replaces the global one rather than
+adding to it, so a term in both scores exactly its multiplier and not one more.
+The multiplier is applied once, where the word is offered to the session heap.
+Any path that feeds these heaps therefore offers each word to both, at its plain
+score globally and its multiplied score per session; feeding only the session
+heap would leave the global list stale between rebuilds.
 Live increments re-score only the updated word; a full rebuild of those
 heaps runs on flush. A receipt fingerprints the durable
 role, timestamp, and complete extracted text using SHA-256. Exact duplicate
@@ -730,8 +736,8 @@ it and would otherwise rank as maximally distinctive — `i'll` and `i'm` were t
 two highest-scoring terms before this. A joined form is never more frequent than
 any of its parts, so the smallest listed part bounds it, which also keeps
 `agentctl's` from competing with `agentctl`. Eligible active-
-session terms receive a fixed fivefold priority multiplier. Ties break
-lexically. The score only selects the list inside YA: Grok receives plain
+session terms receive a fixed fivefold priority multiplier: five times the
+score the same term would carry globally, not six. Ties break lexically. The score only selects the list inside YA: Grok receives plain
 repeated `keyterm` values, never numeric scores or weights. Acoustic confusion,
 homophones, and measured error probabilities remain in the requested
 [error-modeling gap](../gaps/speech-recognition-error-modeling.md); no
