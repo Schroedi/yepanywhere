@@ -54,10 +54,10 @@ export function SpeechVocabularyControls() {
     };
   }, [transport]);
 
+  // Zero is meaningful: collect from now on and look back at nothing. The
+  // slider's extent is not the field's limit, and fractions are ordinary.
   const validHours =
-    Number.isFinite(Number(hours)) &&
-    Number(hours) >= 1 &&
-    Number(hours) <= 8760;
+    hours.trim() !== "" && Number.isFinite(Number(hours)) && Number(hours) >= 0;
   const action = async (
     kind: "settings" | "scan" | "reset",
     changes: Partial<Pick<SpeechVocabularyStatus, "enabled" | "biasing">> = {},
@@ -122,17 +122,18 @@ export function SpeechVocabularyControls() {
         <input
           id={`${id}-hours`}
           type="number"
-          min="1"
-          max="8760"
+          min="0"
+          step="any"
           value={hours}
           onChange={(event) => setHours(event.target.value)}
           disabled={busy}
         />
         <input
           type="range"
-          min="1"
+          min="0"
           max="8760"
-          value={validHours ? Number(hours) : 24}
+          step="any"
+          value={validHours ? Math.min(Number(hours), 8760) : 24}
           aria-label={t("speechVocabularyHoursSlider")}
           onChange={(event) => setHours(event.target.value)}
           disabled={busy}

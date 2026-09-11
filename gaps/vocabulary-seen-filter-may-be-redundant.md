@@ -39,6 +39,29 @@ its default of ten minutes. A watermark stronger than a file modification time
 is already stored: counts and per-session checkpoints are written in the same
 batch, so the `hasScanned` `{version, cutoff}` rows are already consistent.
 
+## Resuming after a pause needs an anchor, not a window
+
+The maintainer proposes that resuming collection sets hours to zero, meaning
+collect from now on rather than replay the gap. That cannot be expressed by the
+hours setting as it is computed today, and the reason is worth recording before
+anyone implements it: a scan derives its cutoff as `now - hours` at the moment
+the scan runs, so zero hours yields a cutoff of *this instant*, every time. A
+message written five seconds earlier is already below it. Zero hours would
+collect nothing, ever, rather than everything from the resume onward.
+
+"Collect starting now" is therefore an anchor — a stored instant — not a window
+width. With one, the maintainer's block rule becomes expressible: a gap may be
+skipped entirely or covered entirely, never half. Either the requested cutoff
+reaches back past the pause, in which case the anchor is ignored and the whole
+gap is collected, or the scan is held at the resume anchor and the gap stays
+uncollected until a clear or a wide enough window unblocks it. Anything between
+those would claim contiguous coverage it does not have.
+
+That also separates two values the design has been conflating: how far counting
+has contiguously reached, which freezes at a pause, and the floor below which
+content is not counted, which compaction sets. They are independent, and a mode
+that drops the fingerprint filter would still need the first.
+
 ## A continuously advancing watermark
 
 The floor implemented today moves only when compaction runs. A watermark that

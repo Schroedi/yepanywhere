@@ -18,16 +18,17 @@ export function createSpeechVocabularyRoutes(
     if (!body || typeof body !== "object")
       return c.json({ error: "Expected vocabulary settings" }, 400);
     const { enabled, biasing, hours } = body as Record<string, unknown>;
+    // Zero means collect from now on, fractions are ordinary, and there is no
+    // upper limit: 8760 is only how far the slider's track reaches.
     if (
       typeof enabled !== "boolean" ||
       typeof biasing !== "boolean" ||
       typeof hours !== "number" ||
       !Number.isFinite(hours) ||
-      hours < 1 ||
-      hours > 8760
+      hours < 0
     ) {
       return c.json(
-        { error: "Expected enabled, biasing, and hours between 1 and 8760" },
+        { error: "Expected enabled, biasing, and hours of zero or more" },
         400,
       );
     }

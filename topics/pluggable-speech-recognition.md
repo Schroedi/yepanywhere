@@ -549,13 +549,18 @@ excluded because they cannot be assigned to the requested history window.
 The catalog supplies source identity and recency; UI order and live partial
 message IDs are never learning inputs.
 
-Speech settings offer a numeric hours field and slider (1–8760 hours), a
+Speech settings offer a numeric hours field and slider, a
 green Scan + Learn and red Stop + Clear actions, progress, and a separate
 recognition-biasing switch. Clicking Scan + Learn turns learning on if it
 was off, then starts a scan. Stop + Clear cancels the current scan and clears
 counts, hashes, and checkpoints while preserving the opt-in settings.
 Enabling collection starts the selected retrospective scan. Catalog changes
 and completed/live session activity schedule coalesced subsequent learning.
+
+Hours accepts any finite value of zero or more, fractions included; one hour
+looks back an hour and zero looks back at nothing. The slider's track stops at
+8760 because a year is a reasonable end for a drag, not because larger values
+are refused — the field takes them.
 
 The hours setting says how far back to look, and that is all it says. It does
 not expire anything already collected: only Stop and Clear followed by a fresh
@@ -564,6 +569,16 @@ window going uncollected. Nor does it promise that everything inside the window
 is collected — the floor described above can sit inside it after a compaction,
 and a scan counts nothing below the floor. So the setting bounds a scan's reach
 downward and guarantees nothing upward.
+
+Pausing collection and resuming it leaves a gap, and the slider is not moved to
+cover it. Progress is per session rather than one global mark: each session
+records the version and cutoff it was scanned at, so resuming rescans any
+session whose source changed during the pause or whose stored cutoff is later
+than the new one, and the fingerprint filter keeps the rescan from counting
+anything twice. Content from the gap that falls outside the current window is
+simply not collected, which the setting permits. YA does not widen the user's
+window on their behalf to close a gap; the setting is theirs, and a silent
+change to it would be a worse surprise than the omission it prevents.
 
 Stop and Clear discards the floor along with the counts, receipts, and
 checkpoints. That coupling belongs to the stop rather than to the fingerprint
