@@ -1264,6 +1264,7 @@ export const RenderItemComponent = memo(function RenderItemComponent({
               <TextBlock
                 text={item.text}
                 isStreaming={item.isStreaming}
+                abortedMidStream={item.abortedMidStream}
                 augmentHtml={item.augmentHtml}
                 projectPathLinks={item.projectPathLinks}
                 renderItemId={item.id}

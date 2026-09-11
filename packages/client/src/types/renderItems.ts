@@ -40,6 +40,12 @@ export interface TextItem extends RenderItemBase {
   text: string;
   /** True if this text is still being streamed */
   isStreaming?: boolean;
+  /**
+   * True when the provider cut this text off mid-generation to take a steering
+   * message. Set only on the last text of such a message, so the marker sits
+   * where the sentence stops.
+   */
+  abortedMidStream?: boolean;
   /** Pre-rendered HTML from server (for completed messages) */
   augmentHtml?: string;
   /** Prefix-causal basename targets noticed by the browser replay. */

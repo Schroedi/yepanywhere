@@ -1054,6 +1054,40 @@ describe("compileTranscriptProjection", () => {
     expect(items[1]?.type).toBe("text");
   });
 
+  it("marks the last text of a steering-aborted assistant message", () => {
+    const items = compileTranscriptProjection([
+      {
+        id: "msg-1",
+        role: "assistant",
+        content: [
+          { type: "text", text: "First paragraph." },
+          { type: "text", text: "I will add the flag, have it override the" },
+        ],
+        timestamp: "2024-01-01T00:00:00Z",
+        isAbortedMidStream: true,
+      },
+    ]);
+
+    expect(items).toHaveLength(2);
+    expect(items[0]?.type).toBe("text");
+    expect(items[0]).not.toHaveProperty("abortedMidStream");
+    expect(items[1]).toMatchObject({ type: "text", abortedMidStream: true });
+  });
+
+  it("leaves text unmarked when the assistant message completed normally", () => {
+    const items = compileTranscriptProjection([
+      {
+        id: "msg-1",
+        role: "assistant",
+        content: [{ type: "text", text: "Done." }],
+        timestamp: "2024-01-01T00:00:00Z",
+      },
+    ]);
+
+    expect(items[0]?.type).toBe("text");
+    expect(items[0]).not.toHaveProperty("abortedMidStream");
+  });
+
   it("thinking blocks are 'streaming' when message is streaming, 'complete' otherwise", () => {
     const thinkingContent = [
       { type: "thinking" as const, thinking: "Let me think..." },

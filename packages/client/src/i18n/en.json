@@ -1635,6 +1635,8 @@
   "toolResultMediaUnsupportedMedia": "The returned image format is unsupported.",
   "toolOutput": "Tool output",
   "toolOutputFrom": "Tool output from {tool}",
+  "textBlockAbortedMidStream": "interrupted by your message",
+  "textBlockAbortedMidStreamTitle": "The agent stopped writing here to read the message you sent, so this text ends mid-sentence.",
   "turnImageGalleryCount": "{current} of {count}",
   "turnImageGalleryCollapse": "Collapse gallery",
   "turnImageGalleryExpand": "Expand gallery",

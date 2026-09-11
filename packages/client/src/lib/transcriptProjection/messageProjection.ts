@@ -287,6 +287,16 @@ function isDisplayableThinking(
   return !!trimmed && trimmed !== INTERNAL_REASONING_PLACEHOLDER;
 }
 
+function findLastNonEmptyTextBlockIndex(content: ContentBlock[]): number {
+  for (let i = content.length - 1; i >= 0; i--) {
+    const block = content[i];
+    if (block?.type === "text" && block.text?.trim()) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 function processMessage(
   msg: Message,
   items: RenderItem[],
@@ -591,16 +601,16 @@ function processMessage(
 
   // Assistant message - process each block
   // First pass: find the last text block index (for streaming cursor placement)
-  let lastTextBlockIndex = -1;
-  if (msg._isStreaming) {
-    for (let i = content.length - 1; i >= 0; i--) {
-      const block = content[i];
-      if (block?.type === "text" && block.text?.trim()) {
-        lastTextBlockIndex = i;
-        break;
-      }
-    }
-  }
+  const lastTextBlockIndex = msg._isStreaming
+    ? findLastNonEmptyTextBlockIndex(content)
+    : -1;
+  // Claude aborts the in-flight request to take a `priority: "now"` steer and
+  // persists the text streamed so far, so that record stops mid-sentence. The
+  // same index marks where the cut happened.
+  const abortedTextBlockIndex =
+    msg.isAbortedMidStream === true && !msg._isStreaming
+      ? findLastNonEmptyTextBlockIndex(content)
+      : -1;
 
   for (let i = 0; i < content.length; i++) {
     const block = content[i];
@@ -622,6 +632,7 @@ function processMessage(
           isStreaming: msg._isStreaming && i === lastTextBlockIndex,
           // Prefer inline _html from server, fall back to markdownAugments (SSE path)
           augmentHtml: blockHtml ?? augments?.markdown?.[msgId]?.html,
+          ...(i === abortedTextBlockIndex ? { abortedMidStream: true } : {}),
         });
       }
     } else if (block.type === "thinking") {

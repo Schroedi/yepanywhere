@@ -131,6 +131,12 @@ export interface Message {
   isSubagent?: boolean;
   /** True if message is still being streamed (incomplete) */
   _isStreaming?: boolean;
+  /**
+   * Claude transcripts only: the provider aborted this assistant message
+   * mid-stream to deliver a steering message, so its text stops wherever
+   * generation was cut (see claude-sdk-schema AssistantEntrySchema).
+   */
+  isAbortedMidStream?: boolean;
   /** Allow any additional fields from SDK/server */
   [key: string]: unknown;
 }

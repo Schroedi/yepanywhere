@@ -87,6 +87,12 @@ const RenderedHtmlIsland = memo(function RenderedHtmlIsland({
 interface Props {
   text: string;
   isStreaming?: boolean;
+  /**
+   * The provider cut this text off mid-generation to take a steering message,
+   * so it stops wherever generation stopped rather than where the agent meant
+   * to end.
+   */
+  abortedMidStream?: boolean;
   /** Pre-rendered HTML from server (for completed messages) */
   augmentHtml?: string;
   projectPathLinks?: readonly ProjectPathLinkTarget[];
@@ -100,6 +106,7 @@ interface Props {
 export const TextBlock = memo(function TextBlock({
   text,
   isStreaming = false,
+  abortedMidStream = false,
   augmentHtml,
   projectPathLinks,
   onQuoteBlock,
@@ -437,6 +444,15 @@ export const TextBlock = memo(function TextBlock({
               <code>{text}</code>
             </pre>
           ))}
+        {abortedMidStream && (
+          <span
+            className={`${styles.abortedMidStream} text-block-aborted-mid-stream`}
+            title={t("textBlockAbortedMidStreamTitle")}
+          >
+            <span aria-hidden="true">⨯</span>
+            {t("textBlockAbortedMidStream")}
+          </span>
+        )}
       </div>
       {galleryActionHost
         ? createPortal(
