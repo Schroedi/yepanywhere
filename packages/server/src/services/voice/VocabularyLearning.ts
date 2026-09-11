@@ -8,7 +8,7 @@ import type { Message } from "../../supervisor/types.js";
 import {
   vocabularyFingerprint,
   type VocabularyStore,
-  type VocabularySettings,
+  type VocabularySettingsUpdate,
   type VocabularyMessage,
 } from "./VocabularyStore.js";
 
@@ -115,7 +115,7 @@ export class VocabularyLearning {
     };
   }
 
-  configure(settings: Omit<VocabularySettings, "generation">): void {
+  configure(settings: VocabularySettingsUpdate): void {
     const wasEnabled = this.store.settings().enabled;
     this.store.configure(settings);
     if (!settings.enabled) {

@@ -56,6 +56,8 @@ describe("learned vocabulary exploration", () => {
             generation: 0,
             enabled: true,
             biasing: false,
+            sessionMultiplier: 5,
+            sessionShare: 0,
             hours: 24,
             totals: { words: 3, user: 46, assistant: 10 },
             words: [

@@ -25,6 +25,8 @@ describe("speech vocabulary controls", () => {
       enabled: false,
       biasing: false,
       hours: 24,
+      sessionMultiplier: 5,
+      sessionShare: 0,
       totals: { words: 0, user: 0, assistant: 0 },
       scan: { state: "idle", sessions: 0, messages: 0 },
       integration: "grok-via-ya",
@@ -62,6 +64,8 @@ describe("speech vocabulary controls", () => {
         enabled: true,
         biasing: false,
         hours: 48,
+        sessionMultiplier: 5,
+        sessionShare: 0,
       }),
     });
     expect(transport.fetch).toHaveBeenCalledWith("/speech/vocabulary/scan", {

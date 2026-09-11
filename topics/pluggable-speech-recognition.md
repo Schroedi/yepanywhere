@@ -736,8 +736,21 @@ it and would otherwise rank as maximally distinctive — `i'll` and `i'm` were t
 two highest-scoring terms before this. A joined form is never more frequent than
 any of its parts, so the smallest listed part bounds it, which also keeps
 `agentctl's` from competing with `agentctl`. Eligible active-
-session terms receive a fixed fivefold priority multiplier: five times the
-score the same term would carry globally, not six. Ties break lexically. The score only selects the list inside YA: Grok receives plain
+session terms receive a configurable priority multiplier, five by default:
+that many times the score the same term would carry globally, not one more.
+Ties break lexically.
+
+A multiplier alone cannot keep a fresh session visible, and the setting exists
+to be turned down rather than up. Global counts grow with history without
+bound while a new session's stay small, so for any fixed factor there is a
+history long enough to swamp it. The reservation is the mechanism that does
+not decay: a configurable share of the selection, zero by default, is held for
+the active session before score alone decides the rest. It is a floor and not
+a ceiling — session terms that outrank everything still take more than their
+share, and the list is filled to its limit with unique terms either way. A
+principled replacement would blend session and global evidence in probability
+space rather than scale a score; see
+[the ranking approximations gap](../gaps/speech-vocabulary-ranking-approximations.md). The score only selects the list inside YA: Grok receives plain
 repeated `keyterm` values, never numeric scores or weights. Acoustic confusion,
 homophones, and measured error probabilities remain in the requested
 [error-modeling gap](../gaps/speech-recognition-error-modeling.md); no

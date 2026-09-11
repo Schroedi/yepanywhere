@@ -41,7 +41,31 @@ export interface VocabularySettings {
   enabled: boolean;
   biasing: boolean;
   hours: number;
+  /**
+   * How much more a term from the active session is worth than the same term
+   * scored globally. Applied once, where the word is offered to the session
+   * heap; the merge replaces rather than adds, so this is the whole factor.
+   */
+  sessionMultiplier: number;
+  /**
+   * Share of the selected keyterms held for the active session, 0 to 1. Long
+   * history accumulates mass that a fresh session cannot outscore, so a
+   * reservation is the only way its terms survive the cut. Zero keeps the
+   * unreserved behavior, where score alone decides.
+   */
+  sessionShare: number;
 }
+
+/**
+ * A settings write. The two ranking knobs are optional so a caller that does
+ * not know about them leaves them alone rather than erasing them, which is the
+ * same reason the route treats an absent field as unchanged.
+ */
+export type VocabularySettingsUpdate = Omit<
+  VocabularySettings,
+  "generation" | "sessionMultiplier" | "sessionShare"
+> &
+  Partial<Pick<VocabularySettings, "sessionMultiplier" | "sessionShare">>;
 
 export interface VocabularyMessage {
   source: "user" | "assistant";
@@ -57,6 +81,16 @@ type Counts = { user: number; assistant: number };
  * transcribed correctly anyway, so these must not crowd out real jargon.
  */
 const ESCAPE_SHARE = 0.2;
+
+/**
+ * Default weight of an active-session term against the same term scored
+ * globally, and the default share of the selection held for the session.
+ * Five preserves the behavior this setting replaced; zero reservation does the
+ * same for the budget, leaving score alone to decide until an owner says
+ * otherwise.
+ */
+const DEFAULT_SESSION_MULTIPLIER = 5;
+const DEFAULT_SESSION_SHARE = 0;
 
 /**
  * All three live in the data directory. That directory is local disk whenever
@@ -191,6 +225,8 @@ interface PersistedState {
   biasing: boolean;
   hours: number;
   resetAfter: number;
+  sessionMultiplier: number;
+  sessionShare: number;
   /**
    * Content at or before this time is counted, and the filter no longer holds
    * its fingerprints. Set when the filter is compacted to a recent window:
@@ -241,6 +277,8 @@ export class VocabularyStore {
     biasing: false,
     hours: 24,
     resetAfter: 0,
+    sessionMultiplier: DEFAULT_SESSION_MULTIPLIER,
+    sessionShare: DEFAULT_SESSION_SHARE,
     seenFrom: 0,
   };
   private loaded = false;
@@ -393,6 +431,10 @@ export class VocabularyStore {
       biasing: raw.biasing === true,
       hours: Number(raw.hours ?? 24),
       resetAfter: Number(raw.resetAfter ?? 0),
+      sessionMultiplier: Number(
+        raw.sessionMultiplier ?? DEFAULT_SESSION_MULTIPLIER,
+      ),
+      sessionShare: Number(raw.sessionShare ?? DEFAULT_SESSION_SHARE),
       seenFrom: Number(raw.seenFrom ?? 0),
     };
     // Checkpoints used to share this file. Keep them until the table adopts
@@ -663,13 +705,19 @@ export class VocabularyStore {
       enabled: this.state.enabled,
       biasing: this.state.biasing,
       hours: this.state.hours,
+      sessionMultiplier: this.state.sessionMultiplier,
+      sessionShare: this.state.sessionShare,
     };
   }
 
-  configure(settings: Omit<VocabularySettings, "generation">): void {
+  configure(settings: VocabularySettingsUpdate): void {
     this.state.enabled = settings.enabled;
     this.state.biasing = settings.biasing;
     this.state.hours = settings.hours;
+    if (Number.isFinite(settings.sessionMultiplier))
+      this.state.sessionMultiplier = settings.sessionMultiplier as number;
+    if (Number.isFinite(settings.sessionShare))
+      this.state.sessionShare = settings.sessionShare as number;
     this.writeState();
   }
 
@@ -747,7 +795,10 @@ export class VocabularyStore {
       if (message.source === "user") this.userTotal += n;
       else this.assistantTotal += n;
       const score = this.considerWord(word);
-      this.sessionTop(sessionKey).consider(word, score * 5);
+      this.sessionTop(sessionKey).consider(
+        word,
+        score * this.state.sessionMultiplier,
+      );
     }
     this.pendingTokens += added;
     return added;
@@ -986,9 +1037,13 @@ export class VocabularyStore {
     if (!this.state.biasing) return [];
     const total = this.tokenTotal();
     const ranked = new Map(this.top.entries());
+    const fromSession = new Set<string>();
     const session = sessionKey ? this.sessionTops.get(sessionKey) : undefined;
     if (session)
-      for (const [word, score] of session.entries()) ranked.set(word, score);
+      for (const [word, score] of session.entries()) {
+        ranked.set(word, score);
+        fromSession.add(word);
+      }
     for (const term of sessionTerms) {
       if (this.ignored.has(term) || term.length > maxLength) continue;
       const counts = this.countsOf(term);
@@ -996,8 +1051,10 @@ export class VocabularyStore {
       if (count <= 0) continue;
       ranked.set(
         term,
-        distinctiveScore(count, total, vocabularyFrequency(baseline, term)) * 5,
+        distinctiveScore(count, total, vocabularyFrequency(baseline, term)) *
+          this.state.sessionMultiplier,
       );
+      fromSession.add(term);
     }
     const candidates = [...ranked]
       .filter(
@@ -1009,12 +1066,35 @@ export class VocabularyStore {
       )
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     const selected: string[] = [];
+    const taken = new Set<string>();
     let escapes = Math.ceil(limit * ESCAPE_SHARE);
-    for (const [word] of candidates) {
-      if (selected.length >= limit) break;
-      if (word !== word.toLowerCase() && escapes-- <= 0) continue;
-      selected.push(projectVocabularyCase(word, this.caseForms.get(word)));
-    }
+    const take = (word: string): void => {
+      if (selected.length >= limit) return;
+      const capitalized = word !== word.toLowerCase();
+      if (capitalized && escapes <= 0) return;
+      const surface = projectVocabularyCase(word, this.caseForms.get(word));
+      if (taken.has(surface)) return;
+      if (capitalized) escapes--;
+      taken.add(surface);
+      selected.push(surface);
+    };
+    // The session share is a floor, not a ceiling: it guarantees this many
+    // slots to the active session before score alone decides the rest, and
+    // session terms that outrank everything still take more than their share.
+    // A multiplier cannot do this job on its own, because global counts grow
+    // with history without bound while a fresh session's stay small, so any
+    // fixed factor is eventually too small. Holding slots is independent of
+    // that arithmetic.
+    const reserved = Math.min(
+      limit,
+      Math.ceil(limit * Math.min(1, Math.max(0, this.state.sessionShare))),
+    );
+    if (reserved > 0)
+      for (const [word] of candidates) {
+        if (selected.length >= reserved) break;
+        if (fromSession.has(word)) take(word);
+      }
+    for (const [word] of candidates) take(word);
     return selected;
   }
 

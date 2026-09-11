@@ -10,6 +10,8 @@ export function SpeechVocabularyControls() {
   const { transport } = useCurrentSourceRuntime();
   const [status, setStatus] = useState<SpeechVocabularyStatus>();
   const [hours, setHours] = useState("24");
+  const [multiplier, setMultiplier] = useState("5");
+  const [share, setShare] = useState("0");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [showLexicon, setShowLexicon] = useState(false);
@@ -37,7 +39,14 @@ export function SpeechVocabularyControls() {
         if (!includeWords.current) delete next.words;
         if (observedRevision === revision.current) {
           setStatus(next);
-          if (first) setHours(String(next.hours));
+          if (first) {
+            setHours(String(next.hours));
+            // A server too old to report these omits them; fall back to the
+            // values it behaves as, so the form stays usable and saving the
+            // rest of it does not send NaN.
+            setMultiplier(String(next.sessionMultiplier ?? 5));
+            setShare(String(Math.round((next.sessionShare ?? 0) * 100)));
+          }
           first = false;
         }
       } catch (error) {
@@ -58,11 +67,25 @@ export function SpeechVocabularyControls() {
   // slider's extent is not the field's limit, and fractions are ordinary.
   const validHours =
     hours.trim() !== "" && Number.isFinite(Number(hours)) && Number(hours) >= 0;
+  const validMultiplier =
+    multiplier.trim() !== "" &&
+    Number.isFinite(Number(multiplier)) &&
+    Number(multiplier) >= 0;
+  const validShare =
+    share.trim() !== "" &&
+    Number.isFinite(Number(share)) &&
+    Number(share) >= 0 &&
+    Number(share) <= 100;
   const action = async (
     kind: "settings" | "scan" | "reset",
     changes: Partial<Pick<SpeechVocabularyStatus, "enabled" | "biasing">> = {},
   ) => {
-    if (!status || busy || (kind !== "reset" && !validHours)) return;
+    if (
+      !status ||
+      busy ||
+      (kind !== "reset" && (!validHours || !validMultiplier || !validShare))
+    )
+      return;
     revision.current++;
     setBusy(true);
     setError(undefined);
@@ -82,6 +105,8 @@ export function SpeechVocabularyControls() {
               enabled: status.enabled,
               biasing: status.biasing,
               hours: Number(hours),
+              sessionMultiplier: Number(multiplier),
+              sessionShare: Number(share) / 100,
               ...changes,
             }),
           },
@@ -136,6 +161,55 @@ export function SpeechVocabularyControls() {
           value={validHours ? Math.min(Number(hours), 8760) : 24}
           aria-label={t("speechVocabularyHoursSlider")}
           onChange={(event) => setHours(event.target.value)}
+          disabled={busy}
+        />
+      </div>
+      <div className={styles.hours}>
+        <label htmlFor={`${id}-session-share`}>
+          {t("speechVocabularySessionShare")}
+        </label>
+        <input
+          id={`${id}-session-share`}
+          type="number"
+          min="0"
+          max="100"
+          step="any"
+          value={share}
+          onChange={(event) => setShare(event.target.value)}
+          disabled={busy}
+        />
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value={validShare ? Number(share) : 0}
+          aria-label={t("speechVocabularySessionShareSlider")}
+          onChange={(event) => setShare(event.target.value)}
+          disabled={busy}
+        />
+      </div>
+      <div className={styles.hours}>
+        <label htmlFor={`${id}-session-multiplier`}>
+          {t("speechVocabularySessionMultiplier")}
+        </label>
+        <input
+          id={`${id}-session-multiplier`}
+          type="number"
+          min="0"
+          step="any"
+          value={multiplier}
+          onChange={(event) => setMultiplier(event.target.value)}
+          disabled={busy}
+        />
+        <input
+          type="range"
+          min="0"
+          max="20"
+          step="any"
+          value={validMultiplier ? Math.min(Number(multiplier), 20) : 5}
+          aria-label={t("speechVocabularySessionMultiplierSlider")}
+          onChange={(event) => setMultiplier(event.target.value)}
           disabled={busy}
         />
       </div>

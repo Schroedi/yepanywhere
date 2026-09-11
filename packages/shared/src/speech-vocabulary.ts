@@ -250,6 +250,10 @@ export interface SpeechVocabularyStatus {
   enabled: boolean;
   biasing: boolean;
   hours: number;
+  /** Weight of an active-session term against the same term scored globally. */
+  sessionMultiplier: number;
+  /** Share of the selected keyterms held for the active session, 0 to 1. */
+  sessionShare: number;
   totals: { words: number; user: number; assistant: number };
   /** Present only when the lexicon view requests includeWords=1; at most 2000. */
   words?: SpeechVocabularyWord[];

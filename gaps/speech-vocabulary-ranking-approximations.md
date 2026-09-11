@@ -43,6 +43,27 @@ simple excess count.
   as are flushed ones the background writer had not reached. Scan work
   yields every 16 messages so the process stays responsive.
 
+## Session weighting is a scale, not a blend
+
+An active-session term is scored by multiplying its global score, five by
+default and now configurable. No fixed factor can be right: global
+counts grow with history without bound while a session's stay small, so
+for every factor there is a history long enough to swamp it. The
+multiplier fails slowly and silently as a user's corpus grows.
+
+Blending belongs in probability space — interpolate the session's own
+rate with the global rate, so a term that is a large fraction of *this*
+session ranks on that fraction rather than on a count it cannot win.
+An alpha interpolation is the shape.
+
+The reservation shipped instead: a configurable share of the selection
+held for the active session, a floor rather than a ceiling, zero by
+default. It does not decay with history because it does not compete on
+score at all, and the maintainer judged it close enough in spirit. The
+blend remains the principled version, and the two are compatible: a
+blend would set the ordering, and a reservation would still guarantee
+presence.
+
 Exact per-increment maintenance of the true top 100 under a changing
 `T`, and a fully crash-safe log, were deferred.
 
