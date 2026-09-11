@@ -138,7 +138,7 @@ function ArtifactSettingsForm({
               />
             </div>
             <p>{t("artifactExpiryDaysHint")}</p>
-            <label className={styles.choice}>
+            <label className={styles.toggle}>
               <input
                 type="checkbox"
                 checked={deleteOnExpiry}
