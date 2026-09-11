@@ -1,4 +1,13 @@
-import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  rmdir,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -20,10 +29,18 @@ export interface StoredGrant {
   expiresAt: number;
   /** An owning grant deletes its directory when it expires or is revoked. */
   owned: boolean;
+  /**
+   * The files that were in the directory when the grant was created, relative
+   * to its root. Ownership covers exactly these: anything added afterwards
+   * belongs to whoever put it there.
+   */
+  ownedFiles?: string[];
 }
 
 export interface PendingDeletion {
   root: string;
+  /** The frozen fileset, relative to root. */
+  files: string[];
   dueAt: number;
 }
 
@@ -51,14 +68,27 @@ function readGrant(value: unknown): StoredGrant | null {
     !Number.isFinite(expiresAt)
   )
     return null;
-  return { id, token, root, entry, expiresAt, owned: owned === true };
+  return {
+    id,
+    token,
+    root,
+    entry,
+    expiresAt,
+    owned: owned === true,
+    ownedFiles: readFileset((value as Record<string, unknown>).ownedFiles),
+  };
+}
+
+function readFileset(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((name): name is string => typeof name === "string");
 }
 
 function readDeletion(value: unknown): PendingDeletion | null {
   if (!isRecord(value)) return null;
   const { root, dueAt } = value;
   if (typeof root !== "string" || typeof dueAt !== "number") return null;
-  return { root, dueAt };
+  return { root, files: readFileset(value.files) ?? [], dueAt };
 }
 
 /**
@@ -142,11 +172,70 @@ export class GrantStore {
     return this.writing.catch(() => {});
   }
 
-  /** Remove an owned directory. A failure is reported, never retried forever. */
-  static async deleteDirectory(root: string): Promise<boolean> {
-    return rm(root, { recursive: true, force: true }).then(
-      () => true,
-      () => false,
-    );
+  /**
+   * Remove exactly the frozen fileset, then the directories it emptied.
+   *
+   * A grant owns the files that were there when it was created, not the
+   * directory forever: anything written afterwards is someone else's, and a
+   * directory that still holds something is left standing. A failure is
+   * reported, never retried forever.
+   */
+  static async deleteFrozen(
+    root: string,
+    files: readonly string[],
+  ): Promise<boolean> {
+    let complete = true;
+    const directories = new Set<string>();
+    for (const name of files) {
+      const path = join(root, name);
+      // A stored name is relative and was produced by the walk below; refuse
+      // anything that would climb out of the directory it belongs to.
+      if (!resolve(path).startsWith(`${resolve(root)}/`)) {
+        complete = false;
+        continue;
+      }
+      const removed = await unlink(path).then(
+        () => true,
+        (error: NodeJS.ErrnoException) => error.code === "ENOENT",
+      );
+      if (!removed) complete = false;
+      for (let parent = dirname(path); parent.startsWith(resolve(root)); )
+        if (directories.add(parent)) parent = dirname(parent);
+        else break;
+    }
+    // Deepest first, so a nested directory can empty its parent.
+    for (const directory of [...directories, resolve(root)].sort(
+      (a, b) => b.length - a.length,
+    ))
+      await rmdir(directory).catch(() => {});
+    return complete;
+  }
+
+  /**
+   * The files in a directory now, relative to it, or null when there are more
+   * than the cap: a directory that large is not an artifact bundle, and
+   * ownership is refused rather than guessed at.
+   */
+  static async freeze(root: string, cap = 4096): Promise<string[] | null> {
+    const found: string[] = [];
+    const walk = async (
+      directory: string,
+      prefix: string,
+    ): Promise<boolean> => {
+      const entries = await readdir(directory, { withFileTypes: true }).catch(
+        () => [],
+      );
+      for (const entry of entries) {
+        const name = prefix ? `${prefix}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) {
+          if (!(await walk(join(directory, entry.name), name))) return false;
+        } else if (entry.isFile()) {
+          if (found.length >= cap) return false;
+          found.push(name);
+        }
+      }
+      return true;
+    };
+    return (await walk(root, "")) ? found : null;
   }
 }

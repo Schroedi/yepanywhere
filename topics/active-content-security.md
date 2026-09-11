@@ -445,9 +445,16 @@ stop working, which is the previous behaviour of every restart.
 
 A grant is created either **owning** its directory or **borrowing** it. A
 borrowed grant never deletes anything: expiry only withdraws access, which is
-what every grant did before this contract existed. An owning grant deletes its
-granted directory tree when the grant expires or is revoked, because the
-directory existed only to be delivered.
+what every grant did before this contract existed.
+
+An owning grant freezes the fileset it was created over: the files present in
+the granted directory at that moment, recorded relative to it. When the grant
+expires or is revoked, exactly those files are removed, then the directories
+they emptied, and the granted directory itself only if it is now empty. A file
+written into that directory afterwards belongs to whoever put it there and is
+never removed, and a directory still holding anything is left standing.
+Ownership is refused, and the grant created as borrowing, when the directory
+holds more files than an artifact bundle plausibly has.
 
 Ownership is fixed when the grant is created and is never inferred later.
 `POST /api/artifacts` accepts `owned`; a request that omits it takes the

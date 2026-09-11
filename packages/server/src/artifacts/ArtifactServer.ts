@@ -199,16 +199,19 @@ export class ArtifactServer {
         this.grants.set(stored.token, { ...stored, files: new Set() });
         continue;
       }
-      if (stored.owned) this.owe(stored.root, stored.expiresAt);
+      if (stored.owned)
+        this.owe(stored.root, stored.ownedFiles ?? [], stored.expiresAt);
     }
     this.sweepTimer = setInterval(() => void this.sweep(), SWEEP_MS);
     this.sweepTimer.unref?.();
     await this.sweep();
   }
 
-  private owe(root: string, dueAt: number): void {
-    if (!this.deletions.some((pending) => pending.root === root))
-      this.deletions.push({ root, dueAt });
+  private owe(root: string, files: readonly string[], dueAt: number): void {
+    const existing = this.deletions.find((pending) => pending.root === root);
+    // Two grants over one directory own the union of what each froze.
+    if (existing) existing.files = [...new Set([...existing.files, ...files])];
+    else this.deletions.push({ root, files: [...files], dueAt });
   }
 
   private persist(): Promise<void> {
@@ -224,13 +227,15 @@ export class ArtifactServer {
     for (const [token, grant] of this.grants) {
       if (grant.expiresAt > now) continue;
       this.grants.delete(token);
-      if (grant.owned) this.owe(grant.root, grant.expiresAt);
+      if (grant.owned)
+        this.owe(grant.root, grant.ownedFiles ?? [], grant.expiresAt);
     }
     const due = this.deletions.filter((pending) => pending.dueAt <= now);
     if (due.length) {
       // A directory that failed to delete is dropped rather than retried
       // forever; the grant is gone either way and nothing is served from it.
-      for (const pending of due) await GrantStore.deleteDirectory(pending.root);
+      for (const pending of due)
+        await GrantStore.deleteFrozen(pending.root, pending.files);
       this.deletions = this.deletions.filter((pending) => pending.dueAt > now);
     }
     await this.persist();
@@ -275,7 +280,8 @@ export class ArtifactServer {
         // an owning grant pays its deletion on revocation.
         for (const [token, grant] of this.grants) {
           this.grants.delete(token);
-          if (grant.owned) this.owe(grant.root, Date.now());
+          if (grant.owned)
+            this.owe(grant.root, grant.ownedFiles ?? [], Date.now());
         }
         void this.sweep();
       }
@@ -355,13 +361,20 @@ export class ArtifactServer {
     // Ownership is refused rather than honoured for a directory that is
     // plainly not a disposable bundle; the grant is still created, borrowing.
     const wants = owned ?? this.config.deleteOnExpiry === true;
+    // Ownership freezes the fileset: exactly what is here now is what this
+    // grant may remove later, whatever else the directory collects.
+    const frozen =
+      wants && (await deletableDirectory(root, this.protectedPaths))
+        ? await GrantStore.freeze(root)
+        : null;
     const grant: Grant = {
       id: randomUUID(),
       token,
       root,
       entry: basename(allowed.file.resolvedPath),
       expiresAt: now + this.config.expiryDays! * 24 * 60 * 60 * 1000,
-      owned: wants && (await deletableDirectory(root, this.protectedPaths)),
+      owned: frozen !== null,
+      ...(frozen ? { ownedFiles: frozen } : {}),
       files: new Set(),
     };
     this.grants.set(token, grant);
@@ -380,7 +393,8 @@ export class ArtifactServer {
     for (const [token, grant] of this.grants)
       if (grant.id === id) {
         this.grants.delete(token);
-        if (grant.owned) this.owe(grant.root, Date.now());
+        if (grant.owned)
+          this.owe(grant.root, grant.ownedFiles ?? [], Date.now());
       }
     void this.sweep();
   }

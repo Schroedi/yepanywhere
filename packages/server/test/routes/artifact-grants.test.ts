@@ -166,6 +166,40 @@ describe("durable artifact grants", () => {
     await stateHolder.close();
   });
 
+  it("removes only the fileset it froze, and keeps a directory someone reused", async () => {
+    const { base, bundle, entry } = await workspace();
+    await mkdir(join(bundle, "assets"), { recursive: true });
+    await writeFile(join(bundle, "assets", "app.js"), "// served");
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    const server = serverFor(base, { expiryDays: 1, deleteOnExpiry: true });
+    const grant = await server.createGrant(entry, "local");
+    expect(grant.owned).toBe(true);
+
+    // Written after the grant existed, so the grant has no claim on it.
+    await writeFile(join(bundle, "notes.md"), "mine");
+    clock.mockReturnValue(now + 25 * 3600_000);
+    await server.settleExpired();
+    expect(await exists(entry)).toBe(false);
+    expect(await exists(join(bundle, "assets", "app.js"))).toBe(false);
+    expect(await exists(join(bundle, "assets"))).toBe(false);
+    // The directory still holds someone else's file, so it stays.
+    expect(await readFile(join(bundle, "notes.md"), "utf8")).toBe("mine");
+    await server.close();
+  });
+
+  it("removes the directory when its frozen fileset was all of it", async () => {
+    const { base, bundle, entry } = await workspace();
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    const server = serverFor(base, { expiryDays: 1, deleteOnExpiry: true });
+    await server.createGrant(entry, "local");
+    clock.mockReturnValue(now + 25 * 3600_000);
+    await server.settleExpired();
+    expect(await exists(bundle)).toBe(false);
+    await server.close();
+  });
+
   it("keeps ownership per grant when the default changes", async () => {
     const { base, entry } = await workspace();
     const server = serverFor(base, { deleteOnExpiry: true });
