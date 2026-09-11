@@ -1,38 +1,43 @@
 /*
- * A session-header chip matching the sibling provider-children trigger: same
- * height, border, radius and hover treatment, so the header row reads as one
- * set of controls. Symmetric padding keeps the glyph centered when no count
- * accompanies it.
+ * Kyle's session-header treatment: icon plus label, collapsing to a square
+ * tap target on a phone. The count keeps tabular figures so the chip does not
+ * jitter as it changes.
  */
 .link {
   display: inline-flex;
-  min-height: 22px;
-  flex-shrink: 0;
   align-items: center;
-  gap: 4px;
-  padding: 0 var(--space-2);
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 28px;
+  padding: 0 8px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  background: var(--bg-tertiary);
+  background: var(--bg-secondary);
   color: var(--text-secondary);
-  font-family: inherit;
-  font-size: var(--font-size-xs);
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
   line-height: 1;
   text-decoration: none;
+  white-space: nowrap;
 }
-
-.link:hover,
-.link:focus-visible {
-  border-color: color-mix(in srgb, var(--link-color) 48%, var(--border-color));
+.link:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
-  text-decoration: none;
 }
-
 .link:focus-visible {
-  outline: 2px solid var(--accent-primary);
+  outline: 2px solid var(--focus-border);
   outline-offset: 2px;
+}
+@media (max-width: 700px) {
+  .link {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+  .label {
+    display: none;
+  }
 }
 
 .count {

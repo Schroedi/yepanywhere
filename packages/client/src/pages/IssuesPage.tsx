@@ -1,3 +1,4 @@
+import { IssueIcon } from "../components/IssueIcon";
 import type {
   IssueItem,
   IssueSearchResult,
@@ -136,7 +137,7 @@ function IssueBrowser() {
     }
   };
   return (
-    <div className={styles.page}>
+    <main className={styles.page}>
       <div className={styles.controls}>
         <input
           type="search"
@@ -151,7 +152,9 @@ function IssueBrowser() {
         <button type="button" onClick={() => setRevision((x) => x + 1)}>
           {t("issuesRefresh")}
         </button>
-        <Link to={`${base}/settings/issues`}>{t("issuesSettings")}</Link>
+        <Link className={styles.settingsLink} to={`${base}/settings/issues`}>
+          {t("issuesSettings")}
+        </Link>
       </div>
       <label className={styles.choice}>
         <input
@@ -190,7 +193,7 @@ function IssueBrowser() {
         </div>
       )}
       {error && <p role="alert">{error}</p>}
-      <div className={styles.columns}>
+      <div className={`${styles.columns} ${selected ? styles.withDetail : ""}`}>
         <section className={styles.list} aria-label={t("issuesResults")}>
           {result?.items.length === 0 && (
             <p className={styles.empty}>{t("issuesEmpty")}</p>
@@ -200,9 +203,13 @@ function IssueBrowser() {
               type="button"
               key={item.id}
               className={`${styles.item} ${selected?.id === item.id ? styles.selected : ""}`}
+              aria-pressed={selected?.id === item.id}
               onClick={() => setSelected(item)}
             >
-              <strong>{item.title ?? item.key}</strong>
+              <span className={styles.itemTitle}>
+                <IssueIcon />
+                <strong>{item.title ?? item.key}</strong>
+              </span>
               <span>
                 {item.title ? `${item.key} · ` : ""}
                 {item.provider} ·{" "}
@@ -385,7 +392,11 @@ function IssueBrowser() {
               </button>
             )}
             {!deleting ? (
-              <button type="button" onClick={() => setDeleting(true)}>
+              <button
+                className={styles.danger}
+                type="button"
+                onClick={() => setDeleting(true)}
+              >
                 {t("issuesDelete")}
               </button>
             ) : (
@@ -413,6 +424,6 @@ function IssueBrowser() {
           </section>
         )}
       </div>
-    </div>
+    </main>
   );
 }

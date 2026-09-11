@@ -113,6 +113,7 @@ describe("getLegacyRelayRedirectTarget", () => {
     "devices",
     "git-status",
     "inbox",
+    "issues",
     "login",
     "new-session",
     "projects",

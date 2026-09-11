@@ -12,9 +12,10 @@ import { useCurrentSourceRuntime } from "../../contexts/SourceRuntimeContext";
 import { useServerSettings } from "../../hooks/useServerSettings";
 import { useVersion } from "../../hooks/useVersion";
 import { useI18n } from "../../i18n";
+import { SettingsItem } from "./SettingsItem";
 import { SettingsSection } from "./SettingsSection";
 import { useSettingsPaneTitle } from "./SettingsPaneTitleContext";
-import styles from "../IssuesPage.module.css";
+import styles from "./IssueSettings.module.css";
 
 export function IssueSettings() {
   const { t } = useI18n();
@@ -26,7 +27,10 @@ export function IssueSettings() {
     SERVER_CAPABILITIES.issueSessionAssociations.name,
   );
   return (
-    <SettingsSection title={t("issuesTitle")}>
+    <SettingsSection
+      title={t("issuesTitle")}
+      description={t("issuesDescription")}
+    >
       {supported ? (
         <IssueSettingsControls key={runtime.sourceKey} />
       ) : (
@@ -86,21 +90,37 @@ function IssueSettingsControls() {
   };
   return (
     <div className={styles.settings}>
-      <p>{t("issuesDescription")}</p>
-      <label className={styles.choice}>
-        <input
-          type="checkbox"
-          checked={settings?.enabled ?? false}
-          disabled={!settings || busy}
-          onChange={(e) =>
-            settings && void save({ ...settings, enabled: e.target.checked })
-          }
-        />
-        {t("issuesEnable")}
-      </label>
-      <label className={styles.choice}>
-        {t("issuesScope")}
+      <SettingsItem
+        as="label"
+        id="issue-discovery-enabled"
+        label={t("issuesEnable")}
+        description={t("issuesRetention")}
+      >
+        <span className={`toggle-switch ${styles.toggle}`}>
+          <input
+            type="checkbox"
+            aria-label={t("issuesEnable")}
+            checked={settings?.enabled ?? false}
+            disabled={!settings || busy}
+            onChange={(e) =>
+              settings && void save({ ...settings, enabled: e.target.checked })
+            }
+          />
+          <span className="toggle-slider" />
+        </span>
+      </SettingsItem>
+      <SettingsItem
+        id="issue-discovery-scope"
+        label={t("issuesScope")}
+        className={styles.scopeRow}
+        description={
+          settings?.scope === "recent"
+            ? t("issuesRecentHelp")
+            : t("issuesViewedHelp")
+        }
+      >
         <select
+          className={styles.control}
           aria-label={t("issuesScope")}
           value={settings?.scope ?? "viewed"}
           disabled={!settings || busy}
@@ -115,11 +135,11 @@ function IssueSettingsControls() {
           <option value="viewed">{t("issuesViewed")}</option>
           <option value="recent">{t("issuesRecent")}</option>
         </select>
-      </label>
+      </SettingsItem>
       {settings?.scope === "recent" && (
-        <label className={styles.choice}>
-          {t("issuesDays")}
+        <SettingsItem id="issue-discovery-days" label={t("issuesDays")}>
           <input
+            className={styles.days}
             type="number"
             aria-label={t("issuesDays")}
             min={1}
@@ -133,14 +153,8 @@ function IssueSettingsControls() {
               else e.target.value = String(settings.recentDays);
             }}
           />
-        </label>
+        </SettingsItem>
       )}
-      <p>
-        {settings?.scope === "recent"
-          ? t("issuesRecentHelp")
-          : t("issuesViewedHelp")}
-      </p>
-      <p>{t("issuesRetention")}</p>
       {settings && (
         <ConfirmationControls settings={settings} busy={busy} save={save} />
       )}
@@ -208,21 +222,31 @@ function ConfirmationControls({ settings, busy, save }: ControlProps) {
   };
   return (
     <>
-      <label className={styles.choice}>
-        <input
-          type="checkbox"
-          checked={confirmation.enabled}
-          disabled={busy}
-          onChange={(e) => update({ enabled: e.target.checked })}
-        />
-        {t("issuesConfirmEnable")}
-      </label>
-      <p>{t("issuesConfirmHelp")}</p>
+      <SettingsItem
+        as="label"
+        id="issue-confirm-enabled"
+        label={t("issuesConfirmEnable")}
+        description={t("issuesConfirmHelp")}
+      >
+        <span className={`toggle-switch ${styles.toggle}`}>
+          <input
+            type="checkbox"
+            aria-label={t("issuesConfirmEnable")}
+            checked={confirmation.enabled}
+            disabled={busy}
+            onChange={(e) => update({ enabled: e.target.checked })}
+          />
+          <span className="toggle-slider" />
+        </span>
+      </SettingsItem>
       {confirmation.enabled && (
         <>
-          <label className={styles.choice}>
-            {t("issuesJiraSite")}
+          <SettingsItem
+            id="issue-confirm-jira-site"
+            label={t("issuesJiraSite")}
+          >
             <input
+              className={styles.control}
               type="url"
               aria-label={t("issuesJiraSite")}
               placeholder="https://example.atlassian.net"
@@ -230,17 +254,20 @@ function ConfirmationControls({ settings, busy, save }: ControlProps) {
               disabled={busy}
               onBlur={(e) => update({ jiraSite: e.target.value.trim() })}
             />
-          </label>
-          <label className={styles.choice}>
-            {t("issuesJiraEmail")}
+          </SettingsItem>
+          <SettingsItem
+            id="issue-confirm-jira-email"
+            label={t("issuesJiraEmail")}
+          >
             <input
+              className={styles.control}
               type="email"
               aria-label={t("issuesJiraEmail")}
               defaultValue={confirmation.jiraEmail}
               disabled={busy}
               onBlur={(e) => update({ jiraEmail: e.target.value.trim() })}
             />
-          </label>
+          </SettingsItem>
           {credentials?.map((credential) => (
             <CredentialControl
               key={credential.provider}
@@ -328,11 +355,10 @@ function BlocklistControl({ settings, busy, save }: ControlProps) {
   const { t } = useI18n();
   const current = settings.jiraKeyBlocklist ?? [...DEFAULT_JIRA_KEY_BLOCKLIST];
   return (
-    <label className={styles.stacked}>
-      {t("issuesBlocklist")}
+    <SettingsItem id="issue-jira-blocklist" label={t("issuesBlocklist")}>
       <input
         type="text"
-        className={styles.names}
+        className={`${styles.control} ${styles.names}`}
         aria-label={t("issuesBlocklist")}
         defaultValue={current.join(" ")}
         disabled={busy}
@@ -346,6 +372,6 @@ function BlocklistControl({ settings, busy, save }: ControlProps) {
           else e.target.value = current.join(" ");
         }}
       />
-    </label>
+    </SettingsItem>
   );
 }

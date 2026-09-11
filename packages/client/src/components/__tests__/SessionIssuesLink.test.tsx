@@ -59,7 +59,8 @@ describe("SessionIssuesLink", () => {
       name: "2 issues and pull requests associated with this session",
     });
     expect(link.getAttribute("href")).toBe("/issues?sessionId=s1&projectId=p1");
-    expect(link.textContent).toBe("2");
+    // Kyle's header treatment labels the link; the count follows it.
+    expect(link.textContent).toBe("Issues & PRs2");
     expect(link.querySelector("svg")).toBeTruthy();
     expect(state.fetch).toHaveBeenCalledWith(
       "/issues?sessionId=s1&projectId=p1&limit=100",
@@ -80,7 +81,7 @@ describe("SessionIssuesLink", () => {
     const link = await screen.findByRole("link", {
       name: "100+ issues and pull requests associated with this session",
     });
-    expect(link.textContent).toBe("100+");
+    expect(link.textContent).toBe("Issues & PRs100+");
   });
 
   it("shows the icon with no badge when nothing is associated", async () => {
@@ -89,7 +90,7 @@ describe("SessionIssuesLink", () => {
     const link = await screen.findByRole("link", {
       name: "Issues & PRs for this session",
     });
-    expect(link.textContent).toBe("");
+    expect(link.textContent).toBe("Issues & PRs");
   });
 
   it("shows no count rather than a stale one when the count cannot be read", async () => {
@@ -99,7 +100,7 @@ describe("SessionIssuesLink", () => {
       name: "Issues & PRs for this session",
     });
     await waitFor(() => expect(state.fetch).toHaveBeenCalled());
-    expect(link.textContent).toBe("");
+    expect(link.textContent).toBe("Issues & PRs");
   });
 
   it("follows a settling count, stops, and restarts as the transcript grows", async () => {
@@ -110,11 +111,11 @@ describe("SessionIssuesLink", () => {
       state.fetch.mockResolvedValue(result(0, false, true));
       const { rerender } = renderLink(3);
       await act(() => vi.advanceTimersByTimeAsync(0));
-      expect(screen.getByRole("link").textContent).toBe("");
+      expect(screen.getByRole("link").textContent).toBe("Issues & PRs");
 
       state.fetch.mockResolvedValue(result(2, false, false));
       await act(() => vi.advanceTimersByTimeAsync(4000));
-      expect(screen.getByRole("link").textContent).toBe("2");
+      expect(screen.getByRole("link").textContent).toBe("Issues & PRs2");
       expect(state.fetch).toHaveBeenCalledTimes(2);
 
       // Rechecks are bounded: a quiet session stops asking instead of polling.
@@ -126,9 +127,9 @@ describe("SessionIssuesLink", () => {
       state.fetch.mockResolvedValue(result(3, false, false));
       rerender(tree(4));
       await act(() => vi.advanceTimersByTimeAsync(1000));
-      expect(screen.getByRole("link").textContent).toBe("2");
+      expect(screen.getByRole("link").textContent).toBe("Issues & PRs2");
       await act(() => vi.advanceTimersByTimeAsync(2000));
-      expect(screen.getByRole("link").textContent).toBe("3");
+      expect(screen.getByRole("link").textContent).toBe("Issues & PRs3");
       expect(state.fetch).toHaveBeenCalledTimes(5);
     } finally {
       vi.useRealTimers();

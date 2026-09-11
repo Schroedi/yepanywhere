@@ -27,6 +27,18 @@ background adapter.
 Search uses literal, case-insensitive substrings of stored keys, URLs and titles.
 Pasting a full URL finds its canonical record. Search and evidence pages default
 to 50 rows and accept at most 100. Project/session filters apply before the limit.
+The browser content scrolls vertically within the app while its page header
+remains visible. Long result lists, pagination controls, and association evidence
+remain reachable at desktop and phone widths. Controls and evidence cards use the
+app theme colors, typography and focus states. Results occupy the available width
+until evidence is selected; phone layouts stack the result and evidence.
+
+A shared ticket glyph identifies Issues & PRs in the sidebar, settings category
+(including emoji icon mode), and the session header. The session shortcut is a
+compact button-style link; on phones it keeps its accessible name and tooltip
+while showing only the icon with a 44-pixel touch target. Discovery settings use
+the standard searchable settings rows and toggle, with scope guidance above
+the control.
 An unresolved reference is useful and searchable before a tracker host is known.
 Its detail can resolve it by supplying the matching full URL. Markdown labels
 supply observed titles; a user can override a resolved item's title. Discovery
@@ -208,6 +220,10 @@ The shared settings service persists `issueAssociations: { enabled, scope,
 recentDays }`. The bit requires ready SQLite and the installed indexing owner,
 independently of opt-in; data routes also require enablement and ordinary app
 authorization. Without it clients hide all controls and make no issue requests.
+The Issues & PRs sidebar and direct page links open `/issues` locally and in
+direct remote mode, or `/-/relay/:relayUsername/issues` in relay mode (beneath
+the hosted client base when configured). Refresh preserves the issue browser
+and its session/project scope; these routes must not fall back to Projects.
 Selections and requests belong to the current source runtime; switching servers
 remounts the browser before another server can receive the previous selection.
 No existing capability meaning or protocol floor changes. This unpublished v1
@@ -249,6 +265,7 @@ Validation owners:
 `test/storage/{issues,issue-indexing,issue-routes,issue-credentials,issue-confirmation}.test.ts`,
 `client/src/pages/settings/__tests__/IssueSettings.test.tsx`,
 `client/src/components/__tests__/SessionIssuesLink.test.tsx` and
-`client/e2e/issue-associations.spec.ts`, plus packaged SQLite runtime checks.
-The GitHub confirmation path was also exercised against the live API with a
-real credential; the Jira path is covered against a stub.
+`client/e2e/{issue-associations,issues-scroll,remote-issues}.spec.ts`, plus
+packaged SQLite runtime checks. Remote navigation coverage uses the production
+client bundle. The GitHub confirmation path was also exercised against the live
+API with a real credential; the Jira path is covered against a stub.
