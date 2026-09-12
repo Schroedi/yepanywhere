@@ -116,13 +116,42 @@ if ($sig.Status -ne 'Valid' -or $null -eq $sig.TimeStamperCertificate -or
 export async function managePreview(
   preview: ComputerPreview,
   instance: string,
-  action: "Install" | "Uninstall",
+  action: "Install" | "Uninstall" | "Rollback",
 ) {
   return powershell(
     `${authenticateManager}
 & $script -Action $p.action -Instance $p.instance -Package $p.packageDirectory -ExpectedPublisher $p.trustedPublisher
 `,
     { ...preview, instance, action },
+  );
+}
+
+/** Extract only a verified archive into a new, owned staging directory. */
+export async function extractComputerPackage(
+  archive: string,
+  destination: string,
+) {
+  await powershell(
+    `
+Add-Type -AssemblyName System.IO.Compression.FileSystem;
+if (Test-Path -LiteralPath $p.destination) { throw 'Staging destination already exists' };
+$zip=[IO.Compression.ZipFile]::OpenRead($p.archive);
+try {
+  if ($zip.Entries.Count -gt 4096) { throw 'Too many package entries' };
+  $size=0L; $names=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase);
+  foreach ($entry in $zip.Entries) {
+    $name=$entry.FullName;
+    if ($name -cnotmatch '^[a-zA-Z0-9_./-]+$' -or $name.StartsWith('/') -or
+        $name -match '(^|/)\\.\\.?(/|$)' -or !$names.Add($name) -or
+        (($entry.ExternalAttributes -shr 16) -band 0xF000) -eq 0xA000) { throw 'Unsafe archive member' };
+    $size += $entry.Length;
+    if ($size -gt 2147483648) { throw 'Expanded package is too large' };
+  };
+} finally { $zip.Dispose() };
+[IO.Compression.ZipFile]::ExtractToDirectory($p.archive,$p.destination);
+@{extracted=$true} | ConvertTo-Json -Compress
+`,
+    { archive, destination },
   );
 }
 

@@ -157,8 +157,8 @@ Start from these existing plans and contracts:
 The separately authorized [optional Windows Computer Control preview](../tactical/131-optional-windows-computer-control.md)
 is implemented and accepted for source-run Windows Node/Codex: signed local
 package management, deferred tools, explicit session selection, native images
-and crash-isolated lifecycle. Public download/update distribution and packaged
-YA acceptance remain future work; this default-off preview does not displace
+and crash-isolated lifecycle. Public download/update code is implemented; first
+release publication and packaged YA acceptance remain pending. This opt-in work does not displace
 release delivery above.
 
 These remain candidates behind publishing and continuous delivery, not a

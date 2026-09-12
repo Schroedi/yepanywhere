@@ -543,6 +543,7 @@ function getCapabilitiesForDeviceBridgeState(
 export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   const capabilities: string[] = [...BASE_CAPABILITIES];
   capabilities.push(SERVER_CAPABILITIES.computerControl.name);
+  capabilities.push(SERVER_CAPABILITIES.computerControlReleases.name);
   if (options?.getExperimentalConversationAvailable?.())
     capabilities.push(SERVER_CAPABILITIES.experimentalConversation.name);
   if (options?.getSqliteStatus?.().state === "ready") {

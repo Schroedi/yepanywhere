@@ -15,12 +15,21 @@ import {
   type NativeRuntime,
 } from "./native.js";
 import { callComputerPipe, ComputerDeliveryError } from "./pipe.js";
+import {
+  compareVersions,
+  discoverComputerRelease,
+  stageComputerRelease,
+  type ComputerRelease,
+  type ReleaseProgress,
+} from "./releases.js";
 
 export interface ComputerSettings {
   enabled: boolean;
   preview?: ComputerPreview;
   idleMs: number;
   grantMs: number;
+  releaseVersion?: string;
+  autoUpdate?: boolean;
 }
 const defaults: ComputerSettings = {
   enabled: false,
@@ -42,6 +51,9 @@ export interface ComputerDependencies {
   image?: typeof readComputerImage;
   manage?: typeof managePreview;
   now?: () => number;
+  discover?: typeof discoverComputerRelease;
+  stage?: typeof stageComputerRelease;
+  installed?: typeof installedPreview;
 }
 
 export class ComputerControlService {
@@ -54,16 +66,29 @@ export class ComputerControlService {
   private idleAt = 0;
   private lastError?: string;
   private readonly unsubscribe: () => void;
+  private latest?: ComputerRelease;
+  private releaseProgress?: ReleaseProgress;
+  private releaseError?: string;
+  private releaseTask?: Promise<void>;
+  private releaseAbort?: AbortController;
+  private updateTimer?: ReturnType<typeof setTimeout>;
+  private closed = false;
   constructor(
     private readonly settings: ServerSettingsService,
-    dataDir: string,
+    private readonly dataDir: string,
     private readonly deps: ComputerDependencies = {},
   ) {
     this.instance = `ya-${createHash("sha256").update(dataDir).digest("hex").slice(0, 20)}`;
     this.unsubscribe = settings.onSettingsChanged((next, previous) => {
+      const authority = (value?: ComputerSettings) =>
+        JSON.stringify({
+          enabled: value?.enabled,
+          preview: value?.preview,
+          idleMs: value?.idleMs,
+          grantMs: value?.grantMs,
+        });
       if (
-        JSON.stringify(next.computerControl) !==
-        JSON.stringify(previous.computerControl)
+        authority(next.computerControl) !== authority(previous.computerControl)
       ) {
         this.grants.clear();
         void this.stop().catch((error: unknown) => {
@@ -71,6 +96,7 @@ export class ComputerControlService {
         });
       }
     });
+    this.scheduleUpdates(0);
   }
   private now() {
     return this.deps.now?.() ?? Date.now();
@@ -88,6 +114,21 @@ export class ComputerControlService {
       running: !!this.runtime,
       busy: this.busy,
       lastError: this.lastError,
+      release: {
+        installedVersion: this.config().releaseVersion,
+        latestVersion: this.latest?.version,
+        updateAvailable:
+          !!this.latest &&
+          (!this.config().releaseVersion ||
+            compareVersions(
+              this.latest.version,
+              this.config().releaseVersion!,
+            ) > 0),
+        autoUpdate: this.config().autoUpdate ?? !!this.config().releaseVersion,
+        progress: this.releaseProgress,
+        working: !!this.releaseTask,
+        error: this.releaseError,
+      },
       sessions: [...this.grants].map(({ sessionId, expiresAt }) => ({
         sessionId,
         expiresAt,
@@ -95,13 +136,191 @@ export class ComputerControlService {
     };
   }
   async configure(value: ComputerSettings) {
+    if (!value.enabled) {
+      this.releaseAbort?.abort();
+      await this.releaseTask;
+    } else if (this.releaseTask)
+      throw new Error("Computer Control installation is in progress");
     this.grants.clear();
     await this.settings.updateSettings({ computerControl: value });
     await this.stop();
+    this.scheduleUpdates(0);
     return this.status();
+  }
+  private scheduleUpdates(delay = 24 * 60 * 60_000) {
+    clearTimeout(this.updateTimer);
+    if (
+      this.closed ||
+      !this.config().enabled ||
+      !this.config().preview ||
+      !this.status().release.autoUpdate ||
+      !this.status().available
+    )
+      return;
+    this.updateTimer = setTimeout(() => {
+      this.requestRelease("automatic");
+    }, delay);
+    this.updateTimer.unref();
+  }
+  async setManagedEnabled(enabled: boolean) {
+    this.assertPlatform();
+    if (!enabled) return this.configure({ ...this.config(), enabled: false });
+    if (this.config().preview)
+      return this.configure({ ...this.config(), enabled: true });
+    this.requestRelease("enable");
+    return this.status();
+  }
+  async setAutoUpdate(autoUpdate: boolean) {
+    if (this.releaseTask)
+      throw new Error("Wait for the current download to finish");
+    await this.settings.updateSettings({
+      computerControl: { ...this.config(), autoUpdate },
+    });
+    this.scheduleUpdates(0);
+    return this.status();
+  }
+  requestRelease(mode: "check" | "update" | "enable" | "automatic") {
+    this.assertPlatform();
+    if (this.closed) throw new Error("Computer Control is closing");
+    if (this.releaseTask) return this.status();
+    if (this.busy) {
+      if (mode === "automatic") {
+        this.scheduleUpdates();
+        return this.status();
+      }
+      throw new Error("Computer Control is busy");
+    }
+    this.releaseAbort = new AbortController();
+    this.releaseError = undefined;
+    this.releaseProgress = { phase: "checking" };
+    this.releaseTask = this.runRelease(mode, this.releaseAbort.signal)
+      .catch((error: unknown) => {
+        this.releaseError = this.releaseAbort?.signal.aborted
+          ? "Download cancelled."
+          : error instanceof Error
+            ? error.message
+            : String(error);
+        this.releaseProgress = { phase: "error" };
+      })
+      .finally(() => {
+        this.releaseTask = undefined;
+        this.scheduleUpdates();
+      });
+    return this.status();
+  }
+  private async runRelease(
+    mode: "check" | "update" | "enable" | "automatic",
+    signal: AbortSignal,
+  ) {
+    const release = await (this.deps.discover ?? discoverComputerRelease)(
+      signal,
+    );
+    signal.throwIfAborted();
+    const previous = this.config();
+    if (
+      previous.releaseVersion &&
+      compareVersions(release.version, previous.releaseVersion) < 0
+    ) {
+      throw new Error(
+        "The release feed is older than the installed package; keeping the installed version.",
+      );
+    }
+    this.latest = release;
+    this.releaseProgress = undefined;
+    if (mode === "check" || previous.releaseVersion === release.version) return;
+    // Never end grants or replace a runtime to make room for an update.
+    if (this.grants.size || this.busy) {
+      if (mode !== "automatic")
+        throw new Error(
+          "Finish or revoke computer-control sessions before updating.",
+        );
+      return;
+    }
+    const staged = await (this.deps.stage ?? stageComputerRelease)(
+      release,
+      this.dataDir,
+      signal,
+      (progress) => {
+        this.releaseProgress = progress;
+      },
+    );
+    let installed: ComputerPreview | undefined;
+    let activationAttempted = false;
+    try {
+      signal.throwIfAborted();
+      if (this.grants.size || this.busy)
+        throw new Error(
+          "Computer Control became busy; the installed version is unchanged.",
+        );
+      this.busy = true;
+      this.releaseProgress = { phase: "installing" };
+      await this.stop();
+      activationAttempted = true;
+      const result = await (this.deps.manage ?? managePreview)(
+        staged.preview,
+        this.instance,
+        "Install",
+      );
+      installed = (this.deps.installed ?? installedPreview)(
+        staged.preview,
+        this.instance,
+        result.packageId,
+      );
+      this.runtime = await (this.deps.start ?? startNative)(
+        installed,
+        this.instance,
+      );
+      await this.stop();
+      signal.throwIfAborted();
+      await this.settings.updateSettings({
+        computerControl: {
+          ...previous,
+          preview: installed,
+          releaseVersion: release.version,
+          enabled: mode === "enable" || previous.enabled,
+          autoUpdate: previous.autoUpdate !== false,
+        },
+      });
+      this.releaseProgress = { phase: "ready" };
+    } catch (error) {
+      if (installed || (activationAttempted && previous.preview)) {
+        try {
+          await this.stop();
+          if (previous.preview)
+            await (this.deps.manage ?? managePreview)(
+              previous.preview,
+              this.instance,
+              "Install",
+            );
+          else
+            await (this.deps.manage ?? managePreview)(
+              installed!,
+              this.instance,
+              "Uninstall",
+            );
+        } catch (rollbackError) {
+          await this.settings.updateSettings({
+            computerControl: {
+              ...previous,
+              enabled: false,
+              preview: previous.preview ?? installed,
+            },
+          });
+          throw new Error(
+            `Update failed and recovery needs attention: ${String(rollbackError)}`,
+          );
+        }
+      }
+      throw error;
+    } finally {
+      this.busy = false;
+      await staged.cleanup();
+    }
   }
   async install(preview: ComputerPreview) {
     this.assertPlatform();
+    if (this.releaseTask)
+      throw new Error("Computer Control download is in progress");
     if (this.busy) throw new Error("Computer control is busy");
     this.busy = true;
     try {
@@ -119,6 +338,8 @@ export class ComputerControlService {
         computerControl: {
           ...this.config(),
           enabled: false,
+          releaseVersion: undefined,
+          autoUpdate: false,
           preview: installedPreview(preview, this.instance, result.packageId),
         },
       });
@@ -129,6 +350,9 @@ export class ComputerControlService {
   }
   async uninstall() {
     this.assertPlatform();
+    this.releaseAbort?.abort();
+    await this.releaseTask;
+    clearTimeout(this.updateTimer);
     if (this.busy) throw new Error("Computer control is busy");
     this.busy = true;
     try {
@@ -169,6 +393,10 @@ export class ComputerControlService {
       throw new Error("computerControl must be a boolean");
     if (!selected) return undefined;
     this.assertPlatform();
+    if (this.releaseTask)
+      throw new Error(
+        "Computer Control is checking or installing a release; try again shortly",
+      );
     if (provider !== "codex" || executor || (sandbox && sandbox !== "none"))
       throw new Error(
         "Computer control requires a local unsandboxed Codex session",
@@ -204,11 +432,23 @@ export class ComputerControlService {
       if (grant.sessionId === sessionId) this.grants.delete(grant);
     if (!this.grants.size && !this.busy) await this.stop();
     this.schedule();
+    this.updateWhenIdle();
   }
   private async revokeGrant(grant: Grant) {
     this.grants.delete(grant);
     if (!this.grants.size && !this.busy) await this.stopAfterCall();
     this.schedule();
+    this.updateWhenIdle();
+  }
+  private updateWhenIdle() {
+    if (
+      !this.grants.size &&
+      !this.busy &&
+      !this.releaseTask &&
+      this.latest &&
+      this.status().release.updateAvailable
+    )
+      this.scheduleUpdates(0);
   }
   private authorized(grant: Grant) {
     return (
@@ -379,6 +619,7 @@ export class ComputerControlService {
         if (!this.grants.size || !this.config().enabled)
           await this.stopAfterCall();
         this.schedule();
+        this.updateWhenIdle();
       }
     }
   }
@@ -404,7 +645,10 @@ export class ComputerControlService {
           if (grant.expiresAt <= this.now()) this.grants.delete(grant);
         if (!this.busy && (this.idleAt <= this.now() || !this.grants.size))
           void this.stop()
-            .then(() => this.schedule())
+            .then(() => {
+              this.schedule();
+              this.updateWhenIdle();
+            })
             .catch((error: unknown) => {
               this.lastError = String(error);
             });
@@ -437,6 +681,10 @@ export class ComputerControlService {
     return this.stopping;
   }
   async close() {
+    this.closed = true;
+    clearTimeout(this.updateTimer);
+    this.releaseAbort?.abort();
+    await this.releaseTask;
     this.unsubscribe();
     clearTimeout(this.timer);
     this.grants.clear();

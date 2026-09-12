@@ -305,7 +305,7 @@ export async function startYaServerProcess(
   }
 }
 
-async function terminateYaServerProcess(
+export async function terminateYaServerProcess(
   server: YaServerProcess,
 ): Promise<void> {
   const pid = server.process.pid;

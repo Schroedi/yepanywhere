@@ -1,6 +1,7 @@
 import { ConversationSubscriptions } from "./experimental/conversation-subscriptions.js";
 import { ComputerControlService } from "./computer-control/service.js";
 import { createComputerControlRoutes } from "./routes/computer-control.js";
+import { createComputerControlReleaseRoutes } from "./routes/computer-control-releases.js";
 import { createConversationSource } from "./experimental/conversation-source.js";
 import { createExperimentalConversationRoutes } from "./routes/experimental-conversation.js";
 import { IssueStore } from "./services/issues/IssueStore.js";
@@ -653,6 +654,7 @@ export function createApp(options: AppOptions): AppResult {
     : undefined;
   if (computerControl) {
     app.route("/api", createComputerControlRoutes(computerControl));
+    app.route("/api", createComputerControlReleaseRoutes(computerControl));
   }
   const discoverySqlite = new DiscoverySqliteService({
     dataDir: effectiveDataDir,

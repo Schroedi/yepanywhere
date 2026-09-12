@@ -821,6 +821,14 @@ mounts its consumers before checking it.
 
 ## Optional Windows Computer Control
 
+Managed downloads add permanent optional ID 71, `computer-control-releases`,
+under the end-to-end install/update request approved on 2026-09-12. Stable
+v0.8.0/v0.8.1 lack its four `/api/computer-control/releases/*` routes and
+`release` status. Without ID 71 the client sends no release-management request
+and shows server-update guidance while retaining ID 70 local-install controls.
+The isolated browser regression exercises both old-server fallbacks. ID 70
+and all existing capabilities retain their meanings.
+
 The 2026-09-12 optional compatibility review covers stable v0.8.0 and v0.8.1;
 neither has the new contract. Permanent optional ID 70,
 `optional-computer-control`, covers the authenticated operator routes and

@@ -1,5 +1,20 @@
 # Windows full-suite and checkout-format validation remain incomplete
 
+The managed Computer Control release work rechecked on Windows x64 Node 24:
+root typecheck, formatting, CSS/capability audits and focused native/lifecycle
+tests pass. Full `pnpm test` reports server totals of 294 failed, 4,883 passed,
+103 skipped (35 failed, 349 passed, 11 skipped files), including the ACL,
+provider-launch, SQLite and watcher families below. General `pnpm test:e2e`
+still stops at the documented global-setup drive-path error before any test.
+The isolated Computer Control browser suite passes; explicit awaited backend
+termination is needed before removing its temporary Windows profile. None of
+these results establishes a passing whole-repository Windows aggregate.
+
+The isolated browser case also logs Vite's `ws proxy error: ECONNRESET`
+during terminal fixture teardown after the page closes. Browser assertions and
+captures pass with no page errors. The shared proxy shutdown ordering remains
+separate fixture cleanup work; no production logging filter was added to hide it.
+
 The directory-sync fix has focused native settings/review/storage coverage, but
 the full Windows gates remain red outside that change. Observed on Node 24.18.0
 against base `845143a599c62d0e4057905bafb8d16906d2ae4e` plus the persistence fix:

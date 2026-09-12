@@ -438,6 +438,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "optional-computer-control",
     introducedIn: "0.8.2",
   },
+  computerControlReleases: {
+    id: 71,
+    direction: "server",
+    name: "computer-control-releases",
+    introducedIn: "0.8.2",
+  },
   codexCyberAccessProgramSetting: {
     id: 67,
     direction: "server",

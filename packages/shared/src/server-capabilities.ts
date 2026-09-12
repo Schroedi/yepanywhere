@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  computerControlReleases: {
+    name: "computer-control-releases",
+    index: CAPABILITY_ID_ALLOCATIONS.computerControlReleases.id,
+    introducedIn: "0.8.2",
+  },
   computerControl: {
     name: "optional-computer-control",
     index: CAPABILITY_ID_ALLOCATIONS.computerControl.id,
@@ -184,6 +189,35 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  computerControlReleases: {
+    id: CAPABILITY_ID_ALLOCATIONS.computerControlReleases.id,
+    name: "computer-control-releases",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.8.2",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.computerControlReleases.id,
+    },
+    description:
+      "Verified Machine Control release downloads and managed updates.",
+    clientFallback:
+      "Show server-update guidance; send no release-management requests.",
+    serverContract: {
+      routes: [
+        "POST /api/computer-control/releases/check",
+        "POST /api/computer-control/releases/update",
+        "PUT /api/computer-control/releases/enabled",
+        "PUT /api/computer-control/releases/automatic",
+      ],
+      routeModules: ["packages/server/src/routes/computer-control-releases.ts"],
+      responseFields: ["release"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Optional managed Windows component.",
+    },
+  },
   computerControl: {
     id: CAPABILITY_ID_ALLOCATIONS.computerControl.id,
     name: "optional-computer-control",

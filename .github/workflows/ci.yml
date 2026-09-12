@@ -8,6 +8,29 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  computer-control:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.16.0
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @yep-anywhere/shared build
+      - run: >-
+          pnpm --filter @yep-anywhere/server exec vitest run
+          test/computer-control.test.ts test/computer-control-releases.test.ts
+          test/computer-control-provider.test.ts test/computer-control-job.test.ts
+          test/computer-control-guardian.test.ts
+      - run: pnpm --filter @yep-anywhere/client exec playwright install chromium
+      - run: pnpm --filter @yep-anywhere/client exec playwright test --config playwright.computer-control.config.ts
   persistence-native:
     strategy:
       fail-fast: false

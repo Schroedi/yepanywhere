@@ -4,12 +4,67 @@ Topic: optional-computer-control
 
 Status: Windows Node/Codex local preview accepted, 2026-09-12. Signed-package
 lifecycle, real deferred discovery, independent fixture effects, live/reloaded
-browser images and candidate crash isolation pass. Public release download
-and update integration remain open.
+browser images and candidate crash isolation pass. Managed release download and
+update code is implemented; first published-release and packaged-distribution
+acceptance remain pending.
 Implementation and release gates are tracked in
 [Tactical 131](../docs/tactical/131-optional-windows-computer-control.md).
 
-## Implemented Windows preview contract
+## Managed release installation and updates
+
+Enable Computer Control downloads the latest compatible stable Windows release
+from `kzahel/machine-control` on the YA server, verifies it, installs into the
+owned per-user instance, health-checks the runtime and stops it before reporting
+ready. It then enables explicit session selection. Installation does not grant
+access to existing sessions. OS/architecture selection is server-side; Windows
+Node x64/ARM64 and an ordinary interactive desktop are required.
+
+YA pins Machine Control's minisign public key and authenticates `release.json`
+before trusting its publisher, names, sizes or SHA-256 hashes. Bounded downloads
+go into unique YA-data staging directories; archive names, entries, expanded
+size and complete bytes are checked before native installation. The signed
+manager/catalog verification remains mandatory. Download failure, invalid
+signatures or incompatibility leave the existing installation unchanged.
+The installed version is persisted and older release-feed versions are refused.
+
+Check for updates is explicit and available while disabled. Managed installs
+also check on enabled startup and every 24 hours while automatic updates are
+enabled. The automatic-update preference defaults on within this explicitly
+enabled component and can be turned off. No recurring work runs while disabled.
+Advanced local installs default to manual updates; opting into automatic
+updates explicitly migrates them to the signed public release stream.
+Checks coalesce. Updates wait until all computer-control grants are gone;
+checking/downloading blocks new selection briefly, and never revokes existing
+grants to make room. Installation checks readiness before committing the new
+version. Failure restores the previous signed package; failed recovery disables
+the feature and retains an installation locator for retry/removal. Interrupted
+updates preserve the persisted previous locator for recovery on next use.
+
+The settings view shows enable, installed version, update availability,
+automatic-update preference and uninstall. Local package/publisher input is
+collapsed under Advanced. Download progress is polled only while an operation
+is running and the view is mounted. Cancel/disable aborts acquisition, waits
+for owned management cleanup, removes grants and stops the helper. Uninstall
+also removes the managed native instance. Retry starts a fresh verified download.
+
+Optional capability ID 71, `computer-control-releases`, covers the new
+`POST /api/computer-control/releases/check`, `POST .../update`,
+`PUT .../enabled` (`enabled`) and `PUT .../automatic` (`autoUpdate`) routes and
+the additive `release` status. The 2026-09-12 reviewed stable corpus is v0.8.0
+and v0.8.1; neither contains these routes. Absent ID 71, the client shows server
+update guidance and retains ID 70 local-install controls without calling any
+release route. Absent ID 70, it makes no computer-control requests at all.
+Old clients retain the original local-install API; ID 70 keeps its meaning.
+
+After publication, run
+`pnpm --filter server exec tsx --conditions source scripts/computer-control-release-acceptance.ts`
+in an interactive Windows Node session. This creates an isolated native instance,
+downloads from the real public feed, exercises read-only native enumeration and
+restart from the managed copy, then disables/uninstalls. It retains no desktop
+content. Until that succeeds, mocked browser/download tests and native ZIP tests
+are implementation evidence, not public-release acceptance.
+
+## Implemented Windows native/session contract
 
 Computer Control settings are stored in YA server settings. Installation and
 global enablement are separate from an explicit session selection, which is
@@ -42,15 +97,15 @@ selected provider thread: child threads, revoked grants and aborted sessions
 cannot dispatch. An agent with unrelated unsandboxed same-user shell access is
 not contained by these grants; this is a computer-tool authority boundary.
 
-The operator selects an extracted local Machine Control workstation preview
+For Advanced local import, the operator selects an extracted workstation package
 and supplies its publisher from an independently trusted source. YA verifies
 the manager's timestamped Authenticode signature and exact publisher before
 executing any imported script. The signed manager then verifies the existing
 Machine Control inventory, hashes, catalog and native signatures. No unsigned
 override exists. The managed per-user package path and publisher are persisted;
 each cold start revalidates the complete package. Archive self-asserted hashes
-or publishers alone do not establish trust. Public release-feed discovery,
-downloads, update policy and distribution packaging remain release work.
+or publishers alone do not establish trust. Managed releases use the separately
+authenticated release manifest described above.
 Removing the original extracted import folder must not break cold startup or
 uninstall. Failed uninstall leaves the feature disabled and retains the installed
 manager locator and publisher so the operator can retry removal.
