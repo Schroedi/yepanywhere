@@ -265,6 +265,30 @@ agent cannot continue coordinating while asleep unless that agent itself runs
 somewhere available. A daemon removes one dependency; it does not provide
 universal failover or migrate reasoning automatically.
 
+## Multiplayer and participatory sharing
+
+The existing [Participatory Live Share sketch](relay-origin-and-share-gating.sketches.md#participatory-live-share)
+proposes driver/guest composers, visible synchronized drafts, guest turn
+proposals, optional direct send/steer/queue rights, and later N-way participation.
+It is a candidate UI and authority design, not implemented multiplayer.
+[Restricted collaboration](managed-runner-execution-targets.md#future-restricted-collaboration)
+separately explores read-only versus writable session/workspace grants.
+
+These fit the collaboration axis regardless of where execution runs: two
+people can share one session on one server, while one person can use many
+machines. Participant grants govern human access; peer grants govern remote
+delegation. The session owner sequences accepted input, while shared draft
+text, typing indicators and cursor/selection presence need their own bounded
+visibility and reconnect rules. Seeing someone type does not grant permission
+to submit their text or control the provider.
+
+Project-wide read/write sharing and live pointer/caret sharing remain open
+extensions; the existing sketch specifies synchronized composer text, not
+those broader contracts. “Write” must distinguish sending agent input from
+editing files, approving tools, managing sessions or publishing changes.
+Today's [public bearer-link shares](relay-origin-and-share-gating.md#public-share-authorization)
+remain read-only and must not silently acquire these rights.
+
 ## Authority and failure questions to resolve
 
 **A grant, claim, and ownership generation serve different purposes.** A grant
@@ -317,8 +341,10 @@ machinery. Choosing and authorizing such an experiment is future work.
   → [placement][mc-placement] → [readiness][mc-readiness] →
   [claims][mc-claims] → [VM workspaces][mc-workspaces].
 - **Continuing or sharing a conversation:**
-  [super sessions](federated-super-sessions.md) → [security](security.md) →
-  [source runtimes](client-source-runtime-topology.md). Multiplayer authority
+  [participatory live sharing](relay-origin-and-share-gating.sketches.md#participatory-live-share)
+  → [restricted collaboration](managed-runner-execution-targets.md#future-restricted-collaboration)
+  → [security](security.md). For moving the same conversation between machines,
+  follow [super sessions](federated-super-sessions.md). Multiplayer authority
   remains a distinct open design, not an implemented consequence of federation.
 
 ## Evidence maintenance
