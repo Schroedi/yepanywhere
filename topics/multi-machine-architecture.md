@@ -265,6 +265,61 @@ agent cannot continue coordinating while asleep unless that agent itself runs
 somewhere available. A daemon removes one dependency; it does not provide
 universal failover or migrate reasoning automatically.
 
+## Optional hosted discovery and grant issuance
+
+Candidate raised on 2026-09-13: a server owner could explicitly trust a
+YA-operated authorization service, use Google or another identity provider to
+sign in, and manage access to enrolled YA servers from that account. No
+existing hosted-issuer implementation or dedicated proposal was found in the
+reviewed documents. This would extend the current manual peer-pairing direction;
+it is not authority already held by the relay.
+
+| Hosted role | Authority delegated by the owner |
+| --- | --- |
+| Relay only | Forward encrypted traffic; no right to admit clients or peers |
+| Discovery/account directory | Help find enrolled servers and candidate routes; each target still separately approves access |
+| Trusted grant issuer | Issue access grants within an explicitly enrolled server's local policy; target verifies issuer, recipient, scope, validity and revocation |
+
+These roles may share infrastructure without sharing credentials or authority.
+Google login would establish identity to the hosted service; each YA server
+would separately opt into trusting its issuer key and define permitted access.
+A candidate grant binds an authenticated client/peer key to a target and action
+set; possession of the corresponding private key must be proved. An issuer's
+signing key is distinct from both Google's credentials and endpoint encryption
+keys. Exact enrollment, handshake, key rotation and recovery remain design work.
+
+Endpoint encryption can still keep the forwarding relay from passively reading
+traffic. However, if the issuer may authorize a new endpoint key, a malicious
+or compromised issuer can potentially grant itself access within its allowed
+scope. That is the explicit trust tradeoff, not the existing relay-only privacy
+model. Requiring an owner-controlled signature for new device keys is a stricter
+alternative with additional enrollment friction; Tailscale's
+[Tailnet Lock design](https://tailscale.com/docs/concepts/tailnet-lock-whitepaper)
+is relevant prior art for separating directory service from device admission.
+
+Convenient discovery does not require a network mesh. YA peers can establish
+authorized encrypted circuits through the existing relay first, connecting
+when needed rather than keeping every possible peer pair live. Direct
+LAN/Tailscale or later NAT traversal can be additional routes for the same
+identity and grants. [Hyperswarm/HyperDHT](https://github.com/holepunchto/hyperdht)
+is a networking reference for discovery, hole punching and encrypted streams;
+it would not settle YA session ownership, authorization or input ordering.
+No P2P stack is selected here.
+
+A useful earlier proof is two YA services communicating over an isolated relay,
+then exercising relay restart, peer restart, reconnect, credential expiry,
+revocation and duplicate-request recovery. Keep durable peer authorization,
+expiring authentication credentials and per-connection encryption keys separate.
+Current [SRP resume](mobile-server-pairing.md#current-srp-resume-facts) refreshes
+idle validity and derives fresh connection keys, but retains an absolute
+credential lifetime; resuming is not indefinite grant renewal. The
+[peer credential questions](cross-host-delegation.md#identity-connectivity-and-grants)
+remain open, including persistent unattended authentication. Hosted-service
+outage policy must state which existing grants remain usable, when new access
+or renewal stops, and how long revocation can take to reach an offline peer.
+This is a proposed proof and trust option, not an executed test or approved
+authentication protocol.
+
 ## Multiplayer and participatory sharing
 
 The existing [Participatory Live Share sketch](relay-origin-and-share-gating.sketches.md#participatory-live-share)
