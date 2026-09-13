@@ -269,6 +269,21 @@ export type ActivityEventType = keyof ActivityEventMap;
 type Listener<T> = (data: T) => void;
 type SourceKey = string;
 
+/** One entry of the trail {@link ActivityBus.getRecentEvents} keeps. */
+export interface RecentActivityEvent {
+  /** `Date.now()` when the bus dispatched it. */
+  atMs: number;
+  /** Whether it arrived over the activity stream or was raised in this tab. */
+  origin: "stream" | "local";
+  type: ActivityEventType;
+}
+
+/**
+ * How many dispatches the trail keeps. Enough to tell one event's cascade from
+ * a burst without holding event payloads alive.
+ */
+const RECENT_ACTIVITY_EVENT_LIMIT = 24;
+
 interface ActivityStreamRecord {
   sourceKey: SourceKey;
   transport: SourceTransport;
@@ -308,6 +323,7 @@ class ActivityBus {
   private streamsSuspended = false;
   private connectedListeners = new Set<() => void>();
   private lastNotifiedConnected = false;
+  private recentEvents: RecentActivityEvent[] = [];
 
   constructor() {
     if (typeof window === "undefined") return;
@@ -334,6 +350,33 @@ class ActivityBus {
   };
   private get debugEnabled(): boolean {
     return isActivityDebugEnabled();
+  }
+
+  /**
+   * The last few dispatches, oldest first, for the fatal-error report.
+   *
+   * A client crash from an update storm — React's "Maximum update depth
+   * exceeded" — names only the component that happened to enqueue the update
+   * that crossed React's limit, which is often a bystander. What the report is
+   * missing is what the tab was reacting to, so keep the traffic that preceded
+   * the crash: one event's cascade and a burst of them look the same in the
+   * stack but call for opposite fixes.
+   */
+  getRecentEvents(): readonly RecentActivityEvent[] {
+    return this.recentEvents;
+  }
+
+  private recordRecentEvent(
+    type: ActivityEventType,
+    origin: RecentActivityEvent["origin"],
+  ): void {
+    this.recentEvents.push({ atMs: Date.now(), origin, type });
+    if (this.recentEvents.length > RECENT_ACTIVITY_EVENT_LIMIT) {
+      this.recentEvents.splice(
+        0,
+        this.recentEvents.length - RECENT_ACTIVITY_EVENT_LIMIT,
+      );
+    }
   }
 
   get connected(): boolean {
@@ -532,6 +575,7 @@ class ActivityBus {
 
     // Emit the event to listeners
     if (this.isValidEventType(event.eventType)) {
+      this.recordRecentEvent(event.eventType, "stream");
       if (this.debugEnabled) {
         console.log(
           "[ActivityBus] Dispatching source event:",
@@ -684,6 +728,7 @@ class ActivityBus {
     eventType: K,
     data: ActivityEventMap[K],
   ): void {
+    this.recordRecentEvent(eventType, "local");
     if (this.debugEnabled) {
       console.log("[ActivityBus] Dispatching local event:", eventType, data);
     }

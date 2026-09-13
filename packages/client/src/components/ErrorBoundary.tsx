@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import enMessages from "../i18n/en.json";
+import { activityBus } from "../lib/activityBus";
 import { writeClipboardText } from "../lib/clipboard";
 import { UI_KEYS } from "../lib/storageKeys";
 
@@ -21,6 +22,14 @@ interface CrashContext {
   capturedAt: string;
   url: string;
   userAgent: string;
+  /**
+   * Whether the tab was on screen when it crashed. A hidden tab runs on
+   * throttled timers and wakes with its backlog, which is a different story
+   * from the same crash in front of the reader.
+   */
+  visibility: string;
+  /** Newest first, each as "<event type> <age>s". See the activity bus. */
+  recentActivityEvents: string[];
   dom: {
     nodes: number;
     messageRows: number;
@@ -69,10 +78,21 @@ export function redactClientCrashUrl(href: string): string {
 }
 
 function captureCrashContext(): CrashContext {
+  const capturedAtMs = Date.now();
   return {
-    capturedAt: new Date().toISOString(),
+    capturedAt: new Date(capturedAtMs).toISOString(),
     url: redactClientCrashUrl(window.location.href),
     userAgent: navigator.userAgent,
+    visibility: document.visibilityState,
+    recentActivityEvents: activityBus
+      .getRecentEvents()
+      .map(
+        (event) =>
+          `${event.type}${event.origin === "local" ? " (local)" : ""} ${(
+            (capturedAtMs - event.atMs) / 1000
+          ).toFixed(1)}s`,
+      )
+      .reverse(),
     dom: {
       nodes: document.getElementsByTagName("*").length,
       messageRows: document.querySelectorAll(".message-render-row").length,
@@ -107,8 +127,14 @@ export function formatClientCrashDiagnostic(
     `Client version: ${getClientVersion()}`,
     `Server version: ${serverVersion ?? "unknown"}`,
     `User agent: ${context?.userAgent ?? "unknown"}`,
+    `Tab: ${context?.visibility ?? "unknown"}`,
     `DOM: ${JSON.stringify(context?.dom ?? null)}`,
     `Preferences: ${JSON.stringify(context?.preferences ?? null)}`,
+    `Activity events before the crash (newest first): ${
+      context?.recentActivityEvents?.length
+        ? context.recentActivityEvents.join(", ")
+        : "none"
+    }`,
     "",
     `Error: ${error?.message ?? "Unknown error"}`,
   ];

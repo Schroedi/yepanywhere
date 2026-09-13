@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { activityBus } from "../../lib/activityBus";
 import { ErrorBoundary, redactClientCrashUrl } from "../ErrorBoundary";
 
 function ThrowingSessionView(): never {
@@ -95,6 +96,23 @@ describe("ErrorBoundary", () => {
     expect(writeText).toHaveBeenCalledWith(
       details?.querySelector("pre")?.textContent,
     );
+  });
+
+  it("names the activity traffic the tab was reacting to", async () => {
+    activityBus.emitLocal("refresh", undefined);
+
+    render(
+      <ErrorBoundary>
+        <ThrowingSessionView />
+      </ErrorBoundary>,
+    );
+    await waitFor(() => expect(consoleError).toHaveBeenCalled());
+
+    const emitted = String(consoleError.mock.calls.at(-1)?.[0]);
+    expect(emitted).toMatch(
+      /Activity events before the crash \(newest first\): refresh \(local\) 0\.0s/,
+    );
+    expect(emitted).toContain("Tab: visible");
   });
 
   it("preserves the component stack and session render context", async () => {
