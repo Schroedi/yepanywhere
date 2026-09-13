@@ -392,8 +392,17 @@ describe("GET /version", () => {
     expect(version.capabilities).toBeUndefined();
     expect(version.optionalCapabilityBits).toEqual([
       [0, 1],
-      [2, 64],
+      [2, 192],
     ]);
+    expect(
+      serverHasCapability(version, SERVER_CAPABILITIES.computerControl.name),
+    ).toBe(true);
+    expect(
+      serverHasCapability(
+        version,
+        SERVER_CAPABILITIES.computerControlReleases.name,
+      ),
+    ).toBe(true);
     expect(serverHasCapability(version, PROJECT_QUEUE_CAPABILITY)).toBe(true);
     expect(
       serverHasCapability(
