@@ -373,7 +373,7 @@ export function SessionIssuesLink({
           }
         }}
       >
-        <IssueIcon />
+        <IssueIcon size={14} />
         {badge && <span className={styles.count}>{badge}</span>}
       </button>
       {menu}

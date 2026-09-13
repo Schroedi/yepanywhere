@@ -70,6 +70,20 @@ first 75% of its lifetime and fades only near removal, so nominal lifetime and
 readable lifetime do not diverge. One duration resolver owns both the removal
 timer and CSS animation value.
 
+## Mobile Viewport Ownership
+
+The shared navigation shell stays anchored to the mobile viewport on Inbox,
+session, and other authenticated routes. Safe-area spacing must not make the
+document scroll, move the header above the viewport, or leave a second gap below
+the composer. Browser-bar and keyboard viewport resizes preserve that anchoring;
+only the page's designated content regions scroll.
+
+A provider-host degraded notice reserves space inside this same shell above
+the app frame. Showing it must keep navigation and composer controls reachable,
+without changing which container owns the viewport. The frame retains its
+keyboard and safe-area insets; the outer body does not add a second inset to the
+mobile shell's geometry.
+
 ## Desktop Sidebar Display Modes
 
 The desktop sidebar has three browser-persisted display modes. Expanded mode

@@ -40,9 +40,11 @@ A shared ticket glyph identifies Issues & PRs in the sidebar, settings category
 (including emoji icon mode), and the session header. The session shortcut is a
 compact icon button carrying that glyph and its count at every width; the
 feature name lives in its tooltip and accessible name rather than in a
-word-wide chip, and a phone keeps a 44-pixel touch target. Discovery settings
-use the standard searchable settings rows and toggle, with scope guidance above
-the control.
+word-wide chip. At every width it matches the adjacent session Share control's
+22-pixel chip height, 14-pixel glyph, padding, and surface treatment; enabling
+Issues must not make the mobile header taller. Menu rows retain 44-pixel mobile
+touch targets. Discovery settings use the standard searchable settings rows and
+toggle, with scope guidance above the control.
 Bare Jira keys require a known project prefix by default. Unknown bare keys are
 retained as inactive candidates, without creating an issue/session link or
 appearing in search or session counts. **Match unknown ticket keys** is an

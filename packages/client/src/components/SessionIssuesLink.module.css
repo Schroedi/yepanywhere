@@ -1,8 +1,6 @@
 /*
- * Kyle's session-header treatment, reduced to its glyph: the ticket icon and
- * the association count, with the name carried by the tooltip and accessible
- * name instead of a word-wide chip. The count keeps tabular figures so the
- * chip does not jitter as it changes.
+ * Match the neighboring share control's compact chip at every width. The
+ * association count keeps tabular figures so it does not jitter as it changes.
  */
 .trigger {
   display: inline-flex;
@@ -10,14 +8,16 @@
   justify-content: center;
   gap: 4px;
   flex-shrink: 0;
-  min-height: 28px;
-  padding: 0 6px;
+  min-height: 22px;
+  padding: 0 var(--space-2);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
+  appearance: none;
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
@@ -27,15 +27,8 @@
   color: var(--text-primary);
 }
 .trigger:focus-visible {
-  outline: 2px solid var(--focus-border);
+  outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
-}
-@media (max-width: 700px) {
-  .trigger {
-    min-width: 44px;
-    min-height: 44px;
-    padding: 0 4px;
-  }
 }
 
 .count {

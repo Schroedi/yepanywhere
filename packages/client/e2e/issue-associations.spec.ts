@@ -9,6 +9,17 @@ test("automatically discovers Jira and GitHub references from viewed and recent 
   baseURL,
 }) => {
   test.setTimeout(90_000);
+  await page.route("**/api/settings", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    await route.fulfill({
+      response,
+      json: {
+        ...body,
+        settings: { ...body.settings, publicSharesEnabled: true },
+      },
+    });
+  });
   const project = join(e2ePaths.tempDir, "mockproject");
   const projectId = Buffer.from(project).toString("base64url");
   const dir = join(
@@ -116,10 +127,23 @@ test("automatically discovers Jira and GitHub references from viewed and recent 
     // Resizing dismisses the menu, so each width opens its own before its shot.
     const original = page.viewportSize();
     for (const [name, size] of [
-      ["session-issues-menu-desktop", { width: 1200, height: 600 }],
+      ["session-issues-menu-desktop", { width: 1000, height: 600 }],
       ["session-issues-menu-phone", { width: 375, height: 812 }],
     ] as const) {
       await page.setViewportSize(size);
+      await expect(
+        page.getByRole("main").getByText("Working on", { exact: false }),
+      ).toBeVisible();
+      const share = page.locator(".session-header").getByRole("button", {
+        name: /active viewer|Open public share controls/,
+      });
+      await expect(share).toBeVisible();
+      const shareBox = await share.boundingBox();
+      const issueBox = await headerMenu.boundingBox();
+      expect(issueBox!.height).toBe(22);
+      expect(issueBox!.height).toBe(shareBox!.height);
+      expect(issueBox!.y).toBe(shareBox!.y);
+      await recordUiCapture(page, name.replace("menu", "header"));
       await headerMenu.click();
       await expect(
         page.getByRole("menuitem", { name: /AUTOTEST-123/ }),
