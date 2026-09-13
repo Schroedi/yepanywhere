@@ -394,3 +394,5 @@
   demo and early Kotlin/Compose and Swift/SwiftUI consumers.
 - optional-computer-control - On-demand session-scoped native control,
   local transport and Codex/Sky execution reference findings.
+- multi-machine-architecture - Discussion map for execution ownership,
+  deployment, grants, machine control, delegation and session migration.

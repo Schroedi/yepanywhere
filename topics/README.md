@@ -69,6 +69,9 @@
 - Session summary fidelity (bounded list projections, complete-index isolation,
   and partial-observation nondowngrade rules)
 - Client source runtime topology (per-YA-server runtime boundary above summary/query/session-detail stores)
+- [Working Across Machines](multi-machine-architecture.md) (discussion entry
+  point comparing remote tools, runners, independent hosts, grants, central
+  daemons, multiplayer and migration; links Machine Control and prior art)
 - Managed remote executors (default-off manual SSH baseline with injected
   provider-neutral runners, YA-managed Git workspaces, Codex-first validation,
   and controller-fetched incoming heads)

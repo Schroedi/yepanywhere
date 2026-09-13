@@ -8,6 +8,12 @@ This file is intentionally short — each link below is the load-bearing
 detailed doc. Update this file when the high-level picture changes; update the
 linked docs when the details change.
 
+For work spanning machines, start with
+[Working Across Machines](topics/multi-machine-architecture.md): a discussion
+map of ownership, deployment, grants, transport and machine lifecycle, linking
+existing YA spikes, Machine Control and external architectures. It records
+alternatives rather than selecting a new runtime contract.
+
 ## Shape
 
 ```
