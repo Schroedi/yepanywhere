@@ -217,6 +217,35 @@ product contracts. Both products can attach existing checkouts; bb's managed
 workspaces are an explicit workflow and should not be described as unavoidable
 project mutation.
 
+### Hosted login and admission authority
+
+bb has the convenient account-to-machine flow discussed for YA. Its hosted
+[dashboard](https://getbb.app/dashboard) offers GitHub login, and the reviewed
+Better Auth configuration enables GitHub as its sole social provider. Email
+and password login is a development option; Google is not configured in this
+snapshot. This login is separate from agent-provider authentication.
+[Auth configuration][connect-auth].
+
+The account owns server records. A server redeems a one-use pairing code for
+a server credential and tunnel URL, then opens an outbound tunnel. The hosted
+Cloudflare worker authenticates that tunnel credential and admits browser
+requests only when the session account matches the destination's owner.
+Desktop/mobile and host clients can instead enroll with machine codes and
+receive revocable machine credentials. The API machine-credential path checks
+account ownership and rejects host-management mutations. These are centrally
+issued account/machine credentials, not project/session capability grants.
+[Enrollment API][connect-api], [proxy authorization][connect-worker].
+
+Consequently, the hosted service is both the access gate and the application
+traffic proxy. It has authority to admit clients to the paired server; it is
+not merely a directory returning an address. The reviewed browser and machine
+checks enforce same-account ownership, not invitations for a second user with
+read/write roles. In particular, the machine credential check is account-wide,
+not restricted to the server URL returned during enrollment. Local/direct use
+has a separate network boundary, as described above. This is a simpler model
+than T3's cloud-signed request followed by local credential issuance, with
+different trust and policy placement.
+
 ## Distribution and evidence limits
 
 Desktop 0.43.1 has Apple Silicon DMG/ZIP and Linux x64 AppImage assets. The
@@ -315,6 +344,9 @@ release and repository metrics were checked on 2026-09-13.
 [github-plugin]: https://github.com/get-bb/bb/blob/cf51227e1135309a3c9c0baf5630be1ca7ba2714/plugins/github/README.md
 [modal]: https://github.com/get-bb/bb/blob/cf51227e1135309a3c9c0baf5630be1ca7ba2714/plugins/environment-modal-sandbox/README.md
 [tunnel]: https://github.com/get-bb/bb/blob/cf51227e1135309a3c9c0baf5630be1ca7ba2714/apps/connect/src/tunnel-do.ts
+[connect-auth]: https://github.com/get-bb/bb/blob/cf51227e1135309a3c9c0baf5630be1ca7ba2714/apps/web/src/server/auth.ts
+[connect-api]: https://github.com/get-bb/bb/blob/cf51227e1135309a3c9c0baf5630be1ca7ba2714/apps/web/src/server/api.ts
+[connect-worker]: https://github.com/get-bb/bb/blob/cf51227e1135309a3c9c0baf5630be1ca7ba2714/apps/connect/src/worker.ts
 [platform]: https://github.com/get-bb/bb/blob/cf51227e1135309a3c9c0baf5630be1ca7ba2714/docs/platform-support.md
 [webview]: https://github.com/get-bb/bb/blob/cf51227e1135309a3c9c0baf5630be1ca7ba2714/apps/mobile/src/screens/webview/ProfileWebViewScreen.tsx
 [plugin-tree]: https://github.com/get-bb/bb/tree/cf51227e1135309a3c9c0baf5630be1ca7ba2714/plugins

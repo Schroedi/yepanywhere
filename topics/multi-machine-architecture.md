@@ -267,10 +267,10 @@ universal failover or migrate reasoning automatically.
 
 ## Optional hosted discovery and grant issuance
 
-Candidate raised on 2026-09-13: a server owner could explicitly trust a
+Candidate for YA raised on 2026-09-13: a server owner could explicitly trust a
 YA-operated authorization service, use Google or another identity provider to
 sign in, and manage access to enrolled YA servers from that account. No
-existing hosted-issuer implementation or dedicated proposal was found in the
+existing YA hosted-issuer implementation or dedicated proposal was found in the
 reviewed documents. This would extend the current manual peer-pairing direction;
 it is not authority already held by the relay.
 
@@ -319,6 +319,28 @@ outage policy must state which existing grants remain usable, when new access
 or renewal stops, and how long revocation can take to reach an offline peer.
 This is a proposed proof and trust option, not an executed test or approved
 authentication protocol.
+
+### Concrete hosted-account precedents
+
+Source audit on 2026-09-13: both competitors already connect hosted identity to
+machine admission, with different enforcement boundaries. Source pins and the
+live login-configuration check are recorded in the linked reviews.
+
+| Question | [T3 Connect](../docs/competitive/t3code.md#hosted-login-and-admission-authority) | [bb connect](../docs/competitive/bb.md#hosted-login-and-admission-authority) | Candidate YA issuer |
+| --- | --- | --- | --- |
+| Account login | Clerk; public configuration enables Google, GitHub, Apple and Microsoft | Better Auth with GitHub | Optional identity provider; Google is one possible choice |
+| Explicit enrollment | Install linked user, relay issuer and cloud mint public key on the environment; enable managed endpoint | Redeem account pairing code; server holds outbound-tunnel credential | Owner installs issuer trust and local policy |
+| New-client admission | Cloud signs a client-key-bound request; environment checks it and issues a short-lived credential | Hosted proxy checks account session or machine credential against destination ownership | Target verifies a key-bound grant within local policy; protocol undecided |
+| Permission boundary | Fixed standard environment scopes, including terminal operation | Same-account access with some machine-route restrictions | Target/action scopes still to design |
+| Hosted authority | Can authorize new client keys for the enrolled account | Can admit clients and proxy application traffic | Explicit opt-in admission authority, distinct from relay-only service |
+| Multiplayer implication | Reviewed managed flow binds an owner; no project/session invite policy established | Reviewed checks require the same account; no second-user role policy established | Sharing roles require an additional policy model |
+
+T3 is particularly close to the proposed trust enrollment: local issuance of
+the final credential preserves local validation but does not remove the cloud's
+power to admit a client. Neither social login nor a hosted directory requires
+a permanent user-selected master machine or a P2P mesh. The hosted option still
+depends on service availability for new admissions, and the target runtime must
+be reachable. A transport route and an access grant remain separate decisions.
 
 ## Multiplayer and participatory sharing
 
