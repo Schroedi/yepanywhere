@@ -1,3 +1,4 @@
+import "./lib/developmentPerformanceBootstrap";
 import { Fragment, lazy, StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 

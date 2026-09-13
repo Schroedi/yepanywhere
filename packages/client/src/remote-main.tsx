@@ -17,6 +17,7 @@
 
 console.log("[RemoteClient] Loading remote-main.tsx entry point");
 
+import "./lib/developmentPerformanceBootstrap";
 import { Fragment, lazy, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 

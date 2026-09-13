@@ -38,6 +38,42 @@
 
 ## Browser-tab lifetime memory
 
+### Development measurement retention
+
+Vite development clients bound User Timing independently of both **Browser
+Diagnostics** (the REC indicator) and a temporary bug-icon debug grant. React
+development Performance tracks are active even when those controls are off.
+A captured freeze failed inside React's `performance.measure` call with
+`DataCloneError: Data cannot be cloned, out of memory` while committing effects.
+
+Both client entrypoints install a development-only measurement boundary before
+rendering. React component and scheduler measurements retain their native name,
+duration, and return value, but omit the changed-prop/DevTools detail payload
+before the browser can structured-clone it. Other measurements retain their
+normal detail and validation behavior. The native **measure** timeline is
+cleared at installation, every 256 intercepted calls, and every five seconds
+when timers can run. This deliberately prunes all measure names, including app
+measurements; marks are preserved so in-flight mark-based measurements work.
+Consumers cannot depend on development measurements lasting since page load.
+External observers or an actively recording DevTools profiler own their own
+retention and are not bounded by clearing the page's timeline.
+
+Recent React counts, summed durations, and maximum durations remain available
+in `developmentTiming` on a browser-debug snapshot. A fixed ring of 60
+one-second numeric buckets coalesces events. Expiry subtracts the evicted
+contributions and advances the reported time interval; maxima are computed
+over retained buckets only when sampled. After a long pause, advancing the ring
+does bounded work rather than replaying elapsed ticks. The sum includes nested
+component timings and is not an exclusive CPU-utilization measurement.
+Production clients install neither the interceptor nor its cleanup timer.
+
+**Decision:** retain lightweight recent summaries and periodically clear the
+native timeline, rather than retaining rich React details in a JavaScript
+queue. Clearing after cloning alone would still expose a stressed tab to the
+allocation that failed in the captured incident.
+
+### Long-session observations and bounds
+
 - **2026-07-28 long-session observation and goal.** One long-lived session tab
   reached roughly 5 GB of browser-process memory; reloading the same session
   returned it to roughly 200 MB. This delta is not by itself proof of a JS,
