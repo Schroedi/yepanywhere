@@ -18,8 +18,9 @@ verified through app disposal with a deliberately blocked filesystem write.
 Settings search now supports background navigation and explicit form submission,
 verified with immediate controls and persisted Enter submission in the browser.
 Grok and zero-match search need current affected events: their initial causal
-theories do not explain the inspected implementation. Preview Refresh is still
-under investigation.
+theories do not explain the inspected implementation. Preview Refresh passed
+durable catalog/live-update checks, including the reported grouping sequence;
+the intermittent incident remains open because no cause or repair is established.
 
 Readiness means a bounded owner and an observable pass/fail outcome, not just
 a short proposed patch. Impact is the expected benefit to affected users:
@@ -48,7 +49,6 @@ remain prerequisites wherever the underlying entry requires them.
 | Settings search confirmation — closed | Medium | S–M | Fixed; 57 focused tests and three browser cases pass | Webhook URL saves with Enter directly in results; immediate theme controls remain operable; background navigation preserves selection and control clicks. Native label activation targets the checkbox. |
 | Scanner writes after disposal — closed | Medium / Dev | S–M | Fixed; real app disposal regression and 17 related tests pass | Disposal awaits the active snapshot write, drops queued snapshots and rejects subsequent scans. Evidence: `packages/server/test/projects/scanner-shutdown.test.ts`. |
 | [Vocabulary live arrival](vocabulary-learning-has-no-live-tail.md) | Medium | M | Missing feed located; replay-only observe caller checked now | With look-back zero and no browser watching, finalized arrivals update both selections; later replay does not double count; deltas and disabled collection do not count. |
-| [Preview Refresh disconnect](experimental-preview-refresh-disconnect.md) | High | M | Isolated multi-host reproduction seam; roadmap-aligned | Refresh one relay source, then receive a new catalog and later live message; other sources remain healthy. A transient ready flag is insufficient. |
 | [Vocabulary catalog scan scheduling](speech-vocabulary-scan-per-catalog-publication.md) | Medium, scale-dependent | M | Repeated whole-catalog work located | An unchanged publication does bounded work; one changed session does not scan all sessions; learning still converges. Measure work counts and user-visible cost before claiming a speedup. |
 | [Undefined banner theme variable](client-banners-use-an-undefined-bg-primary-variable.md) | Low–Medium | S | Undefined use checked now | Every affected declaration resolves to an intended theme token; banners/gradients remain legible in all themes at desktop and phone sizes. Audit intended colors, not a blanket rename. |
 | [Slow-request presentation](client-requests-have-no-deadline.md) | Medium | M | Request deadline already exists; remaining presentation is concrete | Delayed responses show an explanatory waiting state and usable retry; stale responses cannot replace newer results; deadline errors are distinguished. Choose one shared presentation owner. |
@@ -65,6 +65,7 @@ straightforward. The next step deliberately distinguishes investigation from clo
 | --- | --- | --- | --- | --- |
 | [Zero-match search rows](conversation-view-zero-match-grep.md) | Medium | Uncertain | Checked now: Codex no-match normalization already succeeds; ordinary completed tools already fold into activity | Capture the affected tool result and media classification. No-match search must fold without a spurious image; genuine failures and intentional commentary must remain visible. |
 | [Grok live duplicate output](grok-live-assistant-double-echo.md) | High | M, uncertain | Checked now: live/replay first-event identity exists; sampled project transcripts do not support an empty-chunk mismatch | Capture both duplicate identities and compare their buffering boundaries through live output, backfill and reload. Do not substitute approximate content deduplication for the missing cause. |
+| [Preview Refresh disconnect](experimental-preview-refresh-disconnect.md) | High | M, uncertain | Checked now: two real browser runs pass repeated fresh-catalog and later live-update checks, including the reported grouping sequence | Preserve the regression and capture connection close/error evidence on recurrence. Passing current checks does not identify a repair for the intermittent incident. |
 | [Unconfirmed send loss](unconfirmed-send-loss-across-reload.md) | High | L | Multiple incidents; missing durable receipt boundary | Design capability-gated submission receipts. Reload/restart must distinguish accepted, delivered, rejected and unconfirmed; resend must not duplicate delivery. |
 | [Conversation update-depth crash](conversation-view-max-update-depth-crash.md) | High | M, uncertain | Captured fatal error; named effect checked now but not proven loop owner | Capture per-commit update attribution and reproduce the cascade; replay triggering activity without an unbounded update loop. Do not remove the innocent final setter. |
 | [Blank page after reconnect](background-relay-reconnect-blank-page.md) | High | M, uncertain | Real whole-shell blank; logging amplifier fixed, root cause unproved | Capture hidden-tab reconnect before manual recovery; shell and ongoing session updates must both recover after server replacement. |
