@@ -13,8 +13,9 @@ a duplicate report of the same scratch-space fixture defect).
 The maintainer subsequently authorized fixing the strongest candidates, with
 vocabulary learning held for discussion. The selected follow-up covers
 zero-match search display, Settings search confirmation, scanner shutdown,
-Grok live duplicates, and preview Refresh. That implementation is pending at
-this triage checkpoint; the rows below do not claim those defects are fixed.
+Grok live duplicates, and preview Refresh. Scanner shutdown is now fixed and
+verified through app disposal with a deliberately blocked filesystem write;
+the other selected implementations remain pending.
 
 Readiness means a bounded owner and an observable pass/fail outcome, not just
 a short proposed patch. Impact is the expected benefit to affected users:
@@ -43,7 +44,7 @@ remain prerequisites wherever the underlying entry requires them.
 | [Zero-match search rows](conversation-view-zero-match-grep.md) | Medium | S | Observed; narrow classification seam, cause still a hypothesis | Native no-match Grep folds into activity; malformed search and genuine failures remain errors; no spurious image. Verify tool semantics rather than treating every exit 1 as no-match. |
 | [Settings search confirmation](settings-search-confirmation-and-row-navigation.md) | Medium | S–M | Located interaction gap | Edit and save an explicit-save control directly in results; immediate controls still work; background navigation preserves selection and control clicks. |
 | [Grok live duplicate output](grok-live-assistant-double-echo.md) | High | M | Recurring live-only duplicates; normalization owner identified | One assistant/thinking presentation through live output, backfill, and reload, including no-interjection turns. Confirm the preceding joined-user-turn repair first. |
-| [Scanner writes after disposal](project-scanner-shutdown-persistence.md) | Medium / Dev | S–M | Observed teardown race | Race lookup/save with disposal; disposal awaits in-flight persistence and no filesystem write occurs after it returns. |
+| Scanner writes after disposal — closed | Medium / Dev | S–M | Fixed; real app disposal regression and 17 related tests pass | Disposal awaits the active snapshot write, drops queued snapshots and rejects subsequent scans. Evidence: `packages/server/test/projects/scanner-shutdown.test.ts`. |
 | [Vocabulary live arrival](vocabulary-learning-has-no-live-tail.md) | Medium | M | Missing feed located; replay-only observe caller checked now | With look-back zero and no browser watching, finalized arrivals update both selections; later replay does not double count; deltas and disabled collection do not count. |
 | [Preview Refresh disconnect](experimental-preview-refresh-disconnect.md) | High | M | Isolated multi-host reproduction seam; roadmap-aligned | Refresh one relay source, then receive a new catalog and later live message; other sources remain healthy. A transient ready flag is insufficient. |
 | [Vocabulary catalog scan scheduling](speech-vocabulary-scan-per-catalog-publication.md) | Medium, scale-dependent | M | Repeated whole-catalog work located | An unchanged publication does bounded work; one changed session does not scan all sessions; learning still converges. Measure work counts and user-visible cost before claiming a speedup. |
@@ -106,8 +107,8 @@ failures, increasing every deadline, or suppressing diagnostics.
 | Entry | Impact | Scope | Judgment | Success condition / next action |
 | --- | --- | --- | --- | --- |
 | [Readiness-check startup budget](project-queue-readiness-test-startup-budget.md) | Dev, recurring CI | S | Strong maintenance candidate; shared 100 ms budget checked now | Hung child is killed; successful reuse gets justified startup headroom and passes under supported suite load. Runtime deadline unchanged. |
-| [Scratch-space tmpfs fixture](scratch-space-test-assumes-disk-tmpdir.md) | Dev, host portability | S | Strong maintenance candidate | Control disk/memory classification and assert both accepted and rejected candidates on disk-backed and tmpfs hosts. |
-| [Second scratch-space report](scratch-space-test-assumes-disk-backed-tmp.md) | Same as preceding row | S | Duplicate of preceding entry, not another work item | Preserve both incident dates when consolidating with the actual fixture repair. Do not count this twice. |
+| Scratch-space tmpfs fixture — closed | Dev, host portability | S | Fixed; five tests pass | Filesystem-boundary fixture controls free space and filesystem type; accepted disk and rejected tmpfs overrides are covered without depending on the host mount. |
+| Second scratch-space report — closed | Same as preceding row | S | Same repair, not another work item | Duplicate incidents recorded on 2026-09-13 and 2026-09-14; both reports close with `packages/server/test/lib/scratchSpace.test.ts`. |
 | [Git-status suite timeouts](git-status-tests-timeout-under-suite-load.md) | Dev | M | Loaded failure, isolated pass | Record subprocess timing under supported concurrency; meaningful deadlines pass without hiding hung Git. |
 | [Completion watcher deadline](project-file-completion-watcher-test-deadline.md) | Dev | S–M | Loaded failure, isolated pass | Establish watcher readiness and observe the nested addition under suite load; no arbitrary sleep. |
 | [Multi-host setup deadline](multi-host-e2e-setup-timeout.md) | Dev | M | Repeated near-budget startup | Identify contention or justify startup budget; both legacy and mux harnesses reliably start and tear down under the declared workload. |

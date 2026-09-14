@@ -895,6 +895,7 @@ export function createApp(options: AppOptions): AppResult {
     await artifactServer.close();
     await projectFileCompletion.dispose();
     await bangCommandService?.dispose();
+    await scanner.dispose();
     const entries = Array.from(readerCache.entries());
     readerCache.clear();
     await Promise.all(entries.map(([key, reader]) => closeReader(key, reader)));
