@@ -117,6 +117,7 @@ export async function readRetainedSessionItems(
       isArchived,
       isStarred: metadata?.isStarred ?? false,
       customTitle: metadata?.customTitle,
+      initialPrompt: metadata?.initialPrompt,
       nonHumanUserTurn: pendingNonHumanUserTurn(metadata) ?? null,
       autoResumeDisabled: metadata?.autoResumeDisabled === true,
       parentSessionId: metadata?.parentSessionId,

@@ -1,4 +1,5 @@
 import {
+  type ReactNode,
   useCallback,
   useEffect,
   useId,
@@ -90,6 +91,8 @@ interface SessionListItemProps {
 
   // Feature toggles
   mode: "card" | "compact";
+  searchPreviews?: ReactNode;
+  openMessageId?: string;
   showProjectName?: boolean;
   showTimestamp?: boolean;
   /** Hide session management when the enclosing surface owns its actions. */
@@ -197,6 +200,8 @@ export function SessionListItem({
   providerChildren = [],
   // Feature toggles
   mode,
+  searchPreviews,
+  openMessageId,
   showProjectName = false,
   showTimestamp = true,
   showMenu = true,
@@ -592,6 +597,7 @@ export function SessionListItem({
   // Build CSS classes
   const liClasses = [
     "session-list-item",
+    searchPreviews !== undefined && styles.searchRow,
     mode === "card" ? "session-list-item--card" : "session-list-item--compact",
     isCurrent && "current",
     hasUnread && "unread",
@@ -610,9 +616,11 @@ export function SessionListItem({
   const nonHumanTurnHref = nonHumanUserTurn
     ? `${plainSessionHref}?nonHumanTurn=${encodeURIComponent(nonHumanUserTurn.messageId)}`
     : plainSessionHref;
-  const sessionHref = openNonHumanUserTurn
-    ? nonHumanTurnHref
-    : plainSessionHref;
+  const sessionHref = openMessageId
+    ? `${plainSessionHref}?searchMatch=${encodeURIComponent(openMessageId)}`
+    : openNonHumanUserTurn
+      ? nonHumanTurnHref
+      : plainSessionHref;
   const parentHref =
     parentSessionId && isBtwAside
       ? buildBtwAsideParentHref(basePath, projectId, parentSessionId, sessionId)
@@ -760,7 +768,17 @@ export function SessionListItem({
       onWheel={showHoverCard ? clearPreview : undefined}
     >
       {/* Checkbox for multi-select (only shown when onSelect is provided) */}
-      {onSelect && (
+      {onSelect && searchPreviews !== undefined && (
+        <label className={styles.searchSelection}>
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={handleCheckboxChange}
+            aria-label={t("sessionSearchSelect", { title: displayTitle })}
+          />
+        </label>
+      )}
+      {onSelect && searchPreviews === undefined && (
         <input
           type="checkbox"
           className="session-list-item__checkbox"
@@ -1039,6 +1057,9 @@ export function SessionListItem({
           />
         )}
       </div>
+      {searchPreviews !== undefined && (
+        <div className={styles.searchPreviews}>{searchPreviews}</div>
+      )}
       {compactTrailing && (
         <Link
           to={sessionHref}

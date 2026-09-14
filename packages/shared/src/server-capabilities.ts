@@ -189,6 +189,41 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  sessionContentSearch: {
+    id: CAPABILITY_ID_ALLOCATIONS.sessionContentSearch.id,
+    name: "session-content-search",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description: "Bounded, progressive search of visible session turn text.",
+    clientFallback:
+      "Keep title-only search; disable turn fields with upgrade guidance and send no content-search requests.",
+    serverContract: {
+      routes: ["POST /api/sessions/content-search"],
+      routeModules: ["packages/server/src/routes/session-content-search.ts"],
+      requestFields: [
+        "sessionId",
+        "query",
+        "roles",
+        "after",
+        "before",
+        "cursor",
+      ],
+      responseFields: [
+        "matches",
+        "cursor",
+        "done",
+        "partial",
+        "unavailable",
+        "bytesRead",
+      ],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers have no bounded transcript-search endpoint.",
+    },
+  },
   computerControlReleases: {
     id: CAPABILITY_ID_ALLOCATIONS.computerControlReleases.id,
     name: "computer-control-releases",
@@ -2654,6 +2689,8 @@ export const SESSION_ASYNC_QUESTIONS_CAPABILITY =
   SERVER_CAPABILITIES.sessionAsyncQuestions.name;
 export const NON_HUMAN_USER_TURN_CAPABILITY =
   SERVER_CAPABILITIES.nonHumanUserTurn.name;
+export const SESSION_CONTENT_SEARCH_CAPABILITY =
+  SERVER_CAPABILITIES.sessionContentSearch.name;
 export const ACLI_COMMENTARY_RENDERING_CAPABILITY =
   SERVER_CAPABILITIES.acliCommentaryRendering.name;
 export const PROJECT_QUEUE_CAPABILITY = SERVER_CAPABILITIES.projectQueue.name;

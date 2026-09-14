@@ -1269,22 +1269,6 @@ export const api = {
       body: JSON.stringify({ mode }),
     }),
 
-  markSessionSeen: (
-    sessionId: string,
-    timestamp?: string,
-    messageId?: string,
-    nonHumanUserTurnMessageId?: string,
-  ) =>
-    fetchJSON<{ marked: boolean }>(`/sessions/${sessionId}/mark-seen`, {
-      method: "POST",
-      body: JSON.stringify({ timestamp, messageId, nonHumanUserTurnMessageId }),
-    }),
-
-  markSessionUnread: (sessionId: string) =>
-    fetchJSON<{ marked: boolean }>(`/sessions/${sessionId}/mark-seen`, {
-      method: "DELETE",
-    }),
-
   markSessionDone: (sessionId: string) =>
     fetchJSON<{
       message: DurableSyntheticDoneMessage;

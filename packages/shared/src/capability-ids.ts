@@ -390,6 +390,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "non-human-user-turn",
     introducedIn: "0.8.2",
   },
+  sessionContentSearch: {
+    id: 73,
+    direction: "server",
+    name: "session-content-search",
+    introducedIn: "0.8.2",
+  },
   projectQueueReadinessCheck: {
     id: 61,
     direction: "server",

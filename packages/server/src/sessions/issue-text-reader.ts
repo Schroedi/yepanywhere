@@ -19,6 +19,7 @@ export interface IssueReadSegment {
 export interface IssueReadOptions {
   cursor?: string;
   signal: AbortSignal;
+  maxRecords?: number;
 }
 export interface IssueTextBatch {
   messages: IssueText[];
@@ -26,6 +27,7 @@ export interface IssueTextBatch {
   done: boolean;
   partial: boolean;
   bytesRead: number;
+  restarted?: boolean;
 }
 interface Cursor {
   layout?: string;
@@ -58,7 +60,9 @@ export async function readIssueTextBatch(
   )
     throw new Error("Invalid issue cursor");
   const layout = JSON.stringify(segments);
+  let restarted = false;
   if (cursor.layout !== undefined && cursor.layout !== layout) {
+    restarted = true;
     cursor.segment = 0;
     cursor.offset = 0;
     cursor.boundary = undefined;
@@ -68,6 +72,7 @@ export async function readIssueTextBatch(
   }
   cursor.layout = layout;
   const entries: Array<ClaudeSessionEntry | CodexSessionEntry> = [];
+  const maxRecords = options.maxRecords ?? 2000;
   let bytesRead = 0;
   let records = 0;
   let incomplete = false;
@@ -76,7 +81,7 @@ export async function readIssueTextBatch(
   while (
     cursor.segment < segments.length &&
     bytesRead < MAX_BYTES &&
-    records < 2000 &&
+    records < maxRecords &&
     Date.now() < deadline
   ) {
     options.signal.throwIfAborted();
@@ -101,6 +106,7 @@ export async function readIssueTextBatch(
         (cursor.boundary &&
           cursor.boundary !== (await fingerprint(cursor.offset)))
       ) {
+        restarted = true;
         cursor.offset = 0;
         cursor.skipping = false;
       }
@@ -133,7 +139,7 @@ export async function readIssueTextBatch(
       while (
         cursor.offset < end &&
         bytesRead < MAX_BYTES - 256 &&
-        records < 2000 &&
+        records < maxRecords &&
         Date.now() < deadline
       ) {
         options.signal.throwIfAborted();
@@ -161,10 +167,10 @@ export async function readIssueTextBatch(
           records++;
           start = i + 1;
           lineStart = cursor.offset + start;
-          if (records >= 2000) break;
+          if (records >= maxRecords) break;
         }
-        const consumed = records >= 2000 ? start : chunk.length;
-        if (records < 2000) {
+        const consumed = records >= maxRecords ? start : chunk.length;
+        if (records < maxRecords) {
           const suffix = chunk.subarray(start);
           if (carry.length + suffix.length > MAX_RECORD) {
             cursor.skipping = true;
@@ -225,5 +231,6 @@ export async function readIssueTextBatch(
     done,
     partial: cursor.partial,
     bytesRead,
+    ...(restarted ? { restarted: true } : {}),
   };
 }

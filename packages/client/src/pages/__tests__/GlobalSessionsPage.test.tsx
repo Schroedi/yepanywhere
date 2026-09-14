@@ -1,11 +1,18 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PROJECT_QUEUE_CAPABILITY } from "../../lib/projectQueueVisibility";
 import { GlobalSessionsPage } from "../GlobalSessionsPage";
+import english from "../../i18n/en.json";
 
 const {
   mockNavigate,
@@ -23,6 +30,7 @@ const {
   versionState: {
     version: { capabilities: [] as string[] } as {
       capabilities?: string[];
+      current?: string;
     },
   },
   sessionCollectionState: {
@@ -52,6 +60,7 @@ const {
     error: null as Error | null,
     hasMore: false,
     loadMore: vi.fn(),
+    refetch: vi.fn(),
   },
 }));
 
@@ -75,6 +84,11 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
+vi.mock("../../contexts/SourceRuntimeContext", () => ({
+  useCurrentSourceRuntime: () => runtime,
+}));
+const runtime = { sourceKey: "host:test", transport: { fetch: vi.fn() } };
+
 vi.mock("../../components/BulkActionBar", () => ({
   BulkActionBar: () => null,
 }));
@@ -84,7 +98,13 @@ vi.mock("../../components/FilterDropdown", () => ({
 }));
 
 vi.mock("../../components/PageHeader", () => ({
-  PageHeader: ({ title }: { title: string }) => <div>{title}</div>,
+  PageHeader: ({
+    title,
+    titleElement,
+  }: {
+    title: string;
+    titleElement?: ReactNode;
+  }) => <div>{titleElement ?? title}</div>,
 }));
 
 vi.mock("../../components/SessionListItem", () => ({
@@ -173,6 +193,7 @@ vi.mock("../../i18n", () => ({
   useI18n: () => ({
     t: (key: string, vars?: Record<string, string | number>) => {
       const messages: Record<string, string> = {
+        ...english,
         sidebarNewSession: "New Session",
         globalSessionsTitle: "All Sessions",
         globalSessionsSearchPlaceholder: "Search sessions...",
@@ -251,6 +272,11 @@ function makeSessionRecord(
 
 describe("GlobalSessionsPage", () => {
   beforeEach(() => {
+    runtime.transport.fetch.mockReset();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true })),
+    );
     globalSessionsState.sessions = [];
     sessionCollectionState.records = [];
     sessionCollectionState.queuedSessionIds = new Set<string>();
@@ -276,6 +302,7 @@ describe("GlobalSessionsPage", () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
 
@@ -288,6 +315,172 @@ describe("GlobalSessionsPage", () => {
       </MemoryRouter>,
     );
   }
+
+  for (const release of ["0.8.0", "0.8.1"]) {
+    it(`keeps ${release} title-only without content-search requests`, async () => {
+      versionState.version = { current: release };
+      sessionCollectionState.records = [makeSessionRecord("one")];
+      renderPage("/sessions");
+      const title = screen.getByRole("checkbox", { name: "Title" });
+      expect((title as HTMLInputElement).checked).toBe(true);
+      expect(
+        (screen.getByRole("checkbox", { name: /^Ass\./ }) as HTMLInputElement)
+          .disabled,
+      ).toBe(true);
+      expect(
+        (screen.getByRole("checkbox", { name: /^User/ }) as HTMLInputElement)
+          .disabled,
+      ).toBe(true);
+      await act(async () => {
+        fireEvent.change(screen.getByRole("searchbox"), {
+          target: { value: "Session one" },
+        });
+      });
+      expect(screen.getByTestId("session-one")).toBeDefined();
+      await act(async () => {
+        fireEvent.keyDown(document, { key: "s", ctrlKey: true });
+      });
+      expect((title as HTMLInputElement).checked).toBe(true);
+      expect(runtime.transport.fetch).not.toHaveBeenCalled();
+    });
+  }
+
+  it("intersects explicit selection without deleting hidden selections", async () => {
+    sessionCollectionState.records = [
+      makeSessionRecord("alpha"),
+      makeSessionRecord("beta"),
+    ];
+    renderPage("/sessions");
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Keep just 2 matching sessions selected",
+        }),
+      );
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByRole("searchbox"), {
+        target: { value: "alpha" },
+      });
+    });
+    expect(screen.queryByTestId("session-beta")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Clear 2 selected" }),
+    ).toBeDefined();
+    await act(async () => {
+      fireEvent.change(screen.getByRole("searchbox"), {
+        target: { value: "beta" },
+      });
+    });
+    expect(screen.getByTestId("session-beta")).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: "Clear 2 selected" }),
+    ).toBeDefined();
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Keep just 1 matching sessions selected",
+        }),
+      );
+    });
+    await act(async () => {
+      fireEvent.change(screen.getByRole("searchbox"), {
+        target: { value: "" },
+      });
+    });
+    expect(screen.queryByTestId("session-alpha")).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Clear 1 selected" }));
+    });
+    expect(screen.getByTestId("session-alpha")).toBeDefined();
+    expect(screen.getByTestId("session-beta")).toBeDefined();
+    expect(runtime.transport.fetch).not.toHaveBeenCalled();
+  });
+
+  it("applies status to hidden selections on the original transport across batches", async () => {
+    sessionCollectionState.records = Array.from({ length: 10 }, (_, i) =>
+      makeSessionRecord(`bulk-${i}`),
+    );
+    renderPage("/sessions");
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Keep just 10 matching sessions selected",
+        }),
+      );
+      fireEvent.change(screen.getByRole("searchbox"), {
+        target: { value: "bulk-0" },
+      });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Filter: Starred" }));
+    });
+    const originalFetch = runtime.transport.fetch;
+    const replacementFetch = vi.fn();
+    originalFetch.mockImplementation(async () => {
+      runtime.transport.fetch = replacementFetch;
+      return { success: true };
+    });
+    try {
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Make Starred 10" }),
+        );
+      });
+      expect(originalFetch).toHaveBeenCalledTimes(10);
+      expect(replacementFetch).not.toHaveBeenCalled();
+      for (const [, options] of originalFetch.mock.calls) {
+        expect(JSON.parse(options.body)).toEqual({ starred: true });
+      }
+      expect(
+        screen.getByRole("button", { name: "Clear 10 selected" }),
+      ).toBeDefined();
+    } finally {
+      runtime.transport.fetch = originalFetch;
+    }
+  });
+
+  it("keeps renamed titles searchable while applying the chosen time basis to prompts and sessions", async () => {
+    sessionCollectionState.records = [
+      makeSessionRecord("renamed", {
+        title: "Renamed title",
+        fullTitle: "Renamed title",
+        initialPrompt: "Original opening needle",
+        createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+        updatedAt: new Date(Date.now() - 3600000).toISOString(),
+      }),
+    ];
+    renderPage("/sessions?q=opening");
+    expect(screen.getByTestId("session-renamed")).toBeDefined();
+    await act(async () => {
+      fireEvent.change(screen.getByRole("textbox", { name: /^Maximum age/ }), {
+        target: { value: "1" },
+      });
+    });
+    expect(screen.queryByTestId("session-renamed")).toBeNull();
+    await act(async () => {
+      fireEvent.change(screen.getByRole("searchbox"), {
+        target: { value: "Renamed" },
+      });
+    });
+    expect(screen.getByTestId("session-renamed")).toBeDefined();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Created" }));
+    });
+    expect(screen.queryByTestId("session-renamed")).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Last activity" }));
+    });
+    expect(screen.getByTestId("session-renamed")).toBeDefined();
+    await act(async () => {
+      fireEvent.change(screen.getByRole("textbox", { name: /^Minimum age/ }), {
+        target: { value: "25h" },
+      });
+    });
+    expect(screen.getByRole("alert").textContent).toContain("valid range");
+    expect(screen.queryByTestId("session-renamed")).toBeNull();
+    expect(runtime.transport.fetch).not.toHaveBeenCalled();
+  });
 
   it("shows the project CTA when arriving from the projects list", () => {
     renderPage("/sessions?project=project-1&source=projects");

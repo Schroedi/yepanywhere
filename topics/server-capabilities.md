@@ -10,6 +10,14 @@ Topic: server-capabilities
 
 ## Source Of Truth
 
+`session-content-search` (permanent ID 73, version-implied from 0.8.2) owns
+`POST /api/sessions/content-search` and its bounded match batches and coverage
+fields. The maintainer approved the optional compatibility plan on 2026-09-14:
+v0.8.0 (2026-08-31) and v0.8.1 (2026-09-05) keep title-only search, disable
+Ass./User with upgrade guidance, and receive no new-route requests. Existing
+capabilities retain their meanings. See
+[All Sessions search](all-session-content-search.md).
+
 `non-human-user-turn` (permanent ID 72, version-implied from 0.8.2) owns
 `messageMetadata.sourceSessionId`, the pending `nonHumanUserTurn` summary and
 metadata-event projection, and exact-turn acknowledgement through mark-seen's

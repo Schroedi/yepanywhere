@@ -1,5 +1,6 @@
 import { SessionIssuesLink } from "../components/SessionIssuesLink";
 import { useNonHumanUserTurnNavigation } from "../hooks/useNonHumanUserTurnNavigation";
+import { useSessionMessageNavigation } from "../hooks/useSessionMessageNavigation";
 import type {
   BangCommandTranscriptDisplayObject,
   EffortLevel,
@@ -2822,6 +2823,19 @@ function SessionPageContent({
     },
     [],
   );
+  useSessionMessageNavigation({
+    sessionId,
+    target: new URLSearchParams(location.search).get("searchMatch"),
+    enabled: true,
+    messages,
+    loading: loading || isDomLingerParked,
+    loadingOlder,
+    hasOlder: pagination?.hasOlderMessages ?? false,
+    olderCursor: pagination?.truncatedBeforeMessageId,
+    loadOlder: loadOlderMessages,
+    jump: handleGoToRecallTurn,
+    onError: () => showToast(t("sessionSearchTurnUnavailable"), "error"),
+  });
   useNonHumanUserTurnNavigation({
     sessionId,
     messages,

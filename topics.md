@@ -308,8 +308,8 @@
 - agent-context-injection - Provider-specific placement and compaction
   durability for YA, harness, and project instructions; candidate boot and
   protected-capsule mechanisms live in its sketches companion.
-- all-session-content-search - Current catalog/in-session search boundary and
-  explicit absence of a cross-session transcript-content index.
+- all-session-content-search - Incremental catalog and bounded turn search,
+  selection intersections, compatibility, and the remaining disk-index gap.
 - source-review-followups - Optional clarification, discussion,
   source-comment, and gap annotations for a future review-sweep workflow.
 - user-authorization-attestation - Current absence of signed gate-specific

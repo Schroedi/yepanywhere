@@ -17,6 +17,7 @@ import { pendingNonHumanUserTurn } from "../metadata/SessionMetadataService.js";
 import type { RetainedSessionCollectionState } from "@yep-anywhere/shared";
 import type { RetainedSessionCollections } from "../services/RetainedSessionCollections.js";
 import { readRetainedSessionItems } from "./retained-session-collections.js";
+import { createSessionContentSearchRoutes } from "./session-content-search.js";
 import type { SessionIndexService } from "../indexes/index.js";
 import type { SessionIndexListOptions } from "../indexes/types.js";
 import type { SessionMetadataService } from "../metadata/SessionMetadataService.js";
@@ -217,6 +218,7 @@ function createEmptyStats(): GlobalSessionStats {
 
 export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
   const routes = new Hono();
+  routes.route("/", createSessionContentSearchRoutes(deps));
   let cachedStats: { value: GlobalSessionStats; timestamp: number } | null =
     null;
   let statsDirty = true;
