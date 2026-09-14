@@ -35,7 +35,7 @@ Both selector; they do not approve its backend design or reprioritize the roadma
   debounce may bound requests; cancel/supersede old queries and reject late
   results. Incomplete coverage must not be presented as a complete empty result.
 - Offer three independent checkboxes under **Search in**: **Title**,
-  **Assistant**, and **User**. Checked fields form a union. Title implicitly
+  **Ass.** (Assistant), and **User**. Checked fields form a union. Title implicitly
   searches the opening prompt too when it differs from the editable title;
   there is no separate opening-prompt checkbox. Renaming must not erase the
   opening-prompt match, and a turn matching multiple fields appears once.
@@ -69,6 +69,8 @@ Both selector; they do not approve its backend design or reprioritize the roadma
   including excerpt amount, highlighting, and full-text tooltip; extract its
   presentation owner rather than copying a separate implementation into the
   production All Sessions page. Do not mount transcript viewers for every hit.
+  Put the smaller role/turn-number chip to the left of the blue excerpt line;
+  use **Ass.** for assistant chips and align the blue lines across roles.
 - Offer a **first N matches per session** display limit. The main task is to
   locate a session, then a position within it; a prolific session must not
   dominate the result list. The limit controls preview presentation, not which
