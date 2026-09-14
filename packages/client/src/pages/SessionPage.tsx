@@ -52,6 +52,7 @@ import {
   SessionViewerProvider,
   SessionViewerTranscriptGate,
 } from "../components/SessionManagedViewer";
+import sessionHeaderStyles from "../components/SessionHeader.module.css";
 import styles from "./SessionPage.module.css";
 import { GoalFlag } from "../components/GoalNotice";
 import { buildBangEchoText, collectBangHistory } from "../lib/bangCommands";
@@ -453,8 +454,7 @@ function SessionPageContent({
 }) {
   const { t } = useI18n();
   const { showToast } = useToastContext();
-  const { openSidebar, isWideScreen, toggleSidebar, isSidebarCollapsed } =
-    useNavigationLayout();
+  const { openSidebar, isWideScreen } = useNavigationLayout();
   const basePath = useRemoteBasePath();
   const startNewSessionWithPrefill = useStartNewSessionWithPrefillAction();
   const { project } = useProject(projectId);
@@ -5050,25 +5050,19 @@ function SessionPageContent({
   const content = (
     <MainContent isWideScreen={isWideScreen}>
       <header className="session-header">
-        <div className="session-header-inner">
+        <div
+          className={`session-header-inner${isWideScreen ? ` ${sessionHeaderStyles.noLeadingControl}` : ""}`}
+        >
           <div className="session-header-left">
-            {/* Sidebar toggle - on mobile: opens sidebar, on desktop: collapses/expands */}
-            {/* Hide on desktop when collapsed (sidebar has its own toggle) */}
-            {!(isWideScreen && isSidebarCollapsed) && (
+            {/* Sidebar opener for the overlay sidebar only. On desktop the
+                sidebar owns its own toggle, expanded or collapsed. */}
+            {!isWideScreen && (
               <button
                 type="button"
                 className="sidebar-toggle"
-                onClick={isWideScreen ? toggleSidebar : openSidebar}
-                title={
-                  isWideScreen
-                    ? t("sessionToggleSidebar")
-                    : t("sessionOpenSidebar")
-                }
-                aria-label={
-                  isWideScreen
-                    ? t("sessionToggleSidebar")
-                    : t("sessionOpenSidebar")
-                }
+                onClick={openSidebar}
+                title={t("sessionOpenSidebar")}
+                aria-label={t("sessionOpenSidebar")}
               >
                 <SidebarIcon />
               </button>

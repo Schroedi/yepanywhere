@@ -235,8 +235,7 @@ export function SettingsLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const basePath = useRemoteBasePath();
-  const { openSidebar, isWideScreen, toggleSidebar, isSidebarCollapsed } =
-    useNavigationLayout();
+  const { openSidebar, isWideScreen } = useNavigationLayout();
   const [settingsContainerRef, settingsContainerWidth] =
     useSettingsContainerWidth();
   const settingsScrollContainerRef = useRef<HTMLElement | null>(null);
@@ -467,9 +466,7 @@ export function SettingsLayout() {
             title={t("pageTitleSettings")}
             onTitleClick={handleSettingsTitleClick}
             onOpenSidebar={openSidebar}
-            onToggleSidebar={toggleSidebar}
             isWideScreen={isWideScreen}
-            isSidebarCollapsed={isSidebarCollapsed}
           />
           <main
             ref={setSettingsScrollContainerRef}
@@ -533,9 +530,7 @@ export function SettingsLayout() {
         title={resolvedPaneTitle}
         titleElement={settingsBreadcrumb}
         onOpenSidebar={openSidebar}
-        onToggleSidebar={toggleSidebar}
         isWideScreen={isWideScreen}
-        isSidebarCollapsed={isSidebarCollapsed}
         actions={undoButton}
       />
       <main

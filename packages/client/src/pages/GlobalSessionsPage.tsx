@@ -132,8 +132,7 @@ function StatusFilterIcon({ status }: { status: StatusFilter }) {
  */
 export function GlobalSessionsPage() {
   const { t } = useI18n();
-  const { openSidebar, isWideScreen, toggleSidebar, isSidebarCollapsed } =
-    useNavigationLayout();
+  const { openSidebar, isWideScreen } = useNavigationLayout();
   const basePath = useRemoteBasePath();
   const navigate = useNavigate();
   const clientSummarySourceKey = useClientSummarySourceKey();
@@ -791,9 +790,7 @@ export function GlobalSessionsPage() {
       <PageHeader
         title={t("globalSessionsTitle")}
         onOpenSidebar={openSidebar}
-        onToggleSidebar={toggleSidebar}
         isWideScreen={isWideScreen}
-        isSidebarCollapsed={isSidebarCollapsed}
       />
 
       <main className="page-scroll-container">
