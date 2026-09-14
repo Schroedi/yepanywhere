@@ -83,6 +83,10 @@ function ArtifactSettingsForm({
     <SettingsSection
       title={t("artifactSettingsTitle")}
       description={t("artifactSettingsDescription")}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!status.locked && !saving) void save();
+      }}
     >
       <fieldset className={styles.fields} disabled={status.locked || saving}>
         <label className={styles.toggle}>
@@ -167,7 +171,7 @@ function ArtifactSettingsForm({
             </>
           )
         )}
-        <button type="button" onClick={() => void save()}>
+        <button type="submit">
           {t(saving ? "artifactSaving" : "artifactSave")}
         </button>
       </fieldset>

@@ -21,4 +21,13 @@ cannot collapse those copies.
 Fix after the joined-user-turn split, in isolation, and check whether
 doubles remain on a Grok session that does not interject.
 
+Checked 2026-09-14: both live and durable readers still key buffered text and
+thinking on the first chunk's `_meta.eventId`, with existing tests for each
+path. The ACP client preserves notification metadata. A sample of the newest
+20 project transcripts contained no empty text/thinking chunks, so the theory
+that an empty first chunk shifts only one reader's identity was not supported.
+A current affected session is needed to compare the duplicate rows' identities
+and buffering boundaries. Do not enable approximate content deduplication as
+a substitute for finding that mismatch.
+
 Found 2026-09-09 while splitting concatenated Grok interject envelopes.

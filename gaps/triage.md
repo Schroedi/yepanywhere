@@ -13,9 +13,13 @@ a duplicate report of the same scratch-space fixture defect).
 The maintainer subsequently authorized fixing the strongest candidates, with
 vocabulary learning held for discussion. The selected follow-up covers
 zero-match search display, Settings search confirmation, scanner shutdown,
-Grok live duplicates, and preview Refresh. Scanner shutdown is now fixed and
-verified through app disposal with a deliberately blocked filesystem write;
-the other selected implementations remain pending.
+Grok live duplicates, and preview Refresh. Scanner shutdown is fixed and
+verified through app disposal with a deliberately blocked filesystem write.
+Settings search now supports background navigation and explicit form submission,
+verified with immediate controls and persisted Enter submission in the browser.
+Grok and zero-match search need current affected events: their initial causal
+theories do not explain the inspected implementation. Preview Refresh is still
+under investigation.
 
 Readiness means a bounded owner and an observable pass/fail outcome, not just
 a short proposed patch. Impact is the expected benefit to affected users:
@@ -41,9 +45,7 @@ remain prerequisites wherever the underlying entry requires them.
 
 | Entry | Impact | Scope | Evidence / readiness | Testable success condition and main caveat |
 | --- | --- | --- | --- | --- |
-| [Zero-match search rows](conversation-view-zero-match-grep.md) | Medium | S | Observed; narrow classification seam, cause still a hypothesis | Native no-match Grep folds into activity; malformed search and genuine failures remain errors; no spurious image. Verify tool semantics rather than treating every exit 1 as no-match. |
-| [Settings search confirmation](settings-search-confirmation-and-row-navigation.md) | Medium | S–M | Located interaction gap | Edit and save an explicit-save control directly in results; immediate controls still work; background navigation preserves selection and control clicks. |
-| [Grok live duplicate output](grok-live-assistant-double-echo.md) | High | M | Recurring live-only duplicates; normalization owner identified | One assistant/thinking presentation through live output, backfill, and reload, including no-interjection turns. Confirm the preceding joined-user-turn repair first. |
+| Settings search confirmation — closed | Medium | S–M | Fixed; 57 focused tests and three browser cases pass | Webhook URL saves with Enter directly in results; immediate theme controls remain operable; background navigation preserves selection and control clicks. Native label activation targets the checkbox. |
 | Scanner writes after disposal — closed | Medium / Dev | S–M | Fixed; real app disposal regression and 17 related tests pass | Disposal awaits the active snapshot write, drops queued snapshots and rejects subsequent scans. Evidence: `packages/server/test/projects/scanner-shutdown.test.ts`. |
 | [Vocabulary live arrival](vocabulary-learning-has-no-live-tail.md) | Medium | M | Missing feed located; replay-only observe caller checked now | With look-back zero and no browser watching, finalized arrivals update both selections; later replay does not double count; deltas and disabled collection do not count. |
 | [Preview Refresh disconnect](experimental-preview-refresh-disconnect.md) | High | M | Isolated multi-host reproduction seam; roadmap-aligned | Refresh one relay source, then receive a new catalog and later live message; other sources remain healthy. A transient ready flag is insufficient. |
@@ -61,6 +63,8 @@ straightforward. The next step deliberately distinguishes investigation from clo
 
 | Entry | Impact | Scope | Evidence / blocker | Next step and eventual success condition |
 | --- | --- | --- | --- | --- |
+| [Zero-match search rows](conversation-view-zero-match-grep.md) | Medium | Uncertain | Checked now: Codex no-match normalization already succeeds; ordinary completed tools already fold into activity | Capture the affected tool result and media classification. No-match search must fold without a spurious image; genuine failures and intentional commentary must remain visible. |
+| [Grok live duplicate output](grok-live-assistant-double-echo.md) | High | M, uncertain | Checked now: live/replay first-event identity exists; sampled project transcripts do not support an empty-chunk mismatch | Capture both duplicate identities and compare their buffering boundaries through live output, backfill and reload. Do not substitute approximate content deduplication for the missing cause. |
 | [Unconfirmed send loss](unconfirmed-send-loss-across-reload.md) | High | L | Multiple incidents; missing durable receipt boundary | Design capability-gated submission receipts. Reload/restart must distinguish accepted, delivered, rejected and unconfirmed; resend must not duplicate delivery. |
 | [Conversation update-depth crash](conversation-view-max-update-depth-crash.md) | High | M, uncertain | Captured fatal error; named effect checked now but not proven loop owner | Capture per-commit update attribution and reproduce the cascade; replay triggering activity without an unbounded update loop. Do not remove the innocent final setter. |
 | [Blank page after reconnect](background-relay-reconnect-blank-page.md) | High | M, uncertain | Real whole-shell blank; logging amplifier fixed, root cause unproved | Capture hidden-tab reconnect before manual recovery; shell and ongoing session updates must both recover after server replacement. |

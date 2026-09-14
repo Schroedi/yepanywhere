@@ -291,6 +291,13 @@ function HelperTargetsSettings({
   return (
     <SettingsItem
       label={t("helperTargetsTitle")}
+      as="form"
+      containerProps={{
+        onSubmit: (event) => {
+          event.preventDefault();
+          if (!isSaving) void saveTarget();
+        },
+      }}
       description={t("helperTargetsDescription")}
       className="helper-targets-settings"
       info={
@@ -424,9 +431,8 @@ function HelperTargetsSettings({
               </button>
             )}
             <button
-              type="button"
+              type="submit"
               className="settings-button"
-              onClick={() => void saveTarget()}
               disabled={isSaving}
             >
               {isSaving
@@ -473,7 +479,13 @@ function OllamaUrlInput() {
   }, [url, updateSetting]);
 
   return (
-    <div style={{ marginTop: "var(--space-2)", width: "100%" }}>
+    <form
+      style={{ marginTop: "var(--space-2)", width: "100%" }}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (hasChanges && !isSaving) void handleSave();
+      }}
+    >
       <div
         style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}
       >
@@ -489,16 +501,15 @@ function OllamaUrlInput() {
           style={{ flex: 1 }}
         />
         <button
-          type="button"
+          type="submit"
           className="settings-button"
           disabled={!hasChanges || isSaving}
-          onClick={handleSave}
         >
           {isSaving ? t("providersSaving") : t("providersSave")}
         </button>
       </div>
       <span className="settings-hint">{t("providersOllamaUrlHint")}</span>
-    </div>
+    </form>
   );
 }
 
