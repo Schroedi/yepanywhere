@@ -124,6 +124,8 @@ export interface GlobalSessionItem {
   executor?: string;
   /** Capped excerpt of the most recent visible agent turn or provider recap. */
   lastAgentText?: string;
+  /** When someone last wrote into this session; agent work never advances it. */
+  lastHumanTurnAt?: string;
   asyncQuestions?: SessionSummary["asyncQuestions"];
   /** Provider-launched child work nested under this parent. Absent when none. */
   providerChildren?: ProviderChildSessionSummary[];
@@ -694,6 +696,7 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
           initialPrompt: initialPrompt ?? undefined,
           executor,
           lastAgentText: overlaidSession.lastAgentText,
+          lastHumanTurnAt: overlaidSession.lastHumanTurnAt,
           asyncQuestions: overlaidSession.asyncQuestions,
         });
       }

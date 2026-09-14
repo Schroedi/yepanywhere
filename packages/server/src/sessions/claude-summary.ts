@@ -42,6 +42,8 @@ export interface CompactClaudeSummaryNode {
   awaySummaryExcerpt?: string;
   assistantExcerpt?: string;
   assistantToolName?: string;
+  /** A user entry carrying prose: someone wrote into the session here. */
+  humanTurn?: boolean;
 }
 
 interface ParseMetrics {
@@ -323,6 +325,9 @@ export function addEntryToState(
     ...(assistantParts?.toolName
       ? { assistantToolName: assistantParts.toolName }
       : {}),
+    // The same text test that picks a session's title, reused so one rule
+    // decides what counts as someone writing into the session.
+    ...(getFirstUserTitleCandidate(entry) ? { humanTurn: true } : {}),
   };
 
   state.nodeMap.set(uuid, node);
@@ -584,6 +589,30 @@ function findLastAgentExcerpt(
   return trailingTool ? `⚙ ${trailingTool}` : undefined;
 }
 
+/**
+ * When someone last wrote into this session, as opposed to when the agent last
+ * produced something. Sidebar chronology is stated in the reader's own turns,
+ * so it needs a time that agent work never advances.
+ *
+ * A message another session delivered here reads exactly like a typed one and
+ * counts as one; separating them would need provenance the transcript does not
+ * carry. Tool results do not count: they arrive as user entries, but carry
+ * blocks rather than prose, so the same text test that picks a session's title
+ * rejects them.
+ */
+function findLastHumanTurnAt(
+  activeBranch: CompactClaudeSummaryNode[],
+): string | undefined {
+  for (let i = activeBranch.length - 1; i >= 0; i -= 1) {
+    const node = activeBranch[i];
+    if (!node?.humanTurn) continue;
+    const timestampMs = Date.parse(node.timestamp);
+    if (Number.isFinite(timestampMs))
+      return new Date(timestampMs).toISOString();
+  }
+  return undefined;
+}
+
 function findContentUpdatedAt(
   activeBranch: CompactClaudeSummaryNode[],
   fallback: Date,
@@ -649,6 +678,7 @@ export function buildSummaryFromState(
     (options.stats.birthtimeMs > 0
       ? options.stats.birthtime.toISOString()
       : options.stats.mtime.toISOString());
+  const lastHumanTurnAt = findLastHumanTurnAt(activeBranch);
 
   return {
     id: options.sessionId,
@@ -669,6 +699,7 @@ export function buildSummaryFromState(
     provider,
     model,
     lastAgentText: findLastAgentExcerpt(activeBranch),
+    ...(lastHumanTurnAt ? { lastHumanTurnAt } : {}),
   };
 }
 

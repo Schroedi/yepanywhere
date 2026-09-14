@@ -170,6 +170,12 @@ export interface GlobalSessionItem {
   executor?: string;
   /** Capped excerpt of the most recent regular agent turn (hover card). */
   lastAgentText?: string;
+  /**
+   * When someone last wrote into this session. Sidebar chronology is stated in
+   * the reader's own turns, and taking it from the server means a browser that
+   * has never opened the session still places it where the others do.
+   */
+  lastHumanTurnAt?: string;
   /** Provider-launched child work nested under this parent. Absent on older servers. */
   providerChildren?: ProviderChildSessionSummary[];
 }

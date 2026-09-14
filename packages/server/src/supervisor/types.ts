@@ -134,6 +134,13 @@ export interface SessionSummary {
    * topics/session-hovercard-recent-activity.md.
    */
   lastAgentText?: string;
+  /**
+   * When someone last wrote into this session, which agent work never
+   * advances. The sidebar orders by the reader's own turns, so that ordering
+   * has to come from here rather than from what one browser remembers about
+   * its own visits. Undefined when the provider's reader does not report it.
+   */
+  lastHumanTurnAt?: string;
   asyncQuestions?: AppSessionSummary["asyncQuestions"];
   /** Launcher identifier from session metadata (e.g. "Codex Desktop", "yep-anywhere") */
   originator?: string;

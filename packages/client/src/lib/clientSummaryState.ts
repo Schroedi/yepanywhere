@@ -170,6 +170,7 @@ const REMAP_MERGE_GROUPS = {
     "model",
     "initialPrompt",
     "lastAgentText",
+    "lastHumanTurnAt",
     "asyncQuestions",
     "providerChildren",
   ],
@@ -1167,6 +1168,7 @@ function withContentFields(
     model?: string;
     initialPrompt?: string;
     lastAgentText?: string;
+    lastHumanTurnAt?: string;
     asyncQuestions?: GlobalSessionItem["asyncQuestions"];
     providerChildren?: ProviderChildSessionSummary[];
   },
@@ -1213,6 +1215,13 @@ function withContentFields(
       isFresh,
     )
       ? { lastAgentText: fields.lastAgentText }
+      : {}),
+    ...(canApplyObservedField(
+      record.lastHumanTurnAt,
+      fields.lastHumanTurnAt,
+      isFresh,
+    )
+      ? { lastHumanTurnAt: fields.lastHumanTurnAt }
       : {}),
     ...(canApplyObservedField(
       record.providerChildren,
@@ -1471,6 +1480,7 @@ function upsertSnapshotRecord(
       model: row.model,
       initialPrompt: row.initialPrompt,
       lastAgentText: row.lastAgentText,
+      lastHumanTurnAt: row.lastHumanTurnAt,
       asyncQuestions: row.asyncQuestions,
       providerChildren: row.providerChildren,
     },
@@ -2013,6 +2023,7 @@ export function applySessionCollectionCreated(
       model: session.model,
       initialPrompt: session.initialPrompt,
       lastAgentText: session.lastAgentText,
+      lastHumanTurnAt: session.lastHumanTurnAt,
       asyncQuestions: session.asyncQuestions,
       providerChildren: session.providerChildren,
     },
