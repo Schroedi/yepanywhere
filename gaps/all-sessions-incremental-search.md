@@ -105,7 +105,17 @@ Both selector; they do not approve its backend design or reprioritize the roadma
   the detached bottom action bar. Each tooltip states **[action] N selected**,
   using the complete explicit selection count, including filtered-out sessions.
   Keep existing applicability/pending rules and operation behavior.
-- Add **Select just shown**. User-confirmed implementation: set the explicit
+- Display **✓ N ← M shown**. The left arrow is the **Select just shown**
+  action: replace selection with the M visible result session IDs. Use a
+  clearly visible checkmark icon, not a font-dependent glyph. The selection
+  count tooltip explains selection and excluded rows; clicking it manages
+  selection. Omit the separate hidden count: with a nonempty selection it is
+  N − M. At N = 0, search covers all sessions and M may exceed N.
+  Give the arrow a visible button border. Clear selection uses a larger red X,
+  optically centered beside the text, with a practical hit area and no circle
+  hanging below the text. Help below the results
+  remains in normal page flow and scrolls below view as the result list grows.
+  User-confirmed implementation: set the explicit
   selection to the visible result session IDs (`selection = shownSessionIds`).
   This replaces the selection, not a union. A search for A, Select just shown,
   search for B, Select just shown, then search for C operates over the successive
@@ -155,16 +165,16 @@ These are design recommendations, not additional settled user requirements.
   filters intended for matching.
 - Full excerpt text is available on hover and through keyboard/touch-accessible
   zoom. Touch users must not need hover to read the same content.
-- Show **Searching N selected · M hidden**, a selection list, and explicit
-  **Clear selection**. Clear search/filters does not clear selection. With no
+- Show **✓ N ← M shown**, a selection list, and explicit **Clear selection**.
+  Clear search/filters does not clear selection. With no
   selection, search the full eligible catalog, not just the loaded page.
   User clarification: for search and display scope, no selection is equivalent
   to all sessions selected. No explicit selection means zero hidden selections
   and no "N hidden" indicator, even though ordinary filters still omit
   nonmatching sessions. This equivalence does not check every row or authorize
   bulk actions on the catalog.
-  Compact copy may use **N selected · M hidden**. "Hidden" specifically means
-  selected sessions excluded by the current result filters. Its tooltip must
+  There is no separate hidden-count label. Hidden selections specifically mean
+  selected sessions excluded by the current result filters. The count tooltip must
   explain the applicable causes (text mismatch, role/field scope, time range,
   project/provider/status filter), not only repeat the count, and say that the
   sessions remain selected. Clicking opens the selection list with per-session
