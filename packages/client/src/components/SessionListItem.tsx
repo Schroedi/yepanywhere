@@ -958,58 +958,54 @@ export function SessionListItem({
               </>
             ) : (
               // Compact mode: single line with badges
-              <>
-                <span className="session-list-item__title-row">
-                  {isStarred && <StarIcon filled />}
-                  <span
-                    className="session-list-item__title-text"
-                    {...titleTooltipAttributes}
-                  >
-                    {isNewSession && <ThinkingIndicator />}
-                    {isBtwAside && (
-                      // biome-ignore lint/a11y/noStaticElementInteractions: clickable variant has link role and keyboard handling; inert variant only shows the badge
-                      <span
-                        className="session-badge session-badge-btw"
-                        title={
-                          parentHref
-                            ? "Open parent session with this /btw aside visible"
-                            : "/btw aside session"
-                        }
-                        role={parentHref ? "link" : undefined}
-                        tabIndex={parentHref ? 0 : undefined}
-                        onClick={handleBtwBadgeClick}
-                        onKeyDown={handleBtwBadgeKeyDown}
-                      >
-                        /btw
-                      </span>
-                    )}
-                    <span>{visibleTitle}</span>
-                  </span>
-                  {hasDraft && (
-                    <span className="session-draft-badge">Draft</span>
-                  )}
-                  {hasProjectQueue && (
+              <span className="session-list-item__title-row">
+                {isStarred && <StarIcon filled />}
+                <span
+                  className="session-list-item__title-text"
+                  {...titleTooltipAttributes}
+                >
+                  {isNewSession && <ThinkingIndicator />}
+                  {isBtwAside && (
+                    // biome-ignore lint/a11y/noStaticElementInteractions: clickable variant has link role and keyboard handling; inert variant only shows the badge
                     <span
-                      className="session-project-queue-badge"
-                      title={t("projectQueueSidebarBadge")}
+                      className="session-badge session-badge-btw"
+                      title={
+                        parentHref
+                          ? "Open parent session with this /btw aside visible"
+                          : "/btw aside session"
+                      }
+                      role={parentHref ? "link" : undefined}
+                      tabIndex={parentHref ? 0 : undefined}
+                      onClick={handleBtwBadgeClick}
+                      onKeyDown={handleBtwBadgeKeyDown}
                     >
-                      Q
+                      /btw
                     </span>
                   )}
-                  {providerChildren.length > 0 && (
-                    <span
-                      className={`${styles.providerChildrenBadge} ${
-                        hasUnread ? styles.providerChildrenBadgeUnread : ""
-                      }`}
-                      role="img"
-                      title={providerChildrenTooltip}
-                      aria-label={providerChildrenLabel}
-                    >
-                      {providerChildren.length}
-                    </span>
-                  )}
+                  <span>{visibleTitle}</span>
                 </span>
-              </>
+                {hasDraft && <span className="session-draft-badge">Draft</span>}
+                {hasProjectQueue && (
+                  <span
+                    className="session-project-queue-badge"
+                    title={t("projectQueueSidebarBadge")}
+                  >
+                    Q
+                  </span>
+                )}
+                {providerChildren.length > 0 && (
+                  <span
+                    className={`${styles.providerChildrenBadge} ${
+                      hasUnread ? styles.providerChildrenBadgeUnread : ""
+                    }`}
+                    role="img"
+                    title={providerChildrenTooltip}
+                    aria-label={providerChildrenLabel}
+                  >
+                    {providerChildren.length}
+                  </span>
+                )}
+              </span>
             )}
           </Link>
         )}
