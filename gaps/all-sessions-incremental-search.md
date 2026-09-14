@@ -35,8 +35,12 @@ Both selector; they do not approve its backend design or reprioritize the roadma
   debounce may bound requests; cancel/supersede old queries and reject late
   results. Incomplete coverage must not be presented as a complete empty result.
 - Offer three independent checkboxes under **Search in**: **Title**,
-  **Ass.** (Assistant), and **User**. Checked fields form a union. Title implicitly
-  searches the opening prompt too when it differs from the editable title;
+  **Ass.** (Assistant), and **User**. Checked fields form a union.
+  All three are checked by default. Show the **Search in** prefix only when
+  these controls occupy their own full row, as on mobile; omit it when they
+  share the header row with the input.
+  Title implicitly searches the opening prompt too when it differs from the
+  editable title;
   there is no separate opening-prompt checkbox. Renaming must not erase the
   opening-prompt match, and a turn matching multiple fields appears once.
   The visible-text exclusions in the existing sketches continue to apply.
@@ -48,6 +52,9 @@ Both selector; they do not approve its backend design or reprioritize the roadma
   "All", for unfiltered dropdown labels. Drop the visible **Age** caption.
   Keep the result list compact: avoid stacked explanatory labels, oversized
   controls and cards, or persistent helper prose consuming result space.
+  Time inputs and Projects/Providers own their text line-height and vertical
+  padding independently of the time-mode tabs' underline space. Keep the
+  Turns / Last activity / Created tabs' existing appearance.
 - While All Sessions is active, Ctrl+S and Ctrl+R focus its search box and
   activate assistant-text and user-text search respectively. Handle the browser
   default locally to that route. Leave single-session bindings unchanged.
@@ -71,6 +78,13 @@ Both selector; they do not approve its backend design or reprioritize the roadma
   production All Sessions page. Do not mount transcript viewers for every hit.
   Put the smaller role/turn-number chip to the left of the blue excerpt line;
   use **Ass.** for assistant chips and align the blue lines across roles.
+  Right-align the chips against that line inside the space under the selection
+  checkbox. The selection column keeps its full hit area but contributes no
+  extra preview indentation: chips overlay that space to recover excerpt width.
+  Clicking that column, including over a chip, still selects; only the excerpt
+  area navigates to a match.
+  Let the session title extend halfway into the selection column (20px in the
+  mockup), while keeping the provider/metadata row at its existing indentation.
 - Offer a **first N matches per session** display limit. The main task is to
   locate a session, then a position within it; a prolific session must not
   dominate the result list. The limit controls preview presentation, not which
@@ -101,17 +115,30 @@ Both selector; they do not approve its backend design or reprioritize the roadma
   rows with their checks intact. Keep selection independent of result pages,
   query generations, and duplicate-title hiding; matching distinct sessions
   must remain reachable even when their titles are equal.
-- Place existing bulk action buttons beside the selection summary, replacing
-  the detached bottom action bar. Each tooltip states **[action] N selected**,
-  using the complete explicit selection count, including filtered-out sessions.
-  Keep existing applicability/pending rules and operation behavior.
+- Use the status icons as condition filters, with visible pressed states.
+  The most recently activated status exposes a separate captioned action such
+  as **Make unarchived ✓ N**, applying that status to the complete explicit
+  selection, including filtered-out sessions. Icon toggles never mutate sessions
+  or selection. Each action tooltip states **[action] N selected**. Preserve
+  existing applicability/pending rules and operation behavior.
+  Put the action to the right on desktop; on mobile it gets a full row at the
+  same normal control height. Center its caption and icons vertically, without
+  an underline. Its caption must explain the action without
+  requiring a tooltip. No action is enabled with an empty explicit selection.
+  Proposed filter details: opposite states in each archived/starred/read pair
+  are mutually exclusive; active filters from different pairs intersect.
+  Turning off the latest filter exposes the last remaining active status's
+  action, or removes the action when no status filter remains.
 - Display **✓ N ← M**. The left arrow is the **Select just shown**
   action: replace selection with the M visible result session IDs. Use a
   clearly visible checkmark icon, not a font-dependent glyph. The selection
   count tooltip explains selection and excluded rows; clicking it manages
   selection. Omit the separate hidden count: with a nonempty selection it is
   N − M. At N = 0, search covers all sessions and M may exceed N.
-  Give the arrow a visible button border. Clear selection uses a larger red X,
+  Give the arrow a thicker rectangular button border and no filled background
+  (a fill was mistaken for selected state);
+  optically center the arrow inside it and tint the arrow muted red to suggest
+  narrowing selection. Clear selection uses a larger red X,
   optically centered beside the text, with a practical hit area and no circle
   hanging below the text. Help below the results
   remains in normal page flow and scrolls below view as the result list grows.
@@ -136,8 +163,8 @@ These are design recommendations, not additional settled user requirements.
 
 - Make Ctrl+S an assistant-only preset and Ctrl+R a user-only preset, preserving
   the query and all non-field filters; checkboxes then allow any combination.
-  Show the shortcut alongside each role checkbox. Ordinary entry retains
-  metadata search by default; content scope is explicitly chosen.
+  Show the shortcut alongside each role checkbox. Ordinary entry checks all
+  three fields by default, including Title, per the user's refinement.
 - Start the mockup in Turns mode; retain bounds when switching the basis.
   Last activity retains the existing `updatedAt` meaning; Created uses session
   creation time. Use inclusive bounds. Empty lower
