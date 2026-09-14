@@ -53,7 +53,15 @@ export type EffectiveSessionLaunchSettingsValue = Omit<
   "schemaVersion" | "revision"
 >;
 
+export interface NonHumanUserTurn {
+  messageId: string;
+  timestamp: string;
+  sourceSessionId: string;
+}
+
 export interface SessionMetadata {
+  /** Retain the acknowledged receipt so replay cannot raise it again. */
+  nonHumanUserTurn?: NonHumanUserTurn & { acknowledged?: boolean };
   /** Custom title that overrides auto-generated title */
   customTitle?: string;
   /** Whether the session is archived (hidden from default list) */
@@ -280,6 +288,45 @@ export class SessionMetadataService {
       if (metadata?.provider) providers.add(metadata.provider);
     }
     return [...providers];
+  }
+
+  getPendingNonHumanUserTurn(sessionId: string): NonHumanUserTurn | undefined {
+    const turn = this.getMetadata(sessionId)?.nonHumanUserTurn;
+    if (!turn || turn.acknowledged) return undefined;
+    const { acknowledged: _, ...pending } = turn;
+    return pending;
+  }
+
+  async recordNonHumanUserTurn(
+    sessionId: string,
+    turn: NonHumanUserTurn,
+  ): Promise<void> {
+    const previous = this.getMetadata(sessionId)?.nonHumanUserTurn;
+    if (
+      previous?.messageId !== turn.messageId &&
+      (!previous ||
+        Date.parse(turn.timestamp) >= Date.parse(previous.timestamp))
+    ) {
+      this.updateSessionMetadata(sessionId, (metadata) => ({
+        ...metadata,
+        nonHumanUserTurn: { ...turn },
+      }));
+    }
+    await this.metadataSaver.flush();
+  }
+
+  async acknowledgeNonHumanUserTurn(
+    sessionId: string,
+    messageId: string,
+  ): Promise<boolean> {
+    const turn = this.getMetadata(sessionId)?.nonHumanUserTurn;
+    if (!turn || turn.messageId !== messageId) return false;
+    this.updateSessionMetadata(sessionId, (metadata) => ({
+      ...metadata,
+      nonHumanUserTurn: { ...turn, acknowledged: true },
+    }));
+    await this.metadataSaver.flush();
+    return true;
   }
 
   getTranscriptDisplayObjects(sessionId: string): TranscriptDisplayObject[] {
@@ -982,6 +1029,9 @@ export class SessionMetadataService {
 
     // Remove undefined values and check if entry should be deleted
     const cleaned: SessionMetadata = {};
+    if (updated.nonHumanUserTurn) {
+      cleaned.nonHumanUserTurn = updated.nonHumanUserTurn;
+    }
     if (updated.customTitle) cleaned.customTitle = updated.customTitle;
     if (updated.isArchived) cleaned.isArchived = updated.isArchived;
     if (updated.isStarred) cleaned.isStarred = updated.isStarred;
