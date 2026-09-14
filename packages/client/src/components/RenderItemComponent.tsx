@@ -1404,6 +1404,7 @@ export const RenderItemComponent = memo(function RenderItemComponent({
           item.subtype === "status" && item.status === "compacting";
         const isError = item.subtype === "error";
         const isWarning = item.subtype === "warning";
+        const isInformational = item.subtype === "informational";
         const isConfigAck = item.subtype === "config_ack";
         const isLocalCommand = item.subtype === "local_command";
         const isToolOutput = item.subtype === "tool_output";
@@ -1415,19 +1416,21 @@ export const RenderItemComponent = memo(function RenderItemComponent({
         const icon =
           isError || isWarning
             ? "!"
-            : isConfigAck
-              ? "✓"
-              : isLocalCommand
-                ? "/"
-                : isToolOutput
-                  ? "<"
-                  : isSubagentActivity
-                    ? "↳"
-                    : isNoModelTurn
-                      ? "∅"
-                      : isHistorySearchGap
-                        ? "⋯"
-                        : "⟳";
+            : isInformational
+              ? "i"
+              : isConfigAck
+                ? "✓"
+                : isLocalCommand
+                  ? "/"
+                  : isToolOutput
+                    ? "<"
+                    : isSubagentActivity
+                      ? "↳"
+                      : isNoModelTurn
+                        ? "∅"
+                        : isHistorySearchGap
+                          ? "⋯"
+                          : "⟳";
         if (
           item.subtype === "compact_boundary" ||
           isLocalCommand ||

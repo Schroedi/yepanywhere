@@ -354,6 +354,19 @@ function processMessage(
   // Handle system entries (compact_boundary, status, etc.)
   if (msg.type === "system") {
     const subtype = (msg as { subtype?: string }).subtype ?? "unknown";
+    if (subtype === "informational") {
+      if (typeof msg.content === "string" && msg.content.trim()) {
+        items.push({
+          type: "system",
+          id: msgId,
+          subtype: msg.level === "warning" ? "warning" : "informational",
+          content: msg.content,
+          sourceMessages: [msg],
+          isSubagent: msg.isSubagent,
+        });
+      }
+      return;
+    }
     if (subtype === "local_command") {
       const content = systemLocalCommandContent(msg.content);
       if (content !== null) {

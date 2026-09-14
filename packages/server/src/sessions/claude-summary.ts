@@ -660,7 +660,6 @@ export function buildSummaryFromState(
   const messageCount = activeBranch.filter((node) =>
     CONVERSATION_TYPES.has(node.type),
   ).length;
-  if (messageCount === 0) return null;
 
   const firstUserMessage = state.firstUserTitleContent;
   const fullTitle = firstUserMessage?.trim() || null;
