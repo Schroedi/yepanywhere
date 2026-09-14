@@ -4731,7 +4731,7 @@ pre.code-highlighter-plain code {
 
 .markdown-preview .markdown-rendered code {
   background: var(--bg-code);
-  color: var(--text-primary);
+  color: inherit;
   padding: 0.125rem 0.25rem;
   border-radius: 3px;
   font-size: 0.9em;
@@ -4760,7 +4760,7 @@ pre.code-highlighter-plain code {
 
 .markdown-preview .markdown-rendered a {
   color: var(--link-color);
-  text-decoration: none;
+  text-decoration: underline;
 }
 
 .markdown-preview .markdown-rendered a:hover {

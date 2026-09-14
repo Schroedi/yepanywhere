@@ -90,7 +90,10 @@ These run unconditionally and are not user-configurable:
   unsafe URLs, active embeds, and disallowed elements remain blocked. Assistant
   Markdown, tool-result Markdown, file previews, and persisted reloads use the
   same boundary.
-- **Explicit rendered Markdown file links** — project file links open the
+- **Explicit rendered Markdown file links** — document previews show link color
+  and an underline before hover, including links whose labels use inline code.
+  Ordinary unlinked code keeps its surrounding text color and code background.
+  Project file links open the
   standalone file viewer on browser link gestures, and `.md` / `.markdown`
   local-file links can request a content-only rendered document. That document
   includes a raw link and expands local image links directly. Public-share file
