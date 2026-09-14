@@ -105,7 +105,7 @@ Both selector; they do not approve its backend design or reprioritize the roadma
   the detached bottom action bar. Each tooltip states **[action] N selected**,
   using the complete explicit selection count, including filtered-out sessions.
   Keep existing applicability/pending rules and operation behavior.
-- Display **✓ N ← M shown**. The left arrow is the **Select just shown**
+- Display **✓ N ← M**. The left arrow is the **Select just shown**
   action: replace selection with the M visible result session IDs. Use a
   clearly visible checkmark icon, not a font-dependent glyph. The selection
   count tooltip explains selection and excluded rows; clicking it manages
@@ -165,7 +165,7 @@ These are design recommendations, not additional settled user requirements.
   filters intended for matching.
 - Full excerpt text is available on hover and through keyboard/touch-accessible
   zoom. Touch users must not need hover to read the same content.
-- Show **✓ N ← M shown**, a selection list, and explicit **Clear selection**.
+- Show **✓ N ← M**, a selection list, and explicit **Clear selection**.
   Clear search/filters does not clear selection. With no
   selection, search the full eligible catalog, not just the loaded page.
   User clarification: for search and display scope, no selection is equivalent
