@@ -18,9 +18,9 @@ const stats = {
 
 function summaryOf(entries: readonly Record<string, unknown>[]) {
   const state = createParseState();
-  entries.forEach((entry, index) =>
-    addEntryToState(state, entry as unknown as ClaudeSessionEntry, index),
-  );
+  entries.forEach((entry, index) => {
+    addEntryToState(state, entry as unknown as ClaudeSessionEntry, index);
+  });
   return buildSummaryFromState(state, {
     filePath: "/tmp/session.jsonl",
     stats,
