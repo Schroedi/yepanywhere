@@ -81,9 +81,13 @@ export class ArtifactServer {
       c.header("X-Content-Type-Options", "nosniff");
       c.header("Referrer-Policy", "no-referrer");
       c.header("Cache-Control", "no-store");
+      // Every feature named here is one browsers actually recognize: an
+      // unknown name is ignored anyway, and Chromium logs it as an error in
+      // the reader's console for every artifact they open. Web Bluetooth is
+      // the name that costs more noise than it denies.
       c.header(
         "Permissions-Policy",
-        "camera=(), microphone=(), geolocation=(), clipboard-read=(), clipboard-write=(), payment=(), usb=(), serial=(), bluetooth=(), display-capture=()",
+        "camera=(), microphone=(), geolocation=(), clipboard-read=(), clipboard-write=(), payment=(), usb=(), serial=(), display-capture=()",
       );
       if (c.req.method !== "GET" && c.req.method !== "HEAD")
         return c.text("Read only", 405);
