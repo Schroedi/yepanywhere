@@ -18,6 +18,14 @@ export const PIXI_PYTHON_ARGS = [
 ];
 const LOCAL_STT_BOOTSTRAP_TIMEOUT_MS = 20 * 60_000;
 
+export function localSttEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  // Pixi/Python packages own runtime libraries; host overrides can mix CUDA ABIs.
+  delete env.LD_LIBRARY_PATH;
+  delete env.LD_PRELOAD;
+  return env;
+}
+
 export function localSttReadyHint(
   task: string,
   environment = PIXI_STT_ENV,
@@ -68,6 +76,7 @@ export async function ensureLocalSttRuntime(opts: {
       ["run", "--frozen", "-e", environment, "python", "-c", opts.checkPython],
       {
         cwd: process.cwd(),
+        env: localSttEnv(),
         timeout: 30_000,
       },
     );
@@ -80,7 +89,11 @@ export async function ensureLocalSttRuntime(opts: {
       await execFileAsync(
         PIXI_COMMAND,
         ["run", "-e", environment, opts.bootstrapTask],
-        { cwd: process.cwd(), timeout: LOCAL_STT_BOOTSTRAP_TIMEOUT_MS },
+        {
+          cwd: process.cwd(),
+          env: localSttEnv(),
+          timeout: LOCAL_STT_BOOTSTRAP_TIMEOUT_MS,
+        },
       );
       await check();
       return { ok: true };

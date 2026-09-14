@@ -9,6 +9,7 @@ import type {
 } from "./SpeechBackend.js";
 import {
   ensureLocalSttRuntime,
+  localSttEnv,
   PIXI_COMMAND,
   PIXI_PYTHON_ARGS,
   PIXI_STT_ENV,
@@ -101,7 +102,11 @@ export class LocalParakeetBackend implements PrewarmableSpeechBackend {
       const proc = spawn(
         PIXI_COMMAND,
         [...PIXI_PYTHON_ARGS, WORKER_SCRIPT, model, device],
-        { cwd: process.cwd(), stdio: ["pipe", "pipe", "pipe"] },
+        {
+          cwd: process.cwd(),
+          env: localSttEnv(),
+          stdio: ["pipe", "pipe", "pipe"],
+        },
       );
       this.proc = proc;
 

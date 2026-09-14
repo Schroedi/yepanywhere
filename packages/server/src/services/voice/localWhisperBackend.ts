@@ -9,6 +9,7 @@ import type {
 } from "./SpeechBackend.js";
 import {
   ensureLocalSttRuntime,
+  localSttEnv,
   PIXI_COMMAND,
   PIXI_PYTHON_ARGS,
   PIXI_STT_ENV,
@@ -91,7 +92,11 @@ export class LocalWhisperBackend implements PrewarmableSpeechBackend {
           this.device,
           this.computeType,
         ],
-        { cwd: process.cwd(), stdio: ["pipe", "pipe", "pipe"] },
+        {
+          cwd: process.cwd(),
+          env: localSttEnv(),
+          stdio: ["pipe", "pipe", "pipe"],
+        },
       );
       this.proc = proc;
       this.workerModel = model;

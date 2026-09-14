@@ -236,8 +236,8 @@ streaming/confidence surface exists.
   The local Parakeet path uses the same pixi `stt` environment with a separate
   Transformers/PyTorch bootstrap and a warm Python worker around
   `pipeline("automatic-speech-recognition")`. The local NeMo Parakeet path is a
-  separate explicit `ya-nemo` backend in the same pixi `stt` environment plus
-  the heavier `stt-bootstrap-nemo` add-on. It uses a warm `nemo.collections.asr`
+  separate explicit `ya-nemo` backend in the isolated pixi `stt-nemo`
+  environment installed by `nemo-bootstrap`. It uses a warm `nemo.collections.asr`
   worker and decodes compressed browser recordings through `ffmpeg` only when
   needed before handing NeMo a mono 16 kHz WAV. The browser can choose the
   Parakeet model id per request from STT settings or the mic options panel for
@@ -970,11 +970,11 @@ Node/PNPM install. To enable local Whisper on a server:
    enabled, or preflight it manually from the YA checkout:
    - `pixi run -e stt stt-bootstrap` for `ya-whisper`;
    - `pixi run -e stt stt-bootstrap-parakeet` for `ya-parakeet`;
-   - `pixi run -e stt stt-bootstrap-nemo` for `ya-nemo`;
+   - `pixi run -e stt-nemo nemo-bootstrap` for `ya-nemo`;
    - `pixi run -e stt stt-bootstrap-all` for Whisper plus Transformers
      Parakeet.
-   These commands create the `stt` environment from `pixi.lock` and install the
-   relevant Python requirements file(s).
+   These commands create the corresponding environment from `pixi.lock` and
+   install its Python requirements file(s).
 3. Start YA with `YEP_VOICE_BACKENDS` containing `ya-whisper`, `ya-parakeet`,
    `ya-nemo`, or any comma-separated combination.
 
@@ -986,10 +986,32 @@ already contain it. Cloud STT backends still auto-enable from their
 
 Transformers Parakeet reuses this deployment shape through
 `requirements/stt-parakeet.txt` and `stt-bootstrap-parakeet`. NeMo Parakeet
-uses `requirements/stt-nemo.txt` and `stt-bootstrap-nemo` as a heavier optional
-add-on to the same pixi environment. The YA server runs those bootstraps only
+uses `requirements/stt-nemo-recent.txt` and `nemo-bootstrap` in the isolated
+`stt-nemo` environment. The YA server runs those bootstraps only
 after the operator explicitly names the matching backend; a deploy wrapper may
 still choose to run the pixi bootstrap as a stricter preflight.
+
+YA's automatic import checks, bootstrap commands, and all local speech workers
+remove inherited `LD_LIBRARY_PATH` and `LD_PRELOAD`. The pixi/Python environment
+owns its runtime libraries, so a login shell's system CUDA toolkit cannot
+override the packaged CUDA/cuDNN libraries. This boundary is speech-specific;
+the server's environment and other provider subprocesses are unchanged. GPU
+visibility, model choices, cache locations, proxies, and credentials retain
+their configured values. For manual pixi commands in a shell with library
+overrides, use `env -u LD_LIBRARY_PATH -u LD_PRELOAD pixi run ...`.
+
+Import validation is not a GPU inference test. YA does not reinstall a working
+environment merely because a host toolkit changed, silently fall back to CPU,
+or replace a selected model after inference fails. The installed package stack
+still needs a compatible GPU driver and hardware. After a host migration,
+verify an actual transcription as well as backend advertisement.
+
+On 2026-09-14, production Whisper, Transformers Parakeet, and NeMo backend
+validation and transcription all passed with a deliberately inherited system
+CUDA 13.3 library path. Before this isolation, the same Parakeet workers loaded
+their models but failed at inference with cuBLAS/cuDNN loader errors. The smoke
+used distilled Whisper v3.5 on CPU/int8, Parakeet TDT 0.6B v3 on GPU, and NeMo
+unified English 0.6B on GPU; all transcribed a synthetic spoken sentence.
 
 ### STT env recovery before NeMo spikes
 

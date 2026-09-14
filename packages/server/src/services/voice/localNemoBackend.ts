@@ -9,6 +9,7 @@ import type {
 } from "./SpeechBackend.js";
 import {
   ensureLocalSttRuntime,
+  localSttEnv,
   PIXI_COMMAND,
   PIXI_NEMO_ENV,
   cacheFreeSpaceSummary,
@@ -112,7 +113,11 @@ export class LocalNemoBackend implements PrewarmableSpeechBackend {
           model,
           device,
         ],
-        { cwd: process.cwd(), stdio: ["pipe", "pipe", "pipe"] },
+        {
+          cwd: process.cwd(),
+          env: localSttEnv(),
+          stdio: ["pipe", "pipe", "pipe"],
+        },
       );
       this.proc = proc;
 
