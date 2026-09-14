@@ -3,7 +3,8 @@
 The initial All Sessions implementation pulls bounded native-record batches
 from disk. It has no efficient disk-backed substring index for either explicit
 selected sessions or the complete session catalog. Repeated needles therefore
-repeat acquisition; a long first session can delay later-session matches.
+repeat acquisition. Batches rotate among eligible sessions; appends resume at
+saved tails, and catalog changes no longer restart unchanged sessions.
 
 Build the index behind the existing capability/coverage boundary in
 [all-session content search](../topics/all-session-content-search.md). Evaluate
@@ -19,6 +20,10 @@ partial coverage. Extend their native bounded readers instead of falling back
 to unbounded whole-session reads. Match ordinals currently count visible
 records, not coalesced conversational turns; normalization parity across record
 boundaries and Markdown display delimiters remains to be established.
+Tail continuation detects inode replacement, truncation, layout changes and
+saved-boundary changes. A rewrite of earlier bytes followed by growth that
+preserves the saved boundary needs stronger native mutation evidence for exact
+invalidation; the index must not treat boundary sampling as a full-prefix hash.
 
 The index should return low-latency session-grouped matches with original
 timestamps, stable IDs and on-demand context, while keeping coverage explicit.

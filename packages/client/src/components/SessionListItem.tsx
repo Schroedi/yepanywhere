@@ -63,6 +63,7 @@ interface SessionListItemProps {
   sessionId: string;
   projectId: string;
   title: string | null;
+  titleContent?: ReactNode;
 
   // Optional display data
   fullTitle?: string | null;
@@ -180,6 +181,7 @@ export function SessionListItem({
   sessionId,
   projectId,
   title,
+  titleContent,
   // Optional display data
   fullTitle,
   initialPrompt,
@@ -861,7 +863,7 @@ export function SessionListItem({
                       /btw
                     </span>
                   )}
-                  <span>{visibleTitle}</span>
+                  {titleContent ?? <span>{visibleTitle}</span>}
                   {hasDraft && (
                     <span className="session-draft-badge">Draft</span>
                   )}

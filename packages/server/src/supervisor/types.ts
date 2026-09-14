@@ -126,6 +126,9 @@ export interface SessionSummary {
   provider: ProviderName;
   /** Model used for this session (extracted from JSONL, e.g. "claude-opus-4-5-20251101") */
   model?: string;
+  /** Current activity and executor, supplied with owned-session creation events. */
+  activity?: AgentActivity;
+  executor?: string;
   /**
    * Excerpt of the most recent visible regular agent turn or provider recap,
    * capped to the last few lines. Shown in the row hover card so a glance

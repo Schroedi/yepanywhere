@@ -1,32 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import type {
-  SessionContentMatch,
-  SessionContentSearchBatch,
-  SessionContentSearchRequest,
-} from "@yep-anywhere/shared";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import type { SessionContentMatch } from "@yep-anywhere/shared";
 import { useCurrentSourceRuntime } from "../../contexts/SourceRuntimeContext";
 import type { GlobalSessionItem } from "../../api/client";
 import type { SearchField } from "./model";
+import { ContentSearchScan } from "./ContentSearchScan";
 
-interface ScanState {
-  key: string;
-  revision: string;
-  query: string;
-  matches: Map<string, SessionContentMatch[]>;
-  scanned: number;
-  partial: Map<string, string>;
-  running: boolean;
-  error?: string;
-}
-
-interface ScanInput {
-  source: string;
-  sessions: string[];
-  roles: Array<"assistant" | "user">;
-  after?: number;
-  before?: number;
-  enabled: boolean;
-}
+const EMPTY_MATCHES = new Map<string, SessionContentMatch[]>();
+const EMPTY_PARTIAL = new Map<string, string>();
 
 export function useContentSearch(
   sessions: GlobalSessionItem[],
@@ -35,153 +15,173 @@ export function useContentSearch(
   enabled: boolean,
   after?: number,
   before?: number,
+  viewportRows = Infinity,
 ) {
   const runtime = useCurrentSourceRuntime();
-  const roles = fields
-    .filter((f): f is "assistant" | "user" => f !== "title")
-    .sort();
+  const assistant = fields.includes("assistant");
+  const user = fields.includes("user");
+  const roles = useMemo(
+    () => [
+      ...(assistant ? ["assistant" as const] : []),
+      ...(user ? ["user" as const] : []),
+    ],
+    [assistant, user],
+  );
+  const active = enabled && !!query.trim() && roles.length > 0;
   const key = JSON.stringify({
-    source: runtime.sourceKey,
-    sessions: sessions.map((s) => s.id).sort(),
     roles,
     after,
     before,
-    enabled,
-  } satisfies ScanInput);
-  // Detail reads can refine metadata without changing which sessions we search.
-  // Revalidate that revision while keeping matching rows and their zoom mounted.
-  const revision = JSON.stringify(
-    sessions
-      .map((s) => [s.id, s.updatedAt])
-      .sort(([a], [b]) => a!.localeCompare(b!)),
-  );
-  const [state, setState] = useState<ScanState>({
-    key: "",
-    revision: "",
-    query: "",
-    matches: new Map(),
-    scanned: 0,
-    partial: new Map(),
-    running: false,
+    source: runtime.sourceKey,
+    active,
   });
+  const wanted = useMemo(
+    () =>
+      new Map(
+        active
+          ? sessions.map((s) => [s.id, `${s.updatedAt}\0${s.messageCount}`])
+          : [],
+      ),
+    [sessions, active],
+  );
+  const owner = useRef<{
+    key: string;
+    scans: ContentSearchScan[];
+    wanted: Map<string, string>;
+    query: string;
+  }>({ key: "", scans: [], wanted, query });
+  const interested = useRef(document.visibilityState !== "hidden");
   useEffect(() => {
-    const { enabled, roles, sessions, after, before } = JSON.parse(
-      key,
-    ) as ScanInput;
-    if (!enabled || !query.trim() || !roles.length) return;
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      const matches = new Map<string, SessionContentMatch[]>();
-      const partial = new Map<string, string>();
-      const completed = new Set<string>();
-      let scanned = 0;
-      const publish = (running: boolean, error?: string) => {
-        if (!controller.signal.aborted)
-          setState((previous) => {
-            const visible = new Map(matches);
-            if (previous.key === key && query.startsWith(previous.query)) {
-              const needle = query.replace(/\s+/g, " ").trim().toLowerCase();
-              for (const [id, hits] of previous.matches) {
-                if (completed.has(id)) continue;
-                const retained = new Map(
-                  hits
-                    .filter((hit) => hit.preview.toLowerCase().includes(needle))
-                    .map((hit) => [hit.id, hit]),
-                );
-                for (const hit of matches.get(id) ?? [])
-                  retained.set(hit.id, hit);
-                if (retained.size) visible.set(id, [...retained.values()]);
-              }
-            }
-            return {
-              key,
-              revision,
-              query,
-              matches: visible,
-              scanned,
-              partial: new Map(partial),
-              running,
-              error,
-            };
-          });
-      };
-      void (async () => {
-        for (const sessionId of sessions) {
-          let cursor: string | undefined;
-          const found = new Map<string, SessionContentMatch>();
-          do {
-            controller.signal.throwIfAborted();
-            const request: SessionContentSearchRequest = {
-              sessionId,
-              query,
-              roles,
-              after,
-              before,
-              cursor,
-            };
-            const batch =
-              await runtime.transport.fetch<SessionContentSearchBatch>(
-                "/sessions/content-search",
-                {
-                  method: "POST",
-                  body: JSON.stringify(request),
-                  signal: controller.signal,
-                },
-              );
-            controller.signal.throwIfAborted();
-            for (const match of batch.matches) found.set(match.id, match);
-            if (found.size) matches.set(sessionId, [...found.values()]);
-            if (batch.partial)
-              partial.set(
-                sessionId,
-                batch.unavailable ??
-                  "Some transcript records could not be searched",
-              );
-            cursor = batch.done ? undefined : batch.cursor;
-            if (!batch.done && !cursor)
-              throw new Error("Incomplete search batch has no continuation");
-            publish(true);
-          } while (cursor);
-          completed.add(sessionId);
-          scanned++;
-          publish(true);
-        }
-        publish(false);
-      })().catch((error: unknown) => {
-        if (!controller.signal.aborted)
-          publish(
-            false,
-            error instanceof Error ? error.message : String(error),
-          );
-      });
-    }, 120);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
+    const update = (visible: boolean) => {
+      interested.current = visible;
+      for (const scan of owner.current.scans) scan.setInterested(visible);
     };
-  }, [key, revision, query, runtime]);
-  const active = enabled && !!query.trim() && roles.length > 0;
-  const exact =
-    state.key === key && state.revision === revision && state.query === query;
-  const matches = useMemo(() => {
-    if (!active || state.key !== key)
-      return new Map<string, SessionContentMatch[]>();
-    if (state.query === query) return state.matches;
-    if (!query.startsWith(state.query))
-      return new Map<string, SessionContentMatch[]>();
-    const needle = query.replace(/\s+/g, " ").trim().toLowerCase();
-    return new Map(
-      [...state.matches].map(([id, hits]) => [
-        id,
-        hits.filter((hit) => hit.preview.toLowerCase().includes(needle)),
-      ]),
-    );
-  }, [active, key, query, state]);
+    const visibility = () => update(document.visibilityState !== "hidden");
+    const hide = () => update(false);
+    visibility();
+    document.addEventListener("visibilitychange", visibility);
+    window.addEventListener("pagehide", hide);
+    window.addEventListener("pageshow", visibility);
+    return () => {
+      document.removeEventListener("visibilitychange", visibility);
+      window.removeEventListener("pagehide", hide);
+      window.removeEventListener("pageshow", visibility);
+    };
+  }, []);
+  const [, refresh] = useState(0);
+  const publish = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const capacity = useRef(viewportRows);
+  useEffect(() => {
+    capacity.current = viewportRows;
+  }, [viewportRows]);
+  const changed = useRef(() => {
+    if (publish.current) return;
+    publish.current = setTimeout(() => {
+      publish.current = undefined;
+      const current = owner.current;
+      const replacement = current.scans[1];
+      if (
+        replacement?.query === current.query &&
+        ([...current.wanted].every(([id, version]) => {
+          const entry = replacement.entries.get(id);
+          return entry?.done && entry.revision === version;
+        }) ||
+          [...replacement.entries].filter(
+            ([id, entry]) => current.wanted.has(id) && entry.matches.length,
+          ).length >= capacity.current)
+      )
+        current.scans.shift()!.stop();
+      startTransition(() => refresh((value) => value + 1));
+    }, 32);
+  }).current;
+
+  useEffect(() => {
+    const current = owner.current;
+    current.wanted = wanted;
+    for (const scan of current.scans) scan.update(wanted);
+  }, [wanted]);
+
+  useEffect(() => {
+    const current = owner.current;
+    if (current.key !== key || !query.startsWith(current.query)) {
+      for (const scan of current.scans) scan.stop();
+      current.scans = [];
+    }
+    current.key = key;
+    current.query = query;
+    if (!active) return;
+    // One pending latest needle, never a FIFO of intermediate keystrokes.
+    const timer = setTimeout(() => {
+      if (current.scans.length === 2) {
+        const second = current.scans[1]!;
+        const ready =
+          [...second.entries].filter(
+            ([id, entry]) => current.wanted.has(id) && entry.matches.length,
+          ).length >= capacity.current ||
+          [...current.wanted].every(([id, version]) => {
+            const entry = second.entries.get(id);
+            return entry?.done && entry.revision === version;
+          });
+        current.scans.splice(ready ? 0 : 1, 1)[0]!.stop();
+      }
+      const scan = new ContentSearchScan(
+        query,
+        { roles, after, before },
+        runtime.transport,
+        changed,
+      );
+      current.scans.push(scan);
+      scan.setInterested(interested.current);
+      scan.update(current.wanted);
+      changed();
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [key, query, runtime, changed, active, roles, after, before]);
+
+  useEffect(
+    () => () => {
+      for (const scan of owner.current.scans) scan.stop();
+      clearTimeout(publish.current);
+    },
+    [],
+  );
+
+  if (!active || owner.current.key !== key)
+    return {
+      matches: EMPTY_MATCHES,
+      partial: EMPTY_PARTIAL,
+      scanned: 0,
+      running: active,
+      error: undefined,
+    };
+  const scans = owner.current.scans;
+  const exact = [...scans].reverse().find((scan) => scan.query === query);
+  const matches = new Map<string, SessionContentMatch[]>();
+  const partial = new Map<string, string>();
+  const needle = query.replace(/\s+/g, " ").trim().toLowerCase();
+  let scanned = 0;
+  for (const [id, version] of wanted) {
+    const complete = exact?.entries.get(id);
+    if (complete?.done && complete.revision === version) scanned++;
+    const found = new Map<string, SessionContentMatch>();
+    for (const scan of scans) {
+      if (!query.startsWith(scan.query)) continue;
+      const entry = scan.entries.get(id);
+      if (!entry) continue;
+      if (scan === exact && entry.done) found.clear();
+      for (const hit of entry.matches)
+        if (scan === exact || hit.preview.toLowerCase().includes(needle))
+          found.set(hit.id, hit);
+      if (entry.partial) partial.set(id, entry.partial);
+      else if (scan === exact && entry.done) partial.delete(id);
+    }
+    if (found.size) matches.set(id, [...found.values()]);
+  }
   return {
     matches,
-    running: active && (!exact || state.running),
-    scanned: exact ? state.scanned : 0,
-    partial: exact ? state.partial : new Map<string, string>(),
-    error: exact ? state.error : undefined,
+    partial,
+    scanned,
+    running: !exact || scanned < wanted.size,
+    error: undefined,
   };
 }

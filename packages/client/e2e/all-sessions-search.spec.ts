@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, unlinkSync } from "node:fs";
+import { mkdirSync, writeFileSync, appendFileSync, unlinkSync } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { e2ePaths, expect, test } from "./fixtures.js";
@@ -44,10 +44,227 @@ function saveSession(id: string, name: string) {
   createdFiles.push(file);
 }
 
+test("All Sessions keeps every typed character with a large title catalog", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(60000);
+  saveSession("typing-fixture", "typing");
+  await page.route(/\/api\/sessions\?/, async (route) => {
+    const response = await route.fetch();
+    const data = await response.json();
+    const seed = data.sessions?.find(
+      (s: { id: string }) => s.id === "typing-fixture",
+    );
+    if (!seed) return route.fulfill({ response });
+    await route.fulfill({
+      response,
+      json: {
+        ...data,
+        hasMore: false,
+        sessions: Array.from({ length: 1000 }, (_, i) => ({
+          ...seed,
+          id: `typing-${i}`,
+          title: `Search fixture typing ${i}`,
+          fullTitle: `Search fixture typing ${i}`,
+          initialPrompt: `Search fixture typing ${i}`,
+        })),
+      },
+    });
+  });
+  await page.goto(`${baseURL}/sessions`);
+  const search = page.getByRole("searchbox", { name: "Search sessions..." });
+  await expect(search).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Keep just 100\d matching/ }),
+  ).toBeVisible();
+  await search.evaluate((node) => {
+    const samples: Array<{
+      latency: number;
+      expected: string;
+      actual: string;
+    }> = [];
+    let expected = "";
+    Object.assign(window, { typingSamples: samples });
+    node.addEventListener("keydown", (event) => {
+      const key = (event as KeyboardEvent).key;
+      if (key.length !== 1) return;
+      expected += key;
+      const prefix = expected;
+      const start = event.timeStamp;
+      requestAnimationFrame(() =>
+        samples.push({
+          latency: performance.now() - start,
+          expected: prefix,
+          actual: (node as HTMLInputElement).value,
+        }),
+      );
+    });
+  });
+  const text = "Search fixture typing 987";
+  await search.pressSequentially(text, { delay: 10 });
+  expect(await search.inputValue()).toBe(text);
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+  const samples = await page.evaluate(
+    () =>
+      (
+        window as unknown as {
+          typingSamples: Array<{
+            latency: number;
+            expected: string;
+            actual: string;
+          }>;
+        }
+      ).typingSamples,
+  );
+  expect(samples).toHaveLength(text.length);
+  expect(
+    samples.every((sample) => sample.actual.startsWith(sample.expected)),
+  ).toBe(true);
+  expect(
+    Math.max(...samples.map((sample) => sample.latency)),
+  ).toBeLessThanOrEqual(100);
+  console.log(
+    "[search-typing]",
+    JSON.stringify({
+      characters: text.length,
+      maxKeyToFrameMs: Math.max(...samples.map((sample) => sample.latency)),
+    }),
+  );
+  await expect(page.locator(".session-list-item--card")).toHaveCount(1);
+});
+
+test("All Sessions follows appended turns and newly discovered sessions without restarting the catalog", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(60000);
+  saveSession("live-search-alpha", "live alpha");
+  const file = createdFiles.at(-1)!;
+  const requests: Array<{ sessionId: string; cursor?: string }> = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith("/api/sessions/content-search"))
+      requests.push(JSON.parse(request.postData()!));
+  });
+  await page.goto(`${baseURL}/sessions`);
+  const search = page.getByRole("searchbox", { name: "Search sessions..." });
+  await search.fill("quasarneedle");
+  await search.press("Control+r");
+  await expect(
+    page
+      .getByText("quasarneedle live alpha original request", { exact: false })
+      .first(),
+  ).toBeVisible({ timeout: 30000 });
+  await expect(page.getByText(/sessions scanned/)).toHaveCount(0, {
+    timeout: 30000,
+  });
+  const before = requests.length;
+  appendFileSync(
+    file,
+    `${JSON.stringify({ type: "user", uuid: "live-appended", parentUuid: "live-search-alpha-261", sessionId: "live-search-alpha", cwd: join(e2ePaths.tempDir, "mockproject"), timestamp: new Date().toISOString(), message: { role: "user", content: "quasarneedle live appended user" } })}\n`,
+  );
+  await expect(
+    page.getByText("quasarneedle live appended user", { exact: false }).first(),
+  ).toBeVisible({ timeout: 30000 });
+  expect(
+    requests
+      .slice(before)
+      .filter((request) => request.sessionId === "live-search-alpha")
+      .every((request) => !!request.cursor),
+  ).toBe(true);
+  const afterAppend = requests.length;
+  saveSession("live-search-beta", "live beta");
+  await expect(
+    page
+      .getByText("quasarneedle live beta original request", { exact: false })
+      .first(),
+  ).toBeVisible({ timeout: 30000 });
+  expect(
+    requests
+      .slice(afterAppend)
+      .filter(
+        (request) =>
+          request.sessionId === "live-search-alpha" && !request.cursor,
+      ),
+  ).toHaveLength(0);
+});
+
 for (const viewport of [
   { name: "desktop", width: 1000, height: 600 },
   { name: "phone", width: 375, height: 812 },
 ]) {
+  test(`All Sessions reserves arriving matches and fits long titles on ${viewport.name}`, async ({
+    page,
+    baseURL,
+  }) => {
+    saveSession(
+      `reservation-${viewport.name}`,
+      `${"Context before ".repeat(30)}quasarneedle ${"context after ".repeat(30)}`,
+    );
+    await page.setViewportSize(viewport);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/api/sessions/content-search", async (route) => {
+      const response = await route.fetch();
+      await gate;
+      await route.fulfill({ response });
+    });
+    try {
+      await page.goto(`${baseURL}/sessions`);
+      const search = page.getByRole("searchbox", {
+        name: "Search sessions...",
+      });
+      await search.fill("quasarneedle");
+      const row = page.locator(".session-list-item--card");
+      await expect(row).toHaveCount(1);
+      const title = row.locator("strong mark").locator("..");
+      await expect(title).toHaveText(/^….*quasarneedle.*…$/);
+      const narrowText = await title.textContent();
+      const narrowWidth = await title.evaluate((node) => node.clientWidth);
+      await page.setViewportSize({ ...viewport, width: viewport.width + 100 });
+      await expect
+        .poll(() => title.evaluate((node) => node.clientWidth))
+        .not.toBe(narrowWidth);
+      const resizedWidth = await title.evaluate((node) => node.clientWidth);
+      // A wider viewport may open the sidebar and reduce the title's space.
+      await expect
+        .poll(
+          async () =>
+            ((await title.textContent())!.length - narrowText!.length) *
+            (resizedWidth - narrowWidth),
+        )
+        .toBeGreaterThan(0);
+      await page.setViewportSize(viewport);
+      // Let title-only layout settle before enabling turn acquisition.
+      await page.waitForTimeout(600);
+      const request = page.waitForRequest("**/api/sessions/content-search");
+      await page.getByRole("checkbox", { name: /^Ass\./ }).check();
+      await request;
+      const reservedHeight = await row.evaluate(
+        (node) => node.getBoundingClientRect().height,
+      );
+      release();
+      await expect(
+        row.getByRole("button", { name: "Match menu" }),
+      ).toBeVisible();
+      expect(
+        await row.evaluate((node) => node.getBoundingClientRect().height),
+      ).toBe(reservedHeight);
+      await expect
+        .poll(() => row.evaluate((node) => node.getBoundingClientRect().height))
+        .toBeLessThan(reservedHeight);
+      await recordUiCapture(
+        page,
+        `all-sessions-fitted-title-${viewport.name}`,
+        viewport,
+      );
+    } finally {
+      release();
+    }
+  });
+
   test(`All Sessions streams matches and preserves explicit selection on ${viewport.name}`, async ({
     page,
     baseURL,
@@ -139,6 +356,18 @@ for (const viewport of [
       `all-sessions-search-${viewport.name}`,
       viewport,
     );
+    await search.fill("Search fixture");
+    await expect(rows.first().locator("strong mark")).toBeVisible();
+    await expect(rows.getByText("Title", { exact: true })).toHaveCount(0);
+    await recordUiCapture(
+      page,
+      `all-sessions-title-${viewport.name}`,
+      viewport,
+    );
+    await search.fill("quasarneedle");
+    await expect(
+      rows.first().getByRole("button", { name: "Match menu" }).first(),
+    ).toBeVisible();
     await rows.first().getByRole("button", { name: "Match menu" }).click();
     await page
       .getByRole("button", { name: "Zoom preview", exact: true })

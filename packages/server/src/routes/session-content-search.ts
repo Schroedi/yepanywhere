@@ -40,6 +40,7 @@ const cursorSchema = z.object({
   reader: z.string(),
   ordinal: z.number().int().nonnegative(),
   sourceVersion: z.string(),
+  tail: z.boolean().optional(),
 });
 
 /** Pull-driven batches retain no transcript or background job between requests. */
@@ -70,6 +71,7 @@ export function createSessionContentSearchRoutes(
     let readerCursor: string | undefined;
     let ordinal = 0;
     let cursorSourceVersion: string | undefined;
+    let tailResume = false;
     if (cursor) {
       try {
         const bytes = Buffer.from(cursor, "base64url");
@@ -89,6 +91,7 @@ export function createSessionContentSearchRoutes(
         readerCursor = decoded.reader;
         ordinal = decoded.ordinal;
         cursorSourceVersion = decoded.sourceVersion;
+        tailResume = decoded.tail === true;
       } catch {
         return c.json(
           {
@@ -107,14 +110,19 @@ export function createSessionContentSearchRoutes(
       );
       if (!session)
         return c.json({ error: "Session not found in catalog" }, 404);
-      if (cursorSourceVersion && cursorSourceVersion !== session.sourceVersion)
+      if (
+        !tailResume &&
+        cursorSourceVersion &&
+        cursorSourceVersion !== session.sourceVersion
+      )
         return c.json({ error: "Transcript changed; restart search" }, 409);
       const project = await deps.scanner.getProject(session.projectId);
       if (!project) return c.json({ error: "Project unavailable" }, 404);
+      const provider = session.provider ?? session.catalogFamily;
       const sources = getSessionSources(
-        { ...project, provider: session.provider ?? session.catalogFamily },
+        { ...project, provider },
         providerResolutionDeps(deps),
-        session.provider,
+        provider,
       );
       const reader = sources[0]?.reader;
       if (!reader?.readIssueTextBatch) {
@@ -123,7 +131,7 @@ export function createSessionContentSearchRoutes(
           done: true,
           partial: true,
           bytesRead: 0,
-          unavailable: `Bounded turn search is unavailable for ${session.provider}`,
+          unavailable: `Bounded turn search is unavailable for ${provider}`,
         } satisfies SessionContentSearchBatch);
       }
       const result = await reads.run({
@@ -175,7 +183,7 @@ export function createSessionContentSearchRoutes(
         });
       }
       let nextCursor: string | undefined;
-      if (!batch.done) {
+      {
         const iv = randomBytes(12);
         const cipher = createCipheriv("aes-256-gcm", secret, iv);
         const encrypted = Buffer.concat([
@@ -186,6 +194,7 @@ export function createSessionContentSearchRoutes(
               reader: batch.cursor,
               ordinal,
               sourceVersion: session.sourceVersion,
+              tail: batch.done,
             }),
           ),
           cipher.final(),
@@ -198,7 +207,9 @@ export function createSessionContentSearchRoutes(
       }
       return c.json({
         matches,
-        cursor: nextCursor,
+        replacedIds: batch.messages.map((message) => message.id),
+        cursor: batch.done ? undefined : nextCursor,
+        resumeCursor: batch.done ? nextCursor : undefined,
         done: batch.done,
         partial: batch.partial,
         bytesRead: batch.bytesRead,

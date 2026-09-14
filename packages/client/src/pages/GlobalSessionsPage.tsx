@@ -5,7 +5,14 @@ import {
   serverHasCapability,
   type ProviderName,
 } from "@yep-anywhere/shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { createSessionApi } from "../api/sessionClient";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
@@ -34,6 +41,7 @@ import {
   type TimeBasis,
 } from "../components/session-search/model";
 import { useContentSearch } from "../components/session-search/useContentSearch";
+import { SearchTitle } from "../components/session-search/SearchTitle";
 import styles from "../components/session-search/SessionSearch.module.css";
 import { useGlobalSessionsFeed } from "../hooks/useGlobalSessionsFeed";
 import { useProjectQueues } from "../hooks/useProjectQueues";
@@ -100,32 +108,36 @@ function SessionSearchPage() {
   );
   const query = params.get("q") ?? "";
   const project = params.get("project") ?? "";
+  const providerParam = params.get("provider") ?? "";
+  const executorParam = params.get("executor") ?? "";
+  const statusParam = params.get("status") ?? "";
   const providers = useMemo(
     () =>
-      (params.get("provider") ?? "")
+      providerParam
         .split(",")
         .filter((p): p is ProviderName =>
           ALL_PROVIDERS.includes(p as ProviderName),
         ),
-    [params],
+    [providerParam],
   );
   const executors = useMemo(
-    () => (params.get("executor") ?? "").split(",").filter(Boolean),
-    [params],
+    () => executorParam.split(",").filter(Boolean),
+    [executorParam],
   );
   const filters = useMemo(
     () =>
-      (params.get("status") ?? "")
+      statusParam
         .split(",")
         .filter((s): s is SearchStatus =>
           (statuses as readonly string[]).includes(s),
         ),
-    [params],
+    [statusParam],
   );
   const [fields, setFields] = useState<SearchField[]>(["title"]);
-  const effectiveFields = supported
-    ? fields
-    : fields.filter((f) => f === "title");
+  const effectiveFields = useMemo(
+    () => (supported ? fields : fields.filter((f) => f === "title")),
+    [fields, supported],
+  );
   const [basis, setBasis] = useState<TimeBasis>(
     params.has("age") ? "activity" : "turns",
   );
@@ -229,6 +241,8 @@ function SessionSearchPage() {
     () => sessions.filter((s) => !exclusions.get(s.id)?.length),
     [sessions, exclusions],
   );
+  const [viewportRows, setViewportRows] = useState(Infinity);
+  const resultList = useRef<HTMLUListElement>(null);
   const scan = useContentSearch(
     candidates,
     query,
@@ -236,42 +250,45 @@ function SessionSearchPage() {
     supported && !invalidRange,
     basis === "turns" ? bounds.after : undefined,
     basis === "turns" ? bounds.before : undefined,
+    viewportRows,
   );
-  const results = useMemo(
-    () =>
-      invalidRange
-        ? []
-        : candidates.flatMap((session) => {
-            const turns = scan.matches.get(session.id) ?? [];
-            const titles = effectiveFields.includes("title")
-              ? titleMatches(
-                  session,
-                  query,
-                  basis === "turns" ? bounds.after : undefined,
-                  basis === "turns" ? bounds.before : undefined,
-                )
-              : [];
-            const matches = [
-              ...titles.filter(
-                (title) =>
-                  !turns.some((turn) => turn.preview === title.preview),
-              ),
-              ...turns,
-            ];
-            return !query.trim() || matches.length
-              ? [{ session, matches }]
-              : [];
-          }),
-    [
-      invalidRange,
-      candidates,
-      scan.matches,
-      effectiveFields,
-      query,
-      basis,
-      bounds,
-    ],
-  );
+  const discoveryOrder = useRef(new Map<string, number>());
+  const results = useMemo(() => {
+    const found = invalidRange
+      ? []
+      : candidates.flatMap((session) => {
+          const turns = scan.matches.get(session.id) ?? [];
+          const titles = effectiveFields.includes("title")
+            ? titleMatches(
+                session,
+                query,
+                basis === "turns" ? bounds.after : undefined,
+                basis === "turns" ? bounds.before : undefined,
+              )
+            : [];
+          const matches = [...titles, ...turns];
+          return !query.trim() || matches.length ? [{ session, matches }] : [];
+        });
+    for (const result of found)
+      if (!discoveryOrder.current.has(result.session.id))
+        discoveryOrder.current.set(
+          result.session.id,
+          discoveryOrder.current.size,
+        );
+    return found.sort(
+      (a, b) =>
+        discoveryOrder.current.get(a.session.id)! -
+        discoveryOrder.current.get(b.session.id)!,
+    );
+  }, [
+    invalidRange,
+    candidates,
+    scan.matches,
+    effectiveFields,
+    query,
+    basis,
+    bounds,
+  ]);
   const shownIds = useMemo(
     () => new Set(results.map(({ session }) => session.id)),
     [results],
@@ -344,6 +361,86 @@ function SessionSearchPage() {
   };
   const progress = scan.running || feed.loading || feed.hasMore;
   const limitNumber = !limit || invalidLimit ? Infinity : Number(limit);
+  const layoutKey = JSON.stringify([query, effectiveFields, basis, bounds]);
+  const [compactedSearch, setCompactedSearch] = useState<string>();
+  const streamingLayout =
+    effectiveFields.some((field) => field !== "title") &&
+    !!query.trim() &&
+    compactedSearch !== layoutKey;
+  useEffect(
+    () =>
+      setCompactedSearch((previous) =>
+        previous === layoutKey ? undefined : previous,
+      ),
+    [layoutKey],
+  );
+  useEffect(() => {
+    if (scan.running || compactedSearch === layoutKey) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const idle = () => {
+      clearTimeout(timer);
+      timer = setTimeout(
+        () => startTransition(() => setCompactedSearch(layoutKey)),
+        500,
+      );
+    };
+    idle();
+    window.addEventListener("pointermove", idle);
+    window.addEventListener("keydown", idle);
+    window.addEventListener("wheel", idle);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointermove", idle);
+      window.removeEventListener("keydown", idle);
+      window.removeEventListener("wheel", idle);
+    };
+  }, [scan.running, layoutKey, compactedSearch]);
+  const [renderWindow, setRenderWindow] = useState({ query, count: 40 });
+  const renderedCount = renderWindow.query === query ? renderWindow.count : 40;
+  const more = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!results.length) return;
+    const list = resultList.current;
+    const row = list?.firstElementChild;
+    const main = list?.closest("main");
+    if (!list || !row || !main || !streamingLayout) return;
+    const measure = () => {
+      const height =
+        row.getBoundingClientRect().height +
+        Number.parseFloat(getComputedStyle(list).rowGap);
+      const space =
+        main.getBoundingClientRect().bottom - list.getBoundingClientRect().top;
+      if (height > 0) setViewportRows(Math.max(1, Math.ceil(space / height)));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    observer.observe(main);
+    return () => observer.disconnect();
+  }, [streamingLayout, results.length]);
+  const showMore = useCallback(
+    () =>
+      startTransition(() =>
+        setRenderWindow((previous) => ({
+          query,
+          count: (previous.query === query ? previous.count : 40) + 40,
+        })),
+      ),
+    [query],
+  );
+  useEffect(() => {
+    if (results.length <= renderedCount) return;
+    const element = more.current;
+    if (!element) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) showMore();
+      },
+      { root: element.closest("main"), rootMargin: "200px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [showMore, renderedCount, results.length]);
   return (
     <MainContent isWideScreen={isWideScreen}>
       <PageHeader
@@ -357,6 +454,16 @@ function SessionSearchPage() {
             fields={effectiveFields}
             onFields={setFields}
             supported={supported}
+            status={
+              scan.running
+                ? t("sessionSearchProgress", {
+                    count: scan.scanned,
+                    total: candidates.length,
+                  })
+                : feed.loading || feed.hasMore
+                  ? t("sessionSearchLoadingCatalog")
+                  : ""
+            }
           />
         }
       />
@@ -497,34 +604,40 @@ function SessionSearchPage() {
               {feed.error?.message ?? scan.error ?? actionError}
             </p>
           )}
-          {progress && (
-            <p role="status" className={styles.progress}>
-              {t("sessionSearchProgress", {
-                count: scan.scanned,
-                total: candidates.length,
-              })}
-            </p>
-          )}
           {!!scan.partial.size && (
-            <p
-              className={styles.progress}
-              title={[...scan.partial.values()].join("\n")}
-            >
+            <div className={styles.progress}>
               {t("sessionSearchPartial", { count: scan.partial.size })}
-            </p>
+              {[...scan.partial].map(([id, reason]) => {
+                const session = sessions.find((session) => session.id === id);
+                return (
+                  <div key={id}>
+                    {session ? getSessionDisplayTitle(session) : id}: {reason}
+                  </div>
+                );
+              })}
+            </div>
           )}
           {!progress && !feed.error && !scan.error && !results.length && (
             <p className={styles.progress}>
               {t("globalSessionsNoResultsTitle")}
             </p>
           )}
-          <ul className={styles.results}>
-            {results.map(({ session, matches }) => (
+          <ul ref={resultList} className={styles.results}>
+            {results.slice(0, renderedCount).map(({ session, matches }) => (
               <SessionListItem
                 key={session.id}
                 sessionId={session.id}
                 projectId={session.projectId}
                 title={getSessionDisplayTitle(session)}
+                titleContent={
+                  <SearchTitle
+                    text={
+                      matches.find((match) => match.role === "title")
+                        ?.fullText ?? getSessionDisplayTitle(session)
+                    }
+                    query={effectiveFields.includes("title") ? query : ""}
+                  />
+                }
                 fullTitle={session.fullTitle ?? getSessionDisplayTitle(session)}
                 initialPrompt={session.initialPrompt}
                 hasCustomTitle={!!session.customTitle}
@@ -561,7 +674,15 @@ function SessionSearchPage() {
                 searchPreviews={
                   <SearchPreviews
                     session={session}
-                    matches={matches.slice(0, limitNumber)}
+                    matches={matches
+                      .filter((match) => match.role !== "title")
+                      .slice(
+                        0,
+                        streamingLayout
+                          ? Math.min(1, limitNumber)
+                          : limitNumber,
+                      )}
+                    streaming={streamingLayout}
                     query={query}
                     basePath={basePath}
                     onZoom={setZoomed}
@@ -570,6 +691,16 @@ function SessionSearchPage() {
               />
             ))}
           </ul>
+          {results.length > renderedCount && (
+            <button
+              ref={more}
+              className={styles.more}
+              type="button"
+              onClick={showMore}
+            >
+              {t("sessionSearchMore")}
+            </button>
+          )}
           <p className={styles.help}>{t("sessionSearchHelp")}</p>
           {!supported && (
             <p className={styles.help}>{t("sessionSearchUpgrade")}</p>

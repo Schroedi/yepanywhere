@@ -62,15 +62,17 @@ export function SearchPreviews({
   query,
   basePath,
   onZoom,
+  streaming = false,
 }: {
   session: GlobalSessionItem;
   matches: SearchMatch[];
   query: string;
   basePath: string;
   onZoom(target: SearchPreviewTarget): void;
+  streaming?: boolean;
 }) {
   return (
-    <>
+    <div className={streaming ? styles.streaming : undefined}>
       {matches.map((match) => (
         <MatchPreview
           key={match.id}
@@ -81,7 +83,7 @@ export function SearchPreviews({
           onZoom={onZoom}
         />
       ))}
-    </>
+    </div>
   );
 }
 

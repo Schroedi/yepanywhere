@@ -32,3 +32,10 @@ silently skip presentation.
 
 The working tree may contain concurrent human or agent edits. Avoid reverting
 or tidying unrelated changes unless the task directly requires them.
+
+For existing and new UI features, verify real sequential typing under the
+feature's expected data volume and concurrent updates. Dropped user keystrokes
+are never acceptable; each keystroke must appear within 100 ms. Whole-field
+replacement tests do not establish this. Keep input acknowledgement independent
+of navigation, filtering, scans, and result rendering; add a regression check
+when changing those paths.

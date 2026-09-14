@@ -5516,6 +5516,7 @@ export class Supervisor {
 
     const now = new Date().toISOString();
     const optimistic = this.buildOptimisticSessionSeed(process);
+    const info = process.getInfo();
     const session: SessionSummary = {
       id: process.sessionId,
       projectId: process.projectId,
@@ -5528,6 +5529,9 @@ export class Supervisor {
       ownership,
       provider: process.provider,
       initialPrompt: optimistic.fullTitle ?? undefined,
+      model: info.model,
+      executor: info.executor,
+      activity: info.state,
     };
 
     const event: SessionCreatedEvent = {

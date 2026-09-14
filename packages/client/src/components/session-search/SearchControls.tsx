@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  startTransition,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useI18n } from "../../i18n";
 import {
   statuses,
@@ -31,15 +37,48 @@ export function SearchHeader({
   fields,
   onFields,
   supported,
+  status,
 }: {
   query: string;
   onQuery(value: string): void;
   fields: SearchField[];
   onFields(value: SearchField[]): void;
   supported: boolean;
+  status?: string;
 }) {
   const { t } = useI18n();
   const input = useRef<HTMLInputElement>(null);
+  const statusArea = useRef<HTMLDivElement>(null);
+  const [statusOpen, setStatusOpen] = useState(false);
+  useEffect(() => {
+    if (!status) setStatusOpen(false);
+  }, [status]);
+  useEffect(() => {
+    if (!statusOpen) return;
+    const close = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !statusArea.current?.contains(event.target)
+      )
+        setStatusOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [statusOpen]);
+  // Router navigation is deferred work; it must never own keyboard echo.
+  const [draft, setDraft] = useState(query);
+  const pendingQueries = useRef<string[]>([]);
+  useEffect(() => {
+    const acknowledged = pendingQueries.current.lastIndexOf(query);
+    if (acknowledged >= 0) {
+      pendingQueries.current.splice(0, acknowledged + 1);
+      if (pendingQueries.current.length) return;
+    } else {
+      // A URL change that we did not send (e.g. Back) replaces the draft.
+      pendingQueries.current = [];
+    }
+    setDraft(query);
+  }, [query]);
   useEffect(() => {
     const desktop = matchMedia("(min-width: 701px)");
     const focus = () => {
@@ -128,16 +167,37 @@ export function SearchHeader({
           </label>
         ))}
       </div>
-      <input
-        ref={input}
-        className={styles.search}
-        type="search"
-        value={query}
-        maxLength={512}
-        onChange={(e) => onQuery(e.target.value)}
-        placeholder={t("globalSessionsSearchPlaceholder")}
-        aria-label={t("globalSessionsSearchPlaceholder")}
-      />
+      <div className={styles.needleRow}>
+        <input
+          ref={input}
+          className={styles.search}
+          type="search"
+          value={draft}
+          maxLength={512}
+          onChange={(e) => {
+            const value = e.target.value;
+            setDraft(value);
+            pendingQueries.current.push(value);
+            startTransition(() => onQuery(value));
+          }}
+          placeholder={t("globalSessionsSearchPlaceholder")}
+          aria-label={t("globalSessionsSearchPlaceholder")}
+        />
+        <div ref={statusArea} className={styles.statusArea}>
+          <button
+            type="button"
+            className={styles.searchStatus}
+            disabled={!status}
+            title={status}
+            aria-label={status || t("sessionSearchStatus")}
+            aria-expanded={statusOpen}
+            onClick={() => setStatusOpen((open) => !open)}
+          >
+            <span role="status">{status}</span>
+          </button>
+          {statusOpen && <div className={styles.statusDetails}>{status}</div>}
+        </div>
+      </div>
     </div>
   );
 }

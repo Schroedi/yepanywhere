@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, appendFile, rm } from "node:fs/promises";
 import { tmpdir, hostname } from "node:os";
 import { join } from "node:path";
 import {
@@ -145,4 +145,26 @@ it("searches cold turns in bounded batches through the mounted route, with role/
   row.sourceVersion = "fixture-2";
   await collections.refresh();
   expect((await post({ ...request, cursor: first.cursor })).status).toBe(409);
+  expect(batch.resumeCursor).toEqual(expect.any(String));
+  await appendFile(
+    file,
+    `${JSON.stringify({ ...entries[1], uuid: "appended", message: { role: "assistant", content: "new needle" } })}\n`,
+  );
+  row.sourceVersion = "fixture-3";
+  await collections.refresh();
+  const appendedResponse = await post({
+    ...request,
+    cursor: batch.resumeCursor,
+  });
+  expect(appendedResponse.status).toBe(200);
+  const appended = (await appendedResponse.json()) as SessionContentSearchBatch;
+  expect(appended.matches.map((match) => match.id)).toEqual(["appended"]);
+  expect(appended.bytesRead).toBeLessThan(2000);
+  expect(appended.done).toBe(true);
+  await writeFile(file, `${JSON.stringify(entries[0])}\n`);
+  row.sourceVersion = "fixture-4";
+  await collections.refresh();
+  expect(
+    (await post({ ...request, cursor: appended.resumeCursor })).status,
+  ).toBe(409);
 });

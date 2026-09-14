@@ -6687,6 +6687,11 @@ describe("Supervisor", () => {
       expect(created).toBeDefined();
       expect(created?.session.title).toBe("Optimistic title from request");
       expect(created?.session.messageCount).toBe(1);
+      expect(created?.session.activity).toBeDefined();
+      expect(created?.session.provider).toBe("claude");
+      expect(created?.session.projectName).toBe("test");
+      expect(created?.session.createdAt).toEqual(expect.any(String));
+      expect(created?.session.updatedAt).toEqual(expect.any(String));
       expect(events.some((event) => event.type === "session-id-remapped")).toBe(
         false,
       );

@@ -19,8 +19,12 @@ export interface SessionContentMatch {
 
 export interface SessionContentSearchBatch {
   matches: SessionContentMatch[];
+  /** Native message IDs replaced by this batch, including messages that no longer match. */
+  replacedIds?: string[];
   cursor?: string;
   done: boolean;
+  /** Resume at the completed tail after a source update; optional on older servers. */
+  resumeCursor?: string;
   partial: boolean;
   unavailable?: string;
   bytesRead: number;

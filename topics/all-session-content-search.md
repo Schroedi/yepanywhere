@@ -13,15 +13,31 @@ are opt-in, independent checkboxes whose matches form a union. Title searches
 the displayed title and the original opening prompt retained in hot metadata.
 A rename does not replace that retained prompt.
 
-Typing filters immediately. Title-only search reads catalog metadata and makes
-no content-search request. Turn search pulls bounded batches after a short
-debounce. A stricter needle immediately filters the previous matching previews
-while its authoritative scan runs; an excerpt failing that local filter is not
-proof that the rest of its turn fails. Progress remains visible until the new
-scan completes. Superseded requests cannot publish into a newer query or source.
-Metadata freshness revalidates a stable query scope while retaining already
-discovered matches until that session's new scan completes. Opening zoom takes
-a page-owned snapshot; result reordering or revalidation does not dismiss it.
+Typing is acknowledged locally, independently of router navigation and result
+work: no keystrokes may be dropped, and each must appear within 100 ms.
+Title-only search reads catalog metadata and makes no content-search request.
+The result DOM grows in batches as the reader scrolls; filtering and selection
+still cover all matching sessions, including those not mounted yet.
+
+Turn search keeps one latest pending needle and at most two scan generations.
+A stricter needle filters previous previews while a replacement scan runs;
+an excerpt failing that local filter does not prove its complete turn fails.
+When a third generation starts, it displaces the second unless that second
+has enough matching rows for the measured viewport, or is already complete;
+then the first is retired. Retired work cannot publish into the current source.
+Rows keep a stable order across updates. Initial streaming reserves one match
+and a continuation line per session, within the user's preview limit. Once
+search completes, 500 ms without pointer, keyboard or scroll activity permits
+expansion to the requested preview count. Later live updates do not collapse
+the already expanded rows back to the initial streaming shape.
+Changing search fields or time criteria starts a fresh reservation, including
+when turn search is enabled after a settled title-only search.
+
+Progress occupies reserved header space to the right of the needle, with full
+text available on hover or tap; starting and stopping work does not move the
+results. Incomplete coverage lists session names and reasons inline and remains
+visible during revalidation. Opening zoom takes a page-owned snapshot;
+reordering or revalidation does not dismiss it.
 
 Ctrl+S selects assistant search and Ctrl+R selects user search, focusing the
 search box. On a server without turn-search support they only focus title
@@ -95,6 +111,11 @@ text rendering: 24 characters before and 118 after the first match. A result
 uses a stable normalized message ID; opening it loads older bounded pages
 when necessary and jumps through the normal transcript navigation owner.
 
+Title matches appear in the session title itself, with no separate Title row.
+The title or matching opening prompt is fitted around the needle using the
+actual available line width and inherited font, with ellipses on either side
+as needed. Resizing recalculates that excerpt.
+
 Full-text tooltips load detail on demand. The match menu offers Zoom preview:
 full matching turn, a separator, and a bounded next assistant preview for a
 user match or preceding user preview for an assistant match. Neighbor context
@@ -116,8 +137,17 @@ selected user/assistant roles, optional inclusive absolute timestamp bounds
 continuation, done/partial flags, bytes read and an optional unavailable reason.
 Authentication and source access remain those of normal session routes.
 The cursor binds the request and source version, expires after 30 minutes,
-and becomes invalid after server restart. Changed or invalidated sources
-require a fresh search, not a mixture of generations.
+and becomes invalid after server restart. Ordinary continuations require the
+same source version. Completed batches may additionally return `resumeCursor`,
+which resumes append acquisition from the verified native tail.
+New batches also report replaced message IDs, so a revised message that no
+longer matches removes its old hit. This optional delta is additive for older
+clients.
+Older servers without `resumeCursor` revalidate only the changed session from
+its start.
+Expired cursors, detected replacement, truncation, changed segment layout or
+saved-boundary mismatch restart only the affected session; failed acquisition
+is reported for that session and does not stop the remaining traversal.
 
 The initial provider reader supports Claude-family and Codex-family transcripts.
 It admits up to 128 native records and 8 MiB per batch, skips oversized or
@@ -127,12 +157,31 @@ line breaks, and whitespace runs are normalized using the preview rules;
 Markdown-delimiter normalization from the index sketch
 is not implemented. Ordinals count normalized visible records.
 
-The client pulls one batch at a time. The server admits at most four concurrent
+Each generation pulls one batch at a time, rotating between eligible sessions
+after every batch so a long transcript cannot starve later matches. The server admits at most four concurrent
 requests; identical in-flight native reads join one computation. There is no
 persistent search job or transcript cache between requests. Unsupported
 providers report incomplete coverage, never a complete empty transcript result.
 A stopped client produces no further batches; a shared in-flight batch is
 bounded by its record/byte limits and timeout.
+
+A hidden document or page-hide event suspends content acquisition and aborts
+the client's outstanding requests. Matches, coverage and cursors remain in
+memory; summary changes coalesce while hidden. Visibility or page-show resumes
+only unfinished and changed eligible sessions. Navigation/unmount permanently
+stops that page's search. An already accepted shared server batch may finish
+within its existing bounds, but a hidden or closed page requests no successor.
+
+The existing source activity subscription supplies catalog and new-session
+changes. Search has one eligible session-ID set, reconciled before scheduling:
+project, provider, executor, status, explicit selection and session-time filters
+exclude sessions from content traversal. Counts use that same eligible set.
+Unchanged sessions retain matches and coverage; changed sessions resume their
+tail, and newly eligible sessions join the queue. No per-session network
+subscription or periodic whole-catalog content rescan is created. New owned
+session notices include model, executor and activity alongside title, project
+identity/name, creation time, last activity and provider. Existing metadata
+updates keep those rows current without a detail fetch for every notice.
 
 ## Design decisions and remaining work
 
