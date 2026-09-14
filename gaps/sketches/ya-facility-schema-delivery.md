@@ -23,9 +23,9 @@ escape from the sandbox. Test a real harness-denied schema, a permitted YA-side
 read, an unrelated denied path, and correct remote-source routing. Keep file
 access and instruction execution authority separate.
 
-Related contracts: [workflow view](../topics/workflow-view.md),
-[session sandboxing](../topics/session-sandboxing.md), and
-[the harness-read gap](sandbox-harness-instruction-read-access.md).
+Related contracts: [workflow view](../../topics/workflow-view.md),
+[session sandboxing](../../topics/session-sandboxing.md), and
+[the harness-read gap](../sandbox-harness-instruction-read-access.md).
 
 Found 2026-09-07 while correcting workflow schema-file activation tests.
 Contributing-model: 6-Astra

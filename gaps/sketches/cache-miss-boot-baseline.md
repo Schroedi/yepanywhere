@@ -4,7 +4,7 @@
 It has no previous observation to size the turn's expected new content against,
 and no fork lineage to expect a warm prefix from, so it forms no expectation and
 records nothing. See
-[`topics/cache-miss-accounting.md`](../topics/cache-miss-accounting.md)
+[`topics/cache-miss-accounting.md`](../../topics/cache-miss-accounting.md)
 § Session boot for the contract this follows from.
 
 That leaves out the recurring cost most worth watching: every new session

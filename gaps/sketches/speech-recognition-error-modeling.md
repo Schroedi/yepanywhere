@@ -14,7 +14,7 @@ error evidence. Select the highest-value terms within each backend's limits
 Deferred at the maintainer's request while wiring vocabulary and recency into
 Grok through YA. Owners include `packages/server/src/services/voice/`, speech
 audio retention, and `packages/client/src/lib/speechDraftTransaction.ts`.
-See [the speech contract](../topics/pluggable-speech-recognition.md#keyterm-biasing)
+See [the speech contract](../../topics/pluggable-speech-recognition.md#keyterm-biasing)
 and [project-specific selection](project-specific-speech-vocabulary.md).
 
 Investigate adaptive evidence from:

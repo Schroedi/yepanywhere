@@ -450,7 +450,7 @@ biasing are implemented as independent, default-off Speech settings. The
 speech-vocabulary UI still appears only when discovery SQLite is ready (the
 default `YEP_SQLITE=auto`). Explicit `YEP_SQLITE=off` remains authoritative.
 Ranking approximations are recorded in
-`gaps/speech-vocabulary-ranking-approximations.md`.
+`gaps/sketches/speech-vocabulary-ranking-approximations.md`.
 
 ### Where the learned table lives
 
@@ -750,10 +750,10 @@ a ceiling — session terms that outrank everything still take more than their
 share, and the list is filled to its limit with unique terms either way. A
 principled replacement would blend session and global evidence in probability
 space rather than scale a score; see
-[the ranking approximations gap](../gaps/speech-vocabulary-ranking-approximations.md). The score only selects the list inside YA: Grok receives plain
+[the ranking approximations gap](../gaps/sketches/speech-vocabulary-ranking-approximations.md). The score only selects the list inside YA: Grok receives plain
 repeated `keyterm` values, never numeric scores or weights. Acoustic confusion,
 homophones, and measured error probabilities remain in the requested
-[error-modeling gap](../gaps/speech-recognition-error-modeling.md); no
+[error-modeling gap](../gaps/sketches/speech-recognition-error-modeling.md); no
 transcription-quality gain is established by this heuristic.
 Caller-supplied keyterms take priority within Grok's same limits. Batch and
 both direct-to-YA and relayed streaming requests use the same selection;
@@ -813,7 +813,7 @@ The session-terms contract extends the request payload on the existing
 transcription route and WebSocket GET upgrade. It does not own the whole
 speech route module or gate its key, prewarm, and other recognition routes.
 
-The [project-specific vocabulary gap](../gaps/project-specific-speech-vocabulary.md)
+The [project-specific vocabulary gap](../gaps/sketches/project-specific-speech-vocabulary.md)
 tracks project-wide selection beyond the active-session bonus. Durable learned
 counts remain installation-wide; no per-project occurrence records are added.
 

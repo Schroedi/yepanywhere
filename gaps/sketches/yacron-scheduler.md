@@ -1,13 +1,13 @@
 # YA has no generally running yacron scheduler
 
 YA and its provider host do not currently supply the generally running local
-scheduler proposed in [`topics/yacron.md`](../topics/yacron.md). Ordinary
+scheduler proposed in [`topics/yacron.md`](../../topics/yacron.md). Ordinary
 agent sessions no longer probe the existing `~/agents` `at/` queue at startup,
 so due work still has no punctual owner unless a user invokes that protocol
 explicitly.
 
 Missing feature: implement yacron's single-owner scheduler/store and agent CLI,
-using the [agent command runtime sketch](../topics/agent-command-runtime.sketches.md) for the
+using the [agent command runtime sketch](../../topics/agent-command-runtime.sketches.md) for the
 integrated supervised-session launcher rather than adding another desktop
 sidecar or global YA command. Then support either or both explicit deployment
 variants. The standalone

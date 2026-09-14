@@ -3,8 +3,8 @@
 The agreed first version of the readiness check is server-wide, configured
 under Settings → Message Delivery → Project Queue. This entry records the
 deliberately deferred project-specific extension.
-See [Project Queue](../topics/project-queue.md) and
-[Project Settings Overrides](../topics/project-settings-overrides.md).
+See [Project Queue](../../topics/project-queue.md) and
+[Project Settings Overrides](../../topics/project-settings-overrides.md).
 
 Later, Project Settings should offer three explicit choices:
 

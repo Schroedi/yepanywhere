@@ -120,7 +120,7 @@ text cannot expose the prefix during later reconciliation.
 Choose whether to normalize resume injection and durable transcript
 presentation across providers or make the Settings copy provider-specific.
 The current provider and compaction evidence is maintained in
-[agent context injection](../topics/agent-context-injection.md#current-ya-placement).
+[agent context injection](../../topics/agent-context-injection.md#current-ya-placement).
 Kyle introduced the default-off setting and current provider composition in
 `77d8f697` (2026-06-13); graehl added the always-visible fragment preview and
 expanded placement copy in `9e35d054` (2026-08-11).

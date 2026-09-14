@@ -3,7 +3,7 @@
 `StorageFilesystemBanner`
 (`packages/client/src/components/StorageFilesystemBanner.tsx:62`) appears when
 the server refused to open `discovery.sqlite` because the data directory is on
-a network filesystem ([optional SQLite](../topics/optional-sqlite.md) § Data
+a network filesystem ([optional SQLite](../../topics/optional-sqlite.md) § Data
 directory placement). It names the filesystem and prints the `YEP_DATA_DIR`
 assignment to set, which leaves the actual move as manual shell work the user
 does outside YA, on a server they then have to restart. The banner should carry
@@ -11,7 +11,7 @@ a control that offers to do it, next to the Dismiss button.
 
 This is the upgrade path, and it is the only path these users get. A first-start
 flow that picks a suitable filesystem reaches new installs only — by the
-condition recorded in [optional SQLite](../topics/optional-sqlite.md) § When YA
+condition recorded in [optional SQLite](../../topics/optional-sqlite.md) § When YA
 may choose the directory for the user, it cannot fire for anyone whose
 `~/.yep-anywhere` already exists, which is exactly this population. Their entry
 point is this banner, on the load right after they upgrade to a server that
@@ -30,7 +30,7 @@ What makes the move itself its own piece of work rather than a banner tweak:
 
 - **The unit is the whole data directory, not the database.** Moving only
   `discovery.sqlite` would split YA state across two filesystems and break the
-  `{dataDir}` contract that [app-data ownership](../topics/project-directory-storage.md)
+  `{dataDir}` contract that [app-data ownership](../../topics/project-directory-storage.md)
   owns. Logs, indexes, uploads, the session catalog, and every JSON store go
   together.
 - **The server is holding those files open**, including an append-only log with
@@ -53,7 +53,7 @@ What makes the move itself its own piece of work rather than a banner tweak:
   the cheap version and it is worth shipping first: with learning enabled the
   bloom file is open there by design, so the banner warns without a button until
   the sequence above exists. See
-  [the vocabulary placement gap](vocabulary-scratch-placement-is-never-surfaced.md).
+  [the vocabulary placement gap](../vocabulary-scratch-placement-is-never-surfaced.md).
 - **One banner serves both placement reasons.** The signal carries a reason
   text and the banner is otherwise identical whether SQLite refused at startup
   or vocabulary learning degraded onto the same directory, so the user gets one
@@ -73,7 +73,7 @@ What makes the move itself its own piece of work rather than a banner tweak:
   use, and do not mutate a running graph to hand a late-arriving database to
   features that already started without one. Today `DiscoverySqliteService` is
   built once and deliberately never retries, which
-  [optional SQLite](../topics/optional-sqlite.md) states as a contract
+  [optional SQLite](../../topics/optional-sqlite.md) states as a contract
   ("version requests do not probe storage or retry initialization"), and
   `app.ts:2061` and `app.ts:2148` each call `getDatabase()` once and skip
   wiring their feature when it returns nothing. All of that stays. The

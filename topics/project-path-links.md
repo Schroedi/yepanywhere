@@ -404,16 +404,16 @@ The table covers only the currently loaded semantic transcript window. An
 unloaded full-path link immediately above the older-page seam cannot seed a
 basename below it; `gaps/project-path-basename-alias-pagination-seam.md` records
 that low-priority edge. Only the basename is retained today. Matching longer
-path suffixes is separately deferred in `gaps/project-path-suffix-aliases.md`
+path suffixes is separately deferred in `gaps/sketches/project-path-suffix-aliases.md`
 until its replay and memory cost is measured. The initial browser
 implementation uses a simple basename map plus an additional token scan over
-loaded bodies; `gaps/project-path-basename-replay-scan.md` keeps the possible
+loaded bodies; `gaps/sketches/project-path-basename-replay-scan.md` keeps the possible
 versioned-index/trie replacement contingent on measured cost.
 
 Extensionless basenames deliberately remain eligible. This can link an
 ordinary word when it happens to equal a recently established filename even
 though the assistant did not mean the file. That accepted provisional cost is
-tracked in `gaps/project-path-basename-common-word-false-positives.md`; a common
+tracked in `gaps/sketches/project-path-basename-common-word-false-positives.md`; a common
 filename denylist needs user-frustration evidence before it narrows linking.
 
 ## Version-control affordances
@@ -566,7 +566,7 @@ are removed on the next completion request, with no dormant timer. These are
 per-project accounting limits, not a process-wide heap guarantee; aggregate
 retention grows with the projects actually used. Cache state need not survive
 a server restart. Optional disk persistence is deferred in
-`gaps/project-file-completion-persistence.md`.
+`gaps/sketches/project-file-completion-persistence.md`.
 
 At most two scans and eight distinct queries run simultaneously; identical
 in-flight queries share one computation. Git enumeration is streamed as NUL

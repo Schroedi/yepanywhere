@@ -360,7 +360,7 @@ only to ask whether a reference exists: YA writes nothing to a tracker, mirrors
 no tracker state, and makes no request for a reference it has already asked
 about. This feature does not
 close the [cold-storage startup gap](../gaps/sqlite-backed-cold-storage-startup.md),
-[commit attribution gap](../gaps/committed-change-session-attribution.md) or
+[commit attribution gap](../gaps/sketches/committed-change-session-attribution.md) or
 [worktree identity gap](../gaps/session-worktree-file-links.md).
 
 T3 reference: `~/github/t3code` at `d29c56a5c`, inspected 2026-09-10.

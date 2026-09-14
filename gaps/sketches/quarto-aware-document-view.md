@@ -2,13 +2,13 @@
 
 YA's rendered-document path recognizes `.qmd` and renders standalone Quarto
 include directives as inert file-viewer links under the contract in
-[`topics/quarto-markdown.md`](../topics/quarto-markdown.md). `safe-markdown.ts`
+[`topics/quarto-markdown.md`](../../topics/quarto-markdown.md). `safe-markdown.ts`
 still renders a deliberately small Markdown-It vocabulary, so a
 Quarto/Pandoc manuscript shown in `FileViewer` loses or exposes as source such
 high-value document semantics as YAML front matter, figure identifiers and
 captions, subfigures/layout divs, cross-references, `fig-alt`, and footnotes.
 The existing footnote limitation is also recorded in
-[`topics/rich-text-rendering.md` § Known gaps / future work](../topics/rich-text-rendering.md#known-gaps--future-work).
+[`topics/rich-text-rendering.md` § Known gaps / future work](../../topics/rich-text-rendering.md#known-gaps--future-work).
 
 The primary feature should be an explicit **Render with Quarto** action in the
 document viewer. YA still shows its safe direct preview immediately; the user
@@ -52,7 +52,7 @@ designed containment boundary. Any renderer process needs resource limits;
 generated output and caches belong under YA's data directory by default, never
 beside the manuscript. Sanitized fragments may stay in YA's document origin,
 while executable output follows
-[`active-content-security`](../topics/active-content-security.md).
+[`active-content-security`](../../topics/active-content-security.md).
 
 The eventual path should remain progressive: show the safe direct preview
 immediately, bind every result to the file's source revision, cancel or ignore

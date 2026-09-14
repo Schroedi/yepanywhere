@@ -10,7 +10,7 @@ added to all four without attempting a split; none of those diffs opened a
 seam wide enough to force it, so this records the debt instead.
 
 The seam choices, tripwires, and disposition rule are maintained under
-[`docs/tactical/058-typescript-module-boundary-refactor.md` § Open seam inventory](../docs/tactical/058-typescript-module-boundary-refactor.md#open-seam-inventory-later-hub-growth).
+[`docs/tactical/058-typescript-module-boundary-refactor.md` § Open seam inventory](../../docs/tactical/058-typescript-module-boundary-refactor.md#open-seam-inventory-later-hub-growth).
 This gap remains the concise defect ledger; suggested module movement belongs
 in that tactical plan.
 

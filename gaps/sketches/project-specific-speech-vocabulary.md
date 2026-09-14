@@ -8,7 +8,7 @@ specialized vocabulary from occupying the limited keyterm budget.
 The owners are `packages/server/src/services/voice/VocabularyStore.ts`,
 `VocabularyKeyterms.ts`, and the speech request context in
 `packages/server/src/routes/speech.ts`. The existing contract and context
-candidates live in [the speech topic](../topics/pluggable-speech-recognition.md#keyterm-biasing).
+candidates live in [the speech topic](../../topics/pluggable-speech-recognition.md#keyterm-biasing).
 
 A first version needs no new source of text. The sessions already scanned belong
 to projects, so their existing counts can carry the mixture, reservation or

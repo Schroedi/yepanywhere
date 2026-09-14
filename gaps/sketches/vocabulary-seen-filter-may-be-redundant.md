@@ -4,7 +4,7 @@ Compaction now bounds the filter in time: at a tenth of a percent false
 positive it is rebuilt from the last epsilon of history and swapped in by
 rename, with a floor recorded so the forgotten messages cannot count twice, and
 every learned count survives. See
-[pluggable speech recognition](../topics/pluggable-speech-recognition.md) for
+[pluggable speech recognition](../../topics/pluggable-speech-recognition.md) for
 the contract. What follows is what that left open.
 
 **A correction to this entry's earlier framing.** It previously said nothing
@@ -44,7 +44,7 @@ batch, so the `hasScanned` `{version, cutoff}` rows are already consistent.
 **Superseded.** The section below proposed a stored "collect from this instant"
 so that zero hours could mean live collection. That was making a replay window
 impersonate arrival. The real answer is
-[the missing live tail](vocabulary-learning-has-no-live-tail.md): a message that
+[the missing live tail](../vocabulary-learning-has-no-live-tail.md): a message that
 arrives while collection is on qualifies without any timestamp test, replay
 stays gated by the window, and nothing needs anchoring. Kept because the
 measurement and the skip-or-cover reasoning still hold for the replay half.

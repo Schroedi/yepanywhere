@@ -421,7 +421,7 @@ formulas as literal text, matching the experience in their editor.
   chunks with renderer-provided or coarse source-line alignment, then place range
   markers against that rendered output. The broader `.qmd`, caption,
   cross-reference, figure-layout, and optional delayed-render work is tracked in
-  [`gaps/quarto-aware-document-view.md`](../gaps/quarto-aware-document-view.md).
+  [`gaps/sketches/quarto-aware-document-view.md`](../gaps/sketches/quarto-aware-document-view.md).
   The currently supported `.qmd` recognition and inert include-link behavior
   are specified in
   [`topics/quarto-markdown.md`](../topics/quarto-markdown.md).

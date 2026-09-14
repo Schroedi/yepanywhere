@@ -8,7 +8,7 @@ lost between the service and disk. The transcript offers no field that
 distinguishes this from a turn the agent chose to end, unlike the steering
 abort beside it, which Claude Code stamps `isAbortedMidStream` and which the
 transcript view now marks (`TextBlock` `abortedMidStream`, see
-[steer/queue provider differences](../topics/steer-queue-provider-differences.md#a-steer-that-cuts-the-turn)).
+[steer/queue provider differences](../../topics/steer-queue-provider-differences.md#a-steer-that-cuts-the-turn)).
 
 Observed twice in one session on 2026-09-11 at 01:25:55Z and 01:29:09Z, Opus 5
 at high effort with roughly 370k tokens of context. Two events in 382 completed

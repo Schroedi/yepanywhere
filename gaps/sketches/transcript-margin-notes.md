@@ -28,16 +28,16 @@ their producers have not been selected.
 Relevant owners for investigation are the transcript layout in
 `packages/client/src/components/MessageList.tsx` and the session layout in
 `packages/client/src/pages/SessionPage.tsx`. Follow
-[responsive layout](../topics/responsive-layout-gaps.md) for sizing and
-[scrollback stability](../topics/scrollback-view-stability.md) for anchoring.
+[responsive layout](../../topics/responsive-layout-gaps.md) for sizing and
+[scrollback stability](../../topics/scrollback-view-stability.md) for anchoring.
 No dedicated margin-note entry was found in gaps, topics, tasks, or tacticals.
 
 Before implementation, choose the first useful note type, above/below
 placement, collision behavior, and how users enable the feature under
-[vanilla defaults](../topics/vanilla-defaults.md). Verify wide and narrow
+[vanilla defaults](../../topics/vanilla-defaults.md). Verify wide and narrow
 windows, large text, dense adjacent notes, resize, and streaming. This gap
 does not change the chosen in-transcript answer composer in the
-[async-question gap](codex-async-question-answer-ui.md).
+[async-question gap](../codex-async-question-answer-ui.md).
 
 Not implemented: the request was to capture a separate YA gap; no note type
 or concrete interaction has yet been chosen.
