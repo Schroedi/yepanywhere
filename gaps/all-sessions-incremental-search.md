@@ -116,6 +116,8 @@ Both selector; they do not approve its backend design or reprioritize the roadma
   query generations, and duplicate-title hiding; matching distinct sessions
   must remain reachable even when their titles are equal.
 - Use the status icons as condition filters, with visible pressed states.
+  Prefix them with **Filter** when the row has room; hide that caption when
+  space is insufficient, retaining the icons and their accessible labels.
   The most recently activated status exposes a separate captioned action such
   as **Make unarchived ✓ N**, applying that status to the complete explicit
   selection, including filtered-out sessions. Icon toggles never mutate sessions
