@@ -908,6 +908,7 @@ export interface ProcessConstructorOptions extends ProcessOptions {
    * Returns false when steering is unavailable and caller should enqueue.
    */
   steerFn?: (message: UserMessage) => Promise<boolean>;
+  steerUsesMessageQueue?: boolean;
   appendConversationContextFn?: (
     turns: ConversationContextTurn[],
   ) => Promise<boolean>;
@@ -1089,6 +1090,7 @@ export class Process {
   private interruptFn: (() => Promise<undefined | boolean>) | null;
   /** Function to steer an active turn (provider-specific, currently Codex app-server) */
   private steerFn: ((message: UserMessage) => Promise<boolean>) | null;
+  private readonly steerUsesMessageQueue: boolean;
   private appendConversationContextFn: ProcessConstructorOptions["appendConversationContextFn"];
 
   /** Function to get supported models (SDK 0.2.7+) */
@@ -1253,6 +1255,7 @@ export class Process {
     this.effortUpdatesActiveTurn = options.effortUpdatesActiveTurn === true;
     this.interruptFn = options.interruptFn ?? null;
     this.steerFn = options.steerFn ?? null;
+    this.steerUsesMessageQueue = options.steerUsesMessageQueue ?? false;
     this.appendConversationContextFn = options.appendConversationContextFn;
     this.supportedModelsFn = options.supportedModelsFn ?? null;
     this.supportedCommandsFn = options.supportedCommandsFn ?? null;
@@ -1322,6 +1325,17 @@ export class Process {
 
     this.unsubscribeMessageQueueYielded = this.messageQueue?.subscribeYielded?.(
       (messages) => {
+        const external = [...messages]
+          .reverse()
+          .find(
+            (message) =>
+              Boolean(message.metadata?.sourceSessionId) &&
+              message.metadata?.sourceSessionId !== this._sessionId &&
+              !isHiddenInjectedMessage(message),
+          );
+        if (external && messages[0]?.uuid) {
+          this.emitNonHumanUserTurn(external, messages[0].uuid);
+        }
         const turnKind = messages.some(
           (message) =>
             !isHiddenInjectedMessage(message) &&
@@ -3292,6 +3306,24 @@ export class Process {
     this.emit({ type: "message", message: sdkMessage });
   }
 
+  private emitNonHumanUserTurn(message: UserMessage, uuid: string): void {
+    const sourceSessionId = message.metadata?.sourceSessionId;
+    if (
+      !sourceSessionId ||
+      sourceSessionId === this._sessionId ||
+      isHiddenInjectedMessage(message)
+    )
+      return;
+    this.emit({
+      type: "non-human-user-turn",
+      turn: {
+        messageId: uuid,
+        sourceSessionId,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  }
+
   /**
    * Format file size for display.
    */
@@ -3343,7 +3375,15 @@ export class Process {
     options?: { interrupted?: boolean; preamble?: string },
   ): UserMessage {
     return concatUserMessages(
-      messages,
+      messages.map((message) =>
+        message.metadata?.sourceSessionId === this._sessionId ||
+        isHiddenInjectedMessage(message)
+          ? {
+              ...message,
+              metadata: { ...message.metadata, sourceSessionId: undefined },
+            }
+          : message,
+      ),
       options?.preamble ??
         (options?.interrupted ? INTERRUPT_PREAMBLE : undefined),
     );
@@ -3557,6 +3597,8 @@ export class Process {
           .then((steered) => {
             if (!steered) {
               this.messageQueue?.push(messageWithUuid);
+            } else if (!this.steerUsesMessageQueue) {
+              this.emitNonHumanUserTurn(messageWithUuid, uuid);
             }
           })
           .catch((error) => {
@@ -3587,6 +3629,7 @@ export class Process {
 
     // Legacy behavior for mock SDK
     this.legacyQueue.push(providerMessage);
+    this.emitNonHumanUserTurn(messageWithUuid, uuid);
     if (this._state.type === "idle") {
       this.processNextInQueue();
     }

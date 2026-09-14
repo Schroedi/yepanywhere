@@ -10,6 +10,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import {
   type CacheMissBillingRecord,
+  type NonHumanUserTurn,
   type DurableRecapMessage,
   type DurableLocalCommandMessage,
   type DurableSyntheticDoneMessage,
@@ -52,12 +53,6 @@ export type EffectiveSessionLaunchSettingsValue = Omit<
   EffectiveSessionLaunchSettings,
   "schemaVersion" | "revision"
 >;
-
-export interface NonHumanUserTurn {
-  messageId: string;
-  timestamp: string;
-  sourceSessionId: string;
-}
 
 export interface SessionMetadata {
   /** Retain the acknowledged receipt so replay cannot raise it again. */
@@ -165,6 +160,19 @@ const MAX_CACHE_MISS_BILLING_EVENTS_PER_SESSION = 100;
 export interface SessionMetadataServiceOptions {
   /** Directory to store metadata state (defaults to ~/.yep-anywhere) */
   dataDir?: string;
+}
+
+/** Public projection omits the persisted acknowledgement tombstone. */
+export function pendingNonHumanUserTurn(
+  metadata: SessionMetadata | undefined,
+): NonHumanUserTurn | undefined {
+  const turn = metadata?.nonHumanUserTurn;
+  if (!turn || turn.acknowledged) return undefined;
+  return {
+    messageId: turn.messageId,
+    timestamp: turn.timestamp,
+    sourceSessionId: turn.sourceSessionId,
+  };
 }
 
 export class SessionMetadataService {
@@ -291,10 +299,7 @@ export class SessionMetadataService {
   }
 
   getPendingNonHumanUserTurn(sessionId: string): NonHumanUserTurn | undefined {
-    const turn = this.getMetadata(sessionId)?.nonHumanUserTurn;
-    if (!turn || turn.acknowledged) return undefined;
-    const { acknowledged: _, ...pending } = turn;
-    return pending;
+    return pendingNonHumanUserTurn(this.getMetadata(sessionId));
   }
 
   async recordNonHumanUserTurn(

@@ -1,5 +1,6 @@
 import type {
   AppSessionSummary,
+  NonHumanUserTurn,
   AgentActivity,
   CodexAsyncUserInputQuestion,
   ContextUsage,
@@ -305,6 +306,7 @@ export interface ProcessAbortResult {
 
 // Process events for subscribers
 export type ProcessEvent =
+  | { type: "non-human-user-turn"; turn: NonHumanUserTurn }
   | { type: "message"; message: SDKMessage }
   | { type: "user-turn-accepted"; startedAtMs: number }
   | {

@@ -1,4 +1,5 @@
 import { SessionIssuesLink } from "../components/SessionIssuesLink";
+import { useNonHumanUserTurnNavigation } from "../hooks/useNonHumanUserTurnNavigation";
 import type {
   BangCommandTranscriptDisplayObject,
   EffortLevel,
@@ -2806,16 +2807,40 @@ function SessionPageContent({
   const [scrollToTurnRequest, setScrollToTurnRequest] = useState<{
     id: string;
     token: number;
+    onResolved?: (found: boolean) => void;
   } | null>(null);
-  const handleGoToRecallTurn = useCallback((id: string) => {
-    if (!id) {
-      return;
-    }
-    setScrollToTurnRequest((previous) => ({
-      id,
-      token: (previous?.token ?? 0) + 1,
-    }));
-  }, []);
+  const handleGoToRecallTurn = useCallback(
+    (id: string, onResolved?: (found: boolean) => void) => {
+      if (!id) {
+        return;
+      }
+      setScrollToTurnRequest((previous) => ({
+        id,
+        token: (previous?.token ?? 0) + 1,
+        onResolved,
+      }));
+    },
+    [],
+  );
+  useNonHumanUserTurnNavigation({
+    sessionId,
+    messages,
+    loading: loading || isDomLingerParked,
+    loadingOlder,
+    hasOlder: pagination?.hasOlderMessages ?? false,
+    olderCursor: pagination?.truncatedBeforeMessageId,
+    loadOlder: loadOlderMessages,
+    jump: handleGoToRecallTurn,
+    onError: (kind) =>
+      showToast(
+        t(
+          kind === "unavailable"
+            ? "nonHumanUserTurnUnavailable"
+            : "nonHumanUserTurnAcknowledgeFailed",
+        ),
+        "error",
+      ),
+  });
   const composerTurnRecall = useMemo(
     () => ({
       entries: composerTurnRecallEntries,

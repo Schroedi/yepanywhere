@@ -384,6 +384,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "session-async-questions",
     introducedIn: "0.8.2",
   },
+  nonHumanUserTurn: {
+    id: 72,
+    direction: "server",
+    name: "non-human-user-turn",
+    introducedIn: "0.8.2",
+  },
   projectQueueReadinessCheck: {
     id: 61,
     direction: "server",

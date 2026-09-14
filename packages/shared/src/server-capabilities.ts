@@ -414,6 +414,33 @@ export const SERVER_CAPABILITIES = {
       reason: "Older servers lack the commentary rendering endpoint.",
     },
   },
+  nonHumanUserTurn: {
+    id: CAPABILITY_ID_ALLOCATIONS.nonHumanUserTurn.id,
+    name: "non-human-user-turn",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Durable cross-session user-turn attention and exact-turn acknowledgement.",
+    clientFallback:
+      "Hide delivery flags and make no delivery acknowledgement request.",
+    serverContract: {
+      requestFields: [
+        "messageMetadata.sourceSessionId",
+        "nonHumanUserTurnMessageId",
+      ],
+      responseFields: [
+        "session.nonHumanUserTurn",
+        "inboxItem.nonHumanUserTurn",
+      ],
+      events: ["session-metadata-changed"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers do not retain cross-session delivery provenance.",
+    },
+  },
   sessionAsyncQuestions: {
     id: CAPABILITY_ID_ALLOCATIONS.sessionAsyncQuestions.id,
     name: "session-async-questions",
@@ -2625,6 +2652,8 @@ export const RETAINED_SESSION_COLLECTIONS_CAPABILITY =
   SERVER_CAPABILITIES.retainedSessionCollections.name;
 export const SESSION_ASYNC_QUESTIONS_CAPABILITY =
   SERVER_CAPABILITIES.sessionAsyncQuestions.name;
+export const NON_HUMAN_USER_TURN_CAPABILITY =
+  SERVER_CAPABILITIES.nonHumanUserTurn.name;
 export const ACLI_COMMENTARY_RENDERING_CAPABILITY =
   SERVER_CAPABILITIES.acliCommentaryRendering.name;
 export const PROJECT_QUEUE_CAPABILITY = SERVER_CAPABILITIES.projectQueue.name;

@@ -33,6 +33,7 @@ export type SessionCollectionObservationSource =
   | "session-seen";
 
 export interface SessionCollectionRecord {
+  nonHumanUserTurn?: GlobalSessionItem["nonHumanUserTurn"];
   id: string;
   title?: string | null;
   fullTitle?: string | null;

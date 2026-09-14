@@ -9,6 +9,8 @@ import {
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { SessionAsyncQuestionsButton } from "./SessionAsyncQuestionsButton";
+import { useNonHumanUserTurn } from "../hooks/useNonHumanUserTurn";
+import attentionStyles from "./SessionNonHumanUserTurn.module.css";
 import type { AgentActivity } from "../hooks/useFileActivity";
 import { useHoverCardSettings } from "../hooks/useHoverCardAppearance";
 import { useSessionHoverCardController } from "../hooks/useSessionHoverCardController";
@@ -98,6 +100,8 @@ interface SessionListItemProps {
 
   // Custom badge (for Inbox)
   customBadge?: { label: string; className: string } | null;
+  /** Inbox rows open their pending delivery instead of the normal session tail. */
+  openNonHumanUserTurn?: boolean;
 
   // Actions (menu hidden when all undefined)
   isStarred?: boolean;
@@ -201,6 +205,7 @@ export function SessionListItem({
   showActivityIndicator = false,
   // Custom badge
   customBadge,
+  openNonHumanUserTurn = false,
   // Actions
   isStarred: isStarredProp,
   isArchived: isArchivedProp,
@@ -231,6 +236,7 @@ export function SessionListItem({
 }: SessionListItemProps) {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const nonHumanUserTurn = useNonHumanUserTurn(sessionId);
 
   // Local state for optimistic updates (only used when action handlers are provided)
   const [localIsStarred, setLocalIsStarred] = useState<boolean | undefined>(
@@ -600,7 +606,13 @@ export function SessionListItem({
     .filter(Boolean)
     .join(" ");
 
-  const sessionHref = `${basePath}/projects/${projectId}/sessions/${sessionId}`;
+  const plainSessionHref = `${basePath}/projects/${projectId}/sessions/${sessionId}`;
+  const nonHumanTurnHref = nonHumanUserTurn
+    ? `${plainSessionHref}?nonHumanTurn=${encodeURIComponent(nonHumanUserTurn.messageId)}`
+    : plainSessionHref;
+  const sessionHref = openNonHumanUserTurn
+    ? nonHumanTurnHref
+    : plainSessionHref;
   const parentHref =
     parentSessionId && isBtwAside
       ? buildBtwAsideParentHref(basePath, projectId, parentSessionId, sessionId)
@@ -1044,6 +1056,30 @@ export function SessionListItem({
         </Link>
       )}
       <span className={styles.questions}>
+        {nonHumanUserTurn && (
+          <Link
+            to={nonHumanTurnHref}
+            className={attentionStyles.flag}
+            title={t("nonHumanUserTurnFlag")}
+            aria-label={t("nonHumanUserTurnFlag")}
+            onClick={(event) => {
+              event.stopPropagation();
+              onNavigate?.();
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <path d="M5 21V3m0 1c5-4 9 4 14 0v10c-5 4-9-4-14 0" />
+            </svg>
+          </Link>
+        )}
         <SessionAsyncQuestionsButton
           sessionId={sessionId}
           basePath={basePath}

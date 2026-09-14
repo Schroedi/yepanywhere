@@ -108,6 +108,7 @@ export interface PaginationInfo {
  * An item in the inbox representing a session that may need attention.
  */
 export interface InboxItem {
+  nonHumanUserTurn?: AppSessionSummary["nonHumanUserTurn"];
   asyncQuestions?: AppSessionSummary["asyncQuestions"];
   sessionId: string;
   projectId: string;
@@ -138,6 +139,7 @@ export interface InboxResponse {
  * An item in the global sessions list.
  */
 export interface GlobalSessionItem {
+  nonHumanUserTurn?: AppSessionSummary["nonHumanUserTurn"];
   asyncQuestions?: AppSessionSummary["asyncQuestions"];
   id: string;
   title?: string | null;
@@ -1271,10 +1273,11 @@ export const api = {
     sessionId: string,
     timestamp?: string,
     messageId?: string,
+    nonHumanUserTurnMessageId?: string,
   ) =>
     fetchJSON<{ marked: boolean }>(`/sessions/${sessionId}/mark-seen`, {
       method: "POST",
-      body: JSON.stringify({ timestamp, messageId }),
+      body: JSON.stringify({ timestamp, messageId, nonHumanUserTurnMessageId }),
     }),
 
   markSessionUnread: (sessionId: string) =>

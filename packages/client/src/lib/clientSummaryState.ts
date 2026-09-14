@@ -175,6 +175,7 @@ const REMAP_MERGE_GROUPS = {
     "providerChildren",
   ],
   metadataObservedAt: [
+    "nonHumanUserTurn",
     "customTitle",
     "isArchived",
     "isStarred",
@@ -1055,6 +1056,7 @@ function upsertInboxItemRecord(
     record,
     {
       customTitle: item.customTitle,
+      nonHumanUserTurn: item.nonHumanUserTurn,
       isStarred: item.isStarred,
     },
     observation,
@@ -1246,6 +1248,7 @@ function withMetadataFields(
   record: SessionCollectionRecord,
   fields: {
     customTitle?: string;
+    nonHumanUserTurn?: GlobalSessionItem["nonHumanUserTurn"];
     isArchived?: boolean;
     isStarred?: boolean;
     autoResumeDisabled?: boolean;
@@ -1265,6 +1268,13 @@ function withMetadataFields(
     ...record,
     ...(canApplyObservedField(record.customTitle, fields.customTitle, isFresh)
       ? { customTitle: fields.customTitle }
+      : {}),
+    ...(canApplyObservedField(
+      record.nonHumanUserTurn,
+      fields.nonHumanUserTurn,
+      isFresh,
+    )
+      ? { nonHumanUserTurn: fields.nonHumanUserTurn }
       : {}),
     ...(canApplyObservedField(record.isArchived, fields.isArchived, isFresh)
       ? { isArchived: fields.isArchived }
@@ -1491,6 +1501,7 @@ function upsertSnapshotRecord(
     record,
     {
       customTitle: row.customTitle,
+      nonHumanUserTurn: row.nonHumanUserTurn,
       isArchived: row.isArchived,
       isStarred: row.isStarred,
       autoResumeDisabled: row.autoResumeDisabled,
@@ -1671,7 +1682,10 @@ export function applySessionCollectionTitleSnapshot(
   );
   record = withMetadataFields(
     record,
-    { customTitle: session.customTitle },
+    {
+      customTitle: session.customTitle,
+      nonHumanUserTurn: session.nonHumanUserTurn,
+    },
     observation,
   );
   record = withProjectFields(
@@ -2034,6 +2048,7 @@ export function applySessionCollectionCreated(
     record,
     {
       customTitle: session.customTitle,
+      nonHumanUserTurn: session.nonHumanUserTurn,
       isArchived: session.isArchived,
       isStarred: session.isStarred,
       parentSessionId: session.parentSessionId,
@@ -2110,6 +2125,7 @@ export function applySessionCollectionMetadataChanged(
     getRecord(state, event.sessionId),
     {
       customTitle: event.title,
+      nonHumanUserTurn: event.nonHumanUserTurn,
       isArchived: event.archived,
       isStarred: event.starred,
       parentSessionId: event.parentSessionId,

@@ -773,7 +773,11 @@ interface Props {
    * recall drawer's go-to-turn control). `token` distinguishes repeat requests
    * for the same id. Resolved via `scrollToRenderId` / `findRenderRow`.
    */
-  scrollToTurnRequest?: { id: string; token: number } | null;
+  scrollToTurnRequest?: {
+    id: string;
+    token: number;
+    onResolved?: (found: boolean) => void;
+  } | null;
   /** Messages waiting for server confirmation (shown as "Sending...") */
   pendingMessages?: PendingMessage[];
   /** Deferred messages queued server-side (shown as "Queued") */
@@ -3325,10 +3329,14 @@ export const MessageList = memo(function MessageList({
       align: "start" | "center" = "start",
       showMotionCue = false,
       questionId?: string,
+      onResolved?: (found: boolean) => void,
     ) => {
       const messageList = containerRef.current;
       const scrollContainer = messageList?.parentElement;
-      if (!scrollContainer) return;
+      if (!scrollContainer) {
+        onResolved?.(false);
+        return;
+      }
       pendingInitialScrollRestoreRef.current = null;
       shouldAutoScrollRef.current = false;
       setIsScrolledToBottom(false);
@@ -3376,9 +3384,13 @@ export const MessageList = memo(function MessageList({
         return true;
       };
 
-      if (scrollMountedRow(showMotionCue)) return;
+      if (scrollMountedRow(showMotionCue)) {
+        onResolved?.(true);
+        return;
+      }
       const estimatedTop = transcriptRenderWindow.getRenderIdTop(id);
       if (estimatedTop === null || !transcriptRenderWindow.revealRenderId(id)) {
+        onResolved?.(false);
         return;
       }
       const estimatedOffset =
@@ -3399,9 +3411,12 @@ export const MessageList = memo(function MessageList({
       const settleRevealedRow = () => {
         revealRenderTargetFrameRef.current = requestAnimationFrame(() => {
           revealRenderTargetFrameRef.current = null;
-          if (!scrollMountedRow(false) && attemptsRemaining > 0) {
+          const found = scrollMountedRow(false);
+          if (!found && attemptsRemaining > 0) {
             attemptsRemaining -= 1;
             settleRevealedRow();
+          } else {
+            onResolved?.(found);
           }
         });
       };
@@ -4315,18 +4330,25 @@ export const MessageList = memo(function MessageList({
   const lastScrollToTurnTokenRef = useRef<number | null>(null);
   useEffect(() => {
     const request = scrollToTurnRequest;
-    if (!request?.id) {
+    if (!request?.id || inert || progressiveRevealActive) {
       return;
     }
     if (lastScrollToTurnTokenRef.current === request.token) {
       return;
     }
-    lastScrollToTurnTokenRef.current = request.token;
-    const frame = requestAnimationFrame(() =>
-      scrollToRenderId(request.id, "auto", "center", true),
-    );
+    const frame = requestAnimationFrame(() => {
+      lastScrollToTurnTokenRef.current = request.token;
+      scrollToRenderId(
+        request.id,
+        "auto",
+        "center",
+        true,
+        undefined,
+        request.onResolved,
+      );
+    });
     return () => cancelAnimationFrame(frame);
-  }, [scrollToTurnRequest, scrollToRenderId]);
+  }, [scrollToTurnRequest, scrollToRenderId, inert, progressiveRevealActive]);
 
   useLayoutEffect(() => {
     const wasInert = previousInertRef.current;

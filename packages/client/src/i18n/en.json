@@ -1,4 +1,7 @@
 {
+  "nonHumanUserTurnFlag": "Open message from another session",
+  "nonHumanUserTurnUnavailable": "The delivered turn could not be found. Its flag has been kept.",
+  "nonHumanUserTurnAcknowledgeFailed": "Could not clear the delivered-turn flag. Open it again to retry.",
   "computerTitle": "Computer Control",
   "computerRefresh": "Refresh status",
   "computerDescription": "Optional signed Windows desktop control for selected Codex sessions.",

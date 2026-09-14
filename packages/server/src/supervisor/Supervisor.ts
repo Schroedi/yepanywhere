@@ -2259,6 +2259,7 @@ export class Supervisor {
       setEffort,
       interrupt,
       steer,
+      steerUsesMessageQueue,
       supportedModels,
       supportedCommands,
       setModel,
@@ -2301,6 +2302,7 @@ export class Supervisor {
       effortUpdatesActiveTurn: result.effortUpdatesActiveTurn,
       interruptFn: interrupt,
       steerFn: steer,
+      steerUsesMessageQueue,
       supportedModelsFn: supportedModels,
       supportedCommandsFn: supportedCommands,
       onCommandsObserved: (sessionId, commands) =>
@@ -2528,6 +2530,7 @@ export class Supervisor {
       setEffort,
       interrupt,
       steer,
+      steerUsesMessageQueue,
       supportedModels,
       supportedCommands,
       setModel,
@@ -2570,6 +2573,7 @@ export class Supervisor {
       effortUpdatesActiveTurn: result.effortUpdatesActiveTurn,
       interruptFn: interrupt,
       steerFn: steer,
+      steerUsesMessageQueue,
       supportedModelsFn: supportedModels,
       supportedCommandsFn: supportedCommands,
       onCommandsObserved: (sessionId, commands) =>
@@ -4945,7 +4949,28 @@ export class Supervisor {
     }
     this.observedProcessIds.add(process.id);
     process.subscribe((event) => {
-      if (event.type === "provider-turn-started") {
+      if (event.type === "non-human-user-turn") {
+        void this.sessionMetadataService
+          ?.recordNonHumanUserTurn(process.sessionId, event.turn)
+          .then(() => {
+            this.eventBus?.emit({
+              type: "session-metadata-changed",
+              sessionId: process.sessionId,
+              projectId: process.projectId,
+              nonHumanUserTurn:
+                this.sessionMetadataService?.getPendingNonHumanUserTurn(
+                  process.sessionId,
+                ) ?? null,
+              timestamp: new Date().toISOString(),
+            });
+          })
+          .catch((error) => {
+            getLogger().error(
+              { err: error, sessionId: process.sessionId },
+              "Failed to persist non-human user turn",
+            );
+          });
+      } else if (event.type === "provider-turn-started") {
         this.cacheMissBillingMonitor.observeProviderTurnStarted(
           process,
           event.turnKind,

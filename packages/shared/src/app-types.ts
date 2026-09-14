@@ -29,7 +29,10 @@ import type {
 import type { ToolDisplayAction } from "./tool-display-actions.js";
 import type { ProjectPathLinkTarget } from "./project-path-links.js";
 import type { UploadedFile } from "./upload.js";
-import type { UserMessageMetadata } from "./user-message-metadata.js";
+import type {
+  NonHumanUserTurn,
+  UserMessageMetadata,
+} from "./user-message-metadata.js";
 import type { WorkstreamId } from "./workstreams.js";
 
 // =============================================================================
@@ -530,6 +533,8 @@ export interface DurableSyntheticDoneMessage extends AppMessageExtensions {
  * Contains metadata without full message content.
  */
 export interface AppSessionSummary {
+  /** null clears a known receipt; omission preserves unknown older-server state. */
+  nonHumanUserTurn?: NonHumanUserTurn | null;
   /** Bounded recent question previews; absence means this projection is unknown. */
   asyncQuestions?: {
     questions: {
