@@ -552,13 +552,21 @@ export function SessionListItem({
     },
   });
 
-  const handlePreviewEnter = useCallback(
-    (e: React.PointerEvent<HTMLLIElement>) => {
-      if (menuOpenRef.current) return;
-      enterPreview(e);
-    },
-    [enterPreview],
-  );
+  const handlePreviewPointer = (
+    e: React.PointerEvent<HTMLLIElement>,
+    handle: typeof enterPreview,
+  ) => {
+    if (
+      menuOpenRef.current ||
+      (searchPreviews !== undefined &&
+        (!(e.target instanceof Element) ||
+          !e.target.closest(".session-list-item__link")))
+    ) {
+      clearPreview();
+      return;
+    }
+    handle(e);
+  };
 
   // A fixed card would drift if the sidebar scrolls under it; clear only when
   // the row's own scroll ancestors move. Transcript autoscroll elsewhere should
@@ -764,8 +772,12 @@ export function SessionListItem({
     <li
       ref={liRef}
       className={liClasses}
-      onPointerEnter={showHoverCard ? handlePreviewEnter : undefined}
-      onPointerMove={showHoverCard ? movePreview : undefined}
+      onPointerEnter={
+        showHoverCard ? (e) => handlePreviewPointer(e, enterPreview) : undefined
+      }
+      onPointerMove={
+        showHoverCard ? (e) => handlePreviewPointer(e, movePreview) : undefined
+      }
       onPointerLeave={showHoverCard ? leavePreview : undefined}
       onWheel={showHoverCard ? clearPreview : undefined}
     >

@@ -191,7 +191,9 @@ export function useContentSearch(
       diagnostics: EMPTY_DIAGNOSTICS,
       scanned: 0,
       limited: 0,
+      limitedSessions: new Set<string>(),
       running: active && roles.length > 0,
+      acquiring: active && roles.length > 0,
       error: undefined,
     };
   const scans = owner.current.scans;
@@ -202,9 +204,19 @@ export function useContentSearch(
   const needle = query.replace(/\s+/g, " ").trim().toLowerCase();
   let scanned = 0;
   let limited = 0;
+  let acquiring = !exact;
+  const limitedSessions = new Set<string>();
   for (const [id, version] of wanted) {
     const complete = exact?.entries.get(id);
-    if (complete?.limited) limited++;
+    if (
+      !complete ||
+      (!complete.done && !complete.tailing && !complete.seed?.done)
+    )
+      acquiring = true;
+    if (complete?.limited) {
+      limited++;
+      limitedSessions.add(id);
+    }
     if (complete?.done && (complete.limited || complete.revision === version))
       scanned++;
     const found = new Map<string, SessionContentMatch>();
@@ -239,7 +251,9 @@ export function useContentSearch(
     diagnostics,
     scanned,
     limited,
+    limitedSessions,
     running: !exact || scanned < wanted.size,
+    acquiring,
     error: undefined,
   };
 }

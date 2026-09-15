@@ -12,7 +12,7 @@ import { getSessionDisplayTitle } from "../../utils";
 import { Modal } from "../ui/Modal";
 import { renderHighlightedText } from "../SearchPreview";
 import previewStyles from "../UserTurnNavigator.module.css";
-import type { SearchMatch } from "./model";
+import { limitTurnMatches, type SearchMatch } from "./model";
 import styles from "./SearchPreviews.module.css";
 import searchStyles from "./SessionSearch.module.css";
 
@@ -36,10 +36,15 @@ export function SearchDiagnostics({
   basePath: string;
 }) {
   const { t } = useI18n();
+  const [open, setOpen] = useState(true);
   if (!partial.size) return null;
   return (
-    <div className={searchStyles.diagnostics}>
-      {t("sessionSearchPartial", { count: partial.size })}
+    <details
+      className={searchStyles.diagnostics}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary>{t("sessionSearchPartial", { count: partial.size })}</summary>
       {[...partial].map(([id, reason]) => {
         const session = sessions.find((session) => session.id === id);
         const details = diagnostics.get(id) ?? [];
@@ -53,27 +58,44 @@ export function SearchDiagnostics({
               title
             )}
             {details.length ? (
-              details.map((detail) => (
-                <div key={detail.id}>
-                  {session ? (
-                    <Link
-                      to={sessionHref(session, basePath, detail.messageId)}
-                      title={detail.sourcePath}
-                    >
-                      {detail.message}
-                    </Link>
-                  ) : (
-                    detail.message
-                  )}
-                </div>
-              ))
+              details.map((detail) => {
+                const file = detail.sourcePath?.split(/[/\\]/).at(-1);
+                const location = file
+                  ? `${file}${detail.byteOffset === undefined ? "" : ` at byte ${detail.byteOffset}`}`
+                  : undefined;
+                const reason =
+                  location && detail.message.startsWith(`${location}: `)
+                    ? detail.message.slice(location.length + 2)
+                    : detail.message;
+                return (
+                  <div key={detail.id}>
+                    {session && location ? (
+                      <>
+                        <Link
+                          to={sessionHref(session, basePath, detail.messageId)}
+                          title={detail.sourcePath}
+                        >
+                          {file}
+                        </Link>
+                        {detail.byteOffset === undefined
+                          ? ""
+                          : ` at byte ${detail.byteOffset}`}
+                        {": "}
+                      </>
+                    ) : (
+                      location && `${location}: `
+                    )}
+                    {reason}
+                  </div>
+                );
+              })
             ) : (
               <>: {reason}</>
             )}
           </div>
         );
       })}
-    </div>
+    </details>
   );
 }
 
@@ -132,6 +154,7 @@ export function SearchPreviews({
   streamingRows = 0,
   limit,
   onAdjustLimit,
+  onExpand,
 }: {
   session: GlobalSessionItem;
   matches: SearchMatch[];
@@ -141,43 +164,69 @@ export function SearchPreviews({
   streamingRows?: number;
   limit: number;
   onAdjustLimit(delta: number, shown: number, anchor: HTMLElement): void;
+  onExpand(): void;
 }) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement>(null);
-  if (!matches.length && !streamingRows) return null;
+  const shown = limitTurnMatches(matches, streamingRows ? 1 : limit);
+  if (!shown.length && !streamingRows) return null;
   const shownPerRole = Math.max(
+    shown.filter((m) => m.role === "user").length,
+    shown.filter((m) => m.role === "assistant").length,
+  );
+  const availablePerRole = Math.max(
     matches.filter((m) => m.role === "user").length,
     matches.filter((m) => m.role === "assistant").length,
   );
+  const currentLimit = Number.isFinite(limit) ? limit : shownPerRole;
+  const canDecrease = Math.max(1, currentLimit - 1) < shownPerRole;
+  const canIncrease =
+    Math.min(availablePerRole, currentLimit + 1) > shownPerRole;
   return (
     <div
       ref={root}
       data-search-previews
       className={`${styles.previews} ${streamingRows ? styles.streaming : ""}`}
-      style={streamingRows ? { height: 44 * streamingRows } : undefined}
+      style={streamingRows ? { minHeight: 44 * streamingRows } : undefined}
     >
-      {!!matches.length && (
-        <div className={styles.adjustLimit} data-search-limit-controls>
+      {!!shown.length && (
+        <>
           <button
             type="button"
-            disabled={limit === 1}
-            title={t("sessionSearchDecreaseLimit")}
-            aria-label={t("sessionSearchDecreaseLimit")}
-            onClick={() => onAdjustLimit(-1, shownPerRole, root.current!)}
+            className={styles.expand}
+            title={t("sessionSearchAllMatches")}
+            aria-label={t("sessionSearchAllMatches")}
+            onClick={onExpand}
           >
-            −
+            ↗
           </button>
-          <button
-            type="button"
-            title={t("sessionSearchIncreaseLimit")}
-            aria-label={t("sessionSearchIncreaseLimit")}
-            onClick={() => onAdjustLimit(1, shownPerRole, root.current!)}
-          >
-            +
-          </button>
-        </div>
+          <div className={styles.adjustLimit} data-search-limit-controls>
+            {canDecrease && (
+              <button
+                type="button"
+                className={styles.decrease}
+                title={t("sessionSearchDecreaseLimit")}
+                aria-label={t("sessionSearchDecreaseLimit")}
+                onClick={() => onAdjustLimit(-1, shownPerRole, root.current!)}
+              >
+                −
+              </button>
+            )}
+            {canIncrease && (
+              <button
+                type="button"
+                className={styles.increase}
+                title={t("sessionSearchIncreaseLimit")}
+                aria-label={t("sessionSearchIncreaseLimit")}
+                onClick={() => onAdjustLimit(1, shownPerRole, root.current!)}
+              >
+                +
+              </button>
+            )}
+          </div>
+        </>
       )}
-      {matches.map((match) => (
+      {shown.map((match) => (
         <MatchPreview
           key={match.id}
           session={session}
@@ -292,7 +341,7 @@ function useTurnContext(
   return { context, error };
 }
 
-function MatchPreview({
+export function MatchPreview({
   session,
   match,
   query,
@@ -306,6 +355,33 @@ function MatchPreview({
   const { t } = useI18n();
   const [hover, setHover] = useState(false);
   const [menu, setMenu] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!menu) return;
+    root.current
+      ?.querySelector<HTMLButtonElement>("[role='menuitem']")
+      ?.focus();
+    const outside = (event: Event) => {
+      if (event.target instanceof Node && !root.current?.contains(event.target))
+        setMenu(false);
+    };
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setMenu(false);
+      menuButton.current?.focus();
+    };
+    window.addEventListener("pointerdown", outside, true);
+    window.addEventListener("focusin", outside, true);
+    window.addEventListener("keydown", dismissOnEscape, true);
+    return () => {
+      window.removeEventListener("pointerdown", outside, true);
+      window.removeEventListener("focusin", outside, true);
+      window.removeEventListener("keydown", dismissOnEscape, true);
+    };
+  }, [menu]);
   const { context } = useTurnContext(
     { session, match },
     hover && (match.role === "title" || match.searchText === undefined),
@@ -318,10 +394,23 @@ function MatchPreview({
       : (match.searchText ?? context?.text);
   const label = t(`sessionSearchField_${match.role}`);
   return (
-    <div className={styles.match}>
+    <div ref={root} className={styles.match}>
       <Link
         to={href}
-        title={text ?? match.preview}
+        title={menu ? undefined : (text ?? match.preview)}
+        onClick={(event) => {
+          if (
+            event.button !== 0 ||
+            event.ctrlKey ||
+            event.metaKey ||
+            event.shiftKey ||
+            event.altKey
+          )
+            return;
+          event.preventDefault();
+          setMenu(false);
+          onZoom({ session, match });
+        }}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onContextMenu={(event) => {
@@ -338,8 +427,10 @@ function MatchPreview({
         </span>
       </Link>
       <button
+        ref={menuButton}
         type="button"
         aria-label={t("sessionSearchMatchMenu")}
+        aria-haspopup="menu"
         aria-expanded={menu}
         onClick={() => setMenu((value) => !value)}
       >
@@ -356,9 +447,10 @@ function MatchPreview({
         </svg>
       </button>
       {menu && (
-        <div className={styles.menu}>
+        <div className={styles.menu} role="menu">
           <button
             type="button"
+            role="menuitem"
             onClick={() => {
               setMenu(false);
               onZoom({ session, match });
@@ -375,10 +467,12 @@ function MatchPreview({
 /** The page owns the opened preview; result revalidation must not dismiss it. */
 export function SearchZoomPreview({
   target,
+  query,
   basePath,
   onClose,
 }: {
   target: SearchPreviewTarget;
+  query: string;
   basePath: string;
   onClose(): void;
 }) {
@@ -389,20 +483,46 @@ export function SearchZoomPreview({
     match.role === "title"
       ? match.fullText
       : (match.searchText ?? context?.text);
+  const turn = useRef<HTMLParagraphElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!text || !query.trim()) return;
+    const mark = turn.current?.querySelector("mark");
+    const container = scroller.current;
+    if (!mark || !container || container.scrollHeight <= container.clientHeight)
+      return;
+    const target =
+      container.getBoundingClientRect().top + container.clientHeight / 3;
+    const below = mark.getBoundingClientRect().top - target;
+    if (below > 0) {
+      const content = turn.current!.parentElement!;
+      const missingSpace =
+        container.scrollTop +
+        below -
+        (container.scrollHeight - container.clientHeight);
+      if (missingSpace > 0) content.style.paddingBottom = `${missingSpace}px`;
+      container.scrollTop += below;
+    }
+  }, [text, query]);
   return (
     <Modal
       title={getSessionDisplayTitle(session)}
       onClose={onClose}
       closeOnBackGesture
+      contentRef={scroller}
     >
       <div className={styles.zoom}>
         <Link to={matchHref(target, basePath)}>
-          {t(`sessionSearchField_${match.role}`)}
+          {t("sessionSearchOpenTurn")}
         </Link>
         {error ? (
           <p role="alert">{error}</p>
         ) : (
-          <p>{text ?? t("gitStatusLoading")}</p>
+          <p ref={turn}>
+            {text === undefined
+              ? t("gitStatusLoading")
+              : renderHighlightedText(text, query)}
+          </p>
         )}
         {context?.neighbor && (
           <>

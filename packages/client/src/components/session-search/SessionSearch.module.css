@@ -58,7 +58,7 @@
 }
 .statusArea {
   position: relative;
-  flex: 0 0 112px;
+  flex: 0 0 132px;
   height: 32px;
 }
 .searchStatus {
@@ -71,6 +71,9 @@
   display: flex;
   align-items: center;
   overflow: hidden;
+  gap: 5px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
   line-height: 15px;
   color: var(--text-secondary);
@@ -88,6 +91,10 @@
   background: var(--bg-secondary);
   color: var(--text-primary);
   font-size: 12px;
+}
+.scanIndicator {
+  flex: 0 0 1em;
+  color: var(--accent-primary);
 }
 .matchedTitle {
   flex: 1;
@@ -108,6 +115,11 @@
 }
 .diagnostics q {
   font-weight: 600;
+}
+.diagnostics > summary {
+  cursor: pointer;
+  min-height: 28px;
+  align-content: center;
 }
 .content {
   padding: 10px 12px;
@@ -358,13 +370,29 @@
   color: var(--error-color);
   font-size: 12px;
 }
+.footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .footer:has(> .manager):has(> .diagnostics) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .manager {
   display: grid;
   gap: 5px;
   border: 1px solid var(--border-color);
   padding: 8px;
-  max-height: 300px;
-  overflow: auto;
+  font-size: 12px;
+}
+@media (max-width: 1099px) {
+  .manager {
+    max-height: 300px;
+    overflow: auto;
+  }
 }
 .manager label {
   display: flex;

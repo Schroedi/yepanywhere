@@ -79,6 +79,37 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+it("distinguishes new-session acquisition from quiet live-tail catch-up", async () => {
+  const session = { id: "a", updatedAt: "1" } as GlobalSessionItem;
+  runtime.transport.fetch.mockResolvedValue({
+    matches: [],
+    done: true,
+    partial: false,
+    bytesRead: 0,
+    resumeCursor: "tail",
+  });
+  const { result, rerender } = renderHook(
+    ({ sessions }) => useContentSearch(sessions, "needle", ["user"], true),
+    { initialProps: { sessions: [session] } },
+  );
+  expect(result.current.acquiring).toBe(true);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  expect(result.current.acquiring).toBe(false);
+  runtime.transport.fetch.mockImplementation(() => new Promise(() => {}));
+  const changed = { ...session, updatedAt: "2" };
+  rerender({ sessions: [changed] });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  rerender({ sessions: [changed] });
+  expect(result.current.running).toBe(true);
+  expect(result.current.acquiring).toBe(false);
+  rerender({ sessions: [changed, { ...session, id: "b" }] });
+  expect(result.current.acquiring).toBe(true);
+});
+
 it("defers hidden-page catch-up and resumes retained cursors on visibility", async () => {
   const visibility = vi.spyOn(document, "visibilityState", "get");
   visibility.mockReturnValue("visible");

@@ -4,14 +4,22 @@
 }
 .adjustLimit {
   position: absolute;
-  right: 0;
+  right: calc(100% + 2px);
   bottom: calc(100% + 1px);
-  display: flex;
-  width: 48px;
+  display: grid;
+  grid-template-columns: repeat(2, 21px);
+  width: 42px;
   z-index: 3;
 }
-.adjustLimit button {
-  width: 24px;
+.decrease {
+  grid-column: 1;
+}
+.increase {
+  grid-column: 2;
+}
+.adjustLimit button,
+.expand {
+  width: 21px;
   height: 24px;
   padding: 0;
   border: 1px solid var(--border-color);
@@ -21,8 +29,12 @@
   font-size: 15px;
   cursor: pointer;
 }
-.adjustLimit button:disabled {
-  opacity: 0.4;
+.expand {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 1px);
+  width: 26px;
+  z-index: 3;
 }
 .match {
   position: relative;
@@ -48,9 +60,10 @@
   position: absolute;
   right: calc(100% + 4px);
   width: 40px;
-  padding-inline: 2px;
+  padding-inline: 0;
   justify-content: flex-end;
   font-size: 9px;
+  font-weight: 400;
   white-space: nowrap;
   text-align: right;
   pointer-events: none;
@@ -110,6 +123,10 @@
 .zoom p {
   white-space: pre-wrap;
   line-height: 1.5;
+}
+.zoom mark {
+  color: inherit;
+  background: color-mix(in srgb, var(--accent-primary) 22%, transparent);
 }
 .zoom hr {
   border: 0;

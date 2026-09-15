@@ -39,6 +39,9 @@ export function SearchHeader({
   onFields,
   supported,
   status,
+  sessionCount,
+  scanning,
+  acquiring,
 }: {
   query: string;
   onQuery(value: string): void;
@@ -46,6 +49,9 @@ export function SearchHeader({
   onFields(value: SearchField[]): void;
   supported: boolean;
   status?: string;
+  sessionCount: number;
+  scanning: boolean;
+  acquiring: boolean;
 }) {
   const { t } = useI18n();
   const input = useRef<HTMLInputElement>(null);
@@ -210,9 +216,19 @@ export function SearchHeader({
             title={status}
             aria-label={status || t("sessionSearchStatus")}
             aria-expanded={statusOpen}
+            data-search-scanning={scanning}
             onClick={() => setStatusOpen((open) => !open)}
           >
-            <span role="status">{status}</span>
+            <span data-search-scope>
+              {t("sessionSearchScope", { count: sessionCount })}
+            </span>
+            <span
+              className={styles.scanIndicator}
+              style={{ visibility: acquiring ? "visible" : "hidden" }}
+              aria-hidden="true"
+            >
+              …
+            </span>
           </button>
           {statusOpen && <div className={styles.statusDetails}>{status}</div>}
         </div>

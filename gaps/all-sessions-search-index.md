@@ -34,6 +34,18 @@ Cap retained memory, share identical source-version work across clients, stop
 unused work, and measure query/cancellation cost against the reference scan.
 Diagnostic details need a separate retention/aggregation budget for heavily
 corrupt transcripts; the current match and text-byte limits do not bound them.
+Oversized native JSONL records are skipped before classification, so diagnostics
+can incorrectly suggest lost searchable turn content for command-output records.
+Bounded classification/extraction should distinguish these without unbounded
+JSON parsing or silently hiding possible User/Ass. coverage loss.
+
+The requested one-active-needle-per-viewer server guard is not implemented.
+Current client generations share four request slots, and the server separately
+caps batches; neither establishes viewer/revision ownership. The canonical
+[stopgap contract](../topics/all-session-content-search.md#server-needle-ownership-requested-stopgap-not-yet-enforced)
+allows an initial global last-writer-wins guard, requires stale-owner teardown,
+and preserves parallel session fan-out. Implement behind a reviewed compatible
+protocol before claiming that invariant; client cancellation alone is insufficient.
 The [index sketches](../topics/all-session-content-search.sketches.md) preserve
 candidate structures and measurement gates.
 

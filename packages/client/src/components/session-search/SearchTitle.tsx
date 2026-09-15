@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { normalizeSearchPreviewText } from "@yep-anywhere/shared";
 import { renderHighlightedText } from "../SearchPreview";
 import styles from "./SessionSearch.module.css";
@@ -6,19 +6,22 @@ import styles from "./SessionSearch.module.css";
 /** Fit around the match using this flex item's actual width and inherited font. */
 export function SearchTitle({ text, query }: { text: string; query: string }) {
   const element = useRef<HTMLSpanElement>(null);
+  const canvas = useRef<CanvasRenderingContext2D | null>(null);
   const normalized = normalizeSearchPreviewText(text)
     .replace(/\s+/g, " ")
     .trim();
   const needle = query.replace(/\s+/g, " ").trim();
   const [excerpt, setExcerpt] = useState(normalized);
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!needle) {
-      if (excerpt !== normalized) setExcerpt(normalized);
+      setExcerpt(normalized);
       return;
     }
     const node = element.current;
     if (!node) return;
-    const context = document.createElement("canvas").getContext("2d");
+    if (!canvas.current)
+      canvas.current = document.createElement("canvas").getContext("2d");
+    const context = canvas.current;
     if (!context) return;
     const measureExcerpt = () => {
       const style = getComputedStyle(node);
@@ -72,11 +75,21 @@ export function SearchTitle({ text, query }: { text: string; query: string }) {
       }
       setExcerpt(at(low));
     };
-    measureExcerpt();
-    const observer = new ResizeObserver(measureExcerpt);
+    // Title fitting must not run in the keyboard echo's pre-paint commit.
+    // Coalesce resize notifications and give each row a cancellable task.
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(measureExcerpt, 0);
+    };
+    schedule();
+    const observer = new ResizeObserver(schedule);
     observer.observe(node);
-    return () => observer.disconnect();
-  }, [normalized, needle, excerpt]);
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [normalized, needle]);
   return (
     <span ref={element} className={styles.matchedTitle} title={text}>
       {renderHighlightedText(excerpt, needle)}

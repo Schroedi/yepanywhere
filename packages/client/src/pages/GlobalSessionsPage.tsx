@@ -15,7 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { createSessionApi } from "../api/sessionClient";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
 import { FilterDropdown } from "../components/FilterDropdown";
@@ -39,7 +39,6 @@ import {
   matchesStatus,
   statuses,
   titleMatches,
-  limitTurnMatches,
   toggleStatus,
   type SearchField,
   type SearchStatus,
@@ -47,6 +46,7 @@ import {
 } from "../components/session-search/model";
 import { useContentSearch } from "../components/session-search/useContentSearch";
 import { SearchTitle } from "../components/session-search/SearchTitle";
+import { SearchSessionMatches } from "../components/session-search/SearchSessionMatches";
 import styles from "../components/session-search/SessionSearch.module.css";
 import { useGlobalSessionsFeed } from "../hooks/useGlobalSessionsFeed";
 import { useProjectQueues } from "../hooks/useProjectQueues";
@@ -72,6 +72,16 @@ import { getSessionDisplayTitle } from "../utils";
 const EMPTY_PROJECTS: readonly string[] = [];
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 
+interface SearchHistoryControls {
+  sourceKey: string;
+  fields: SearchField[];
+  basis: TimeBasis;
+  young: string;
+  old: string;
+  limit: string;
+  selected: string[];
+}
+
 export function GlobalSessionsPage() {
   const sourceKey = useClientSummarySourceKey();
   return <SessionSearchPage key={sourceKey} />;
@@ -89,6 +99,13 @@ function SessionSearchPage() {
   const navigate = useNavigate();
   const sourceKey = useClientSummarySourceKey();
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const [remembered] = useState(() => {
+    const state = window.history.state?.yaSessionSearch as
+      | SearchHistoryControls
+      | undefined;
+    return state?.sourceKey === sourceKey ? state : undefined;
+  });
   const { settings } = useServerSettings();
   const { version } = useVersion();
   const { providers: providerInfo } = useProviders();
@@ -153,20 +170,43 @@ function SessionSearchPage() {
         ),
     [statusParam],
   );
-  const [fields, setFields] = useState<SearchField[]>(["title"]);
+  const [fields, setFields] = useState<SearchField[]>(
+    remembered?.fields ?? ["title"],
+  );
   const effectiveFields = useMemo(
     () => (supported ? fields : fields.filter((f) => f === "title")),
     [fields, supported],
   );
   const [basis, setBasis] = useState<TimeBasis>(
-    params.has("age") ? "activity" : "turns",
+    remembered?.basis ?? (params.has("age") ? "activity" : "turns"),
   );
-  const [young, setYoung] = useState(params.get("age") ?? "");
-  const [old, setOld] = useState("");
-  const [limit, setLimit] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [young, setYoung] = useState(
+    remembered?.young ?? params.get("age") ?? "",
+  );
+  const [old, setOld] = useState(remembered?.old ?? "");
+  const [limit, setLimit] = useState(remembered?.limit ?? "");
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(remembered?.selected),
+  );
+  useLayoutEffect(() => {
+    if (window.history.state?.key !== location.key) return;
+    const controls: SearchHistoryControls = {
+      sourceKey,
+      fields,
+      basis,
+      young,
+      old,
+      limit,
+      selected: [...selected],
+    };
+    window.history.replaceState(
+      { ...window.history.state, yaSessionSearch: controls },
+      "",
+    );
+  }, [location.key, sourceKey, fields, basis, young, old, limit, selected]);
   const [manage, setManage] = useState(false);
   const [zoomed, setZoomed] = useState<SearchPreviewTarget>();
+  const [expanded, setExpanded] = useState<SearchPreviewTarget["session"]>();
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<string>();
   const changeParam = useCallback(
@@ -387,12 +427,18 @@ function SessionSearchPage() {
   };
   const progress = scan.running || feed.loading || feed.hasMore;
   const limitNumber = !limit || invalidLimit ? Infinity : Number(limit);
-  const layoutKey = JSON.stringify([query, effectiveFields, basis, bounds]);
+  const layoutKey = query;
   const [compactedSearch, setCompactedSearch] = useState<string>();
+  const hasTurnFields = effectiveFields.some((field) => field !== "title");
+  const updateFields = useCallback(
+    (next: SearchField[]) => {
+      setFields(next);
+      if (!scan.running && scan.scanned > 0) setCompactedSearch(query);
+    },
+    [scan.running, scan.scanned, query],
+  );
   const streamingLayout =
-    effectiveFields.some((field) => field !== "title") &&
-    !!query.trim() &&
-    compactedSearch !== layoutKey;
+    hasTurnFields && !!query.trim() && compactedSearch !== layoutKey;
   const limitAnchor = useRef<{ element: HTMLElement; top: number } | undefined>(
     undefined,
   );
@@ -424,7 +470,7 @@ function SessionSearchPage() {
     [layoutKey],
   );
   useEffect(() => {
-    if (scan.running || compactedSearch === layoutKey) return;
+    if (!hasTurnFields || scan.running || compactedSearch === layoutKey) return;
     let timer: ReturnType<typeof setTimeout>;
     const idle = () => {
       clearTimeout(timer);
@@ -443,7 +489,7 @@ function SessionSearchPage() {
       window.removeEventListener("keydown", idle);
       window.removeEventListener("wheel", idle);
     };
-  }, [scan.running, layoutKey, compactedSearch]);
+  }, [scan.running, layoutKey, compactedSearch, hasTurnFields]);
   const [renderWindow, setRenderWindow] = useState({ query, count: 40 });
   const renderedCount = renderWindow.query === query ? renderWindow.count : 40;
   const more = useRef<HTMLButtonElement>(null);
@@ -501,8 +547,17 @@ function SessionSearchPage() {
             query={query}
             onQuery={onQuery}
             fields={effectiveFields}
-            onFields={setFields}
+            onFields={updateFields}
             supported={supported}
+            sessionCount={
+              effectiveFields.includes("title")
+                ? candidates.length
+                : effectiveFields.length
+                  ? contentCandidates.length
+                  : 0
+            }
+            scanning={scan.running}
+            acquiring={scan.acquiring || feed.loading || feed.hasMore}
             status={
               scan.running
                 ? t("sessionSearchProgress", {
@@ -513,7 +568,7 @@ function SessionSearchPage() {
                   ? t("sessionSearchCapped", { count: scan.limited })
                   : feed.loading || feed.hasMore
                     ? t("sessionSearchLoadingCatalog")
-                    : ""
+                    : t("sessionSearchWatching")
             }
           />
         }
@@ -593,43 +648,6 @@ function SessionSearchPage() {
             onApply={() => void apply()}
             pending={pending}
           />
-          {manage && (
-            <div className={styles.manager}>
-              {sessions.map((session) => (
-                <label key={session.id}>
-                  <input
-                    type="checkbox"
-                    checked={selected.has(session.id)}
-                    onChange={(e) => select(session.id, e.target.checked)}
-                  />
-                  <span>
-                    {getSessionDisplayTitle(session)}{" "}
-                    {!shownIds.has(session.id) && (
-                      <small>
-                        {exclusions.get(session.id)?.join("; ") ||
-                          (invalidRange
-                            ? t("sessionSearchInvalidRange")
-                            : !effectiveFields.length
-                              ? t("sessionSearchChooseField")
-                              : query &&
-                                  (effectiveFields.includes("user") ||
-                                    effectiveFields.includes("assistant")) &&
-                                  !turnSearchProviders.has(session.provider)
-                                ? t("sessionSearchProviderTitleOnly")
-                                : (scan.partial.get(session.id) ??
-                                  scan.error ??
-                                  t(
-                                    scan.running
-                                      ? "sessionSearchNotFoundYet"
-                                      : "sessionSearchNoTextMatch",
-                                  )))}
-                      </small>
-                    )}
-                  </span>
-                </label>
-              ))}
-            </div>
-          )}
           {activeProject && (
             <div className={`global-sessions-project-cta ${styles.projectCta}`}>
               <div>
@@ -729,17 +747,19 @@ function SessionSearchPage() {
                 openMessageId={matches.find((m) => m.role !== "title")?.id}
                 searchPreviews={
                   <SearchPreviews
+                    onExpand={() => setExpanded(session)}
                     limit={limitNumber}
                     onAdjustLimit={adjustLimit}
                     session={session}
-                    matches={limitTurnMatches(
-                      matches,
-                      streamingLayout ? Math.min(1, limitNumber) : limitNumber,
-                    )}
+                    matches={matches}
                     streamingRows={
-                      streamingLayout
-                        ? effectiveFields.filter((field) => field !== "title")
-                            .length
+                      streamingLayout &&
+                      turnSearchProviders.has(session.provider)
+                        ? Math.min(
+                            Number.isFinite(limitNumber) ? limitNumber : 1,
+                            effectiveFields.filter((field) => field !== "title")
+                              .length,
+                          )
                         : 0
                     }
                     query={query}
@@ -760,21 +780,84 @@ function SessionSearchPage() {
               {t("sessionSearchMore")}
             </button>
           )}
-          <SearchDiagnostics
-            sessions={sessions}
-            partial={scan.partial}
-            diagnostics={scan.diagnostics}
-            basePath={basePath}
-          />
           {!helpInline && <SearchHelp />}
+          <div className={styles.footer}>
+            {manage && (
+              <section
+                className={styles.manager}
+                aria-label={t("sessionSearchManage")}
+              >
+                <strong>{t("sessionSearchManage")}</strong>
+                {sessions
+                  .filter((session) =>
+                    turnSearchProviders.has(session.provider),
+                  )
+                  .map((session) => (
+                    <label key={session.id}>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(session.id)}
+                        onChange={(e) => select(session.id, e.target.checked)}
+                      />
+                      <span>
+                        {getSessionDisplayTitle(session)}{" "}
+                        <small>· {session.provider}</small>{" "}
+                        {!shownIds.has(session.id) && (
+                          <small>
+                            {exclusions.get(session.id)?.join("; ") ||
+                              (invalidRange
+                                ? t("sessionSearchInvalidRange")
+                                : !effectiveFields.length
+                                  ? t("sessionSearchChooseField")
+                                  : (scan.partial.get(session.id) ??
+                                    scan.error ??
+                                    t(
+                                      scan.running
+                                        ? "sessionSearchNotFoundYet"
+                                        : "sessionSearchNoTextMatch",
+                                    )))}
+                          </small>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+              </section>
+            )}
+            <SearchDiagnostics
+              sessions={sessions}
+              partial={scan.partial}
+              diagnostics={scan.diagnostics}
+              basePath={basePath}
+            />
+          </div>
           {!supported && (
             <p className={styles.help}>{t("sessionSearchUpgrade")}</p>
           )}
         </div>
       </main>
+      {expanded && (
+        <SearchSessionMatches
+          session={
+            sessions.find((session) => session.id === expanded.id) ?? expanded
+          }
+          matches={
+            results.find(({ session }) => session.id === expanded.id)
+              ?.matches ?? []
+          }
+          query={query}
+          running={scan.running}
+          limited={scan.limitedSessions.has(expanded.id)}
+          partial={scan.partial}
+          diagnostics={scan.diagnostics}
+          basePath={basePath}
+          onZoom={setZoomed}
+          onClose={() => setExpanded(undefined)}
+        />
+      )}
       {zoomed && (
         <SearchZoomPreview
           target={zoomed}
+          query={query}
           basePath={basePath}
           onClose={() => setZoomed(undefined)}
         />

@@ -13,6 +13,13 @@ are opt-in, independent checkboxes whose matches form a union. Title searches
 the displayed title and the original opening prompt retained in hot metadata.
 A rename does not replace that retained prompt.
 
+User and Ass. currently search visible prose. Command strings and tool inputs,
+edit additions, removed/context lines, baseline/read file contents, tool output,
+reasoning and image/media payloads are excluded. This matches ordinary C-s's
+prose scope, not its separate full-session mode. The proposed shared extension
+for assistant-authored commands and additions is tracked in
+[assistant-authored search inputs](../gaps/assistant-authored-search-inputs.md).
+
 Typing is acknowledged locally, independently of router navigation and result
 work: no keystrokes may be dropped, and each must appear within 100 ms.
 Title-only search reads catalog metadata and makes no content-search request.
@@ -28,18 +35,30 @@ completed sessions require no new disk read until their source changes.
 When a third generation starts, it displaces the second unless that second
 has enough matching rows for the measured viewport, or is already complete;
 then the first is retired. Retired work cannot publish into the current source.
-Rows keep a stable order across updates. Initial streaming reserves one match
-and a continuation line per selected turn role, within the preview limit. Once
+Rows keep a stable order across updates. Initial streaming uses a shared
+reservation within the preview limit; actual arrivals can grow the row. Once
 search completes, 500 ms without pointer, keyboard or scroll activity permits
 expansion to the requested preview count. Later live updates do not collapse
 the already expanded rows back to the initial streaming shape.
-Changing search fields or time criteria starts a fresh reservation, including
-when turn search is enabled after a settled title-only search.
+Changing fields or time criteria filters cached results without a new blank
+reservation. Enabling turn search for the first time or changing the needle
+starts the initial layout.
 
-Progress occupies reserved header space to the right of the needle, with full
-text available on hover or tap; starting and stopping work does not move the
-results. Incomplete coverage lists quoted, emphasized session titles and reasons
-after the matching results, and remains visible during revalidation. Diagnostics
+The reserved space to the right of the needle always says "in N sessions".
+N is the eligible catalog scope after explicit selection and session filters,
+before needle matching. With Title enabled it includes title-only providers;
+with only turn roles it excludes providers lacking bounded turn search; with
+no field enabled it is zero. Turn-time bounds filter content inside that scope,
+so they cannot exclude a session from traversal using hot metadata alone.
+An optional trailing ellipsis occupies a fixed slot while newly eligible
+sessions are scanned or the initial catalog is loading. Cached refinement and
+ordinary live-tail appends stay quiet. Progress and coverage explanations are
+available on hover/tap; they never replace the caption with loading prose.
+Starting and stopping work does not move results. Incomplete coverage lists
+quoted, emphasized session titles and reasons
+after the matching results, and remains visible during revalidation. A disclosure
+summary names the incomplete-session count; details start expanded and can be
+collapsed without being reopened by arriving diagnostics. Diagnostics
 link to the nearest preceding readable turn and identify the source byte offset.
 Opening zoom takes a page-owned snapshot;
 reordering or revalidation does not dismiss it.
@@ -72,8 +91,54 @@ Turns/session is empty by default, meaning every matching preview. A positive
 integer limits displayed previews independently for User and Ass.; one shows
 one of each when both exist. It never stops acquisition. Minus/plus above a
 session's first preview adjust this global budget, with minimum one, and
-compensate scrolling to preserve that session's position. Their placement leaves
-the full checkbox column available for selection.
+compensate scrolling to preserve that session's position. They occupy a short
+strip below the checkbox, above the first role chip and left of the provider
+badge. The remainder of the column stays selectable. Each button is absent
+when its next global value would not change that session's displayed matches;
+the other button keeps its own fixed slot.
+
+### Exact preview counts and live arrivals
+
+Budgets are per role, not shared. For both User and Ass. enabled:
+
+| Turns/session | Initial scan and completion before idle | Settled or later live updates |
+| --- | --- | --- |
+| 1 | Up to 1 User + 1 Ass. | Up to 1 User + 1 Ass. |
+| 2 | Up to 1 User + 1 Ass. | Up to 2 User + 2 Ass. |
+| Positive N | Up to 1 User + 1 Ass. | Up to N User + N Ass. |
+| Blank | Up to 1 User + 1 Ass. | All retained User + Ass. matches |
+
+An unchecked role contributes zero. Actual counts cannot exceed the retained
+matches satisfying the current needle and turn-time bounds; unused capacity
+from one role is not transferred to the other. Title hits consume no turn
+budget and never produce a separate match row. Zero is invalid, not a way to
+disable turn previews.
+
+Initial streaming reserves 44px times the smaller of the enabled-role count
+and Turns/session (blank reserves one). Each reserved slot holds a preview and
+possible continuation line. This is a minimum height, not a clipping budget:
+with N=1 and both roles matching, both previews appear as they arrive.
+Completion alone does not immediately reflow: 500ms without pointer movement,
+keyboard input or wheel activity permits the settled column above. A completed
+scan includes sessions stopped by a cap or error, so this layout transition
+does not certify complete coverage. Clicking a visible −/+ explicitly opts
+into its requested count immediately, including during acquisition. With a
+blank budget, that click starts from the greater of the clicked session's
+currently displayed User and Ass. counts. The minimum is one.
+
+Acquisition traverses from the beginning and preserves discovery order.
+Limited previews therefore keep the earliest retained matches of each role.
+Live append hits fill unused slots or remain retained behind the display
+limit; they do **not** evict earlier hits merely because they are newer.
+For example, with N=1 and User hits U1, U2, then newly arriving U3, the row
+still shows U1; the expanded view exposes U1, U2 and U3. A revised or removed
+message can update or remove its hit, and source replacement can invalidate
+the retained set. Those are content corrections, not a newest-first policy.
+Settled rows do not revert to one-per-role reservations during live catch-up.
+Changing the needle starts a fresh reservation. Role and time switches reuse
+the settled layout; switching to both roles after a completed scan is immediate.
+
+### Acquisition limits
 
 Acquisition has separate named policy constants, with no settings UI:
 `MIN_TURN_SEARCH_QUERY_LENGTH = 1`, `MAX_CACHED_MATCHES_PER_SESSION = 1024`,
@@ -87,12 +152,28 @@ Backspace or another non-prefix edit starts fresh acquisition. Uncapped sessions
 retain both roles and all timestamps, so role/time filtering does not reread
 transcripts. Title-only search never initiates turn acquisition.
 
+The 1024-match limit is combined across both roles, including acquired matches
+currently excluded by role or time controls. It is not 1024 per role and is
+independent of Turns/session. A text-byte cap may stop earlier. On reaching
+either cap, this session stops acquisition for this needle and does not join
+live tail; fresh matches do not displace retained ones. Refining the needle
+rescans that session. An uncapped session reaching the current end remains
+eligible for activity-driven tail continuation; reaching the end is a
+point-in-time completion, not a claim that no future match can arrive.
+
 ## Selection and actions
 
 Let S be explicit selected session IDs and F the current query and filters.
 Displayed sessions are (S when nonempty, otherwise the whole catalog)
 intersected with F. Typing, clearing text, changing filters, and excluding rows
 never change S.
+
+This is selected-sessions narrowing, not a same-turn or same-line intersection
+of old and new needles. After keeping sessions matching A, B can match anywhere
+in those sessions. Clearing the needle preserves S; the red X clears S.
+Browser Back restores the needle, filters, field checkboxes, preview limit and
+explicit selection from the URL and source-scoped history entry. Leaving the
+page stops its scans; Back does not keep transcript caches or subscriptions alive.
 
 The summary displays a checkmark N, a bordered left-arrow action, and result
 count M. N opens selection management. The arrow replaces S with the current
@@ -101,7 +182,12 @@ S. It is disabled for zero results because assigning an empty set would remove
 the selection restriction. The larger red X clears S. With no selection,
 M can exceed N; there is no separate hidden count.
 
-Selection management explains each excluded session's applicable project,
+Selection management appears after results, before the diagnostic log. At wide
+desktop widths they occupy adjacent columns and the management list uses page
+scrolling; narrower layouts bound its own scroll area. The list is labelled
+and identifies each provider. Providers without bounded turn search are hidden
+from this management list for now; this does not clear their selections or
+exclude their title hits from ordinary results. It explains each excluded session's applicable project,
 provider, executor, status, time, or selection restriction. For eligible
 sessions without text matches it distinguishes ongoing search, incomplete
 coverage, errors, and completed nonmatches. All fields unchecked produces an
@@ -122,8 +208,10 @@ The checkbox owns a wide, full-height selection column. Role/ordinal chips
 visually occupy that column and align against the preview's blue rule.
 Clicking the column selects instead of navigating. Titles extend halfway
 into it; provider metadata retains its usual indentation. Ordinary row and
-preview links navigate, including while there is a selection. Modified clicks
-and middle clicks retain new-tab behavior.
+links navigate, including while there is a selection. A normal click or tap on
+a turn preview opens Zoom; its Open turn in session link navigates to that
+position. Modified clicks and middle clicks on the preview retain direct
+new-tab behavior.
 
 ## Previews and navigation
 
@@ -135,16 +223,54 @@ when necessary and jumps through the normal transcript navigation owner.
 Title matches appear in the session title itself, with no separate Title row.
 The title or matching opening prompt is fitted around the needle using the
 actual available line width and inherited font, with ellipses on either side
-as needed. Resizing recalculates that excerpt.
+as needed. Resizing recalculates that excerpt. Measurement runs in cancellable
+tasks after the keyboard echo, reusing each title's canvas context rather than
+blocking the input paint with layout effects.
 
-Full-text tooltips load detail on demand. The match menu offers Zoom preview:
+Full-text tooltips load detail on demand. Clicking or tapping a turn match
+opens Zoom preview directly; the match menu offers the same action:
 full matching turn, a separator, and a bounded next assistant preview for a
 user match or preceding user preview for an assistant match. Neighbor context
 need not satisfy the search filters. Detail loading is abortable; unavailable
 turns fail visibly. Retained whole text supplies tooltips immediately; after
 cache eviction and on older servers, a tooltip fetches bounded transcript pages
-by stable turn ID. The concise selection help sits inline with filters only if
-it fits without another row; otherwise it follows results in scrolling flow.
+by stable turn ID. Zoom subtly highlights the needle in the full turn and
+places its first occurrence at the upper third of the scroll area when it
+starts below that point and scrolling permits it. An occurrence already above
+that point stays in place. Match menus dismiss on their trigger,
+outside press, focus leaving the match, or Escape; Escape closes the menu
+before its containing preview. Search match controls and preview text do not
+activate the containing session hover card. The concise selection help sits
+inline with filters only if it fits without another row; otherwise it follows
+results immediately before the diagnostic log. Only diagnostic session titles
+and filenames are links; byte offsets and error explanations are plain text.
+
+### Session match interstitial
+
+The expand action above a session's previews opens a maximized, session-only
+match view. It shows every retained matching User/Ass. record under the current
+needle, role and time filters, irrespective of Turns/session or the initial
+one-per-role reservation. This is an opt-in display projection of the same
+cache: opening it issues no extra scan and creates no subscription. Acquisition
+and live-tail arrivals continue to update it. Results mount progressively in
+40-row increments as the reader scrolls, with an explicit More control, so
+"all" does not require mounting 1024 rich rows in one render.
+
+The count means retained matches satisfying the current controls, not a known
+total in the transcript. Capped coverage is explicitly labelled; the view
+cannot recover records skipped by acquisition or go beyond its cache cap.
+It preserves discovery order and does not jump to fresh arrivals. Full-turn
+tooltips and Zoom share the normal match components. Clicking a match opens
+Zoom; its Open turn in session link navigates to that position. Modified and
+middle clicks on a match retain direct new-tab behavior.
+
+Back to sessions, X, Escape or browser Back dismisses the interstitial. The
+underlying page stays mounted, retaining its selection, query, limits and
+scroll position. Other sessions remain part of that search; concealing them
+does not change the set used by selection or acquisition. A nested Zoom closes
+back to the interstitial. Unlike Zoom's immutable opened-turn snapshot, the
+interstitial follows the live retained set for its chosen session, including
+corrections and removals.
 
 ## Initial acquisition and compatibility
 
@@ -197,6 +323,19 @@ line breaks, and whitespace runs are normalized using the preview rules;
 Markdown-delimiter normalization from the index sketch
 is not implemented. Ordinals count normalized visible records.
 
+The native reader's separate `MAX_RECORD = 1048576` limit applies to one raw
+JSONL line in bytes before JSON parsing or text extraction. It is neither a
+total-file size limit nor a limit on the cursor's byte offset. A transcript
+larger than 1 MiB is traversed normally. A larger single record is skipped
+through its newline and scanning continues with partial coverage. One record
+can include large plain text, tool output, embedded image data or repeated
+provider payload fields, so it need not represent a large searchable turn.
+The current reader cannot classify skipped oversized records and conservatively
+reports all of them; this may overstate missing searchable content. For
+example, inspection of a reported 1,642,439-byte Codex `item_completed` record
+found duplicated command output, not User/Ass. text. Improving that distinction
+requires bounded record classification/extraction, not an unbounded parse.
+
 The page shares four concurrent batch slots across both generations, rotating
 eligible sessions after each batch so a long transcript cannot starve later
 matches. The server admits at most four concurrent
@@ -224,6 +363,41 @@ subscription or periodic whole-catalog content rescan is created. New owned
 session notices include model, executor and activity alongside title, project
 identity/name, creation time, last activity and provider. Existing metadata
 updates keep those rows current without a detail fetch for every notice.
+
+## Server needle ownership: requested stopgap, not yet enforced
+
+The target guard is at most one active acquisition needle per interested
+viewer on the server. Here a viewer is one All Sessions window/tab, distinct
+from its query revision and from a shared client connection. A new revision
+supersedes that viewer's previous acquisition; old cached rows may remain as
+the display buffer, but must not keep an old scanner alive. Retaining an
+original broader acquisition needle for valid continuation cursors is allowed
+within the one owned search. One needle may still fan out across sessions in
+parallel: this rule does not serialize disk I/O to one request.
+
+Multiple viewers, including two windows of the same client, can be supported
+with independent ownership and bounded shared capacity. The maintainer also
+accepts a conservative initial global last-writer-wins owner: a newer needle
+in one window may interrupt another window's unfinished scan. Interruption
+must remain distinguishable from successful completion; the displaced viewer
+must not blindly retry and repeatedly steal ownership back. A later explicit
+search or renewed foreground interest can reacquire ownership.
+
+Ownership must be tied to observable interest: cancellation/supersession,
+hidden or closed views and transport loss retire the owner's queued work;
+accepted reads drain only within bounded time/bytes. Any lease-based form needs
+bounded expiry when explicit cleanup is lost. Stale completions cannot publish
+into a newer revision. Opening the session interstitial does not add an owner.
+The ownership identity and protocol gate remain to be designed before changing
+the wire contract; no TTL, request field or new capability is promised here.
+
+**Current difference:** the page permits two client scan generations sharing
+four batch slots; the stateless server limits concurrent requests to four and
+shares identical in-flight reads, but has no viewer/needle ownership guard.
+Independent windows have independent client pools. Client cancellation stops
+successor pulls; an accepted shared read may finish within its timeout. Thus
+the current batch ceiling is not proof of the requested one-needle invariant.
+The [acquisition gap](../gaps/all-sessions-search-index.md) tracks this work.
 
 ## Design decisions and remaining work
 

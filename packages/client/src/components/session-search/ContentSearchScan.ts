@@ -14,6 +14,7 @@ export interface SessionScan {
   done: boolean;
   cursor?: string;
   resumeCursor?: string;
+  tailing?: boolean;
   found: Map<string, SessionContentMatch>;
   diagnostics: SessionContentDiagnostic[];
   foundDiagnostics: Map<string, SessionContentDiagnostic>;
@@ -162,6 +163,7 @@ export class ContentSearchScan {
           partial: entry?.partial,
           done: false,
           cursor: resume,
+          tailing: !!resume,
           found: new Map(resume ? entry?.matches.map((m) => [m.id, m]) : []),
           diagnostics: entry?.diagnostics ?? [],
           foundDiagnostics: new Map(
@@ -283,6 +285,7 @@ export class ContentSearchScan {
         entry.acquisitionQuery = seed.acquisitionQuery;
         entry.cursor = seed.cursor ?? seed.resumeCursor;
         entry.resumeCursor = seed.resumeCursor;
+        entry.tailing = seed.done;
         entry.revision = seed.revision;
         entry.diagnostics = seed.diagnostics;
         entry.foundDiagnostics = new Map(seed.foundDiagnostics);
@@ -322,6 +325,7 @@ export class ContentSearchScan {
           throw new Error("Incomplete search batch has no continuation");
         entry.retries = 0;
         if (batch.reset) {
+          entry.tailing = false;
           this.retainedBytes -= entry.retainedBytes;
           entry.retainedBytes = 0;
           entry.refinable = true;
@@ -417,6 +421,7 @@ export class ContentSearchScan {
           entry.cursor = undefined;
           entry.resumeCursor = undefined;
           entry.found.clear();
+          entry.tailing = false;
           entry.foundDiagnostics.clear();
           entry.workPartial = undefined;
         } else {

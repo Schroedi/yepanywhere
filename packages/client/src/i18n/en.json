@@ -3525,5 +3525,15 @@
   "sessionSearchHelpCancel": "Clear selection",
   "sessionSearchTurnUnavailable": "The matching turn is no longer available in this session.",
   "sessionSearchMatchMenu": "Match menu",
-  "sessionSearchZoom": "Zoom preview"
+  "sessionSearchZoom": "Zoom preview",
+  "sessionSearchAllMatches": "Show all retained matches in this session",
+  "sessionSearchOpenTurn": "Open turn in session",
+  "sessionSearchScope": "in {count} sessions",
+  "sessionSearchManage": "Selection — turn-searchable sessions",
+  "sessionSearchWatching": "Watching for changes in eligible sessions and newly discovered sessions.",
+  "sessionSearchRetainedMatches": "{count} retained matches",
+  "sessionSearchMatchesScanning": "Search in progress",
+  "sessionSearchMatchesCapped": "Scan/cache limit reached. Later matches are not acquired; refine the search to scan again.",
+  "sessionSearchMoreMatches": "More turn matches",
+  "sessionSearchBackToResults": "Back to sessions"
 }

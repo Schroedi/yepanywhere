@@ -123,16 +123,17 @@ test("All Sessions keeps every typed character with a large title catalog", asyn
   expect(
     samples.every((sample) => sample.actual.startsWith(sample.expected)),
   ).toBe(true);
-  expect(
-    Math.max(...samples.map((sample) => sample.latency)),
-  ).toBeLessThanOrEqual(100);
   console.log(
     "[search-typing]",
     JSON.stringify({
       characters: text.length,
       maxKeyToFrameMs: Math.max(...samples.map((sample) => sample.latency)),
+      slowKeys: samples.filter((sample) => sample.latency > 100),
     }),
   );
+  expect(
+    Math.max(...samples.map((sample) => sample.latency)),
+  ).toBeLessThanOrEqual(100);
   await expect(page.locator(".session-list-item--card")).toHaveCount(1);
 });
 
@@ -207,7 +208,7 @@ test("All Sessions follows appended turns and newly discovered sessions without 
       .getByText("quasarneedle live alpha original request", { exact: false })
       .first(),
   ).toBeVisible({ timeout: 30000 });
-  await expect(page.getByText(/sessions scanned/)).toHaveCount(0, {
+  await expect(page.locator('[data-search-scanning="true"]')).toHaveCount(0, {
     timeout: 30000,
   });
   const before = requests.length;
@@ -289,9 +290,12 @@ for (const viewport of [
       await limit.fill("1");
       const rows = page.locator(".session-list-item--card");
       await expect(rows).toHaveCount(6, { timeout: 30000 });
-      await expect(page.getByText(/sessions scanned/)).toHaveCount(0, {
-        timeout: 30000,
-      });
+      await expect(page.locator('[data-search-scanning="true"]')).toHaveCount(
+        0,
+        {
+          timeout: 30000,
+        },
+      );
       await expect(
         rows.first().getByRole("button", { name: "Match menu" }),
       ).toHaveCount(2);
@@ -319,9 +323,12 @@ for (const viewport of [
       await page.getByRole("checkbox", { name: /^Ass\./ }).check();
       await search.fill("quasarneedle cached 2");
       await expect(rows).toHaveCount(1);
-      await expect(page.getByText(/sessions scanned/)).toHaveCount(0, {
-        timeout: 30000,
-      });
+      await expect(page.locator('[data-search-scanning="true"]')).toHaveCount(
+        0,
+        {
+          timeout: 30000,
+        },
+      );
       expect(
         requests
           .slice(count)
@@ -393,6 +400,16 @@ for (const viewport of [
             bytesRead: 0,
             unavailable:
               "Malformed transcript record; remaining records unavailable",
+            diagnostics: [
+              {
+                id: "broken.jsonl:1048577",
+                sourcePath: "/fixture/broken.jsonl",
+                byteOffset: 1048577,
+                messageId: "nearby-turn",
+                message:
+                  "broken.jsonl at byte 1048577: Malformed transcript record",
+              },
+            ],
           },
         });
       }
@@ -410,7 +427,29 @@ for (const viewport of [
       hasText: "A transcript with a malformed record",
     });
     await expect(diagnostic).toBeVisible();
-    await expect(page.getByText(/sessions scanned/)).toHaveCount(0, {
+    const location = page.getByRole("link", {
+      name: "broken.jsonl",
+      exact: true,
+    });
+    await expect(location).toHaveAttribute("href", /searchMatch=nearby-turn/);
+    const coverage = page
+      .locator("summary")
+      .filter({ hasText: "Incomplete turn coverage" });
+    await coverage.click();
+    await expect(diagnostic).not.toBeVisible();
+    await expect(coverage).toBeVisible();
+    await coverage.click();
+    await expect(diagnostic).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /Malformed transcript record/ }),
+    ).toHaveCount(0);
+    const help = page
+      .locator("p:visible")
+      .filter({ hasText: "count is pre-filter;" });
+    expect((await help.boundingBox())!.y).toBeLessThan(
+      (await diagnostic.boundingBox())!.y,
+    );
+    await expect(page.locator('[data-search-scanning="true"]')).toHaveCount(0, {
       timeout: 30000,
     });
     expect(requested.has("unsupported-grok")).toBe(false);
@@ -418,11 +457,34 @@ for (const viewport of [
       (await rows.last().boundingBox())!.y +
         (await rows.last().boundingBox())!.height,
     );
+    await page.getByRole("button", { name: "0", exact: true }).click();
+    const manager = page.getByRole("region", {
+      name: "Selection — turn-searchable sessions",
+    });
+    await expect(manager).toBeVisible();
+    await expect(manager).not.toContainText("grok");
+    expect((await manager.boundingBox())!.y).toBeGreaterThan(
+      (await rows.last().boundingBox())!.y,
+    );
+    if (viewport.name === "desktop")
+      await page.setViewportSize({ width: 1200, height: 600 });
+    await expect
+      .poll(async () => {
+        const help = page
+          .locator("p:visible")
+          .filter({ hasText: "count is pre-filter;" });
+        return help.evaluate((node) => {
+          const box = node.getBoundingClientRect();
+          return box.right <= document.documentElement.clientWidth;
+        });
+      })
+      .toBe(true);
     await recordUiCapture(
       page,
       `all-sessions-coverage-${viewport.name}`,
-      viewport,
+      viewport.name === "desktop" ? { width: 1200, height: 600 } : viewport,
     );
+    await page.setViewportSize(viewport);
     await page
       .getByRole("button", { name: "Filter by Providers", exact: true })
       .click();
@@ -434,6 +496,145 @@ for (const viewport of [
       `all-sessions-provider-support-${viewport.name}`,
       viewport,
     );
+  });
+
+  test(`All Sessions expands retained matches through scanning and live updates on ${viewport.name}`, async ({
+    page,
+    baseURL,
+  }) => {
+    test.setTimeout(60000);
+    const id = `expanded-${viewport.name}`;
+    saveSession(id, "expanded", true);
+    const file = createdFiles.at(-1)!;
+    await page.setViewportSize(
+      viewport.name === "desktop" ? { width: 1200, height: 600 } : viewport,
+    );
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let requests = 0;
+    await page.route("**/api/sessions/content-search", async (route) => {
+      requests++;
+      const response = await route.fetch();
+      const batch = await response.json();
+      if (route.request().postDataJSON().sessionId === id && batch.done)
+        await gate;
+      await route.fulfill({ response });
+    });
+    try {
+      await page.goto(`${baseURL}/sessions?q=quasarneedle`);
+      await page.getByRole("checkbox", { name: /^User/ }).check();
+      await page.getByRole("checkbox", { name: /^Ass\./ }).check();
+      await page
+        .getByRole("textbox", { name: "Turns/session", exact: true })
+        .fill("1");
+      const row = page
+        .locator(".session-list-item--card")
+        .filter({ hasText: "Search fixture expanded" });
+      await expect(row.getByRole("button", { name: "Match menu" })).toHaveCount(
+        2,
+      );
+      const plus = row.getByRole("button", {
+        name: "Show one more turn per session",
+        exact: true,
+      });
+      const checkbox = row.getByRole("checkbox");
+      const chip = row.locator("[data-search-previews] a span").first();
+      const plusRect = (await plus.boundingBox())!;
+      const checkRect = (await checkbox.boundingBox())!;
+      const chipRect = (await chip.boundingBox())!;
+      expect(plusRect.y).toBeGreaterThanOrEqual(checkRect.y + checkRect.height);
+      expect(plusRect.y + plusRect.height).toBeLessThanOrEqual(chipRect.y);
+      expect(plusRect.x + plusRect.width).toBeLessThanOrEqual(
+        chipRect.x + chipRect.width + 3,
+      );
+      await expect(
+        row.getByRole("button", { name: /^Show one fewer/ }),
+      ).toHaveCount(0);
+      await plus.hover();
+      await page.waitForTimeout(700);
+      await expect(page.locator("[data-session-hovercard-id]")).toHaveCount(0);
+      const before = requests;
+      await row
+        .getByRole("button", {
+          name: "Show all retained matches in this session",
+        })
+        .click();
+      const expanded = page.getByRole("dialog");
+      await expect(expanded).toContainText("6 retained matches");
+      await expect(
+        expanded.getByRole("button", { name: "Match menu" }),
+      ).toHaveCount(6);
+      expect(requests).toBe(before);
+      release();
+      await expect(expanded).toContainText("10 retained matches");
+      await expect(
+        expanded.getByText("Search in progress", { exact: true }),
+      ).toHaveCount(0);
+      appendFileSync(
+        file,
+        `${JSON.stringify({ type: "user", uuid: "expanded-live", parentUuid: `${id}-261`, sessionId: id, cwd: join(e2ePaths.tempDir, "mockproject"), timestamp: new Date().toISOString(), message: { role: "user", content: `${"Context before the match.\n".repeat(100)}quasarneedle fresh expanded turn` } })}\n`,
+      );
+      await expect(expanded).toContainText("11 retained matches", {
+        timeout: 30000,
+      });
+      const menus = expanded.getByRole("button", { name: "Match menu" });
+      await menus.first().click();
+      await expect(expanded.getByRole("menu")).toHaveCount(1);
+      await menus.nth(3).click();
+      await expect(expanded.getByRole("menu")).toHaveCount(1);
+      await page.keyboard.press("Escape");
+      await expect(expanded.getByRole("menu")).toHaveCount(0);
+      await expect(expanded).toBeVisible();
+      await expanded.locator('a[href*="searchMatch="]').last().click();
+      const zoom = page.getByRole("dialog").last();
+      const mark = zoom.locator("p mark").first();
+      await expect(mark).toHaveText("quasarneedle");
+      await expect(mark).toBeInViewport();
+      const position = await mark.evaluate((element) => {
+        const scroller = element.closest(".modal-content")!;
+        return (
+          element.getBoundingClientRect().top -
+          scroller.getBoundingClientRect().top -
+          scroller.clientHeight / 3
+        );
+      });
+      expect(Math.abs(position)).toBeLessThan(2);
+      await zoom.getByRole("button", { name: "Close", exact: true }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(1);
+      await recordUiCapture(
+        page,
+        `all-sessions-expanded-${viewport.name}`,
+        viewport.name === "desktop" ? { width: 1200, height: 600 } : viewport,
+      );
+      await page.goBack();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(row.getByRole("button", { name: "Match menu" })).toHaveCount(
+        2,
+      );
+      await expect(row).not.toContainText("fresh expanded turn");
+      await plus.click();
+      const bothPosition = (await plus.boundingBox())!.x;
+      await row.getByRole("button", { name: /^Show one fewer/ }).click();
+      expect((await plus.boundingBox())!.x).toBe(bothPosition);
+      await expect(
+        row.getByRole("button", { name: /^Show one fewer/ }),
+      ).toHaveCount(0);
+      await recordUiCapture(
+        page,
+        `all-sessions-controls-${viewport.name}`,
+        viewport.name === "desktop" ? { width: 1200, height: 600 } : viewport,
+      );
+      await page
+        .getByRole("textbox", { name: "Turns/session", exact: true })
+        .fill("20");
+      await expect(
+        row.getByRole("button", { name: /^Show one (more|fewer)/ }),
+      ).toHaveCount(0);
+    } finally {
+      release();
+    }
   });
 
   test(`All Sessions reserves arriving matches and fits long titles on ${viewport.name}`, async ({
@@ -461,7 +662,7 @@ for (const viewport of [
       });
       await search.fill("quasarneedle");
       const row = page.locator(".session-list-item--card");
-      await expect(row).toHaveCount(1);
+      await expect(row).toHaveCount(1, { timeout: 30000 });
       const title = row.locator("strong mark").locator("..");
       await expect(title).toHaveText(/^….*quasarneedle.*…$/);
       const narrowText = await title.textContent();
@@ -543,7 +744,7 @@ for (const viewport of [
     await expect(rows).toHaveCount(2, { timeout: 30000 });
     await rows.first().getByRole("button", { name: "Match menu" }).click();
     await page
-      .getByRole("button", { name: "Zoom preview", exact: true })
+      .getByRole("menuitem", { name: "Zoom preview", exact: true })
       .click();
     await expect(page.getByRole("dialog")).toContainText("original request");
     await expect(page.getByRole("dialog")).toContainText("matching answer");
@@ -558,7 +759,7 @@ for (const viewport of [
       page.getByRole("checkbox", { name: /^User/ }),
     ).not.toBeChecked();
     await expect(rows).toHaveCount(2, { timeout: 30000 });
-    await expect(page.getByText(/sessions scanned/)).toHaveCount(0, {
+    await expect(page.locator('[data-search-scanning="true"]')).toHaveCount(0, {
       timeout: 30000,
     });
     expect(requests.length).toBeGreaterThan(2);
@@ -573,8 +774,34 @@ for (const viewport of [
     await expect(
       page.getByRole("button", { name: "Clear 2 selected", exact: true }),
     ).toBeVisible();
+    await page
+      .getByRole("button", {
+        name: "Keep just 1 matching sessions selected",
+        exact: true,
+      })
+      .click();
+    await search.fill("matching answer");
+    await expect(rows).toHaveCount(1, { timeout: 30000 });
+    await expect(rows.first()).toContainText("alpha");
+    await expect(page.locator("[data-search-scope]")).toHaveText(
+      "in 1 sessions",
+    );
+    await search.fill("beta");
+    await expect(rows).toHaveCount(0, { timeout: 30000 });
+    await expect(
+      page.getByRole("button", { name: "Clear 1 selected", exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Clear 1 selected", exact: true })
+      .click();
     await search.fill("quasarneedle");
     await expect(rows).toHaveCount(2, { timeout: 30000 });
+    await page
+      .getByRole("button", {
+        name: "Keep just 2 matching sessions selected",
+        exact: true,
+      })
+      .click();
     await page
       .getByRole("button", { name: "Filter: Unarchived", exact: true })
       .click();
@@ -613,19 +840,29 @@ for (const viewport of [
     ).toBeVisible();
     await rows.first().getByRole("button", { name: "Match menu" }).click();
     await page
-      .getByRole("button", { name: "Zoom preview", exact: true })
+      .getByRole("menuitem", { name: "Zoom preview", exact: true })
       .click();
     await expect(page.getByRole("dialog")).toContainText("matching answer");
     await expect(page.getByRole("dialog")).toContainText("original request");
     await page.getByRole("button", { name: "Close", exact: true }).click();
     const target = rows.first().locator('a[href*="searchMatch="]').last();
     await target.click();
+    await page
+      .getByRole("dialog")
+      .getByRole("link", { name: "Open turn in session" })
+      .click();
     await expect(page).toHaveURL(/searchMatch=/);
     await expect(
       page
         .locator("[data-render-id]")
         .filter({ hasText: "matching answer" })
         .first(),
+    ).toBeVisible();
+    await page.goBack();
+    await expect(search).toHaveValue("quasarneedle");
+    await expect(assistant).toBeChecked();
+    await expect(
+      page.getByRole("button", { name: "Clear 2 selected", exact: true }),
     ).toBeVisible();
   });
 }
