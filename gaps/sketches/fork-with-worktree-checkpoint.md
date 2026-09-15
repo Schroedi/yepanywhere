@@ -40,6 +40,27 @@ worktree.
   [task-transition fresh-state](../../topics/agent-context-injection.md#task-transitions-and-fresh-state)
   path, so it does not keep editing the parent's path from stale context.
 
+## Why not yet, and what to try first
+
+The maintainers deliberately have not tied fork or parallel work to
+exclusively owned worktrees. As of the gpt-5.3-era agents (observation
+recorded 2026-09-15), agents working in side trees often produce work that
+conflicts with the canonical checkout, gets stranded in the side tree, or is
+mishandled when moved back into the user-modeled project directory. The
+failure class is entirely in the land-back step, so any variant of this
+sketch that expects an agent to bring a lane's tree home is gated on
+evidence that agents handle that step reliably, or on a human-attended
+landing through Source Control review plus an agent-performed, supervised
+rebase as [workstreams](../../topics/workstreams.md#landing-back-to-main)
+specifies.
+
+The first candidate is therefore the **disposable lane**: a fork whose tree
+is explicitly throwaway. Try the other approach, run the long verification,
+read the result or the transcript, and discard the lane; nothing moves back,
+so the observed failure mode cannot occur. That is also the shape of the
+"branch mid-run" exploration DeltaDB advertises. A land-back variant is a
+later step, not part of the first implementation.
+
 ## Not yet decided
 
 Whether the lane inherits the parent's branch or gets a named fork branch;
