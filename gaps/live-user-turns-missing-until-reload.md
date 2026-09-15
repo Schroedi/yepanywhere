@@ -1,8 +1,7 @@
 # Sent user turns can be absent from the live view until reload
 
-Status: reported live omission remains unexplained; a related catch-up ordering
-defect reproduces. This entry records investigation and proposed follow-up, not
-an implemented fix or newly enabled diagnostics.
+Status: reported live omission remains unexplained. The related catch-up
+ordering defect is fixed; recurrence instrumentation remains proposed.
 
 ## Observation and established evidence
 
@@ -82,26 +81,36 @@ captured, so this is not an exact historical-runtime reproduction.
 
 Client paths above are under `packages/client/src/`; the process owner is
 `packages/server/src/supervisor/Process.ts`. The private live-data probe was
-temporary; its reproducible sequence is below. No production code changed.
+temporary; the ordering sequence now has an offline regression test.
 The ordering defect does not establish why the original pending/live rows
 failed to appear or whether those rows existed outside the viewport.
 
+## Fixed portion: durable catch-up order
+
+The client now anchors a durable batch by matching IDs, placing missed user
+turns before an already streamed reply while preserving other retained rows.
+An unanchored batch uses known timestamps for placement only; it does not
+merge equal text or guess from equal/missing timestamps. The old-server
+compatibility path is unchanged. The contract is in
+[session detail data layer](../topics/session-detail-data-layer.md).
+
+`packages/client/src/lib/sessionDetail/__tests__/transcriptReducer.ordering.test.ts`
+covers batch and split arrival, repeated prompts, equal timestamps, a live
+tail, overlapping refresh and reload parity.
+`packages/client/e2e/session-catchup-order.spec.ts` exercises a live reply
+followed by REST catch-up through the mounted session on desktop and phone.
+These regressions address the demonstrated ordering defect, not the original
+scrolled-up pending-row disappearance.
+
 ## Tests and discriminating probes to build
 
-1. **Durable order after a missed live echo.** Load a Codex prefix; stream
-   assistant A; apply durable `[U1, U2, A]` with increasing timestamps and
-   matching IDs. Set `codexStreamDurableIdAlignment: true`. Assert exactly one
-   copy of each and projected order `[U1, U2, A]`, for whole-batch and split
-   catch-up. Add a reload control. Use synthetic text and stable IDs so this
-   becomes an offline reducer regression, independent of the private session.
-   Fix ordering at reconciliation rather than reinstating content-based dedup.
-2. **Submission handoff.** Exercise the mounted session/composer with delayed
+1. **Submission handoff.** Exercise the mounted session/composer with delayed
    HTTP acknowledgement, YA echo before/after that acknowledgement, provider
    echo withheld, and assistant output before durable catch-up. Assert the
    pending or transcript representation never disappears after send. Track
    acknowledgement provenance separately; HTTP success is not durable receipt.
    Include two rapid distinct sends and identical-text sends with distinct IDs.
-3. **Scrolled-up browser reproduction.** Use an isolated server/profile and
+2. **Scrolled-up browser reproduction.** Use an isolated server/profile and
    Playwright, a long transcript above the render-window threshold, Conversation
    view enabled, and an active tool call. Scroll at least one viewport up;
    sequentially type and press Enter while thinking/tool updates continue.
@@ -109,7 +118,7 @@ failed to appear or whether those rows existed outside the viewport.
    animation-frame positions through pending insertion, echo replacement,
    durable reconciliation and reply rendering. Assert each typed character
    appears within 100 ms and inspect desktop/phone captures per UI testing.
-4. **Boundary failures.** Delay/reorder individual transport and catch-up
+3. **Boundary failures.** Delay/reorder individual transport and catch-up
    deliveries; test stale tail replacement, route retention, reconnect and
    render-window changes separately. First check whether the target ID is in
    canonical data, projected rows, mounted DOM, or only outside the viewport.
@@ -169,10 +178,10 @@ the live path. Do not restart the shared server for these probes.
 ## Closure
 
 Keep the original visibility report open until a discriminating trace and a
-real-browser regression explain and prevent it. The demonstrated ordering
-defect can be fixed independently, narrowing this entry without claiming the
-whole report solved. Logging suggestions remain proposals until implemented
-and verified to preserve evidence across the reload that hides the defect.
+real-browser regression explain and prevent it. The ordering fix does not
+close this remaining visibility report. Logging suggestions remain proposals
+until implemented and verified to preserve evidence across the reload that
+hides the defect.
 
 Found 2026-09-15 while investigating delivered user turns missing from their
 sending window until reload. Contributing-model: 6-Astra
