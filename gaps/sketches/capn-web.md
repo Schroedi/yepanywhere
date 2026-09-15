@@ -134,6 +134,26 @@ existing client. Schema-less is not a win here: YA already uses TypeScript
 plus explicit wire types and capability IDs, and hosted-client compatibility
 needs those IDs to stay stable.
 
+## Activating difference (2026-09-15)
+
+Stub-as-permission — object and function stubs, holding the stub is the
+right to call it — is the only reason to reach for Cap’n Web. Nothing else
+is an independent product difference on YA’s current wires.
+
+If a stub-shaped JS-to-JS API did exist (an artifact iframe host object, a
+returned worker session), promise pipelining and callback stubs come along
+as *how that API stays one round trip*, not as a second reason to adopt.
+They do not justify replacing REST or vendor JSON-RPC.
+
+Cap’n Web stubs are live references on one RPC connection. They die with
+the socket. YA’s artifact grants, share links, and provider-host tokens are
+durable HTTP/file capabilities. Stubs do not replace those; they only help
+where a JS caller should hold a transient object it cannot forge.
+
+`postMessage` as a built-in transport is convenience. MCP Apps already
+speaks JSON-RPC over `postMessage`. Size and “no schema compiler” stay
+irrelevant.
+
 ## Why not implement
 
 No concrete call site hurts for lack of pipelining or object stubs. The
