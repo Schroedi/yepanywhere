@@ -42,15 +42,28 @@ export interface AgentctlSessionEnvBridge {
   cleanup(): void;
 }
 
+const PER_SESSION_AGENT_ENV_NAMES = new Set([
+  "YEP_SESSION_WAKE_URL",
+  "YEP_SESSION_WAKE_TOKEN",
+]);
+
 export function pickStaticAgentEnvironment(
   environment: Record<string, string> | NodeJS.ProcessEnv | undefined,
 ): Record<string, string> {
-  return Object.fromEntries(
-    STATIC_AGENT_ENV_NAMES.flatMap((name) => {
-      const value = environment?.[name];
-      return typeof value === "string" && value ? [[name, value]] : [];
-    }),
-  );
+  const picked: Record<string, string> = {};
+  for (const name of STATIC_AGENT_ENV_NAMES) {
+    const value = environment?.[name];
+    if (typeof value === "string" && value) picked[name] = value;
+  }
+  if (!environment) return picked;
+  for (const [name, value] of Object.entries(environment)) {
+    if (typeof value !== "string" || !value) continue;
+    if (PER_SESSION_AGENT_ENV_NAMES.has(name)) continue;
+    if (name in picked) continue;
+    if (!/^[A-Z_][A-Z0-9_]*$/u.test(name)) continue;
+    picked[name] = value;
+  }
+  return picked;
 }
 
 export function createAgentctlSessionEnvBridge(

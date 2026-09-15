@@ -24,6 +24,8 @@ import { createArtifactRoutes } from "./routes/artifacts.js";
 import {
   isArtifactHost,
   isArtifactOrigin,
+  isVhostHost,
+  isVhostOrigin,
 } from "./middleware/allowed-hosts.js";
 import { RESPONSE_ALREADY_SENT } from "@hono/node-server/utils/response";
 import type {
@@ -632,9 +634,16 @@ export function createApp(options: AppOptions): AppResult {
   const app = new Hono<{ Bindings: HttpBindings }>();
   app.use("*", async (c, next) => {
     const host = c.req.header("Host") ?? new URL(c.req.url).host;
-    if (artifactServer?.matchesHost(host))
-      return artifactServer.app.fetch(c.req.raw);
-    if (isArtifactHost(host) || isArtifactOrigin(c.req.header("Origin")))
+    const dispatched = artifactServer
+      ? await artifactServer.dispatchHost(c.req.raw)
+      : null;
+    if (dispatched) return dispatched;
+    if (
+      isArtifactHost(host) ||
+      isVhostHost(host) ||
+      isArtifactOrigin(c.req.header("Origin")) ||
+      isVhostOrigin(c.req.header("Origin"))
+    )
       return c.json({ error: "Artifact documents cannot access YA" }, 403);
     await next();
   });
@@ -1398,31 +1407,25 @@ export function createApp(options: AppOptions): AppResult {
           Promise.resolve()
       : undefined,
     onSuccessfulProviderSession: options.onSuccessfulProviderSession,
-    getSessionChildEnv:
-      options.getSessionWakeBaseUrl || options.getBrowserDebugConnection
-        ? (sessionId, executor) => {
-            const wakeBaseUrl = options.getSessionWakeBaseUrl?.(executor);
-            const browserDebugConnection =
-              options.getBrowserDebugConnection?.(executor);
-            const serverUrl = browserDebugConnection?.baseUrl ?? wakeBaseUrl;
-            return {
-              ...(serverUrl ? { AGENT_SERVER_URL: serverUrl } : {}),
-              ...artifactViewerAgentEnvironment(artifactServer, serverUrl),
-              ...(browserDebugConnection
-                ? browserDebugService.getAgentEnvironment(
-                    browserDebugConnection.baseUrl,
-                    browserDebugConnection.caCertificate,
-                  )
-                : {}),
-              ...(wakeBaseUrl
-                ? sessionWakeService?.environmentForSession(
-                    sessionId,
-                    wakeBaseUrl,
-                  )
-                : {}),
-            };
-          }
-        : undefined,
+    getSessionChildEnv: (sessionId, executor) => {
+      const wakeBaseUrl = options.getSessionWakeBaseUrl?.(executor);
+      const browserDebugConnection =
+        options.getBrowserDebugConnection?.(executor);
+      const serverUrl = browserDebugConnection?.baseUrl ?? wakeBaseUrl;
+      return {
+        ...(serverUrl ? { AGENT_SERVER_URL: serverUrl } : {}),
+        ...artifactViewerAgentEnvironment(artifactServer, serverUrl, executor),
+        ...(browserDebugConnection
+          ? browserDebugService.getAgentEnvironment(
+              browserDebugConnection.baseUrl,
+              browserDebugConnection.caCertificate,
+            )
+          : {}),
+        ...(wakeBaseUrl
+          ? sessionWakeService?.environmentForSession(sessionId, wakeBaseUrl)
+          : {}),
+      };
+    },
     // Durably record a model's real context window the moment a process
     // observes it (in the result message), independent of any client fetch.
     onContextWindowObserved: options.modelInfoService

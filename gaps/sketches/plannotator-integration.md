@@ -82,28 +82,19 @@ and subscriptions. Do not stuff Plannotator's HTML/API into
 Bypass options, not YA work: Plannotator `--tailscale`; SSH `-L` of the
 HTTP port (not X11).
 
-### Local: two maps on the same YA port
+### Local: static table (landed) vs dynamic helper (postponed)
 
-Both maps are `http://X.localhost:<YA port>` on the existing artifacts
-Host-dispatch socket. SSH `-L` of that one port is enough; extra forwards
-per child port are what this avoids. YA reverse-proxies to
-`127.0.0.1:<target-port>` after a grant.
+**Static table** is on Settings → Local Access, below the artifact fields.
+Each row is `name`, `port`, optional env var. `name.localhost` on YA's
+port reverse-proxies to `127.0.0.1:port` even when the public root is
+empty. Public root (e.g. `graehl.org`) also matches `name.graehl.org` on
+the artifact listener. An env name is exported to new local provider
+sessions as that port (`PLANNOTATOR_PORT=19432`). Normal Plannotator
+close is enough; YA does not kill a busy port.
 
-1. **Dynamic announced port.** The launched server binds loopback and
-   indicates its port (printed URL, or pin `PLANNOTATOR_PORT` in the child
-   env). YA registers an ephemeral Host such as
-   `plannotator-<grant>.localhost` — or a single `plannotator.localhost` if
-   only one review at a time — pointing at that port. Drop the Host when
-   the review ends.
-
-2. **Static explicit map.** Operator-configured `X.localhost` →
-   `127.0.0.1:<port>` for a known local server or a service already
-   ssh-forwarded onto the YA host. Same Host dispatch, no child
-   announcement. A laptop that only forwards the YA port can then open
-   `http://X.localhost:<forwarded-port>` for every mapped name.
-
-Same-machine client: that Host is enough (or even `http://127.0.0.1:<p>`
-with no vhost).
+**`ya-vhost` PATH helper is postponed.** The earlier checkbox +
+`ya-vhost <subdomain> <port>` design remains the agent API for dynamic
+maps; do not implement it in this slice.
 
 ### Preferred agent API: PATH helper + Local Access checkbox
 
@@ -230,13 +221,10 @@ Insertion point is the existing artifacts port + Host dispatch, not a new
 tunnel. The file-grant handler is still the wrong app; a sibling Host (or
 path on the public origin) reverse-proxies loopback Plannotator. Local
 needs both a dynamic announced-port map and a static `X.localhost` map.
-Public `*.graehl.org` else-rule now reaches 4402; YA still 421s unknown
-Hosts. Plannotator v0.27.15 can pin `PLANNOTATOR_PORT` but will not
-replace a busy port. The PATH helper + Local Access checkbox (and a
-separate public HTTPS option) are the proposed agent API; not built.
-Authz, cookie/Host, grant lifetime, and Host-table vs exact
-`matchesHost` are undesigned. No one here has used Plannotator through
-YA.
+Public `*.graehl.org` else-rule reaches 4402. Static Local Access vhost
+rows now reverse-proxy `name.localhost` and, with a public root,
+`name.graehl.org`. YA still 421s unmapped Hosts. `ya-vhost` remains
+unimplemented. No one here has used Plannotator through YA.
 
 Related: [active content security](../../topics/active-content-security.md)
 (artifact origins, public listener, cloudflared-shaped tunnel, grant
@@ -250,8 +238,8 @@ directory),
 [vanilla defaults](../../topics/vanilla-defaults.md),
 [agent context injection](../../topics/agent-context-injection.md).
 
-Found 2026-09-15; narrowed to same-port `.localhost` Host dispatch, then
-to a PATH `ya-vhost` helper. Nested `*.artifacts` blocked by Universal
-SSL; public else-rule `*.graehl.org` mapped to 4402.
+Found 2026-09-15; static Local Access vhost table landed; `ya-vhost`
+postponed. Nested `*.artifacts` blocked by Universal SSL; public
+else-rule `*.graehl.org` mapped to 4402.
 
 Contributing-model: grok-4.6

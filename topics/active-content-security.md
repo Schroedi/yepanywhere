@@ -309,7 +309,15 @@ absent, no grants are available and no artifact listener runs.
 The main YA listener dispatches the configured artifact Host to the isolated
 handler before application routes, authentication, or the development proxy.
 Consequently, `localhost:3400` and `artifacts.localhost:3400` can use the same
-SSH forward while retaining different browser hosts. The operator must arrange
+SSH forward while retaining different browser hosts.
+
+A static vhost table on the same Local Access form maps a DNS label to a
+loopback port. `name.localhost` on YA's port reverse-proxies to
+`127.0.0.1:<port>` even when the public vhost root is empty. A public root
+such as `graehl.org` also matches `name.graehl.org` on the artifact listener
+(the existing Cloudflare wildcard). Optional env names on a row are exported
+to new local provider sessions as that port. Dynamic `ya-vhost` PATH helpers
+remain unimplemented. The operator must arrange
 client-side resolution if their browser/OS does not resolve `*.localhost`.
 The local address's port is the browser's forwarded port, which can differ
 from YA's actual listening port.

@@ -1,4 +1,4 @@
-import type { ArtifactViewerStatus } from "@yep-anywhere/shared";
+import type { ArtifactVhost, ArtifactViewerStatus } from "@yep-anywhere/shared";
 import { useId, useState } from "react";
 import { CommittedRangeNumberInput } from "../../components/ui/CommittedRangeNumberInput";
 import { useCurrentSourceRuntime } from "../../contexts/SourceRuntimeContext";
@@ -41,8 +41,15 @@ function ArtifactSettingsForm({
   const [deleteOnExpiry, setDeleteOnExpiry] = useState(
     status.deleteOnExpiry === true,
   );
+  const [vhostPublicRoot, setVhostPublicRoot] = useState(
+    status.vhostPublicRoot ?? "",
+  );
+  const [vhosts, setVhosts] = useState<ArtifactVhost[]>(() =>
+    (status.vhosts ?? []).map((row) => ({ ...row })),
+  );
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const vhostsSupported = status.vhosts !== undefined;
 
   async function save() {
     setMessage("");
@@ -68,6 +75,18 @@ function ArtifactSettingsForm({
           ...(expiryDays === undefined
             ? { expiryHours }
             : { expiryDays, deleteOnExpiry }),
+          ...(vhostsSupported
+            ? {
+                vhostPublicRoot: vhostPublicRoot.trim(),
+                vhosts: vhosts
+                  .filter((row) => row.name.trim())
+                  .map((row) => ({
+                    name: row.name.trim(),
+                    port: row.port,
+                    ...(row.env?.trim() ? { env: row.env.trim() } : {}),
+                  })),
+              }
+            : {}),
         }),
       });
       setMessage(t("artifactSaved"));
@@ -170,6 +189,108 @@ function ArtifactSettingsForm({
               <p>{t("artifactExpiryHint")}</p>
             </>
           )
+        )}
+        {vhostsSupported && (
+          <>
+            <label>
+              {t("artifactVhostPublicRoot")}
+              <input
+                type="text"
+                value={vhostPublicRoot}
+                placeholder="graehl.org"
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(e) => setVhostPublicRoot(e.target.value)}
+              />
+            </label>
+            <p>{t("artifactVhostPublicRootHint")}</p>
+            <div className={styles.vhosts}>
+              <span className={styles.vhostHeading}>
+                {t("artifactVhostTableTitle")}
+              </span>
+              <p>{t("artifactVhostTableHint")}</p>
+              {vhosts.map((row, index) => (
+                <div key={index} className={styles.vhostRow}>
+                  <label>
+                    {t("artifactVhostName")}
+                    <input
+                      type="text"
+                      value={row.name}
+                      autoComplete="off"
+                      spellCheck={false}
+                      onChange={(e) =>
+                        setVhosts((current) =>
+                          current.map((item, i) =>
+                            i === index
+                              ? { ...item, name: e.target.value }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    {t("artifactVhostPort")}
+                    <input
+                      type="number"
+                      min={1}
+                      max={65535}
+                      value={row.port || ""}
+                      onChange={(e) =>
+                        setVhosts((current) =>
+                          current.map((item, i) =>
+                            i === index
+                              ? { ...item, port: Number(e.target.value) }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    {t("artifactVhostEnv")}
+                    <input
+                      type="text"
+                      value={row.env ?? ""}
+                      placeholder="PLANNOTATOR_PORT"
+                      autoComplete="off"
+                      spellCheck={false}
+                      onChange={(e) =>
+                        setVhosts((current) =>
+                          current.map((item, i) =>
+                            i === index
+                              ? { ...item, env: e.target.value }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVhosts((current) =>
+                        current.filter((_, i) => i !== index),
+                      )
+                    }
+                  >
+                    {t("artifactVhostRemove")}
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() =>
+                  setVhosts((current) => [
+                    ...current,
+                    { name: "", port: 19432 },
+                  ])
+                }
+              >
+                {t("artifactVhostAdd")}
+              </button>
+            </div>
+          </>
         )}
         <button type="submit">
           {t(saving ? "artifactSaving" : "artifactSave")}

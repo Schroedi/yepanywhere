@@ -19,7 +19,12 @@ import {
   type PendingDeletion,
   type StoredGrant,
 } from "./GrantStore.js";
-import { registerArtifactOrigins } from "../middleware/allowed-hosts.js";
+import {
+  registerArtifactOrigins,
+  setVhostHostnames,
+} from "../middleware/allowed-hosts.js";
+import { proxyLoopbackVhost } from "./vhost-proxy.js";
+import { matchVhost, vhostHostnames } from "./vhosts.js";
 
 const MAX_GRANTS = 256;
 const MAX_FILE_BYTES = 64 * 1024 * 1024;
@@ -72,7 +77,7 @@ export class ArtifactServer {
     this.store = new GrantStore(options.stateDir);
     this.protectedPaths = options.protectedPaths ?? [];
     this.ready = this.restore();
-    registerArtifactOrigins([config.localOrigin, config.publicOrigin]);
+    this.registerHosts(this.config);
     this.app.use("*", async (c, next) => {
       await this.ready;
       if (!this.matchesHost(c.req.header("Host") ?? new URL(c.req.url).host))
@@ -253,7 +258,20 @@ export class ArtifactServer {
   }
 
   get available(): boolean {
-    return Boolean(this.config.localOrigin) || this.listening;
+    return (
+      Boolean(this.config.localOrigin) || Boolean(this.config.publicOrigin)
+    );
+  }
+
+  private shouldListen(config = this.config): boolean {
+    return Boolean(config.publicOrigin) || Boolean(config.vhostPublicRoot);
+  }
+
+  private registerHosts(config: ArtifactConfig): void {
+    registerArtifactOrigins([config.localOrigin, config.publicOrigin]);
+    setVhostHostnames(
+      vhostHostnames(config.vhosts ?? [], config.vhostPublicRoot),
+    );
   }
 
   matchesHost(host: string): boolean {
@@ -262,11 +280,28 @@ export class ArtifactServer {
     );
   }
 
+  matchesVhost(host: string | undefined) {
+    return matchVhost(
+      host,
+      this.config.vhosts ?? [],
+      this.config.vhostPublicRoot,
+    );
+  }
+
+  async dispatchHost(request: Request): Promise<Response | null> {
+    const host = request.headers.get("host") ?? new URL(request.url).host;
+    const vhost = this.matchesVhost(host);
+    if (vhost) return proxyLoopbackVhost(request, vhost.port);
+    if (this.matchesHost(host)) return this.app.fetch(request);
+    return null;
+  }
+
   async configure(config: ArtifactConfig): Promise<void> {
     config = validateArtifactConfig(
       config,
       this.config.expiryDays,
       this.config.deleteOnExpiry,
+      this.config,
     );
     const previous = this.config;
     const deliveryChanged =
@@ -276,13 +311,13 @@ export class ArtifactServer {
     const wasListening = this.listening;
     if (
       config.port !== previous.port ||
-      (this.listening && !config.publicOrigin)
+      (this.listening && !this.shouldListen(config))
     )
       await this.close();
     this.config = config;
-    registerArtifactOrigins([config.localOrigin, config.publicOrigin]);
+    this.registerHosts(config);
     try {
-      if (!this.listening && config.publicOrigin) await this.start();
+      if (!this.listening && this.shouldListen(config)) await this.start();
       if (deliveryChanged) {
         // Changing where artifacts are served revokes outstanding links, and
         // an owning grant pays its deletion on revocation.
@@ -304,7 +339,11 @@ export class ArtifactServer {
   async start(): Promise<void> {
     if (this.listener) throw new Error("Artifact server already started");
     await new Promise<void>((resolveReady, reject) => {
-      const listener = createServer(getRequestListener(this.app.fetch));
+      const listener = createServer(
+        getRequestListener(async (request) => {
+          return (await this.dispatchHost(request)) ?? this.app.fetch(request);
+        }),
+      );
       this.listener = listener;
       listener.once("error", reject);
       listener.listen(this.config.port, "127.0.0.1", () => {

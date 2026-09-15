@@ -733,7 +733,6 @@ export function LocalAccessSettings() {
 
     return (
       <SettingsSection description={t("localAccessDescription")}>
-        <ArtifactSettings />
         {/* Current status */}
         <HideInSettingsSearch>
           <div className="settings-group">
@@ -1106,6 +1105,7 @@ export function LocalAccessSettings() {
             </SettingsItem>
           </div>
         )}
+        <ArtifactSettings />
       </SettingsSection>
     );
   }
@@ -1116,7 +1116,6 @@ export function LocalAccessSettings() {
 
     return (
       <SettingsSection description={t("localAccessRemoteDescription")}>
-        <ArtifactSettings />
         {remoteFileAccessReady ? (
           <div className="settings-group">{renderFileAccessSettings()}</div>
         ) : (
@@ -1149,6 +1148,7 @@ export function LocalAccessSettings() {
             </button>
           </SettingsItem>
         </div>
+        <ArtifactSettings />
       </SettingsSection>
     );
   }

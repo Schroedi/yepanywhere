@@ -31,6 +31,7 @@ export function createArtifactRoutes(options: {
         await c.req.json(),
         options.server.config.expiryDays,
         options.server.config.deleteOnExpiry,
+        options.server.config,
       );
       const requestHost = new URL(
         `http://${c.req.header("Host") ?? new URL(c.req.url).host}`,

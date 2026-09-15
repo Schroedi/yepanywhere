@@ -25,11 +25,24 @@ function isLoopbackUrl(value: string): boolean {
 }
 
 export function artifactViewerAgentEnvironment(
-  server: { available: boolean; config: { localOrigin?: string } },
+  server: {
+    available: boolean;
+    config: {
+      localOrigin?: string;
+      vhosts?: { env?: string; port: number }[];
+    };
+  },
   serverUrl: string | undefined,
+  executor?: string,
 ): Record<string, string> {
+  const env: Record<string, string> = {};
   const origin = server.config.localOrigin;
-  if (!server.available || !origin) return {};
-  if (!serverUrl || !isLoopbackUrl(serverUrl)) return {};
-  return { [ARTIFACT_VIEWER_ORIGIN_ENV]: origin };
+  const onLoopback = Boolean(serverUrl && isLoopbackUrl(serverUrl));
+  if (server.available && origin && onLoopback)
+    env[ARTIFACT_VIEWER_ORIGIN_ENV] = origin;
+  if (!executor && (!serverUrl || onLoopback)) {
+    for (const vhost of server.config.vhosts ?? [])
+      if (vhost.env) env[vhost.env] = String(vhost.port);
+  }
+  return env;
 }
