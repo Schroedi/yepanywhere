@@ -45,6 +45,22 @@ transcript backfill, or Git work at observation time. Reads are on demand from
 Source Control and the transcript; `lastEditor` remains the cheap projection
 and is not replaced.
 
+**The row also names the requester and their authorization.** For the
+DeltaDB-style link to be worth anything in a shared session, an agent's edit
+must trace not just to a turn but to the person whose ask produced it and to
+the authority under which that ask reached the provider. Each row therefore
+carries a reference to the *requesting user input*: the latest delivered
+user send, steer, or queued message preceding the tool call, with its
+participant seat ([named participant seats](named-participant-seats.md)) and
+its authorization kind: driver send, send-enabled guest send, or a guest
+proposal the driver applied. When a tool approval gated the mutation, the row
+also records the approving seat. The seat comes from YA metadata on that
+input, not from parsing the username prefix in the turn text; the prefix is
+for the agent, the metadata is for YA. A single-operator session records the
+driver and nothing changes visibly. The projections this enables are "line →
+turn → who asked, under what authority" and "what did this person's requests
+change".
+
 Retention follows [app-data-only storage](../../topics/project-directory-storage.md)
 and needs a size/age budget like the review capture store. This index is the
 natural producer for the "Session links" the

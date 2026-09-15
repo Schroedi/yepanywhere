@@ -26,6 +26,11 @@ devices) does not need accounts to get readable attribution.
   submission, and live-share draft or proposal. The transcript, queue rail,
   source-review sites, and Inbox show the seat where a second seat has ever
   appeared on that session; a single-seat session renders exactly as today.
+  Each recorded input also keeps its authorization kind (driver send,
+  send-enabled guest send, driver-applied guest proposal, tool approval), so
+  [turn-anchored edit provenance](turn-anchored-edit-provenance.md) can
+  attribute an agent's edit to the person whose ask produced it and the
+  authority it ran under.
 - **Provider-neutral and non-invasive.** The seat lives in YA metadata beside
   the canonical turn id
   ([provider user-turn durable identity](../provider-user-turn-durable-identity.md)),
