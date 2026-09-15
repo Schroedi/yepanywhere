@@ -1,77 +1,129 @@
-# Plannotator integration is unscoped
+# Plannotator UI reach: HTTP browser app, not an X11 display
 
-YA has no first-class path for [Plannotator](https://github.com/backnotprop/plannotator)
-(local browser review for agent plans, markdown, diffs, and HTML artifacts).
-The product is real and widely integrated with the same harnesses YA supervises,
-but this checkout has never used it. What follows is research, not a design.
+[Plannotator](https://github.com/backnotprop/plannotator) is a **temporary
+local HTTP server plus a browser page**, not a Linux GUI that needs an X
+display, VNC, or xterm forwarding. The integration YA would actually need is
+getting that page to the **user's** browser when the agent runs on the YA
+host and the user is on localhost, Tailscale, or a hosted client through the
+relay.
 
-## What Plannotator does
+Docs last checked against Plannotator OSS ~v0.25–0.27 (2026-08). This checkout
+has never run it.
 
-It is a local review surface that plugs into the agent through **hooks,
-skills, and slash commands**, not through YA:
+## What it is
 
-- **Plan review.** Claude `ExitPlanMode` / OpenCode `submit_plan` / Pi
-  `plannotator_submit_plan` opens a browser UI. The user annotates, then
-  approve / deny-with-feedback / approve-with-notes. Deny returns structured
-  comments as the agent's next input; a later resubmit shows a plan diff.
-- **Annotate.** `/plannotator-annotate <file|dir|url>`,
-  `/plannotator-last` (last agent message), HTML via `--render-html`.
-- **Code review.** `/plannotator-review` on the working tree or a GitHub/GitLab
-  URL. Comments go back to the agent.
-- **HTML artifacts.** Rendered HTML can be annotated in the browser. Adjacent
-  Visual HTML skills live at https://github.com/plannotator/effective-html.
+The `plannotator` binary starts a Bun HTTP server, prints a URL, and (locally)
+opens the system browser. Plan review, annotate, HTML, and code review are
+that web UI. Skills and harness hooks (`ExitPlanMode`, `submit_plan`,
+`/plannotator-annotate`, `/plannotator-review`, `/plannotator-last`) launch
+that server and wait for approve/deny; structured feedback returns as the
+agent's next input.
 
-Install is per-harness (`plannotator` CLI plus hooks/skills in `~/.claude`,
-Codex Stop hook, OpenCode plugin, `pi install npm:@plannotator/pi-extension`,
-etc.). Sessions need those host files, not a YA setting, to open a review.
+It is not an X11 app. `PLANNOTATOR_BROWSER` / `BROWSER` only choose how to
+**open a URL**. Headless hosts should set `BROWSER=none` (or remote mode) so
+it does not try to spawn a display-side browser.
 
-## Overlap with YA
+### Bind and URL (from their remote.ts and remote-access docs)
 
-- **Artifact serving.** YA already isolates interactive HTML under a configured
-  artifact origin (`topics/active-content-security.md`). Plannotator is a
-  *review and feedback* app over plans/HTML/diffs, not a file server. A YA
-  session that writes `plan.md` or a prototype `.html` could be opened in
-  either surface. They should not both claim the same localhost port.
-- **Source review.** YA's Source Control review comments are git-line comments
-  into a YA session. Plannotator review comments are agent-turn feedback. Same
-  human gesture, different delivery.
-- **Remote executors / SSH.** Plannotator has `PLANNOTATOR_REMOTE` and a fixed
-  port for SSH/devcontainers. YA remote executors would need that port
-  forwarded if a remote harness is the one opening reviews.
-- **Browser.** Plannotator opens its own local server and a system browser.
-  YA already has a session-scoped browser. Unclear whether reviews should open
-  in YA's browser, the OS browser, or both.
+| Mode | Listen | Port | Browser open | Auth |
+|---|---|---|---|---|
+| Local | `127.0.0.1` | random | auto | none |
+| `PLANNOTATOR_REMOTE=1` | `0.0.0.0` | 19432 default | often skip; print URL | **none** |
+| `--tailscale` (v0.27+) | stays `127.0.0.1` | Serve proxy | prints HTTPS + QR | Tailscale, not Plannotator |
 
-## What a YA integration might do (unconfirmed)
+`PLANNOTATOR_URL_HOST` changes only the advertised URL, not the bind.
+Remote mode on `0.0.0.0` is an unauthenticated HTTP server; their docs say
+do not publish it. Settings use a **localhost cookie**. HTML review is a
+sandboxed iframe with relative assets from the file's directory.
 
-None of this is approved:
+The old `--render-html` flag is a no-op; local `.html` renders as a page by
+default.
 
-- Brief sessions (capability fragment or a `/plannotator` command) on how to
-  submit plans/HTML that Plannotator can render, and how to treat returned
-  annotation text as user steering.
-- A session or provider checkbox that only documents the expectation, or that
-  sets `PLANNOTATOR_*` in the child environment.
-- A button that runs `/plannotator-last` or opens the last plan/HTML artifact
-  through Plannotator if the CLI is on PATH.
-- Generate prototype artifacts in a layout Plannotator's HTML annotator
-  understands, served either by Plannotator or by YA's artifact origin.
+## What YA should not do
 
-The crux is ownership of the feedback loop: Plannotator already injects the
-next user turn into the *provider* session. YA would see that as an incoming
-user message. Do not add a second injector that duplicates it.
+- X11 / VNC / xterm GUI forwarding. Wrong shape.
+- A second feedback injector. Plannotator already writes the next provider
+  user turn. YA should show the UI and leave that loop alone.
+- Reuse the artifact **file-grant** path as if Plannotator were a static
+  `.html` tree. Artifact serving "does not rewrite JavaScript, emulate an
+  application backend, or run a project's dev server"
+  (`topics/active-content-security.md`). Plannotator **is** a live app
+  (review APIs, cookies, approve/deny). Serving a captured HTML export is a
+  different, weaker product.
+
+## How the user's browser can reach it
+
+Same-machine YA client: `http://127.0.0.1:<port>` is enough. Open the printed
+URL in a tab (or iframe). No proxy.
+
+Hosted / other-device client: the user's browser is not on the agent host.
+Options, preferred first:
+
+1. **YA-authenticated reverse proxy of loopback Plannotator** (the REST-proxy
+   flow). Keep Plannotator on `127.0.0.1`. YA (or a Host on the existing
+   public artifact listener) proxies HTTP to that port and only issues a
+   grant after the same authenticated transport that mints artifact grants.
+   Do not set `PLANNOTATOR_REMOTE=1` just to punch `0.0.0.0`.
+2. **Public artifact origin / cloudflared as the insertion point.** A
+   configured `YEP_ARTIFACT_PUBLIC_ORIGIN` already starts a plain HTTP
+   listener on `127.0.0.1:<artifact port>` (default 4402) for a reverse
+   proxy or tunnel. The proxy preserves Host and terminates HTTPS. That is
+   how hosted clients reach interactive HTML today, **outside** the
+   encrypted relay mux. The same cloudflared (or a second hostname on it)
+   can dispatch a Plannotator Host to a loopback reverse-proxy instead of
+   the file-grant handler. Bytes still leave the relay protocol; a
+   TLS-terminating tunnel can read them. Grant minting still goes over
+   authenticated YA/relay. This is the least new infrastructure if a Host
+   (or path) is added beside artifacts.
+3. **Plannotator `--tailscale`.** They already keep loopback and use
+   Tailscale Serve for HTTPS. Bypass YA. Fine when both devices are on the
+   tailnet; does not help a `ya.graehl.org` browser that is not.
+4. **SSH `-L` of the HTTP port.** Not X11. Works; the user asked not to
+   rely on display forwarding, and this is optional fallback.
+
+The YA **relay mux is not a generic HTTP reverse proxy**. It carries YA REST
+and subscriptions. Do not stuff Plannotator's HTML/API into
+`RelayRequest { method, path }`. Artifact/cloudflared is the existing
+"browser talks HTTPS to a Host that maps to loopback HTTP" pattern.
+
+### Proxy constraints if we take (1) or (2)
+
+- Preserve `Host` or cookie/settings break (their UI cookie is host-scoped).
+- Forward the full session (HTML, XHR/fetch APIs, relative assets). If they
+  later add WebSocket, the proxy must upgrade; not verified in-tree here.
+- Do not enable `PLANNOTATOR_AGENT_TERMINAL_REMOTE=1` on a public or
+  cloudflared path: that lets the browser run commands on the agent host.
+- A grant must be session-scoped and revoked when the review ends; a sticky
+  public URL to an unauthenticated Plannotator is a hole.
+- Port discovery: parse the URL Plannotator prints, or fix
+  `PLANNOTATOR_PORT` in the child env and proxy that loopback port.
+
+## Skills / briefing (still needed, smaller than the proxy)
+
+Sessions that opt in should know: call Plannotator as usual; do not expect a
+local GUI; print or return the URL; YA will open it for the user. Prototype
+HTML/plans stay files Plannotator can open (`plannotator annotate
+report.html`). YA does not need to re-implement their renderer.
+
+Optional child env: `BROWSER=none` so a headless host does not spawn
+xdg-open; maybe `PLANNOTATOR_PORT` so the proxy has a stable target. Avoid
+`PLANNOTATOR_REMOTE=1` unless we deliberately want `0.0.0.0`.
 
 ## Why not implement now
 
-No one here has used Plannotator. Hook/port/browser collisions, remote
-executor forwarding, and whether YA should wrap or merely brief the agent are
-product choices. Capture the pointer; do not invent a settings surface.
+The product choice is which insertion point: artifact/cloudflared Host vs a
+new YA route vs Tailscale-only. The file-grant artifact contract is the
+wrong handler; the **listener + cloudflared** around it is the right kind of
+socket. Authz, Host routing, cookie/Host, and grant lifetime are still
+undesigned. No one here has used Plannotator.
 
-Related contracts: [active content security](../../topics/active-content-security.md)
-(artifact origin), [source review](../../topics/source-review-to-session.md),
-[agent context injection](../../topics/agent-context-injection.md),
-[pi provider sketches](../../topics/pi-provider.sketches.md) (Pi already has a
-first-party Plannotator extension).
+Related: [active content security](../../topics/active-content-security.md)
+(artifact origins, public listener, cloudflared-shaped tunnel, grant
+transport vs byte path),
+[source transport](../../topics/source-transport.md) (relay is YA REST, not
+a generic proxy),
+[agent context injection](../../topics/agent-context-injection.md).
 
-Found 2026-09-15 while taking over a stopped session that also landed
-post-compact replay.
+Found 2026-09-15; narrowed 2026-09-15 to web-UI reach via HTTP proxy /
+artifact cloudflared, not X11.
 Contributing-model: grok-4.6
