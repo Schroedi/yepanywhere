@@ -59,7 +59,10 @@ input, not from parsing the username prefix in the turn text; the prefix is
 for the agent, the metadata is for YA. A single-operator session records the
 driver and nothing changes visibly. The projections this enables are "line →
 turn → who asked, under what authority" and "what did this person's requests
-change".
+change". This mechanical layer places the edit; the ask it serves is only
+implied by position, and the agent-declared supplement that names it is the
+[edit authorization trace](edit-authorization-trace.md) sketch. Both are
+recorded side by side.
 
 Retention follows [app-data-only storage](../../topics/project-directory-storage.md)
 and needs a size/age budget like the review capture store. This index is the
