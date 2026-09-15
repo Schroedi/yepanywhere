@@ -7,8 +7,9 @@ getting that page to the **user's** browser when the agent runs on the YA
 host and the user is on localhost, Tailscale, or a hosted client through the
 relay.
 
-Docs last checked against Plannotator OSS ~v0.25–0.27 (2026-08). This checkout
-has never run it.
+Docs last checked against Plannotator OSS v0.27.15 (installed at
+`~/.local/bin/plannotator`, 2026-09-15). This checkout has never driven a
+review through YA.
 
 ## What it is
 
@@ -35,6 +36,15 @@ it does not try to spawn a display-side browser.
 Remote mode on `0.0.0.0` is an unauthenticated HTTP server; their docs say
 do not publish it. Settings use a **localhost cookie**. HTML review is a
 sandboxed iframe with relative assets from the file's directory.
+
+**Static port, no replace.** `PLANNOTATOR_PORT` pins a port (or an inclusive
+range). Local default is random (`0`); remote default is 19432. A **fixed**
+port that is already bound is retried five times (500 ms) then errors
+(`Port N in use after 5 retries`). Plannotator does not kill the occupant;
+their troubleshooting is `lsof -ti:N | xargs kill` then retry. There is no
+`--replace` / `--force` flag. So a stable `plan.localhost` vhost can use
+`PLANNOTATOR_PORT=19432`, but the old process must be gone first — YA should
+not rely on Plannotator to forcibly take the port.
 
 The old `--render-html` flag is a no-op; local `.html` renders as a page by
 default.
@@ -94,6 +104,51 @@ per child port are what this avoids. YA reverse-proxies to
 
 Same-machine client: that Host is enough (or even `http://127.0.0.1:<p>`
 with no vhost).
+
+### Preferred agent API: PATH helper + Local Access checkbox
+
+Because Plannotator will not steal a busy port, the stable setup is a YA
+callable that **updates the vhost table**, not a second process killer.
+
+**Settings → Local Access**, default off ([[vanilla-defaults]]): checkbox
+"dynamic vhost proxy". When on, eligible provider launches get the existing
+private command directory on `PATH` (same channel as `ya-agent self`) with a
+helper, e.g. `ya-vhost <subdomain> <port>` (or `ya-agent vhost` if we keep a
+single dispatcher).
+
+- `<subdomain>` is one DNS label (`plan`, not `plan.graehl.org`). Reject
+  dots, empty, and reserved names (`localhost`, `artifacts`, `relay`, `www`,
+  `ya`).
+- `<port>` is the already-listening loopback HTTP port (Plannotator after
+  it prints a URL, or a pinned `PLANNOTATOR_PORT`).
+- Re-running the same subdomain **replaces** the previous map (the
+  force-replace that Plannotator itself will not do). Do not SIGKILL
+  whatever is on that port unless we later add an explicit, pid-checked
+  flag.
+- Print both URLs the map actually enables. Drop the map when the session
+  ends, the helper unmaps, or the grant expires.
+
+Suffixes, from the same table:
+
+| Audience | URL | Notes |
+|---|---|---|
+| Local / SSH `-L` of the YA port | `http://<sub>.localhost:<YA port>` | RFC 6761; no extra forward |
+| Public (separate opt-in) | `https://<sub>.graehl.org` | Existing Cloudflare `*.graehl.org` else-rule already delivers TLS to 4402 |
+
+Public is a **new option**, not implied by the local checkbox: publishing
+`plan.graehl.org` is internet-reachable HTTPS to an unauthenticated
+loopback app. Keep Plannotator on `127.0.0.1`; do not set
+`PLANNOTATOR_REMOTE=1`. YA reverse-proxies; Cloudflare does not need a
+new tunnel hostname per subdomain.
+
+`matchesHost` must accept registered names (and unknown Hosts must still
+421, never fall through to YA APIs). The helper talks to YA over the
+authenticated session channel (`AGENT_YA_API_URL` / token), not by
+editing Cloudflare.
+
+A pinned-port shortcut without the helper still works for one-at-a-time
+use: `PLANNOTATOR_PORT=19432` plus a static `plan` map — after the
+operator (or a later `--replace` flag) has cleared the old listener.
 
 ### Public: hosted client / devices (`ya.graehl.org`)
 
@@ -164,8 +219,10 @@ HTML/plans stay files Plannotator can open (`plannotator annotate
 report.html`). YA does not need to re-implement their renderer.
 
 Optional child env: `BROWSER=none` so a headless host does not spawn
-xdg-open; maybe `PLANNOTATOR_PORT` so the proxy has a stable target. Avoid
-`PLANNOTATOR_REMOTE=1` unless we deliberately want `0.0.0.0`.
+xdg-open. If the vhost helper is on PATH, after Plannotator prints its
+loopback URL run `ya-vhost plan <port>` (or pin `PLANNOTATOR_PORT` and
+pass that). Avoid `PLANNOTATOR_REMOTE=1` unless we deliberately want
+`0.0.0.0`.
 
 ## Why not implement now
 
@@ -174,9 +231,12 @@ tunnel. The file-grant handler is still the wrong app; a sibling Host (or
 path on the public origin) reverse-proxies loopback Plannotator. Local
 needs both a dynamic announced-port map and a static `X.localhost` map.
 Public `*.graehl.org` else-rule now reaches 4402; YA still 421s unknown
-Hosts.
+Hosts. Plannotator v0.27.15 can pin `PLANNOTATOR_PORT` but will not
+replace a busy port. The PATH helper + Local Access checkbox (and a
+separate public HTTPS option) are the proposed agent API; not built.
 Authz, cookie/Host, grant lifetime, and Host-table vs exact
-`matchesHost` are undesigned. No one here has used Plannotator.
+`matchesHost` are undesigned. No one here has used Plannotator through
+YA.
 
 Related: [active content security](../../topics/active-content-security.md)
 (artifact origins, public listener, cloudflared-shaped tunnel, grant
@@ -185,10 +245,13 @@ transport vs byte path),
 a generic proxy),
 [interactives](../../topics/interactives.md) (named-tunnel run token cannot
 add hostnames; reuse the existing tunnel),
+[agent own-session inspection](../../topics/agent-self.md) (PATH command
+directory),
+[vanilla defaults](../../topics/vanilla-defaults.md),
 [agent context injection](../../topics/agent-context-injection.md).
 
-Found 2026-09-15; narrowed to same-port `.localhost` Host dispatch, then to
-dynamic vs static local maps. Nested `*.artifacts` blocked by Universal
+Found 2026-09-15; narrowed to same-port `.localhost` Host dispatch, then
+to a PATH `ya-vhost` helper. Nested `*.artifacts` blocked by Universal
 SSL; public else-rule `*.graehl.org` mapped to 4402.
 
 Contributing-model: grok-4.6
