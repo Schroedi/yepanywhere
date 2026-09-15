@@ -4880,17 +4880,15 @@ export class Process {
         // Exclude stream_event messages - they're transient streaming deltas that
         // are redundant once the final assistant message arrives. Replaying them
         // causes flickering as the last message appears to stream in again.
+        // Same-uuid user rows are the provider re-yielding a turn Process
+        // already echoed at queue time.
+        const isDuplicateUserEcho =
+          message.type === "user" &&
+          Boolean(message.uuid) &&
+          (this.currentBucket.some((m) => m.uuid === message.uuid) ||
+            this.previousBucket.some((m) => m.uuid === message.uuid));
         if (shouldEmitMessage(message) && message.type !== "stream_event") {
-          // Check for duplicates before adding to history
-          // This handles the case where queueMessage added the optimistic message
-          // and now the provider is echoing it back with the same UUID
-          const isDuplicate =
-            message.type === "user" &&
-            message.uuid &&
-            (this.currentBucket.some((m) => m.uuid === message.uuid) ||
-              this.previousBucket.some((m) => m.uuid === message.uuid));
-
-          if (!isDuplicate) {
+          if (!isDuplicateUserEcho) {
             this.currentBucket.push(message);
           }
         }
@@ -4974,8 +4972,12 @@ export class Process {
         this.promoteIdleForProviderWork(message, receivedAt);
 
         // Emit to SSE subscribers
-        // See shouldEmitMessage() for why we never filter messages
-        if (shouldEmitMessage(message)) {
+        // See shouldEmitMessage() for why we never filter provider-stream
+        // messages by content. Skip only a same-uuid user re-yield: sending
+        // that copy again lets the client replace the optimistic echo and
+        // drop tempId, after which Grok's differently-id'd jsonl user row
+        // cannot confirm it and both bubbles stay.
+        if (shouldEmitMessage(message) && !isDuplicateUserEcho) {
           this.emit({ type: "message", message });
         }
 

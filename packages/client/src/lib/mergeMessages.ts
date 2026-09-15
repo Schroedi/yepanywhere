@@ -154,8 +154,22 @@ export function mergeMessage(
     return existing;
   }
 
-  // Both are SDK - use the newer one (incoming)
-  return { ...incoming, _source: "sdk" };
+  // Both are SDK - use the newer one (incoming). Keep the optimistic
+  // self-send markers when the provider re-echo omits them: Grok's
+  // adapter yields the queued user uuid without tempId, and losing those
+  // fields makes reconcileSelfSendUserEchoes treat the row as a second
+  // confirmed turn next to Grok's own jsonl id.
+  const merged: Message = { ...incoming, _source: "sdk" };
+  if (merged.tempId === undefined && existing.tempId !== undefined) {
+    merged.tempId = existing.tempId;
+  }
+  if (
+    merged.messageMetadata === undefined &&
+    existing.messageMetadata !== undefined
+  ) {
+    merged.messageMetadata = existing.messageMetadata;
+  }
+  return merged;
 }
 
 export interface MergeJSONLResult {
