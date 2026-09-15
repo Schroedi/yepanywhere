@@ -184,7 +184,9 @@ The existing plans and gaps named above were checked before deriving these.
 3. **Give participants names before giving them rights.** A single-server,
    trusted-household multiplayer needs per-client seat names attached to
    sends, drafts, approvals, and comments so a shared transcript reads
-   correctly. Sketch:
+   correctly. The maintainer direction is already fixed for the provider-
+   visible half: any send that bypasses the driver carries a username
+   prefix. Sketch:
    [named participant seats](../../gaps/sketches/named-participant-seats.md).
    Security principals remain the separate open design in the
    [multi-machine map](../../topics/multi-machine-architecture.md#authority-and-failure-questions-to-resolve).

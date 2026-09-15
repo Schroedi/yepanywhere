@@ -42,6 +42,16 @@ authority does not imply approvals, interrupt/restart, session settings, file
 access, source control, attachment upload, share management, or creation of
 other sessions.
 
+**Username prefixes wherever sends bypass the driver.** Any seat authorized
+to deliver text to the provider without the driver applying it must have a
+display name, and every such send, steer, or queue is delivered with that
+name as a visible prefix on the turn text, so the agent and every later
+transcript reader can tell who said it. The driver's own sends in a
+send-enabled share carry the driver's name for the same reason. The prefix
+is provider-neutral turn content, not hidden metadata. Send-disabled seats
+need no name for delivery because the driver applies their proposals; the
+UI may still label proposals by seat.
+
 The synchronized state needs server sequencing rather than peer-to-peer
 browser convention. At minimum it carries the current guest draft, submitted
 proposal identity and revision, whether it has been consumed, and the
@@ -122,9 +132,12 @@ exposes the Multiplayer share type. A multiplayer share selects a maximum from
 two through the configured limit, capped at four in the first release. The
 driver occupies one seat; the first `maximum - 1` visitors to join the link
 claim the remaining composer seats, and later visitors remain read-only until
-a seat is released. The product does not collect or display usernames;
-server-generated seat identities exist only to sequence drafts, actions,
-reconnects, and revocation.
+a seat is released. Server-generated seat identities sequence drafts,
+actions, reconnects, and revocation. A send-enabled seat additionally
+carries the display name required by the username-prefix rule above; a
+send-disabled seat need not collect one. Broader display identity beyond
+sends is the [named participant seats](../gaps/sketches/named-participant-seats.md)
+sketch.
 
 At up to four active composers, a wide viewport may use a 2×2 grid with the
 driver composer fixed at bottom-left. Narrow viewports stack the composers
