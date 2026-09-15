@@ -10,6 +10,7 @@ vi.mock("node:child_process", async () => ({
   spawn: spawnMock,
 }));
 
+import { LocalGraniteBackend } from "../../src/services/voice/localGraniteBackend.js";
 import { LocalNemoBackend } from "../../src/services/voice/localNemoBackend.js";
 import { LocalParakeetBackend } from "../../src/services/voice/localParakeetBackend.js";
 import { LocalWhisperBackend } from "../../src/services/voice/localWhisperBackend.js";
@@ -24,6 +25,7 @@ describe("local speech worker environment", () => {
     ["Whisper", LocalWhisperBackend],
     ["Parakeet", LocalParakeetBackend],
     ["NeMo", LocalNemoBackend],
+    ["Granite Speech", LocalGraniteBackend],
   ] as const)(
     "isolates %s runtime libraries while retaining operator settings",
     async (_name, Backend) => {

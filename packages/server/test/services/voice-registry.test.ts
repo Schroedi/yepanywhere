@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getLogger } from "../../src/logging/logger.js";
+import { LocalGraniteBackend } from "../../src/services/voice/localGraniteBackend.js";
 import { LocalNemoBackend } from "../../src/services/voice/localNemoBackend.js";
 import { LocalParakeetBackend } from "../../src/services/voice/localParakeetBackend.js";
 import {
@@ -130,6 +131,32 @@ describe("initSpeechBackendRegistry", () => {
       {
         id: "ya-nemo",
         label: "Local NeMo Parakeet (pixi stt-nemo)",
+        enabled: true,
+        validationStatus: "enabled",
+        capabilities: {},
+        disabledReason: undefined,
+      },
+    ]);
+  });
+
+  it("enables the Granite Speech backend only when explicitly requested", async () => {
+    vi.spyOn(LocalGraniteBackend.prototype, "validate").mockResolvedValue({
+      ok: true,
+    });
+
+    const registry = await initSpeechBackendRegistry({
+      voiceInputEnabled: true,
+      voiceBackends: ["ya-granite"],
+      graniteModel: "ibm-granite/granite-speech-4.1-2b",
+      graniteDevice: "cuda:0",
+    });
+    await registry.waitForValidation();
+
+    expect(registry.enabledIds()).toEqual(["ya-granite"]);
+    expect(registry.allInfo()).toEqual([
+      {
+        id: "ya-granite",
+        label: "Local Granite Speech (pixi stt)",
         enabled: true,
         validationStatus: "enabled",
         capabilities: {},

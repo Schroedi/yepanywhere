@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Add `ya-granite`, a local speech-to-text backend running IBM Granite Speech
+  4.1 2B through the existing pixi `stt` environment. Enable it with
+  `YEP_VOICE_BACKENDS=ya-granite`; YA installs the extra Python packages on
+  first start and `GRANITE_MODEL` / `GRANITE_DEVICE` select the variant and
+  device. It transcribes more accurately than the 0.6B Parakeet recognizers and
+  takes longer per utterance.
 - Add a Codex cyber access program provider setting. It defaults to letting
   Codex choose, matching Codex's own terminal client, and can request the
   standard or Daybreak programs on each turn for an enrolled account.

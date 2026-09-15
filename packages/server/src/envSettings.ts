@@ -506,10 +506,21 @@ export const ENV_VAR_REGISTRY: EnvVarDescriptor[] = [
     description: "Device for the ya-nemo backend (default auto).",
   },
   {
+    name: "GRANITE_MODEL",
+    group: "Speech & transcription",
+    description:
+      "Model name for the ya-granite backend (default ibm-granite/granite-speech-4.1-2b).",
+  },
+  {
+    name: "GRANITE_DEVICE",
+    group: "Speech & transcription",
+    description: "Device for the ya-granite backend (default auto).",
+  },
+  {
     name: "HF_HUB_CACHE",
     group: "Speech & transcription",
     description:
-      "Hugging Face hub cache directory for local STT model weights (ya-whisper/parakeet/nemo). YA mirrors HF's own resolution, so this overrides HF_HOME/hub and the default ~/.cache/huggingface/hub.",
+      "Hugging Face hub cache directory for local STT model weights (ya-whisper/parakeet/nemo/granite). YA mirrors HF's own resolution, so this overrides HF_HOME/hub and the default ~/.cache/huggingface/hub.",
   },
   {
     name: "HF_HOME",

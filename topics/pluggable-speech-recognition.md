@@ -18,7 +18,8 @@ behavior across streaming and batch STT.
 - `VOICE_INPUT=false` is the master kill switch. When it is false, YA does
   not advertise voice input or server-routed speech backends.
 - Server-routed backends are off unless an explicit signal enables them.
-  Local/test backends (`ya-whisper`, `ya-parakeet`, `ya-nemo`, `ya-dummy`) must
+  Local/test backends (`ya-whisper`, `ya-parakeet`, `ya-nemo`, `ya-granite`,
+  `ya-dummy`) must
   be named in `YEP_VOICE_BACKENDS`; cloud backends (`ya-deepgram`, `ya-grok`)
   auto-enable when their YA-scoped key is provided, since providing a metered
   key is the operator's explicit opt-in. Configured backends appear immediately
@@ -217,7 +218,7 @@ streaming/confidence surface exists.
   `YEP_STT_XAI_API_KEY` takes precedence for `ya-grok`; `XAI_API_KEY` is a
   convenience fallback that is scrubbed from `process.env` after config load.
 - `SpeechBackendRegistry` supports `ya-dummy`, `ya-deepgram`,
-  `ya-grok`, `ya-whisper`, `ya-parakeet`, and `ya-nemo`. It records configured
+  `ya-grok`, `ya-whisper`, `ya-parakeet`, `ya-nemo`, and `ya-granite`. It records configured
   backends immediately as pending, validates them asynchronously, and keeps
   pending/disabled entries out of routing. `/api/version` exposes validated ids
   plus capabilities separately from the full pending/enabled/disabled status
@@ -251,7 +252,24 @@ streaming/confidence surface exists.
   enabled backend can run. Custom model ids stay backend-neutral and are sent to
   the currently selected Parakeet backend. Both local Parakeet backends are
   batch-only until a local streaming/chunking surface is proven.
-- Each local backend (Whisper, Parakeet, NeMo) keeps a single worker and
+- `ya-granite` runs IBM Granite Speech through Transformers in the shared pixi
+  `stt` environment, bootstrapped by `stt-bootstrap-granite`
+  (`requirements/stt-granite.txt` adds torchaudio and PEFT on top of the
+  Transformers Parakeet install). Granite Speech is a 2B speech-aware language
+  model rather than a CTC/RNNT recognizer, so `granite_worker.py` builds the
+  documented `<|audio|>` chat prompt and calls `generate()` instead of the
+  Transformers ASR pipeline, sizing the token budget from the utterance
+  duration. The browser sends no per-request model id for this backend;
+  `GRANITE_MODEL` and `GRANITE_DEVICE` are authoritative.
+- Parakeet, NeMo, and Granite share one warm-worker implementation,
+  `WarmPixiSttBackend`: pixi environment probe with auto-bootstrap, deferred
+  model load, single worker, and the one-JSON-object-per-line worker protocol.
+  A model family contributes only its pixi environment, worker script, model
+  default, timeout, and repair advice. The Python workers likewise share
+  `stt_worker_common.py` for container handling, ffmpeg decoding to mono
+  16 kHz, and model-load error advice. Whisper keeps its own backend class: its
+  model-swap and initial-prompt behavior differ.
+- Each local backend (Whisper, Parakeet, NeMo, Granite) keeps a single worker and
   serializes all loads and transcriptions onto one FIFO queue (`SerialQueue`).
   A request that arrives while a model is still loading — or while a model swap
   is in flight — waits its turn (record audio, block on the load, then
@@ -442,6 +460,29 @@ identical, count dropped/substituted words and invented text on silence, and
 measure latency separately. Follow with Parakeet v2/v3 and the isolated newer
 NeMo candidate if needed. Do not upgrade the shared STT environment to make
 the newer NeMo model fit; the coexistence constraints below still apply.
+
+## Generative local recognizers — 2026-09-15
+
+`ya-granite` adds the first local recognizer that generates its transcript
+instead of decoding a frame alignment.
+
+| Candidate | Why compare it | YA execution path |
+| --- | --- | --- |
+| [Granite Speech 4.1 2B](https://huggingface.co/ibm-granite/granite-speech-4.1-2b) | Apache-2.0, ungated, 2B parameters, English/French/German/Spanish/Portuguese/Japanese with punctuation and truecasing. IBM also publishes keyword-list biasing, speaker-attribution (`-plus`), and non-autoregressive (`-nar`) variants. | `ya-granite`, shared pixi `stt` environment. `GRANITE_MODEL` selects a variant. |
+| [cohere-transcribe-03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026) | Apache-2.0, 2B, 14 languages, top of the Open ASR leaderboard in March 2026. Needs `transformers>=5.4`, which the `stt` environment already satisfies. | Not implemented. The weights are free but gated behind a Hugging Face contact-information agreement, so nothing here can be verified until that agreement is accepted on the YA host's HF account. |
+
+Local smoke on the RTX PRO 6000 host, 2026-09-15, through
+`granite_worker.py` directly: cold load 8.4 s with weights cached (~5 GB
+download on the first run), 0.6 s warm per 8-second WebM/Opus utterance after
+the first request's 1.5 s, correct punctuated English and French from the model
+card's own multilingual sample, and an empty string for a silent clip. Latency
+is therefore well inside press-to-talk usefulness on this GPU while being
+slower than the 0.6B Parakeet recognizers; a CPU-only host should expect a much
+worse ratio because every transcript is generated token by token.
+
+Granite's published keyword-list biasing is a natural fit for YA's learned
+vocabulary, which currently reaches only `ya-grok` keyterms. That wiring is not
+implemented.
 
 ## Keyterm Biasing
 
@@ -906,7 +947,8 @@ Deploy it in stages:
    server validates the backend by importing the required Python packages; if
    that import probe fails for an explicitly enabled local backend, startup runs
    the matching pixi bootstrap task once (`stt-bootstrap` for `ya-whisper`,
-   `stt-bootstrap-parakeet` for `ya-parakeet`, `stt-bootstrap-nemo` for
+   `stt-bootstrap-parakeet` for `ya-parakeet`, `stt-bootstrap-granite` for
+   `ya-granite`, `stt-bootstrap-nemo` for
    `ya-nemo`) and then probes again. `stt-bootstrap-all` intentionally covers
    Whisper plus Transformers Parakeet only; NeMo is a heavier optional add-on.
    Runtime validation and the warm worker use `pixi run --frozen -e stt
@@ -970,13 +1012,14 @@ Node/PNPM install. To enable local Whisper on a server:
    enabled, or preflight it manually from the YA checkout:
    - `pixi run -e stt stt-bootstrap` for `ya-whisper`;
    - `pixi run -e stt stt-bootstrap-parakeet` for `ya-parakeet`;
+   - `pixi run -e stt stt-bootstrap-granite` for `ya-granite`;
    - `pixi run -e stt-nemo nemo-bootstrap` for `ya-nemo`;
    - `pixi run -e stt stt-bootstrap-all` for Whisper plus Transformers
      Parakeet.
    These commands create the corresponding environment from `pixi.lock` and
    install its Python requirements file(s).
 3. Start YA with `YEP_VOICE_BACKENDS` containing `ya-whisper`, `ya-parakeet`,
-   `ya-nemo`, or any comma-separated combination.
+   `ya-nemo`, `ya-granite`, or any comma-separated combination.
 
 For the private `reyep` helper, the local-STT switch should be set-union logic,
 not assignment. A `YEP_LOCAL_STT=1 reyep`-style wrapper should append

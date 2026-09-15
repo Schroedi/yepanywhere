@@ -1,6 +1,7 @@
 import { getLogger } from "../../logging/logger.js";
 import { DeepgramBackend } from "./deepgramBackend.js";
 import { DummyBackend } from "./dummyBackend.js";
+import { LocalGraniteBackend } from "./localGraniteBackend.js";
 import { LocalNemoBackend } from "./localNemoBackend.js";
 import { LocalParakeetBackend } from "./localParakeetBackend.js";
 import { LocalWhisperBackend } from "./localWhisperBackend.js";
@@ -199,6 +200,10 @@ export interface SpeechRegistryInitOptions {
   nemoModel?: string;
   /** NeMo Parakeet device (default: auto). */
   nemoDevice?: string;
+  /** Granite Speech model name (default: ibm-granite/granite-speech-4.1-2b). */
+  graniteModel?: string;
+  /** Granite Speech device (default: auto). */
+  graniteDevice?: string;
 }
 
 export async function initSpeechBackendRegistry(
@@ -289,6 +294,15 @@ export async function registerSpeechBackends(
           new LocalNemoBackend({
             model: options.nemoModel,
             device: options.nemoDevice,
+          }),
+        );
+        break;
+
+      case "ya-granite":
+        registry.register(
+          new LocalGraniteBackend({
+            model: options.graniteModel,
+            device: options.graniteDevice,
           }),
         );
         break;

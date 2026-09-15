@@ -966,6 +966,8 @@ async function startServer() {
     parakeetDevice: config.parakeetDevice,
     nemoModel: config.nemoModel,
     nemoDevice: config.nemoDevice,
+    graniteModel: config.graniteModel,
+    graniteDevice: config.graniteDevice,
   };
   const speechBackendRegistry = new SpeechBackendRegistry();
   const requestedSpeechBackends =

@@ -13,21 +13,10 @@ Startup line:  {"status":"ready"} (written once after model loads)
 
 import base64
 import json
-import os
 import sys
 import tempfile
 
-
-def suffix_for_mime(mime: str) -> str:
-    if "ogg" in mime:
-        return ".ogg"
-    if "mp4" in mime or "m4a" in mime:
-        return ".mp4"
-    if "wav" in mime:
-        return ".wav"
-    if "mp3" in mime:
-        return ".mp3"
-    return ".webm"
+from stt_worker_common import suffix_for_mime, unlink_if_present
 
 
 def main() -> None:
@@ -84,7 +73,7 @@ def main() -> None:
                 text = " ".join(s.text.strip() for s in segments).strip()
                 sys.stdout.write(json.dumps({"text": text}) + "\n")
             finally:
-                os.unlink(tmpfile)
+                unlink_if_present(tmpfile)
 
         except Exception as exc:  # noqa: BLE001 - Keep the worker alive after a failed request.
             sys.stdout.write(json.dumps({"error": str(exc)}) + "\n")

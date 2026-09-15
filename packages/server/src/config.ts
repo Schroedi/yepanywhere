@@ -216,6 +216,10 @@ export interface Config {
   nemoModel?: string;
   /** NeMo Parakeet device for ya-nemo backend (default: auto). */
   nemoDevice?: string;
+  /** Granite Speech model name for ya-granite backend (default: ibm-granite/granite-speech-4.1-2b). */
+  graniteModel?: string;
+  /** Granite Speech device for ya-granite backend (default: auto). */
+  graniteDevice?: string;
   /** Allowed directory prefixes for serving local images (e.g., ["/tmp"]). Empty = disabled. */
   allowedImagePaths: string[];
   /** Managed uploads directory ({dataDir}/uploads); always part of the file-access set. */
@@ -472,6 +476,8 @@ export function loadConfig(): Config {
     parakeetDevice: process.env.PARAKEET_DEVICE || undefined,
     nemoModel: process.env.NEMO_MODEL || undefined,
     nemoDevice: process.env.NEMO_DEVICE || undefined,
+    graniteModel: process.env.GRANITE_MODEL || undefined,
+    graniteDevice: process.env.GRANITE_DEVICE || undefined,
     // Always allow yep-managed uploads. ALLOWED_IMAGE_PATHS adds external paths
     // like /tmp; an empty value disables only those extras.
     allowedImagePaths: Array.from(
