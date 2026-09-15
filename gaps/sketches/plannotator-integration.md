@@ -57,25 +57,13 @@ default.
 by Host: `http://artifacts.localhost:<YA port>` hits the same socket as
 `http://localhost:<YA port>`; the main listener dispatches on `Host` before
 YA APIs. One SSH/port-forward, one public artifact listener (`127.0.0.1:4402`
-behind the existing tunnel). Plannotator should ride that, not a second
-ingress.
+behind the existing tunnel). Plannotator and other loopback HTTP UIs should
+ride that, not a second ingress.
 
-Preferred shape: another virtual host on that **same port**, like
-`http://plannotator.localhost:<YA port>`. Use **`.localhost`** (RFC 6761,
-resolves to loopback), not `.local` (mDNS). YA reverse-proxies that Host to
-loopback Plannotator (`127.0.0.1:<session port>`), after a grant minted on
-the authenticated YA/relay transport. Keep Plannotator bound to loopback;
-do not set `PLANNOTATOR_REMOTE=1` just to punch `0.0.0.0`.
-
-Same-machine client: that Host is enough (or even `http://127.0.0.1:<p>`
-with no vhost). Hosted client: `*.localhost` on the user's box is *their*
-loopback, so the public artifact origin's hostname is the one that already
-reaches 4402 through cloudflared. Add a **path** on that existing public
-origin (no new DNS/tunnel), or a second Host name only if the tunnel
-already multiplexes Hosts — do not add a tunnel. Path-prefix needs
-Plannotator's UI to tolerate a base path (cookies, asset URLs); if it
-assumes `/`, Host on the same forwarded port is easier **when the browser
-is on the YA host or using the same port-forward as artifacts**.
+Keep the child bound to loopback; do not set `PLANNOTATOR_REMOTE=1` just to
+punch `0.0.0.0`. Use **`.localhost`** (RFC 6761, resolves to loopback), not
+`.local` (mDNS). Grant mint stays on the authenticated YA/relay transport;
+bytes go through the Host-dispatched proxy.
 
 The YA **relay mux is not a generic HTTP reverse proxy**. It carries YA REST
 and subscriptions. Do not stuff Plannotator's HTML/API into
@@ -83,6 +71,70 @@ and subscriptions. Do not stuff Plannotator's HTML/API into
 
 Bypass options, not YA work: Plannotator `--tailscale`; SSH `-L` of the
 HTTP port (not X11).
+
+### Local: two maps on the same YA port
+
+Both maps are `http://X.localhost:<YA port>` on the existing artifacts
+Host-dispatch socket. SSH `-L` of that one port is enough; extra forwards
+per child port are what this avoids. YA reverse-proxies to
+`127.0.0.1:<target-port>` after a grant.
+
+1. **Dynamic announced port.** The launched server binds loopback and
+   indicates its port (printed URL, or pin `PLANNOTATOR_PORT` in the child
+   env). YA registers an ephemeral Host such as
+   `plannotator-<grant>.localhost` — or a single `plannotator.localhost` if
+   only one review at a time — pointing at that port. Drop the Host when
+   the review ends.
+
+2. **Static explicit map.** Operator-configured `X.localhost` →
+   `127.0.0.1:<port>` for a known local server or a service already
+   ssh-forwarded onto the YA host. Same Host dispatch, no child
+   announcement. A laptop that only forwards the YA port can then open
+   `http://X.localhost:<forwarded-port>` for every mapped name.
+
+Same-machine client: that Host is enough (or even `http://127.0.0.1:<p>`
+with no vhost).
+
+### Public: hosted client / devices (`ya.graehl.org`)
+
+Hosted browsers cannot use `*.localhost` — that is *their* loopback.
+`ya.graehl.org` is GitHub Pages; artifact bytes already leave the relay mux
+and hit `artifacts.graehl.org` (cloudflared → `127.0.0.1:4402`).
+
+Checked 2026-09-15: `artifacts.graehl.org` is a **single** proxied name.
+`foo.graehl.org` and `test.artifacts.graehl.org` do not resolve. No
+wildcard DNS exists today.
+
+Ways to get a live loopback app to a phone on the hosted client, still on
+the **existing** tunnel:
+
+- **Path on `artifacts.graehl.org`.** No DNS change. Needs the app to
+  tolerate a base path (cookies, asset URLs). If it assumes `/`, skip.
+- **One extra exact hostname** (`plannotator.graehl.org`). Operator adds
+  one Cloudflare DNS record plus one tunnel public hostname to the same
+  tunnel, same 4402 listener, Host dispatch. Static analogue of
+  `X.localhost`.
+- **Wildcard DNS for dynamic public Hosts.** Operator adds a Cloudflare
+  wildcard (and a matching tunnel public-hostname pattern) to the existing
+  tunnel, not a second tunnel. Then YA can mint `p-<grant>.graehl.org` the
+  way it would mint `p-<grant>.localhost`. Cloudflare Universal SSL covers
+  the apex and one-level `*.graehl.org`, so dynamic names must be
+  `something.graehl.org`, not `something.artifacts.graehl.org` (nested
+  wildcards need Advanced Certificate Manager). Existing more-specific
+  records (`relay`, `artifacts`, `ya` → GitHub Pages) win over
+  `*.graehl.org`, so a wildcard can coexist if tunnel ingress keeps exact
+  hostnames distinct from the catch-all.
+
+The host's cloudflared is a dashboard-managed named tunnel (run token
+only). That token cannot create DNS or hostname routes; adding a wildcard
+is a Cloudflare dashboard/API change with origin-cert or API auth
+([interactives](../../topics/interactives.md)). YA does not install DNS or
+change the tunnel ([active content security](../../topics/active-content-security.md)).
+
+YA today matches artifact Hosts **exactly** (`localOrigin` /
+`publicOrigin` in `ArtifactServer.matchesHost`). Dynamic names need a
+grant-scoped Host table, and unknown Hosts must not fall through to YA
+APIs.
 
 ### Proxy constraints
 
@@ -111,18 +163,23 @@ xdg-open; maybe `PLANNOTATOR_PORT` so the proxy has a stable target. Avoid
 
 Insertion point is the existing artifacts port + Host dispatch, not a new
 tunnel. The file-grant handler is still the wrong app; a sibling Host (or
-path on the public origin) reverse-proxies loopback Plannotator. Authz,
-cookie/Host, base-path vs Host, and grant lifetime are undesigned. No one
-here has used Plannotator.
+path on the public origin) reverse-proxies loopback Plannotator. Local
+needs both a dynamic announced-port map and a static `X.localhost` map;
+public hosted-client reach needs either a path, one extra exact DNS name,
+or an operator-added Cloudflare wildcard — none of that exists in YA yet.
+Authz, cookie/Host, grant lifetime, and Host-table vs exact
+`matchesHost` are undesigned. No one here has used Plannotator.
 
 Related: [active content security](../../topics/active-content-security.md)
 (artifact origins, public listener, cloudflared-shaped tunnel, grant
 transport vs byte path),
 [source transport](../../topics/source-transport.md) (relay is YA REST, not
 a generic proxy),
+[interactives](../../topics/interactives.md) (named-tunnel run token cannot
+add hostnames; reuse the existing tunnel),
 [agent context injection](../../topics/agent-context-injection.md).
 
-Found 2026-09-15; narrowed to same-port `.localhost` Host dispatch, not a
-second tunnel.
+Found 2026-09-15; narrowed to same-port `.localhost` Host dispatch, then to
+dynamic vs static local maps plus optional public wildcard DNS.
 
 Contributing-model: grok-4.6
