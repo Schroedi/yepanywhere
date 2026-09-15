@@ -3,12 +3,14 @@ import {
   PUBLIC_SHARE_MANAGEMENT_CAPABILITY,
   SESSION_CONTENT_SEARCH_CAPABILITY,
   serverHasCapability,
+  providerSupportsBoundedTurnSearch,
   type ProviderName,
 } from "@yep-anywhere/shared";
 import {
   startTransition,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -23,10 +25,12 @@ import {
   SearchHeader,
   SearchFilters,
   SearchSelection,
+  SearchHelp,
 } from "../components/session-search/SearchControls";
 import {
   SearchPreviews,
   SearchZoomPreview,
+  SearchDiagnostics,
   type SearchPreviewTarget,
 } from "../components/session-search/SearchPreviews";
 import {
@@ -35,6 +39,7 @@ import {
   matchesStatus,
   statuses,
   titleMatches,
+  limitTurnMatches,
   toggleStatus,
   type SearchField,
   type SearchStatus,
@@ -46,6 +51,7 @@ import styles from "../components/session-search/SessionSearch.module.css";
 import { useGlobalSessionsFeed } from "../hooks/useGlobalSessionsFeed";
 import { useProjectQueues } from "../hooks/useProjectQueues";
 import { useProcesses } from "../hooks/useProcesses";
+import { useProviders } from "../hooks/useProviders";
 import { usePublicShareStatus } from "../hooks/usePublicShareStatus";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { useServerSettings } from "../hooks/useServerSettings";
@@ -85,6 +91,20 @@ function SessionSearchPage() {
   const [params, setParams] = useSearchParams();
   const { settings } = useServerSettings();
   const { version } = useVersion();
+  const { providers: providerInfo } = useProviders();
+  const turnSearchProviders = useMemo(
+    () =>
+      new Set(
+        ALL_PROVIDERS.filter((name) =>
+          providerSupportsBoundedTurnSearch(
+            name,
+            providerInfo.find((provider) => provider.name === name)
+              ?.supportsBoundedTurnSearch,
+          ),
+        ),
+      ),
+    [providerInfo],
+  );
   const supported = serverHasCapability(
     version,
     SESSION_CONTENT_SEARCH_CAPABILITY,
@@ -242,9 +262,15 @@ function SessionSearchPage() {
     [sessions, exclusions],
   );
   const [viewportRows, setViewportRows] = useState(Infinity);
+  const [helpInline, setHelpInline] = useState(false);
+  const contentCandidates = useMemo(
+    () =>
+      candidates.filter((session) => turnSearchProviders.has(session.provider)),
+    [candidates, turnSearchProviders],
+  );
   const resultList = useRef<HTMLUListElement>(null);
   const scan = useContentSearch(
-    candidates,
+    contentCandidates,
     query,
     effectiveFields,
     supported && !invalidRange,
@@ -367,6 +393,29 @@ function SessionSearchPage() {
     effectiveFields.some((field) => field !== "title") &&
     !!query.trim() &&
     compactedSearch !== layoutKey;
+  const limitAnchor = useRef<{ element: HTMLElement; top: number } | undefined>(
+    undefined,
+  );
+  const adjustLimit = (delta: number, shown: number, element: HTMLElement) => {
+    limitAnchor.current = { element, top: element.getBoundingClientRect().top };
+    setLimit(
+      String(
+        Math.max(
+          1,
+          (Number.isFinite(limitNumber) ? limitNumber : shown) + delta,
+        ),
+      ),
+    );
+    setCompactedSearch(layoutKey);
+  };
+  useLayoutEffect(() => {
+    const anchor = limitAnchor.current;
+    limitAnchor.current = undefined;
+    const scroller = anchor?.element.closest(".page-scroll-container");
+    if (anchor && scroller)
+      scroller.scrollTop +=
+        anchor.element.getBoundingClientRect().top - anchor.top;
+  });
   useEffect(
     () =>
       setCompactedSearch((previous) =>
@@ -458,11 +507,13 @@ function SessionSearchPage() {
               scan.running
                 ? t("sessionSearchProgress", {
                     count: scan.scanned,
-                    total: candidates.length,
+                    total: contentCandidates.length,
                   })
-                : feed.loading || feed.hasMore
-                  ? t("sessionSearchLoadingCatalog")
-                  : ""
+                : scan.limited
+                  ? t("sessionSearchCapped", { count: scan.limited })
+                  : feed.loading || feed.hasMore
+                    ? t("sessionSearchLoadingCatalog")
+                    : ""
             }
           />
         }
@@ -478,6 +529,7 @@ function SessionSearchPage() {
             onOld={setOld}
             limit={limit}
             onLimit={setLimit}
+            showLimit={effectiveFields.some((field) => field !== "title")}
           >
             <FilterDropdown
               label={t("sessionSearchProjects")}
@@ -499,7 +551,17 @@ function SessionSearchPage() {
               triggerClassName={styles.dropdown}
               options={ALL_PROVIDERS.filter((p) =>
                 sessions.some((s) => s.provider === p),
-              ).map((p) => ({ value: p, label: p }))}
+              ).map((p) => ({
+                value: p,
+                label: p,
+                description: t(
+                  !supported
+                    ? "sessionSearchProviderUpgrade"
+                    : turnSearchProviders.has(p)
+                      ? "sessionSearchProviderBounded"
+                      : "sessionSearchProviderTitleOnly",
+                ),
+              }))}
               selected={providers}
               onChange={(value) => changeParam("provider", value.join(","))}
             />
@@ -517,6 +579,8 @@ function SessionSearchPage() {
             )}
           </SearchFilters>
           <SearchSelection
+            helpInline={helpInline}
+            onHelpInline={setHelpInline}
             count={selected.size}
             shown={results.length}
             filters={filters}
@@ -547,13 +611,18 @@ function SessionSearchPage() {
                             ? t("sessionSearchInvalidRange")
                             : !effectiveFields.length
                               ? t("sessionSearchChooseField")
-                              : (scan.partial.get(session.id) ??
-                                scan.error ??
-                                t(
-                                  scan.running
-                                    ? "sessionSearchNotFoundYet"
-                                    : "sessionSearchNoTextMatch",
-                                )))}
+                              : query &&
+                                  (effectiveFields.includes("user") ||
+                                    effectiveFields.includes("assistant")) &&
+                                  !turnSearchProviders.has(session.provider)
+                                ? t("sessionSearchProviderTitleOnly")
+                                : (scan.partial.get(session.id) ??
+                                  scan.error ??
+                                  t(
+                                    scan.running
+                                      ? "sessionSearchNotFoundYet"
+                                      : "sessionSearchNoTextMatch",
+                                  )))}
                       </small>
                     )}
                   </span>
@@ -603,19 +672,6 @@ function SessionSearchPage() {
             <p role="alert" className={styles.error}>
               {feed.error?.message ?? scan.error ?? actionError}
             </p>
-          )}
-          {!!scan.partial.size && (
-            <div className={styles.progress}>
-              {t("sessionSearchPartial", { count: scan.partial.size })}
-              {[...scan.partial].map(([id, reason]) => {
-                const session = sessions.find((session) => session.id === id);
-                return (
-                  <div key={id}>
-                    {session ? getSessionDisplayTitle(session) : id}: {reason}
-                  </div>
-                );
-              })}
-            </div>
           )}
           {!progress && !feed.error && !scan.error && !results.length && (
             <p className={styles.progress}>
@@ -673,16 +729,19 @@ function SessionSearchPage() {
                 openMessageId={matches.find((m) => m.role !== "title")?.id}
                 searchPreviews={
                   <SearchPreviews
+                    limit={limitNumber}
+                    onAdjustLimit={adjustLimit}
                     session={session}
-                    matches={matches
-                      .filter((match) => match.role !== "title")
-                      .slice(
-                        0,
-                        streamingLayout
-                          ? Math.min(1, limitNumber)
-                          : limitNumber,
-                      )}
-                    streaming={streamingLayout}
+                    matches={limitTurnMatches(
+                      matches,
+                      streamingLayout ? Math.min(1, limitNumber) : limitNumber,
+                    )}
+                    streamingRows={
+                      streamingLayout
+                        ? effectiveFields.filter((field) => field !== "title")
+                            .length
+                        : 0
+                    }
                     query={query}
                     basePath={basePath}
                     onZoom={setZoomed}
@@ -701,7 +760,13 @@ function SessionSearchPage() {
               {t("sessionSearchMore")}
             </button>
           )}
-          <p className={styles.help}>{t("sessionSearchHelp")}</p>
+          <SearchDiagnostics
+            sessions={sessions}
+            partial={scan.partial}
+            diagnostics={scan.diagnostics}
+            basePath={basePath}
+          />
+          {!helpInline && <SearchHelp />}
           {!supported && (
             <p className={styles.help}>{t("sessionSearchUpgrade")}</p>
           )}

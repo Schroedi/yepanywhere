@@ -9,7 +9,7 @@ test.afterEach(() => {
   for (const file of createdFiles.splice(0)) unlinkSync(file);
 });
 
-function saveSession(id: string, name: string) {
+function saveSession(id: string, name: string, manyMatches = false) {
   const cwd = join(e2ePaths.tempDir, "mockproject");
   const dir = join(
     e2ePaths.claudeSessionsDir,
@@ -30,11 +30,13 @@ function saveSession(id: string, name: string) {
       content:
         i === 0
           ? `Search fixture ${name}`
-          : i === 258
-            ? `quasarneedle ${name} original request`
-            : i === 259
-              ? `quasarneedle ${name} matching answer`
-              : `Ordinary turn ${i}`,
+          : manyMatches && i >= 250 && i < 258
+            ? `quasarneedle ${name} additional match ${i}`
+            : i === 258
+              ? `quasarneedle ${name} original request`
+              : i === 259
+                ? `quasarneedle ${name} matching answer`
+                : `Ordinary turn ${i}`,
     },
   }));
   writeFileSync(
@@ -134,6 +136,56 @@ test("All Sessions keeps every typed character with a large title catalog", asyn
   await expect(page.locator(".session-list-item--card")).toHaveCount(1);
 });
 
+test("All Sessions preserves copying and returns to the query end only when typing", async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.setViewportSize({ width: 1000, height: 600 });
+  saveSession("soft-focus", "soft focus");
+  await page.goto(`${baseURL}/sessions`);
+  const search = page.getByRole("searchbox", { name: "Search sessions..." });
+  const query = "Search fixture soft focus";
+  await search.fill(query);
+  await search.evaluate((node: HTMLInputElement) =>
+    node.setSelectionRange(0, 0),
+  );
+  const help = page
+    .locator("p:visible")
+    .filter({ hasText: "count is pre-filter;" });
+  await help.click({ clickCount: 3 });
+  const selection = await page.evaluate(() =>
+    window.getSelection()!.toString(),
+  );
+  expect(selection).toContain("count is pre-filter");
+  await expect(search).not.toBeFocused();
+  await help.click({ button: "right" });
+  expect(await page.evaluate(() => window.getSelection()!.toString())).toBe(
+    selection,
+  );
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Control+c");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    selection,
+  );
+  await page.keyboard.type("z");
+  await expect(search).toHaveValue(`${query}z`);
+  await expect(search).toBeFocused();
+  expect(
+    await search.evaluate((node: HTMLInputElement) => node.selectionStart),
+  ).toBe(query.length + 1);
+  const age = page.getByRole("textbox", { name: /^Minimum age/ });
+  await age.fill("1");
+  await page.keyboard.type("2");
+  await expect(age).toHaveValue("12");
+  await expect(search).toHaveValue(`${query}z`);
+  await page.getByRole("button", { name: "Turns", exact: true }).click();
+  await expect(search).not.toBeFocused();
+  await page.keyboard.press("Backspace");
+  await expect(search).toHaveValue(query);
+});
+
 test("All Sessions follows appended turns and newly discovered sessions without restarting the catalog", async ({
   page,
   baseURL,
@@ -193,6 +245,197 @@ for (const viewport of [
   { name: "desktop", width: 1000, height: 600 },
   { name: "phone", width: 375, height: 812 },
 ]) {
+  test(`All Sessions fans out, retains both roles, and refines cached turns on ${viewport.name}`, async ({
+    page,
+    baseURL,
+  }) => {
+    test.setTimeout(60000);
+    for (let i = 0; i < 6; i++)
+      saveSession(`cached-${viewport.name}-${i}`, `cached ${i}`, true);
+    await page.setViewportSize(viewport);
+    await page.goto(`${baseURL}/sessions`);
+    const search = page.getByRole("searchbox", { name: "Search sessions..." });
+    await search.fill("Search fixture cached");
+    await page
+      .getByRole("button", {
+        name: "Keep just 6 matching sessions selected",
+        exact: true,
+      })
+      .click();
+    const requests: Array<{
+      sessionId: string;
+      query: string;
+      cursor?: string;
+    }> = [];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/api/sessions/content-search", async (route) => {
+      requests.push(route.request().postDataJSON());
+      if (new Set(requests.map((request) => request.sessionId)).size >= 4)
+        release();
+      await gate;
+      await route.continue();
+    });
+    try {
+      await search.fill("quasarneedle");
+      await page.getByRole("checkbox", { name: /^User/ }).check();
+      await page.getByRole("checkbox", { name: /^Ass\./ }).check();
+      const limit = page.getByRole("textbox", {
+        name: "Turns/session",
+        exact: true,
+      });
+      await limit.fill("1");
+      const rows = page.locator(".session-list-item--card");
+      await expect(rows).toHaveCount(6, { timeout: 30000 });
+      await expect(page.getByText(/sessions scanned/)).toHaveCount(0, {
+        timeout: 30000,
+      });
+      await expect(
+        rows.first().getByRole("button", { name: "Match menu" }),
+      ).toHaveCount(2);
+      await expect(rows.first()).toContainText("User·");
+      await expect(rows.first()).toContainText("Ass.·");
+      const count = requests.length;
+      const anchor = rows.nth(2).locator("[data-search-previews]");
+      await anchor.scrollIntoViewIfNeeded();
+      const before = (await anchor.boundingBox())!.y;
+      await rows
+        .nth(2)
+        .getByRole("button", {
+          name: "Show one more turn per session",
+          exact: true,
+        })
+        .click();
+      await expect(limit).toHaveValue("2");
+      await expect(
+        rows.first().getByRole("button", { name: "Match menu" }),
+      ).toHaveCount(4);
+      expect(
+        Math.abs((await anchor.boundingBox())!.y - before),
+      ).toBeLessThanOrEqual(3);
+      await page.getByRole("checkbox", { name: /^Ass\./ }).uncheck();
+      await page.getByRole("checkbox", { name: /^Ass\./ }).check();
+      await search.fill("quasarneedle cached 2");
+      await expect(rows).toHaveCount(1);
+      await expect(page.getByText(/sessions scanned/)).toHaveCount(0, {
+        timeout: 30000,
+      });
+      expect(
+        requests
+          .slice(count)
+          .filter(
+            (request) => !request.cursor || request.query !== "quasarneedle",
+          )
+          .map(({ sessionId, query, cursor }) => ({
+            sessionId,
+            query,
+            continuation: !!cursor,
+          })),
+      ).toEqual([]);
+      await expect(
+        rows.first().getByRole("button", { name: "Match menu" }),
+      ).toHaveCount(4);
+      await recordUiCapture(
+        page,
+        `all-sessions-cache-${viewport.name}`,
+        viewport,
+      );
+    } finally {
+      release();
+    }
+  });
+
+  test(`All Sessions skips unsupported providers and places quoted diagnostics after matches on ${viewport.name}`, async ({
+    page,
+    baseURL,
+  }) => {
+    saveSession(`coverage-valid-${viewport.name}`, "coverage valid");
+    saveSession(
+      `coverage-error-${viewport.name}`,
+      "A transcript with a malformed record",
+    );
+    const requested = new Set<string>();
+    await page.route(/\/api\/sessions\?/, async (route) => {
+      const response = await route.fetch();
+      const data = await response.json();
+      const seed = data.sessions?.find(
+        (s: { id: string }) => s.id === `coverage-valid-${viewport.name}`,
+      );
+      if (!seed) return route.fulfill({ response });
+      await route.fulfill({
+        response,
+        json: {
+          ...data,
+          sessions: [
+            ...data.sessions,
+            {
+              ...seed,
+              id: "unsupported-grok",
+              provider: "grok",
+              title: "quasarneedle — available through title search",
+              fullTitle: "quasarneedle — available through title search",
+            },
+          ],
+        },
+      });
+    });
+    await page.route("**/api/sessions/content-search", async (route) => {
+      const { sessionId } = route.request().postDataJSON();
+      requested.add(sessionId);
+      if (sessionId === `coverage-error-${viewport.name}`) {
+        return route.fulfill({
+          json: {
+            matches: [],
+            done: true,
+            partial: true,
+            bytesRead: 0,
+            unavailable:
+              "Malformed transcript record; remaining records unavailable",
+          },
+        });
+      }
+      await route.continue();
+    });
+    await page.setViewportSize(viewport);
+    await page.goto(`${baseURL}/sessions`);
+    await page
+      .getByRole("searchbox", { name: "Search sessions..." })
+      .fill("quasarneedle");
+    await page.getByRole("checkbox", { name: /^User/ }).check();
+    const rows = page.locator(".session-list-item--card");
+    await expect(rows).toHaveCount(2);
+    const diagnostic = page.locator("q", {
+      hasText: "A transcript with a malformed record",
+    });
+    await expect(diagnostic).toBeVisible();
+    await expect(page.getByText(/sessions scanned/)).toHaveCount(0, {
+      timeout: 30000,
+    });
+    expect(requested.has("unsupported-grok")).toBe(false);
+    expect((await diagnostic.boundingBox())!.y).toBeGreaterThan(
+      (await rows.last().boundingBox())!.y +
+        (await rows.last().boundingBox())!.height,
+    );
+    await recordUiCapture(
+      page,
+      `all-sessions-coverage-${viewport.name}`,
+      viewport,
+    );
+    await page
+      .getByRole("button", { name: "Filter by Providers", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: /^grok Title only/ }),
+    ).toBeVisible();
+    await recordUiCapture(
+      page,
+      `all-sessions-provider-support-${viewport.name}`,
+      viewport,
+    );
+  });
+
   test(`All Sessions reserves arriving matches and fits long titles on ${viewport.name}`, async ({
     page,
     baseURL,

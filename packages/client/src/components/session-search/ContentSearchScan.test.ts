@@ -1,5 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { ContentSearchScan } from "./ContentSearchScan";
+import {
+  ContentSearchPool,
+  ContentSearchScan,
+  MAX_CACHED_MATCHES_PER_SESSION,
+} from "./ContentSearchScan";
 
 afterEach(() => vi.useRealTimers());
 const hit = {
@@ -95,8 +99,21 @@ it("resumes only changed sessions, adds new sessions, and excludes filtered IDs 
     .slice(2)
     .map(([, options]) => JSON.parse(options.body));
   expect(requests).toEqual([
-    { sessionId: "a", query: "needle", roles: ["user"], cursor: "tail" },
-    { sessionId: "c", query: "needle", roles: ["user"] },
+    {
+      sessionId: "a",
+      query: "needle",
+      roles: ["user"],
+      cursor: "tail",
+      allowRestart: true,
+      includeSearchText: true,
+    },
+    {
+      sessionId: "c",
+      query: "needle",
+      roles: ["user"],
+      allowRestart: true,
+      includeSearchText: true,
+    },
   ]);
   expect(scan.entries.get("a")?.matches.map((m) => m.id)).toEqual([
     "old",
@@ -163,6 +180,7 @@ it("does not restart in-flight traversal when another session changes or the set
     { roles: ["user"] },
     { fetch },
     vi.fn(),
+    new ContentSearchPool(1),
   );
   scan.update(
     new Map([
@@ -184,4 +202,253 @@ it("does not restart in-flight traversal when another session changes or the set
     fetch.mock.calls.map(([, options]) => JSON.parse(options.body).sessionId),
   ).toEqual(["a", "b"]);
   scan.stop();
+});
+
+it("fans out session reads within a shared limit and never overlaps a session's cursor", async () => {
+  vi.useFakeTimers();
+  const pending: Array<() => void> = [];
+  let active = 0;
+  let peak = 0;
+  const fetch = vi.fn().mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        peak = Math.max(peak, ++active);
+        pending.push(() => {
+          active--;
+          resolve(done);
+        });
+      }),
+  );
+  const pool = new ContentSearchPool();
+  const first = new ContentSearchScan(
+    "n",
+    { roles: ["user"] },
+    { fetch },
+    vi.fn(),
+    pool,
+  );
+  const second = new ContentSearchScan(
+    "ne",
+    { roles: ["user"] },
+    { fetch },
+    vi.fn(),
+    pool,
+  );
+  const wanted = new Map(Array.from({ length: 6 }, (_, i) => [String(i), "1"]));
+  first.update(wanted);
+  await vi.advanceTimersByTimeAsync(32);
+  expect(fetch).toHaveBeenCalledTimes(4);
+  first.update(wanted);
+  second.update(wanted);
+  await vi.advanceTimersByTimeAsync(32);
+  expect(fetch).toHaveBeenCalledTimes(4);
+  while (pending.length) {
+    pending.shift()!();
+    await vi.advanceTimersByTimeAsync(32);
+  }
+  expect(peak).toBe(4);
+  expect(fetch).toHaveBeenCalledTimes(12);
+  expect(
+    [...first.entries.values(), ...second.entries.values()].every(
+      (entry) => entry.done,
+    ),
+  ).toBe(true);
+  first.stop();
+  second.stop();
+});
+
+it("refines whole text beyond the first excerpt, then resumes the same tail for live content", async () => {
+  vi.useFakeTimers();
+  const searchText = `needle ${"x".repeat(500)} needle extended`;
+  const fetch = vi.fn().mockResolvedValue({
+    ...done,
+    includesSearchText: true,
+    matches: [{ ...hit, searchText }],
+  });
+  const first = new ContentSearchScan(
+    "needle",
+    { roles: ["user", "assistant"] },
+    { fetch },
+    vi.fn(),
+  );
+  first.update(new Map([["a", "1"]]));
+  await vi.advanceTimersByTimeAsync(32);
+  expect(first.entries.get("a")?.matches[0]?.preview).not.toContain("extended");
+  const second = new ContentSearchScan(
+    "needle extended",
+    { roles: ["user", "assistant"] },
+    { fetch },
+    vi.fn(),
+  );
+  second.seedFrom(first);
+  first.stop();
+  second.update(new Map([["a", "1"]]));
+  await vi.advanceTimersByTimeAsync(100);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(second.entries.get("a")?.done).toBe(true);
+  expect(second.entries.get("a")?.matches[0]?.preview).toContain(
+    "needle extended",
+  );
+  fetch.mockResolvedValue({
+    ...done,
+    includesSearchText: true,
+    matches: [
+      { ...hit, id: "new", searchText: "needle extended live" },
+      { ...hit, id: "nonmatch", searchText: "needle only" },
+    ],
+  });
+  second.update(new Map([["a", "2"]]));
+  await vi.advanceTimersByTimeAsync(32);
+  expect(JSON.parse(fetch.mock.calls[1]![1].body)).toMatchObject({
+    query: "needle",
+    cursor: "tail",
+  });
+  expect(second.entries.get("a")?.matches.map((m) => m.id)).toEqual([
+    "old",
+    "new",
+  ]);
+  second.stop();
+});
+
+it("stops at the match cap, drops full text, and restarts only capped sessions for the next needle", async () => {
+  vi.useFakeTimers();
+  const fetch = vi.fn().mockImplementation(async (_path, options) => {
+    const { sessionId, query, cursor } = JSON.parse(options.body);
+    const offset = cursor ? Number(cursor) : 0;
+    return {
+      ...done,
+      done: false,
+      cursor: String(offset + 128),
+      includesSearchText: true,
+      matches:
+        sessionId === "large" && query === "n"
+          ? Array.from({ length: 128 }, (_, i) => ({
+              ...hit,
+              id: String(offset + i),
+              searchText: "needle",
+            }))
+          : [{ ...hit, searchText: "needle" }],
+      ...(sessionId !== "large" ||
+      query !== "n" ||
+      offset >= MAX_CACHED_MATCHES_PER_SESSION
+        ? { done: true }
+        : {}),
+    };
+  });
+  const wanted = new Map([
+    ["large", "1"],
+    ["small", "1"],
+  ]);
+  const first = new ContentSearchScan(
+    "n",
+    { roles: ["user"] },
+    { fetch },
+    vi.fn(),
+  );
+  first.update(wanted);
+  await vi.advanceTimersByTimeAsync(100);
+  const large = first.entries.get("large")!;
+  expect(large.matches).toHaveLength(MAX_CACHED_MATCHES_PER_SESSION);
+  expect(large.limited).toBe(true);
+  expect(large.matches.every((m) => m.searchText === undefined)).toBe(true);
+  expect(large.retainedBytes).toBe(0);
+  expect(fetch).toHaveBeenCalledTimes(9);
+  first.update(
+    new Map([
+      ["large", "2"],
+      ["small", "1"],
+    ]),
+  );
+  await vi.advanceTimersByTimeAsync(100);
+  expect(fetch).toHaveBeenCalledTimes(9);
+  const second = new ContentSearchScan(
+    "ne",
+    { roles: ["user"] },
+    { fetch },
+    vi.fn(),
+  );
+  second.seedFrom(first);
+  first.stop();
+  second.update(wanted);
+  await vi.advanceTimersByTimeAsync(100);
+  expect(fetch).toHaveBeenCalledTimes(10);
+  expect(JSON.parse(fetch.mock.calls[9]![1].body)).toMatchObject({
+    query: "ne",
+    sessionId: "large",
+  });
+  expect(second.entries.get("small")?.done).toBe(true);
+  second.stop();
+});
+
+it("enforces a text-byte cap independently of the match count", async () => {
+  vi.useFakeTimers();
+  const fetch = vi.fn().mockResolvedValue({
+    ...done,
+    done: false,
+    cursor: "more",
+    includesSearchText: true,
+    matches: [{ ...hit, searchText: "needle".repeat(50) }],
+  });
+  const scan = new ContentSearchScan(
+    "needle",
+    { roles: ["user"] },
+    { fetch },
+    vi.fn(),
+    new ContentSearchPool(),
+    { matches: 1024, sessionBytes: 100, scanBytes: 1000 },
+  );
+  scan.update(new Map([["a", "1"]]));
+  await vi.advanceTimersByTimeAsync(100);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(scan.entries.get("a")).toMatchObject({
+    limited: true,
+    retainedBytes: 0,
+    done: true,
+  });
+  scan.stop();
+});
+
+it("reuses the original cache when another character interrupts pending refinement", async () => {
+  vi.useFakeTimers();
+  const fetch = vi
+    .fn()
+    .mockResolvedValue({
+      ...done,
+      includesSearchText: true,
+      matches: [{ ...hit, searchText: "needle" }],
+    });
+  const first = new ContentSearchScan(
+    "n",
+    { roles: ["user"] },
+    { fetch },
+    vi.fn(),
+  );
+  const wanted = new Map([["a", "1"]]);
+  first.update(wanted);
+  await vi.advanceTimersByTimeAsync(100);
+  const middle = new ContentSearchScan(
+    "ne",
+    { roles: ["user"] },
+    { fetch },
+    vi.fn(),
+  );
+  middle.seedFrom(first);
+  middle.update(wanted);
+  const last = new ContentSearchScan(
+    "nee",
+    { roles: ["user"] },
+    { fetch },
+    vi.fn(),
+  );
+  last.seedFrom(middle);
+  first.stop();
+  middle.stop();
+  last.update(wanted);
+  await vi.advanceTimersByTimeAsync(100);
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(last.entries.get("a")).toMatchObject({
+    done: true,
+    matches: [{ ...hit, preview: "needle", searchText: "needle" }],
+  });
+  last.stop();
 });

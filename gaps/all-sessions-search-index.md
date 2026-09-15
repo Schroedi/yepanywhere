@@ -2,8 +2,10 @@
 
 The initial All Sessions implementation pulls bounded native-record batches
 from disk. It has no efficient disk-backed substring index for either explicit
-selected sessions or the complete session catalog. Repeated needles therefore
-repeat acquisition. Batches rotate among eligible sessions; appends resume at
+selected sessions or the complete session catalog. Broader or unrelated needles
+repeat acquisition. Appended characters refine retained whole text in uncapped
+sessions; reaching 1024 matches or a text-byte cap stops that session and makes
+the next needle rescan it. Batches rotate among eligible sessions; appends resume at
 saved tails, and catalog changes no longer restart unchanged sessions.
 
 Build the index behind the existing capability/coverage boundary in
@@ -15,8 +17,9 @@ would be an explicit product contract, not a silent optimization. Worker or
 off-node acquisition remains an option if measured disk/parse cost warrants it.
 
 The first bounded native reader covers Claude and Codex families. Other
-providers report unavailable coverage; oversized/malformed records report
-partial coverage. Extend their native bounded readers instead of falling back
+providers are marked title-only in the Providers menu and excluded from turn
+acquisition; oversized/malformed records report partial coverage below results.
+Extend their native bounded readers instead of falling back
 to unbounded whole-session reads. Match ordinals currently count visible
 records, not coalesced conversational turns; normalization parity across record
 boundaries and Markdown display delimiters remains to be established.
@@ -29,6 +32,8 @@ The index should return low-latency session-grouped matches with original
 timestamps, stable IDs and on-demand context, while keeping coverage explicit.
 Cap retained memory, share identical source-version work across clients, stop
 unused work, and measure query/cancellation cost against the reference scan.
+Diagnostic details need a separate retention/aggregation budget for heavily
+corrupt transcripts; the current match and text-byte limits do not bound them.
 The [index sketches](../topics/all-session-content-search.sketches.md) preserve
 candidate structures and measurement gates.
 

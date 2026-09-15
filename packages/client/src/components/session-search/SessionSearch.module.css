@@ -100,6 +100,15 @@
 .more {
   min-height: 32px;
 }
+.diagnostics {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.diagnostics q {
+  font-weight: 600;
+}
 .content {
   padding: 10px 12px;
 }
@@ -226,6 +235,7 @@
   padding: 2px 4px;
 }
 .scope {
+  position: relative;
   container: session-search-selection / inline-size;
   display: flex;
   flex-wrap: wrap;
@@ -271,7 +281,12 @@
 }
 .selectMatched svg {
   transform: translateX(1px);
+}
+.selectionArrowIcon {
   color: color-mix(in srgb, var(--error-color) 50%, var(--text-secondary));
+}
+.selectionCancelIcon {
+  color: var(--error-color);
 }
 .scope .clearSelection {
   width: 34px;
@@ -324,6 +339,20 @@
   color: var(--text-secondary);
   font-size: 12px;
   margin: 8px 0;
+}
+.help svg {
+  vertical-align: -0.2em;
+}
+.helpSlot {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  overflow: hidden;
+}
+.helpSlot .help {
+  margin: 0;
+  width: max-content;
+  white-space: nowrap;
 }
 .error {
   color: var(--error-color);

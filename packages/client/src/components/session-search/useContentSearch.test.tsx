@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { SessionContentSearchBatch } from "@yep-anywhere/shared";
 import type { GlobalSessionItem } from "../../api/client";
 import { useContentSearch } from "./useContentSearch";
+import type { SearchField } from "./model";
 
 const runtime = vi.hoisted(() => ({
   sourceKey: "search-test",
@@ -15,6 +16,62 @@ vi.mock("../../contexts/SourceRuntimeContext", () => ({
 beforeEach(() => {
   vi.useFakeTimers();
   runtime.transport.fetch.mockReset();
+  runtime.sourceKey = "search-test";
+});
+
+it("keeps title-only local, acquires both roles once, and reuses them across role and time changes", async () => {
+  const session = { id: "a", updatedAt: "1" } as GlobalSessionItem;
+  const matches = ["user", "assistant"].map((role) => ({
+    id: role,
+    role,
+    ordinal: 1,
+    preview: "needle",
+    searchText: "needle complete",
+    timestamp: "2026-09-14T00:00:00Z",
+  }));
+  runtime.transport.fetch.mockResolvedValue({
+    matches,
+    done: true,
+    partial: false,
+    bytesRead: 20,
+    includesSearchText: true,
+    resumeCursor: "tail",
+  });
+  const { result, rerender } = renderHook(
+    ({ fields, after }: { fields: SearchField[]; after?: number }) =>
+      useContentSearch([session], "needle", fields, true, after),
+    {
+      initialProps: {
+        fields: ["title"] as SearchField[],
+        after: undefined as number | undefined,
+      },
+    },
+  );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  expect(runtime.transport.fetch).not.toHaveBeenCalled();
+  rerender({ fields: ["user"], after: undefined });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  expect(
+    JSON.parse(runtime.transport.fetch.mock.calls[0]![1].body).roles,
+  ).toEqual(["assistant", "user"]);
+  expect(result.current.matches.get("a")?.map((m) => m.role)).toEqual(["user"]);
+  rerender({ fields: ["assistant"], after: undefined });
+  expect(result.current.matches.get("a")?.map((m) => m.role)).toEqual([
+    "assistant",
+  ]);
+  rerender({ fields: ["assistant"], after: Date.parse("2026-09-15") });
+  expect(result.current.matches.size).toBe(0);
+  rerender({ fields: ["title"], after: undefined });
+  rerender({ fields: ["assistant", "user"], after: undefined });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  expect(result.current.matches.get("a")).toHaveLength(2);
+  expect(runtime.transport.fetch).toHaveBeenCalledTimes(1);
 });
 afterEach(() => {
   cleanup();
@@ -64,6 +121,57 @@ it("defers hidden-page catch-up and resumes retained cursors on visibility", asy
   expect(
     JSON.parse(runtime.transport.fetch.mock.calls[1]![1].body).cursor,
   ).toBe("tail");
+});
+
+it("refines multiple completed sessions through the hook without acquisition", async () => {
+  const sessions = Array.from(
+    { length: 6 },
+    (_, i) => ({ id: String(i), updatedAt: "1" }) as GlobalSessionItem,
+  );
+  runtime.transport.fetch.mockImplementation(async (_path, options) => {
+    const { sessionId } = JSON.parse(options.body);
+    return {
+      done: true,
+      partial: false,
+      bytesRead: 1,
+      resumeCursor: "tail",
+      includesSearchText: true,
+      matches: [
+        {
+          id: "turn",
+          role: "user",
+          ordinal: 1,
+          preview: `needle ${sessionId}`,
+          searchText: `needle ${sessionId}`,
+        },
+      ],
+    };
+  });
+  const { result, rerender } = renderHook(
+    ({ query }) =>
+      useContentSearch(
+        sessions,
+        query,
+        ["user", "assistant"],
+        true,
+        undefined,
+        undefined,
+        1,
+      ),
+    { initialProps: { query: "needle" } },
+  );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(200);
+  });
+  expect(result.current.running).toBe(false);
+  expect(runtime.transport.fetch).toHaveBeenCalledTimes(6);
+  rerender({ query: "needle 2" });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(400);
+  });
+  expect(result.current.running).toBe(false);
+  expect([...result.current.matches.keys()]).toEqual(["2"]);
+  expect(runtime.transport.fetch).toHaveBeenCalledTimes(6);
 });
 
 it("coalesces queued needles and keeps only two query generations", async () => {

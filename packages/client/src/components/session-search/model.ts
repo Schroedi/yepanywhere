@@ -81,6 +81,17 @@ export interface TitleMatch {
   fullText: string;
 }
 export type SearchMatch = SessionContentMatch | TitleMatch;
+/** The preview budget applies independently to each selected turn type. */
+export function limitTurnMatches(
+  matches: SearchMatch[],
+  limit: number,
+): SessionContentMatch[] {
+  const counts = { user: 0, assistant: 0 };
+  return matches.filter(
+    (match): match is SessionContentMatch =>
+      match.role !== "title" && ++counts[match.role] <= limit,
+  );
+}
 export function titleMatches(
   session: GlobalSessionItem,
   query: string,

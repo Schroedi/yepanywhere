@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import type { SessionContentDiagnostic } from "@yep-anywhere/shared";
 import {
   getMessageId,
   type Message,
@@ -13,6 +14,68 @@ import { renderHighlightedText } from "../SearchPreview";
 import previewStyles from "../UserTurnNavigator.module.css";
 import type { SearchMatch } from "./model";
 import styles from "./SearchPreviews.module.css";
+import searchStyles from "./SessionSearch.module.css";
+
+function sessionHref(
+  session: GlobalSessionItem,
+  basePath: string,
+  messageId?: string,
+) {
+  return `${basePath}/projects/${session.projectId}/sessions/${session.id}${messageId ? `?searchMatch=${encodeURIComponent(messageId)}` : ""}`;
+}
+
+export function SearchDiagnostics({
+  sessions,
+  partial,
+  diagnostics,
+  basePath,
+}: {
+  sessions: GlobalSessionItem[];
+  partial: Map<string, string>;
+  diagnostics: Map<string, SessionContentDiagnostic[]>;
+  basePath: string;
+}) {
+  const { t } = useI18n();
+  if (!partial.size) return null;
+  return (
+    <div className={searchStyles.diagnostics}>
+      {t("sessionSearchPartial", { count: partial.size })}
+      {[...partial].map(([id, reason]) => {
+        const session = sessions.find((session) => session.id === id);
+        const details = diagnostics.get(id) ?? [];
+        if (!reason && !details.length) return null;
+        const title = <q>{session ? getSessionDisplayTitle(session) : id}</q>;
+        return (
+          <div key={id}>
+            {session ? (
+              <Link to={sessionHref(session, basePath)}>{title}</Link>
+            ) : (
+              title
+            )}
+            {details.length ? (
+              details.map((detail) => (
+                <div key={detail.id}>
+                  {session ? (
+                    <Link
+                      to={sessionHref(session, basePath, detail.messageId)}
+                      title={detail.sourcePath}
+                    >
+                      {detail.message}
+                    </Link>
+                  ) : (
+                    detail.message
+                  )}
+                </div>
+              ))
+            ) : (
+              <>: {reason}</>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 interface TurnText {
   id: string;
@@ -53,7 +116,11 @@ export interface SearchPreviewTarget {
 }
 
 function matchHref({ session, match }: SearchPreviewTarget, basePath: string) {
-  return `${basePath}/projects/${session.projectId}/sessions/${session.id}${match.role === "title" ? "" : `?searchMatch=${encodeURIComponent(match.id)}`}`;
+  return sessionHref(
+    session,
+    basePath,
+    match.role === "title" ? undefined : match.id,
+  );
 }
 
 export function SearchPreviews({
@@ -62,17 +129,54 @@ export function SearchPreviews({
   query,
   basePath,
   onZoom,
-  streaming = false,
+  streamingRows = 0,
+  limit,
+  onAdjustLimit,
 }: {
   session: GlobalSessionItem;
   matches: SearchMatch[];
   query: string;
   basePath: string;
   onZoom(target: SearchPreviewTarget): void;
-  streaming?: boolean;
+  streamingRows?: number;
+  limit: number;
+  onAdjustLimit(delta: number, shown: number, anchor: HTMLElement): void;
 }) {
+  const { t } = useI18n();
+  const root = useRef<HTMLDivElement>(null);
+  if (!matches.length && !streamingRows) return null;
+  const shownPerRole = Math.max(
+    matches.filter((m) => m.role === "user").length,
+    matches.filter((m) => m.role === "assistant").length,
+  );
   return (
-    <div className={streaming ? styles.streaming : undefined}>
+    <div
+      ref={root}
+      data-search-previews
+      className={`${styles.previews} ${streamingRows ? styles.streaming : ""}`}
+      style={streamingRows ? { height: 44 * streamingRows } : undefined}
+    >
+      {!!matches.length && (
+        <div className={styles.adjustLimit} data-search-limit-controls>
+          <button
+            type="button"
+            disabled={limit === 1}
+            title={t("sessionSearchDecreaseLimit")}
+            aria-label={t("sessionSearchDecreaseLimit")}
+            onClick={() => onAdjustLimit(-1, shownPerRole, root.current!)}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            title={t("sessionSearchIncreaseLimit")}
+            aria-label={t("sessionSearchIncreaseLimit")}
+            onClick={() => onAdjustLimit(1, shownPerRole, root.current!)}
+          >
+            +
+          </button>
+        </div>
+      )}
       {matches.map((match) => (
         <MatchPreview
           key={match.id}
@@ -202,9 +306,16 @@ function MatchPreview({
   const { t } = useI18n();
   const [hover, setHover] = useState(false);
   const [menu, setMenu] = useState(false);
-  const { context } = useTurnContext({ session, match }, hover, 400);
+  const { context } = useTurnContext(
+    { session, match },
+    hover && (match.role === "title" || match.searchText === undefined),
+    400,
+  );
   const href = matchHref({ session, match }, basePath);
-  const text = match.role === "title" ? match.fullText : context?.text;
+  const text =
+    match.role === "title"
+      ? match.fullText
+      : (match.searchText ?? context?.text);
   const label = t(`sessionSearchField_${match.role}`);
   return (
     <div className={styles.match}>
@@ -274,7 +385,10 @@ export function SearchZoomPreview({
   const { t } = useI18n();
   const { context, error } = useTurnContext(target, true, 0);
   const { session, match } = target;
-  const text = match.role === "title" ? match.fullText : context?.text;
+  const text =
+    match.role === "title"
+      ? match.fullText
+      : (match.searchText ?? context?.text);
   return (
     <Modal
       title={getSessionDisplayTitle(session)}

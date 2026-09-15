@@ -6,7 +6,12 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
+import {
+  SESSION_CONTENT_SEARCH_CAPABILITY,
+  type ProviderInfo,
+} from "@yep-anywhere/shared";
 import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,7 +27,9 @@ const {
   mockUseProjectQueues,
   sessionCollectionState,
   versionState,
+  providerState,
 } = vi.hoisted(() => ({
+  providerState: { providers: [] as ProviderInfo[] },
   mockNavigate: vi.fn(),
   mockSetNewSessionPrefill: vi.fn(),
   mockLoadMore: vi.fn(),
@@ -88,6 +95,10 @@ vi.mock("../../contexts/SourceRuntimeContext", () => ({
   useCurrentSourceRuntime: () => runtime,
 }));
 const runtime = { sourceKey: "host:test", transport: { fetch: vi.fn() } };
+
+vi.mock("../../hooks/useProviders", () => ({
+  useProviders: () => providerState,
+}));
 
 vi.mock("../../components/BulkActionBar", () => ({
   BulkActionBar: () => null,
@@ -273,6 +284,14 @@ function makeSessionRecord(
 describe("GlobalSessionsPage", () => {
   beforeEach(() => {
     runtime.transport.fetch.mockReset();
+    providerState.providers = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({ matches: true })),
@@ -344,6 +363,43 @@ describe("GlobalSessionsPage", () => {
       expect(runtime.transport.fetch).not.toHaveBeenCalled();
     });
   }
+
+  it("skips unsupported native readers and quotes diagnostics after results", async () => {
+    versionState.version = {
+      capabilities: [SESSION_CONTENT_SEARCH_CAPABILITY],
+    };
+    sessionCollectionState.records = [
+      makeSessionRecord("supported"),
+      makeSessionRecord("unsupported", { provider: "grok" }),
+      makeSessionRecord("unavailable", { provider: "codex" }),
+    ];
+    providerState.providers = [
+      { name: "codex", supportsBoundedTurnSearch: false } as ProviderInfo,
+    ];
+    runtime.transport.fetch.mockResolvedValue({
+      matches: [],
+      done: true,
+      partial: true,
+      bytesRead: 0,
+      unavailable: "Malformed transcript record",
+    });
+    renderPage("/sessions?q=Session");
+    fireEvent.click(screen.getByRole("checkbox", { name: /^User/ }));
+    await waitFor(() =>
+      expect(screen.getByText(/Malformed transcript record/)).toBeDefined(),
+    );
+    expect(runtime.transport.fetch).toHaveBeenCalledTimes(1);
+    expect(
+      JSON.parse(runtime.transport.fetch.mock.calls[0]![1].body).sessionId,
+    ).toBe("supported");
+    const lastResult = screen.getByTestId("session-unavailable");
+    expect(screen.getByTestId("session-unsupported")).toBeDefined();
+    const title = screen.getByText("Session supported", { selector: "q" });
+    expect(
+      lastResult.compareDocumentPosition(title) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 
   it("intersects explicit selection without deleting hidden selections", async () => {
     sessionCollectionState.records = [

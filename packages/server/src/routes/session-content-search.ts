@@ -7,6 +7,7 @@ import {
 import {
   getCollapsedSearchPreviewText,
   normalizeSearchPreviewText,
+  providerSupportsBoundedTurnSearch,
   type SessionContentSearchBatch,
 } from "@yep-anywhere/shared";
 import { Hono } from "hono";
@@ -28,6 +29,8 @@ const requestSchema = z
     after: z.number().finite().optional(),
     before: z.number().finite().optional(),
     cursor: z.string().max(32768).optional(),
+    allowRestart: z.boolean().optional(),
+    includeSearchText: z.boolean().optional(),
   })
   .refine(
     (r) =>
@@ -111,14 +114,23 @@ export function createSessionContentSearchRoutes(
       if (!session)
         return c.json({ error: "Session not found in catalog" }, 404);
       if (
+        !request.allowRestart &&
         !tailResume &&
         cursorSourceVersion &&
         cursorSourceVersion !== session.sourceVersion
       )
         return c.json({ error: "Transcript changed; restart search" }, 409);
+      const provider = session.provider ?? session.catalogFamily;
+      if (!providerSupportsBoundedTurnSearch(provider))
+        return c.json({
+          matches: [],
+          done: true,
+          partial: true,
+          bytesRead: 0,
+          unavailable: `Bounded turn search is unavailable for ${provider}`,
+        } satisfies SessionContentSearchBatch);
       const project = await deps.scanner.getProject(session.projectId);
       if (!project) return c.json({ error: "Project unavailable" }, 404);
-      const provider = session.provider ?? session.catalogFamily;
       const sources = getSessionSources(
         { ...project, provider },
         providerResolutionDeps(deps),
@@ -144,15 +156,20 @@ export function createSessionContentSearchRoutes(
             maxRecords: 128,
           }),
         isCurrent: async (version) =>
+          request.allowRestart ||
           (await deps.retainedCollections!.read()).rows.some(
             (row) =>
               row.sessionId === session.sessionId &&
               row.sourceVersion === version,
           ),
       });
-      if (result.status === "stale" || (readerCursor && result.value.restarted))
+      if (
+        result.status === "stale" ||
+        (!request.allowRestart && readerCursor && result.value.restarted)
+      )
         return c.json({ error: "Transcript changed; restart search" }, 409);
       const batch = result.value;
+      if (batch.restarted) ordinal = 0;
       const needle = request.query.replace(/\s+/g, " ").toLowerCase();
       const matches: SessionContentSearchBatch["matches"] = [];
       for (const message of batch.messages) {
@@ -180,6 +197,7 @@ export function createSessionContentSearchRoutes(
           ordinal,
           timestamp: message.timestamp,
           preview: getCollapsedSearchPreviewText(message.text, request.query),
+          ...(request.includeSearchText ? { searchText: message.text } : {}),
         });
       }
       let nextCursor: string | undefined;
@@ -207,11 +225,14 @@ export function createSessionContentSearchRoutes(
       }
       return c.json({
         matches,
+        ...(request.includeSearchText ? { includesSearchText: true } : {}),
         replacedIds: batch.messages.map((message) => message.id),
+        ...(request.allowRestart && batch.restarted ? { reset: true } : {}),
+        diagnostics: batch.diagnostics,
         cursor: batch.done ? undefined : nextCursor,
         resumeCursor: batch.done ? nextCursor : undefined,
         done: batch.done,
-        partial: batch.partial,
+        partial: batch.recordErrors ?? batch.partial,
         bytesRead: batch.bytesRead,
       } satisfies SessionContentSearchBatch);
     } finally {

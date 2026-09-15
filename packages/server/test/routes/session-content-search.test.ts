@@ -103,6 +103,16 @@ it("searches cold turns in bounded batches through the mounted route, with role/
   expect(first.matches).toHaveLength(64);
   expect(first.matches.every((m) => m.role === "assistant")).toBe(true);
   expect(first.matches.every((m) => m.preview.length < 180)).toBe(true);
+  const fullRequest = {
+    ...request,
+    includeSearchText: true,
+    allowRestart: true,
+  };
+  const fullFirst = (await (
+    await post(fullRequest)
+  ).json()) as SessionContentSearchBatch;
+  expect(fullFirst.includesSearchText).toBe(true);
+  expect(fullFirst.matches[0]?.searchText).toBe(entries[1]?.message.content);
   const escapedLine = (await (
     await post({ ...request, query: "escaped line" })
   ).json()) as SessionContentSearchBatch;
@@ -145,6 +155,14 @@ it("searches cold turns in bounded batches through the mounted route, with role/
   row.sourceVersion = "fixture-2";
   await collections.refresh();
   expect((await post({ ...request, cursor: first.cursor })).status).toBe(409);
+  const changedContinuation = await post({
+    ...fullRequest,
+    cursor: fullFirst.cursor,
+  });
+  expect(changedContinuation.status).toBe(200);
+  expect(
+    ((await changedContinuation.json()) as SessionContentSearchBatch).reset,
+  ).toBeUndefined();
   expect(batch.resumeCursor).toEqual(expect.any(String));
   await appendFile(
     file,
@@ -167,4 +185,13 @@ it("searches cold turns in bounded batches through the mounted route, with role/
   expect(
     (await post({ ...request, cursor: appended.resumeCursor })).status,
   ).toBe(409);
+  const resetResponse = await post({
+    ...fullRequest,
+    cursor: fullFirst.cursor,
+  });
+  expect(resetResponse.status).toBe(200);
+  const reset = (await resetResponse.json()) as SessionContentSearchBatch;
+  expect(reset.reset).toBe(true);
+  expect(reset.partial).toBe(false);
+  expect(reset.resumeCursor).toEqual(expect.any(String));
 });

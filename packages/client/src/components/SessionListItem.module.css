@@ -32,6 +32,9 @@
   z-index: 2;
   cursor: pointer;
 }
+.searchRow:has([data-search-previews]) :global(.session-list-item__meta) {
+  padding-right: 52px;
+}
 .searchSelection input {
   position: absolute;
   left: 3px;
