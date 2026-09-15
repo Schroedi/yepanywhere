@@ -361,7 +361,11 @@ to submit their text or control the provider.
 
 Project-wide read/write sharing and live pointer/caret sharing remain open
 extensions; the existing sketch specifies synchronized composer text, not
-those broader contracts. “Write” must distinguish sending agent input from
+those broader contracts. Zed's Delta is the nearest external prior art for a
+live multi-person agent thread; the
+[DeltaDB review](../docs/competitive/deltadb.md) compares it and motivates
+[named participant seats](../gaps/sketches/named-participant-seats.md) as the
+display-identity step that precedes any principal design. “Write” must distinguish sending agent input from
 editing files, approving tools, managing sessions or publishing changes.
 Today's [public bearer-link shares](relay-origin-and-share-gating.md#public-share-authorization)
 remain read-only and must not silently acquire these rights.

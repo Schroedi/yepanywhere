@@ -14,6 +14,9 @@ See also:
   source selection that motivates moving between document and session.
 - [`responsive-layout-gaps.md`](responsive-layout-gaps.md) — measured fit and
   the composer toolbar's existing overflow allocator.
+- [`parked-file-viewer.sketches.md`](parked-file-viewer.sketches.md) —
+  candidate side-by-side dock panel and recent-viewer tabs for wide
+  viewports; not current guidance.
 
 ## User workflow and invariant
 
