@@ -187,6 +187,18 @@ queue, and username-prefix rules.
 - **Single-player parity.** The same UI exists in an ordinary session with
   one participant, as private notes to self or to a later reader of the
   session. The share adds synchronization and authorship, not the feature.
+- **Navigation aid for long sessions.** In both the share viewer and the
+  session view, notes are a navigable index: a drawer listing every note in
+  transcript order, and a keyboard path that reuses the existing message-list
+  isearch (Ctrl+S / Ctrl+R / Ctrl+Alt+S, `useMessageListIsearch`) with a
+  notes scope, so incremental search matches note text and jumps to the
+  anchored passage. While that search is active the scrollbar turn rail
+  (`UserTurnNavigator`) shows a notch per matching note with the note text as
+  its preview, the same way it previews search matches today. Ctrl+N is not
+  a candidate: it is the browser's new-tab key. A visible toggle opens the
+  drawer for pointer and touch users; today isearch starts only from the
+  keyboard, recorded in
+  [isearch has no touch entry](../gaps/isearch-has-no-touch-entry.md).
 - **Persistence** is YA app-data beside the session, keyed by canonical
   session id and turn anchor, and survives compaction and forking with the
   transcript position it was anchored to; frozen public shares may include

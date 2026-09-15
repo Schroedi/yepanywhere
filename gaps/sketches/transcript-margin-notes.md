@@ -48,7 +48,12 @@ agent only through a manual copy, paste, or quote-reply into a composer.
 Each note carries its author's seat ([named participant seats](named-participant-seats.md)).
 Notes are visible inline without expansion; the first presentation to try is
 an inline pill reflowing with the passage, with a wider-margin versus
-collapse toggle as the only presentation control.
+collapse toggle as the only presentation control. Notes double as a
+long-session navigation aid: a drawer of all notes, a notes scope for the
+existing Ctrl+S / Ctrl+R message-list isearch with rail notches previewing
+matching notes, and a visible toggle for pointer and touch users; see the
+share sketch's navigation bullet and
+[isearch has no touch entry](../isearch-has-no-touch-entry.md).
 
 The remaining interaction decision is the click target: whether a plain
 click on non-link passage text opens a note, a deconflicting modifier or
