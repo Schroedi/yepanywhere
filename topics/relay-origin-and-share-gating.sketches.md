@@ -155,6 +155,53 @@ guest composer. Transcript state remains singular and synchronized across all
 participants, while drafts, proposals, speech authority, and action results
 remain seat-scoped.
 
+### Margin notes: comments for human readers
+
+Maintainer direction, 2026-09-15. A participatory share carries **margin
+notes**: comments anchored to a transcript passage that are visible to human
+viewers but invoke no user turn; nothing is delivered to the provider. Text in
+a session is often intended for human readers (a plan, a summary, an
+explanation, a question to the team), and the natural place to discuss it is
+beside it, without spending a provider turn or steering the agent. A note
+becomes agent input only by a deliberate manual step: copy it, paste it, or
+quote-reply it into a composer, which then follows the ordinary send, steer,
+queue, and username-prefix rules.
+
+- **Anchoring and layout** follow the
+  [transcript margin notes](../gaps/sketches/transcript-margin-notes.md)
+  sketch: wide layouts place a note beside its passage, narrow layouts above
+  or below it, and streaming must not displace a reader.
+- **Attribution.** Every note carries its author's seat or username and time;
+  the driver's notes carry the driver. Notes are seat-scoped state in the
+  same synchronized share record as drafts and proposals, so all
+  participants see them converge and reconnect does not duplicate or lose
+  one.
+- **Authority.** Writing a note requires only a seat, never send authority;
+  a read-only visitor beyond the composer seats may still be allowed to
+  annotate if the share permits it. Notes never reach the provider by
+  themselves.
+- **Single-player parity.** The same UI exists in an ordinary session with
+  one participant, as private notes to self or to a later reader of the
+  session. The share adds synchronization and authorship, not the feature.
+- **Persistence** is YA app-data beside the session, keyed by canonical
+  session id and turn anchor, and survives compaction and forking with the
+  transcript position it was anchored to; frozen public shares may include
+  notes only at the creator's choice.
+
+The open interaction question is the click target. Clicking a passage to
+comment competes with the links and per-block controls the transcript
+already owns, and the quote-comment gesture inventory in
+[selection comment UI](selection-comment-ui.md) already reserves
+type-over-selection, the selection action cluster, the selected-text context
+menu, and the per-paragraph quote circle. Options: steal the plain click on
+non-link text so a click anywhere in a passage opens a note; require a
+deconflicting modifier (for example Alt-click on desktop, long-press on
+touch) so ordinary clicks and links keep their meaning; or add a note action
+beside the existing per-block quote circle and inside the selected-text
+context menu, which needs no new gesture. The last two compose; the first is
+the fastest for a reader and the most disruptive to link and control
+targets. Decide with captures at desktop and phone widths before building.
+
 ### Open decisions
 
 - Whether one session may have only one participatory share state, like the

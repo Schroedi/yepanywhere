@@ -32,15 +32,29 @@ Relevant owners for investigation are the transcript layout in
 [scrollback stability](../../topics/scrollback-view-stability.md) for anchoring.
 No dedicated margin-note entry was found in gaps, topics, tasks, or tacticals.
 
-Before implementation, choose the first useful note type, above/below
-placement, collision behavior, and how users enable the feature under
+Before implementation, choose above/below placement, collision behavior, and
+how users enable the feature under
 [vanilla defaults](../../topics/vanilla-defaults.md). Verify wide and narrow
 windows, large text, dense adjacent notes, resize, and streaming. This gap
 does not change the chosen in-transcript answer composer in the
 [async-question gap](../codex-async-question-answer-ui.md).
 
-Not implemented: the request was to capture a separate YA gap; no note type
-or concrete interaction has yet been chosen.
+**First note type chosen (2026-09-15):** human-authored comments on
+transcript passages that are not delivered to the provider, for text
+intended for human readers. They are the margin-notes half of the
+[participatory live share sketch](../../topics/relay-origin-and-share-gating.sketches.md#margin-notes-comments-for-human-readers),
+and the same UI appears in a single-participant session. A note reaches the
+agent only through a manual copy, paste, or quote-reply into a composer.
+Each note carries its author's seat ([named participant seats](named-participant-seats.md)).
+
+The remaining interaction decision is the click target: whether a plain
+click on non-link passage text opens a note, a deconflicting modifier or
+long-press is required, or the note action rides the existing per-block
+quote circle and selected-text context menu from
+[selection comment UI](../../topics/selection-comment-ui.md). The share
+sketch lists the trade-offs; decide with captures before building.
+
+Not implemented: no concrete interaction has been chosen yet.
 
 Found 2026-09-07 while discussing async-question navigation and the spare
 margins around a width-limited transcript/composer on a large screen.

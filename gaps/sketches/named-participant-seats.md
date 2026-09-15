@@ -23,7 +23,8 @@ devices) does not need accounts to get readable attribution.
   grants nothing and revokes nothing.
 - **Attribution.** With a seat set, the server records the seat on each user
   send, queued message, steer, tool approval/denial, review comment and
-  submission, and live-share draft or proposal. The transcript, queue rail,
+  submission, transcript margin note, and live-share draft or proposal. The
+  transcript, queue rail,
   source-review sites, and Inbox show the seat where a second seat has ever
   appeared on that session; a single-seat session renders exactly as today.
   Each recorded input also keeps its authorization kind (driver send,
