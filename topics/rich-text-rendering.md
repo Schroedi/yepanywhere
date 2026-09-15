@@ -324,10 +324,15 @@ pending/interrupted colors. The marker occupies the timeline dot's position;
 there is no second boxed toggle or trailing disclosure chevron. Keyboard and
 pointer activation update the visible marker and `aria-expanded` together.
 The connector is centered on the glyph, uses lower contrast than the status
-color, and leaves three pixels clear above and below its visible strokes.
+color, and leaves at least three pixels clear above and below its visible strokes.
 The one-pixel strokes form symmetric nine-pixel glyphs aligned with the
 ordinary timeline connector, avoiding half-pixel stems at native scale.
 Hover brightens the same control without adding a box.
+
+Tool labels and their summaries share a text baseline even when the summary
+uses a larger prose face. Tool-row plus/minus controls align with the visible
+capital height of the label, rather than a fixed offset from the row's top;
+wrapping command text and the Ran border do not move the marker off its label.
 
 Long one-line summaries keep the row tail visible by reserving result/count
 columns and applying normal end-ellipsis only to the variable expression. Grep
