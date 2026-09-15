@@ -23,6 +23,9 @@ export function localSttEnv(): NodeJS.ProcessEnv {
   // Pixi/Python packages own runtime libraries; host overrides can mix CUDA ABIs.
   delete env.LD_LIBRARY_PATH;
   delete env.LD_PRELOAD;
+  // Workers import a shared helper module from the checkout; byte-code caches
+  // for it would otherwise appear as stray files inside the served tree.
+  env.PYTHONDONTWRITEBYTECODE = "1";
   return env;
 }
 
