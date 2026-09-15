@@ -46,6 +46,7 @@ import type {
   WorkstreamCheckoutPreviewResponse,
   PromptSuggestionMode,
   PromptCacheKeepaliveSettings,
+  PostCompactReplaySettings,
   ProviderInfo,
   ProviderChildSessionSummary,
   ProviderName,
@@ -1732,6 +1733,11 @@ export interface ServerSettings {
   newSessionDefaults?: NewSessionDefaults;
   /** Provider-scoped prompt-cache keepalive settings */
   promptCacheKeepalive?: PromptCacheKeepaliveSettings;
+  /**
+   * After compaction, optionally inject a hidden continuation turn.
+   * Absent on older servers; default off.
+   */
+  postCompactReplay?: PostCompactReplaySettings;
   /** Usage-accounting monitor for suspected prompt-cache billing misses */
   cacheMissBilling?: CacheMissBillingSettings;
   /** Browser-client defaults used when local storage has no explicit value */

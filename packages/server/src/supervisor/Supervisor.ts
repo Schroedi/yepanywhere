@@ -14,6 +14,11 @@ import {
   type SyntheticSessionBoundaryCommand,
   type UrlProjectId,
   type WorkstreamId,
+  type PostCompactReplaySettings,
+  type PostCompactReplayTurn,
+  buildPostCompactReplayText,
+  isPostCompactReplayEnabledForProvider,
+  selectPostCompactReplayTurns,
   readGoalDetails,
   truncateSessionTitle,
 } from "@yep-anywhere/shared";
@@ -575,6 +580,8 @@ export interface SupervisorOptions {
   getPromptCacheKeepaliveSettings?: (
     provider: ProviderName,
   ) => PromptCacheKeepaliveSettings | undefined;
+  /** Callback to read the post-compact continuation setting. */
+  getPostCompactReplaySettings?: () => PostCompactReplaySettings | undefined;
   /** Callback to read live cache-miss billing monitor settings. */
   getCacheMissBillingSettings?: () => CacheMissBillingSettings | undefined;
   /** Current install-wide Claude Bash re-foregrounding policy. */
@@ -656,6 +663,9 @@ export class Supervisor {
   private getPromptCacheKeepaliveSettings?: (
     provider: ProviderName,
   ) => PromptCacheKeepaliveSettings | undefined;
+  private getPostCompactReplaySettings?: () =>
+    | PostCompactReplaySettings
+    | undefined;
   private getClaudeSteerBackgroundBashSettings?: () =>
     | ClaudeSteerBackgroundBashSettings
     | undefined;
@@ -692,6 +702,17 @@ export class Supervisor {
    * second attempt must never start while the first is outstanding.
    */
   private thresholdCompactionInFlight = new Set<string>();
+  /**
+   * Compact-boundary snapshots waiting for idle so a configured continuation
+   * turn can be injected without interrupting in-flight compact work.
+   */
+  private pendingPostCompactReplay = new Map<
+    string,
+    {
+      turns: PostCompactReplayTurn[];
+      inputIntentVersion: number;
+    }
+  >();
   private interruptTimeoutMs: number;
   private sessionMetadataService?: SessionMetadataService;
   private notificationService?: NotificationService;
@@ -736,6 +757,7 @@ export class Supervisor {
     this.getHeartbeatWaitingSessionIds = options.getHeartbeatWaitingSessionIds;
     this.getPromptCacheKeepaliveSettings =
       options.getPromptCacheKeepaliveSettings;
+    this.getPostCompactReplaySettings = options.getPostCompactReplaySettings;
     this.getClaudeSteerBackgroundBashSettings =
       options.getClaudeSteerBackgroundBashSettings;
     this.cacheMissBillingMonitor = new CacheMissBillingMonitor({
@@ -1804,6 +1826,82 @@ export class Supervisor {
       );
     } finally {
       this.thresholdCompactionInFlight.delete(process.id);
+    }
+  }
+
+  private notePostCompactReplay(process: Process): void {
+    const settings = this.getPostCompactReplaySettings?.();
+    if (!isPostCompactReplayEnabledForProvider(settings, process.provider)) {
+      this.pendingPostCompactReplay.delete(process.id);
+      return;
+    }
+    const replayTurnCount = settings?.replayTurnCount ?? 0;
+    this.pendingPostCompactReplay.set(process.id, {
+      turns: selectPostCompactReplayTurns(
+        process.getRecentProseTurns(),
+        replayTurnCount,
+      ),
+      inputIntentVersion: process.inputIntentVersion,
+    });
+  }
+
+  private async maybePostCompactReplay(process: Process): Promise<void> {
+    const pending = this.pendingPostCompactReplay.get(process.id);
+    if (!pending) return;
+    if (this.isAutomationPausedUntilUserTurn(process.sessionId)) {
+      this.pendingPostCompactReplay.delete(process.id);
+      return;
+    }
+    const settings = this.getPostCompactReplaySettings?.();
+    if (!isPostCompactReplayEnabledForProvider(settings, process.provider)) {
+      this.pendingPostCompactReplay.delete(process.id);
+      return;
+    }
+    if (process.state.type !== "idle") return;
+    if (process.isRetainingProviderWork()) return;
+    if (process.isTerminated) {
+      this.pendingPostCompactReplay.delete(process.id);
+      return;
+    }
+    if (
+      process.queueDepth > 0 ||
+      process.hasPatientDeferredMessages() ||
+      process.hasVolatileDeferredMessages()
+    ) {
+      this.pendingPostCompactReplay.delete(process.id);
+      return;
+    }
+    if (process.inputIntentVersion !== pending.inputIntentVersion) {
+      this.pendingPostCompactReplay.delete(process.id);
+      return;
+    }
+
+    this.pendingPostCompactReplay.delete(process.id);
+    const text = buildPostCompactReplayText({
+      provider: process.provider,
+      sessionId: process.sessionId,
+      turns: pending.turns,
+    });
+    const queued = await this.queueProcessMessage(
+      process,
+      {
+        text,
+        automaticSource: "post-compact-replay",
+        metadata: { hidden: true },
+      },
+      { allowSteer: false },
+    );
+    if (!queued.success) {
+      getLogger().info(
+        {
+          event: "post_compact_replay_skipped",
+          sessionId: process.sessionId,
+          processId: process.id,
+          provider: process.provider,
+          error: queued.error,
+        },
+        "Post-compact continuation was not accepted",
+      );
     }
   }
 
@@ -5009,6 +5107,10 @@ export class Supervisor {
             process.id,
             process.assistantActivityVersion,
           );
+          this.notePostCompactReplay(process);
+          if (process.state.type === "idle") {
+            void this.maybePostCompactReplay(process);
+          }
         }
         if (event.message.type === "user") {
           this.clearTerminalProviderStatus(
@@ -5197,6 +5299,7 @@ export class Supervisor {
           }
           this.flushPendingForkedRecapRequest(process);
           void this.maybeCompactAfterIdle(process);
+          void this.maybePostCompactReplay(process);
         }
         // Parent started a new turn: cancel any in-flight/deferred forked recap
         // so a returning user's live turn is not shadowed by a stale recap.
@@ -5371,6 +5474,7 @@ export class Supervisor {
     this.compactThresholdCheckedAssistantVersion.delete(process.id);
     this.compactionSettledAtAssistantVersion.delete(process.id);
     this.thresholdCompactionInFlight.delete(process.id);
+    this.pendingPostCompactReplay.delete(process.id);
     this.cacheMissBillingMonitor.forgetProcess(process.id);
     this.activationCoordinator.discardProcess(process);
     this.pendingForkedRecapRequests.delete(process.id);
@@ -5680,6 +5784,7 @@ export class Supervisor {
       if (!process.isRetainingProviderWork()) {
         void this.finalizePendingDone(process);
         void this.maybeCompactAfterIdle(process);
+        void this.maybePostCompactReplay(process);
       }
     }
   }

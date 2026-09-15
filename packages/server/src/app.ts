@@ -1496,6 +1496,8 @@ export function createApp(options: AppOptions): AppResult {
         inactivityMinutes,
       };
     },
+    getPostCompactReplaySettings: () =>
+      options.serverSettingsService?.getSetting("postCompactReplay"),
     getCacheMissBillingSettings: () =>
       options.serverSettingsService?.getSetting("cacheMissBilling"),
     getClaudeSteerBackgroundBashSettings: () =>

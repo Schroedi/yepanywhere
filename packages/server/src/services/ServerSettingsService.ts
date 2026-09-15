@@ -23,6 +23,7 @@ import type {
   HostIdentity,
   HostAwakeMode,
   NewSessionDefaults,
+  PostCompactReplaySettings,
   PromptCacheKeepaliveSettings,
   ProjectQueueReadinessCommand,
   SessionToolbarPresenceClientDefaults,
@@ -50,6 +51,8 @@ import {
   isCodexCyberAccessProgram,
   parseClaudeAdditionalModelSelections,
   parseClaudeSteerBackgroundBashSettings,
+  parsePostCompactReplaySettings,
+  DEFAULT_POST_COMPACT_REPLAY_SETTINGS,
 } from "@yep-anywhere/shared";
 import type { FileAccessSettings } from "../middleware/file-access.js";
 import { publishDeferredDeliverySettings } from "../supervisor/deferredDeliverySettings.js";
@@ -194,6 +197,12 @@ export interface ServerSettings {
   helperTargets?: HelperTargetConfig[];
   /** Per-provider prompt-cache keepalive policy and cadence. */
   promptCacheKeepalive?: PromptCacheKeepaliveSettings;
+  /**
+   * After compaction settles, optionally inject a hidden continuation turn.
+   * Default off. Per-provider because some harnesses already continue from
+   * their own compact summary.
+   */
+  postCompactReplay?: PostCompactReplaySettings;
   /** Usage-accounting monitor for suspected prompt-cache billing misses. */
   cacheMissBilling?: CacheMissBillingSettings;
   /** Whether lifecycle webhook delivery is enabled */
@@ -305,6 +314,7 @@ export const DEFAULT_SERVER_SETTINGS: ServerSettings = {
   clientDefaults: DEFAULT_CLIENT_DEFAULTS,
   cacheMissBilling: DEFAULT_CACHE_MISS_BILLING_SETTINGS,
   projectQueueQuietSeconds: DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
+  postCompactReplay: DEFAULT_POST_COMPACT_REPLAY_SETTINGS,
 };
 
 const TOOLBAR_PRESENCE_TIERS = new Set(["pin", "last", "mid", "first"]);
@@ -534,6 +544,9 @@ function normalizeLoadedSettings(settings: ServerSettings): ServerSettings {
     typeof settings.wakeTurnsEnabled === "boolean"
       ? settings.wakeTurnsEnabled
       : DEFAULT_SERVER_SETTINGS.wakeTurnsEnabled;
+  normalized.postCompactReplay =
+    parsePostCompactReplaySettings(settings.postCompactReplay) ??
+    DEFAULT_POST_COMPACT_REPLAY_SETTINGS;
   return normalized;
 }
 

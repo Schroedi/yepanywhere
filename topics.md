@@ -51,6 +51,7 @@
 - claude - Claude provider control, restart/resume safety, interviews, and YA-owned process bridges.
 - edit-turn - Inline editing proposal for queued/sent user turns with a visible Esc/cancel escape hatch.
 - resume-compaction - Compact-before-resume choice for old or context-heavy provider sessions.
+- post-compact-replay - Default-off per-provider hidden continuation after compaction, with optional last-N prose replay.
 - steer-queue-provider-differences - Claude now/next/later lanes, Codex steer vs app-held queueing, and turn-end signals behind YA send modes.
 - vanilla-defaults - Overarching UX theory: first-party-familiar out of the box; YA-novel user-visible behavior is configurable default-off.
 - streaming-speech-capture - Client PCM capture contracts, warm-mic latency, and AudioWorklet follow-up.

@@ -30,9 +30,14 @@ import {
   clampPatientPatienceSeconds,
   hasInvocationCandidate,
   isClaudeProviderName,
+  isInjectedContinuationPrompt,
   isLocalCommandEchoTurn,
+  isPostCompactReplayText,
+  MAX_POST_COMPACT_REPLAY_TURNS,
+  MAX_POST_COMPACT_REPLAY_TURN_CHARS,
   normalizeRecapAfterSeconds,
   stripPatientQueuePrefix,
+  type PostCompactReplayTurn,
 } from "@yep-anywhere/shared";
 import { DEFAULT_IDLE_TIMEOUT_MS } from "../defaults.js";
 import { getLogger } from "../logging/logger.js";
@@ -119,6 +124,7 @@ type RecentAssistantRecapEntry = {
   completedAtMs: number;
   text: string;
 };
+type RecentProseTurn = PostCompactReplayTurn;
 type NativeRecapRecord = {
   receivedAtMs: number;
   text: string;
@@ -1030,6 +1036,7 @@ export class Process {
    * buffer is bounded; older entries are dropped as new ones arrive.
    */
   private recentAssistantRecapEntries: RecentAssistantRecapEntry[] = [];
+  private recentProseTurns: RecentProseTurn[] = [];
   private static readonly RECENT_TEXT_MAX_ENTRIES = 15;
   private static readonly RECENT_TEXT_MAX_CHARS_PER_ENTRY = 1500;
   /**
@@ -2921,6 +2928,36 @@ export class Process {
   }
 
   /**
+   * Bounded user/assistant prose window for post-compact replay.
+   * Tool, thinking, hidden, and injected continuation rows are omitted.
+   */
+  getRecentProseTurns(): PostCompactReplayTurn[] {
+    return this.recentProseTurns.map((turn) => ({ ...turn }));
+  }
+
+  private pushRecentProseTurn(
+    role: PostCompactReplayTurn["role"],
+    text: string,
+  ): void {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    if (isPostCompactReplayText(trimmed)) return;
+    if (role === "user" && trimmed.startsWith("/")) return;
+    const capped =
+      trimmed.length > MAX_POST_COMPACT_REPLAY_TURN_CHARS
+        ? `${trimmed.slice(0, MAX_POST_COMPACT_REPLAY_TURN_CHARS)} …[truncated]`
+        : trimmed;
+    const last = this.recentProseTurns[this.recentProseTurns.length - 1];
+    if (last && last.role === role && last.text === capped) {
+      return;
+    }
+    this.recentProseTurns.push({ role, text: capped });
+    while (this.recentProseTurns.length > MAX_POST_COMPACT_REPLAY_TURNS) {
+      this.recentProseTurns.shift();
+    }
+  }
+
+  /**
    * Needle of the latest assistant output a watching client had seen:
    * the in-flight streaming text when a turn is underway, else the tail
    * of the last completed assistant turn. Visible text only — providers
@@ -3304,6 +3341,12 @@ export class Process {
 
     this.currentBucket.push(sdkMessage);
     this.emit({ type: "message", message: sdkMessage });
+    if (
+      !isHiddenInjectedMessage(message) &&
+      message.automaticSource === undefined
+    ) {
+      this.pushRecentProseTurn("user", message.text);
+    }
   }
 
   private emitNonHumanUserTurn(message: UserMessage, uuid: string): void {
@@ -3549,6 +3592,9 @@ export class Process {
     // YA-injected control messages (e.g. the `/compact` we queue for
     // compaction) carry no user echo — native auto-compaction shows none.
     const hidden = isHiddenInjectedMessage(providerMessage);
+    if (!hidden && providerMessage.automaticSource === undefined) {
+      this.pushRecentProseTurn("user", providerMessage.text);
+    }
 
     // Add to history for SSE replay to late-joining clients.
     // The client-side deduplication (mergeSSEMessage, mergeJSONLMessages) handles
@@ -4860,6 +4906,16 @@ export class Process {
           const text = extractMessageText(message);
           if (text) {
             this.pushRecentAssistantText(text, receivedAt.getTime());
+            this.pushRecentProseTurn("assistant", text);
+          }
+        } else if (message.type === "user") {
+          const text = extractMessageText(message);
+          if (
+            text &&
+            message.isCompactSummary !== true &&
+            !isInjectedContinuationPrompt(message)
+          ) {
+            this.pushRecentProseTurn("user", text);
           }
         }
 

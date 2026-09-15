@@ -28,6 +28,7 @@ import {
   isWorkstreamId,
   mainWorkstreamId,
   truncateSessionTitle,
+  isPostCompactReplayText,
 } from "@yep-anywhere/shared";
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
@@ -1370,7 +1371,8 @@ function isUserAuthoredRequest(message: Message): boolean {
     isHumanUserMessage(message) &&
     message.isSynthetic !== true &&
     !isCompactSummaryUserMessage(message) &&
-    !isSlashCommandSkillBodyUserMessage(message)
+    !isSlashCommandSkillBodyUserMessage(message) &&
+    !isPostCompactReplayText(renderRestartContent(messageContent(message)))
   );
 }
 

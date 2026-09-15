@@ -27,6 +27,7 @@ import {
   normalizeIdleReapHours,
   parseClaudeAdditionalModelSelections,
   parseClaudeSteerBackgroundBashSettings,
+  parsePostCompactReplaySettings,
 } from "@yep-anywhere/shared";
 import { Hono } from "hono";
 import {
@@ -790,6 +791,22 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
           return c.json({ error: "Invalid helperTargets setting" }, 400);
         }
         updates.helperTargets = parsedTargets;
+      }
+
+      if ("postCompactReplay" in body) {
+        const parsedReplay = parsePostCompactReplaySettings(
+          body.postCompactReplay,
+        );
+        if (parsedReplay === null) {
+          return c.json(
+            {
+              error:
+                "postCompactReplay must use known provider checkboxes and an integer replayTurnCount from 0 to 20",
+            },
+            400,
+          );
+        }
+        updates.postCompactReplay = parsedReplay;
       }
 
       if ("promptCacheKeepalive" in body) {

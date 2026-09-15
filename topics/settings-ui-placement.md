@@ -130,6 +130,14 @@ UI should state directly.
 - **Providers → Compact context early.** Off means YA sends no threshold or
   `/compact` request and leaves provider defaults unchanged. A percentage asks
   YA to initiate compaction at that context-window threshold.
+- **Providers → Continue after compaction.** Off for every provider. When a
+  provider checkbox is on, YA injects a hidden continuation turn after
+  compaction settles and the session is idle. The turn ends with `continue.`
+  The N slider (0–20) copies that many recent user/assistant prose turns in
+  **Handoff from…** format and labels them as a replay when N > 0. This is
+  often redundant with the provider's own compact summary; Codex in particular
+  commonly keeps working through compaction. Older servers omit the field and
+  the client hides the row.
 - **Providers → Idle harness lifetime.** Sets how long an idle provider harness
   with no viewer and no feature-owned retention may remain in memory. Running
   and waiting sessions are outside this timer; `-1` disables idle reaping.
