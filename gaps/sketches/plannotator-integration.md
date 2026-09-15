@@ -53,40 +53,38 @@ default.
 
 ## How the user's browser can reach it
 
-Same-machine YA client: `http://127.0.0.1:<port>` is enough. Open the printed
-URL in a tab (or iframe). No proxy.
+**No extra cloudflared tunnel.** Artifacts already share YA's listening port
+by Host: `http://artifacts.localhost:<YA port>` hits the same socket as
+`http://localhost:<YA port>`; the main listener dispatches on `Host` before
+YA APIs. One SSH/port-forward, one public artifact listener (`127.0.0.1:4402`
+behind the existing tunnel). Plannotator should ride that, not a second
+ingress.
 
-Hosted / other-device client: the user's browser is not on the agent host.
-Options, preferred first:
+Preferred shape: another virtual host on that **same port**, like
+`http://plannotator.localhost:<YA port>`. Use **`.localhost`** (RFC 6761,
+resolves to loopback), not `.local` (mDNS). YA reverse-proxies that Host to
+loopback Plannotator (`127.0.0.1:<session port>`), after a grant minted on
+the authenticated YA/relay transport. Keep Plannotator bound to loopback;
+do not set `PLANNOTATOR_REMOTE=1` just to punch `0.0.0.0`.
 
-1. **YA-authenticated reverse proxy of loopback Plannotator** (the REST-proxy
-   flow). Keep Plannotator on `127.0.0.1`. YA (or a Host on the existing
-   public artifact listener) proxies HTTP to that port and only issues a
-   grant after the same authenticated transport that mints artifact grants.
-   Do not set `PLANNOTATOR_REMOTE=1` just to punch `0.0.0.0`.
-2. **Public artifact origin / cloudflared as the insertion point.** A
-   configured `YEP_ARTIFACT_PUBLIC_ORIGIN` already starts a plain HTTP
-   listener on `127.0.0.1:<artifact port>` (default 4402) for a reverse
-   proxy or tunnel. The proxy preserves Host and terminates HTTPS. That is
-   how hosted clients reach interactive HTML today, **outside** the
-   encrypted relay mux. The same cloudflared (or a second hostname on it)
-   can dispatch a Plannotator Host to a loopback reverse-proxy instead of
-   the file-grant handler. Bytes still leave the relay protocol; a
-   TLS-terminating tunnel can read them. Grant minting still goes over
-   authenticated YA/relay. This is the least new infrastructure if a Host
-   (or path) is added beside artifacts.
-3. **Plannotator `--tailscale`.** They already keep loopback and use
-   Tailscale Serve for HTTPS. Bypass YA. Fine when both devices are on the
-   tailnet; does not help a `ya.graehl.org` browser that is not.
-4. **SSH `-L` of the HTTP port.** Not X11. Works; the user asked not to
-   rely on display forwarding, and this is optional fallback.
+Same-machine client: that Host is enough (or even `http://127.0.0.1:<p>`
+with no vhost). Hosted client: `*.localhost` on the user's box is *their*
+loopback, so the public artifact origin's hostname is the one that already
+reaches 4402 through cloudflared. Add a **path** on that existing public
+origin (no new DNS/tunnel), or a second Host name only if the tunnel
+already multiplexes Hosts — do not add a tunnel. Path-prefix needs
+Plannotator's UI to tolerate a base path (cookies, asset URLs); if it
+assumes `/`, Host on the same forwarded port is easier **when the browser
+is on the YA host or using the same port-forward as artifacts**.
 
 The YA **relay mux is not a generic HTTP reverse proxy**. It carries YA REST
 and subscriptions. Do not stuff Plannotator's HTML/API into
-`RelayRequest { method, path }`. Artifact/cloudflared is the existing
-"browser talks HTTPS to a Host that maps to loopback HTTP" pattern.
+`RelayRequest { method, path }`.
 
-### Proxy constraints if we take (1) or (2)
+Bypass options, not YA work: Plannotator `--tailscale`; SSH `-L` of the
+HTTP port (not X11).
+
+### Proxy constraints
 
 - Preserve `Host` or cookie/settings break (their UI cookie is host-scoped).
 - Forward the full session (HTML, XHR/fetch APIs, relative assets). If they
@@ -111,11 +109,11 @@ xdg-open; maybe `PLANNOTATOR_PORT` so the proxy has a stable target. Avoid
 
 ## Why not implement now
 
-The product choice is which insertion point: artifact/cloudflared Host vs a
-new YA route vs Tailscale-only. The file-grant artifact contract is the
-wrong handler; the **listener + cloudflared** around it is the right kind of
-socket. Authz, Host routing, cookie/Host, and grant lifetime are still
-undesigned. No one here has used Plannotator.
+Insertion point is the existing artifacts port + Host dispatch, not a new
+tunnel. The file-grant handler is still the wrong app; a sibling Host (or
+path on the public origin) reverse-proxies loopback Plannotator. Authz,
+cookie/Host, base-path vs Host, and grant lifetime are undesigned. No one
+here has used Plannotator.
 
 Related: [active content security](../../topics/active-content-security.md)
 (artifact origins, public listener, cloudflared-shaped tunnel, grant
@@ -124,6 +122,7 @@ transport vs byte path),
 a generic proxy),
 [agent context injection](../../topics/agent-context-injection.md).
 
-Found 2026-09-15; narrowed 2026-09-15 to web-UI reach via HTTP proxy /
-artifact cloudflared, not X11.
+Found 2026-09-15; narrowed to same-port `.localhost` Host dispatch, not a
+second tunnel.
+
 Contributing-model: grok-4.6
