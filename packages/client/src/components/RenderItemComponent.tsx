@@ -47,8 +47,10 @@ import {
 import {
   CONVERSATION_CONTEXT_RESERVE_LINES,
   CONVERSATION_PROSE_LINE_HEIGHT_RATIO,
+  cardsShareFlexLine,
   conversationRowHeightCeilingPx,
   stackedThinkingBudgetPx,
+  stabilizePublishedPx,
 } from "../lib/sessionDetail/thinkingPreviewBudget";
 import { ThinkingText } from "./ThinkingText";
 import { MessageAge } from "./MessageAge";
@@ -322,8 +324,7 @@ const STACKED_THINKING_BUDGET_VAR = "--conversation-previous-thinking-budget";
  * while the two cards share a flex line and the ordinary cap suffices.
  */
 const PREVIOUS_THINKING_STATE_ATTR = "previousThinking";
-/** Rounding slack when deciding whether two cards share a flex line. */
-const SHARED_FLEX_LINE_TOLERANCE_PX = 1;
+const THINKING_HEIGHT_VAR = "--conversation-thinking-height";
 
 /**
  * The scrolling ancestor the row has to fit inside — `.session-messages` in an
@@ -447,9 +448,16 @@ function syncStackedThinkingBudget(
 
   const latestRect = latestCard.getBoundingClientRect();
   const previousRect = previousCard.getBoundingClientRect();
-  if (previousRect.top - latestRect.top <= SHARED_FLEX_LINE_TOLERANCE_PX) {
+  if (
+    cardsShareFlexLine(
+      previousRect.top - latestRect.top,
+      row.dataset[PREVIOUS_THINKING_STATE_ATTR] === undefined,
+    )
+  ) {
     // Side by side: the previous card fits inside the height the current card
     // already claims, so its ordinary current-height cap is the whole contract.
+    // The 1px/4px deadband (cardsShareFlexLine) stops a 2px baseline wobble
+    // from flapping this vs stacked.
     clearStackedThinkingBudget(row);
     return rowCeilingPx;
   }
@@ -649,7 +657,7 @@ function ConversationActivitySummary({
       // No current/latest preview: nothing to cap to (the previous preview
       // cannot exist and the activity list is gated off), so leave the CSS
       // fallback in place.
-      row.style.removeProperty("--conversation-thinking-height");
+      row.style.removeProperty(THINKING_HEIGHT_VAR);
       return;
     }
     const content = latestCard.querySelector<HTMLElement>(
@@ -660,14 +668,19 @@ function ConversationActivitySummary({
       // previous preview and activity list clip to that header-only height too,
       // rather than falling back to the full viewport cap and rendering taller
       // than the current card — height(previous) ≤ height(current) always.
-      row.style.setProperty("--conversation-thinking-height", "0px");
+      row.style.setProperty(THINKING_HEIGHT_VAR, "0px");
       return;
     }
+    let publishedPx: number | null = null;
     const publishHeight = () => {
-      row.style.setProperty(
-        "--conversation-thinking-height",
-        `${content.offsetHeight}px`,
-      );
+      const nextPx = stabilizePublishedPx(publishedPx, content.offsetHeight);
+      publishedPx = nextPx;
+      const value = `${nextPx}px`;
+      // Same-value writes still restyle in some engines and re-enter the
+      // observer; skip them so a 2px shrink cannot chase itself.
+      if (row.style.getPropertyValue(THINKING_HEIGHT_VAR) !== value) {
+        row.style.setProperty(THINKING_HEIGHT_VAR, value);
+      }
       // The cap change alters the list's clientHeight; re-evaluate its bottom
       // fade in the same layout pass.
       syncActivityClip();
@@ -1074,6 +1087,11 @@ function ConversationThinkingPreview({
       ? widthState.targetWidthPx
       : THINKING_PREVIEW_DEFAULT_WIDTH_PX;
 
+  // Accurate max-content width once per block. Streaming tokens grow the
+  // estimate in the effect below; mutating live `display`/`width` on every
+  // thinking delta forced layout and could leak a 2px temporary height into
+  // the row's published cap.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: one measure per block identity; thinking text is the fallback only when that measure is 0
   useLayoutEffect(() => {
     if (collapsed) return;
     const thinkingText =
@@ -1101,6 +1119,17 @@ function ConversationThinkingPreview({
         : estimateThinkingPreviewWidth(preview.thinking);
     setWidthState((previous) =>
       updateThinkingPreviewWidth(previous, preview.id, requiredWidth),
+    );
+  }, [collapsed, preview.id]);
+
+  useLayoutEffect(() => {
+    if (collapsed) return;
+    setWidthState((previous) =>
+      updateThinkingPreviewWidth(
+        previous,
+        preview.id,
+        estimateThinkingPreviewWidth(preview.thinking),
+      ),
     );
   }, [collapsed, preview.id, preview.thinking]);
 
