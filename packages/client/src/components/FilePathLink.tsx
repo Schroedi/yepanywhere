@@ -452,13 +452,23 @@ export function FileViewerModal({
   lineEnd,
   viewMode = "full",
   initialPresentation,
-  source,
+  source: explicitSource,
   openInNewTabUrl,
   managedViewerId,
   inactive = false,
   onClose,
 }: FileViewerModalProps) {
   const publicShareContext = usePublicShareContext();
+  // A share viewer has no authenticated project file route, so every modal
+  // opened inside one reads through the share's own file endpoint.
+  const shareSource = useMemo(
+    () =>
+      publicShareContext
+        ? createPublicShareFileViewerSource(publicShareContext)
+        : undefined,
+    [publicShareContext],
+  );
+  const source = explicitSource ?? shareSource;
   const sessionMetadata = useOptionalSessionMetadata();
   const generatedViewerId = useId();
   const minimizedViewerId = managedViewerId ?? generatedViewerId;
