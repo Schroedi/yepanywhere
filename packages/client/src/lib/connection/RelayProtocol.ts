@@ -33,7 +33,7 @@ import type {
   Subscription,
   UploadOptions,
 } from "./types";
-import { SubscriptionError } from "./types";
+import { isConnectionReconnectingError, SubscriptionError } from "./types";
 
 export type BeginCriticalOperation = (label?: string) => () => void;
 
@@ -545,10 +545,36 @@ export class RelayProtocol {
   }
 
   /**
+   * Re-issue a read that the transport rejected because it was replacing its
+   * own socket. The request never reached the server, and `ensureConnected`
+   * joins the reconnect already in progress, so the retry rides the new
+   * socket rather than surfacing transport churn as a request failure. Only
+   * the idempotent methods retry; a mutation must not be replayed blind.
+   */
+  private async fetchThroughReconnect(
+    path: string,
+    init: RequestInit | undefined,
+  ): Promise<RelayResponse> {
+    try {
+      return await this.fetchWithRedirects(path, init, 0);
+    } catch (error) {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (
+        !isConnectionReconnectingError(error) ||
+        (method !== "GET" && method !== "HEAD")
+      ) {
+        throw error;
+      }
+      await this.transport.ensureConnected();
+      return this.fetchWithRedirects(path, init, 0);
+    }
+  }
+
+  /**
    * Make a JSON API request over the relay transport.
    */
   async fetch<T>(path: string, init?: RequestInit): Promise<T> {
-    const response = await this.fetchWithRedirects(path, init, 0);
+    const response = await this.fetchThroughReconnect(path, init);
     if (response.status === 304)
       throw new Error("Unsupported relay response status: 304");
     return response.body as T;
@@ -556,7 +582,7 @@ export class RelayProtocol {
 
   /** Reconstruct a Response from the relay's existing body representation. */
   async fetchResponse(path: string, init?: RequestInit): Promise<Response> {
-    const response = await this.fetchWithRedirects(path, init, 0);
+    const response = await this.fetchThroughReconnect(path, init);
     const headers = new Headers(response.headers);
     let body: BodyInit | null = null;
     if (![204, 205, 304].includes(response.status)) {
@@ -705,9 +731,20 @@ export class RelayProtocol {
   }
 
   /**
-   * Fetch binary data and return as Blob.
+   * Fetch binary data and return as Blob. A blob read is idempotent, so it
+   * retries once through a transport reconnect like the JSON reads above.
    */
   async fetchBlob(path: string): Promise<Blob> {
+    try {
+      return await this.fetchBlobOnce(path);
+    } catch (error) {
+      if (!isConnectionReconnectingError(error)) throw error;
+      await this.transport.ensureConnected();
+      return this.fetchBlobOnce(path);
+    }
+  }
+
+  private async fetchBlobOnce(path: string): Promise<Blob> {
     await this.transport.ensureConnected();
 
     const id = generateId();
