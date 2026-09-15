@@ -101,40 +101,34 @@ Hosted browsers cannot use `*.localhost` — that is *their* loopback.
 `ya.graehl.org` is GitHub Pages; artifact bytes already leave the relay mux
 and hit `artifacts.graehl.org` (cloudflared → `127.0.0.1:4402`).
 
-Checked 2026-09-15: `artifacts.graehl.org` is a **single** proxied name.
-`foo.graehl.org` and `test.artifacts.graehl.org` do not resolve. No
-wildcard DNS exists today.
+Checked 2026-09-15: the `relay` tunnel is first-match-wins:
+`relay.graehl.org` → `http://localhost:4400`, then
+`artifacts.graehl.org` → `http://127.0.0.1:4402`, then a catch-all 404.
+Do not rewrite the origin Host header to `artifacts.graehl.org` — 4402
+must see the public Host so YA can vhost.
 
-Ways to get a live loopback app to a phone on the hosted client, still on
-the **existing** tunnel:
+**`*.artifacts.graehl.org` cannot terminate TLS on this zone today.**
+The zone is Free; Universal SSL is only `graehl.org` + `*.graehl.org`.
+Ordering an Advanced Certificate for `*.artifacts.graehl.org` returns
+Cloudflare 1450 (Advanced Certificate Manager). Nested names would
+resolve to the tunnel and then fail HTTPS. Skip that wildcard until ACM
+exists.
+
+**Landed separate one-level mapping (2026-09-15):** proxied CNAME
+`plannotator.graehl.org` to the same tunnel target as `artifacts`, plus
+tunnel hostname `plannotator.graehl.org` → `http://127.0.0.1:4402`.
+TLS SAN is `*.graehl.org`. A request with that Host reaches the artifact
+listener and gets `421 Unknown artifact host` until YA's exact
+`matchesHost` grows a Host table. `artifacts` / `relay` health still 200.
+
+Other public shapes, still not built:
 
 - **Path on `artifacts.graehl.org`.** No DNS change. Needs the app to
   tolerate a base path (cookies, asset URLs). If it assumes `/`, skip.
-- **One extra exact hostname** (`plannotator.graehl.org`). Operator adds
-  one Cloudflare DNS record plus one tunnel public hostname to the same
-  tunnel, same 4402 listener, Host dispatch. Static analogue of
-  `X.localhost`.
-- **Wildcard DNS for dynamic public Hosts.** Two Cloudflare objects on the
-  existing `relay` tunnel, not a second tunnel. Then YA can mint
-  `p-<grant>.graehl.org` the way it would mint `p-<grant>.localhost`.
-
-  The tunnel already has, first-match-wins: `relay.graehl.org` →
-  `http://localhost:4400`, then `artifacts.graehl.org` →
-  `http://127.0.0.1:4402`. Add a third **Published application**:
-  hostname `*.graehl.org`, service `http://127.0.0.1:4402` (same as
-  artifacts). Keep it **below** the two exact names. Do not rewrite the
-  origin Host header to `artifacts.graehl.org` — 4402 must see the
-  public Host so YA can vhost.
-
-  DNS is separate. A tunnel route with no record does nothing; `foo.graehl.org`
-  still will not resolve. Add a proxied CNAME `*` →
-  `<tunnel-id>.cfargotunnel.com` (the same target `artifacts` already
-  uses). The dashboard often auto-creates exact-name CNAMEs and often
-  does **not** create `*`. Universal SSL covers the apex and one-level
-  `*.graehl.org`, so dynamic names must be `something.graehl.org`, not
-  `something.artifacts.graehl.org` (nested wildcards need Advanced
-  Certificate Manager). Existing more-specific records (`relay`,
-  `artifacts`, `ya` → GitHub Pages) win over `*`.
+- **One-level wildcard** `*.graehl.org` (DNS `*` + tunnel hostname) for
+  dynamic `p-<grant>.graehl.org`. Universal SSL covers it; more-specific
+  records (`relay`, `artifacts`, `ya` → GitHub Pages) win. Broader than
+  the Plannotator name; not added.
 
 The host's cloudflared is a dashboard-managed named tunnel (run token
 only). That token cannot create DNS or hostname routes; adding a wildcard
@@ -178,9 +172,8 @@ xdg-open; maybe `PLANNOTATOR_PORT` so the proxy has a stable target. Avoid
 Insertion point is the existing artifacts port + Host dispatch, not a new
 tunnel. The file-grant handler is still the wrong app; a sibling Host (or
 path on the public origin) reverse-proxies loopback Plannotator. Local
-needs both a dynamic announced-port map and a static `X.localhost` map;
-public hosted-client reach needs either a path, one extra exact DNS name,
-or an operator-added Cloudflare wildcard — none of that exists in YA yet.
+needs both a dynamic announced-port map and a static `X.localhost` map.
+Public `plannotator.graehl.org` now reaches 4402; YA still 421s that Host.
 Authz, cookie/Host, grant lifetime, and Host-table vs exact
 `matchesHost` are undesigned. No one here has used Plannotator.
 
@@ -194,6 +187,7 @@ add hostnames; reuse the existing tunnel),
 [agent context injection](../../topics/agent-context-injection.md).
 
 Found 2026-09-15; narrowed to same-port `.localhost` Host dispatch, then to
-dynamic vs static local maps plus optional public wildcard DNS.
+dynamic vs static local maps. Nested `*.artifacts` wildcard blocked by
+Universal SSL; public `plannotator.graehl.org` mapped to 4402.
 
 Contributing-model: grok-4.6
