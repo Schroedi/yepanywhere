@@ -5864,6 +5864,7 @@ function SessionPageContent({
                     markdownAugments={markdownAugments}
                     activeToolApproval={activeToolApproval}
                     hasOlderMessages={pagination?.hasOlderMessages}
+                    totalMessageCount={pagination?.totalMessageCount}
                     olderMessagesCursor={
                       pagination?.truncatedBeforeMessageId ?? null
                     }

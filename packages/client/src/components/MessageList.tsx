@@ -34,6 +34,7 @@ import {
 } from "../hooks/useConversationView";
 import { useWiderConversationActivityPreviews } from "../hooks/useWiderConversationActivityPreviews";
 import { useMessageListIsearch } from "../hooks/useMessageListIsearch";
+import { useSearchMatchHighlight } from "../hooks/useSearchMatchHighlight";
 import { useMessageListSelectionQuote } from "../hooks/useMessageListSelectionQuote";
 import { useRelativeNow } from "../hooks/useRelativeNow";
 import { useRecentProjectPathLinks } from "../hooks/useRecentProjectPathLinks";
@@ -862,6 +863,7 @@ interface Props {
   hasOlderMessages?: boolean;
   /** Cursor identifying the next older transcript page */
   olderMessagesCursor?: string | null;
+  totalMessageCount?: number;
   /** Ephemeral signal incremented after an accepted active-window prefix trim. */
   activeWindowTrimRevision?: number;
   /** Whether older messages are currently being loaded */
@@ -1481,6 +1483,7 @@ export const MessageList = memo(function MessageList({
   activeToolApproval,
   hasOlderMessages = false,
   olderMessagesCursor = null,
+  totalMessageCount,
   activeWindowTrimRevision = 0,
   loadingOlder = false,
   olderLoadContinuationRequired = false,
@@ -2302,7 +2305,7 @@ export const MessageList = memo(function MessageList({
     cancelSearchTargetPreparation,
     getNavigatorAnchors,
     searchState: userTurnNavSearchState,
-    searchPanel,
+    renderSearchPanel,
     closeSearch,
     getSelectedSearchAnchorId,
     getSelectedSearchTargetId,
@@ -2318,6 +2321,8 @@ export const MessageList = memo(function MessageList({
     displayRenderItems,
     hasOlderMessages,
     historySearchCursor: olderMessagesCursor,
+    loadedMessageCount: messages.length,
+    totalMessageCount,
     historySearchContextKey: historySearchStateKey,
     hydratedHistoryCursor: historySearchWindow?.cursor ?? null,
     inert,
@@ -3517,10 +3522,33 @@ export const MessageList = memo(function MessageList({
     scheduleSettledScrollState();
   }, [reportFollowingBottom, scheduleSettledScrollState]);
 
+  const { highlightSearchMatch, clearSearchMatchHighlight } =
+    useSearchMatchHighlight(inert);
+  const revealSearchMatch = useCallback(
+    (targetId: string, showMotionCue: boolean) => {
+      const query = userTurnNavSearchState?.query ?? "";
+      const caseSensitive = userTurnNavSearchState?.caseSensitive ?? false;
+      scrollToRenderId(
+        targetId,
+        "auto",
+        "center",
+        showMotionCue,
+        undefined,
+        (found) => {
+          const row = findRenderRow(containerRef.current, targetId);
+          const scrollport = containerRef.current?.parentElement;
+          if (found && row && scrollport)
+            highlightSearchMatch(row, scrollport, query, caseSensitive);
+        },
+      );
+    },
+    [highlightSearchMatch, scrollToRenderId, userTurnNavSearchState],
+  );
+
   const jumpToSearchTarget = useCallback(
     (targetId: string, settle = true) => {
       beginTurnNavigation();
-      scrollToRenderId(targetId, "auto", "center", true);
+      revealSearchMatch(targetId, true);
       if (!settle) {
         return;
       }
@@ -3533,11 +3561,11 @@ export const MessageList = memo(function MessageList({
           // Recap/activity/synthetic rows often reflow after the first
           // geometry read. Re-center once on settled heights so the rail
           // preview and the landed viewport agree.
-          scrollToRenderId(targetId, "auto", "center", false);
+          revealSearchMatch(targetId, false);
         });
       });
     },
-    [beginTurnNavigation, scrollToRenderId],
+    [beginTurnNavigation, revealSearchMatch],
   );
   useEffect(
     () => () => {
@@ -3563,7 +3591,7 @@ export const MessageList = memo(function MessageList({
         () => {
           closeSearch(false);
           requestAnimationFrame(() => {
-            scrollToRenderId(targetId, "auto", "center", false);
+            revealSearchMatch(targetId, false);
           });
         },
         targetId,
@@ -3575,35 +3603,43 @@ export const MessageList = memo(function MessageList({
       completeProgressiveReveal,
       jumpToSearchTarget,
       preserveScrollAfterTranscriptHeightChange,
-      scrollToRenderId,
+      revealSearchMatch,
     ],
   );
 
   const startSearch = useCallback(
     (scope: SessionIsearchScope) => {
+      clearSearchMatchHighlight();
       beginTurnNavigation();
       openSearch(scope);
     },
-    [beginTurnNavigation, openSearch],
+    [beginTurnNavigation, clearSearchMatchHighlight, openSearch],
   );
 
   const handleSearchMatchSelect = useCallback(
-    (id: string, targetId: string) => {
+    (id: string, targetId: string, close = false) => {
       selectSearchMatch(id, targetId);
       const preparedTarget = prepareSearchTarget(id);
+      const jump = close ? commitSearchJump : jumpToSearchTarget;
       if (preparedTarget instanceof Promise) {
         void preparedTarget.then((hydratedTargetId) => {
           if (!hydratedTargetId) return;
-          requestAnimationFrame(() => jumpToSearchTarget(hydratedTargetId));
+          requestAnimationFrame(() => jump(hydratedTargetId));
         });
       } else if (preparedTarget) {
-        jumpToSearchTarget(preparedTarget);
+        jump(preparedTarget);
       }
     },
-    [jumpToSearchTarget, prepareSearchTarget, selectSearchMatch],
+    [
+      commitSearchJump,
+      jumpToSearchTarget,
+      prepareSearchTarget,
+      selectSearchMatch,
+    ],
   );
 
   const scrollToCurrent = useCallback(() => {
+    clearSearchMatchHighlight();
     setNewOutputBelowVisible(false);
     cancelSearchTargetPreparation();
     clearHistorySearchWindow();
@@ -3612,6 +3648,7 @@ export const MessageList = memo(function MessageList({
     });
   }, [
     cancelSearchTargetPreparation,
+    clearSearchMatchHighlight,
     clearHistorySearchWindow,
     forceScrollToCurrent,
   ]);
@@ -4518,7 +4555,7 @@ export const MessageList = memo(function MessageList({
         revealRenderId={transcriptRenderWindow.revealRenderId}
         searchState={userTurnNavSearchState}
       />
-      {searchPanel}
+      {renderSearchPanel(handleSearchMatchSelect)}
       {followButtonTarget && followButton
         ? createPortal(followButton, followButtonTarget)
         : followButton}
