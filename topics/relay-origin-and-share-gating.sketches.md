@@ -170,7 +170,11 @@ queue, and username-prefix rules.
 - **Anchoring and layout** follow the
   [transcript margin notes](../gaps/sketches/transcript-margin-notes.md)
   sketch: wide layouts place a note beside its passage, narrow layouts above
-  or below it, and streaming must not displace a reader.
+  or below it, and streaming must not displace a reader. A note is visible
+  inline without any expansion step; the first presentation to try is an
+  inline pill that reflows with the passage text. The only toggle is
+  presentation, showing a wider margin column versus collapsing notes back
+  to pills, never hiding a note behind a click.
 - **Attribution.** Every note carries its author's seat or username and time;
   the driver's notes carry the driver. Notes are seat-scoped state in the
   same synchronized share record as drafts and proposals, so all

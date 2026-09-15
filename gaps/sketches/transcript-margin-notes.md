@@ -46,6 +46,9 @@ intended for human readers. They are the margin-notes half of the
 and the same UI appears in a single-participant session. A note reaches the
 agent only through a manual copy, paste, or quote-reply into a composer.
 Each note carries its author's seat ([named participant seats](named-participant-seats.md)).
+Notes are visible inline without expansion; the first presentation to try is
+an inline pill reflowing with the passage, with a wider-margin versus
+collapse toggle as the only presentation control.
 
 The remaining interaction decision is the click target: whether a plain
 click on non-link passage text opens a note, a deconflicting modifier or
