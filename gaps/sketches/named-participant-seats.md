@@ -51,12 +51,15 @@ Whether a seat is per browser profile, per relay credential, or per paired
 device; collision handling for duplicate names; and whether seats appear in
 `ya-agent self` output so an agent can address a person.
 
-Already decided (2026-09-15, maintainer direction): wherever a participant
-may send without the driver applying the text, the send is delivered with
-the participant's username as a visible prefix on the turn, per the
+Already decided (2026-09-15, maintainer direction): joiners of a multiplayer
+share enter a username, the driver does not, and wherever a joiner may send
+without the driver applying the text, the send is delivered with that
+username as a visible prefix on the turn; an unprefixed turn is the driver.
+See the
 [participatory live share sketch](../../topics/relay-origin-and-share-gating.sketches.md#participatory-live-share).
-This sketch's seat is the identity that prefix requires, extended to
-drafts, approvals, and comments that carry no provider-visible text.
+This sketch's seat generalizes that joiner username to drafts, approvals,
+and comments that carry no provider-visible text, and to the driver's own
+identity where a transcript has more than one person.
 
 Found 2026-09-15 while comparing YA multiplayer sketches with Zed Delta.
 Contributing-model: fable-5.1
