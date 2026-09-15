@@ -114,22 +114,36 @@ the **existing** tunnel:
   one Cloudflare DNS record plus one tunnel public hostname to the same
   tunnel, same 4402 listener, Host dispatch. Static analogue of
   `X.localhost`.
-- **Wildcard DNS for dynamic public Hosts.** Operator adds a Cloudflare
-  wildcard (and a matching tunnel public-hostname pattern) to the existing
-  tunnel, not a second tunnel. Then YA can mint `p-<grant>.graehl.org` the
-  way it would mint `p-<grant>.localhost`. Cloudflare Universal SSL covers
-  the apex and one-level `*.graehl.org`, so dynamic names must be
-  `something.graehl.org`, not `something.artifacts.graehl.org` (nested
-  wildcards need Advanced Certificate Manager). Existing more-specific
-  records (`relay`, `artifacts`, `ya` → GitHub Pages) win over
-  `*.graehl.org`, so a wildcard can coexist if tunnel ingress keeps exact
-  hostnames distinct from the catch-all.
+- **Wildcard DNS for dynamic public Hosts.** Two Cloudflare objects on the
+  existing `relay` tunnel, not a second tunnel. Then YA can mint
+  `p-<grant>.graehl.org` the way it would mint `p-<grant>.localhost`.
+
+  The tunnel already has, first-match-wins: `relay.graehl.org` →
+  `http://localhost:4400`, then `artifacts.graehl.org` →
+  `http://127.0.0.1:4402`. Add a third **Published application**:
+  hostname `*.graehl.org`, service `http://127.0.0.1:4402` (same as
+  artifacts). Keep it **below** the two exact names. Do not rewrite the
+  origin Host header to `artifacts.graehl.org` — 4402 must see the
+  public Host so YA can vhost.
+
+  DNS is separate. A tunnel route with no record does nothing; `foo.graehl.org`
+  still will not resolve. Add a proxied CNAME `*` →
+  `<tunnel-id>.cfargotunnel.com` (the same target `artifacts` already
+  uses). The dashboard often auto-creates exact-name CNAMEs and often
+  does **not** create `*`. Universal SSL covers the apex and one-level
+  `*.graehl.org`, so dynamic names must be `something.graehl.org`, not
+  `something.artifacts.graehl.org` (nested wildcards need Advanced
+  Certificate Manager). Existing more-specific records (`relay`,
+  `artifacts`, `ya` → GitHub Pages) win over `*`.
 
 The host's cloudflared is a dashboard-managed named tunnel (run token
 only). That token cannot create DNS or hostname routes; adding a wildcard
 is a Cloudflare dashboard/API change with origin-cert or API auth
-([interactives](../../topics/interactives.md)). YA does not install DNS or
-change the tunnel ([active content security](../../topics/active-content-security.md)).
+([interactives](../../topics/interactives.md)). The API token needs
+Tunnel write plus zone DNS write, and must allow this machine's egress
+IP. YA does not install DNS or change the tunnel
+([active content security](../../topics/active-content-security.md)).
+R2 S3 credentials do not configure tunnels or DNS.
 
 YA today matches artifact Hosts **exactly** (`localOrigin` /
 `publicOrigin` in `ArtifactServer.matchesHost`). Dynamic names need a
