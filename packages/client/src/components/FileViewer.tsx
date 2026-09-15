@@ -22,7 +22,10 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api/client";
-import { usePublicShareContext } from "../contexts/PublicShareContext";
+import {
+  buildPublicShareFileHref,
+  usePublicShareContext,
+} from "../contexts/PublicShareContext";
 import { useQuoteReply } from "../contexts/QuoteReplyContext";
 import { useOptionalSessionMetadata } from "../contexts/SessionMetadataContext";
 import { useSessionViewerComment } from "../contexts/SessionViewerCommentContext";
@@ -615,6 +618,7 @@ export const FileViewer = memo(function FileViewer({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [fileShareAnchor, setFileShareAnchor] = useState<DOMRect | null>(null);
   const loadedSourceRef = useRef<{
@@ -1206,8 +1210,25 @@ export const FileViewer = memo(function FileViewer({
   const absoluteCopyPath = useMemo(() => {
     return getAbsoluteFilePath(filePath, projectPath);
   }, [filePath, projectPath]);
+  /**
+   * A share viewer's own link, for callers that did not supply one.
+   *
+   * The authenticated `/projects/:id/file` URL is unusable to a share reader,
+   * so a viewer opened from a share transcript anchor — which passes no
+   * `openInNewTabUrl` — must name the share's route instead.
+   */
+  const shareViewerUrl = useMemo(() => {
+    if (!publicShareContext) return null;
+    return buildPublicShareFileHref(publicShareContext, {
+      filePath,
+      lineEnd,
+      lineNumber,
+      viewMode,
+    });
+  }, [filePath, lineEnd, lineNumber, publicShareContext, viewMode]);
   const sourceViewerUrl = useMemo(() => {
     if (openInNewTabUrl) return openInNewTabUrl;
+    if (shareViewerUrl) return shareViewerUrl;
     return toBrowserAppHref(
       buildProjectFileViewUrl({
         basePath,
@@ -1225,10 +1246,11 @@ export const FileViewer = memo(function FileViewer({
     lineNumber,
     openInNewTabUrl,
     projectId,
+    shareViewerUrl,
     viewMode,
   ]);
   const standaloneViewerUrl = useMemo(() => {
-    if (activeView === "source") return sourceViewerUrl;
+    if (activeView === "source" || shareViewerUrl) return sourceViewerUrl;
     return toBrowserAppHref(
       buildProjectFileViewUrl({
         basePath,
@@ -1243,6 +1265,7 @@ export const FileViewer = memo(function FileViewer({
     filePath,
     fileVersionControl.relativePath,
     projectId,
+    shareViewerUrl,
     sourceViewerUrl,
   ]);
   const fileName = getPathBasename(filePath);
@@ -1283,6 +1306,22 @@ export const FileViewer = memo(function FileViewer({
         );
       });
   }, [fileData, fileName, filePath, projectId, source, transport]);
+
+  const absoluteViewerLink = useMemo(
+    () => new URL(standaloneViewerUrl, window.location.href).href,
+    [standaloneViewerUrl],
+  );
+  const handleCopyViewerLink = useCallback(async () => {
+    try {
+      if (!(await writeClipboardText(absoluteViewerLink))) {
+        throw new Error("Clipboard write failed");
+      }
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 3000);
+    } catch (err) {
+      console.error("Failed to copy viewer link:", err);
+    }
+  }, [absoluteViewerLink]);
 
   const handleOpenInNewTab = useCallback(() => {
     if (imageOpenUrl) {
@@ -1767,6 +1806,19 @@ export const FileViewer = memo(function FileViewer({
             {copied ? <CheckIcon /> : <CopyIcon />}
           </button>
         )}
+        <button
+          type="button"
+          className={`file-viewer-action ${copiedLink ? "copied" : ""}`}
+          onClick={() => void handleCopyViewerLink()}
+          aria-label={t("fileLinkMenuCopyViewerLink" as never)}
+          title={
+            copiedLink
+              ? t("fileViewerCopied" as never)
+              : t("fileLinkMenuCopyViewerLink" as never)
+          }
+        >
+          {copiedLink ? <CheckIcon /> : <LinkIcon />}
+        </button>
         {publicShareContext === null &&
           source === DEFAULT_FILE_VIEWER_SOURCE &&
           !diffActive && <PublicFileShareButton onOpen={setFileShareAnchor} />}
@@ -1907,11 +1959,7 @@ export const FileViewer = memo(function FileViewer({
               ? () => void writeClipboardText(filePath)
               : undefined
           }
-          onCopyViewerLink={() =>
-            void writeClipboardText(
-              new URL(standaloneViewerUrl, window.location.href).href,
-            )
-          }
+          onCopyViewerLink={() => void handleCopyViewerLink()}
           onCopyContents={handleCopyContentsFromMenu}
           onCopyRenderedContents={
             renderedClipboardPayload
@@ -2207,6 +2255,25 @@ function DownloadIcon() {
       aria-hidden="true"
     >
       <path d="M8 2v9M4 8l4 4 4-4M2 14h12" />
+    </svg>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6.5 9.5a2.5 2.5 0 0 0 3.54 0l2.46-2.46a2.5 2.5 0 0 0-3.54-3.54L7.9 4.56" />
+      <path d="M9.5 6.5a2.5 2.5 0 0 0-3.54 0L3.5 8.96a2.5 2.5 0 0 0 3.54 3.54l1.06-1.06" />
     </svg>
   );
 }
