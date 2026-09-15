@@ -120,6 +120,21 @@ one they appear to have made. Semantic merge of independent branches remains
 unsolved by the data model; CRDT convergence guarantees that concurrent edits
 to one file produce *a* result, not a correct one.
 
+**Forced representation versus observed provenance.** The vision is to force
+every interaction, edits and messages alike, through one traceable
+representation: the worktree and the thread exist only as operations in the
+store, the terminal and the mount are views onto it, and "every change is
+linked" holds because no unrecorded path exists. That is forcing by
+construction rather than by rule, and it pays in exactly the team-plus-agent
+cases where one unexplained hunk breaks trust in the whole trail: several
+people and agents on one thread, review of work in progress rather than of a
+pull request, audit, onboarding, and hands-off delegation read afterwards.
+What happens to edits that bypass the log is undisclosed. YA makes the
+opposite bet deliberately: observe at the tool boundary, record what was
+seen, leave honest gaps for human and external edits, and never gate how
+anyone edits. The forced model wins on completeness; the observed model wins
+on not owning the user's files or workflow.
+
 ## Feature comparison with Yep Anywhere
 
 | Concern | DeltaDB / Delta (claimed) | YA today | YA design already on file |
@@ -161,9 +176,12 @@ YA is behind on three things DeltaDB makes structural rather than bolted on:
    Every multiplayer idea, including Delta-style annotation, needs at least a
    display-level seat identity before it needs security principals.
 
-The multiplayer UI itself is not where the novelty lies. Delta's thread UI is
-a document-with-cursors chat, and YA's live share already streams the driver's
-draft to viewers. The differentiator is the data underneath: annotations and
+The multiplayer UI itself is not where the novelty lies. Delta's thread is an
+editor buffer: "your cursor works everywhere in it", and placing it on any
+text (a diff line, a plan step, a thinking block) and typing attaches a
+comment there. Shared cursor presence is plausible from Zed's collaboration
+features but not stated. YA's live share already streams the driver's draft
+to viewers. The differentiator is the data underneath: annotations and
 edits that keep pointing at the right thing while an agent keeps working.
 
 ## Implications for YA
@@ -191,7 +209,8 @@ The existing plans and gaps named above were checked before deriving these.
    Security principals remain the separate open design in the
    [multi-machine map](../../topics/multi-machine-architecture.md#authority-and-failure-questions-to-resolve).
 4. **Treat the wide-screen workspace as a layout concern, not a feature
-   list.** Delta's document-with-cursors reads as an IDE-shaped surface. YA's
+   list.** Delta's conversation-as-editor-buffer reads as an IDE-shaped
+   surface. YA's
    wide-viewport answer is the side-by-side viewer panel sketched in
    [parked file viewer sketches](../../topics/parked-file-viewer.sketches.md),
    which keeps the session primary and the transcript's content width intact.
