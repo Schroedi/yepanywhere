@@ -410,13 +410,11 @@ it("enforces a text-byte cap independently of the match count", async () => {
 
 it("reuses the original cache when another character interrupts pending refinement", async () => {
   vi.useFakeTimers();
-  const fetch = vi
-    .fn()
-    .mockResolvedValue({
-      ...done,
-      includesSearchText: true,
-      matches: [{ ...hit, searchText: "needle" }],
-    });
+  const fetch = vi.fn().mockResolvedValue({
+    ...done,
+    includesSearchText: true,
+    matches: [{ ...hit, searchText: "needle" }],
+  });
   const first = new ContentSearchScan(
     "n",
     { roles: ["user"] },
