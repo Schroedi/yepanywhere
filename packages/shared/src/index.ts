@@ -689,6 +689,7 @@ export {
   RELOAD_SAFE_CODEX_RUNTIME_CAPABILITY,
   RELOAD_SAFE_CODEX_RUNTIME_SETTINGS_CAPABILITY,
   SERVER_CAPABILITIES,
+  SPEECH_BACKEND_SETUP_CAPABILITY,
   OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS,
   TOOL_RESULT_MEDIA_PRESERVATION_POLICY_CAPABILITY,
   VOICE_INPUT_CAPABILITY,
@@ -1336,6 +1337,7 @@ export * from "./glossary/index.js";
 
 export type { SqliteStatus } from "./sqlite-status.js";
 export type { SpeechVocabularyStatus } from "./speech-vocabulary.js";
+export * from "./speech-backend-setup.js";
 export type {
   SpeechVocabularyOccurrence,
   VocabularyCaseForms,

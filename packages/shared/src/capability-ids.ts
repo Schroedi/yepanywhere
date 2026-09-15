@@ -396,6 +396,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "session-content-search",
     introducedIn: "0.8.2",
   },
+  speechBackendSetup: {
+    id: 74,
+    direction: "server",
+    name: "speech-backend-setup",
+    introducedIn: "0.8.2",
+  },
   projectQueueReadinessCheck: {
     id: 61,
     direction: "server",

@@ -279,6 +279,9 @@ export class WarmPixiSttBackend implements PrewarmableSpeechBackend {
         const req = {
           audio_b64: audio.toString("base64"),
           mime_type: options.mimeType ?? "audio/webm;codecs=opus",
+          ...(options.keyterms && options.keyterms.length > 0
+            ? { keyterms: options.keyterms }
+            : {}),
         };
 
         this.proc!.stdin!.write(`${JSON.stringify(req)}\n`);

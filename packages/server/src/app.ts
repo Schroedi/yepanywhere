@@ -206,6 +206,7 @@ import { createLocalImageRoutes } from "./routes/local-image.js";
 import { createLocalResourcePathPolicy } from "./routes/local-resource-policy.js";
 import { type UploadDeps, createUploadRoutes } from "./routes/upload.js";
 import { createSpeechRoutes } from "./routes/speech.js";
+import type { SpeechBackendInstallService } from "./services/voice/speechBackendInstall.js";
 import { createSecurityClientRoutes } from "./routes/security-clients.js";
 import {
   DiscoverySqliteService,
@@ -468,6 +469,10 @@ export interface AppOptions {
   voiceInputEnabled?: boolean;
   /** Validated server-routed speech backends for capability advertisement. */
   speechBackendRegistry?: SpeechBackendRegistry;
+  /** Env-listed STT backends, used to union with persisted Speech settings. */
+  envVoiceBackends?: string[];
+  /** Installs pixi runtimes and Hugging Face weights for local STT backends. */
+  speechBackendInstallService?: SpeechBackendInstallService;
   /** xAI STT key used for ya-grok and to mint direct-browser client secrets. */
   xaiSttApiKey?: string;
   /** Whether authenticated clients may borrow the long-lived xAI STT key. */
@@ -2983,6 +2988,9 @@ export function createApp(options: AppOptions): AppResult {
         serverSettingsService: options.serverSettingsService,
         xaiSttApiKey: options.xaiSttApiKey,
         shareXaiSttApiKeyWithClients: options.shareXaiSttApiKeyWithClients,
+        envVoiceBackends: options.envVoiceBackends,
+        speechBackendInstallService: options.speechBackendInstallService,
+        safeRestartService,
       }),
     );
   }

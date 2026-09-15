@@ -1416,6 +1416,42 @@ describe("Settings Routes", () => {
       });
     });
 
+    it("accepts local speech backend settings", async () => {
+      const routes = createSettingsRoutes({
+        serverSettingsService: mockServerSettingsService,
+      });
+
+      const response = await routes.request("/", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          speechVoiceBackends: ["ya-granite", "ya-whisper"],
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(mockServerSettingsService.updateSettings).toHaveBeenCalledWith({
+        speechVoiceBackends: ["ya-granite", "ya-whisper"],
+      });
+    });
+
+    it("rejects unknown speech backend settings", async () => {
+      const routes = createSettingsRoutes({
+        serverSettingsService: mockServerSettingsService,
+      });
+
+      const response = await routes.request("/", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          speechVoiceBackends: ["ya-grok"],
+        }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(mockServerSettingsService.updateSettings).not.toHaveBeenCalled();
+    });
+
     it("rejects invalid speech audio retention settings", async () => {
       const routes = createSettingsRoutes({
         serverSettingsService: mockServerSettingsService,

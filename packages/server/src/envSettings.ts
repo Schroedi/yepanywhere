@@ -517,6 +517,12 @@ export const ENV_VAR_REGISTRY: EnvVarDescriptor[] = [
     description: "Device for the ya-granite backend (default auto).",
   },
   {
+    name: "GRANITE_KEYWORD_BIAS",
+    group: "Speech & transcription",
+    description:
+      "Constant logit boost applied to Granite keyword-prefix tokens (default 1.0). 0 keeps the Keywords: prompt and disables the extra logit processor.",
+  },
+  {
     name: "HF_HUB_CACHE",
     group: "Speech & transcription",
     description:

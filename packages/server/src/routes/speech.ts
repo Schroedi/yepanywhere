@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import {
+  LOCAL_SPEECH_BACKEND_SPECS,
   MAX_SPEECH_SESSION_TERMS,
+  isLocalSpeechBackendId,
   speechVocabularyTokens,
+  unionSpeechVoiceBackends,
+  type SpeechBackendSetupStatus,
 } from "@yep-anywhere/shared";
 import type { Context } from "hono";
 import { Hono } from "hono";
@@ -16,6 +20,8 @@ import {
   type SpeechAudioRetentionResult,
   type SpeechTranscriptionContext,
 } from "../services/voice/audioRetention.js";
+import type { SafeRestartService } from "../services/SafeRestartService.js";
+import type { SpeechBackendInstallService } from "../services/voice/speechBackendInstall.js";
 import type { SpeechBackendRegistry } from "../services/voice/registry.js";
 import {
   supportsStreaming,
@@ -42,6 +48,9 @@ export interface SpeechSessionDeps {
   serverSettingsService?: ServerSettingsService;
   xaiSttApiKey?: string;
   shareXaiSttApiKeyWithClients?: boolean;
+  envVoiceBackends?: string[];
+  speechBackendInstallService?: SpeechBackendInstallService;
+  safeRestartService?: SafeRestartService;
 }
 
 export interface SpeechRouteDeps extends SpeechSessionDeps {
@@ -926,8 +935,77 @@ export function createSpeechWebSocketSession(
   };
 }
 
+function speechBackendSetupStatus(
+  deps: SpeechRouteDeps,
+): SpeechBackendSetupStatus {
+  const envBackends = unionSpeechVoiceBackends(deps.envVoiceBackends);
+  const settingsBackends = unionSpeechVoiceBackends(
+    deps.serverSettingsService?.getSetting("speechVoiceBackends"),
+  );
+  const advertisedBackends = deps.speechBackendRegistry.enabledIds();
+  const advertisedLocal = new Set(
+    advertisedBackends.filter((id) => isLocalSpeechBackendId(id)),
+  );
+  const enabledLocal = new Set(
+    unionSpeechVoiceBackends(envBackends, settingsBackends),
+  );
+  const needsRestart = LOCAL_SPEECH_BACKEND_SPECS.some(
+    (spec) => enabledLocal.has(spec.id) !== advertisedLocal.has(spec.id),
+  );
+  return {
+    envBackends,
+    settingsBackends,
+    advertisedBackends,
+    restartAvailable: Boolean(deps.safeRestartService),
+    needsRestart,
+    install: deps.speechBackendInstallService?.status() ?? {
+      running: false,
+      lines: [],
+    },
+    catalog: LOCAL_SPEECH_BACKEND_SPECS.map((spec) => ({
+      id: spec.id,
+      enabled: enabledLocal.has(spec.id),
+      enabledByEnv: envBackends.includes(spec.id),
+      enabledBySettings: settingsBackends.includes(spec.id),
+      advertised: advertisedLocal.has(spec.id),
+      pixiEnvironment: spec.pixiEnvironment,
+      bootstrapTask: spec.bootstrapTask,
+      defaultModel: spec.defaultModel,
+      hfGated: spec.hfGated,
+    })),
+  };
+}
+
 export function createSpeechRoutes(deps: SpeechRouteDeps): Hono {
   const routes = new Hono();
+
+  routes.get("/backends", (c) => c.json(speechBackendSetupStatus(deps)));
+
+  routes.post("/backends/restart", async (c) => {
+    if (!deps.safeRestartService) {
+      return c.json(
+        {
+          error:
+            "Safe restart is unavailable in this YA process. Restart the server from the host after enabling backends.",
+        },
+        409,
+      );
+    }
+    const state = await deps.safeRestartService.schedule();
+    return c.json(state);
+  });
+
+  routes.post("/backends/:id/install", (c) => {
+    const service = deps.speechBackendInstallService;
+    if (!service) {
+      return c.json({ error: "Speech backend install is unavailable" }, 404);
+    }
+    const started = service.start(c.req.param("id"));
+    if (!started.ok) {
+      return c.json({ error: started.reason }, 409);
+    }
+    return c.json(service.status());
+  });
 
   const rejectCredentialGet = (c: Context) => {
     c.header("Allow", "POST");

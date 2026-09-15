@@ -52,6 +52,7 @@ import {
   parseClaudeAdditionalModelSelections,
   parseClaudeSteerBackgroundBashSettings,
   parsePostCompactReplaySettings,
+  parseSpeechVoiceBackends,
   DEFAULT_POST_COMPACT_REPLAY_SETTINGS,
 } from "@yep-anywhere/shared";
 import type { FileAccessSettings } from "../middleware/file-access.js";
@@ -193,6 +194,12 @@ export interface ServerSettings {
   clientDefaults?: ClientDefaults;
   /** Server-routed speech audio retention policy. */
   speechAudioRetention: SpeechAudioRetentionSettings;
+  /**
+   * Local STT backends enabled from the Speech settings UI. Unioned with
+   * `YEP_VOICE_BACKENDS` at startup; the env list is copied into this array
+   * when missing and never removes an already-saved backend.
+   */
+  speechVoiceBackends: string[];
   /** OpenAI-compatible helper endpoints for side-session helper work */
   helperTargets?: HelperTargetConfig[];
   /** Per-provider prompt-cache keepalive policy and cadence. */
@@ -301,6 +308,7 @@ export const DEFAULT_SERVER_SETTINGS: ServerSettings = {
     maxAgeDays: DEFAULT_SPEECH_AUDIO_RETENTION_MAX_AGE_DAYS,
     maxBytes: DEFAULT_SPEECH_AUDIO_RETENTION_MAX_BYTES,
   },
+  speechVoiceBackends: [],
   lifecycleWebhooksEnabled: false,
   lifecycleWebhookDryRun: true,
   grokBuildUseXaiApiKey: false,
@@ -458,6 +466,9 @@ function normalizeLoadedSettings(settings: ServerSettings): ServerSettings {
   normalized.clientDefaults = mergeLoadedClientDefaults(
     settings.clientDefaults,
   );
+  normalized.speechVoiceBackends =
+    parseSpeechVoiceBackends(settings.speechVoiceBackends) ??
+    DEFAULT_SERVER_SETTINGS.speechVoiceBackends;
   normalized.claudeAdditionalModels =
     parseClaudeAdditionalModelSelections(settings.claudeAdditionalModels) ??
     undefined;

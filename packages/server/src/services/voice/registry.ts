@@ -53,7 +53,9 @@ export class SpeechBackendRegistry {
     requested: string[] = [],
     context?: SpeechVocabularyContext,
   ): Promise<string[]> {
-    if (backendId !== "ya-grok") return requested;
+    if (backendId !== "ya-grok" && backendId !== "ya-granite") {
+      return requested;
+    }
     return [
       ...new Set([
         ...requested,

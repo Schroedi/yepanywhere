@@ -189,6 +189,38 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  speechBackendSetup: {
+    id: CAPABILITY_ID_ALLOCATIONS.speechBackendSetup.id,
+    name: "speech-backend-setup",
+    kind: "permanent",
+    area: "speech",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Persist local STT backends in server settings, install pixi runtimes and model weights, and request a safe YA restart.",
+    clientFallback:
+      "Hide the Speech backends enable/install table and make no setup, install, or speech-restart requests.",
+    serverContract: {
+      routes: [
+        "GET /api/settings",
+        "PUT /api/settings",
+        "GET /api/speech/backends",
+        "POST /api/speech/backends/:id/install",
+        "POST /api/speech/backends/restart",
+      ],
+      routeModules: [
+        "packages/server/src/routes/settings.ts",
+        "packages/server/src/routes/speech.ts",
+      ],
+      requestFields: ["speechVoiceBackends"],
+      responseFields: ["settings.speechVoiceBackends"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers only enable local STT from YEP_VOICE_BACKENDS and have no install or settings-union routes.",
+    },
+  },
   sessionContentSearch: {
     id: CAPABILITY_ID_ALLOCATIONS.sessionContentSearch.id,
     name: "session-content-search",
@@ -2818,6 +2850,8 @@ export const SESSION_FORK_TURN_INTENTS_CAPABILITY =
   SERVER_CAPABILITIES.sessionForkTurnIntents.name;
 
 export const VOICE_INPUT_CAPABILITY = SERVER_CAPABILITIES.voiceInput.name;
+export const SPEECH_BACKEND_SETUP_CAPABILITY =
+  SERVER_CAPABILITIES.speechBackendSetup.name;
 
 export const DEVICE_BRIDGE_AVAILABLE_CAPABILITY =
   SERVER_CAPABILITIES.deviceBridgeAvailable.name;

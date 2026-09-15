@@ -61,4 +61,41 @@ describe("local speech worker environment", () => {
       }
     },
   );
+
+  it("forwards Granite keyterms on the worker request line", async () => {
+    const chunks: string[] = [];
+    const worker = Object.assign(new EventEmitter(), {
+      stdin: new PassThrough(),
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+    });
+    worker.stdin.on("data", (chunk: Buffer) => {
+      chunks.push(chunk.toString());
+      worker.stdout.write('{"text":"ok"}\n');
+    });
+    spawnMock.mockImplementation(() => {
+      queueMicrotask(() => worker.stdout.write('{"status":"ready"}\n'));
+      return worker;
+    });
+    try {
+      const backend = new LocalGraniteBackend();
+      await backend.prewarm();
+      await backend.transcribe(Buffer.from("audio"), {
+        keyterms: ["agentctl", "SQLite"],
+      });
+      const request = chunks
+        .join("")
+        .split("\n")
+        .map((line) => line.trim())
+        .find((line) => line.startsWith("{"));
+      expect(request).toBeDefined();
+      expect(JSON.parse(request ?? "{}")).toMatchObject({
+        keyterms: ["agentctl", "SQLite"],
+      });
+    } finally {
+      worker.stdin.destroy();
+      worker.stdout.destroy();
+      worker.stderr.destroy();
+    }
+  });
 });

@@ -1,0 +1,95 @@
+.wrap {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+}
+
+.wrap h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.wrap p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.tableWrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th,
+.table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+  vertical-align: top;
+  font-weight: normal;
+}
+
+.table thead th {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.table code {
+  font-size: 12px;
+}
+
+.meta {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.install,
+.restart {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.install:disabled,
+.restart:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.consoleLabel {
+  font-size: 13px;
+}
+
+.console {
+  max-height: 12rem;
+  min-height: 6rem;
+  overflow: auto;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}

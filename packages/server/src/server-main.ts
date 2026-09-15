@@ -12,6 +12,8 @@ import {
   SPEECH_RELAY_CHANNEL,
   idleReapHoursToMs,
   isClaudeProviderName,
+  parseSpeechVoiceBackends,
+  unionSpeechVoiceBackends,
 } from "@yep-anywhere/shared";
 import { createApp } from "./app.js";
 import { markdownAugmentCacheDiagnostics } from "./augments/markdown-augments.js";
@@ -116,6 +118,7 @@ import {
   getRequestedSpeechBackendIds,
   registerSpeechBackends,
 } from "./services/voice/registry.js";
+import { SpeechBackendInstallService } from "./services/voice/speechBackendInstall.js";
 import { claudeTranscriptCache } from "./sessions/claude-transcript-cache.js";
 import { providerCatalogFamily } from "./sessions/provider-catalog-family.js";
 import { ClaudeSessionReader } from "./sessions/reader.js";
@@ -954,9 +957,26 @@ async function startServer() {
     );
   }
 
+  const persistedSpeechBackends =
+    parseSpeechVoiceBackends(
+      serverSettingsService.getSetting("speechVoiceBackends"),
+    ) ?? [];
+  const populatedSpeechBackends = unionSpeechVoiceBackends(
+    persistedSpeechBackends,
+    config.voiceBackends,
+  );
+  if (populatedSpeechBackends.join(",") !== persistedSpeechBackends.join(",")) {
+    await serverSettingsService.updateSettings({
+      speechVoiceBackends: populatedSpeechBackends,
+    });
+    console.log(
+      `[Voice] Copied local backends from YEP_VOICE_BACKENDS into server settings: ${populatedSpeechBackends.join(", ")}`,
+    );
+  }
+  const speechBackendInstallService = new SpeechBackendInstallService();
   const speechBackendOptions: SpeechRegistryInitOptions = {
     voiceInputEnabled: config.voiceInputEnabled,
-    voiceBackends: config.voiceBackends,
+    voiceBackends: [...config.voiceBackends, ...populatedSpeechBackends],
     deepgramApiKey: config.deepgramApiKey,
     xaiSttApiKey: config.xaiSttApiKey,
     whisperModel: config.whisperModel,
@@ -1085,6 +1105,8 @@ async function startServer() {
     codexCyberAccessProgram: config.codexCyberAccessProgram,
     voiceInputEnabled: config.voiceInputEnabled,
     speechBackendRegistry,
+    envVoiceBackends: config.voiceBackends,
+    speechBackendInstallService,
     xaiSttApiKey: config.xaiSttApiKey,
     shareXaiSttApiKeyWithClients: config.shareXaiSttApiKeyWithClients,
     allowedImagePaths: config.allowedImagePaths,
@@ -1217,6 +1239,8 @@ async function startServer() {
       serverSettingsService,
       xaiSttApiKey: config.xaiSttApiKey,
       shareXaiSttApiKeyWithClients: config.shareXaiSttApiKeyWithClients,
+      envVoiceBackends: config.voiceBackends,
+      speechBackendInstallService,
     }),
   );
   markStartup("speech routes mounted");

@@ -265,6 +265,21 @@ describe("speech routes", () => {
     });
   });
 
+  it("lists local backend setup catalog from env and settings", async () => {
+    const registry = new SpeechBackendRegistry();
+    const { app } = await createSpeechApp(undefined, registry);
+    const res = await app.request("/api/speech/backends");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.catalog.map((row: { id: string }) => row.id)).toEqual([
+      "ya-whisper",
+      "ya-parakeet",
+      "ya-nemo",
+      "ya-granite",
+    ]);
+    expect(body.restartAvailable).toBe(false);
+  });
+
   it("passes a requested local model to the selected batch backend", async () => {
     const backend = new RecordingBatchBackend();
     const registry = new SpeechBackendRegistry();

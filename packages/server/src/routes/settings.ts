@@ -28,6 +28,7 @@ import {
   parseClaudeAdditionalModelSelections,
   parseClaudeSteerBackgroundBashSettings,
   parsePostCompactReplaySettings,
+  parseSpeechVoiceBackends,
 } from "@yep-anywhere/shared";
 import { Hono } from "hono";
 import {
@@ -783,6 +784,22 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
           return c.json({ error: "Invalid speechAudioRetention setting" }, 400);
         }
         updates.speechAudioRetention = parsedRetention;
+      }
+
+      if ("speechVoiceBackends" in body) {
+        const parsedBackends = parseSpeechVoiceBackends(
+          body.speechVoiceBackends,
+        );
+        if (parsedBackends === null) {
+          return c.json(
+            {
+              error:
+                "speechVoiceBackends must be an array of local STT backend ids (ya-whisper, ya-parakeet, ya-nemo, ya-granite)",
+            },
+            400,
+          );
+        }
+        updates.speechVoiceBackends = parsedBackends;
       }
 
       if ("helperTargets" in body) {

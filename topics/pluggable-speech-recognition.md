@@ -18,20 +18,25 @@ behavior across streaming and batch STT.
 - `VOICE_INPUT=false` is the master kill switch. When it is false, YA does
   not advertise voice input or server-routed speech backends.
 - Server-routed backends are off unless an explicit signal enables them.
-  Local/test backends (`ya-whisper`, `ya-parakeet`, `ya-nemo`, `ya-granite`,
-  `ya-dummy`) must
-  be named in `YEP_VOICE_BACKENDS`; cloud backends (`ya-deepgram`, `ya-grok`)
-  auto-enable when their YA-scoped key is provided, since providing a metered
-  key is the operator's explicit opt-in. Configured backends appear immediately
-  through `/api/version.voiceBackendStatuses`, but only backends that pass
-  startup validation are routable and advertised as `voiceBackends`.
+  Local backends (`ya-whisper`, `ya-parakeet`, `ya-nemo`, `ya-granite`) are
+  enabled by the union of `YEP_VOICE_BACKENDS` and the persisted server
+  setting `speechVoiceBackends` (Speech settings checkboxes). On startup the
+  env list is copied into that setting when missing; the env list never
+  removes a saved backend. `ya-dummy` remains env-only. Cloud backends
+  (`ya-deepgram`, `ya-grok`) auto-enable when their YA-scoped key is provided,
+  since providing a metered key is the operator's explicit opt-in. Configured
+  backends appear immediately through `/api/version.voiceBackendStatuses`, but
+  only backends that pass startup validation are routable and advertised as
+  `voiceBackends`. A settings or env change that adds a local backend takes
+  effect on the next YA restart.
 - Browser-native Web Speech recognition is a selectable local escape hatch,
   not a YA server backend. The browser still owns its recognizer, credentials,
   latency, and failure modes.
 - The user chooses among advertised methods. YA should not silently fall back
   from one configured server method to another, and it should not auto-enable
   a backend merely because its code exists — enablement requires an explicit
-  signal: a `YEP_VOICE_BACKENDS` entry, or a provided cloud key.
+  signal: a `YEP_VOICE_BACKENDS` entry, a saved Speech settings checkbox, or a
+  provided cloud key.
 - OS keyboard dictation is outside YA's speech stack. If the user taps the
   keyboard's mic glyph, that is device-native text entry, not YA-mediated
   speech recognition.
@@ -480,9 +485,11 @@ is therefore well inside press-to-talk usefulness on this GPU while being
 slower than the 0.6B Parakeet recognizers; a CPU-only host should expect a much
 worse ratio because every transcript is generated token by token.
 
-Granite's published keyword-list biasing is a natural fit for YA's learned
-vocabulary, which currently reaches only `ya-grok` keyterms. That wiring is not
-implemented.
+Granite keyword biasing uses the same learned top-100 list as Grok. Frequency
+already chose membership; listed terms are treated equally. The worker rebuilds
+IBM's trained `Keywords:` prompt per utterance and applies a constant prefix
+logit boost (`GRANITE_KEYWORD_BIAS`, default `1.0`; `0` keeps the prompt and
+disables the extra processor). Direct Grok still does not consume this list.
 
 ## Keyterm Biasing
 
@@ -883,9 +890,10 @@ list" query, so a resemblance-style constrained-command match cannot be built
 from the API surface — only a thumb on the transcript scale.
 
 `POST /api/speech/transcribe` accepts explicit `keyterms`; Grok and Deepgram
-forward them. Learned terms currently augment Grok requests only. The server
+forward them. Learned terms currently augment Grok and Granite requests. The server
 adds streaming Grok terms when opening the upstream session; browser-direct
-Grok has no learned-vocabulary integration.
+Grok has no learned-vocabulary integration. Granite batch requests receive the
+same list in the `Keywords:` prompt plus the constant logit boost.
 
 Candidate uses, in rough value order:
 
@@ -1235,3 +1243,25 @@ remains deferred to prewarm or transcription.
   provider: the current method resolves unavailable, the mic remains visible
   and disabled with unavailable copy, and advertised methods remain available
   for explicit re-selection.
+
+## Local backend enablement and install
+
+Speech settings ends with an install/enable table for the four local
+backends. Checkboxes write `speechVoiceBackends` in the YA data-directory
+settings file. `YEP_VOICE_BACKENDS` is copied into that list on startup when
+missing and is unioned at runtime, so an env entry cannot turn a saved backend
+off. Get / install runs the pixi bootstrap if needed, then downloads default
+weights into the Hugging Face cache; the scrollable install log is that
+command output. Restart YA (safe restart when the process supports it)
+re-reads the union and advertises backends that validate.
+
+| Backend | Enable | Install | Notes |
+| --- | --- | --- | --- |
+| Browser Web Speech | No server env | None | Device-local escape hatch |
+| Grok through YA | `YEP_STT_XAI_API_KEY` auto-enables | None | Cloud, streaming |
+| Grok direct | Browser key or server share | None | Not a YA backend id |
+| Deepgram | `YEP_STT_DEEPGRAM_API_KEY` auto-enables | None | Cloud, batch |
+| Whisper `ya-whisper` | `YEP_VOICE_BACKENDS` and/or Speech settings checkbox | `pixi run -e stt stt-bootstrap`, then default faster-whisper weights | CPU-safe default |
+| Parakeet `ya-parakeet` | same | `pixi run -e stt stt-bootstrap-parakeet`; HF login if gated | Transformers ASR pipeline |
+| NeMo `ya-nemo` | same | `pixi run -e stt-nemo nemo-bootstrap`; HF login if gated | Isolated pixi env |
+| Granite `ya-granite` | same | `pixi run -e stt stt-bootstrap-granite`; default `ibm-granite/granite-speech-4.1-2b` | Learned `Keywords:` prompt + `GRANITE_KEYWORD_BIAS` |

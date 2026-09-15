@@ -1,5 +1,6 @@
 import {
   VOICE_INPUT_CAPABILITY,
+  SPEECH_BACKEND_SETUP_CAPABILITY,
   SERVER_CAPABILITIES,
   hasServerCapabilityAdvertisement,
   serverHasCapability,
@@ -17,6 +18,7 @@ import {
 import { SpeechSmartTurnControls } from "../../components/SpeechSmartTurnControls";
 import { SpeechMessagePrefixControls } from "../../components/SpeechMessagePrefixControls";
 import { WhisperModelControls } from "../../components/WhisperModelControls";
+import { SpeechBackendSetup } from "./SpeechBackendSetup";
 import { useModelSettings } from "../../hooks/useModelSettings";
 import { useBrowserXaiSttApiKey } from "../../hooks/useBrowserXaiSttApiKey";
 import { useSpeechCaptureSettings } from "../../hooks/useSpeechCaptureSettings";
@@ -608,6 +610,10 @@ export function SpeechSettings() {
         >
           <SpeechMessagePrefixControls showDescription={false} />
         </SettingsItem>
+
+        {serverHasCapability(versionInfo, SPEECH_BACKEND_SETUP_CAPABILITY) && (
+          <SpeechBackendSetup />
+        )}
       </div>
     </SettingsSection>
   );

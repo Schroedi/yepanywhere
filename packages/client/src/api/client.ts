@@ -1748,6 +1748,8 @@ export interface ServerSettings {
     maxAgeDays: number;
     maxBytes: number;
   };
+  /** Local STT backends enabled from Speech settings; unioned with env. */
+  speechVoiceBackends?: string[];
   /** OpenAI-compatible helper endpoints for side-session helper work */
   helperTargets?: HelperTargetConfig[];
   /** Whether lifecycle webhook delivery is enabled */

@@ -10,6 +10,16 @@ Topic: server-capabilities
 
 ## Source Of Truth
 
+`speech-backend-setup` (permanent ID 74, version-implied from 0.8.2) owns
+the Speech settings local-backend table: `speechVoiceBackends` on
+`GET`/`PUT /api/settings`, `GET /api/speech/backends`,
+`POST /api/speech/backends/:id/install`, and
+`POST /api/speech/backends/restart`. The ordinary optional-feature corpus is
+v0.8.0 (2026-08-31) and v0.8.1 (2026-09-05); both lack these routes and the
+settings field. Without the capability, clients hide the table and make no
+setup, install, or speech-restart request. Existing capability meanings are
+unchanged. See [pluggable speech recognition](pluggable-speech-recognition.md).
+
 `session-content-search` (permanent ID 73, version-implied from 0.8.2) owns
 `POST /api/sessions/content-search` and its bounded match batches and coverage
 fields. The maintainer approved the optional compatibility plan on 2026-09-14:
