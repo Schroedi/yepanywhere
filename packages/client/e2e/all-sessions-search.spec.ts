@@ -426,15 +426,26 @@ for (const viewport of [
     const diagnostic = page.locator("q", {
       hasText: "A transcript with a malformed record",
     });
+    const coverage = page
+      .locator("summary")
+      .filter({ hasText: "Incomplete turn coverage" });
+    await expect(coverage).toBeVisible();
+    await expect(diagnostic).not.toBeVisible();
+    if (viewport.name === "desktop")
+      await page.setViewportSize({ width: 1200, height: 600 });
+    await recordUiCapture(
+      page,
+      `all-sessions-defaults-${viewport.name}`,
+      viewport.name === "desktop" ? { width: 1200, height: 600 } : viewport,
+    );
+    await page.setViewportSize(viewport);
+    await coverage.click();
     await expect(diagnostic).toBeVisible();
     const location = page.getByRole("link", {
       name: "broken.jsonl",
       exact: true,
     });
     await expect(location).toHaveAttribute("href", /searchMatch=nearby-turn/);
-    const coverage = page
-      .locator("summary")
-      .filter({ hasText: "Incomplete turn coverage" });
     await coverage.click();
     await expect(diagnostic).not.toBeVisible();
     await expect(coverage).toBeVisible();
@@ -732,6 +743,17 @@ for (const viewport of [
     await expect(assistant).not.toBeChecked();
     if (viewport.name === "desktop") await expect(search).toBeFocused();
     else await expect(search).not.toBeFocused();
+    const title = page.getByRole("checkbox", { name: "Title", exact: true });
+    const user = page.getByRole("checkbox", { name: /^User/ });
+    await search.press("Control+r");
+    await assistant.check();
+    await user.uncheck();
+    await expect(title).not.toBeChecked();
+    await assistant.uncheck();
+    await expect(title).toBeChecked();
+    await search.press("Control+r");
+    await user.uncheck();
+    await expect(title).toBeChecked();
     await search.fill("quasarneedle");
     await expect(
       page.getByText("No sessions found", { exact: true }),
@@ -802,9 +824,9 @@ for (const viewport of [
         exact: true,
       })
       .click();
-    await page
-      .getByRole("button", { name: "Filter: Unarchived", exact: true })
-      .click();
+    await expect(
+      page.getByRole("button", { name: "Filter: Unarchived", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
     await expect(
       page.getByRole("button", { name: "Make Unarchived 2", exact: true }),
     ).toBeVisible();

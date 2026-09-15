@@ -36,7 +36,7 @@ export function SearchDiagnostics({
   basePath: string;
 }) {
   const { t } = useI18n();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   if (!partial.size) return null;
   return (
     <details

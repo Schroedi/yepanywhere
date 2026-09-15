@@ -182,13 +182,12 @@ export function SearchHeader({
               type="checkbox"
               checked={fields.includes(field)}
               disabled={field !== "title" && !supported}
-              onChange={(e) =>
-                onFields(
-                  e.target.checked
-                    ? [...fields, field]
-                    : fields.filter((f) => f !== field),
-                )
-              }
+              onChange={(e) => {
+                const next = e.target.checked
+                  ? [...fields, field]
+                  : fields.filter((f) => f !== field);
+                onFields(field !== "title" && !next.length ? ["title"] : next);
+              }}
             />
             {t(`sessionSearchField_${field}`)}
             {field !== "title" && (

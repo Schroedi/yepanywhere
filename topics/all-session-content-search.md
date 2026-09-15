@@ -11,7 +11,12 @@ The sidebar's All Sessions view owns these controls; in-session search keeps
 its existing bindings and behavior. Title is enabled by default. Ass. and User
 are opt-in, independent checkboxes whose matches form a union. Title searches
 the displayed title and the original opening prompt retained in hot metadata.
-A rename does not replace that retained prompt.
+A rename does not replace that retained prompt. Unchecking the last enabled
+User/Ass. role selects Title when no other field remains enabled.
+
+Fresh visits select the non-archived filter, narrowing both title results and
+Ctrl+R/Ctrl+S turn acquisition. Explicit URL status filters remain authoritative;
+an empty `status=` preserves a deliberately cleared filter across navigation.
 
 User and Ass. currently search visible prose. Command strings and tool inputs,
 edit additions, removed/context lines, baseline/read file contents, tool output,
@@ -57,8 +62,8 @@ available on hover/tap; they never replace the caption with loading prose.
 Starting and stopping work does not move results. Incomplete coverage lists
 quoted, emphasized session titles and reasons
 after the matching results, and remains visible during revalidation. A disclosure
-summary names the incomplete-session count; details start expanded and can be
-collapsed without being reopened by arriving diagnostics. Diagnostics
+summary names the incomplete-session count; details start collapsed and retain
+the user's disclosure choice as diagnostics arrive. Diagnostics
 link to the nearest preceding readable turn and identify the source byte offset.
 Opening zoom takes a page-owned snapshot;
 reordering or revalidation does not dismiss it.

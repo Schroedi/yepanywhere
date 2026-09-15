@@ -335,6 +335,32 @@ describe("GlobalSessionsPage", () => {
     );
   }
 
+  it("defaults to unarchived and preserves an explicitly cleared status", async () => {
+    sessionCollectionState.records = [
+      makeSessionRecord("active"),
+      makeSessionRecord("archived", { isArchived: true }),
+    ];
+    renderPage("/sessions");
+    const filter = screen.getByRole("button", { name: "Filter: Unarchived" });
+    expect(filter.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByTestId("session-archived")).toBeNull();
+    fireEvent.click(filter);
+    expect(screen.getByTestId("session-archived")).toBeDefined();
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "Session" },
+    });
+    await waitFor(() =>
+      expect(filter.getAttribute("aria-pressed")).toBe("false"),
+    );
+    cleanup();
+    renderPage("/sessions?status=");
+    expect(screen.getByTestId("session-archived")).toBeDefined();
+    cleanup();
+    renderPage("/sessions?status=archived");
+    expect(screen.getByTestId("session-archived")).toBeDefined();
+    expect(screen.queryByTestId("session-active")).toBeNull();
+  });
+
   for (const release of ["0.8.0", "0.8.1"]) {
     it(`keeps ${release} title-only without content-search requests`, async () => {
       versionState.version = { current: release };

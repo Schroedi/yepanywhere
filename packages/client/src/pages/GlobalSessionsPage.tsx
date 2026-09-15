@@ -147,7 +147,7 @@ function SessionSearchPage() {
   const project = params.get("project") ?? "";
   const providerParam = params.get("provider") ?? "";
   const executorParam = params.get("executor") ?? "";
-  const statusParam = params.get("status") ?? "";
+  const statusParam = params.get("status") ?? "unarchived";
   const providers = useMemo(
     () =>
       providerParam
@@ -214,7 +214,7 @@ function SessionSearchPage() {
       setParams(
         (previous) => {
           const next = new URLSearchParams(previous);
-          if (value) next.set(key, value);
+          if (value || key === "status") next.set(key, value);
           else next.delete(key);
           return next;
         },
