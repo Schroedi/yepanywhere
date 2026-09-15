@@ -17,20 +17,28 @@ is an interpretation problem: a human reading the session, or a cheap
 session-understanding model, can usually do it, but not for free and not
 reliably.
 
-## Record both layers
+## Record all three
 
-- **Mechanical layer, always.** Session, transcript position, the latest
-  delivered input's seat and authorization kind, observed time. Never
-  replaced or edited by anything the agent says.
-- **Semantic layer, when present.** An agent-declared *authorization trace*
+- **Position, always.** Session, transcript position (turn id, tool call
+  id), observed time. Never replaced or edited by anything the agent says.
+- **Previous-turn default, always.** The latest delivered user input before
+  the mutation, with its participant seat and authorization kind. This is
+  the harness's free heuristic for "who asked": trivially recoverable by
+  anyone with session-log access by scanning back from the position, and
+  usually right. Storing it saves the scan and fixes the answer at
+  observation time even if the transcript is later compacted or forked.
+  Session logs are not what a shared public repository exposes, so this
+  record does not leak authorship the repository itself would not.
+- **Declared trace, when present.** An agent-declared *authorization trace*
   naming the ask it believes it is serving and the authority it is acting
   under: a source input id or turn, a plan step or handoff reference, a
-  goal, and a one-line why. Recorded beside the mechanical row, never
-  substituted for it. A trace is a claim by the model and is labeled as such
-  in every projection.
-- **Interpretation, optional.** A later re-attribution pass (human or a cheap
-  model reading the session) may add a third, dated judgment. It does not
-  overwrite either recorded layer.
+  goal, and a one-line why. Recorded beside the other two, never substituted
+  for either. A trace is a claim by the model and is labeled as such in every
+  projection.
+
+A later re-attribution pass (human or a cheap model reading the session) may
+add a dated judgment on top. It does not overwrite any recorded layer, and a
+projection shows which of the three or four answers it is displaying.
 
 ## Cost model
 
