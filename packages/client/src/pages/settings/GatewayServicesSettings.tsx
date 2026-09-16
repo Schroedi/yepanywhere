@@ -190,7 +190,7 @@ export function GatewayServicesSettings({
                 />
               </label>
 
-              <div className={styles.row}>
+              <div className={`${styles.row} ${styles.wide}`}>
                 <label className={styles.check}>
                   <input
                     type="radio"
@@ -240,7 +240,7 @@ export function GatewayServicesSettings({
                   aria-label={t("providersGatewayServiceShortNameAria")}
                 />
               </label>
-              <p className="settings-hint">
+              <p className={`settings-hint ${styles.wide}`}>
                 {t("providersGatewayServiceShortNameHint")}
               </p>
 
@@ -274,11 +274,11 @@ export function GatewayServicesSettings({
                   aria-label={t("providersGatewayServiceOutputAria")}
                 />
               </label>
-              <p className="settings-hint">
+              <p className={`settings-hint ${styles.wide}`}>
                 {t("providersGatewayServiceSizesHint")}
               </p>
 
-              <details className={styles.advanced}>
+              <details className={`${styles.advanced} ${styles.wide}`}>
                 <summary>{t("providersGatewayServiceAdvanced")}</summary>
 
                 <label className={styles.field}>
@@ -318,7 +318,7 @@ export function GatewayServicesSettings({
                     : t("providersGatewayServiceCommandRemoteHint")}
                 </p>
 
-                <div className={styles.row}>
+                <div className={`${styles.row} ${styles.wide}`}>
                   <label className={styles.check}>
                     <input
                       type="checkbox"

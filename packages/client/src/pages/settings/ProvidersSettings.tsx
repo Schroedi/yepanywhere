@@ -1809,22 +1809,31 @@ export function ProvidersSettings() {
                   : undefined
               }
               after={
-                provider.id === "claude-ollama" &&
-                showClaudeOllamaDeprecation ? (
-                  <div className="provider-deprecation-notice" role="status">
-                    <span>{t("providersClaudeOllamaDeprecationNotice")}</span>
-                    <button
-                      type="button"
-                      className="provider-deprecation-notice__dismiss"
-                      aria-label={t(
-                        "providersClaudeOllamaDeprecationDismissAria",
-                      )}
-                      onClick={dismissClaudeOllamaDeprecation}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ) : undefined
+                <>
+                  {provider.id === "claude-gateway" &&
+                    supportsClaudeGateway &&
+                    supportsGatewayServices && (
+                      <GatewayServicesSettings
+                        reloadProviders={reloadProviders}
+                      />
+                    )}
+                  {provider.id === "claude-ollama" &&
+                  showClaudeOllamaDeprecation ? (
+                    <div className="provider-deprecation-notice" role="status">
+                      <span>{t("providersClaudeOllamaDeprecationNotice")}</span>
+                      <button
+                        type="button"
+                        className="provider-deprecation-notice__dismiss"
+                        aria-label={t(
+                          "providersClaudeOllamaDeprecationDismissAria",
+                        )}
+                        onClick={dismissClaudeOllamaDeprecation}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : undefined}
+                </>
               }
               info={
                 <>
@@ -1908,11 +1917,7 @@ export function ProvidersSettings() {
                   {provider.id === "claude-gateway" &&
                     supportsClaudeGateway && (
                       <>
-                        {supportsGatewayServices ? (
-                          <GatewayServicesSettings
-                            reloadProviders={reloadProviders}
-                          />
-                        ) : (
+                        {!supportsGatewayServices && (
                           <ClaudeGatewaySettings
                             reloadProviders={reloadProviders}
                             supportsAutostart={supportsClaudeGatewayAutostart}

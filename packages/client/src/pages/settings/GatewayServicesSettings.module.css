@@ -5,9 +5,12 @@
 }
 
 .card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  /* Two fields across once the row is wide enough for both to stay legible;
+     one column on a phone, where a 200px field would wrap every label. */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  align-items: end;
+  gap: 0.5rem 1rem;
   margin: 0;
   padding: 0.75rem;
   border: 1px solid var(--border-color, #3a3a3a);
@@ -17,6 +20,11 @@
 
 .legend {
   padding: 0 0.35rem;
+}
+
+/* Hints and the wide rows read as their own band rather than as a column. */
+.wide {
+  grid-column: 1 / -1;
 }
 
 /* The id doubles as the entry's title, so it reads as a heading rather than
@@ -46,7 +54,8 @@
 }
 
 .inline > input {
-  width: 8ch;
+  /* Wide enough for the largest accepted delay (86400) plus the spinner. */
+  width: 10ch;
 }
 
 .row {
