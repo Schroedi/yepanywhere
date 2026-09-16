@@ -6,6 +6,7 @@ import styles from "./ViewerWindowActions.module.css";
 /** Shared viewer window actions: copy link, move out, minimize, close. */
 export function ViewerWindowActions({
   url,
+  copyUrl = url,
   onClose,
   onMinimize,
   closeRef,
@@ -18,6 +19,7 @@ export function ViewerWindowActions({
   closeDisabled = false,
 }: {
   url: string;
+  copyUrl?: string;
   onClose?: () => void;
   onMinimize?: () => void;
   closeRef?: Ref<HTMLButtonElement>;
@@ -78,7 +80,9 @@ export function ViewerWindowActions({
           }
           if (event.ctrlKey || event.metaKey || event.altKey) return;
           event.preventDefault();
-          void writeClipboardText(absoluteUrl).then((success) => {
+          void writeClipboardText(
+            new URL(copyUrl, window.location.href).href,
+          ).then((success) => {
             setCopied(success ? "copied" : "failed");
             clearTimeout(timer.current);
             timer.current = setTimeout(() => setCopied("idle"), 3000);

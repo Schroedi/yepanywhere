@@ -5,6 +5,7 @@ import { createLocalStorageValue } from "../lib/localStorageValue";
 import { UI_KEYS } from "../lib/storageKeys";
 import styles from "./SessionRightPane.module.css";
 import { ViewerWindowActions } from "./ViewerWindowActions";
+import { suppressTooltipsFor } from "../hooks/useTooltipAppearance";
 
 type Pane = ReturnType<typeof useSessionRightPane>;
 const widthStore = createLocalStorageValue(
@@ -175,6 +176,7 @@ export function SessionRightPane({
           <span className={styles.title}>{pane.selected.label}</span>
           <ViewerWindowActions
             url={pane.selected.url}
+            copyUrl={pane.copyUrl}
             onMinimize={pane.hide}
             onClose={pane.canKill ? () => void pane.kill() : undefined}
             onMoveOut={pane.close}
@@ -188,13 +190,25 @@ export function SessionRightPane({
             )}
           />
         </header>
-        {blockedUrl === url ? (
+        {pane.appStatus === "checking" ? (
+          <p className={styles.error} role="status">
+            {t("sessionRightPaneChecking")}
+          </p>
+        ) : pane.appStatus === "unavailable" || pane.appStatus === "error" ? (
+          <p className={styles.error} role="alert">
+            {pane.appError ?? t("sessionRightPaneUnavailable")}
+          </p>
+        ) : blockedUrl === url ? (
           <p className={styles.error}>{t("sessionRightPaneFrameBlocked")}</p>
         ) : (
+          // biome-ignore lint/a11y/useIframeTitle: aria-label names the frame without a native tooltip over the app content.
           <iframe
-            key={url}
+            key={`${pane.frameKey}:${url}`}
             src={url}
-            title={pane.selected.label}
+            onLoad={pane.onFrameLoad}
+            title=""
+            aria-label={pane.selected.label}
+            onPointerEnter={() => suppressTooltipsFor(0)}
             referrerPolicy="no-referrer"
             sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
             className={styles.frame}

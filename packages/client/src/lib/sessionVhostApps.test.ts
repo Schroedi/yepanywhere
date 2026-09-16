@@ -126,4 +126,18 @@ describe("session vhost apps", () => {
     ]);
     expect(sessionToolUrls(message)).toBe(sessionToolUrls(message));
   });
+  it("rejects source templates and their previously encoded links", () => {
+    for (const raw of [
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: tool output can contain literal source placeholders.
+      "http://localhost:19432/${path}",
+      "http://localhost:19432/$%7Bpath%7D",
+    ]) {
+      expect(
+        sessionToolUrls({ content: [{ type: "tool_result", content: raw }] }),
+      ).toEqual([]);
+      expect(
+        sessionVhostApp(raw, vhostConfig, "http://localhost:3400"),
+      ).toBeUndefined();
+    }
+  });
 });

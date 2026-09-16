@@ -453,6 +453,8 @@
   "appearanceSessionRightPaneTitle": "Session right pane",
   "appearanceSessionRightPaneDescription": "Open detected local apps beside the session: a right drawer on narrow screens, a resizable column on wide screens. When off, app links open in a new window. File viewers keep their existing behavior.",
   "sessionRightPaneApps": "App",
+  "sessionRightPaneChecking": "Checking app…",
+  "sessionRightPaneUnavailable": "App is not running. Start it again, then reopen this pane.",
   "viewerLinkHint": "Copy viewer link; Shift-click or middle-click opens a new tab",
   "viewerMoveToNewTab": "Move viewer to new tab",
   "viewerCopyLinkFailed": "Could not copy link. Use the link context menu to copy it.",

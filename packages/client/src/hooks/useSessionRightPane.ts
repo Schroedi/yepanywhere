@@ -139,40 +139,89 @@ export function useSessionRightPane(
       ? apps.find((app) => app.url === owned.url)
       : undefined;
   const canKill = selected?.artifactToken ? true : canKillVhost;
+  const viewerId = owned?.id;
+  const minimized = owned?.minimized;
+  const loadedFrame = useRef<string | undefined>(undefined);
   const [listener, setListener] = useState<{
+    viewerId: string;
     url: string;
     name: string;
     token: string | null;
+    error?: string;
   }>();
   useEffect(() => {
-    setListener(undefined);
-    if (!canKillVhost || !selected || selected.artifactToken) return;
+    if (!viewerId) {
+      loadedFrame.current = undefined;
+      setListener(undefined);
+      return;
+    }
+    if (
+      !active ||
+      !canKillVhost ||
+      !selected ||
+      selected.artifactToken ||
+      !viewerId ||
+      minimized
+    )
+      return;
     setKillError(undefined);
     const row = config?.vhosts?.find(
       (row) => row.port === Number(new URL(selected.sourceUrl).port),
     );
     if (!row) return;
     let cancelled = false;
-    runtime.transport
-      .fetch<{ token: string | null }>(
-        `/artifacts/vhosts/${encodeURIComponent(row.name)}/listener`,
-      )
-      .then(
-        ({ token }) => {
-          if (!cancelled)
-            setListener({ url: selected.url, name: row.name, token });
-        },
-        (error: unknown) => {
-          if (!cancelled)
-            setKillError(
-              error instanceof Error ? error.message : String(error),
-            );
-        },
-      );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let pending = false;
+    const check = () => {
+      if (cancelled || pending || document.visibilityState === "hidden") return;
+      pending = true;
+      runtime.transport
+        .fetch<{ token: string | null }>(
+          `/artifacts/vhosts/${encodeURIComponent(row.name)}/listener`,
+        )
+        .then(
+          ({ token }) => {
+            if (!cancelled) {
+              if (!token && loadedFrame.current === viewerId) {
+                clearSessionViewer(viewerId);
+                return;
+              }
+              setListener({
+                viewerId,
+                url: selected.url,
+                name: row.name,
+                token,
+              });
+              if (token) timer = setTimeout(check, 3000);
+            }
+          },
+          (error: unknown) => {
+            if (!cancelled)
+              setListener({
+                viewerId,
+                url: selected.url,
+                name: row.name,
+                token: null,
+                error: error instanceof Error ? error.message : String(error),
+              });
+          },
+        )
+        .finally(() => {
+          pending = false;
+        });
+    };
+    const visibilityChanged = () => {
+      clearTimeout(timer);
+      check();
+    };
+    check();
+    document.addEventListener("visibilitychange", visibilityChanged);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", visibilityChanged);
     };
-  }, [canKillVhost, selected, config, runtime]);
+  }, [active, canKillVhost, selected, config, runtime, viewerId, minimized]);
   useEffect(() => {
     if (owned && !selected) clearSessionViewer(owned.id);
   }, [owned, selected]);
@@ -200,7 +249,12 @@ export function useSessionRightPane(
     setKillError(undefined);
     try {
       if (!selected.artifactToken) {
-        if (!listener || listener.url !== selected.url)
+        if (
+          !listener ||
+          listener.viewerId !== owned?.id ||
+          listener.url !== selected.url ||
+          listener.error
+        )
           throw new Error(
             "App listener has not been identified; reopen the app to retry",
           );
@@ -243,6 +297,31 @@ export function useSessionRightPane(
     config,
     apps,
     selected,
+    copyUrl:
+      selected && !selected.artifactToken
+        ? (sessionVhostApp(
+            selected.sourceUrl,
+            config,
+            window.location.href,
+            "public",
+          )?.url ?? selected.url)
+        : selected?.url,
+    onFrameLoad: () => {
+      if (listener?.viewerId === viewerId && listener?.token)
+        loadedFrame.current = viewerId;
+    },
+    frameKey: owned?.id,
+    appStatus:
+      canKillVhost && selected && !selected.artifactToken
+        ? listener?.viewerId !== owned?.id
+          ? "checking"
+          : listener?.error
+            ? "error"
+            : listener?.token
+              ? "ready"
+              : "unavailable"
+        : undefined,
+    appError: listener?.viewerId === owned?.id ? listener?.error : undefined,
     expanded: !!selected && !owned?.minimized,
     enabled: sessionRightPaneEnabled,
     select,

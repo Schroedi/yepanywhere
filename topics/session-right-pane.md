@@ -173,6 +173,19 @@ app restarts. Loading older history must not supersede the current latest app.
 Changing sessions isolates discovery and selection; inactive retained sessions
 cannot collapse the current route's sidebar or open its drawer.
 
+Source-code template placeholders are not app announcements, including their
+URL-encoded forms. A fresh announcement reloads the frame even when its URL
+matches the previous app; minimizing and restoring the same viewer preserves
+its mounted content.
+
+When `vhost-app-control` is available, expansion checks the configured listener
+before loading the frame. A missing listener shows an unavailable-app message.
+After a live frame has loaded, listener disappearance dismisses the pane
+without parking it. Listener checks run every three seconds only for the
+active, expanded pane in a visible tab; hiding, parking, navigating away or
+closing releases the timer. Check failures show an error rather than claiming
+the app exited. Older servers retain direct frame loading without new requests.
+
 The pane header shares the file and artifact viewer window-action group:
 **link, move to new tab, minimize, close**, in that order and style. An ordinary
 left-click on the chain-link icon copies the viewer URL; Shift-left-click or
@@ -180,6 +193,12 @@ middle-click opens it in a new tab while retaining the pane. The separate
 move-out icon opens the URL in a new tab and removes the pane. These are
 user-gesture links with no opener or referrer. File viewers use their stable
 YA viewer URL, including share scope where applicable, never a raw active file.
+For a proxied app with a public vhost root, Copy link uses the public URL and
+its app bearer, even when the pane itself is using the local origin.
+The compact header retains the shared control sizes. YA tooltips belong to
+the header controls, never to the embedded content area; entering the frame
+dismisses any remaining YA tooltip. The frame keeps an accessible label
+without a native hover title.
 
 The pane hosts the rewritten origin in an iframe. Parent `frame-src`
 already allows `http:`/`https:`. The frame uses no opener, no referrer,

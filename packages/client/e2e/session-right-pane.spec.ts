@@ -93,6 +93,17 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
           },
           ownership: { owner: "self" },
           processState: "idle",
+          slashCommands: ["plannotator-last", "plannotator-review"].map(
+            (name) => ({
+              name,
+              description: "Review",
+              invocation: {
+                kind: "skill",
+                prefix: "$",
+                inventoryState: "current",
+              },
+            }),
+          ),
           messages: [
             ...messages,
             {
@@ -152,8 +163,9 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
     route.fulfill({ json: { tokens: { plan: "test-app-bearer" } } }),
   );
   let stopRequests = 0;
+  let appAlive = true;
   await page.route("**/api/artifacts/vhosts/plan/listener", (route) =>
-    route.fulfill({ json: { token: "observed-listener" } }),
+    route.fulfill({ json: { token: appAlive ? "observed-listener" : null } }),
   );
   await page.route("**/api/artifacts/vhosts/plan/stop", (route) => {
     expect(route.request().postDataJSON()).toEqual({
@@ -210,6 +222,8 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
   );
   const frame = pane.locator("iframe").contentFrame();
   await frame.getByLabel("Review note").fill("Keep this note");
+  await expect(pane.locator("iframe")).toHaveAttribute("title", "");
+  await expect(pane.locator("iframe")).not.toHaveAttribute("data-tooltip");
   const initialLoads = frameLoads;
   const separator = page.getByRole("separator", {
     name: "Resize session pane",
@@ -347,7 +361,7 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
   await expect(pane).toHaveCount(0);
   await page.getByRole("button", { name: "App", exact: true }).click();
   await expect(pane).toBeVisible();
-  expect(frameLoads).toBe(initialLoads + 1);
+  await expect.poll(() => frameLoads).toBe(initialLoads + 1);
   const link = pane.getByRole("button", { name: "Copy viewer link" });
   for (const gesture of [
     { modifiers: ["Shift" as const] },
@@ -375,6 +389,52 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
   await expect(appLink).toBeVisible();
   emit?.({ ...result, uuid: "new-launch" });
   await expect(pane).toBeVisible();
+  await expect(frame.getByLabel("Review note")).toBeVisible();
+  await frame.getByLabel("Review note").fill("Previous launch");
+  emit?.({ ...result, uuid: "another-launch" });
+  await expect(frame.getByLabel("Review note")).toHaveValue("");
+  appAlive = false;
+  await expect(pane).toHaveCount(0, { timeout: 10_000 });
+  await expect(restore).toHaveCount(0);
+  await appAction.click();
+  await expect(pane.getByRole("alert")).toContainText("App is not running");
+  await expect(pane.locator("iframe")).toHaveCount(0);
+  for (const size of [
+    { width: 1200, height: 600 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(size);
+    await recordUiCapture(page, `right-pane-unavailable-${size.width}`);
+  }
+  await page.setViewportSize({ width: 1200, height: 600 });
+  await appAction.click();
+  await input.fill("");
+  for (const [index, char] of [..."$pla"].entries()) {
+    emit?.({
+      uuid: `completion-update-${index}`,
+      type: "assistant",
+      timestamp,
+      content: `Update ${index}`,
+    });
+    await input.pressSequentially(char);
+    await expect(input).toHaveValue("$pla".slice(0, index + 1), {
+      timeout: 100,
+    });
+  }
+  await input.press("Tab");
+  await expect(input).toHaveValue("$plannotator-");
+  await input.press("Tab");
+  await expect(input).toHaveValue("$plannotator-");
+  for (const size of [
+    { width: 1200, height: 600 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(size);
+    await recordUiCapture(page, `skill-common-prefix-${size.width}`);
+  }
+  await input.press("ArrowDown");
+  await input.press("Shift+Space");
+  await expect(input).toHaveValue("$plannotator-last ");
 });
 
 test("Apps settings explains wildcard hosting without a domain default", async ({

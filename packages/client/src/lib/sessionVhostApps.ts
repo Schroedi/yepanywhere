@@ -27,6 +27,7 @@ export function sessionToolUrls(message: Message): string[] {
     if (typeof value === "string") {
       for (const match of value.matchAll(/https?:\/\/[^\s<>"'`\\]+/gi)) {
         const raw = match[0].replace(/[),.;]+$/, "");
+        if (/\$\{|\$%7b/i.test(raw)) continue;
         try {
           const url = new URL(raw);
           if (
@@ -60,6 +61,8 @@ export function sessionVhostApp(
   clientUrl: string,
   audience?: "local" | "public",
 ): SessionVhostApp | undefined {
+  // Source templates are not running-app announcements, including saved links.
+  if (/\$\{|\$%7b/i.test(raw)) return;
   if (isArtifactLink(raw, config, clientUrl)) {
     const url = new URL(raw);
     return {

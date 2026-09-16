@@ -15,6 +15,16 @@ Remaining work:
   cookies, Safari/WebKit and Firefox. Provide an explicit detected failure
   explanation where feasible; the existing move-out/new-tab controls allow
   opening the signed URL at top level. Do not weaken authorization to recover.
+  Plannotator 0.27.15 reproduces repeated onboarding when embedded from a
+  different site: its browser cookie writer uses `SameSite=Lax`, and its
+  look-choice and terminal-announcement gates read only those cookies.
+  Matching release source and installed CLI help expose no environment or
+  command-line onboarding override. A Chromium localhost iframe probe rejects
+  the Lax preference but retains `SameSite=None; Secure; Partitioned` across
+  reload. YA already permits same-origin storage inside the isolated frame;
+  another sandbox permission does not change the app's cookie attributes.
+  Resolve app preference persistence without weakening origin isolation or
+  rewriting third-party JavaScript. Plannotator source remains unchanged.
 - Existing mounted sessions can retain a revoked launch URL until reload;
   propagate link-generation invalidation through the source's retained state.
 - Artifact inventory/manual revocation remains in

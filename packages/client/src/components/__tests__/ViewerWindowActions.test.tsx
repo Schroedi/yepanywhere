@@ -17,6 +17,7 @@ describe("viewer window actions", () => {
       <I18nProvider>
         <ViewerWindowActions
           url="https://plan.example.org/review"
+          copyUrl="https://public.example.org/review?ya_access=token"
           onClose={close}
         />
       </I18nProvider>,
@@ -24,7 +25,9 @@ describe("viewer window actions", () => {
     const link = screen.getByRole("button", { name: "Copy viewer link" });
     fireEvent.click(link);
     await waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith("https://plan.example.org/review"),
+      expect(writeText).toHaveBeenCalledWith(
+        "https://public.example.org/review?ya_access=token",
+      ),
     );
     expect(await screen.findByTitle("Copied!")).toBeTruthy();
     fireEvent.click(link, { shiftKey: true });
