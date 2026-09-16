@@ -383,7 +383,7 @@ it("proxies a static vhost Host to loopback before YA APIs", async () => {
       port: 4402,
       localOrigin: "http://artifacts.localhost:3400",
       vhostPublicRoot: "graehl.org",
-      vhosts: [{ name: "plan", port: upstreamAddress.port }],
+      vhosts: [{ name: "plan", port: upstreamAddress.port, public: true }],
     },
   });
   const listener = createServer(getRequestListener(instance.app.fetch));

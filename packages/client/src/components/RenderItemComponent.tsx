@@ -70,6 +70,7 @@ import { LinkifiedText } from "./ui/LinkifiedText";
 import styles from "./RenderItemComponent.module.css";
 import { WorkflowContext } from "./WorkflowOutput";
 import { WorkflowAssistantOutput } from "./WorkflowAssistantOutput";
+import { SessionAppLinks } from "./SessionAppLinks";
 
 interface Props {
   item: RenderItem;
@@ -1540,6 +1541,10 @@ export const RenderItemComponent = memo(function RenderItemComponent({
           />
         ) : (
           renderContent()
+        )}
+        {(item.type === "tool_call" ||
+          item.type === "conversation_activity") && (
+          <SessionAppLinks messages={item.sourceMessages} />
         )}
       </div>
       <MessageAge timestampMs={timestampMs} nowMs={ageNowMs ?? Date.now()} />

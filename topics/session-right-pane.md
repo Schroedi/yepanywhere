@@ -7,7 +7,7 @@
 
 Topic: session-right-pane
 
-Status: implemented for static-vhost tool URLs. File-viewer migration remains
+Status: implemented for static-vhost tool URLs and artifact links. File-viewer migration remains
 deferred; multiple viewer tabs are a sketch rather than shipped behavior.
 
 See also:
@@ -51,8 +51,8 @@ Two independent gates:
    and a discovered vhost URL is offered as a new-window link in the
    session App action. Opening requires a user gesture.
 2. **Vhost-tool integration** requires a non-empty artifact vhost table.
-   An empty table means YA has no Host to proxy, so tool-output URLs are
-   not rewritten and are not auto-opened in the pane.
+   An empty table means YA has no Host to proxy, so loopback tool-output URLs
+   are not rewritten. Configured artifact grant links remain eligible.
 
 The Appearance setting may later drive file viewers into this pane even
 when the vhost table is empty. File-viewer migration is not this slice.
@@ -79,13 +79,36 @@ Pane width is persisted per browser. The session column may shrink to a
 readable minimum but is never removed.
 
 A detected-app action opens the latest discovered app, including after Close.
+While the pane is expanded, that App action closes it completely without
+creating a bottom-bar entry. The separate minimize button still parks it.
 With the setting off it is a new-window link. V1 has one managed viewer:
 opening another replaces it. Browser-style multi-view tabs and keyboard
 switching are deferred to [the tab sketch](session-right-pane.sketches.md).
 
+The sidebar shows a small App chip for sessions with a discovered app in this
+browser. Discovery state is persisted per session/source; no background scan
+of unopened session transcripts is needed. Replay restores link availability,
+not an expanded pane.
+
 Minimize parks the pane at the existing bottom viewer controller, returning
 its width to the transcript. The iframe stays mounted so restore does not
-reload it. Close destroys the pane content and removes the bottom controller.
+reload it. App toggle dismissal destroys the pane content and removes the
+bottom controller but retains the discovered app for reopening.
+
+For a proxied app, the red × means **Kill app and close**. The server first
+identifies the configured listener; stop rechecks its process identity before
+sending SIGTERM. It refuses another user's process, YA itself, YA's ancestors,
+or a listener that replaced the observed process. Kill clears the session's
+known announcements and App chip even if signalling fails, with the failure
+shown explicitly. New tool announcements can establish an app again. There is
+no app-data deletion. Kill is separately gated by `vhost-app-control`; initial
+host support is Linux with `/usr/bin/lsof` and `/proc`. Other hosts and older
+servers retain App/minimize but show no Kill and make no control requests.
+
+Artifact links use the same pane but have no process to kill. Their × clears
+the session app entry; the existing grant expiry/ownership/deletion lifecycle
+remains authoritative. The URL token is not the grant's management id, so
+closing a discovered artifact URL does not send a guessed revocation request.
 
 ### Narrow (<1100px)
 
@@ -133,10 +156,20 @@ transcript bytes and creates a separate rewritten view. Old servers without
 vhost metadata require no new request and expose no integration. Public
 clients without a configured public root expose no unreachable loopback link.
 
-Initial loaded output makes its latest discovered app available. Subsequent
-distinct URLs select and expand the newest app when enabled. The same URL is
-not re-opened after the reader closes it during this mounted session. A later
-distinct URL (new port or path) may open a new pane. Collapse is not close.
+Initial loaded output makes its latest discovered app available through the
+App action without automatically opening it: historical URLs may point to
+processes that have already exited. Reloading therefore does not resurrect a
+closed or expired app pane.
+Tool-result rows also display clickable app links, reconstructed from the
+original output on replay without changing the provider transcript. Ordinary
+click opens that app in the pane when enabled; with the setting off or a
+modified click, the link opens a browser tab. The header App action remains
+an additional shortcut to the latest app.
+
+Subsequent tool announcements select and expand the newest app when enabled.
+An announcement is identified by its source message and URL; replaying it
+never opens it again. A fresh tool result can announce the same URL after an
+app restarts. Loading older history must not supersede the current latest app.
 Changing sessions isolates discovery and selection; inactive retained sessions
 cannot collapse the current route's sidebar or open its drawer.
 
@@ -156,6 +189,11 @@ errors, app shutdown, and remote framing policies cannot all be detected by
 the parent, so an Open-in-window action is always present.
 
 ## Design decisions
+
+- **Transferable durable app bearers** protect proxied content from hostname
+  scans. [Active-content security](active-content-security.md#private-app-links)
+  owns token issuance, restart durability, revocation and the separately gated
+  old-server fallback. Apps settings owns hosting; Appearance owns this layout.
 
 - **Reuse existing version vhost metadata** rather than introducing a route or
   broadening an existing capability; absent metadata disables integration.

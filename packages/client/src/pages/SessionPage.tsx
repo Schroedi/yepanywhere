@@ -5823,6 +5823,8 @@ function SessionPageContent({
                     sessionId={actualSessionId}
                     inactive={isDomLingerParked}
                     onSendComment={handleSessionViewerCommentSend}
+                    onOpenApp={rightPane.enabled ? rightPane.select : undefined}
+                    appConfig={rightPane.config}
                   >
                     <MessageList
                       messages={messages}

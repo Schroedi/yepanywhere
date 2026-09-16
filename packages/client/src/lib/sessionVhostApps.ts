@@ -3,12 +3,16 @@ import type {
   AppContentBlock,
 } from "@yep-anywhere/shared";
 import type { Message } from "../types";
-import { artifactAudience } from "./artifactPreview";
+import { artifactAudience, isArtifactLink } from "./artifactPreview";
+export type SessionAppConfig = ArtifactViewerStatus & {
+  accessTokens?: Record<string, string | null>;
+};
 
 export interface SessionVhostApp {
   sourceUrl: string;
   url: string;
   label: string;
+  artifactToken?: string;
 }
 
 const toolUrls = new WeakMap<Message, string[]>();
@@ -21,10 +25,18 @@ export function sessionToolUrls(message: Message): string[] {
   const content = message.message?.content ?? message.content;
   function readResult(value: string | AppContentBlock[] | undefined) {
     if (typeof value === "string") {
-      for (const match of value.matchAll(
-        /http:\/\/(?:localhost|127\.0\.0\.1|\[::1\]):\d+(?![\w:@.-])(?:[/?#][^\s<>"'`\\]*)?/gi,
-      )) {
-        urls.push(match[0].replace(/[),.;]+$/, ""));
+      for (const match of value.matchAll(/https?:\/\/[^\s<>"'`\\]+/gi)) {
+        const raw = match[0].replace(/[),.;]+$/, "");
+        try {
+          const url = new URL(raw);
+          if (
+            artifactAudience(url.hostname) === "local" ||
+            url.pathname.startsWith("/a/")
+          )
+            urls.push(raw);
+        } catch {
+          // A URL-looking fragment in tool text need not be a valid URL.
+        }
       }
     } else if (Array.isArray(value)) {
       for (const block of value) {
@@ -44,9 +56,19 @@ export function sessionToolUrls(message: Message): string[] {
 /** Rewrite a loopback tool URL through the operator's static vhost table. */
 export function sessionVhostApp(
   raw: string,
-  config: ArtifactViewerStatus | undefined,
+  config: SessionAppConfig | undefined,
   clientUrl: string,
+  audience?: "local" | "public",
 ): SessionVhostApp | undefined {
+  if (isArtifactLink(raw, config, clientUrl)) {
+    const url = new URL(raw);
+    return {
+      sourceUrl: raw,
+      url: url.href,
+      label: url.pathname.split("/").at(-1)!,
+      artifactToken: url.pathname.split("/")[2],
+    };
+  }
   if (!config?.vhosts?.length) return;
   let source: URL;
   try {
@@ -67,12 +89,12 @@ export function sessionVhostApp(
   if (!row) return;
   const client = new URL(clientUrl);
   let target: URL;
-  if (artifactAudience(client.hostname) === "local") {
+  if ((audience ?? artifactAudience(client.hostname)) === "local") {
     if (!config.localOrigin) return;
     target = new URL(config.localOrigin);
     target.hostname = `${row.name}.localhost`;
   } else {
-    if (!config.vhostPublicRoot || !config.publicOrigin) return;
+    if (!config.vhostPublicRoot) return;
     target = new URL(`https://${row.name}.${config.vhostPublicRoot}`);
   }
   if (
@@ -82,6 +104,9 @@ export function sessionVhostApp(
     return;
   target.pathname = source.pathname;
   target.search = source.search;
+  const token = config.accessTokens?.[row.name];
+  if (config.accessTokens && token === undefined) return;
+  if (token) target.searchParams.set("ya_access", token);
   target.hash = source.hash;
   return {
     sourceUrl: raw,

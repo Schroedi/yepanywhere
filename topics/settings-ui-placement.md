@@ -73,6 +73,17 @@ the ordinary local settings behavior.
 
 ## Reviewed settings behavior
 
+**Apps** owns artifact delivery, expiry/deletion options, static vhosts and
+app-link protection. Local Access and Remote Access provide links there.
+**Appearance → Session right pane** remains a default-off browser preference;
+it changes presentation, not hosting or access policy. Apps configuration is
+server-persisted, while discovered session App chips are source/session-scoped
+browser state.
+Apps text/number fields save on defocus (Enter also commits); toggles, slider
+commits and row removal save immediately. There is no bottom Save button.
+Writes are serialized while typing remains enabled, and server metadata refresh
+must not remount the form or replace another field's in-progress draft.
+
 The following controls and descriptions were checked against their current
 implementation on 2026-08-16. These are the user-visible contracts the Settings
 UI should state directly.

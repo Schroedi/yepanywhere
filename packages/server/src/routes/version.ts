@@ -458,6 +458,7 @@ export interface DeviceBridgeStatus {
 }
 
 export interface VersionRouteOptions {
+  vhostAppControlAvailable?: boolean;
   getExperimentalConversationAvailable?: () => boolean;
   /** Read retained startup state; never probe storage in the version route. */
   getSqliteStatus?: () => SqliteStatus;
@@ -546,6 +547,9 @@ function getCapabilitiesForDeviceBridgeState(
 
 export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   const capabilities: string[] = [...BASE_CAPABILITIES];
+  capabilities.push(SERVER_CAPABILITIES.vhostBearerAccess.name);
+  if (options?.vhostAppControlAvailable)
+    capabilities.push(SERVER_CAPABILITIES.vhostAppControl.name);
   capabilities.push(SERVER_CAPABILITIES.computerControl.name);
   capabilities.push(SERVER_CAPABILITIES.computerControlReleases.name);
   if (options?.getExperimentalConversationAvailable?.())

@@ -114,6 +114,9 @@ const CATEGORY_COMPONENTS: Record<string, React.ComponentType> = {
       default: m.LocalAccessSettings,
     })),
   ),
+  apps: lazy(() =>
+    import("./AppsSettings").then((m) => ({ default: m.AppsSettings })),
+  ),
   remote: lazy(() =>
     import("./RemoteAccessSettings").then((m) => ({
       default: m.RemoteAccessSettings,

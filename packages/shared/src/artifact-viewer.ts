@@ -2,6 +2,7 @@ export interface ArtifactVhost {
   name: string;
   port: number;
   env?: string;
+  public?: boolean;
 }
 
 export interface ArtifactViewerConfig {

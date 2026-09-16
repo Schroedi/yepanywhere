@@ -1,5 +1,5 @@
 import type { ArtifactViewerStatus } from "@yep-anywhere/shared";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Message } from "../types";
 import {
   sessionToolUrls,
@@ -7,17 +7,23 @@ import {
   type SessionVhostApp,
 } from "../lib/sessionVhostApps";
 import { useSessionRightPaneSetting } from "./useSessionRightPaneSetting";
+import { useSessionApps } from "../lib/sessionApps";
+import { useVhostAccess } from "./useVhostAccess";
+import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
+import { useRetainedVersionInfo } from "./useVersion";
+import { serverHasCapability, SERVER_CAPABILITIES } from "@yep-anywhere/shared";
 import {
   clearSessionViewer,
   presentSessionViewer,
   restoreSessionViewer,
   useSessionViewerController,
+  setSessionViewerKillAction,
 } from "../lib/sessionViewerController";
 
 function emptyPane(key: string) {
   return {
     key,
-    apps: [] as SessionVhostApp[],
+    apps: [] as (SessionVhostApp & { announcementId: string })[],
   };
 }
 
@@ -25,46 +31,89 @@ function emptyPane(key: string) {
 export function useSessionRightPane(
   key: string,
   messages: readonly Message[],
-  config: ArtifactViewerStatus | undefined,
+  suppliedConfig: ArtifactViewerStatus | undefined,
   active: boolean,
   sessionId: string,
 ) {
   const { sessionRightPaneEnabled } = useSessionRightPaneSetting();
+  const access = useVhostAccess(suppliedConfig);
+  const config = access.config;
   const controller = useSessionViewerController();
+  const runtime = useCurrentSourceRuntime();
+  const version = useRetainedVersionInfo(runtime.sourceKey);
+  const canKillVhost = serverHasCapability(
+    version,
+    SERVER_CAPABILITIES.vhostAppControl.name,
+  );
+  const { value: savedApps, set: saveApps } = useSessionApps(key);
+  const [killError, setKillError] = useState<string>();
+  const [killing, setKilling] = useState(false);
+  const initialized = useRef(new Set<string>());
+  const announced = useRef(new Set<string>());
   const [state, setState] = useState(() => emptyPane(key));
   const current = state.key === key ? state : emptyPane(key);
   if (state.key !== key) setState(current);
 
   useEffect(() => {
-    if (!active || !config?.vhosts?.length) return;
-    const found = new Map<string, SessionVhostApp>();
+    if (!active || !config) return;
+    const found = new Map<
+      string,
+      SessionVhostApp & { announcementId: string }
+    >();
     for (const message of messages) {
       for (const raw of sessionToolUrls(message)) {
         const app = sessionVhostApp(raw, config, window.location.href);
-        if (app) found.set(app.url, app);
+        const announcementId = `${message.uuid ?? message.id ?? "output"}:${raw}`;
+        if (app) found.set(announcementId, { ...app, announcementId });
+      }
+    }
+    // Loaded history offers links, but cannot establish that an app is still alive.
+    if (!initialized.current.has(key)) {
+      initialized.current.add(key);
+      for (const app of found.values()) {
+        announced.current.add(`vhost:${key}:${app.announcementId}`);
       }
     }
     setState((previous) => {
       if (previous.key !== key) return previous;
-      const known = new Set(previous.apps.map((app) => app.url));
-      const added = [...found.values()].filter((app) => !known.has(app.url));
+      const known = new Set(previous.apps.map((app) => app.announcementId));
+      const added = [...found.values()].filter(
+        (app) => !known.has(app.announcementId),
+      );
       const latest = added.at(-1);
-      if (!latest) return previous;
+      const changed = [...found.values()].some(
+        (app) =>
+          previous.apps.find(
+            (knownApp) => knownApp.announcementId === app.announcementId,
+          )?.url !== app.url,
+      );
+      if (!latest && !changed) return previous;
       return {
         ...previous,
-        apps: [...previous.apps, ...added],
+        apps: [
+          ...previous.apps.filter((app) => !found.has(app.announcementId)),
+          ...found.values(),
+        ],
       };
     });
   }, [active, config, key, messages]);
 
-  const apps = current.apps.filter(
-    (app) =>
-      sessionVhostApp(app.sourceUrl, config, window.location.href)?.url ===
-      app.url,
+  const apps = useMemo(
+    () =>
+      current.apps.filter(
+        (app) =>
+          !savedApps.dismissed.includes(app.announcementId) &&
+          sessionVhostApp(app.sourceUrl, config, window.location.href)?.url ===
+            app.url,
+      ),
+    [current.apps, config, savedApps.dismissed],
   );
   const latest = apps.at(-1);
-  const announced = useRef(new Set<string>());
-  const latestId = latest ? `vhost:${key}:${latest.url}` : undefined;
+  const latestId = latest ? `vhost:${key}:${latest.announcementId}` : undefined;
+  useEffect(() => {
+    if (!active) return;
+    saveApps(JSON.stringify({ ...savedApps, latest }));
+  }, [active, latest, savedApps, saveApps]);
   useEffect(() => {
     if (!active || !latest || !latestId || announced.current.has(latestId))
       return;
@@ -76,6 +125,7 @@ export function useSessionRightPane(
         sessionId,
         label: latest.label,
         url: latest.url,
+        artifactToken: latest.artifactToken,
       });
   }, [active, latest, latestId, sessionId, sessionRightPaneEnabled]);
   const owned =
@@ -88,23 +138,109 @@ export function useSessionRightPane(
     sessionRightPaneEnabled && owned
       ? apps.find((app) => app.url === owned.url)
       : undefined;
+  const canKill = selected?.artifactToken ? true : canKillVhost;
+  const [listener, setListener] = useState<{
+    url: string;
+    name: string;
+    token: string | null;
+  }>();
+  useEffect(() => {
+    setListener(undefined);
+    if (!canKillVhost || !selected || selected.artifactToken) return;
+    setKillError(undefined);
+    const row = config?.vhosts?.find(
+      (row) => row.port === Number(new URL(selected.sourceUrl).port),
+    );
+    if (!row) return;
+    let cancelled = false;
+    runtime.transport
+      .fetch<{ token: string | null }>(
+        `/artifacts/vhosts/${encodeURIComponent(row.name)}/listener`,
+      )
+      .then(
+        ({ token }) => {
+          if (!cancelled)
+            setListener({ url: selected.url, name: row.name, token });
+        },
+        (error: unknown) => {
+          if (!cancelled)
+            setKillError(
+              error instanceof Error ? error.message : String(error),
+            );
+        },
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [canKillVhost, selected, config, runtime]);
   useEffect(() => {
     if (owned && !selected) clearSessionViewer(owned.id);
   }, [owned, selected]);
-  const select = (url: string) => {
-    const app = apps.find((app) => app.url === url);
-    if (!app || !sessionRightPaneEnabled) return;
-    const id = `vhost:${key}:${url}`;
-    presentSessionViewer({
-      id,
-      kind: "vhost",
-      sessionId,
-      label: app.label,
-      url,
-    });
-    restoreSessionViewer(id);
+  const select = useCallback(
+    (url: string) => {
+      const app = apps.find((app) => app.url === url);
+      if (!app || !sessionRightPaneEnabled) return false;
+      const id = `vhost:${key}:${url}`;
+      presentSessionViewer({
+        id,
+        kind: "vhost",
+        sessionId,
+        label: app.label,
+        url,
+        artifactToken: app.artifactToken,
+      });
+      restoreSessionViewer(id);
+      return true;
+    },
+    [apps, sessionRightPaneEnabled, key, sessionId],
+  );
+  const kill = async () => {
+    if (!canKill || !selected || killing) return;
+    setKilling(true);
+    setKillError(undefined);
+    try {
+      if (!selected.artifactToken) {
+        if (!listener || listener.url !== selected.url)
+          throw new Error(
+            "App listener has not been identified; reopen the app to retry",
+          );
+        await runtime.transport.fetch(
+          `/artifacts/vhosts/${encodeURIComponent(listener.name)}/stop`,
+          { method: "POST", body: JSON.stringify({ token: listener.token }) },
+        );
+      }
+    } catch (error) {
+      setKillError(error instanceof Error ? error.message : String(error));
+    } finally {
+      saveApps(
+        JSON.stringify({
+          dismissed: [
+            ...new Set([
+              ...savedApps.dismissed,
+              ...current.apps.map((app) => app.announcementId),
+            ]),
+          ],
+        }),
+      );
+      owned?.close();
+      setKilling(false);
+    }
   };
+  const killRef = useRef(kill);
+  killRef.current = kill;
+  const invokeKill = useCallback(() => {
+    void killRef.current();
+  }, []);
+  useEffect(() => {
+    if (owned)
+      setSessionViewerKillAction(
+        owned.id,
+        canKill ? invokeKill : undefined,
+        killing,
+      );
+  }, [owned, canKill, invokeKill, killing]);
   return {
+    config,
     apps,
     selected,
     expanded: !!selected && !owned?.minimized,
@@ -112,5 +248,10 @@ export function useSessionRightPane(
     select,
     hide: () => owned?.minimize(),
     close: () => owned?.close(),
+    canKill,
+    killing,
+    killError,
+    accessError: access.error,
+    kill,
   };
 }

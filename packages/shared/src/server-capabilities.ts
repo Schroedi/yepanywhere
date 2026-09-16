@@ -12,6 +12,16 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  vhostBearerAccess: {
+    name: "vhost-bearer-access",
+    index: CAPABILITY_ID_ALLOCATIONS.vhostBearerAccess.id,
+    introducedIn: "0.8.2",
+  },
+  vhostAppControl: {
+    name: "vhost-app-control",
+    index: CAPABILITY_ID_ALLOCATIONS.vhostAppControl.id,
+    introducedIn: "0.8.2",
+  },
   computerControlReleases: {
     name: "computer-control-releases",
     index: CAPABILITY_ID_ALLOCATIONS.computerControlReleases.id,
@@ -556,6 +566,59 @@ export const SERVER_CAPABILITIES = {
       kind: "permanent",
       reason:
         "Artifact listener availability depends on explicit operator configuration.",
+    },
+  },
+  vhostBearerAccess: {
+    id: CAPABILITY_ID_ALLOCATIONS.vhostBearerAccess.id,
+    name: "vhost-bearer-access",
+    kind: "permanent",
+    area: "remoteAccess",
+    introducedIn: "0.8.2",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.vhostBearerAccess.id,
+    },
+    description:
+      "Durable app-scoped bearer access with explicit public visibility and revocation.",
+    clientFallback:
+      "Show protection unavailable; omit public/revoke controls and make no app-link management request.",
+    serverContract: {
+      routes: [
+        "GET /api/artifacts/vhosts/links",
+        "POST /api/artifacts/vhosts/:name/revoke",
+      ],
+      routeModules: ["packages/server/src/routes/vhostAccess.ts"],
+      responseFields: ["version.artifactViewer.vhosts[].public"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Bearer enforcement and management must roll out together.",
+    },
+  },
+  vhostAppControl: {
+    id: CAPABILITY_ID_ALLOCATIONS.vhostAppControl.id,
+    name: "vhost-app-control",
+    kind: "permanent",
+    area: "remoteAccess",
+    introducedIn: "0.8.2",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.vhostAppControl.id,
+    },
+    description:
+      "Identify and stop a configured local app listener on supported hosts.",
+    clientFallback:
+      "Hide Kill; keep viewer dismissal and links; make no listener or stop requests.",
+    serverContract: {
+      routes: [
+        "GET /api/artifacts/vhosts/:name/listener",
+        "POST /api/artifacts/vhosts/:name/stop",
+      ],
+      routeModules: ["packages/server/src/routes/vhostApps.ts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Local listener identification varies by host support.",
     },
   },
   publicShareSessionChunks: {

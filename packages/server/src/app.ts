@@ -21,6 +21,12 @@ import {
   type ArtifactConfig,
 } from "./artifacts/config.js";
 import { createArtifactRoutes } from "./routes/artifacts.js";
+import { createVhostAppRoutes } from "./routes/vhostApps.js";
+import { createVhostAccessRoutes } from "./routes/vhostAccess.js";
+import {
+  VhostAppControl,
+  vhostAppControlAvailable,
+} from "./artifacts/VhostAppControl.js";
 import {
   isArtifactHost,
   isArtifactOrigin,
@@ -821,12 +827,10 @@ export function createApp(options: AppOptions): AppResult {
     validateArtifactConfig(artifactConfig, undefined, true),
     localResourcePathPolicy,
     {
-      stateDir: options.dataDir
-        ? join(options.dataDir, "artifacts")
-        : undefined,
+      stateDir: join(effectiveDataDir, "artifacts"),
       // An owning grant may never delete YA's own state or the checkout it
       // runs from, however the request was phrased.
-      protectedPaths: [options.dataDir, process.cwd()],
+      protectedPaths: [effectiveDataDir, process.cwd()],
     },
   );
   app.route(
@@ -838,6 +842,11 @@ export function createApp(options: AppOptions): AppResult {
       locked: options.artifacts !== undefined,
     }),
   );
+  const vhostAppControl = new VhostAppControl(
+    () => artifactServer.config.vhosts ?? [],
+  );
+  app.route("/api", createVhostAppRoutes(vhostAppControl));
+  app.route("/api", createVhostAccessRoutes(artifactServer));
   const toolResultMediaStore = new ToolResultMediaStore({
     dataDir: options.dataDir,
     storagePolicy: projectStoragePolicy,
@@ -1687,6 +1696,7 @@ export function createApp(options: AppOptions): AppResult {
         Boolean(conversationSubscriptions),
       getSqliteStatus: () => discoverySqlite.getStatus(),
       getIssueAssociationsAvailable: () => Boolean(issueIndexer),
+      vhostAppControlAvailable,
       getArtifactViewerStatus: () => ({
         ...artifactServer.config,
         available: artifactServer.available,

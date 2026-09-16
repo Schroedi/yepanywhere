@@ -34,7 +34,14 @@ export type FileViewerRegistration = FileViewerBase &
 
 export type SessionViewerRegistration =
   | PanelViewerRegistration
-  | (SessionViewerBase & { kind: "vhost"; url: string; onClose?: never })
+  | (SessionViewerBase & {
+      kind: "vhost";
+      url: string;
+      onClose?: never;
+      kill?: () => void;
+      killing?: boolean;
+      artifactToken?: string;
+    })
   | (SessionViewerBase & { kind: "artifact"; url: string; onClose?: never })
   | FileViewerRegistration;
 
@@ -123,6 +130,16 @@ export function presentSessionViewer(
 export function clearSessionViewer(id: string): void {
   if (current?.id !== id) return;
   replaceCurrent(null);
+}
+
+export function setSessionViewerKillAction(
+  id: string,
+  kill: (() => void) | undefined,
+  killing: boolean,
+): void {
+  if (current?.id !== id || current.kind !== "vhost") return;
+  if (current.kill === kill && current.killing === killing) return;
+  replaceCurrent({ ...current, kill, killing });
 }
 
 export function clearCurrentSessionViewer(): void {

@@ -1,6 +1,11 @@
 import { join } from "node:path";
 import { e2ePaths, expect, test } from "./fixtures.js";
 import { recordUiCapture } from "./support/ui-capture.js";
+import {
+  encodeVersionedServerCapabilities,
+  SERVER_CAPABILITIES,
+  serverHasCapability,
+} from "@yep-anywhere/shared";
 
 const projectId = Buffer.from(join(e2ePaths.tempDir, "mockproject")).toString(
   "base64url",
@@ -41,9 +46,23 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
   });
   await page.route("**/api/version*", async (route) => {
     const response = await route.fetch();
+    const metadata = await response.json();
     await route.fulfill({
       json: {
-        ...(await response.json()),
+        ...metadata,
+        ...encodeVersionedServerCapabilities(
+          [
+            ...Object.values(SERVER_CAPABILITIES)
+              .filter((capability) =>
+                serverHasCapability(metadata, capability.name),
+              )
+              .map((capability) => capability.name),
+            SERVER_CAPABILITIES.vhostAppControl.name,
+            SERVER_CAPABILITIES.artifactViewer.name,
+            SERVER_CAPABILITIES.vhostBearerAccess.name,
+          ],
+          "0.8.2",
+        ),
         artifactViewer: {
           port: 4402,
           available: true,
@@ -129,7 +148,24 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
     });
   });
   let frameLoads = 0;
+  await page.route("**/api/artifacts/vhosts/links", (route) =>
+    route.fulfill({ json: { tokens: { plan: "test-app-bearer" } } }),
+  );
+  let stopRequests = 0;
+  await page.route("**/api/artifacts/vhosts/plan/listener", (route) =>
+    route.fulfill({ json: { token: "observed-listener" } }),
+  );
+  await page.route("**/api/artifacts/vhosts/plan/stop", (route) => {
+    expect(route.request().postDataJSON()).toEqual({
+      token: "observed-listener",
+    });
+    stopRequests++;
+    return route.fulfill({ json: { stopped: true } });
+  });
   await page.route("http://plan.localhost:*/**", (route) => {
+    expect(new URL(route.request().url()).searchParams.get("ya_access")).toBe(
+      "test-app-bearer",
+    );
     frameLoads++;
     return route.fulfill({
       contentType: "text/html",
@@ -141,6 +177,29 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
   const skip = page.getByRole("button", { name: "Skip all" });
   if (await skip.isVisible()) await skip.click();
   const pane = page.getByRole("complementary", { name: "Session pane" });
+  const appAction = page.getByRole("button", { name: "App", exact: true });
+  await expect(appAction).toBeVisible({ timeout: 30_000 });
+  await expect(pane).toHaveCount(0);
+  const appLink = page.getByRole("link", {
+    name: "plan/review ↗",
+    exact: true,
+  });
+  await expect(appLink).toBeVisible();
+  await recordUiCapture(page, "app-link-desktop");
+  await page.setViewportSize({ width: 375, height: 812 });
+  await recordUiCapture(page, "app-link-phone");
+  await page.setViewportSize({ width: 1200, height: 600 });
+  await appLink.click();
+  await expect(pane).toBeVisible();
+  await appAction.click();
+  await expect(pane).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /Restore.*plan\/review/ }),
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(appAction).toBeVisible();
+  await expect(pane).toHaveCount(0);
+  await appAction.click();
   await expect(pane).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(".message-list")).not.toHaveAttribute(
     "aria-busy",
@@ -282,8 +341,9 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
   await recordUiCapture(page, "right-pane-phone-parked");
   await restore.click();
   await expect(frame.getByLabel("Review note")).toHaveValue("Keep this note");
-  await pane.getByRole("button", { name: "Close session pane" }).click();
-  emit?.({ ...result, uuid: "repeat-result" });
+  await page.setViewportSize({ width: 1200, height: 600 });
+  await appAction.click();
+  emit?.(result);
   await expect(pane).toHaveCount(0);
   await page.getByRole("button", { name: "App", exact: true }).click();
   await expect(pane).toBeVisible();
@@ -304,6 +364,178 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
   const tab = await moved;
   await expect(pane).toHaveCount(0);
   await tab.close();
+  await appAction.click();
+  await pane.getByRole("button", { name: "Kill app and close" }).click();
+  await expect(appAction).toHaveCount(0);
+  await expect(pane).toHaveCount(0);
+  expect(stopRequests).toBe(1);
+  await page.reload();
+  await expect(page.locator(".session-header")).toBeVisible();
+  await expect(appAction).toHaveCount(0);
+  await expect(appLink).toBeVisible();
+  emit?.({ ...result, uuid: "new-launch" });
+  await expect(pane).toBeVisible();
+});
+
+test("Apps settings explains wildcard hosting without a domain default", async ({
+  page,
+  baseURL,
+}) => {
+  await page.route("**/api/artifacts/vhosts/links", (route) =>
+    route.fulfill({ json: { tokens: { plan: "test-app-bearer" } } }),
+  );
+  await page.route("**/api/version*", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      json: {
+        ...(await response.json()),
+        artifactViewer: {
+          port: 4402,
+          available: true,
+          locked: false,
+          defaultLocalOrigin: "http://artifacts.localhost:3400",
+          localOrigin: "http://artifacts.localhost:3400",
+          vhosts: [{ name: "plan", port: 19432 }],
+          expiryDays: 7,
+        },
+      },
+    });
+  });
+  await page.goto(`${baseURL}/settings/apps`);
+  const field = page.getByRole("textbox", {
+    name: "Public vhost root (optional)",
+    exact: true,
+  });
+  await expect(field).toHaveValue("");
+  await expect(field).not.toHaveAttribute("placeholder");
+  await expect(page.getByText(/public-tunnel \*\.example.com/)).toBeVisible();
+  await expect(
+    page.getByRole("checkbox", { name: "Public — no link required" }),
+  ).not.toBeChecked();
+  await expect(
+    page.getByRole("button", { name: "Copy app link" }),
+  ).toBeEnabled();
+  for (const size of [
+    { width: 1200, height: 600 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(size);
+    await expect(async () => {
+      await field.scrollIntoViewIfNeeded();
+    }).toPass();
+    await recordUiCapture(page, `apps-settings-${size.width}`);
+    await page
+      .getByRole("checkbox", { name: "Public — no link required" })
+      .scrollIntoViewIfNeeded();
+    await recordUiCapture(page, `apps-access-${size.width}`);
+  }
+});
+
+test("older servers expose no app-link management requests", async ({
+  page,
+  baseURL,
+}) => {
+  let requests = 0;
+  await page.route("**/api/artifacts/vhosts/**", (route) => {
+    requests++;
+    return route.fulfill({ status: 404 });
+  });
+  await page.route("**/api/version*", (route) =>
+    route.fulfill({
+      json: {
+        version: "0.8.1",
+        capabilities: [],
+        artifactViewer: {
+          port: 4402,
+          available: true,
+          locked: false,
+          defaultLocalOrigin: "http://artifacts.localhost:3400",
+          vhosts: [{ name: "plan", port: 19432 }],
+          expiryDays: 7,
+        },
+      },
+    }),
+  );
+  await page.goto(`${baseURL}/settings/apps`);
+  await expect(
+    page.getByText(/does not support app-link protection/),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy app link" })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole("checkbox", { name: "Public — no link required" }),
+  ).toHaveCount(0);
+  expect(requests).toBe(0);
+});
+
+test("Apps saves on defocus without losing typing during a pending save", async ({
+  page,
+  baseURL,
+}) => {
+  let config = {
+    port: 4402,
+    available: true,
+    locked: false,
+    defaultLocalOrigin: "http://artifacts.localhost:3400",
+    localOrigin: "http://artifacts.localhost:3400",
+    expiryDays: 7,
+    vhostPublicRoot: "",
+    vhosts: [{ name: "plan", port: 19432 }],
+  };
+  await page.route("**/api/version*", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      json: { ...(await response.json()), artifactViewer: config },
+    });
+  });
+  await page.route("**/api/artifacts/vhosts/links", (route) =>
+    route.fulfill({ json: { tokens: { plan: "token" } } }),
+  );
+  let release: () => void = () => {};
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const writes: object[] = [];
+  await page.route("**/api/artifacts/config", async (route) => {
+    const payload = route.request().postDataJSON();
+    writes.push(payload);
+    if (writes.length === 1) await blocked;
+    config = { ...config, ...payload };
+    await route.fulfill({ json: { success: true } });
+  });
+  await page.goto(`${baseURL}/settings/apps`);
+  const root = page.getByRole("textbox", {
+    name: "Public vhost root (optional)",
+  });
+  await root.pressSequentially("example.com");
+  expect(writes).toHaveLength(0);
+  await root.press("Tab");
+  await expect.poll(() => writes.length).toBe(1);
+  const name = page.getByRole("textbox", { name: "Name", exact: true });
+  await name.focus();
+  await name.press("End");
+  let expected = "plan";
+  for (const char of "-review") {
+    expected += char;
+    await page.keyboard.type(char);
+    await expect(name).toHaveValue(expected, { timeout: 100 });
+  }
+  release();
+  const saved = page
+    .getByRole("status")
+    .filter({ hasText: "Artifact settings saved" });
+  await expect(saved).toBeVisible();
+  await expect(name).toHaveValue("plan-review");
+  await name.press("Tab");
+  await expect.poll(() => writes.length).toBe(2);
+  await expect(saved).toBeVisible();
+  await page.reload();
+  await expect(root).toHaveValue("example.com");
+  await expect(name).toHaveValue("plan-review");
+  await expect(
+    page.getByRole("button", { name: /Save.*settings/ }),
+  ).toHaveCount(0);
 });
 
 test("Appearance defaults off and persists its setting", async ({

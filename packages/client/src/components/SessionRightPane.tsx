@@ -21,12 +21,15 @@ const widthStore = createLocalStorageValue(
 export function SessionAppAction({ pane }: { pane: Pane }) {
   const { t } = useI18n();
   const app = pane.apps.at(-1);
-  if (!app) return null;
+  if (pane.accessError) return <span role="alert">{pane.accessError}</span>;
+  if (!app)
+    return pane.killError ? <span role="alert">{pane.killError}</span> : null;
   return pane.enabled ? (
     <button
       className={styles.launcher}
       type="button"
-      onClick={() => pane.select(app.url)}
+      onClick={() => (pane.expanded ? pane.close() : pane.select(app.url))}
+      aria-pressed={pane.expanded}
       title={app.label}
     >
       {t("sessionRightPaneApps")}
@@ -173,9 +176,16 @@ export function SessionRightPane({
           <ViewerWindowActions
             url={pane.selected.url}
             onMinimize={pane.hide}
-            onClose={pane.close}
+            onClose={pane.canKill ? () => void pane.kill() : undefined}
+            onMoveOut={pane.close}
+            destructiveClose={!pane.selected.artifactToken}
+            closeDisabled={pane.killing}
             minimizeLabel={t("sessionRightPaneHide")}
-            closeLabel={t("sessionRightPaneClose")}
+            closeLabel={t(
+              pane.selected.artifactToken
+                ? "sessionRightPaneClose"
+                : "sessionRightPaneKill",
+            )}
           />
         </header>
         {blockedUrl === url ? (

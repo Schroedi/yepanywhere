@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useMemo,
   useRef,
 } from "react";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
@@ -23,6 +24,8 @@ import {
   useSessionViewerController,
 } from "../lib/sessionViewerController";
 import { Modal } from "./ui/Modal";
+import { SessionAppLinkContext } from "./SessionAppLinks";
+import type { SessionAppConfig } from "../lib/sessionVhostApps";
 
 interface SessionManagedPanelProps {
   viewerId?: string;
@@ -107,16 +110,24 @@ export function SessionViewerProvider({
   sessionId,
   inactive = false,
   onSendComment,
+  onOpenApp,
+  appConfig,
   children,
 }: {
   sessionId: string;
   inactive?: boolean;
   onSendComment?: SendSessionViewerComment;
+  onOpenApp?: (url: string) => boolean;
+  appConfig?: SessionAppConfig;
   children: ReactNode;
 }) {
   const runtime = useCurrentSourceRuntime();
   const version = useRetainedVersionInfo(runtime.sourceKey);
   const viewerId = useId();
+  const appLinks = useMemo(
+    () => (inactive ? null : { config: appConfig, open: onOpenApp }),
+    [inactive, appConfig, onOpenApp],
+  );
   const openArtifact = useCallback(
     (url: string, label: string) => {
       if (
@@ -140,7 +151,9 @@ export function SessionViewerProvider({
     <SessionViewerContext.Provider value={sessionId}>
       <SessionArtifactLinkContext.Provider value={openArtifact}>
         <SessionViewerCommentProvider onSendComment={onSendComment}>
-          {children}
+          <SessionAppLinkContext.Provider value={appLinks}>
+            {children}
+          </SessionAppLinkContext.Provider>
           <SessionManagedViewerHost sessionId={sessionId} inactive={inactive} />
         </SessionViewerCommentProvider>
       </SessionArtifactLinkContext.Provider>

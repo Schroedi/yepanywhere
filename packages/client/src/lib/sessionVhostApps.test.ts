@@ -13,6 +13,45 @@ const vhostConfig: ArtifactViewerStatus = {
   vhosts: [{ name: "plan", port: 19432 }],
 };
 describe("session vhost apps", () => {
+  it("adds app-scoped bearers only when the server supplies them", () => {
+    expect(
+      sessionVhostApp(
+        "http://localhost:19432/",
+        {
+          ...vhostConfig,
+          accessTokens: { plan: "private-token" },
+        },
+        "https://ya.example.org",
+      )?.url,
+    ).toBe("https://plan.example.org/?ya_access=private-token");
+    expect(
+      sessionVhostApp(
+        "http://localhost:19432/",
+        {
+          ...vhostConfig,
+          accessTokens: {},
+        },
+        "https://ya.example.org",
+      ),
+    ).toBeUndefined();
+  });
+  it("discovers configured artifact grants even with no vhost table", () => {
+    const raw = "https://artifacts.example.org/a/bearer/review.html";
+    const config = { ...vhostConfig, vhosts: [] };
+    expect(
+      sessionToolUrls({ content: [{ type: "tool_result", content: raw }] }),
+    ).toEqual([raw]);
+    expect(
+      sessionVhostApp(raw, config, "https://ya.example.org")?.artifactToken,
+    ).toBe("bearer");
+    expect(
+      sessionVhostApp(
+        "https://other.example.org/a/bearer/review.html",
+        config,
+        "https://ya.example.org",
+      ),
+    ).toBeUndefined();
+  });
   it("rewrites all loopback spellings and preserves path, query and fragment", () => {
     for (const host of ["localhost", "127.0.0.1", "[::1]"]) {
       expect(

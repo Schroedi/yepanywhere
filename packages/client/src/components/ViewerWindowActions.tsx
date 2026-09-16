@@ -13,6 +13,9 @@ export function ViewerWindowActions({
   minimizeLabel,
   closeLabel,
   moveOut = true,
+  onMoveOut = onClose,
+  destructiveClose = false,
+  closeDisabled = false,
 }: {
   url: string;
   onClose?: () => void;
@@ -22,6 +25,9 @@ export function ViewerWindowActions({
   minimizeLabel?: string;
   closeLabel?: string;
   moveOut?: boolean;
+  onMoveOut?: () => void;
+  destructiveClose?: boolean;
+  closeDisabled?: boolean;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
@@ -92,9 +98,9 @@ export function ViewerWindowActions({
           rel="noopener noreferrer"
           aria-label={t("viewerMoveToNewTab")}
           title={t("viewerMoveToNewTab")}
-          onClick={onClose}
+          onClick={onMoveOut}
           onAuxClick={(event) => {
-            if (event.button === 1) onClose?.();
+            if (event.button === 1) onMoveOut?.();
           }}
         >
           {icon(
@@ -115,6 +121,8 @@ export function ViewerWindowActions({
       {onClose && (
         <button
           ref={closeRef}
+          className={destructiveClose ? styles.destructive : undefined}
+          disabled={closeDisabled}
           type="button"
           onClick={onClose}
           aria-label={closeLabel ?? t("modalClose")}

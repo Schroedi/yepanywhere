@@ -3,6 +3,7 @@ export interface ArtifactVhost {
   port: number;
   /** Optional child-env name; value is the decimal port. */
   env?: string;
+  public?: boolean;
 }
 
 export const MAX_ARTIFACT_VHOSTS = 32;
@@ -36,10 +37,10 @@ export function parseVhostPublicRoot(
   const trimmed = value.trim().toLowerCase().replace(/\.$/, "");
   if (!trimmed) return undefined;
   if (trimmed.includes("://") || trimmed.includes("/") || trimmed.includes(":"))
-    throw new Error("Vhost public root must be a hostname such as graehl.org");
+    throw new Error("Vhost public root must be a hostname such as example.com");
   const labels = trimmed.split(".");
   if (labels.length < 2 || labels.some((label) => !VHOST_LABEL.test(label)))
-    throw new Error("Vhost public root must be a hostname such as graehl.org");
+    throw new Error("Vhost public root must be a hostname such as example.com");
   if (trimmed === "localhost" || trimmed.endsWith(".localhost"))
     throw new Error("Vhost public root cannot be localhost");
   return trimmed;
@@ -90,7 +91,18 @@ export function parseVhosts(
       envs.add(envName);
       env = envName;
     }
-    vhosts.push(env ? { name, port: row.port, env } : { name, port: row.port });
+    if (row.public !== undefined && typeof row.public !== "boolean")
+      throw new Error("Vhost public access must be true or false");
+    const publicAccess =
+      row.public ?? previous?.find((entry) => entry.name === name)?.public;
+    vhosts.push({
+      name,
+      port: row.port,
+      ...(env ? { env } : {}),
+      ...(publicAccess === undefined
+        ? {}
+        : { public: publicAccess as boolean }),
+    });
   }
   return vhosts;
 }

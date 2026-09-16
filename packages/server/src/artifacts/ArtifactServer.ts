@@ -25,6 +25,7 @@ import {
 } from "../middleware/allowed-hosts.js";
 import { proxyLoopbackVhost } from "./vhost-proxy.js";
 import { matchVhost, vhostHostnames } from "./vhosts.js";
+import { VhostAccess } from "./VhostAccess.js";
 
 const MAX_GRANTS = 256;
 const MAX_FILE_BYTES = 64 * 1024 * 1024;
@@ -56,6 +57,7 @@ export interface ArtifactServerOptions {
 }
 
 export class ArtifactServer {
+  readonly vhostAccess: VhostAccess;
   readonly app = new Hono();
   private readonly grants = new Map<string, Grant>();
   private listener: Server | undefined;
@@ -76,7 +78,10 @@ export class ArtifactServer {
     this.config = validateArtifactConfig(config);
     this.store = new GrantStore(options.stateDir);
     this.protectedPaths = options.protectedPaths ?? [];
-    this.ready = this.restore();
+    this.vhostAccess = new VhostAccess(options.stateDir);
+    this.ready = Promise.all([this.restore(), this.vhostAccess.ready]).then(
+      () => {},
+    );
     this.registerHosts(this.config);
     this.app.use("*", async (c, next) => {
       await this.ready;
@@ -291,7 +296,24 @@ export class ArtifactServer {
   async dispatchHost(request: Request): Promise<Response | null> {
     const host = request.headers.get("host") ?? new URL(request.url).host;
     const vhost = this.matchesVhost(host);
-    if (vhost) return proxyLoopbackVhost(request, vhost.port);
+    if (vhost) {
+      await this.ready;
+      const authorized = this.vhostAccess.authorize(request, vhost);
+      if (!authorized)
+        return new Response("App link required", {
+          status: 401,
+          headers: {
+            "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",
+          },
+        });
+      const response = await proxyLoopbackVhost(authorized.request, vhost.port);
+      response.headers.set("Cache-Control", "no-store");
+      response.headers.set("Referrer-Policy", "no-referrer");
+      if (authorized.cookie)
+        response.headers.append("Set-Cookie", authorized.cookie);
+      return response;
+    }
     if (this.matchesHost(host)) return this.app.fetch(request);
     return null;
   }
@@ -439,13 +461,14 @@ export class ArtifactServer {
   }
 
   /** Revoking an owning grant pays its deletion now, not at its old deadline. */
-  revoke(id: string): void {
+  async revoke(id: string): Promise<void> {
+    await this.ready;
     for (const [token, grant] of this.grants)
       if (grant.id === id) {
         this.grants.delete(token);
         if (grant.owned)
           this.owe(grant.root, grant.ownedFiles ?? [], Date.now());
       }
-    void this.sweep();
+    await this.sweep();
   }
 }

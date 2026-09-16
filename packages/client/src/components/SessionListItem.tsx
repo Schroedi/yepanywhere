@@ -50,6 +50,7 @@ import { LegacySessionShareModal } from "./SessionShareModal";
 import { SessionStatusBadge } from "./StatusBadge";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import styles from "./SessionListItem.module.css";
+import { useSessionApps } from "../lib/sessionApps";
 
 export interface SessionNavigationIntent {
   event: React.MouseEvent<HTMLAnchorElement>;
@@ -242,6 +243,9 @@ export function SessionListItem({
   publicShareControlsVisible = false,
 }: SessionListItemProps) {
   const { t } = useI18n();
+  const { value: sessionApps } = useSessionApps(
+    `${basePath}/${projectId}/${sessionId}`,
+  );
   const navigate = useNavigate();
   const nonHumanUserTurn = useNonHumanUserTurn(sessionId);
 
@@ -1016,6 +1020,11 @@ export function SessionListItem({
                   )}
                   <span>{visibleTitle}</span>
                 </span>
+                {sessionApps.latest && (
+                  <span className={styles.appChip}>
+                    {t("sessionRightPaneApps")}
+                  </span>
+                )}
                 {hasDraft && <span className="session-draft-badge">Draft</span>}
                 {hasProjectQueue && (
                   <span

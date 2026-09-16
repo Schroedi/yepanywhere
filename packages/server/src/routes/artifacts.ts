@@ -110,8 +110,8 @@ export function createArtifactRoutes(options: {
       ),
     );
   });
-  routes.delete("/artifacts/:id", (c) => {
-    options.server.revoke(c.req.param("id"));
+  routes.delete("/artifacts/:id", async (c) => {
+    await options.server.revoke(c.req.param("id"));
     return c.json({ success: true });
   });
   return routes;

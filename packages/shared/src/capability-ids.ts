@@ -402,6 +402,18 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "speech-backend-setup",
     introducedIn: "0.8.2",
   },
+  vhostAppControl: {
+    id: 75,
+    direction: "server",
+    name: "vhost-app-control",
+    introducedIn: "0.8.2",
+  },
+  vhostBearerAccess: {
+    id: 76,
+    direction: "server",
+    name: "vhost-bearer-access",
+    introducedIn: "0.8.2",
+  },
   projectQueueReadinessCheck: {
     id: 61,
     direction: "server",

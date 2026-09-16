@@ -269,6 +269,16 @@
   background: color-mix(in srgb, var(--text-muted) 22%, transparent);
 }
 
+.appChip {
+  flex-shrink: 0;
+  padding: 1px 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
 .providerChildrenActivityRecent {
   background: color-mix(in srgb, var(--text-muted) 55%, transparent);
 }
