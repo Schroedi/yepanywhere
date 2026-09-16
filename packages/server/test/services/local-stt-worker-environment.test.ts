@@ -46,6 +46,11 @@ describe("local speech worker environment", () => {
       try {
         await new Backend().prewarm();
         expect(spawnMock).toHaveBeenCalledOnce();
+        if (Backend === LocalNemoBackend) {
+          expect(spawnMock.mock.lastCall?.[1]).toContain(
+            "nvidia/parakeet-unified-en-0.6b",
+          );
+        }
         const env = spawnMock.mock.lastCall?.[2].env;
         expect(env).toBeDefined();
         expect(env).not.toHaveProperty("LD_LIBRARY_PATH");

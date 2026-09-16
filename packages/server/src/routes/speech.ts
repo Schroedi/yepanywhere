@@ -22,6 +22,7 @@ import {
 } from "../services/voice/audioRetention.js";
 import type { SafeRestartService } from "../services/SafeRestartService.js";
 import type { SpeechBackendInstallService } from "../services/voice/speechBackendInstall.js";
+import { graniteModelFilesPresent } from "../services/voice/graniteModelCache.js";
 import type { SpeechBackendRegistry } from "../services/voice/registry.js";
 import {
   supportsStreaming,
@@ -935,9 +936,9 @@ export function createSpeechWebSocketSession(
   };
 }
 
-function speechBackendSetupStatus(
+async function speechBackendSetupStatus(
   deps: SpeechRouteDeps,
-): SpeechBackendSetupStatus {
+): Promise<SpeechBackendSetupStatus> {
   const envBackends = unionSpeechVoiceBackends(deps.envVoiceBackends);
   const settingsBackends = unionSpeechVoiceBackends(
     deps.serverSettingsService?.getSetting("speechVoiceBackends"),
@@ -959,34 +960,43 @@ function speechBackendSetupStatus(
     restartAvailable: Boolean(deps.safeRestartService),
     needsRestart,
     liveEnablement: true,
+    workingDirectory: process.cwd(),
     install: deps.speechBackendInstallService?.status() ?? {
       running: false,
       lines: [],
     },
-    catalog: LOCAL_SPEECH_BACKEND_SPECS.map((spec) => ({
-      id: spec.id,
-      enabled: enabledLocal.has(spec.id),
-      enabledByEnv: envBackends.includes(spec.id),
-      enabledBySettings: settingsBackends.includes(spec.id),
-      advertised: advertisedLocal.has(spec.id),
-      validationStatus: deps.speechBackendRegistry
-        .allInfo()
-        .find((entry) => entry.id === spec.id)?.validationStatus,
-      disabledReason: deps.speechBackendRegistry
-        .allInfo()
-        .find((entry) => entry.id === spec.id)?.disabledReason,
-      pixiEnvironment: spec.pixiEnvironment,
-      bootstrapTask: spec.bootstrapTask,
-      defaultModel: spec.defaultModel,
-      hfGated: spec.hfGated,
-    })),
+    catalog: await Promise.all(
+      LOCAL_SPEECH_BACKEND_SPECS.map(async (spec) => ({
+        id: spec.id,
+        enabled: enabledLocal.has(spec.id),
+        enabledByEnv: envBackends.includes(spec.id),
+        enabledBySettings: settingsBackends.includes(spec.id),
+        advertised: advertisedLocal.has(spec.id),
+        validationStatus: deps.speechBackendRegistry
+          .allInfo()
+          .find((entry) => entry.id === spec.id)?.validationStatus,
+        disabledReason: deps.speechBackendRegistry
+          .allInfo()
+          .find((entry) => entry.id === spec.id)?.disabledReason,
+        pixiEnvironment: spec.pixiEnvironment,
+        bootstrapTask: spec.bootstrapTask,
+        defaultModel: spec.defaultModel,
+        modelFilesPresent:
+          spec.id === "ya-granite"
+            ? await graniteModelFilesPresent(spec.defaultModel)
+            : undefined,
+        hfGated: spec.hfGated,
+      })),
+    ),
   };
 }
 
 export function createSpeechRoutes(deps: SpeechRouteDeps): Hono {
   const routes = new Hono();
 
-  routes.get("/backends", (c) => c.json(speechBackendSetupStatus(deps)));
+  routes.get("/backends", async (c) =>
+    c.json(await speechBackendSetupStatus(deps)),
+  );
 
   routes.post("/backends/restart", async (c) => {
     if (deps.speechBackendInstallService?.status().running) {

@@ -40,6 +40,16 @@
   height: 20px;
   flex-shrink: 0;
 }
+.enable[data-locked] {
+  cursor: not-allowed;
+}
+.environmentLock {
+  padding: 8px;
+  border-left: 3px solid var(--border-color);
+  background: var(--bg-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
 .model {
   overflow-wrap: anywhere;
   font-size: 12px;
@@ -115,7 +125,8 @@
 }
 
 .actions {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
-  justify-items: start;
 }

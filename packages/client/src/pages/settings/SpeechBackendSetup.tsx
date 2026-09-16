@@ -10,6 +10,10 @@ import { useCurrentSourceRuntime } from "../../contexts/SourceRuntimeContext";
 import { useI18n } from "../../i18n";
 import { useServerSettings } from "../../hooks/useServerSettings";
 import { useVersion } from "../../hooks/useVersion";
+import {
+  ENGLISH_WER_SOURCE,
+  englishModelWer,
+} from "../../lib/speechProviders/englishModelWer";
 import { SettingsItem } from "./SettingsItem";
 import styles from "./SpeechBackendSetup.module.css";
 
@@ -96,7 +100,7 @@ export function SpeechBackendSetup() {
     try {
       setSaving(true);
       setPendingToggle({ id: row.id, enabled });
-      if (enabled && row.id === "ya-granite" && !row.advertised)
+      if (enabled && row.id === "ya-granite" && row.modelFilesPresent !== true)
         setModelPage(row.defaultModel);
       await updateSettings({ speechVoiceBackends: next });
       await refresh();
@@ -160,6 +164,20 @@ export function SpeechBackendSetup() {
       className="model-settings-item"
     >
       <div className={styles.wrap}>
+        <p className="settings-hint">
+          {t("speechBackendSetupModelAdvice")}{" "}
+          <a href={ENGLISH_WER_SOURCE} target="_blank" rel="noreferrer">
+            {t("speechBackendSetupWerSource")}
+          </a>
+          {" · "}
+          <a
+            href="https://huggingface.co/nvidia/parakeet-unified-en-0.6b#asr-performance-wo-pnc"
+            target="_blank"
+            rel="noreferrer"
+          >
+            NVIDIA
+          </a>
+        </p>
         {error && (
           <p className="settings-hint" role="alert">
             {error}
@@ -172,7 +190,10 @@ export function SpeechBackendSetup() {
               key={row.id}
               aria-label={t(BACKEND_LABEL_KEYS[row.id])}
             >
-              <label className={styles.enable}>
+              <label
+                className={styles.enable}
+                data-locked={row.enabledByEnv || undefined}
+              >
                 <input
                   type="checkbox"
                   checked={
@@ -181,6 +202,9 @@ export function SpeechBackendSetup() {
                       : row.enabled
                   }
                   disabled={row.enabledByEnv || saving}
+                  aria-describedby={
+                    row.enabledByEnv ? `${row.id}-environment-lock` : undefined
+                  }
                   onChange={(event) =>
                     void toggle(row, event.currentTarget.checked)
                   }
@@ -195,7 +219,27 @@ export function SpeechBackendSetup() {
                 />
                 <strong>{t(BACKEND_LABEL_KEYS[row.id])}</strong>
               </label>
+              {row.enabledByEnv && (
+                <p
+                  className={styles.environmentLock}
+                  id={`${row.id}-environment-lock`}
+                >
+                  <strong>{t("speechBackendSetupEnvironmentLock")}</strong>{" "}
+                  {t("speechBackendSetupEnvironmentHelp")}
+                </p>
+              )}
               <code className={styles.model}>{row.defaultModel}</code>
+              {row.defaultModel === "distil-large-v3.5" && (
+                <span className="settings-hint">756M parameters</span>
+              )}
+              {row.id === "ya-nemo" && (
+                <span className="settings-hint">
+                  {t("speechBackendSetupNemoSize")}
+                </span>
+              )}
+              <span className="settings-hint">
+                {englishModelWer(row.defaultModel)}
+              </span>
               <div className={styles.backendActions}>
                 <button
                   type="button"
@@ -256,6 +300,8 @@ export function SpeechBackendSetup() {
               {modelPage} — {t("speechBackendSetupOpenBrowser")}
             </a>
             <code>
+              {status?.workingDirectory &&
+                `cd '${status.workingDirectory.replaceAll("'", "'\\''")}' && `}
               pixi run --frozen -e{" "}
               {status?.catalog.find((row) => row.defaultModel === modelPage)
                 ?.pixiEnvironment ?? "stt"}{" "}
@@ -302,6 +348,11 @@ export function SpeechBackendSetup() {
                 : "speechBackendSetupRestart",
             )}
           </button>
+          {status?.liveEnablement && (
+            <p className="settings-hint">
+              {t("speechBackendSetupRestartOnlyDisable")}
+            </p>
+          )}
           {status?.restartAvailable === false && (
             <p className="settings-hint">
               {t("speechBackendSetupRestartHint")}

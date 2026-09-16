@@ -46,85 +46,110 @@ describe("SpeechBackendSetup", () => {
     expect(transport.fetch).not.toHaveBeenCalled();
     expect(screen.queryByText("Install and enable local backends")).toBeNull();
   });
-  it("enables a local backend in server settings and can request install", async () => {
-    transport.fetch.mockImplementation(
-      async (path: string, options?: { method?: string }) => {
-        if (path === "/speech/backends" && !options?.method) {
-          return {
-            envBackends: ["ya-whisper"],
-            settingsBackends: settingsState.speechVoiceBackends,
-            advertisedBackends: ["ya-whisper"],
-            restartAvailable: true,
-            needsRestart:
-              settingsState.speechVoiceBackends.includes("ya-granite"),
-            install: { running: false, lines: [] },
-            catalog: [
-              {
-                id: "ya-whisper",
-                enabled: true,
-                enabledByEnv: true,
-                enabledBySettings: true,
-                advertised: true,
-                pixiEnvironment: "stt",
-                bootstrapTask: "stt-bootstrap",
-                defaultModel: "distil-large-v3.5",
-                hfGated: false,
-              },
-              {
-                id: "ya-granite",
-                enabled:
-                  settingsState.speechVoiceBackends.includes("ya-granite"),
-                enabledByEnv: false,
-                enabledBySettings:
-                  settingsState.speechVoiceBackends.includes("ya-granite"),
-                advertised: false,
-                pixiEnvironment: "stt",
-                bootstrapTask: "stt-bootstrap-granite",
-                defaultModel: "ibm-granite/granite-speech-4.1-2b",
-                hfGated: false,
-              },
-            ],
-          };
-        }
-        if (path === "/speech/backends/ya-granite/install") {
-          return { running: true, backendId: "ya-granite", lines: ["start"] };
-        }
-        return {};
-      },
-    );
+  it.each([false, true])(
+    "enables and installs with cached model files: %s",
+    async (modelFilesPresent) => {
+      transport.fetch.mockImplementation(
+        async (path: string, options?: { method?: string }) => {
+          if (path === "/speech/backends" && !options?.method) {
+            return {
+              envBackends: ["ya-whisper"],
+              settingsBackends: settingsState.speechVoiceBackends,
+              advertisedBackends: ["ya-whisper"],
+              restartAvailable: true,
+              liveEnablement: true,
+              workingDirectory: "/srv/YA's checkout",
+              needsRestart:
+                settingsState.speechVoiceBackends.includes("ya-granite"),
+              install: { running: false, lines: [] },
+              catalog: [
+                {
+                  id: "ya-whisper",
+                  enabled: true,
+                  enabledByEnv: true,
+                  enabledBySettings: true,
+                  advertised: true,
+                  pixiEnvironment: "stt",
+                  bootstrapTask: "stt-bootstrap",
+                  defaultModel: "distil-large-v3.5",
+                  hfGated: false,
+                },
+                {
+                  id: "ya-granite",
+                  enabled:
+                    settingsState.speechVoiceBackends.includes("ya-granite"),
+                  enabledByEnv: false,
+                  enabledBySettings:
+                    settingsState.speechVoiceBackends.includes("ya-granite"),
+                  advertised: false,
+                  modelFilesPresent,
+                  pixiEnvironment: "stt",
+                  bootstrapTask: "stt-bootstrap-granite",
+                  defaultModel: "ibm-granite/granite-speech-4.1-2b",
+                  hfGated: false,
+                },
+              ],
+            };
+          }
+          if (path === "/speech/backends/ya-granite/install") {
+            return { running: true, backendId: "ya-granite", lines: ["start"] };
+          }
+          return {};
+        },
+      );
 
-    render(
-      <I18nProvider>
-        <SpeechBackendSetup />
-      </I18nProvider>,
-    );
+      render(
+        <I18nProvider>
+          <SpeechBackendSetup />
+        </I18nProvider>,
+      );
 
-    const granite = await screen.findByRole("checkbox", {
-      name: "Enable Granite Speech STT after the next YA restart",
-    });
-    expect(
-      screen
-        .getByRole("checkbox", {
-          name: "Enable Whisper STT after the next YA restart",
-        })
-        .hasAttribute("disabled"),
-    ).toBe(true);
-    fireEvent.click(granite);
-    await waitFor(() =>
-      expect(settingsState.updateSettings).toHaveBeenCalledWith({
-        speechVoiceBackends: ["ya-granite"],
-      }),
-    );
-    const installButtons = screen.getAllByRole("button", {
-      name: "Get / install this model",
-    });
-    expect(installButtons.length).toBeGreaterThan(1);
-    fireEvent.click(installButtons[1]!);
-    await waitFor(() =>
-      expect(transport.fetch).toHaveBeenCalledWith(
-        "/speech/backends/ya-granite/install",
-        { method: "POST" },
-      ),
-    );
-  });
+      const granite = await screen.findByRole("checkbox", {
+        name: "Enable Granite Speech STT",
+      });
+      expect(
+        screen
+          .getByRole("checkbox", {
+            name: "Enable Whisper STT",
+          })
+          .hasAttribute("disabled"),
+      ).toBe(true);
+      fireEvent.click(granite);
+      expect(screen.getByText("Locked on by environment.")).toBeTruthy();
+      expect(
+        screen.getByText(
+          /Removing YEP_VOICE_BACKENDS on your next start leaves this enabled/,
+        ),
+      ).toBeTruthy();
+      await waitFor(() =>
+        expect(settingsState.updateSettings).toHaveBeenCalledWith({
+          speechVoiceBackends: ["ya-granite"],
+        }),
+      );
+      const installButtons = screen.getAllByRole("button", {
+        name: "Get / install this model",
+      });
+      expect(
+        screen.queryByRole("button", { name: "Close model page" }) !== null,
+      ).toBe(!modelFilesPresent);
+      expect(
+        screen.getByText("Only needed to disable a backend."),
+      ).toBeTruthy();
+      if (!modelFilesPresent) {
+        expect(
+          screen.getByText(
+            "cd '/srv/YA'\\''s checkout' && pixi run --frozen -e stt hf auth login",
+          ),
+        ).toBeTruthy();
+      }
+      expect(installButtons.length).toBeGreaterThan(1);
+      fireEvent.click(installButtons[1]!);
+      await waitFor(() =>
+        expect(transport.fetch).toHaveBeenCalledWith(
+          "/speech/backends/ya-granite/install",
+          { method: "POST" },
+        ),
+      );
+    },
+  );
 });

@@ -127,6 +127,29 @@ vi.mock("../../../lib/speechProviders/YaServerProvider", () => ({
 vi.mock("../SettingsUndoContext", () => undoMocks);
 
 describe("SpeechSettings", () => {
+  it.each(["ya-granite", "ya-whisper"])(
+    "prewarms %s only when selected in settings",
+    (backend) => {
+      modelSettings.speechMethod = "ya-grok";
+      versionState.voiceBackends = ["ya-grok", backend];
+      render(<SpeechSettings />);
+      expect(prewarmYaServerSpeechBackend).not.toHaveBeenCalled();
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "filterByLabel speechSettingsBackendTitle",
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: backend === "ya-granite" ? /Granite Speech STT/ : /Whisper STT/,
+        }),
+      );
+      expect(prewarmYaServerSpeechBackend).toHaveBeenCalledWith(
+        backend,
+        undefined,
+      );
+    },
+  );
   it("finds vocabulary by keyterms and explains disabled storage without mounting controls", () => {
     const scope = {
       query: "keyterms",
@@ -168,7 +191,9 @@ describe("SpeechSettings", () => {
       screen.getByRole("combobox", { name: "speechSettingsWhisperModelTitle" }),
     ).toBeTruthy();
     expect(
-      screen.getByRole("option", { name: "Distil large v3.5 English" }),
+      screen.getByRole("option", {
+        name: "Distil large v3.5 English · 756M parameters · EN WER 5.40%",
+      }),
     ).toBeTruthy();
   });
   beforeEach(() => {

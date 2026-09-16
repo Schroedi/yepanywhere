@@ -1,3 +1,5 @@
+import { englishModelWer } from "./englishModelWer";
+
 export const DEFAULT_PARAKEET_SPEECH_MODEL = "nvidia/parakeet-tdt-0.6b-v3";
 export const UNIFIED_PARAKEET_SPEECH_MODEL = "nvidia/parakeet-unified-en-0.6b";
 
@@ -44,6 +46,10 @@ const PARAKEET_MODEL_BACKEND_LABELS: Record<ParakeetModelBackendId, string> = {
   "ya-parakeet": "Transformers Parakeet",
   "ya-nemo": "NeMo Parakeet",
 };
+
+for (const preset of PARAKEET_SPEECH_MODEL_PRESETS) {
+  preset.label = `${preset.label} · ${englishModelWer(preset.value)}`;
+}
 
 export function getParakeetModelBackendLabel(
   backendId: ParakeetModelBackendId,

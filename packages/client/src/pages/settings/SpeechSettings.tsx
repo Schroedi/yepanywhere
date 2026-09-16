@@ -501,6 +501,21 @@ export function SpeechSettings() {
                 if (!nextBackend) return;
                 if (isParakeetModelBackend(nextBackend)) {
                   prepareParakeetBackend(nextBackend);
+                } else if (
+                  nextBackend === "ya-granite" ||
+                  nextBackend === "ya-whisper"
+                ) {
+                  void prewarmYaServerSpeechBackend(
+                    nextBackend,
+                    nextBackend === "ya-whisper"
+                      ? whisperSpeechModel.trim() || undefined
+                      : undefined,
+                  ).catch((error: unknown) => {
+                    console.warn(
+                      "[YaSTT] Speech model prewarm failed",
+                      error instanceof Error ? error.message : String(error),
+                    );
+                  });
                 }
                 setSpeechMethod(nextBackend);
               }}

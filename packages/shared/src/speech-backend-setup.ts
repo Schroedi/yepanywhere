@@ -123,6 +123,8 @@ export interface SpeechBackendSetupRow {
   enabledByEnv: boolean;
   enabledBySettings: boolean;
   advertised: boolean;
+  /** Default model files exist locally; independent of runtime validation. */
+  modelFilesPresent?: boolean;
   validationStatus?: "pending" | "enabled" | "disabled";
   disabledReason?: string;
   pixiEnvironment: LocalSpeechBackendSpec["pixiEnvironment"];
@@ -139,6 +141,8 @@ export interface SpeechBackendSetupStatus {
   needsRestart: boolean;
   /** New enablements validate immediately; disabling an active backend needs restart. */
   liveEnablement?: boolean;
+  /** The directory used by the server's pixi commands. */
+  workingDirectory?: string;
   install: SpeechBackendInstallStatus;
   catalog: SpeechBackendSetupRow[];
 }

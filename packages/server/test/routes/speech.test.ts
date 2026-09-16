@@ -281,6 +281,11 @@ describe("speech routes", () => {
       "ya-granite",
     ]);
     expect(body.restartAvailable).toBe(false);
+    expect(body.workingDirectory).toBe(process.cwd());
+    expect(
+      typeof body.catalog.find((row: { id: string }) => row.id === "ya-granite")
+        .modelFilesPresent,
+    ).toBe("boolean");
   });
 
   it("exposes and schedules the supplied safe restart service", async () => {

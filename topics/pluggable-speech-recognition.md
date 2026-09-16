@@ -458,7 +458,7 @@ worker's exit. A failed load returns an error and permits a later retry.
 | [Whisper large-v3](https://huggingface.co/openai/whisper-large-v3) | Full model as the accuracy-oriented comparison; expect more work per utterance than the distilled default. | `WHISPER_MODEL=large-v3`; the existing worker remains batch-only. |
 | [Whisper large-v3-turbo](https://huggingface.co/openai/whisper-large-v3-turbo) | Pruned decoder trades some quality for speed according to its model card. Compare when full large-v3 latency is unacceptable. | `WHISPER_MODEL=large-v3-turbo`; supported by the inspected faster-whisper registry. |
 | [Parakeet TDT 0.6B v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) | English-only comparison against multilingual v3; not evidence that older v2 is better. | Custom Parakeet model name `nvidia/parakeet-tdt-0.6b-v2`; verify load/decoding in the selected backend before adopting. |
-| [Parakeet unified English 0.6B](https://huggingface.co/nvidia/parakeet-unified-en-0.6b) | Released April 2026; supports offline and buffered streaming inference with configurable context. Vendor leaderboard gains do not establish tablet gains. | Default on NeMo's isolated `stt-nemo` runtime. CPU and GPU worker transcription checked; YA currently uses batch inference. |
+| [Parakeet unified English 0.6B](https://huggingface.co/nvidia/parakeet-unified-en-0.6b) | Released April 2026; supports offline and buffered streaming inference with configurable context. Vendor leaderboard gains do not establish tablet gains. | Selectable on NeMo's isolated `stt-nemo` runtime. CPU and GPU worker transcription checked; YA currently uses batch inference. |
 | [Canary-Qwen 2.5B](https://huggingface.co/nvidia/canary-qwen-2.5b) | English speech-language model worth a later accuracy comparison. | Requires a different `speechlm2`/`SALM.generate` worker, not the existing Parakeet `ASRModel.transcribe` contract. |
 
 First compare distilled v3.5 and full large-v3 on the same retained tablet
@@ -476,7 +476,129 @@ instead of decoding a frame alignment.
 | Candidate | Why compare it | YA execution path |
 | --- | --- | --- |
 | [Granite Speech 4.1 2B](https://huggingface.co/ibm-granite/granite-speech-4.1-2b) | Apache-2.0, ungated, 2B parameters, English/French/German/Spanish/Portuguese/Japanese with punctuation and truecasing. IBM also publishes keyword-list biasing, speaker-attribution (`-plus`), and non-autoregressive (`-nar`) variants. | `ya-granite`, shared pixi `stt` environment. `GRANITE_MODEL` selects a variant. |
-| [cohere-transcribe-03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026) | Apache-2.0, 2B, 14 languages, top of the Open ASR leaderboard in March 2026. Needs `transformers>=5.4`, which the `stt` environment already satisfies. | Not implemented. The weights are free but gated behind a Hugging Face contact-information agreement, so nothing here can be verified until that agreement is accepted on the YA host's HF account. |
+| [cohere-transcribe-03-2026](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026) | Apache-2.0, 2B, 14 languages, top of the Open ASR leaderboard in March 2026. Needs `transformers>=5.4`, which the `stt` environment already satisfies. | Not implemented. Downloading weights requires a Hugging Face contact-information agreement; that does not prevent implementing an install/access card. See `gaps/cohere-speech-backend.md`. |
+
+### English candidate screening — 2026-09-16
+
+The [Open ASR English short-form results snapshot](https://huggingface.co/datasets/hf-audio/open-asr-leaderboard-results/blob/19aa77a9ec5cb8aa353670a97a603794979e75d7/english_short_latest.csv)
+reports the following candidates. WER is the macro-average over its eight
+current test sets (AMI-Cleaned, Earnings22-Cleaned-AA-chunked,
+Gigaspeech-Cleaned, LibriSpeech clean/other, SPGISpeech, Voice Arena Monsoon,
+Voxpopuli-AA-Cleaned). The CSV does not supply per-split sample counts or all
+hardware/batch details. These are published screening results, not local
+dictation measurements or statistically established superiority. Do not mix
+these numbers with older model-card averages using the previous test sets.
+
+| Candidate | Mean WER (%) ↓ | Reported RTFx ↑ | Why retain for English evaluation |
+| --- | ---: | ---: | --- |
+| Qwen3-ASR-1.7B-hf | 4.31 | 819.96 | Accuracy candidate; requires its own integration |
+| Hojo-ASR-V1 | 4.33 | 72.51 | Evaluated candidate; user subsequently dropped it |
+| Granite Speech 4.1 2B | 4.62 | 545.64 | Current keyword-biased recognizer; keep the biasing axis |
+| Cohere Transcribe 03-2026 | 4.67 | 906.56 | Close accuracy/throughput candidate; requested but missing backend |
+| Granite Speech 4.1 2B NAR | 4.68 | 2073.53 | Faster decoding candidate, not a drop-in worker model swap |
+| Parakeet TDT 0.6B v2 | 4.70 | 6024.67 | English option; lower mean English WER than v3 |
+| Granite Speech 5.0 470M TurboCTC NC | 4.78 | 12761.85 | Fast English candidate with noncommercial license |
+| Parakeet TDT 0.6B v3 | 4.86 | 6076.07 | Multilingual option; Transformers-compatible default |
+| Granite Speech 5.0 470M TurboCTC | 5.04 | 12945.54 | Small, Apache-2.0 English speed candidate |
+| Distil-Whisper large-v3.5 | 5.40 | 879.27 | Recommended only without GPU in YA |
+
+RTFx is audio duration divided by processing time. Batched throughput does not
+predict single-utterance response latency. A useful YA comparison fixes the
+same real English dictation, technical names, silence/noise, punctuation, and
+capture settings; records warmed latency separately from initial loading;
+and measures memory and keyword benefit. None of the newly listed candidates
+has been benchmarked locally by this screening pass.
+
+User-directed shortlist: expose Granite 5.0's fast English-only path in future
+YA work; retain Qwen3-ASR-1.7B-hf; exclude Canary-Qwen and Hojo-ASR-V1.
+[Hojo's model card](https://huggingface.co/HojoAI/Hojo-ASR-V1) documents a
+dedicated `hojo-asr` runtime and Qwen3 decoder. Its much lower reported
+throughput and package constraints add integration cost. The user cancelled
+its retrieval attempt before completion; no Hojo runtime was installed.
+Cohere remains comparison and gap only in this pass.
+
+NeMo's default install and fallback model remains Unified English, following
+the user's final preference after considering NVIDIA's comparison. Explicit
+saved model choices and environment overrides remain unchanged. V2 and v3
+remain selectable. The Transformers backend
+retains v3 because YA's v2 preset is NeMo-only; the legacy-client compatibility
+fallback likewise remains v3. Do not send the NeMo checkpoint to Transformers
+merely to give both backends the same default name.
+
+[IBM's August 25 release](https://huggingface.co/blog/ibm-granite/granite-speech-5-0-470m-turboctc)
+introduces encoder-only 5.0 TurboCTC, newer than 4.1. It sacrifices speech
+translation and keyword biasing; the NC variant uses additional training data
+under CC-BY-NC-SA-4.0. Both need a CTC inference path, not YA's current
+Granite generative worker. The
+[4.1 NAR card](https://huggingface.co/ibm-granite/granite-speech-4.1-2b-nar)
+also describes a distinct decoding path. These cannot be enabled safely just
+by adding checkpoint IDs to a dropdown.
+
+NeMo Parakeet's existing unified-en-0.6b remains useful for its unified offline
+and streaming capability; it is absent from this exact CSV snapshot, so do not
+insert its older model-card WER into this ranking. NVIDIA's separate
+[offline evaluation](https://huggingface.co/nvidia/parakeet-unified-en-0.6b#asr-performance-wo-pnc)
+reports Unified at 5.91% versus TDT v2 at 6.04%, without punctuation and
+capitalization. NeMo has a heavier separate software installation; YA uses
+batch inference rather than the model's streaming path.
+
+Model choices and install cards show English WER to two decimal places from
+the dated snapshot, or explicitly say unavailable. Unified instead shows its
+5.91% NVIDIA evaluation with an explicit different-evaluation label and source.
+Distil large-v3.5 shows its model-card count of 756M parameters. NeMo's install
+caption estimates 8,000 MB installed Linux runtime, excluding model weights
+and distinguishing download size: the local isolated environment measured
+7,662 MiB on 2026-09-16. Cache sharing and platforms change disk/download needs.
+Whisper is recommended only
+without a GPU. Its [model card](https://huggingface.co/openai/whisper-large-v3)
+documents invented transcript text; silence/non-speech hallucinations are
+separate from speech-set WER and should be checked in local evaluation.
+Whisper's current
+[distil-large-v3.5 card](https://huggingface.co/distil-whisper/distil-large-v3.5)
+reports a short-form speed/accuracy advantage over turbo, while turbo retains
+a long-form advantage on its evaluation. Retain full large-v3 and turbo as
+alternatives for existing Whisper support rather than claiming a universal
+winner from an English short-form table.
+
+The deferred UI design is tracked in
+[`speech-backend-model-selection`](../gaps/speech-backend-model-selection.md);
+Cohere's missing implementation is tracked separately in
+[`cohere-speech-backend`](../gaps/cohere-speech-backend.md).
+
+### Qwen retrieval and integration probe — 2026-09-16
+
+Manually retrieved `Qwen/Qwen3-ASR-1.7B-hf` revision
+`bcd2b5b7f32b480ab5790554cfa8347f246a14f3`, ungated, 4,087,646,324
+repository bytes. The Transformers-native model needs >=5.13 according to its
+model card. An isolated test environment inherited YA's Torch 2.12.0+cu130 and
+installed Transformers 5.17.0. The resolver initially installed NumPy 2.5.3,
+which failed in the inherited Librosa/Numba stack; pinning NumPy <2.5 selected
+2.4.6 and resolved it. No production dependencies changed.
+
+CUDA BF16 load and generation passed on the public
+`bezzam/audio_samples/librispeech_mr_quilter.wav` clip, yielding
+"Mr. Quilter is the apostle of the middle classes, and we are glad to welcome
+his gospel." This is an integration smoke on one known clip, not a quality or
+latency benchmark. The first assertion used a different sample URL from the
+card with the Quilter expected text; the fixture mismatch was corrected before
+acceptance. Logs and scripts are in `.artifacts/speech-candidates/` locally.
+
+Auto-install/backend integration is moderate work: pin a compatible dependency
+solve, reuse the HF cache/install log and warm-worker protocol, use
+`apply_transcription_request`, and decode the transcription-only result rather
+than exposing language tags. Wire registry, capability/catalog, model choices,
+and prewarm; verify context/hotwords separately before advertising keyword
+biasing. Prefer the shared `stt` pixi environment after checking its existing
+Whisper, Granite, and Transformers Parakeet paths against the changed
+Transformers pin. Use a separate environment only when constraints require it.
+
+Hojo retrieval was cancelled by user direction. Its 0.1.3 package pins
+Torch >=2.5.1,<2.6 and Transformers >=4.57.3,<5, conflicting with this shared
+stack; it was not installed or run. Cohere remains a deferred gap.
+
+Streaming follow-up: [`local-parakeet-streaming`](../gaps/local-parakeet-streaming.md).
+
+### Existing Granite smoke
 
 Local smoke on the RTX PRO 6000 host, 2026-09-15, through
 `granite_worker.py` directly: cold load 8.4 s with weights cached (~5 GB
@@ -1266,9 +1388,17 @@ maintenance controls, including the ordinary server-main route mount. It waits
 for unsafe active work, is unavailable without a restart-capable launcher, and
 rejects restart while a model install is running. Disabling a running backend
 is saved immediately and takes effect on this restart.
+The button explains that it is only needed for disabling. Environment-locked
+checkboxes explain why they are disabled and that removing the environment
+entry on a later start preserves saved enablement and unlocks the checkbox.
 
 Model page / access opens inline instructions and a direct Hugging Face link.
-Granite enablement also opens those instructions when it is not yet available.
+Granite enablement opens those instructions only when its default model files
+are missing. A filesystem-only check follows the Hugging Face main snapshot,
+verifies processor/tokenizer metadata and every indexed weight shard, and
+follows symlinks to reject missing blobs. Runtime validation alone does not
+establish cache presence. The login command first changes to the server's
+actual pixi working directory, shell-quoted for paths containing spaces.
 Hugging Face blocks embedded frames, and gated-model access requests require a
 browser: the user accepts any terms/contact-sharing request on the model page,
 authenticates the server with `hf auth login` using the same account, and retries
@@ -1277,6 +1407,13 @@ reported `gated: false` on 2026-09-16; the access path remains available for
 changed gates or account-dependent failures.
 
 **Design decision:** add backends live while retaining restart for removals,
+and prewarm local models when the user selects Default speech backend in
+Speech settings. Session reloads do not trigger it. Prewarm loads the model
+without microphone access or dummy transcription; the server keeps the worker
+alive for subsequent dictation. Explicit Parakeet model-preset changes also
+prewarm the selected model.
+
+The registry retains existing workers
 rather than replacing running workers on every settings change. This preserves
 in-flight transcription and existing model instances. The additive
 `liveEnablement` receipt selects the new explanation; earlier setup-capable
