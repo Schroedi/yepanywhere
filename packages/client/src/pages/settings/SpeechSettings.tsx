@@ -52,6 +52,15 @@ import { SettingsSection } from "./SettingsSection";
 import { SpeechVocabularyControls } from "./SpeechVocabularyControls";
 import { useSettingsUndoBaseline } from "./SettingsUndoContext";
 
+function prewarmSpeechModel(backend: string, model?: string): void {
+  void prewarmYaServerSpeechBackend(backend, model).catch((error: unknown) => {
+    console.warn(
+      "[YaSTT] Speech model prewarm failed",
+      error instanceof Error ? error.message : String(error),
+    );
+  });
+}
+
 export function SpeechSettings() {
   const { t } = useI18n();
   useSettingsPaneTitle(t("speechSettingsTitle"));
@@ -259,14 +268,7 @@ export function SpeechSettings() {
         return;
       }
       const model = requestedParakeetModel(modelValue, recentModels);
-      void prewarmYaServerSpeechBackend(targetBackend, model).catch(
-        (err: unknown) => {
-          console.warn(
-            "[YaSTT] Speech model prewarm failed",
-            err instanceof Error ? err.message : String(err),
-          );
-        },
-      );
+      prewarmSpeechModel(targetBackend, model);
     },
     [selectedBackend, recentModels],
   );
@@ -506,17 +508,12 @@ export function SpeechSettings() {
                   nextBackend === "ya-qwen" ||
                   nextBackend === "ya-whisper"
                 ) {
-                  void prewarmYaServerSpeechBackend(
+                  prewarmSpeechModel(
                     nextBackend,
                     nextBackend === "ya-whisper"
                       ? whisperSpeechModel.trim() || undefined
                       : undefined,
-                  ).catch((error: unknown) => {
-                    console.warn(
-                      "[YaSTT] Speech model prewarm failed",
-                      error instanceof Error ? error.message : String(error),
-                    );
-                  });
+                  );
                 }
                 setSpeechMethod(nextBackend);
               }}
