@@ -320,7 +320,11 @@ The operator intends to public-tunnel `*.example.com` to the configured
 app-service port, preserving Host and terminating HTTPS. The field has no
 default domain and does not create DNS or tunnel configuration.
 Optional env names on a row are exported
-to new local provider sessions as that port. Dynamic `ya-vhost` PATH helpers
+to new local provider sessions as that port. The computed child environment
+names these exports explicitly in `AGENT_VHOST_ENV_NAMES`; the provider-host
+boundary carries only those configured names and YA's fixed static markers.
+Unrelated environment variables and per-session wake credentials are excluded.
+Dynamic `ya-vhost` PATH helpers
 remain unimplemented. The operator must arrange
 client-side resolution if their browser/OS does not resolve `*.localhost`.
 The local address's port is the browser's forwarded port, which can differ

@@ -78,12 +78,14 @@ describe("artifact vhosts", () => {
     ).toEqual({
       AGENT_ARTIFACT_VIEWER_ORIGIN: "http://artifacts.localhost:3400",
       PLANNOTATOR_PORT: "19432",
+      AGENT_VHOST_ENV_NAMES: '["PLANNOTATOR_PORT"]',
     });
     expect(
       artifactViewerAgentEnvironment(server, "https://ya.example.org", "ssh"),
     ).toEqual({});
     expect(vhostSessionEnvironment(server.config.vhosts)).toEqual({
       PLANNOTATOR_PORT: "19432",
+      AGENT_VHOST_ENV_NAMES: '["PLANNOTATOR_PORT"]',
     });
   });
 });

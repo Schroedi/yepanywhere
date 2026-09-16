@@ -7,6 +7,8 @@ export interface ArtifactVhost {
 }
 
 export const MAX_ARTIFACT_VHOSTS = 32;
+/** Names explicitly selected by the server's vhost configuration. */
+export const VHOST_ENV_NAMES = "AGENT_VHOST_ENV_NAMES";
 
 const VHOST_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const VHOST_ENV = /^[A-Z_][A-Z0-9_]*$/;
@@ -19,6 +21,7 @@ const RESERVED_VHOST_NAMES = new Set([
 ]);
 const FORBIDDEN_ENV_PREFIXES = ["YEP_", "YA_"];
 const FORBIDDEN_ENV_NAMES = new Set([
+  VHOST_ENV_NAMES,
   "AGENTCTL_SESSION_ID",
   "AGENT_YA_API_URL",
   "AGENT_YA_API_TOKEN",
@@ -145,10 +148,12 @@ export function matchVhost(
 }
 
 export function vhostSessionEnvironment(
-  vhosts: readonly ArtifactVhost[],
+  vhosts: readonly Pick<ArtifactVhost, "env" | "port">[],
 ): Record<string, string> {
   const env: Record<string, string> = {};
   for (const vhost of vhosts)
     if (vhost.env) env[vhost.env] = String(vhost.port);
+  if (Object.keys(env).length)
+    env[VHOST_ENV_NAMES] = JSON.stringify(Object.keys(env));
   return env;
 }
