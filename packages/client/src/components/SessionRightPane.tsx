@@ -55,16 +55,33 @@ export function SessionRightPane({
   const { t } = useI18n();
   const root = useRef<HTMLElement>(null);
   const [width, setWidth] = useState(widthStore.read);
+  const [maxWidth, setMaxWidth] = useState(1600);
+  const visibleWidth = Math.min(width, maxWidth);
   const [dragging, setDragging] = useState(false);
   const [blockedUrl, setBlockedUrl] = useState<string | null>(null);
   const url = pane.selected?.url;
   useLayoutEffect(() => {
+    if (!url) return;
     const parent = root.current?.parentElement;
-    parent?.style.setProperty("--session-right-pane-width", `${width}px`);
+    if (!parent) return;
+    const measure = () =>
+      setMaxWidth(Math.max(280, Math.min(1600, parent.clientWidth * 0.6)));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(parent);
+    return () => observer.disconnect();
+  }, [url]);
+  useLayoutEffect(() => {
+    if (!url) return;
+    const parent = root.current?.parentElement;
+    parent?.style.setProperty(
+      "--session-right-pane-width",
+      `${visibleWidth}px`,
+    );
     return () => {
       parent?.style.removeProperty("--session-right-pane-width");
     };
-  }, [width, url]);
+  }, [visibleWidth, url]);
   useEffect(() => {
     if (!url) return;
     const blocked = (event: SecurityPolicyViolationEvent) => {
@@ -80,15 +97,15 @@ export function SessionRightPane({
   }, [url]);
   useEffect(() => {
     if (wide || !pane.expanded) return;
-    const escape = (event: KeyboardEvent) => {
+    const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") pane.hide();
     };
-    document.addEventListener("keydown", escape);
-    return () => document.removeEventListener("keydown", escape);
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
   }, [wide, pane.expanded, pane.hide]);
   if (!pane.selected) return null;
   function resize(value: number) {
-    const next = Math.max(280, Math.min(1600, value));
+    const next = Math.max(280, Math.min(maxWidth, value));
     setWidth(next);
     return next;
   }
@@ -114,8 +131,8 @@ export function SessionRightPane({
             aria-orientation="vertical"
             aria-label={t("sessionRightPaneResize")}
             aria-valuemin={280}
-            aria-valuemax={1600}
-            aria-valuenow={width}
+            aria-valuemax={maxWidth}
+            aria-valuenow={visibleWidth}
             className={styles.splitter}
             onPointerDown={(event) => {
               event.preventDefault();
@@ -137,13 +154,13 @@ export function SessionRightPane({
             onKeyDown={(event) => {
               const next =
                 event.key === "ArrowLeft"
-                  ? width + 20
+                  ? visibleWidth + 20
                   : event.key === "ArrowRight"
-                    ? width - 20
+                    ? visibleWidth - 20
                     : event.key === "Home"
                       ? 280
                       : event.key === "End"
-                        ? 1600
+                        ? maxWidth
                         : undefined;
               if (next === undefined) return;
               event.preventDefault();

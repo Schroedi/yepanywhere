@@ -200,6 +200,13 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
   await frame.getByLabel("Review note").focus();
   await page.mouse.move(10, 590);
   await recordUiCapture(page, "right-pane-desktop-1200");
+  await separator.focus();
+  await page.keyboard.press("End");
+  const widest = (await pane.boundingBox())!.width;
+  await page.keyboard.press("ArrowRight");
+  await expect
+    .poll(async () => (await pane.boundingBox())!.width)
+    .toBeLessThan(widest - 10);
   await pane.getByRole("button", { name: "Minimize session pane" }).click();
   await expect(pane).toBeHidden();
   await expect(page.locator(".sidebar-desktop")).not.toHaveClass(

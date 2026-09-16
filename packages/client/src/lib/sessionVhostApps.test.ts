@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ArtifactViewerStatus } from "@yep-anywhere/shared";
 import { sessionToolUrls, sessionVhostApp } from "./sessionVhostApps";
 
-export const vhostConfig: ArtifactViewerStatus = {
+const vhostConfig: ArtifactViewerStatus = {
   port: 4402,
   available: true,
   locked: false,

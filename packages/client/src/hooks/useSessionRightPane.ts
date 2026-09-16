@@ -55,7 +55,7 @@ export function useSessionRightPane(
         apps: [...previous.apps, ...added],
       };
     });
-  }, [active, config, key, messages, sessionRightPaneEnabled]);
+  }, [active, config, key, messages]);
 
   const apps = current.apps.filter(
     (app) =>
