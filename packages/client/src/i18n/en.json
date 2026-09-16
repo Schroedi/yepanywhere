@@ -2565,7 +2565,7 @@
   "providersIdleReapNever": "Never",
   "providersIdleReapNeverHint": "-1 disables this cleanup. It never ends a running turn or a provider process waiting for user or provider input.",
   "providersPostCompactReplayTitle": "Continue after compaction",
-  "providersPostCompactReplayDescription": "When enabled for a provider, YA injects a hidden user turn after compaction settles and the session is idle. The turn ends with “continue.” An optional replay copies the last N user/assistant prose turns in the same format as Handoff from… and labels them as a replay. Off by default: many providers already continue from their own compact summary, so this is often redundant. Codex in particular often keeps working through compaction.",
+  "providersPostCompactReplayDescription": "When enabled for a provider, YA injects a hidden user turn after compaction settles and the session is idle. The turn ends with “continue.” An optional replay quotes the last N user/assistant prose turns as before-compaction activity, with their original roles. Start at 0 if a provider stops with unfinished work after compaction. Off by default: many providers already continue from their own compact summary, so this is often redundant. Codex in particular often keeps working through compaction.",
   "providersPostCompactReplayCountAria": "Number of recent user and assistant prose turns to replay after compaction",
   "providersPostCompactReplayCountHint": "0 sends only “continue.” Greater than 0 also copies those turns.",
   "providersPostCompactReplayCountValue": "{count} turns",

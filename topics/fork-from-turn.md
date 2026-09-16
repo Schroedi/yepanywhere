@@ -23,7 +23,7 @@ and its bounded lifecycle),
 fork + generation step),
 [session-hovercard-recent-activity](session-hovercard-recent-activity.md) (the
 sibling mobile context-menu / dismiss discussion),
-[post-compact-replay](post-compact-replay.md) (same `user: ` prose format
+[post-compact-replay](post-compact-replay.md) (quoted historical prose
 injected after compaction),
 [provider-agnostic-btw-asides](provider-agnostic-btw-asides.md) (the other fork
 consumer),

@@ -82,30 +82,62 @@ export function selectPostCompactReplayTurns(
   return selected.reverse();
 }
 
-export function buildPostCompactReplayText(params: {
+export type PostCompactReplayPrompt = {
+  /** YA-authored framing, kept separate from historical conversation text. */
+  instruction: string;
+  quotedHistory: string;
+  continuation: string;
+};
+
+export function buildPostCompactReplayPrompt(params: {
   provider: string;
   sessionId: string;
   turns: readonly PostCompactReplayTurn[];
-}): string {
+}): PostCompactReplayPrompt {
   const body = params.turns
-    .map((turn) => (turn.role === "user" ? `user: ${turn.text}` : turn.text))
-    .filter((part) => part.trim().length > 0)
+    .filter((turn) => turn.text.trim().length > 0)
+    .map((turn) => `${turn.role}: ${turn.text}`)
     .join("\n\n");
+  if (!body) {
+    return {
+      instruction: POST_COMPACT_REPLAY_PREAMBLE,
+      quotedHistory: "",
+      continuation: POST_COMPACT_REPLAY_CONTINUE,
+    };
+  }
 
-  const parts = [POST_COMPACT_REPLAY_PREAMBLE];
-  if (params.turns.length > 0) {
-    parts.push(
-      `"user: " indicating a user turn, activity details elided (see ${params.provider} session ${params.sessionId} if needed); this is a replay of the last ${params.turns.length} user/assistant prose turns, not a new request:`,
-      "",
-      body,
-    );
+  const instruction = `${POST_COMPACT_REPLAY_PREAMBLE}\nThe following quotation records before-compaction activity, not a new request. Original user/assistant roles are labeled; activity details are elided (see ${params.provider} session ${params.sessionId} if needed). Later user instructions take precedence over this historical excerpt.`;
+  const continuation = `End of before-compaction quotation.\n\n${POST_COMPACT_REPLAY_CONTINUE}`;
+  let quotedHistory = body
+    .split(/\r\n|\r|\n/)
+    .map((line) => `> ${line}`)
+    .join("\n");
+  // Preserve the framing and continuation when the history reaches the cap.
+  const budget =
+    MAX_POST_COMPACT_REPLAY_CHARS -
+    instruction.length -
+    continuation.length -
+    4;
+  if (quotedHistory.length > budget) {
+    const marker = "\n> …[truncated]";
+    quotedHistory = `${quotedHistory.slice(0, Math.max(0, budget - marker.length))}${marker}`;
   }
-  parts.push("", POST_COMPACT_REPLAY_CONTINUE);
-  const text = parts.join("\n");
-  if (text.length <= MAX_POST_COMPACT_REPLAY_CHARS) {
-    return text;
-  }
-  return `${text.slice(0, MAX_POST_COMPACT_REPLAY_CHARS - 20)}\n\n${POST_COMPACT_REPLAY_CONTINUE}`;
+  return { instruction, quotedHistory, continuation };
+}
+
+/** Ordinary provider delivery stays one message, with the quotation in scope. */
+export function formatPostCompactReplayPrompt(
+  prompt: PostCompactReplayPrompt,
+): string {
+  return [prompt.instruction, prompt.quotedHistory, prompt.continuation]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export function buildPostCompactReplayText(
+  params: Parameters<typeof buildPostCompactReplayPrompt>[0],
+): string {
+  return formatPostCompactReplayPrompt(buildPostCompactReplayPrompt(params));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

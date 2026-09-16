@@ -42,13 +42,16 @@ export {
   MAX_POST_COMPACT_REPLAY_TURN_CHARS,
   POST_COMPACT_REPLAY_CONTINUE,
   POST_COMPACT_REPLAY_PREAMBLE,
+  buildPostCompactReplayPrompt,
   buildPostCompactReplayText,
+  formatPostCompactReplayPrompt,
   clampPostCompactReplayTurnCount,
   isPostCompactReplayEnabledForProvider,
   isPostCompactReplayText,
   parsePostCompactReplaySettings,
   selectPostCompactReplayTurns,
   type PostCompactReplaySettings,
+  type PostCompactReplayPrompt,
   type PostCompactReplayTurn,
 } from "./postCompactReplay.js";
 

@@ -2,15 +2,15 @@
 
 > Post-compact replay is a default-off, per-provider YA setting that
 > injects a hidden continuation user turn after compaction settles, with
-> an optional copy of the last N user/assistant prose turns in the same
-> format as **Handoff from…**.
+> an optional quotation of the last N user/assistant prose turns from
+> before compaction.
 
 Topic: post-compact-replay
 
 Related topics: [compact-and-handoff](compact-and-handoff.md),
 [resume-compaction](resume-compaction.md),
 [injected-message visibility](injected-message-visibility.md),
-[fork-from-turn](fork-from-turn.md) (Handoff from… format),
+[fork-from-turn](fork-from-turn.md),
 [agent context injection](agent-context-injection.md),
 [vanilla defaults](vanilla-defaults.md),
 [settings UI placement](settings-ui-placement.md).
@@ -23,6 +23,11 @@ is a blunt substitute for that summary, and it is redundant for providers that
 already continue the same turn through compaction (Codex commonly does). The
 setting exists so an operator can try it where a harness instead goes idle
 after compact and loses recent prose.
+
+Start with N = 0 on a backend observed going idle with unfinished work. That
+isolates whether a continuation nudge helps. Add replay only when recent intent
+is also being lost; replay can repeat obsolete requests. This setting cannot
+recover a backend that remains busy rather than reaching YA's idle state.
 
 ## Contract
 
@@ -37,9 +42,16 @@ after compact and loses recent prose.
   cancels the pending continuation.
 - **N = 0.** The injected turn is the stable opener plus `continue.`
 - **N > 0.** The turn copies the last N user/assistant prose turns (tools,
-  thinking, compact banners, and slash commands omitted). User rows use the
-  `user: ` prefix from **Handoff from…**. The opener states that this is a
-  replay, not a new request. The turn still ends with `continue.`
+  thinking, compact banners, and slash commands omitted). Every historical line
+  is blockquoted, with explicit `user:` and `assistant:` labels. YA identifies
+  it as before-compaction activity, not a new request, and says later user
+  instructions take precedence. The quotation ends before `continue.`; the
+  40,000-character budget clips history without clipping that framing.
+- **Delivery.** YA builds separate instruction, quoted-history, and continuation
+  parts, then joins them into one ordinary user message for all providers.
+  Internal separation does not split the quotation across messages or enable
+  elevated roles. [Codex developer-role context](../gaps/codex-developer-role-context.md)
+  remains an experiment to evaluate, with no demonstrated behavioral benefit.
 - **Visibility.** The turn is `metadata.hidden` and
   `automaticSource: "post-compact-replay"`. Transcript projection also hides
   persisted user rows that start with the stable opener, so the replay is

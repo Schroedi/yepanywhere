@@ -1371,10 +1371,11 @@ describe("Supervisor", () => {
           text.startsWith(POST_COMPACT_REPLAY_PREAMBLE),
         );
         expect(replay).toBeDefined();
-        expect(replay).toContain("user: fix the parser");
-        expect(replay).toContain("reply to fix the parser");
+        expect(delivered).toHaveLength(2);
+        expect(replay).toContain("> user: fix the parser");
+        expect(replay).toContain("> assistant: reply to fix the parser");
         expect(replay).toContain(
-          "this is a replay of the last 2 user/assistant prose turns",
+          "quotation records before-compaction activity, not a new request",
         );
         expect(replay?.trim().endsWith(POST_COMPACT_REPLAY_CONTINUE)).toBe(
           true,

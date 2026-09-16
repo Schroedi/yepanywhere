@@ -16,7 +16,8 @@ import {
   type WorkstreamId,
   type PostCompactReplaySettings,
   type PostCompactReplayTurn,
-  buildPostCompactReplayText,
+  buildPostCompactReplayPrompt,
+  formatPostCompactReplayPrompt,
   isPostCompactReplayEnabledForProvider,
   selectPostCompactReplayTurns,
   readGoalDetails,
@@ -1877,7 +1878,7 @@ export class Supervisor {
     }
 
     this.pendingPostCompactReplay.delete(process.id);
-    const text = buildPostCompactReplayText({
+    const prompt = buildPostCompactReplayPrompt({
       provider: process.provider,
       sessionId: process.sessionId,
       turns: pending.turns,
@@ -1885,7 +1886,7 @@ export class Supervisor {
     const queued = await this.queueProcessMessage(
       process,
       {
-        text,
+        text: formatPostCompactReplayPrompt(prompt),
         automaticSource: "post-compact-replay",
         metadata: { hidden: true },
       },
