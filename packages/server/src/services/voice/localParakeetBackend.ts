@@ -1,6 +1,7 @@
 import { WarmPixiSttBackend, workerScriptPath } from "./warmPixiSttBackend.js";
 
-export const DEFAULT_PARAKEET_MODEL = "nvidia/parakeet-tdt-0.6b-v3";
+export const DEFAULT_PARAKEET_MODEL =
+  "ai-and-i-project/parakeet-tdt-0.6b-v2-hf";
 
 const PARAKEET_REPAIR_HINT =
   "If Hugging Face auth or a gated model is the problem, run `pixi run --frozen -e stt hf auth login` and accept the model terms on Hugging Face. If the error is ENOSPC, free the cache/tmp filesystem or set HF_HUB_CACHE, HF_XET_CACHE, and TMPDIR before starting YA.";

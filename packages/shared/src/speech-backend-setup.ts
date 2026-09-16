@@ -37,10 +37,10 @@ export const LOCAL_SPEECH_BACKEND_SPECS: readonly LocalSpeechBackendSpec[] = [
     pixiEnvironment: "stt",
     bootstrapTask: "stt-bootstrap-parakeet",
     checkPython: "import torch; from transformers import pipeline",
-    defaultModel: "nvidia/parakeet-tdt-0.6b-v3",
-    hfGated: true,
+    defaultModel: "ai-and-i-project/parakeet-tdt-0.6b-v2-hf",
+    hfGated: false,
     downloadPython:
-      "from transformers import pipeline; pipeline('automatic-speech-recognition', model='nvidia/parakeet-tdt-0.6b-v3'); print('parakeet weights ready')",
+      "from transformers import pipeline; pipeline('automatic-speech-recognition', model='ai-and-i-project/parakeet-tdt-0.6b-v2-hf'); print('parakeet weights ready')",
   },
   {
     id: "ya-nemo",

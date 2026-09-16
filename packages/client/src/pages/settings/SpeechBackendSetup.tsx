@@ -229,6 +229,11 @@ export function SpeechBackendSetup() {
                 </p>
               )}
               <code className={styles.model}>{row.defaultModel}</code>
+              {row.id === "ya-whisper" && (
+                <span className="settings-hint">
+                  {t("speechBackendSetupWhisperPerformance")}
+                </span>
+              )}
               {row.defaultModel === "distil-large-v3.5" && (
                 <span className="settings-hint">756M parameters</span>
               )}

@@ -488,6 +488,7 @@ describe("SpeechControlMenu", () => {
   });
 
   it("normalizes an incompatible preset when switching to a Parakeet backend", async () => {
+    versionState.capabilities = ["local-speech-model-selection"];
     installMediaDevices([]);
     modelSettings.parakeetSpeechModel = "nvidia/parakeet-rnnt-1.1b";
     const onMethodChange = vi.fn();
@@ -508,11 +509,11 @@ describe("SpeechControlMenu", () => {
 
     expect(onMethodChange).toHaveBeenCalledWith(["ya-parakeet"]);
     expect(modelSettings.setParakeetSpeechModel).toHaveBeenCalledWith(
-      "nvidia/parakeet-tdt-0.6b-v3",
+      "ai-and-i-project/parakeet-tdt-0.6b-v2-hf",
     );
     expect(prewarmYaServerSpeechBackend).toHaveBeenCalledWith(
       "ya-parakeet",
-      "nvidia/parakeet-tdt-0.6b-v3",
+      "ai-and-i-project/parakeet-tdt-0.6b-v2-hf",
     );
   });
 });

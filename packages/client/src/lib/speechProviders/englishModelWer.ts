@@ -14,6 +14,9 @@ const SCORES: Readonly<Record<string, string>> = {
 };
 
 export function englishModelWer(model: string): string {
+  if (model === "ai-and-i-project/parakeet-tdt-0.6b-v2-hf") {
+    return "EN WER 4.70% (upstream v2)";
+  }
   if (model === "nvidia/parakeet-unified-en-0.6b") {
     return "EN WER 5.91% (NVIDIA eval)";
   }

@@ -10,6 +10,7 @@ Request line:  {"audio_b64":"<base64>","mime_type":"audio/webm;codecs=opus"}
 Response line: {"text":"..."} or {"error":"..."}
 Startup line:  {"status":"ready"} (written once after model loads)
 """
+
 import base64
 import json
 import sys
@@ -45,7 +46,9 @@ def transcript_text(output: Any) -> str:
 
 
 def main() -> None:
-    model_name = sys.argv[1] if len(sys.argv) > 1 else "nvidia/parakeet-tdt-0.6b-v3"
+    model_name = (
+        sys.argv[1] if len(sys.argv) > 1 else "ai-and-i-project/parakeet-tdt-0.6b-v2-hf"
+    )
     device_arg = sys.argv[2] if len(sys.argv) > 2 else "auto"
 
     sys.stderr.write(

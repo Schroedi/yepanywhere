@@ -383,6 +383,7 @@ describe("SpeechSettings", () => {
   });
 
   it("normalizes an incompatible preset when selecting a local STT backend globally", () => {
+    versionState.capabilities = ["local-speech-model-selection"];
     modelSettings.speechMethod = "ya-grok";
     modelSettings.parakeetSpeechModel = "nvidia/parakeet-rnnt-1.1b";
     render(<SpeechSettings />);
@@ -396,11 +397,11 @@ describe("SpeechSettings", () => {
 
     expect(modelSettings.setSpeechMethod).toHaveBeenCalledWith("ya-parakeet");
     expect(modelSettings.setParakeetSpeechModel).toHaveBeenCalledWith(
-      "nvidia/parakeet-tdt-0.6b-v3",
+      "ai-and-i-project/parakeet-tdt-0.6b-v2-hf",
     );
     expect(prewarmYaServerSpeechBackend).toHaveBeenCalledWith(
       "ya-parakeet",
-      "nvidia/parakeet-tdt-0.6b-v3",
+      "ai-and-i-project/parakeet-tdt-0.6b-v2-hf",
     );
   });
 

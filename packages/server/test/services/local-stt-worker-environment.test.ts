@@ -46,6 +46,11 @@ describe("local speech worker environment", () => {
       try {
         await new Backend().prewarm();
         expect(spawnMock).toHaveBeenCalledOnce();
+        if (Backend === LocalParakeetBackend) {
+          expect(spawnMock.mock.lastCall?.[1]).toContain(
+            "ai-and-i-project/parakeet-tdt-0.6b-v2-hf",
+          );
+        }
         if (Backend === LocalNemoBackend) {
           expect(spawnMock.mock.lastCall?.[1]).toContain(
             "nvidia/parakeet-unified-en-0.6b",

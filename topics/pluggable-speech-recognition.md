@@ -431,8 +431,10 @@ client through `fetchJSON("/speech/transcribe", ...)`.
 The server defaults to `distil-large-v3.5` for Whisper and
 `nvidia/parakeet-unified-en-0.6b` for NeMo Parakeet, at the maintainer's
 request. Explicit `WHISPER_MODEL` and `NEMO_MODEL` settings remain authoritative.
-Transformers Parakeet retains `nvidia/parakeet-tdt-0.6b-v3`; unified RNNT is a
-NeMo model. These choices are not verified tablet-quality improvements.
+Transformers Parakeet defaults to the English v2 HF conversion
+`ai-and-i-project/parakeet-tdt-0.6b-v2-hf`; unified RNNT is a NeMo model.
+Explicit multilingual v3 selections remain available. These choices are not
+verified tablet-quality improvements.
 
 Speech settings and the microphone menu offer recent model presets and custom
 IDs. Whisper offers distilled v3.5, full large-v3, turbo, and distilled v3;
@@ -498,7 +500,7 @@ these numbers with older model-card averages using the previous test sets.
 | Granite Speech 4.1 2B NAR | 4.68 | 2073.53 | Faster decoding candidate, not a drop-in worker model swap |
 | Parakeet TDT 0.6B v2 | 4.70 | 6024.67 | English option; lower mean English WER than v3 |
 | Granite Speech 5.0 470M TurboCTC NC | 4.78 | 12761.85 | Fast English candidate with noncommercial license |
-| Parakeet TDT 0.6B v3 | 4.86 | 6076.07 | Multilingual option; Transformers-compatible default |
+| Parakeet TDT 0.6B v3 | 4.86 | 6076.07 | Multilingual option |
 | Granite Speech 5.0 470M TurboCTC | 5.04 | 12945.54 | Small, Apache-2.0 English speed candidate |
 | Distil-Whisper large-v3.5 | 5.40 | 879.27 | Recommended only without GPU in YA |
 
@@ -520,10 +522,20 @@ Cohere remains comparison and gap only in this pass.
 NeMo's default install and fallback model remains Unified English, following
 the user's final preference after considering NVIDIA's comparison. Explicit
 saved model choices and environment overrides remain unchanged. V2 and v3
-remain selectable. The Transformers backend
-retains v3 because YA's v2 preset is NeMo-only; the legacy-client compatibility
-fallback likewise remains v3. Do not send the NeMo checkpoint to Transformers
-merely to give both backends the same default name.
+remain selectable. Separately, the user requested plain Transformers Parakeet
+default to v2, not v3. NVIDIA's v2 repository only ships a `.nemo` bundle, so
+YA uses the documented HF conversion `ai-and-i-project/parakeet-tdt-0.6b-v2-hf`.
+The native NVIDIA v2 preset remains NeMo-only; the HF-converted v2 preset is
+Transformers-only. Legacy-client compatibility requests retain v3.
+
+The conversion's revision `72a7290b5a7594bb7cdd109694d184d108c8a260`
+(2,471,976,417 repository bytes) loaded and transcribed the known Quilter
+sample through YA's existing `parakeet_worker.py` and unchanged `stt` runtime
+on 2026-09-16. Its card describes unchanged upstream weights with tokenizer
+packaging corrected for v2's vocabulary. UI WER is explicitly labeled
+"upstream v2", not a new evaluation of the conversion. Install, server fallback,
+standalone worker fallback, and client preset all name the same converted model;
+existing explicit saved models and `PARAKEET_MODEL` remain authoritative.
 
 [IBM's August 25 release](https://huggingface.co/blog/ibm-granite/granite-speech-5-0-470m-turboctc)
 introduces encoder-only 5.0 TurboCTC, newer than 4.1. It sacrifices speech
@@ -549,6 +561,9 @@ Distil large-v3.5 shows its model-card count of 756M parameters. NeMo's install
 caption estimates 8,000 MB installed Linux runtime, excluding model weights
 and distinguishing download size: the local isolated environment measured
 7,662 MiB on 2026-09-16. Cache sharing and platforms change disk/download needs.
+Whisper's performance caption says optimized CPU inference, with GPU
+acceleration available when configured. YA defaults to CPU/int8 and does not
+automatically choose CUDA; `WHISPER_DEVICE` overrides the device.
 Whisper is recommended only
 without a GPU. Its [model card](https://huggingface.co/openai/whisper-large-v3)
 documents invented transcript text; silence/non-speech hallucinations are

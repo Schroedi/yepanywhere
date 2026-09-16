@@ -202,7 +202,7 @@ export interface SpeechRegistryInitOptions {
   whisperDevice?: string;
   /** Whisper compute type (default: int8). */
   whisperComputeType?: string;
-  /** Parakeet fallback model name (default: nvidia/parakeet-tdt-0.6b-v3). */
+  /** Parakeet fallback model (default: ai-and-i-project/parakeet-tdt-0.6b-v2-hf). */
   parakeetModel?: string;
   /** Parakeet device (default: auto). */
   parakeetDevice?: string;
