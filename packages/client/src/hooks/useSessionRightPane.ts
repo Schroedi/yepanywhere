@@ -7,6 +7,8 @@ import {
   type SessionVhostApp,
 } from "../lib/sessionVhostApps";
 import { useSessionRightPaneSetting } from "./useSessionRightPaneSetting";
+import { sessionViewerUsesRightPane } from "../lib/sessionViewerPlacement";
+import type { FileViewerControllerState } from "../lib/fileViewerController";
 import { useSessionApps } from "../lib/sessionApps";
 import { useVhostAccess } from "./useVhostAccess";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
@@ -138,6 +140,12 @@ export function useSessionRightPane(
     sessionRightPaneEnabled && owned
       ? apps.find((app) => app.url === owned.url)
       : undefined;
+  const fileViewer: FileViewerControllerState | undefined =
+    controller?.kind === "file" &&
+    controller.sessionId === sessionId &&
+    sessionViewerUsesRightPane(controller)
+      ? controller
+      : undefined;
   const canKill = selected?.artifactToken ? true : canKillVhost;
   const viewerId = owned?.id;
   const minimized = owned?.minimized;
@@ -247,6 +255,18 @@ export function useSessionRightPane(
     if (!canKill || !selected || killing) return;
     setKilling(true);
     setKillError(undefined);
+    saveApps(
+      JSON.stringify({
+        dismissed: [
+          ...new Set([
+            ...savedApps.dismissed,
+            ...current.apps.map((app) => app.announcementId),
+          ]),
+        ],
+      }),
+    );
+    // Dismiss immediately; a pending stop request must not hold the pane open.
+    owned?.close();
     try {
       if (!selected.artifactToken) {
         if (
@@ -266,17 +286,6 @@ export function useSessionRightPane(
     } catch (error) {
       setKillError(error instanceof Error ? error.message : String(error));
     } finally {
-      saveApps(
-        JSON.stringify({
-          dismissed: [
-            ...new Set([
-              ...savedApps.dismissed,
-              ...current.apps.map((app) => app.announcementId),
-            ]),
-          ],
-        }),
-      );
-      owned?.close();
       setKilling(false);
     }
   };
@@ -297,6 +306,7 @@ export function useSessionRightPane(
     config,
     apps,
     selected,
+    fileViewer,
     copyUrl:
       selected && !selected.artifactToken
         ? (sessionVhostApp(
@@ -322,11 +332,11 @@ export function useSessionRightPane(
               : "unavailable"
         : undefined,
     appError: listener?.viewerId === owned?.id ? listener?.error : undefined,
-    expanded: !!selected && !owned?.minimized,
+    expanded: !!(selected || fileViewer) && !controller?.minimized,
     enabled: sessionRightPaneEnabled,
     select,
-    hide: () => owned?.minimize(),
-    close: () => owned?.close(),
+    hide: () => (fileViewer ?? owned)?.minimize(),
+    close: () => (fileViewer ?? owned)?.close(),
     canKill,
     killing,
     killError,

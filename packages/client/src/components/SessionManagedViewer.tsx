@@ -9,6 +9,11 @@ import {
   useMemo,
   useRef,
 } from "react";
+import { createPortal } from "react-dom";
+import { useSessionRightPaneSetting } from "../hooks/useSessionRightPaneSetting";
+import { usePanelSlideAnimations } from "../hooks/usePanelSlideAnimations";
+import { useClosingPaneContent } from "../hooks/useClosingPaneContent";
+import { sessionViewerUsesRightPane } from "../lib/sessionViewerPlacement";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
 import { useRetainedVersionInfo } from "../hooks/useVersion";
 import { isArtifactLink } from "../lib/artifactPreview";
@@ -40,6 +45,14 @@ interface SessionManagedPanelProps {
 }
 
 const SessionViewerContext = createContext<string | null>(null);
+const SessionFileViewerHostContext = createContext<{
+  target: HTMLElement | null;
+  inactive: boolean;
+} | null>(null);
+
+export function useSessionFileViewerHost() {
+  return useContext(SessionFileViewerHostContext);
+}
 const SessionArtifactLinkContext = createContext<
   ((url: string, label: string) => boolean) | null
 >(null);
@@ -112,6 +125,7 @@ export function SessionViewerProvider({
   onSendComment,
   onOpenApp,
   appConfig,
+  rightPaneTarget,
   children,
 }: {
   sessionId: string;
@@ -119,6 +133,7 @@ export function SessionViewerProvider({
   onSendComment?: SendSessionViewerComment;
   onOpenApp?: (url: string) => boolean;
   appConfig?: SessionAppConfig;
+  rightPaneTarget?: HTMLElement | null;
   children: ReactNode;
 }) {
   const runtime = useCurrentSourceRuntime();
@@ -154,7 +169,11 @@ export function SessionViewerProvider({
           <SessionAppLinkContext.Provider value={appLinks}>
             {children}
           </SessionAppLinkContext.Provider>
-          <SessionManagedViewerHost sessionId={sessionId} inactive={inactive} />
+          <SessionManagedViewerHost
+            sessionId={sessionId}
+            inactive={inactive}
+            rightPaneTarget={rightPaneTarget}
+          />
         </SessionViewerCommentProvider>
       </SessionArtifactLinkContext.Provider>
     </SessionViewerContext.Provider>
@@ -169,9 +188,10 @@ export function SessionViewerTranscriptGate({
 }) {
   const sessionId = useSessionViewerSessionId();
   const controller = useSessionViewerController();
+  useSessionRightPaneSetting();
   const viewerOpen = Boolean(
     controller?.sessionId === sessionId &&
-      controller.kind !== "vhost" &&
+      !sessionViewerUsesRightPane(controller) &&
       !controller.minimized,
   );
   const renderedChildrenRef = useRef(children);
@@ -184,11 +204,15 @@ export function SessionViewerTranscriptGate({
 export function SessionManagedViewerHost({
   sessionId,
   inactive = false,
+  rightPaneTarget,
 }: {
   sessionId: string;
   inactive?: boolean;
+  rightPaneTarget?: HTMLElement | null;
 }) {
   const controller = useSessionViewerController();
+  const { sessionRightPaneEnabled } = useSessionRightPaneSetting();
+  const { panelSlideDurationMs } = usePanelSlideAnimations();
   const controllerRef = useRef(controller);
   const lifecycleGenerationRef = useRef(0);
   controllerRef.current = controller;
@@ -196,12 +220,18 @@ export function SessionManagedViewerHost({
     controller?.kind === "panel" && controller.sessionId === sessionId
       ? controller
       : null;
-  const file =
+  const activeFile =
     controller?.kind === "file" &&
     controller.sessionId === sessionId &&
     controller.renderContent
       ? controller
       : null;
+  const file = useClosingPaneContent(
+    activeFile,
+    sessionRightPaneEnabled && (!controller || activeFile)
+      ? panelSlideDurationMs
+      : 0,
+  );
 
   useEffect(() => {
     lifecycleGenerationRef.current += 1;
@@ -220,7 +250,27 @@ export function SessionManagedViewerHost({
     };
   }, [sessionId]);
 
-  if (file) return file.renderContent(inactive);
+  if (file) {
+    const content = (
+      <SessionViewerContext.Provider value={null}>
+        <SessionFileViewerHostContext.Provider
+          value={{
+            target: sessionViewerUsesRightPane(file)
+              ? (rightPaneTarget ?? null)
+              : null,
+            inactive: inactive || file.minimized || controller?.id !== file.id,
+          }}
+        >
+          {file.renderContent(inactive, sessionViewerUsesRightPane(file))}
+        </SessionFileViewerHostContext.Provider>
+      </SessionViewerContext.Provider>
+    );
+    if (sessionViewerUsesRightPane(file)) {
+      if (!rightPaneTarget) return null;
+      return createPortal(content, rightPaneTarget);
+    }
+    return content;
+  }
   if (controller?.kind === "artifact" && controller.sessionId === sessionId)
     return (
       <ArtifactLinkViewer

@@ -1,3 +1,8 @@
+.viewer {
+  container-type: inline-size;
+  container-name: file-viewer;
+}
+
 .body {
   position: relative;
 }
@@ -73,7 +78,7 @@
   pointer-events: auto;
 }
 
-@media (max-width: 800px) {
+@container file-viewer (max-width: 800px) {
   .header {
     display: grid;
     grid-template-columns: max-content minmax(0, 1fr) max-content;
@@ -125,7 +130,7 @@
   }
 }
 
-@media (max-width: 480px) {
+@container file-viewer (max-width: 480px) {
   .actions {
     display: grid;
     grid-template-columns: repeat(3, max-content) repeat(4, 32px);

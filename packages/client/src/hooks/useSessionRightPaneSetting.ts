@@ -1,8 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { createLocalStorageBoolean } from "../lib/localStorageValue";
-import { UI_KEYS } from "../lib/storageKeys";
-
-const store = createLocalStorageBoolean(UI_KEYS.sessionRightPane, false);
+import { sessionRightPaneSetting as store } from "../lib/sessionViewerPlacement";
 
 export function useSessionRightPaneSetting() {
   const sessionRightPaneEnabled = useSyncExternalStore(

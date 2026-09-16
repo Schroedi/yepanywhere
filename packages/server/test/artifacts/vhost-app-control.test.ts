@@ -9,12 +9,13 @@ import {
 import { createVhostAppRoutes } from "../../src/routes/vhostApps.js";
 
 const children: ChildProcess[] = [];
-async function app(port = 0) {
+async function app(port = 0, cleanupMs = 0) {
   const child = spawn(
     process.execPath,
     [
       "-e",
-      `require('node:net').createServer().listen(${port}, '127.0.0.1', function() { process.stdout.write(String(this.address().port)+'\\n'); });`,
+      `if (${cleanupMs} > 0) process.once('SIGTERM', () => setTimeout(() => process.exit(0), ${cleanupMs}));
+       require('node:net').createServer().listen(${port}, '127.0.0.1', function() { process.stdout.write(String(this.address().port)+'\\n'); });`,
     ],
     { stdio: ["ignore", "pipe", "pipe"] },
   );
@@ -58,6 +59,14 @@ describe.skipIf(!vhostAppControlAvailable)(
         ).json(),
       ).toEqual({ token: null });
     });
+    it("allows a listener more than 1.5 seconds for SIGTERM cleanup", async () => {
+      const { child, port } = await app(0, 2000);
+      const control = new VhostAppControl(() => [{ name: "review", port }]);
+      const { token } = await control.identify("review");
+      await control.stop("review", token);
+      expect(child.exitCode).toBe(0);
+      expect(await control.identify("review")).toEqual({ token: null });
+    }, 10000);
     it("rejects a replacement listener instead of killing a reused port", async () => {
       const first = await app();
       const control = new VhostAppControl(() => [

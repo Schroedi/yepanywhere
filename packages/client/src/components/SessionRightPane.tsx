@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type Ref, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { useSessionRightPane } from "../hooks/useSessionRightPane";
 import { useI18n } from "../i18n";
 import { createLocalStorageValue } from "../lib/localStorageValue";
@@ -6,6 +6,8 @@ import { UI_KEYS } from "../lib/storageKeys";
 import styles from "./SessionRightPane.module.css";
 import { ViewerWindowActions } from "./ViewerWindowActions";
 import { suppressTooltipsFor } from "../hooks/useTooltipAppearance";
+import { usePanelSlideAnimations } from "../hooks/usePanelSlideAnimations";
+import { useClosingPaneContent } from "../hooks/useClosingPaneContent";
 
 type Pane = ReturnType<typeof useSessionRightPane>;
 const widthStore = createLocalStorageValue(
@@ -29,8 +31,10 @@ export function SessionAppAction({ pane }: { pane: Pane }) {
     <button
       className={styles.launcher}
       type="button"
-      onClick={() => (pane.expanded ? pane.close() : pane.select(app.url))}
-      aria-pressed={pane.expanded}
+      onClick={() =>
+        pane.selected && pane.expanded ? pane.close() : pane.select(app.url)
+      }
+      aria-pressed={!!pane.selected && pane.expanded}
       title={app.label}
     >
       {t("sessionRightPaneApps")}
@@ -48,13 +52,42 @@ export function SessionAppAction({ pane }: { pane: Pane }) {
   );
 }
 
-/** A session right pane keeps its selected frame mounted while hidden. */
+/** Retain closing content only for the right pane's slide-out animation. */
 export function SessionRightPane({
   pane,
   wide,
+  fileContentRef,
 }: {
   pane: Pane;
   wide: boolean;
+  fileContentRef?: Ref<HTMLDivElement>;
+}) {
+  const { panelSlideDurationMs } = usePanelSlideAnimations();
+  const content = useClosingPaneContent(
+    pane.selected || pane.fileViewer ? pane : null,
+    panelSlideDurationMs,
+  );
+  return (
+    <SessionRightPaneContent
+      pane={content ?? pane}
+      expanded={pane.expanded}
+      wide={wide}
+      fileContentRef={fileContentRef}
+    />
+  );
+}
+
+/** Minimized panes keep their frame mounted for restore. */
+function SessionRightPaneContent({
+  pane,
+  expanded,
+  wide,
+  fileContentRef,
+}: {
+  pane: Pane;
+  expanded: boolean;
+  wide: boolean;
+  fileContentRef?: Ref<HTMLDivElement>;
 }) {
   const { t } = useI18n();
   const root = useRef<HTMLElement>(null);
@@ -64,8 +97,9 @@ export function SessionRightPane({
   const [dragging, setDragging] = useState(false);
   const [blockedUrl, setBlockedUrl] = useState<string | null>(null);
   const url = pane.selected?.url;
+  const viewerIdentity = url ?? pane.fileViewer?.id;
   useLayoutEffect(() => {
-    if (!url) return;
+    if (!viewerIdentity) return;
     const parent = root.current?.parentElement;
     if (!parent) return;
     const measure = () =>
@@ -74,9 +108,9 @@ export function SessionRightPane({
     const observer = new ResizeObserver(measure);
     observer.observe(parent);
     return () => observer.disconnect();
-  }, [url]);
+  }, [viewerIdentity]);
   useLayoutEffect(() => {
-    if (!url) return;
+    if (!viewerIdentity) return;
     const parent = root.current?.parentElement;
     parent?.style.setProperty(
       "--session-right-pane-width",
@@ -85,7 +119,7 @@ export function SessionRightPane({
     return () => {
       parent?.style.removeProperty("--session-right-pane-width");
     };
-  }, [visibleWidth, url]);
+  }, [visibleWidth, viewerIdentity]);
   useEffect(() => {
     if (!url) return;
     const blocked = (event: SecurityPolicyViolationEvent) => {
@@ -100,14 +134,13 @@ export function SessionRightPane({
       document.removeEventListener("securitypolicyviolation", blocked);
   }, [url]);
   useEffect(() => {
-    if (wide || !pane.expanded) return;
+    if (wide || !expanded || pane.fileViewer) return;
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") pane.hide();
     };
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [wide, pane.expanded, pane.hide]);
-  if (!pane.selected) return null;
+  }, [wide, expanded, pane.hide, pane.fileViewer]);
   function resize(value: number) {
     const next = Math.max(280, Math.min(maxWidth, value));
     setWidth(next);
@@ -115,7 +148,7 @@ export function SessionRightPane({
   }
   return (
     <>
-      {!wide && pane.expanded && (
+      {!wide && expanded && (
         <button
           type="button"
           className={styles.backdrop}
@@ -126,7 +159,11 @@ export function SessionRightPane({
       <aside
         ref={root}
         aria-label={t("sessionRightPaneLabel")}
-        className={`${styles.pane} ${!pane.expanded ? styles.hidden : ""}`}
+        aria-hidden={!expanded}
+        inert={!expanded}
+        data-resizing={dragging}
+        style={wide ? { width: visibleWidth } : undefined}
+        className={`${styles.pane} ${!expanded ? styles.hidden : ""}`}
       >
         {wide && (
           <div
@@ -172,48 +209,61 @@ export function SessionRightPane({
             }}
           />
         )}
-        <header className={styles.header}>
-          <span className={styles.title}>{pane.selected.label}</span>
-          <ViewerWindowActions
-            url={pane.selected.url}
-            copyUrl={pane.copyUrl}
-            onMinimize={pane.hide}
-            onClose={pane.canKill ? () => void pane.kill() : undefined}
-            onMoveOut={pane.close}
-            destructiveClose={!pane.selected.artifactToken}
-            closeDisabled={pane.killing}
-            minimizeLabel={t("sessionRightPaneHide")}
-            closeLabel={t(
-              pane.selected.artifactToken
-                ? "sessionRightPaneClose"
-                : "sessionRightPaneKill",
+        {pane.selected && (
+          <>
+            <header className={styles.header}>
+              <span className={styles.title}>{pane.selected.label}</span>
+              <ViewerWindowActions
+                url={pane.selected.url}
+                copyUrl={pane.copyUrl}
+                onMinimize={pane.hide}
+                onClose={pane.canKill ? () => void pane.kill() : undefined}
+                onMoveOut={pane.close}
+                destructiveClose={!pane.selected.artifactToken}
+                closeDisabled={pane.killing}
+                minimizeLabel={t("sessionRightPaneHide")}
+                closeLabel={t(
+                  pane.selected.artifactToken
+                    ? "sessionRightPaneClose"
+                    : "sessionRightPaneKill",
+                )}
+              />
+            </header>
+            {pane.appStatus === "checking" ? (
+              <p className={styles.error} role="status">
+                {t("sessionRightPaneChecking")}
+              </p>
+            ) : pane.appStatus === "unavailable" ||
+              pane.appStatus === "error" ? (
+              <p className={styles.error} role="alert">
+                {pane.appError ?? t("sessionRightPaneUnavailable")}
+              </p>
+            ) : blockedUrl === url ? (
+              <p className={styles.error}>
+                {t("sessionRightPaneFrameBlocked")}
+              </p>
+            ) : (
+              // biome-ignore lint/a11y/useIframeTitle: aria-label names the frame without a native tooltip over the app content.
+              <iframe
+                key={`${pane.frameKey}:${url}`}
+                src={url}
+                onLoad={pane.onFrameLoad}
+                title=""
+                aria-label={pane.selected.label}
+                onPointerEnter={() => suppressTooltipsFor(0)}
+                referrerPolicy="no-referrer"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
+                className={styles.frame}
+              />
             )}
-          />
-        </header>
-        {pane.appStatus === "checking" ? (
-          <p className={styles.error} role="status">
-            {t("sessionRightPaneChecking")}
-          </p>
-        ) : pane.appStatus === "unavailable" || pane.appStatus === "error" ? (
-          <p className={styles.error} role="alert">
-            {pane.appError ?? t("sessionRightPaneUnavailable")}
-          </p>
-        ) : blockedUrl === url ? (
-          <p className={styles.error}>{t("sessionRightPaneFrameBlocked")}</p>
-        ) : (
-          // biome-ignore lint/a11y/useIframeTitle: aria-label names the frame without a native tooltip over the app content.
-          <iframe
-            key={`${pane.frameKey}:${url}`}
-            src={url}
-            onLoad={pane.onFrameLoad}
-            title=""
-            aria-label={pane.selected.label}
-            onPointerEnter={() => suppressTooltipsFor(0)}
-            referrerPolicy="no-referrer"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
-            className={styles.frame}
-          />
+          </>
         )}
+        <div
+          ref={fileContentRef}
+          className={styles.fileContent}
+          data-session-right-pane-layer
+          hidden={!pane.fileViewer}
+        />
         {dragging && <div className={styles.dragShield} />}
       </aside>
     </>

@@ -14,6 +14,7 @@ import { Sidebar, SidebarToggleIcon } from "../components/Sidebar";
 import { GlossaryProjectProvider } from "../contexts/GlossaryContext";
 import { MOBILE_KEYBOARD_OPEN_VIEWPORT_RATIO } from "../lib/mobileKeyboardViewport";
 import { useSidebarPreference } from "../hooks/useSidebarPreference";
+import { usePanelSlideAnimations } from "../hooks/usePanelSlideAnimations";
 import {
   DESKTOP_BREAKPOINT,
   MIN_CONTENT_WIDTH,
@@ -161,6 +162,7 @@ export function NavigationLayout(props: NavigationLayoutProps) {
 
 function NavigationLayoutFrame({ sessionElement }: NavigationLayoutProps) {
   const { t } = useI18n();
+  const { panelSlideDurationMs } = usePanelSlideAnimations();
 
   const location = useLocation();
   const sidebarSessionMatch = useMemo(
@@ -353,13 +355,14 @@ function NavigationLayoutFrame({ sessionElement }: NavigationLayoutProps) {
     ],
   );
 
-  // CSS variable for sidebar width
   const containerStyle = useMemo(
     () =>
-      isWideScreen
-        ? ({ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties)
-        : undefined,
-    [isWideScreen, sidebarWidth],
+      ({
+        "--sidebar-width": isWideScreen ? `${sidebarWidth}px` : undefined,
+        "--panel-slide-duration": `${panelSlideDurationMs}ms`,
+        "--panel-fade-duration": panelSlideDurationMs ? undefined : "0s",
+      }) as React.CSSProperties,
+    [isWideScreen, sidebarWidth, panelSlideDurationMs],
   );
   const desktopSidebarStyle = useMemo(
     () => ({ width: effectivelyCollapsed ? undefined : sidebarWidth }),

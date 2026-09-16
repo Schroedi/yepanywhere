@@ -73,10 +73,19 @@ the ordinary local settings behavior.
 
 ## Reviewed settings behavior
 
+**Appearance → Slide animations** is a browser-local preference, enabled by
+default to preserve sidebar motion. It also controls the right pane's own
+show/hide animation and desktop space allocation. Turning it off makes sidebar
+and right-pane changes immediate. Reduced-motion preferences also suppress
+these animations without changing the saved setting. It does not change which
+panes open, their widths, or unrelated animations. The preference applies
+immediately, supports Appearance undo, and transfers with browser settings.
+
 **Apps** owns artifact delivery, expiry/deletion options, static vhosts and
 app-link protection. Local Access and Remote Access provide links there.
 **Appearance → Session right pane** remains a default-off browser preference;
-it changes presentation, not hosting or access policy. Apps configuration is
+it places session file viewers and detected apps in the same right pane,
+without changing hosting or access policy. Apps configuration is
 server-persisted, while discovered session App chips are source/session-scoped
 browser state.
 Apps text/number fields save on defocus (Enter also commits); toggles, slider

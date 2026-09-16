@@ -72,6 +72,7 @@ import { useI18n } from "../i18n";
 import type { BtwToolbarMode } from "../lib/btwAsideRouting";
 import { writeClipboardTextLater } from "../lib/clipboard";
 import { BROWSER_DEBUG_LEASE_TTL_MS } from "../lib/browserDebugLease";
+import { sessionViewerUsesRightPane } from "../lib/sessionViewerPlacement";
 import {
   type SessionViewerControllerState,
   useSessionViewerController,
@@ -1859,7 +1860,7 @@ export function MessageInputToolbarView({
   };
   const coveringViewerOpen =
     fileViewerController &&
-    fileViewerController.kind !== "vhost" &&
+    !sessionViewerUsesRightPane(fileViewerController) &&
     !fileViewerController.minimized;
   const handleToolbarClickCapture = (event: MouseEvent<HTMLDivElement>) => {
     if (!coveringViewerOpen) return;

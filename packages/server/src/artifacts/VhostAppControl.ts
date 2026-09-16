@@ -117,7 +117,7 @@ export class VhostAppControl {
         "App listener changed; reopen the app before trying again",
       );
     process.kill(observed.pid, "SIGTERM");
-    for (let attempt = 0; attempt < 15; attempt++) {
+    for (let attempt = 0; attempt < 50; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 100));
       const stillThere = await identity(observed.pid).then(
         (info) => info.start === observed.start,

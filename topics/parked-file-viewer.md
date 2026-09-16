@@ -18,8 +18,7 @@ See also:
   candidate side-by-side dock panel and recent-viewer tabs for wide
   viewports; not current guidance.
 - [`session-right-pane.md`](session-right-pane.md) — opt-in session column
-  intended future home for file viewing when Appearance → Session right pane
-  is on; file-viewer migration is deferred.
+  used for file viewing when Appearance → Session right pane is on.
 
 ## User workflow and invariant
 
@@ -40,7 +39,11 @@ message or tool row that opened it.
 
 `open`, `parked`, and `closed` are distinct states:
 
-- **Open** — the viewer owns the session's transcript row. The live session
+- **Open with Session right pane enabled** — the viewer occupies the resizable
+  right column on wide screens or a right-edge drawer on narrow screens. The
+  transcript remains live; wide-screen composer actions leave the pane open.
+- **Open with Session right pane disabled (default)** — the viewer owns the
+  session's transcript row. The live session
   remains mounted behind it, while the composer remains visible and operable
   directly below it. The covered transcript keeps its last committed render
   frame and pauses progressive hydration instead of reconciling hidden session
@@ -96,7 +99,7 @@ was.
   where the viewer went. The bottom toggle is also directly usable while the
   viewer is open. Right-clicking the bottom toggle copies the underlying file
   path (without its displayed line suffix) and does not change viewer state.
-- While the viewer is open, activating another enabled composer-toolbar action
+- While a covering viewer is open, activating another enabled composer-toolbar action
   parks the viewer and performs that action with the same trusted click. The
   parking transition must not consume or replay the activation: a Mic click,
   for example, still starts voice input under browser user-activation rules.
@@ -125,7 +128,9 @@ was.
   the viewport. Its compact header reserves the first
   row's right column for actions while the path and metadata wrap on the left;
   the path uses at most two lines and the metrics remain on one. At 480px and
-  below the actions use a two-row grid. The four-column window block keeps
+  below the actions use a two-row grid. These header cutoffs use the viewer's
+  allocated width, so a narrow right pane receives the same compact controls.
+  The four-column window block keeps
   link, move to new tab, minimize, and close on top and the atomic `− N +` zoom
   control across the same columns below. Those equal-width window cells are short
   rectangles whose combined width aligns with the zoom group, with close at

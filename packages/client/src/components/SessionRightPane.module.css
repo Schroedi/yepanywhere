@@ -4,11 +4,25 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  box-sizing: border-box;
+  transform: none;
+  transition:
+    transform var(--panel-slide-duration, 0.2s) ease,
+    visibility 0s;
   background: var(--bg-surface);
   border-left: 1px solid var(--border-color);
 }
 .hidden {
-  display: none;
+  transform: translateX(100%);
+  visibility: hidden;
+  transition:
+    transform var(--panel-slide-duration, 0.2s) ease,
+    visibility 0s var(--panel-slide-duration, 0.2s);
+}
+@starting-style {
+  .pane {
+    transform: translateX(100%);
+  }
 }
 .header {
   display: flex;
@@ -31,6 +45,13 @@
   min-height: 0;
   border: 0;
   background: white;
+}
+.fileContent {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 .splitter {
   position: absolute;

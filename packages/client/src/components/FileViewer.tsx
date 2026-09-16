@@ -110,7 +110,7 @@ import {
   MarkdownPreview,
   useFileViewerDensity,
 } from "./MarkdownPreview";
-import { Modal } from "./ui/Modal";
+import { FileViewerModal } from "./FilePathLink";
 import { ViewerSelectAllButton } from "./ViewerSelectAllButton";
 import { ParagraphQuoteRail } from "./ParagraphQuoteRail";
 
@@ -1844,6 +1844,7 @@ export const FileViewer = memo(function FileViewer({
 
   const viewerClass = [
     "file-viewer",
+    viewerStyles.viewer,
     standalone && "file-viewer-standalone",
     fullscreen && "file-viewer-fullscreen",
     effectiveViewMode === "range" && "file-viewer-compact",
@@ -1980,21 +1981,15 @@ export const FileViewer = memo(function FileViewer({
         />
       ) : null}
       {projectFileModal ? (
-        <Modal
-          title={getPathBasename(projectFileModal.filePath)}
+        <FileViewerModal
+          nestedViewer
+          projectId={projectFileModal.projectId}
+          filePath={projectFileModal.filePath}
+          lineNumber={projectFileModal.lineNumber}
+          lineEnd={projectFileModal.lineEnd}
+          initialPresentation={projectFileModal.initialPresentation}
           onClose={closeProjectFileModal}
-          closeOnBackGesture
-          closeOnBackspace
-        >
-          <FileViewer
-            projectId={projectFileModal.projectId}
-            filePath={projectFileModal.filePath}
-            lineNumber={projectFileModal.lineNumber}
-            lineEnd={projectFileModal.lineEnd}
-            initialPresentation={projectFileModal.initialPresentation}
-            onClose={closeProjectFileModal}
-          />
-        </Modal>
+        />
       ) : null}
     </div>
   );

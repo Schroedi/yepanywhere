@@ -41,6 +41,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -685,6 +686,9 @@ function SessionPageContent({
   );
   const providerRuntimeStatus =
     useProviderRuntimeStatusForSession(actualSessionId);
+  const [rightPaneTarget, setRightPaneTarget] = useState<HTMLDivElement | null>(
+    null,
+  );
   const rightPane = useSessionRightPane(
     `${basePath}/${projectId}/${sessionId}`,
     messages,
@@ -692,7 +696,7 @@ function SessionPageContent({
     !isDomLingerParked && !loading,
     sessionId,
   );
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isDomLingerParked) return;
     setRightPaneExpanded?.(rightPane.expanded);
     return () => setRightPaneExpanded?.(false);
@@ -5825,6 +5829,7 @@ function SessionPageContent({
                     onSendComment={handleSessionViewerCommentSend}
                     onOpenApp={rightPane.enabled ? rightPane.select : undefined}
                     appConfig={rightPane.config}
+                    rightPaneTarget={rightPaneTarget}
                   >
                     <MessageList
                       messages={messages}
@@ -6315,9 +6320,11 @@ function SessionPageContent({
           </footer>
         </div>
       </div>
-      {rightPane.selected && (
-        <SessionRightPane pane={rightPane} wide={isWideScreen} />
-      )}
+      <SessionRightPane
+        pane={rightPane}
+        wide={isWideScreen}
+        fileContentRef={setRightPaneTarget}
+      />
     </MainContent>
   );
   return (

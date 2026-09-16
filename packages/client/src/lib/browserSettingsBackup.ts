@@ -14,6 +14,7 @@ export const BROWSER_SETTINGS_BACKUP_KEYS = [
   UI_KEYS.theme,
   UI_KEYS.fontSize,
   UI_KEYS.sidebarSpacing,
+  UI_KEYS.panelSlideAnimations,
   UI_KEYS.outputProseFont,
   UI_KEYS.outputUiFont,
   UI_KEYS.userTurnFontSizeOffset,

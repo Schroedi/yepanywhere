@@ -163,15 +163,19 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
     route.fulfill({ json: { tokens: { plan: "test-app-bearer" } } }),
   );
   let stopRequests = 0;
+  let finishStop: (() => void) | undefined;
   let appAlive = true;
   await page.route("**/api/artifacts/vhosts/plan/listener", (route) =>
     route.fulfill({ json: { token: appAlive ? "observed-listener" : null } }),
   );
-  await page.route("**/api/artifacts/vhosts/plan/stop", (route) => {
+  await page.route("**/api/artifacts/vhosts/plan/stop", async (route) => {
     expect(route.request().postDataJSON()).toEqual({
       token: "observed-listener",
     });
     stopRequests++;
+    await new Promise<void>((resolve) => {
+      finishStop = resolve;
+    });
     return route.fulfill({ json: { stopped: true } });
   });
   await page.route("http://plan.localhost:*/**", (route) => {
@@ -240,6 +244,17 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
       ),
     )
     .toBe(true);
+  await expect
+    .poll(() =>
+      pane.evaluate(
+        (element) =>
+          [
+            ...element.getAnimations(),
+            ...element.parentElement!.getAnimations(),
+          ].filter((animation) => animation.playState === "running").length,
+      ),
+    )
+    .toBe(0);
   const transcriptBox = (await transcript.boundingBox())!;
   const dividerBox = (await separator.boundingBox())!;
   expect(transcriptBox.x + transcriptBox.width).toBeLessThanOrEqual(
@@ -335,14 +350,17 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
       (element) => getComputedStyle(element).backgroundColor,
     );
     expect(headerBackground).not.toBe("rgba(0, 0, 0, 0)");
-    expect(
-      await pane.locator("iframe").evaluate((element) => {
-        const box = element.getBoundingClientRect();
-        return (
-          document.elementFromPoint(box.right - 35, box.bottom - 25) === element
-        );
-      }),
-    ).toBe(true);
+    await expect
+      .poll(() =>
+        pane.locator("iframe").evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          return (
+            document.elementFromPoint(box.right - 35, box.bottom - 25) ===
+            element
+          );
+        }),
+      )
+      .toBe(true);
     await recordUiCapture(page, `right-pane-${size.width}`);
     expect(
       await page.evaluate(
@@ -383,6 +401,9 @@ test("right pane discovers tool apps, resizes, parks and preserves typing", asyn
   await expect(appAction).toHaveCount(0);
   await expect(pane).toHaveCount(0);
   expect(stopRequests).toBe(1);
+  const stopped = page.waitForResponse("**/api/artifacts/vhosts/plan/stop");
+  finishStop?.();
+  expect((await stopped).ok()).toBe(true);
   await page.reload();
   await expect(page.locator(".session-header")).toBeVisible();
   await expect(appAction).toHaveCount(0);

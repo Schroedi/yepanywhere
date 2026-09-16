@@ -5,6 +5,7 @@ import type { useI18n } from "../i18n";
 import { writeClipboardText } from "../lib/clipboard";
 import type { SessionViewerControllerState } from "../lib/sessionViewerController";
 import styles from "./SessionViewerToolbarController.module.css";
+import { sessionViewerUsesRightPane } from "../lib/sessionViewerPlacement";
 
 type ToolbarTranslate = ReturnType<typeof useI18n>["t"];
 
@@ -155,7 +156,7 @@ export function SessionViewerToolbarController({
       ref={floatingRef}
       className={`${styles.controller} ${
         controller.minimized ? styles.parked : ""
-      }${controller.kind === "vhost" && !controller.minimized ? ` ${styles.paneOpen}` : ""}${
+      }${sessionViewerUsesRightPane(controller) && !controller.minimized ? ` ${styles.paneOpen}` : ""}${
         waveformButtonBackgroundOpacityPercent === undefined
           ? ""
           : ` ${styles.waveformActive}`

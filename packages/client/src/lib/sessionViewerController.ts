@@ -1,5 +1,6 @@
 import type { ReactNode, RefObject } from "react";
 import { useSyncExternalStore } from "react";
+import { sessionViewerUsesRightPane } from "./sessionViewerPlacement";
 
 interface SessionViewerBase {
   id: string;
@@ -21,6 +22,7 @@ interface FileViewerBase extends SessionViewerBase {
   kind: "file";
   filePath: string;
   lineSuffix: string;
+  supportsRightPane?: boolean;
 }
 
 export type FileViewerRegistration = FileViewerBase &
@@ -28,7 +30,7 @@ export type FileViewerRegistration = FileViewerBase &
     | { onClose: () => void; renderContent?: never }
     | {
         onClose?: () => void;
-        renderContent: (inactive: boolean) => ReactNode;
+        renderContent: (inactive: boolean, rightPane?: boolean) => ReactNode;
       }
   );
 
@@ -63,7 +65,7 @@ function emit(): void {
 function openSessionId(
   state: SessionViewerControllerState | null,
 ): string | null {
-  return state && state.kind !== "vhost" && !state.minimized
+  return state && !sessionViewerUsesRightPane(state) && !state.minimized
     ? state.sessionId
     : null;
 }
@@ -78,7 +80,7 @@ function replaceCurrent(next: SessionViewerControllerState | null): void {
   emit();
 }
 
-function closeViewer(id: string): void {
+export function closeSessionViewer(id: string): void {
   if (current?.id !== id) return;
   const onClose = current.onClose;
   replaceCurrent(null);
@@ -105,7 +107,7 @@ function toController(
   const { id } = registration;
   return {
     ...registration,
-    close: () => closeViewer(id),
+    close: () => closeSessionViewer(id),
     minimize: () => setMinimized(id, true),
     minimized,
     restore: () => setMinimized(id, false),

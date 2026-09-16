@@ -18,6 +18,7 @@ export const UI_KEYS = {
   theme: "yep-anywhere-theme",
   fontSize: "yep-anywhere-font-size",
   sidebarSpacing: "yep-anywhere-sidebar-spacing",
+  panelSlideAnimations: "yep-anywhere-panel-slide-animations",
   diffViewMode: "yep-anywhere-diff-view-mode",
   outputProseFont: "yep-anywhere-output-prose-font",
   outputUiFont: "yep-anywhere-output-ui-font",

@@ -7,14 +7,13 @@
 
 Topic: session-right-pane
 
-Status: implemented for static-vhost tool URLs and artifact links. File-viewer migration remains
-deferred; multiple viewer tabs are a sketch rather than shipped behavior.
+Status: implemented for static-vhost tool URLs, artifact links, and session
+file viewers. Multiple viewer tabs remain a sketch.
 
 See also:
 
-- [`parked-file-viewer.md`](parked-file-viewer.md) — covering-modal file
-  viewer and park/restore; this pane is the intended later default for
-  that flow when the Appearance setting is on.
+- [`parked-file-viewer.md`](parked-file-viewer.md) — file-viewer lifetime and
+  park/restore, shared by the covering modal and the enabled right pane.
 - [`provider-agnostic-btw-asides.md`](provider-agnostic-btw-asides.md) —
   existing session right-column split for a focused `/btw` aside
   (≥1100px, collapsible handle, composer stays in the session column).
@@ -36,11 +35,9 @@ session. It is a layout, not a second transcript renderer. The session
 column (messages, composer, status) stays mounted and remains the
 primary conversation surface.
 
-First consumer: a loopback HTTP app whose port is in the non-empty
-static vhost table, discovered from tool output (Plannotator is the
-worked case). Later consumers, including the parked file viewer, should
-reuse this pane instead of covering the transcript when the setting is
-on.
+Consumers include loopback HTTP apps discovered from tool output (Plannotator
+is the worked case), artifact links, and session file viewers. File viewers
+reuse the pane instead of covering the transcript when the setting is on.
 
 ## Enablement
 
@@ -54,8 +51,11 @@ Two independent gates:
    An empty table means YA has no Host to proxy, so loopback tool-output URLs
    are not rewritten. Configured artifact grant links remain eligible.
 
-The Appearance setting may later drive file viewers into this pane even
-when the vhost table is empty. File-viewer migration is not this slice.
+File viewers use this pane whenever the Appearance setting is enabled,
+including when the vhost table is empty. They use the existing project file
+API and React viewer, with no vhost hostname or proxy. Standalone file pages,
+public shares, tool-detail panels, and the separate media lightbox retain their
+presentations.
 
 ## Layout
 
@@ -95,11 +95,14 @@ its width to the transcript. The iframe stays mounted so restore does not
 reload it. App toggle dismissal destroys the pane content and removes the
 bottom controller but retains the discovered app for reopening.
 
-For a proxied app, the red × means **Kill app and close**. The server first
+For a proxied app, the red × means **Kill app and close**. It dismisses the
+pane immediately, without waiting for the stop request. The server first
 identifies the configured listener; stop rechecks its process identity before
 sending SIGTERM. It refuses another user's process, YA itself, YA's ancestors,
-or a listener that replaced the observed process. Kill clears the session's
-known announcements and App chip even if signalling fails, with the failure
+or a listener that replaced the observed process. Verification allows up to
+five seconds for SIGTERM cleanup, without holding the UI open. It never
+escalates to SIGKILL. Kill clears the session's known announcements and App
+chip even if signalling fails, with the failure
 shown explicitly. New tool announcements can establish an app again. There is
 no app-data deletion. Kill is separately gated by `vhost-app-control`; initial
 host support is Linux with `/usr/bin/lsof` and `/proc`. Other hosts and older
@@ -220,15 +223,34 @@ the parent, so an Open-in-window action is always present.
   model: minimize goes to the bottom and Close unloads, as with modal viewers.
   Multiple viewer windows are a later, separately selectable display option.
 
-## File viewer (later)
+## File viewers
 
-When the Appearance setting is on, opening a file, artifact, or other
-managed viewer should present in this pane instead of covering the
-transcript. Park/restore remains: minimize parks at the
-existing composer controller; close destroys. Open ↔ minimize must reuse
-the mounted viewer instance, the same invariant as today's open ↔
-parked transition. That migration is a follow-up; this topic is the
-layout contract it will use.
+When the Appearance setting is on, file links in the session open in the
+right pane. The stable session host owns the document independently of the
+link's transcript row. Minimize parks at the existing composer controller;
+restore reuses the same mounted viewer and preserves reading state. Close
+destroys it and dismisses its originating link's open state, allowing that
+same link to open it again.
+
+The wide pane leaves the transcript live and composer actions do not park it.
+On narrow screens the drawer covers the composer until minimized or closed.
+In-document file links retain their dismissal stack within the pane: Back or
+Close returns to the still-mounted parent document.
+
+The file viewer retains its file-specific header controls and shares the final
+link, move-out, minimize, and close group with App viewers. Its header adapts
+to the allocated viewer width, including a narrow pane on a wide screen.
+
+## Slide animations
+
+**Appearance → Slide animations** defaults on. It controls sidebar motion,
+right-pane show/hide, and the desktop column's space allocation for both App
+and file viewers. Reduced-motion preferences also disable these transitions.
+Turning the setting off uses zero duration and renders the final visibility,
+content, and column allocation in the same update: no animation-frame or
+zero-delay timer is needed to finish opening or closing. With animations on,
+closing content stays mounted only through the exit transition; minimized
+content stays mounted for later restore. Splitter dragging remains immediate.
 
 ## Non-goals
 
@@ -242,8 +264,11 @@ layout contract it will use.
 `sessionVhostApps` parses tool results and rewrites configured ports;
 `useSessionRightPane` discovers apps only for the active route and publishes
 the selected app to the existing single-viewer controller. `SessionRightPane`
-owns the iframe and resize interaction. `SessionPage` owns the two-column
-workspace, and `NavigationLayout` owns the temporary sidebar override.
+owns the iframe, file-content target, and resize interaction. The stable
+`SessionManagedViewerHost` renders the file into that target;
+`sessionViewerUsesRightPane` defines placement for the controller, transcript
+gate, and composer. `SessionPage` owns the two-column workspace, and
+`NavigationLayout` owns the temporary sidebar override.
 `ViewerWindowActions` supplies the common header controls.
 
 The browser regression in `packages/client/e2e/session-right-pane.spec.ts`
@@ -251,6 +276,9 @@ uses a 240-message transcript and a separate-origin review page. It covers
 default-off persistence, header placement, separate scrolling and divider hit
 areas, resize, minimize/restore without iframe reload, explicit close and
 reopen, link gestures, and sequential composer typing during incoming updates.
-File-viewer tests retain stable authenticated/share URL behavior. Live
+File-viewer tests retain stable authenticated/share URL behavior.
+`panel-slide-animations.spec.ts` checks file placement, same-instance
+minimize/restore, close/reopen, and the zero-duration final state before the
+next animation frame, plus desktop and phone header captures. Live
 Plannotator's own Done/feedback lifecycle remains owned by that application;
 the browser fixture does not claim end-to-end coverage of its CLI.
