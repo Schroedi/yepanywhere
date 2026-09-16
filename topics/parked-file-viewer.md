@@ -17,6 +17,9 @@ See also:
 - [`parked-file-viewer.sketches.md`](parked-file-viewer.sketches.md) —
   candidate side-by-side dock panel and recent-viewer tabs for wide
   viewports; not current guidance.
+- [`session-right-pane.md`](session-right-pane.md) — opt-in session column
+  intended future home for file viewing when Appearance → Session right pane
+  is on; file-viewer migration is deferred.
 
 ## User workflow and invariant
 
@@ -122,9 +125,9 @@ was.
   the viewport. Its compact header reserves the first
   row's right column for actions while the path and metadata wrap on the left;
   the path uses at most two lines and the metrics remain on one. At 480px and
-  below the actions use a two-row grid. The three-column window block keeps
-  minimize, fullscreen, and close on top and the atomic `− N +` zoom control
-  across the same columns below. Those equal-width window cells are short
+  below the actions use a two-row grid. The four-column window block keeps
+  link, move to new tab, minimize, and close on top and the atomic `− N +` zoom
+  control across the same columns below. Those equal-width window cells are short
   rectangles whose combined width aligns with the zoom group, with close at
   top-right; remaining actions fill the cells to their left. The scrollable
   document ends above the separate composer row, so its final line can always
@@ -144,6 +147,14 @@ click capture and leaves the original event to reach the selected action;
 synthetic click replay would lose browser user activation.
 
 ## Controller ownership
+
+Viewer headers share `ViewerWindowActions`: chain-link, move to new tab,
+minimize, close, with the same order and styling in file, artifact and right
+pane viewers. Ordinary left-click on chain-link copies the stable viewer URL;
+Shift-click or middle-click opens it in a new tab without closing. Move to new
+tab opens that viewer URL and closes the current viewer. It does not open a
+raw active-file response. Standalone pages omit move-out. Existing separate
+file-specific controls (preview, fullscreen, download) remain outside this group.
 
 **Keep the portaled controller and its positioning lifecycle in one component**
 (vs. embedding them in the composer toolbar):

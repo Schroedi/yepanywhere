@@ -28,6 +28,8 @@ export const BROWSER_SETTINGS_BACKUP_KEYS = [
   UI_KEYS.outputToolPreviewLineCount,
   UI_KEYS.tabSize,
   UI_KEYS.contentMaxWidth,
+  UI_KEYS.sessionRightPane,
+  UI_KEYS.sessionRightPaneWidth,
   UI_KEYS.sourceControlCleanLanding,
   UI_KEYS.sidebarWidth,
   UI_KEYS.sidebarExpanded,

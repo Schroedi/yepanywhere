@@ -1,0 +1,316 @@
+import { join } from "node:path";
+import { e2ePaths, expect, test } from "./fixtures.js";
+import { recordUiCapture } from "./support/ui-capture.js";
+
+const projectId = Buffer.from(join(e2ePaths.tempDir, "mockproject")).toString(
+  "base64url",
+);
+const sessionId = "mock-session-001";
+test.use({
+  serviceWorkers: "block",
+  // Chromium headless otherwise hides native scrollbars from captures.
+  launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] },
+});
+
+test("right pane discovers tool apps, resizes, parks and preserves typing", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(90_000);
+  const timestamp = new Date().toISOString();
+  const messages = Array.from({ length: 240 }, (_, index) => ({
+    uuid: `history-${index}`,
+    type: index % 2 ? "assistant" : "user",
+    timestamp,
+    content: `Review item ${index}: preserve the conversation and the reader's place.`,
+  }));
+  const result = {
+    uuid: "app-result",
+    type: "user",
+    timestamp,
+    content: [
+      {
+        type: "tool_result",
+        tool_use_id: "app-tool",
+        content: "Plannotator running at http://localhost:19432/review",
+      },
+    ],
+  };
+  await page.addInitScript(() => {
+    localStorage.setItem("yep-anywhere-session-right-pane-enabled", "true");
+  });
+  await page.route("**/api/version*", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      json: {
+        ...(await response.json()),
+        artifactViewer: {
+          port: 4402,
+          available: true,
+          locked: false,
+          defaultLocalOrigin: baseURL,
+          localOrigin: baseURL,
+          vhosts: [{ name: "plan", port: 19432 }],
+        },
+      },
+    });
+  });
+  await page.route(
+    new RegExp(
+      `/api/projects/[^/]+/sessions/${sessionId}(?:/metadata)?(?:\\?|$)`,
+    ),
+    (route) =>
+      route.fulfill({
+        json: {
+          session: {
+            id: sessionId,
+            projectId,
+            provider: "claude",
+            title: "Review implementation",
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            ownership: { owner: "self" },
+            messageCount: 242,
+          },
+          ownership: { owner: "self" },
+          processState: "idle",
+          messages: [
+            ...messages,
+            {
+              uuid: "app-call",
+              type: "assistant",
+              timestamp,
+              content: [
+                {
+                  type: "tool_use",
+                  id: "app-tool",
+                  name: "Bash",
+                  input: { command: "plannotator last" },
+                },
+              ],
+            },
+            result,
+          ],
+        },
+      }),
+  );
+  let emit: ((data: object) => void) | undefined;
+  await page.routeWebSocket("**/api/ws", (socket) => {
+    const upstream = socket.connectToServer();
+    socket.onMessage((wire) => {
+      const frame =
+        typeof wire === "string"
+          ? JSON.parse(wire)
+          : wire[0] === 1
+            ? JSON.parse(wire.subarray(1).toString())
+            : null;
+      if (frame?.type === "subscribe" && frame.channel === "session") {
+        let eventId = 0;
+        emit = (data) =>
+          socket.send(
+            JSON.stringify({
+              type: "event",
+              subscriptionId: frame.subscriptionId,
+              eventId: String(eventId++),
+              eventType: "message",
+              data,
+            }),
+          );
+        socket.send(
+          JSON.stringify({
+            type: "event",
+            subscriptionId: frame.subscriptionId,
+            eventId: String(eventId++),
+            eventType: "connected",
+            data: { sessionId, processId: "pane-process", state: "idle" },
+          }),
+        );
+      } else upstream.send(wire);
+    });
+  });
+  let frameLoads = 0;
+  await page.route("http://plan.localhost:*/**", (route) => {
+    frameLoads++;
+    return route.fulfill({
+      contentType: "text/html",
+      body: '<html><body style="font:16px system-ui;padding:20px;background:#f8fafc;color:#172033"><h1>Plan review</h1><p>Review the implementation alongside your session.</p><label>Review note <input aria-label="Review note"></label><p>Use Done to return feedback to the agent.</p><button>Done</button><div style="height:1200px"></div></body></html>',
+    });
+  });
+  await page.setViewportSize({ width: 1200, height: 600 });
+  await page.goto(`${baseURL}/projects/${projectId}/sessions/${sessionId}`);
+  const skip = page.getByRole("button", { name: "Skip all" });
+  if (await skip.isVisible()) await skip.click();
+  const pane = page.getByRole("complementary", { name: "Session pane" });
+  await expect(pane).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(".message-list")).not.toHaveAttribute(
+    "aria-busy",
+    "true",
+  );
+  await expect(page.locator(".sidebar-desktop")).toHaveClass(
+    /sidebar-collapsed/,
+  );
+  const frame = pane.locator("iframe").contentFrame();
+  await frame.getByLabel("Review note").fill("Keep this note");
+  const initialLoads = frameLoads;
+  const separator = page.getByRole("separator", {
+    name: "Resize session pane",
+  });
+  const before = await pane.boundingBox();
+  const header = (await page.locator(".session-header").boundingBox())!;
+  expect(header.x + header.width).toBeLessThanOrEqual(before!.x + 1);
+  expect(Math.abs(header.y - before!.y)).toBeLessThan(2);
+  const transcript = page.locator(".session-messages");
+  await expect
+    .poll(() =>
+      transcript.evaluate(
+        (element) => element.scrollHeight > element.clientHeight,
+      ),
+    )
+    .toBe(true);
+  const transcriptBox = (await transcript.boundingBox())!;
+  const dividerBox = (await separator.boundingBox())!;
+  expect(transcriptBox.x + transcriptBox.width).toBeLessThanOrEqual(
+    dividerBox.x,
+  );
+  const transcriptScroll = await transcript.evaluate(
+    (element) => element.scrollTop,
+  );
+  await frame.locator("body").evaluate(() => window.scrollTo(0, 200));
+  expect(await frame.locator("body").evaluate(() => window.scrollY)).toBe(200);
+  expect(await transcript.evaluate((element) => element.scrollTop)).toBe(
+    transcriptScroll,
+  );
+  await transcript.hover();
+  await page.mouse.wheel(0, -250);
+  await expect
+    .poll(() => transcript.evaluate((element) => element.scrollTop))
+    .toBeLessThan(transcriptScroll);
+  expect(await frame.locator("body").evaluate(() => window.scrollY)).toBe(200);
+  await frame.locator("body").evaluate(() => window.scrollTo(0, 0));
+  await separator.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect
+    .poll(async () => (await pane.boundingBox())!.width)
+    .toBeGreaterThan(before!.width);
+  const bar = (await separator.boundingBox())!;
+  await page.mouse.move(bar.x + bar.width / 2, bar.y + 100);
+  await page.mouse.down();
+  await page.mouse.move(bar.x - 50, bar.y + 100, { steps: 5 });
+  await page.mouse.up();
+  await frame.getByLabel("Review note").focus();
+  await page.mouse.move(10, 590);
+  await recordUiCapture(page, "right-pane-desktop-1200");
+  await pane.getByRole("button", { name: "Minimize session pane" }).click();
+  await expect(pane).toBeHidden();
+  await expect(page.locator(".sidebar-desktop")).not.toHaveClass(
+    /sidebar-collapsed/,
+  );
+  const restore = page.getByRole("button", { name: /Restore.*plan\/review/ });
+  await expect(restore).toBeVisible();
+  const input = page.locator("[data-composer-input]").first();
+  await input.click();
+  const typed = "Review without losing a single keystroke.";
+  await input.evaluate((element) => {
+    const samples: number[] = [];
+    (window as unknown as { paneTypingSamples: number[] }).paneTypingSamples =
+      samples;
+    let start = 0;
+    element.addEventListener("keydown", () => {
+      start = performance.now();
+    });
+    element.addEventListener("input", () => {
+      requestAnimationFrame(() => samples.push(performance.now() - start));
+    });
+  });
+  for (const [index, char] of [...typed].entries()) {
+    emit?.({
+      uuid: `live-${index}`,
+      type: "assistant",
+      timestamp,
+      content: `Concurrent update ${index}`,
+    });
+    await page.keyboard.type(char);
+  }
+  await expect(input).toHaveValue(typed);
+  const delays = await page.evaluate(
+    () =>
+      (window as unknown as { paneTypingSamples: number[] }).paneTypingSamples,
+  );
+  expect(delays.length).toBeGreaterThan(0);
+  expect(Math.max(...delays)).toBeLessThan(100);
+  await restore.click();
+  await expect(frame.getByLabel("Review note")).toHaveValue("Keep this note");
+  expect(frameLoads).toBe(initialLoads);
+  for (const size of [
+    { width: 1000, height: 600 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(size);
+    await expect(pane).toBeVisible();
+    await expect(separator).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /Minimize.*plan\/review/ }),
+    ).toBeHidden();
+    const headerBackground = await pane.evaluate(
+      (element) => getComputedStyle(element).backgroundColor,
+    );
+    expect(headerBackground).not.toBe("rgba(0, 0, 0, 0)");
+    expect(
+      await pane.locator("iframe").evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        return (
+          document.elementFromPoint(box.right - 35, box.bottom - 25) === element
+        );
+      }),
+    ).toBe(true);
+    await recordUiCapture(page, `right-pane-${size.width}`);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  }
+  await pane.getByRole("button", { name: "Minimize session pane" }).click();
+  await expect(restore).toBeVisible();
+  await recordUiCapture(page, "right-pane-phone-parked");
+  await restore.click();
+  await expect(frame.getByLabel("Review note")).toHaveValue("Keep this note");
+  await pane.getByRole("button", { name: "Close session pane" }).click();
+  emit?.({ ...result, uuid: "repeat-result" });
+  await expect(pane).toHaveCount(0);
+  await page.getByRole("button", { name: "App", exact: true }).click();
+  await expect(pane).toBeVisible();
+  expect(frameLoads).toBe(initialLoads + 1);
+  const link = pane.getByRole("button", { name: "Copy viewer link" });
+  for (const gesture of [
+    { modifiers: ["Shift" as const] },
+    { button: "middle" as const },
+  ]) {
+    const opened = page.context().waitForEvent("page");
+    await link.click(gesture);
+    const tab = await opened;
+    await expect(pane).toBeVisible();
+    await tab.close();
+  }
+  const moved = page.context().waitForEvent("page");
+  await pane.getByRole("link", { name: "Move viewer to new tab" }).click();
+  const tab = await moved;
+  await expect(pane).toHaveCount(0);
+  await tab.close();
+});
+
+test("Appearance defaults off and persists its setting", async ({
+  page,
+  baseURL,
+}) => {
+  await page.goto(`${baseURL}/settings/appearance`);
+  const setting = page.getByRole("checkbox", {
+    name: "Session right pane",
+    exact: true,
+  });
+  await expect(setting).not.toBeChecked();
+  await setting.locator("..").click();
+  await expect(setting).toBeChecked();
+  await page.reload();
+  await expect(setting).toBeChecked();
+});

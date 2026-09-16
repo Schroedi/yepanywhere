@@ -38,6 +38,8 @@ export const UI_KEYS = {
   outputToolPreviewLineCount: "yep-anywhere-output-tool-preview-line-count",
   tabSize: "yep-anywhere-tab-size",
   contentMaxWidth: "yep-anywhere-content-max-width",
+  sessionRightPane: "yep-anywhere-session-right-pane-enabled",
+  sessionRightPaneWidth: "yep-anywhere-session-right-pane-width",
   commitReadWatermarks: "yep-anywhere-commit-read-watermarks",
   sourceControlCleanLanding: "yep-anywhere-source-control-clean-landing",
   sidebarWidth: "yep-anywhere-sidebar-width",

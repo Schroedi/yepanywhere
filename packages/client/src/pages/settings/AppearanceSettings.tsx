@@ -130,6 +130,7 @@ import {
 } from "../../hooks/useTooltipAppearance";
 import { useWiderConversationActivityPreviews } from "../../hooks/useWiderConversationActivityPreviews";
 import { useWorkflowTags } from "../../hooks/useWorkflowTags";
+import { useSessionRightPaneSetting } from "../../hooks/useSessionRightPaneSetting";
 import { useAcliCommentarySetting } from "../../hooks/useAcliCommentarySetting";
 import { useSelectionActionPreferences } from "../../hooks/useSelectionActionPreferences";
 import { useGlossaryHints } from "../../hooks/useGlossaryHints";
@@ -235,6 +236,8 @@ export function AppearanceSettings() {
   } = useWiderConversationActivityPreviews();
   const { glossaryHintsEnabled, setGlossaryHintsEnabled } = useGlossaryHints();
   const { workflowTagsEnabled, setWorkflowTagsEnabled } = useWorkflowTags();
+  const { sessionRightPaneEnabled, setSessionRightPaneEnabled } =
+    useSessionRightPaneSetting();
   const { acliCommentaryEnabled, setAcliCommentaryEnabled } =
     useAcliCommentarySetting();
   const { version: versionInfo } = useVersion();
@@ -381,6 +384,7 @@ export function AppearanceSettings() {
     ),
     undoEntry(glossaryHintsEnabled, setGlossaryHintsEnabled),
     undoEntry(workflowTagsEnabled, setWorkflowTagsEnabled),
+    undoEntry(sessionRightPaneEnabled, setSessionRightPaneEnabled),
     undoEntry(acliCommentaryEnabled, setAcliCommentaryEnabled),
     undoEntry(tooltipDelayMs, setTooltipDelayMs),
     undoEntry(tooltipMode, setTooltipMode),
@@ -782,6 +786,22 @@ export function AppearanceSettings() {
                 setWiderConversationActivityPreviews(event.target.checked)
               }
               aria-label={t("appearanceWiderActivityPreviewsTitle")}
+            />
+            <span className="toggle-slider" />
+          </label>
+        </SettingsItem>
+        <SettingsItem
+          label={t("appearanceSessionRightPaneTitle")}
+          description={t("appearanceSessionRightPaneDescription")}
+        >
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={sessionRightPaneEnabled}
+              onChange={(event) =>
+                setSessionRightPaneEnabled(event.target.checked)
+              }
+              aria-label={t("appearanceSessionRightPaneTitle")}
             />
             <span className="toggle-slider" />
           </label>

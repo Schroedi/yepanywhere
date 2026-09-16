@@ -157,7 +157,9 @@ export function SessionViewerTranscriptGate({
   const sessionId = useSessionViewerSessionId();
   const controller = useSessionViewerController();
   const viewerOpen = Boolean(
-    controller?.sessionId === sessionId && !controller.minimized,
+    controller?.sessionId === sessionId &&
+      controller.kind !== "vhost" &&
+      !controller.minimized,
   );
   const renderedChildrenRef = useRef(children);
   if (!viewerOpen) {

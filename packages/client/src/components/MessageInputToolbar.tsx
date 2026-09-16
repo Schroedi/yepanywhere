@@ -1857,8 +1857,12 @@ export function MessageInputToolbarView({
       openShortcutSettings();
     }, 520);
   };
+  const coveringViewerOpen =
+    fileViewerController &&
+    fileViewerController.kind !== "vhost" &&
+    !fileViewerController.minimized;
   const handleToolbarClickCapture = (event: MouseEvent<HTMLDivElement>) => {
-    if (!fileViewerController || fileViewerController.minimized) return;
+    if (!coveringViewerOpen) return;
     if (!(event.target instanceof Element)) return;
     const action = event.target.closest(
       "button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), [role='button']:not([aria-disabled='true'])",
@@ -1914,11 +1918,7 @@ export function MessageInputToolbarView({
         fileViewerController
           ? ` ${toolbarModuleStyles.fileViewerControllerActive}`
           : ""
-      }${
-        fileViewerController && !fileViewerController.minimized
-          ? ` ${toolbarModuleStyles.fileViewerOpen}`
-          : ""
-      }${
+      }${coveringViewerOpen ? ` ${toolbarModuleStyles.fileViewerOpen}` : ""}${
         waveformBackdropActive
           ? ` ${toolbarModuleStyles.waveformBackdropActive}`
           : ""

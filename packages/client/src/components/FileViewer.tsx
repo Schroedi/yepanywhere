@@ -51,6 +51,7 @@ import { isMarkdownLikeFile } from "../lib/markdownFiles";
 import { extractMarkdownSnippetsFromSelection } from "../lib/markdownSelectionCopy";
 import { getRenderedFileClipboardPayload } from "../lib/renderedFileClipboard";
 import { ArtifactPreview } from "./ArtifactPreview";
+import { ViewerWindowActions } from "./ViewerWindowActions";
 import {
   annotateShikiSourceOffsets,
   compactShikiLineBreaks,
@@ -618,7 +619,6 @@ export const FileViewer = memo(function FileViewer({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [fileShareAnchor, setFileShareAnchor] = useState<DOMRect | null>(null);
   const loadedSourceRef = useRef<{
@@ -1311,17 +1311,6 @@ export const FileViewer = memo(function FileViewer({
     () => new URL(standaloneViewerUrl, window.location.href).href,
     [standaloneViewerUrl],
   );
-  const handleCopyViewerLink = useCallback(async () => {
-    try {
-      if (!(await writeClipboardText(absoluteViewerLink))) {
-        throw new Error("Clipboard write failed");
-      }
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 3000);
-    } catch (err) {
-      console.error("Failed to copy viewer link:", err);
-    }
-  }, [absoluteViewerLink]);
 
   const handleOpenInNewTab = useCallback(() => {
     if (imageOpenUrl) {
@@ -1806,19 +1795,6 @@ export const FileViewer = memo(function FileViewer({
             {copied ? <CheckIcon /> : <CopyIcon />}
           </button>
         )}
-        <button
-          type="button"
-          className={`file-viewer-action ${copiedLink ? "copied" : ""}`}
-          onClick={() => void handleCopyViewerLink()}
-          aria-label={t("fileLinkMenuCopyViewerLink" as never)}
-          title={
-            copiedLink
-              ? t("fileViewerCopied" as never)
-              : t("fileLinkMenuCopyViewerLink" as never)
-          }
-        >
-          {copiedLink ? <CheckIcon /> : <LinkIcon />}
-        </button>
         {publicShareContext === null &&
           source === DEFAULT_FILE_VIEWER_SOURCE &&
           !diffActive && <PublicFileShareButton onOpen={setFileShareAnchor} />}
@@ -1830,37 +1806,6 @@ export const FileViewer = memo(function FileViewer({
             title={t("fileViewerNewSession" as never)}
           >
             <PlusCircleIcon />
-          </button>
-        )}
-        {!standalone && (
-          <a
-            className="file-viewer-action"
-            href={imageOpenUrl ?? standaloneViewerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={
-              imageOpenUrl
-                ? openImageInNewTabLabel
-                : t("fileViewerOpenNewTab" as never)
-            }
-            title={
-              imageOpenUrl
-                ? openImageInNewTabLabel
-                : t("fileViewerOpenNewTab" as never)
-            }
-          >
-            <ExternalLinkIcon />
-          </a>
-        )}
-        {onMinimize && (
-          <button
-            type="button"
-            className={`file-viewer-action file-viewer-minimize ${viewerStyles.minimizeButton}`}
-            onClick={handleMinimize}
-            title={t("fileViewerMinimize" as never)}
-            aria-label={t("fileViewerMinimize" as never)}
-          >
-            <MinimizeIcon />
           </button>
         )}
         {!diffActive && canDownload && (
@@ -1885,16 +1830,14 @@ export const FileViewer = memo(function FileViewer({
         >
           {fullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
         </button>
-        {onClose && (
-          <button
-            type="button"
-            className="file-viewer-action file-viewer-close"
-            onClick={handleClose}
-            title={t("modalClose")}
-          >
-            <CloseIcon />
-          </button>
-        )}
+        <ViewerWindowActions
+          className={viewerStyles.windowActions}
+          url={absoluteViewerLink}
+          moveOut={!standalone}
+          onMinimize={onMinimize ? handleMinimize : undefined}
+          onClose={onClose ? handleClose : undefined}
+          minimizeLabel={t("fileViewerMinimize")}
+        />
       </div>
     </div>
   );
@@ -1959,7 +1902,7 @@ export const FileViewer = memo(function FileViewer({
               ? () => void writeClipboardText(filePath)
               : undefined
           }
-          onCopyViewerLink={() => void handleCopyViewerLink()}
+          onCopyViewerLink={() => void writeClipboardText(absoluteViewerLink)}
           onCopyContents={handleCopyContentsFromMenu}
           onCopyRenderedContents={
             renderedClipboardPayload
@@ -2255,78 +2198,6 @@ function DownloadIcon() {
       aria-hidden="true"
     >
       <path d="M8 2v9M4 8l4 4 4-4M2 14h12" />
-    </svg>
-  );
-}
-
-function LinkIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M6.5 9.5a2.5 2.5 0 0 0 3.54 0l2.46-2.46a2.5 2.5 0 0 0-3.54-3.54L7.9 4.56" />
-      <path d="M9.5 6.5a2.5 2.5 0 0 0-3.54 0L3.5 8.96a2.5 2.5 0 0 0 3.54 3.54l1.06-1.06" />
-    </svg>
-  );
-}
-
-function ExternalLinkIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 9v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4M9 2h5v5M6 10l8-8" />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M4 4l8 8M12 4l-8 8" />
-    </svg>
-  );
-}
-
-function MinimizeIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <path d="M3 11.5h10" />
     </svg>
   );
 }

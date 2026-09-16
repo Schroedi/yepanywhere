@@ -215,16 +215,21 @@ loopback URL run `ya-vhost plan <port>` (or pin `PLANNOTATOR_PORT` and
 pass that). Avoid `PLANNOTATOR_REMOTE=1` unless we deliberately want
 `0.0.0.0`.
 
-## Why not implement now
+## Session right pane (first YA consumer)
 
-Insertion point is the existing artifacts port + Host dispatch, not a new
-tunnel. The file-grant handler is still the wrong app; a sibling Host (or
-path on the public origin) reverse-proxies loopback Plannotator. Local
-needs both a dynamic announced-port map and a static `X.localhost` map.
-Public `*.graehl.org` else-rule reaches 4402. Static Local Access vhost
-rows now reverse-proxy `name.localhost` and, with a public root,
-`name.graehl.org`. YA still 421s unmapped Hosts. `ya-vhost` remains
-unimplemented. No one here has used Plannotator through YA.
+When the static vhost table is non-empty, YA rewrites loopback URLs in
+tool output to the matching vhost origin and, if Appearance → Session
+right pane is on, opens that origin in the session
+[right pane](../../topics/session-right-pane.md). With the setting off,
+the same URL is offered as a new-window action. `ya-vhost` remains
+unimplemented; a pinned `PLANNOTATOR_PORT` plus a static row is enough.
+
+## Remaining
+
+Insertion point is still the artifacts port + Host dispatch, not a new
+tunnel. The file-grant handler is the wrong app for live Plannotator.
+Dynamic `ya-vhost` is still postponed. Public `*.graehl.org` else-rule
+reaches 4402. YA still 421s unmapped Hosts.
 
 Related: [active content security](../../topics/active-content-security.md)
 (artifact origins, public listener, cloudflared-shaped tunnel, grant

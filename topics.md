@@ -302,6 +302,8 @@
   job-completion client (design topic; implementation series to follow).
 - parked-file-viewer - Preserve document reading state while a persistent
   composer controller or session-list drawer uncovers the live session.
+- session-right-pane - Opt-in session column for vhost apps (later files):
+  drawer on narrow viewports, resizable split on wide, sidebar collapse.
 - settings-ui-placement - Reviewed settings copy, placement, defaults, and
   externally visible behavior that the UI can state with confidence.
 - cache-aware-session-bootstrap - Current cold-start context placement and the

@@ -154,7 +154,7 @@ export function SessionViewerToolbarController({
       ref={floatingRef}
       className={`${styles.controller} ${
         controller.minimized ? styles.parked : ""
-      }${
+      }${controller.kind === "vhost" && !controller.minimized ? ` ${styles.paneOpen}` : ""}${
         waveformButtonBackgroundOpacityPercent === undefined
           ? ""
           : ` ${styles.waveformActive}`

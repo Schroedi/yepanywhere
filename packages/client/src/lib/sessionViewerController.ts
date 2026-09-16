@@ -34,6 +34,7 @@ export type FileViewerRegistration = FileViewerBase &
 
 export type SessionViewerRegistration =
   | PanelViewerRegistration
+  | (SessionViewerBase & { kind: "vhost"; url: string; onClose?: never })
   | (SessionViewerBase & { kind: "artifact"; url: string; onClose?: never })
   | FileViewerRegistration;
 
@@ -55,7 +56,9 @@ function emit(): void {
 function openSessionId(
   state: SessionViewerControllerState | null,
 ): string | null {
-  return state && !state.minimized ? state.sessionId : null;
+  return state && state.kind !== "vhost" && !state.minimized
+    ? state.sessionId
+    : null;
 }
 
 function replaceCurrent(next: SessionViewerControllerState | null): void {

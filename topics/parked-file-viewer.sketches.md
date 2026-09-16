@@ -5,7 +5,10 @@ contract. Not current guidance; routine topic reads exclude this file.
 
 ## Side-by-side workspace panel
 
-Status: candidate design, requested 2026-09-15.
+Status: candidate design, requested 2026-09-15. The session-column
+layout itself is now specified in
+[session-right-pane](session-right-pane.md); this sketch remains the
+file-viewer dock/tab migration notes until that consumer lands.
 
 Today one managed viewer (file, tool detail, provider-child transcript,
 artifact) covers the session's transcript row while the composer stays
@@ -55,6 +58,10 @@ this codebase: a resizable multi-column workbench with edge-only splitters
   docked viewer returns its width to the session column.
 
 ### Multi-window: tabs of recent viewers
+
+The [browser-style tab sketch](session-right-pane.sketches.md) records the
+2026-09-16 request for a selectable standard tab-strip display and keyboard
+cycling. Initial right-pane delivery keeps minimize-to-bottom and close only.
 
 The second, separable step relaxes "at most one managed viewer per session"
 to "at most one *visible* per panel, a bounded set retained".

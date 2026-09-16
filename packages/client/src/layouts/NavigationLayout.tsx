@@ -38,6 +38,8 @@ export interface NavigationLayoutContext {
   isSidebarCollapsed: boolean;
   /** Desktop mode: callback to toggle sidebar expanded/collapsed state */
   toggleSidebar: () => void;
+  /** Temporary sidebar collapse owned by the visible route's right pane. */
+  setRightPaneExpanded?: (expanded: boolean) => void;
 }
 
 const NOOP = () => {};
@@ -174,6 +176,25 @@ function NavigationLayoutFrame({ sessionElement }: NavigationLayoutProps) {
     [location.pathname],
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [rightPaneSidebar, setRightPaneSidebar] = useState<{
+    path: string;
+    collapse: boolean;
+  } | null>(null);
+  const setRightPaneExpanded = useCallback(
+    (expanded: boolean) => {
+      if (expanded) setSidebarOpen(false);
+      setRightPaneSidebar((previous) =>
+        expanded
+          ? { path: location.pathname, collapse: true }
+          : previous?.path === location.pathname
+            ? null
+            : previous,
+      );
+    },
+    [location.pathname],
+  );
+  const rightPaneCollapsesSidebar =
+    rightPaneSidebar?.path === location.pathname && rightPaneSidebar.collapse;
   const forceExpandedSidebar =
     new URLSearchParams(location.search).get("sidebar") === "expanded";
   const {
@@ -266,7 +287,8 @@ function NavigationLayoutFrame({ sessionElement }: NavigationLayoutProps) {
   }, [isWideScreen]);
 
   // Auto-collapse if viewport too narrow for expanded sidebar, or if user prefers collapsed
-  const effectivelyCollapsed = !isExpanded || !canShowExpandedSidebar;
+  const effectivelyCollapsed =
+    !isExpanded || !canShowExpandedSidebar || rightPaneCollapsesSidebar;
 
   // Close mobile sidebar overlay when viewport becomes wide enough for expanded desktop sidebar
   // This prevents having both sidebars visible after window resize/device rotation
@@ -284,13 +306,24 @@ function NavigationLayoutFrame({ sessionElement }: NavigationLayoutProps) {
 
   // Smart toggle: if viewport can support expanded, toggle preference; otherwise open overlay
   const handleToggleExpanded = useCallback(() => {
+    if (rightPaneCollapsesSidebar && canShowExpandedSidebar) {
+      setRightPaneSidebar({ path: location.pathname, collapse: false });
+      if (!isExpanded) toggleExpanded();
+      return;
+    }
     if (canShowExpandedSidebar) {
       toggleExpanded();
     } else {
       // Viewport too narrow for expanded sidebar - open mobile-style overlay instead
       setSidebarOpen(true);
     }
-  }, [canShowExpandedSidebar, toggleExpanded]);
+  }, [
+    canShowExpandedSidebar,
+    toggleExpanded,
+    rightPaneCollapsesSidebar,
+    location.pathname,
+    isExpanded,
+  ]);
 
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
@@ -309,8 +342,15 @@ function NavigationLayoutFrame({ sessionElement }: NavigationLayoutProps) {
       isWideScreen,
       isSidebarCollapsed: effectivelyCollapsed,
       toggleSidebar: handleToggleExpanded,
+      setRightPaneExpanded,
     }),
-    [effectivelyCollapsed, handleToggleExpanded, isWideScreen, openSidebar],
+    [
+      effectivelyCollapsed,
+      handleToggleExpanded,
+      isWideScreen,
+      openSidebar,
+      setRightPaneExpanded,
+    ],
   );
 
   // CSS variable for sidebar width
