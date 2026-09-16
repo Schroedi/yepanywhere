@@ -209,10 +209,14 @@ session was already present in an active or recent tier. An already-unread row
 may patch additive content fields locally because the event cannot make it
 more unread; `session-seen` remains the authority that clears that state.
 
-Known caveat: for Claude JSONL sessions, `session.updatedAt` currently comes
-from file mtime. YA's one-hour idle reap can abort the Claude SDK stream and
-cause a mtime-only transcript touch, which may flip a previously read session
-back to unread without a new visible provider message. See
+Unread compares last-seen against provider-content freshness, not storage
+freshness. Claude summaries derive `updatedAt` from the latest meaningful
+`user`/`assistant` row on the active branch, so an mtime-only transcript touch
+— such as the one an idle reap's SDK abort can cause — neither creates unread
+attention nor false recent activity. Codex still derives `updatedAt` from
+rollout mtime (`getCodexRolloutActivityTimeMs`), so that provider remains
+exposed to the same class of false unread if a future teardown path touches the
+file without appending a row. See
 [`2026-07-06-claude-idle-reap-mtime-unread.md`](../docs/project/2026-07-06-claude-idle-reap-mtime-unread.md).
 
 ## Project Queue Visibility
