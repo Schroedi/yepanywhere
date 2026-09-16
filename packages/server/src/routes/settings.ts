@@ -22,6 +22,9 @@ import {
   isCodexCyberAccessProgram,
   isSubagentMaxDepth,
   isProjectQueueReadinessCommand,
+  isLoopbackGatewayUrl,
+  isValidGatewayServiceId,
+  parseGatewayServices,
   normalizeYaClientBaseUrl,
   normalizeYaClientBaseUrlFromShareViewerUrl,
   normalizeIdleReapHours,
@@ -651,6 +654,50 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
           );
         }
         updates.claudeGatewayStartCommand = startCommand;
+      }
+      if ("gatewayServices" in body) {
+        const services = parseGatewayServices(body.gatewayServices ?? []);
+        if (!services) {
+          return c.json(
+            {
+              error:
+                "gatewayServices must be a list of services with a slug id, an http(s) URL, and valid optional command, window, and toggle fields",
+            },
+            400,
+          );
+        }
+        const loopbackViolation = services.find(
+          (service) =>
+            service.serviceCommand && !isLoopbackGatewayUrl(service.url),
+        );
+        if (loopbackViolation) {
+          return c.json(
+            {
+              error: `gatewayServices entry "${loopbackViolation.id}" has a service command but a non-loopback URL; YA only starts and stops services on localhost`,
+            },
+            400,
+          );
+        }
+        updates.gatewayServices = services;
+      }
+      if ("defaultGatewayServiceId" in body) {
+        if (
+          body.defaultGatewayServiceId === undefined ||
+          body.defaultGatewayServiceId === null ||
+          body.defaultGatewayServiceId === ""
+        ) {
+          updates.defaultGatewayServiceId = undefined;
+        } else if (
+          typeof body.defaultGatewayServiceId !== "string" ||
+          !isValidGatewayServiceId(body.defaultGatewayServiceId)
+        ) {
+          return c.json(
+            { error: "defaultGatewayServiceId must be a service id" },
+            400,
+          );
+        } else {
+          updates.defaultGatewayServiceId = body.defaultGatewayServiceId;
+        }
       }
       if ("claudeGatewayDisableAgent" in body) {
         if (typeof body.claudeGatewayDisableAgent !== "boolean") {

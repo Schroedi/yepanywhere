@@ -169,6 +169,36 @@ export {
 } from "./claude-additional-models.js";
 
 export {
+  DEFAULT_GATEWAY_AUTO_STOP_SECONDS,
+  DEFAULT_GATEWAY_SERVICE_ID,
+  GATEWAY_MODEL_ID_SEPARATOR,
+  MAX_GATEWAY_AUTO_STOP_SECONDS,
+  MAX_GATEWAY_SERVICES,
+  MAX_GATEWAY_SERVICE_COMMAND_LENGTH,
+  MAX_GATEWAY_SERVICE_CONTEXT_TOKENS,
+  MAX_GATEWAY_SERVICE_ID_LENGTH,
+  MAX_GATEWAY_SERVICE_LABEL_LENGTH,
+  MAX_GATEWAY_SERVICE_OUTPUT_TOKENS,
+  MAX_GATEWAY_SERVICE_SHORT_NAME_LENGTH,
+  MAX_GATEWAY_SERVICE_URL_LENGTH,
+  MIN_GATEWAY_AUTO_STOP_SECONDS,
+  gatewayServiceDisplayName,
+  gatewayServiceShortName,
+  isValidGatewayServiceCommand,
+  isValidGatewayServiceId,
+  isValidGatewayServiceLabel,
+  isValidGatewayServiceShortName,
+  isLoopbackGatewayUrl,
+  loopbackGatewayHostname,
+  normalizeGatewayServiceUrl,
+  parseGatewayModelId,
+  parseGatewayServices,
+  qualifiedGatewayModelId,
+  type GatewayService,
+  type GatewayServiceCodexWireApi,
+} from "./gateway-services.js";
+
+export {
   DEFAULT_SNIPPET_CONTEXT_RADIUS,
   MAX_REVIEW_BATCHES,
   MAX_REVIEW_COMMENT_TEXT_LENGTH,

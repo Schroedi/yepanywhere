@@ -19,6 +19,7 @@ import type {
   CodexCyberAccessProgram,
   CodexPlanToolMode,
   CodexReasoningSummary,
+  GatewayService,
   HelperTargetConfig,
   HostIdentity,
   HostAwakeMode,
@@ -51,10 +52,12 @@ import {
   isCodexCyberAccessProgram,
   parseClaudeAdditionalModelSelections,
   parseClaudeSteerBackgroundBashSettings,
+  parseGatewayServices,
   parsePostCompactReplaySettings,
   parseSpeechVoiceBackends,
   DEFAULT_POST_COMPACT_REPLAY_SETTINGS,
 } from "@yep-anywhere/shared";
+import { reconcileGatewaySettings } from "./gatewayServiceSettings.js";
 import type { FileAccessSettings } from "../middleware/file-access.js";
 import { publishDeferredDeliverySettings } from "../supervisor/deferredDeliverySettings.js";
 
@@ -159,6 +162,14 @@ export interface ServerSettings {
   heartbeatTurnText?: string;
   /** Whether authenticated external session-wake turns are enabled by default. */
   wakeTurnsEnabled?: boolean;
+  /**
+   * Configured model-serving endpoints. Claude Gateway reads every enabled
+   * entry; CodexOSS reads those that opt in. The default entry mirrors the
+   * legacy single-gateway keys below.
+   */
+  gatewayServices?: GatewayService[];
+  /** Which entry Claude Gateway treats as its default service. */
+  defaultGatewayServiceId?: string;
   /** Anthropic-compatible endpoint for the isolated claude-gateway provider */
   claudeGatewayUrl?: string;
   /** Optional shell line that starts a loopback Claude Gateway on demand. */
@@ -499,6 +510,27 @@ function normalizeLoadedSettings(settings: ServerSettings): ServerSettings {
     gatewayStartCommand.trim()
       ? gatewayStartCommand.trim()
       : undefined;
+  // The services list and the legacy single-gateway keys are two views of the
+  // same configuration; keep them in agreement on every load.
+  const reconciledGateways = reconcileGatewaySettings(
+    parseGatewayServices(settings.gatewayServices) ?? [],
+    typeof settings.defaultGatewayServiceId === "string"
+      ? settings.defaultGatewayServiceId
+      : undefined,
+    {
+      ...(settings.claudeGatewayUrl
+        ? { claudeGatewayUrl: settings.claudeGatewayUrl }
+        : {}),
+      ...(normalized.claudeGatewayStartCommand
+        ? { claudeGatewayStartCommand: normalized.claudeGatewayStartCommand }
+        : {}),
+    },
+  );
+  normalized.gatewayServices = reconciledGateways.services;
+  normalized.defaultGatewayServiceId = reconciledGateways.defaultServiceId;
+  normalized.claudeGatewayUrl = reconciledGateways.claudeGatewayUrl;
+  normalized.claudeGatewayStartCommand =
+    reconciledGateways.claudeGatewayStartCommand;
   normalized.claudeGatewayDisableAgent =
     typeof settings.claudeGatewayDisableAgent === "boolean"
       ? settings.claudeGatewayDisableAgent
