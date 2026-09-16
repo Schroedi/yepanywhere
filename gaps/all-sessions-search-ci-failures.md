@@ -28,6 +28,13 @@ network responses for search completion/visibility failures, and compare the
 selection text before and after native right-click handling. Fix the owning
 contract or test oracle rather than increasing waits or suppressing failures.
 
+Repeated at `28a58cf9b` on 2026-09-16 in both
+[origin](https://github.com/kzahel/yepanywhere/actions/runs/35085173084/job/104758191326)
+and [graehl](https://github.com/graehl/yepanywhere/actions/runs/35085176248/job/104758200450):
+the same five appended-turn, arriving-match, desktop streaming/selection and
+phone fan-out failures stopped each run after 13 passes, leaving 270 tests
+unrun. This is an existing unresolved failure, not evidence of green E2E.
+
 Captured after publication; investigating the search failures is separate
 from the completed transcript-ordering fix. This note does not claim CI
 validated browser tests that were never reached.
