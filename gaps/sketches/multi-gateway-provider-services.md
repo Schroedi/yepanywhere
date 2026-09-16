@@ -158,6 +158,103 @@ If union proves too disruptive, the fallback is still a clear improvement: a
 service selector in Providers settings and/or New Session, with the catalog
 coming from whichever service is selected.
 
+## CodexOSS should consume the same services list
+
+CodexOSS today can only mean Ollama or LM Studio:
+`packages/server/src/sdk/providers/codex-oss.ts:193` picks between the two
+literals, `isAuthenticated()` (`:219`) shells out to `ollama list`,
+`getAvailableModels()` (`:252`) parses that same command's table, and
+`buildFirstTurnArgs()` (`:661`) emits `exec --oss --local-provider <p>`.
+A host serving models through vLLM directly — no Ollama, no LM Studio — is
+invisible to the provider even though every model it serves is reachable.
+
+Codex itself has no such limit. `[model_providers.<id>]` in
+`~/.codex/config.toml` takes any `base_url` plus `wire_api = "chat" |
+"responses"` (the shape `docs/codex-oss.md:65` already uses for Ollama), and
+YA's own resume path already passes `-c model_provider="<id>"`. So targeting an
+arbitrary OpenAI-compatible endpoint is a configuration question, not a Codex
+capability question.
+
+The change, once gateway services exist as a list:
+
+- each service entry gains an opt-in "usable by CodexOSS" flag (or CodexOSS
+  simply offers every enabled entry, grouped by label);
+- `getAvailableModels()` reads `GET <url>/v1/models` for those entries instead
+  of running `ollama list`, which also makes the readiness check a TCP/HTTP
+  probe rather than a CLI invocation, and lets the same probe-then-`start`
+  lifecycle above cover CodexOSS launches;
+- launching writes or overrides a Codex model provider for the chosen service.
+  Prefer `-c model_providers.<id>.base_url=…` / `-c model_provider=<id>`
+  overrides on the command line over editing the user's `~/.codex/config.toml`
+  — the Gateway precedent is that YA never mutates the CLI's own settings
+  files, and the same rule should hold here;
+- `--oss --local-provider` remains for a real Ollama/LM Studio entry, so the
+  existing path is preserved rather than replaced.
+
+Whether this stays inside `codex-oss` or becomes a provider-neutral
+"local model service" concept is the open structural question; the settings
+list is the same either way, which is the argument for building it once.
+
+## vLLM's OpenAI extensions, and declaring context size
+
+Verified against the installed vLLM in
+`/local/graehl/vllm/.pixi/envs/default/.../vllm/entrypoints/` (source read
+only; the service was not started):
+
+- `ModelCard` (`serve/engine/protocol.py:105`) carries a top-level
+  `max_model_len`. YA's gateway catalog does not look at it — `modelWindows()`
+  in `packages/server/src/sdk/providers/claude-gateway.ts:193` reads only
+  copilot-api's `capabilities.limits.max_context_window_tokens` /
+  `max_prompt_tokens`. So a vLLM-backed gateway currently advertises *no*
+  window, which means no `MAX_CONTEXT_TOKENS` and no auto-compaction window in
+  the launch environment (`gatewayEnvironment`, `:96`) — exactly the harness
+  input preemptive compaction depends on. Reading `max_model_len` as a
+  fallback source for both windows is a small, well-isolated fix.
+- `/tokenize` (`serve/tokenize/protocol.py:157`) returns `count` *and*
+  `max_model_len` — the server's own tokenizer, so a prompt can be measured
+  exactly rather than estimated before deciding to compact.
+- This build also serves native Anthropic endpoints: `/v1/messages` and
+  `/v1/messages/count_tokens` (`entrypoints/anthropic/api_router.py:51`,
+  `:89`), the latter returning `input_tokens` and an optional
+  `context_management` block. That makes vLLM a Claude Gateway target directly,
+  with no copilot-api translation layer, and gives the harness a real
+  count-tokens call for pre-turn budgeting.
+- `UsageInfo.prompt_tokens_details` reports `cached_tokens` and
+  `created_cache_tokens`; `completion_tokens_details.reasoning_tokens` splits
+  out reasoning. Useful for accounting and for knowing when compaction would
+  throw away a warm prefix cache.
+
+### Detect vLLM, then prefer its better route
+
+Follow the `X-Copilot-API: 1` precedent exactly: the implementation behind an
+endpoint is *observed*, never configured, and re-observed when the URL changes.
+vLLM identifies itself in several ways that cost nothing to check during the
+catalog read or a token-info query — `owned_by: "vllm"` and a populated
+`max_model_len` on every model card, `GET /version` returning
+`{"version": …}` (`serve/instrumentator/basic.py:53`), and the presence of
+`/tokenize` and `/v1/messages/count_tokens`. Prefer one cheap positive signal
+over guessing from port or model id, and record the result per service the way
+`isCopilotApi` is recorded on the catalog snapshot.
+
+Once a service is known to be vLLM, YA should route over the best API it
+serves rather than the lowest common denominator: native
+Anthropic `/v1/messages` for a Claude Gateway launch (no copilot-api
+translation in the path at all), `/v1/messages/count_tokens` or `/tokenize`
+for exact pre-turn token budgeting, and `max_model_len` to prefill the
+declared window. Keep this a preference with a fallback, not a requirement —
+a vLLM build without the Anthropic entrypoint must still work over
+chat-completions — and keep the existing rule that a model-specific failure
+never silently switches transports.
+
+These should be *checked and used*, not *relied upon*: the standing rule is
+that harness configuration must state the supported context and output size
+explicitly. Each service/model entry therefore carries a declared context
+window and max output tokens as required configuration, with any
+server-advertised value (copilot-api limits, vLLM `max_model_len`) used to
+prefill the field and to warn when configuration and server disagree. A
+service that advertises nothing is then still fully usable, and a server that
+lies cannot silently move the compaction threshold.
+
 ## Migration
 
 Existing keys port over as a single entry (`id: "default"`, label from the
@@ -171,13 +268,13 @@ today's single-URL form.
 
 ## Not yet decided
 
-- Whether a "gateway service" should be a provider-neutral concept rather than
-  Claude-Gateway-specific. CodexOSS has the same underlying need (see
-  `docs/codex-oss.md`): Codex reaches any OpenAI-compatible `base_url` through
-  `model_providers.<id>` in `~/.codex/config.toml`, but
-  `packages/server/src/sdk/providers/codex-oss.ts:193` hardcodes
-  `ollama`/`lmstudio` and enumerates models by shelling out to `ollama list`.
-  One shared services list feeding both providers is more work and more right.
+- Whether a "gateway service" is a provider-neutral concept or stays
+  Claude-Gateway-specific with CodexOSS reading the same list (above).
+- Whether Ollama and LM Studio are worth keeping as distinct concepts at all
+  once services are configurable: both are OpenAI-compatible HTTP servers, and
+  the only thing YA gains from naming them is `ollama list` for enumeration,
+  which `/v1/models` replaces. They may still serve competitively; the sketch
+  does not assume otherwise, it just stops treating them as the only options.
 - Credentials per service. Gateway reads currently send a literal
   `Bearer dummy`; a service needing a real key has nowhere to put one.
 - Whether `status`/`restart` are worth wiring at all, or whether probe + start +
