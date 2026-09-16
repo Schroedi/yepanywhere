@@ -219,7 +219,11 @@ implementation serves the endpoint and is not an operator setting.
 `AGENT_LAUNCH_BACKEND=copilot-api` fact. YA injects it only after the configured
 gateway's `/v1/models` response explicitly advertises `X-Copilot-API: 1`, and
 clears the learned identity when the Gateway URL changes. Model names, ports,
-vendors, and generic endpoint compatibility never imply it.
+vendors, and generic endpoint compatibility never imply it. Gateway launches now
+publish the canonical `AGENT_LAUNCH_BACKEND` alongside it, and carry
+`AGENT_LAUNCH_BACKEND=vllm` for a service whose catalog names itself `vllm` in
+`owned_by`. A backend value is always observed from the catalog response, never
+configured; see [gateway-services](gateway-services.md).
 
 Gateway launches also inject `CLAUDE_CODE_*` narrowings that are not YA
 variables but are decided by YA per launch (`gatewayEnvironment()` in

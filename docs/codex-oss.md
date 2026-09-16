@@ -1,6 +1,18 @@
-# Codex OSS - Local Models via Ollama
+# Codex OSS - Local Models
 
-The CodexOSS provider enables local model inference through Ollama, using the Codex CLI for session management and tool calling.
+The CodexOSS provider runs local model inference through the Codex CLI, which
+handles session management and tool calling.
+
+There are two ways to point it at a model server:
+
+- **A configured model service.** Add the endpoint under Settings → Providers →
+  Model services and allow CodexOSS to use it. YA then lists that endpoint's
+  `/v1/models` and launches with Codex model-provider overrides on the command
+  line, so any OpenAI-compatible server — vLLM, llama.cpp, LM Studio, Ollama —
+  works without Ollama being installed and without editing `~/.codex/config.toml`.
+  See also [gateway services](../topics/gateway-services.md).
+- **Ollama, the original path**, described below: `codex exec --oss` with models
+  enumerated from `ollama list`. This is what runs when no service opts in.
 
 ## Requirements
 
