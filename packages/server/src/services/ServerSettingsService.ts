@@ -200,6 +200,8 @@ export interface ServerSettings {
    * when missing and never removes an already-saved backend.
    */
   speechVoiceBackends: string[];
+  /** Explicit Whisper device choice; absent preserves WHISPER_DEVICE. */
+  speechWhisperGpu?: boolean;
   /** OpenAI-compatible helper endpoints for side-session helper work */
   helperTargets?: HelperTargetConfig[];
   /** Per-provider prompt-cache keepalive policy and cadence. */
@@ -469,6 +471,10 @@ function normalizeLoadedSettings(settings: ServerSettings): ServerSettings {
   normalized.speechVoiceBackends =
     parseSpeechVoiceBackends(settings.speechVoiceBackends) ??
     DEFAULT_SERVER_SETTINGS.speechVoiceBackends;
+  normalized.speechWhisperGpu =
+    typeof settings.speechWhisperGpu === "boolean"
+      ? settings.speechWhisperGpu
+      : undefined;
   normalized.claudeAdditionalModels =
     parseClaudeAdditionalModelSelections(settings.claudeAdditionalModels) ??
     undefined;

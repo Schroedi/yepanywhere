@@ -127,7 +127,7 @@ vi.mock("../../../lib/speechProviders/YaServerProvider", () => ({
 vi.mock("../SettingsUndoContext", () => undoMocks);
 
 describe("SpeechSettings", () => {
-  it.each(["ya-granite", "ya-whisper"])(
+  it.each(["ya-granite", "ya-whisper", "ya-qwen"])(
     "prewarms %s only when selected in settings",
     (backend) => {
       modelSettings.speechMethod = "ya-grok";
@@ -141,7 +141,12 @@ describe("SpeechSettings", () => {
       );
       fireEvent.click(
         screen.getByRole("button", {
-          name: backend === "ya-granite" ? /Granite Speech STT/ : /Whisper STT/,
+          name:
+            backend === "ya-granite"
+              ? /Granite Speech STT/
+              : backend === "ya-qwen"
+                ? /Qwen3 ASR STT/
+                : /Whisper STT/,
         }),
       );
       expect(prewarmYaServerSpeechBackend).toHaveBeenCalledWith(

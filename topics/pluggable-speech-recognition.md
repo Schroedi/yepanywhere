@@ -493,7 +493,7 @@ these numbers with older model-card averages using the previous test sets.
 
 | Candidate | Mean WER (%) ↓ | Reported RTFx ↑ | Why retain for English evaluation |
 | --- | ---: | ---: | --- |
-| Qwen3-ASR-1.7B-hf | 4.31 | 819.96 | Accuracy candidate; requires its own integration |
+| Qwen3-ASR-1.7B-hf | 4.31 | 819.96 | Installable `ya-qwen` backend, batch recognition |
 | Hojo-ASR-V1 | 4.33 | 72.51 | Evaluated candidate; user subsequently dropped it |
 | Granite Speech 4.1 2B | 4.62 | 545.64 | Current keyword-biased recognizer; keep the biasing axis |
 | Cohere Transcribe 03-2026 | 4.67 | 906.56 | Close accuracy/throughput candidate; requested but missing backend |
@@ -563,7 +563,8 @@ and distinguishing download size: the local isolated environment measured
 7,662 MiB on 2026-09-16. Cache sharing and platforms change disk/download needs.
 Whisper's performance caption says optimized CPU inference, with GPU
 acceleration available when configured. YA defaults to CPU/int8 and does not
-automatically choose CUDA; `WHISPER_DEVICE` overrides the device.
+automatically choose CUDA. The server's saved GPU checkbox overrides
+`WHISPER_DEVICE`; absent a saved choice, that environment variable still applies.
 Whisper is recommended only
 without a GPU. Its [model card](https://huggingface.co/openai/whisper-large-v3)
 documents invented transcript text; silence/non-speech hallucinations are
@@ -598,14 +599,21 @@ latency benchmark. The first assertion used a different sample URL from the
 card with the Quilter expected text; the fixture mismatch was corrected before
 acceptance. Logs and scripts are in `.artifacts/speech-candidates/` locally.
 
-Auto-install/backend integration is moderate work: pin a compatible dependency
-solve, reuse the HF cache/install log and warm-worker protocol, use
-`apply_transcription_request`, and decode the transcription-only result rather
-than exposing language tags. Wire registry, capability/catalog, model choices,
-and prewarm; verify context/hotwords separately before advertising keyword
-biasing. Prefer the shared `stt` pixi environment after checking its existing
-Whisper, Granite, and Transformers Parakeet paths against the changed
-Transformers pin. Use a separate environment only when constraints require it.
+The `ya-qwen` backend now installs through `stt-bootstrap-qwen`, appears in
+the enable/install catalog, and becomes selectable after live validation.
+Selecting it in Default speech backend prewarms its persistent worker.
+`QWEN_MODEL` and `QWEN_DEVICE` override the default model and automatic CUDA
+selection. Its native `apply_transcription_request` receives decoded 16 kHz
+audio and returns transcription text without language tags. Streaming,
+Smart Turn, and learned keyword bias are not advertised.
+
+Qwen, Granite, and Transformers Parakeet share `stt`, pinned to Transformers
+5.17.0 and NumPy <2.5. Actual worker transcription passed for all three after
+installing that solve. Whisper CPU remains in `stt`; Whisper GPU uses
+`stt-whisper-gpu` because CTranslate2 requires CUDA 12/cuDNN 9 libraries and
+the Torch installation uses CUDA 13. The GPU worker starts with its own
+environment's library paths, without inheriting host library overrides.
+Actual Whisper transcription passed on both CPU/int8 and CUDA/int8.
 
 Hojo retrieval was cancelled by user direction. Its 0.1.3 package pins
 Torch >=2.5.1,<2.6 and Transformers >=4.57.3,<5, conflicting with this shared
@@ -1385,7 +1393,7 @@ remains deferred to prewarm or transcription.
 
 ## Local backend enablement and install
 
-Speech settings ends with wrapping install/enable rows for the four local
+Speech settings ends with wrapping install/enable rows for the five local
 backends. Checkboxes write `speechVoiceBackends` in the YA data-directory
 settings file. `YEP_VOICE_BACKENDS` is copied into that list on startup when
 missing and is unioned at runtime, so an env entry cannot turn a saved backend
@@ -1445,3 +1453,23 @@ servers retain their restart-based explanation and routes. Servers lacking
 | Parakeet `ya-parakeet` | same | `pixi run -e stt stt-bootstrap-parakeet`; HF login if gated | Transformers ASR pipeline |
 | NeMo `ya-nemo` | same | `pixi run -e stt-nemo nemo-bootstrap`; HF login if gated | Isolated pixi env |
 | Granite `ya-granite` | same | `pixi run -e stt stt-bootstrap-granite`; default `ibm-granite/granite-speech-4.1-2b` | Learned `Keywords:` prompt + `GRANITE_KEYWORD_BIAS` |
+| Qwen `ya-qwen` | same | `pixi run -e stt stt-bootstrap-qwen`; default `Qwen/Qwen3-ASR-1.7B-hf` | Shared Transformers runtime, ungated download |
+
+Whisper's **GPU** checkbox persists `speechWhisperGpu` in server settings.
+It selects CUDA when checked and CPU when unchecked, retaining the selected
+Whisper model. A loaded worker changes device after queued dictation finishes;
+a cold worker uses the new device on its next load. First GPU activation
+bootstraps the separate CUDA 12 environment. Installation/reload errors remain
+visible; the saved setting survives restart and there is no silent CPU fallback.
+The checkbox remains usable for recovery when runtime validation failed.
+The optional `whisperGpu` setup receipt gates this route: older servers that
+omit it show no control and receive no request to the new endpoint.
+
+Settings recommend Grok for streaming or Smart Turn in YA. xAI's
+[commercial-domain evaluation](https://x.ai/news/grok-stt-and-tts-apis)
+reports 6.90% overall WER, which is explicitly separate from the local-model
+English leaderboard. The proposed 5–6% aggregate was not verified. NVIDIA's
+Unified evaluation reports 5.91% batch, 6.14% at 2.08-second streaming latency,
+and 8.44% at 160 ms. The UI identifies YA's NeMo path as batch-only and its
+streaming integration as planned, rather than suggesting streaming has the
+batch score.

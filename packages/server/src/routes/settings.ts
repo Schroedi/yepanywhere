@@ -794,7 +794,7 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
           return c.json(
             {
               error:
-                "speechVoiceBackends must be an array of local STT backend ids (ya-whisper, ya-parakeet, ya-nemo, ya-granite)",
+                "speechVoiceBackends must be an array of local STT backend ids (ya-whisper, ya-parakeet, ya-nemo, ya-granite, ya-qwen)",
             },
             400,
           );

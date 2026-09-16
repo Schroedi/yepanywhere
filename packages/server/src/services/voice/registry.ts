@@ -4,6 +4,7 @@ import { DummyBackend } from "./dummyBackend.js";
 import { LocalGraniteBackend } from "./localGraniteBackend.js";
 import { LocalNemoBackend } from "./localNemoBackend.js";
 import { LocalParakeetBackend } from "./localParakeetBackend.js";
+import { LocalQwenBackend } from "./localQwenBackend.js";
 import { LocalWhisperBackend } from "./localWhisperBackend.js";
 import type {
   SpeechBackend,
@@ -115,6 +116,11 @@ export class SpeechBackendRegistry {
     return this.entries.get(id)?.info.enabled ?? false;
   }
 
+  /** Administrative access also permits recovery from a failed validation. */
+  getConfiguredBackend(id: string): SpeechBackend | null {
+    return this.entries.get(id)?.backend ?? null;
+  }
+
   /** Return an enabled backend by id, or null if unknown/disabled. */
   getBackend(id: string): SpeechBackend | null {
     const entry = this.entries.get(id);
@@ -214,6 +220,9 @@ export interface SpeechRegistryInitOptions {
   graniteModel?: string;
   /** Granite Speech device (default: auto). */
   graniteDevice?: string;
+  /** Qwen3 ASR model and device; defaults to 1.7B-hf and automatic CUDA. */
+  qwenModel?: string;
+  qwenDevice?: string;
 }
 
 export async function initSpeechBackendRegistry(
@@ -314,6 +323,15 @@ export async function registerSpeechBackends(
           new LocalGraniteBackend({
             model: options.graniteModel,
             device: options.graniteDevice,
+          }),
+        );
+        break;
+
+      case "ya-qwen":
+        registry.register(
+          new LocalQwenBackend({
+            model: options.qwenModel,
+            device: options.qwenDevice,
           }),
         );
         break;

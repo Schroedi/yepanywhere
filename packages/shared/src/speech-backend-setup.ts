@@ -5,6 +5,7 @@ export const LOCAL_SPEECH_BACKEND_IDS = [
   "ya-parakeet",
   "ya-nemo",
   "ya-granite",
+  "ya-qwen",
 ] as const;
 
 export type LocalSpeechBackendId = (typeof LOCAL_SPEECH_BACKEND_IDS)[number];
@@ -62,6 +63,17 @@ export const LOCAL_SPEECH_BACKEND_SPECS: readonly LocalSpeechBackendSpec[] = [
     hfGated: false,
     downloadPython:
       "from transformers import AutoProcessor, AutoModelForSpeechSeq2Seq; name='ibm-granite/granite-speech-4.1-2b'; AutoProcessor.from_pretrained(name); AutoModelForSpeechSeq2Seq.from_pretrained(name); print('granite weights ready')",
+  },
+  {
+    id: "ya-qwen",
+    pixiEnvironment: "stt",
+    bootstrapTask: "stt-bootstrap-qwen",
+    checkPython:
+      "import torch; from transformers import Qwen3ASRForConditionalGeneration, Qwen3ASRProcessor",
+    defaultModel: "Qwen/Qwen3-ASR-1.7B-hf",
+    hfGated: false,
+    downloadPython:
+      "from huggingface_hub import snapshot_download; snapshot_download('Qwen/Qwen3-ASR-1.7B-hf'); print('qwen weights ready')",
   },
 ];
 
@@ -143,6 +155,8 @@ export interface SpeechBackendSetupStatus {
   liveEnablement?: boolean;
   /** The directory used by the server's pixi commands. */
   workingDirectory?: string;
+  /** Presence advertises the live Whisper GPU settings route. */
+  whisperGpu?: boolean;
   install: SpeechBackendInstallStatus;
   catalog: SpeechBackendSetupRow[];
 }

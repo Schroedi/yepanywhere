@@ -35,6 +35,7 @@ const COMPACT_SPEECH_METHOD_LABELS: Record<string, string> = {
   "ya-parakeet": "Para",
   "ya-nemo": "NeMo",
   "ya-granite": "Gran",
+  "ya-qwen": "Qwen",
   "ya-dummy": "Test",
 };
 
@@ -70,6 +71,11 @@ const SERVER_BACKEND_LABELS: Record<
   "ya-dummy": {
     label: "Dummy STT",
     description: "Test speech backend through YA.",
+  },
+  "ya-qwen": {
+    label: "Qwen3 ASR STT",
+    description:
+      "Local Qwen3 ASR through YA; batch recognition with automatic GPU selection.",
   },
 };
 

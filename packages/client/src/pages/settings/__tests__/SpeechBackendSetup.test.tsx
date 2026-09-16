@@ -36,6 +36,81 @@ afterEach(() => {
 });
 
 describe("SpeechBackendSetup", () => {
+  it("offers Qwen install/enable and gates the live Whisper GPU control by receipt", async () => {
+    const status = {
+      settingsBackends: [],
+      advertisedBackends: ["ya-whisper"],
+      envBackends: [],
+      restartAvailable: false,
+      needsRestart: false,
+      liveEnablement: true,
+      whisperGpu: false as boolean | undefined,
+      install: { running: false, lines: [] },
+      catalog: [
+        {
+          id: "ya-whisper",
+          enabled: true,
+          advertised: true,
+          defaultModel: "distil-large-v3.5",
+        },
+        {
+          id: "ya-qwen",
+          enabled: false,
+          advertised: false,
+          defaultModel: "Qwen/Qwen3-ASR-1.7B-hf",
+        },
+      ],
+    };
+    transport.fetch.mockImplementation(
+      async (path: string, options?: { body?: string }) => {
+        if (path.endsWith("/gpu"))
+          status.whisperGpu = JSON.parse(options!.body!).enabled;
+        return { ...status };
+      },
+    );
+    const view = render(
+      <I18nProvider>
+        <SpeechBackendSetup />
+      </I18nProvider>,
+    );
+    const gpu = await screen.findByRole("checkbox", { name: "GPU" });
+    fireEvent.click(gpu);
+    await waitFor(() => expect((gpu as HTMLInputElement).checked).toBe(true));
+    expect(transport.fetch).toHaveBeenCalledWith(
+      "/speech/backends/ya-whisper/gpu",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: '{"enabled":true}',
+      },
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Enable Qwen3 ASR STT" }),
+    );
+    await waitFor(() =>
+      expect(settingsState.updateSettings).toHaveBeenCalledWith({
+        speechVoiceBackends: ["ya-qwen"],
+      }),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Get / install this model" })[1]!,
+    );
+    await waitFor(() =>
+      expect(transport.fetch).toHaveBeenCalledWith(
+        "/speech/backends/ya-qwen/install",
+        { method: "POST" },
+      ),
+    );
+    view.unmount();
+    status.whisperGpu = undefined;
+    render(
+      <I18nProvider>
+        <SpeechBackendSetup />
+      </I18nProvider>,
+    );
+    await screen.findByRole("checkbox", { name: "Enable Whisper STT" });
+    expect(screen.queryByRole("checkbox", { name: "GPU" })).toBeNull();
+  });
   it("does not request setup routes on older servers", async () => {
     versionState.current = "0.8.1";
     render(

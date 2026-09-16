@@ -13,6 +13,7 @@ Startup line:  {"status":"ready"} (written once after model loads)
 
 import base64
 import json
+import os
 import sys
 import tempfile
 
@@ -23,6 +24,24 @@ def main() -> None:
     model_name = sys.argv[1] if len(sys.argv) > 1 else "distil-large-v3.5"
     device = sys.argv[2] if len(sys.argv) > 2 else "cpu"
     compute_type = sys.argv[3] if len(sys.argv) > 3 else "int8"
+
+    # The dynamic loader reads its search path at process start. Re-exec once
+    # with only this isolated environment's CUDA libraries, before native imports.
+    if device != "cpu" and sys.platform == "linux" and not os.environ.get("YA_WHISPER_CUDA_READY"):
+        try:
+            import nvidia.cublas.lib
+            import nvidia.cudnn.lib
+
+            env = dict(os.environ)
+            env["LD_LIBRARY_PATH"] = ":".join(
+                str(next(iter(module.__path__)))
+                for module in (nvidia.cublas.lib, nvidia.cudnn.lib)
+            )
+            env["YA_WHISPER_CUDA_READY"] = "1"
+            os.execve(sys.executable, [sys.executable, *sys.argv], env)
+        except Exception as exc:
+            print(json.dumps({"error": f"Whisper CUDA setup failed: {exc}"}), flush=True)
+            sys.exit(1)
 
     sys.stderr.write(
         f"[whisper_worker] Loading {model_name} on {device}/{compute_type}...\n"

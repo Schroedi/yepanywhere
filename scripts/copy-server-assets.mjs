@@ -35,6 +35,7 @@ for (const expected of [
   "parakeet_worker.py",
   "nemo_worker.py",
   "granite_worker.py",
+  "qwen_worker.py",
   "stt_worker_common.py",
 ]) {
   if (!existsSync(join(targetDir, expected))) {

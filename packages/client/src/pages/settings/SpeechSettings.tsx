@@ -503,6 +503,7 @@ export function SpeechSettings() {
                   prepareParakeetBackend(nextBackend);
                 } else if (
                   nextBackend === "ya-granite" ||
+                  nextBackend === "ya-qwen" ||
                   nextBackend === "ya-whisper"
                 ) {
                   void prewarmYaServerSpeechBackend(

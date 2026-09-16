@@ -11,7 +11,6 @@ import {
   ensureLocalSttRuntime,
   localSttEnv,
   PIXI_COMMAND,
-  PIXI_PYTHON_ARGS,
   PIXI_STT_ENV,
 } from "./localSttRuntime.js";
 import { SerialQueue } from "./serialQueue.js";
@@ -24,18 +23,20 @@ const WORKER_SCRIPT = join(
 
 /** Milliseconds to wait for model load before giving up. */
 const MODEL_LOAD_TIMEOUT_MS = 120_000;
+const GPU_ENVIRONMENT = "stt-whisper-gpu";
 
 export class LocalWhisperBackend implements PrewarmableSpeechBackend {
   readonly id = "ya-whisper";
   readonly label = "Local Whisper (pixi stt)";
 
   private readonly model: string;
-  private readonly device: string;
+  private device: string;
   private readonly computeType: string;
 
   private proc: ChildProcess | null = null;
   private warmPromise: Promise<void> | null = null;
   private workerModel: string | null = null;
+  private workerDevice: string | null = null;
   private pendingResolve: ((text: string) => void) | null = null;
   private pendingReject: ((err: Error) => void) | null = null;
   // Serializes transcriptions onto one queue (single worker), so a request
@@ -51,6 +52,7 @@ export class LocalWhisperBackend implements PrewarmableSpeechBackend {
   }
 
   async validate(): Promise<{ ok: true } | { ok: false; reason: string }> {
+    if (this.device !== "cpu") return this.ensureGpuRuntime();
     return ensureLocalSttRuntime({
       backendLabel: "local STT",
       checkPython:
@@ -59,8 +61,37 @@ export class LocalWhisperBackend implements PrewarmableSpeechBackend {
     });
   }
 
+  getDevice(): string {
+    return this.device;
+  }
+
+  private ensureGpuRuntime() {
+    return ensureLocalSttRuntime({
+      backendLabel: "Whisper GPU",
+      environment: GPU_ENVIRONMENT,
+      checkPython:
+        "from faster_whisper import WhisperModel; import nvidia.cublas.lib, nvidia.cudnn.lib",
+      bootstrapTask: "whisper-gpu-bootstrap",
+    });
+  }
+
+  /** Serialize device changes behind any active dictation; preserve its model. */
+  async setGpuEnabled(enabled: boolean): Promise<void> {
+    return this.queue.run(async () => {
+      if (enabled && this.device === "cpu") {
+        const runtime = await this.ensureGpuRuntime();
+        if (!runtime.ok) throw new Error(runtime.reason);
+      }
+      this.device = enabled ? "cuda" : "cpu";
+      if (this.proc) await this.startWorker(this.workerModel ?? this.model);
+    });
+  }
+
   private async startWorker(model: string): Promise<void> {
-    if (this.proc && this.workerModel !== model) {
+    if (
+      this.proc &&
+      (this.workerModel !== model || this.workerDevice !== this.device)
+    ) {
       const previous = this.proc;
       // This runs inside the queue, after the preceding transcription settles.
       // Reclaim the old model before allocating another one.
@@ -79,14 +110,19 @@ export class LocalWhisperBackend implements PrewarmableSpeechBackend {
     if (this.warmPromise) return this.warmPromise;
 
     this.warmPromise = new Promise<void>((resolve, reject) => {
+      const environment =
+        this.device === "cpu" ? PIXI_STT_ENV : GPU_ENVIRONMENT;
       logger.info(
-        `Starting whisper worker via pixi env "${PIXI_STT_ENV}" (model=${model} device=${this.device} compute_type=${this.computeType})`,
+        `Starting whisper worker via pixi env "${environment}" (model=${model} device=${this.device} compute_type=${this.computeType})`,
       );
 
       const proc = spawn(
         PIXI_COMMAND,
         [
-          ...PIXI_PYTHON_ARGS,
+          "run",
+          "--frozen",
+          "-e",
+          environment,
           WORKER_SCRIPT,
           model,
           this.device,
@@ -100,6 +136,7 @@ export class LocalWhisperBackend implements PrewarmableSpeechBackend {
       );
       this.proc = proc;
       this.workerModel = model;
+      this.workerDevice = this.device;
 
       let ready = false;
       let loadTimeout: NodeJS.Timeout | null = null;

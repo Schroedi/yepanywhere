@@ -220,6 +220,10 @@ export interface Config {
   graniteModel?: string;
   /** Granite Speech device for ya-granite backend (default: auto). */
   graniteDevice?: string;
+  /** Qwen3 ASR model override (default: Qwen/Qwen3-ASR-1.7B-hf). */
+  qwenModel?: string;
+  /** Qwen3 ASR device override (default: auto). */
+  qwenDevice?: string;
   /** Allowed directory prefixes for serving local images (e.g., ["/tmp"]). Empty = disabled. */
   allowedImagePaths: string[];
   /** Managed uploads directory ({dataDir}/uploads); always part of the file-access set. */
@@ -478,6 +482,8 @@ export function loadConfig(): Config {
     nemoDevice: process.env.NEMO_DEVICE || undefined,
     graniteModel: process.env.GRANITE_MODEL || undefined,
     graniteDevice: process.env.GRANITE_DEVICE || undefined,
+    qwenModel: process.env.QWEN_MODEL || undefined,
+    qwenDevice: process.env.QWEN_DEVICE || undefined,
     // Always allow yep-managed uploads. ALLOWED_IMAGE_PATHS adds external paths
     // like /tmp; an empty value disables only those extras.
     allowedImagePaths: Array.from(

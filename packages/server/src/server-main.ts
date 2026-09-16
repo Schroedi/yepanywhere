@@ -979,7 +979,12 @@ async function startServer() {
     deepgramApiKey: config.deepgramApiKey,
     xaiSttApiKey: config.xaiSttApiKey,
     whisperModel: config.whisperModel,
-    whisperDevice: config.whisperDevice,
+    whisperDevice:
+      serverSettingsService.getSetting("speechWhisperGpu") === undefined
+        ? config.whisperDevice
+        : serverSettingsService.getSetting("speechWhisperGpu")
+          ? "cuda"
+          : "cpu",
     whisperComputeType: config.whisperComputeType,
     parakeetModel: config.parakeetModel,
     parakeetDevice: config.parakeetDevice,
@@ -987,6 +992,8 @@ async function startServer() {
     nemoDevice: config.nemoDevice,
     graniteModel: config.graniteModel,
     graniteDevice: config.graniteDevice,
+    qwenModel: config.qwenModel,
+    qwenDevice: config.qwenDevice,
   };
   const speechBackendRegistry = new SpeechBackendRegistry();
   const speechBackendInstallService = new SpeechBackendInstallService(
@@ -996,6 +1003,12 @@ async function startServer() {
     },
   );
   serverSettingsService.onSettingsChanged((next, previous) => {
+    speechBackendOptions.whisperDevice =
+      next.speechWhisperGpu === undefined
+        ? config.whisperDevice
+        : next.speechWhisperGpu
+          ? "cuda"
+          : "cpu";
     if (next.speechVoiceBackends === previous.speechVoiceBackends) return;
     void registerSpeechBackends(speechBackendRegistry, {
       ...speechBackendOptions,

@@ -24,6 +24,7 @@ const BACKEND_LABEL_KEYS = {
   "ya-parakeet": "speechBackendSetupLabel_ya_parakeet",
   "ya-nemo": "speechBackendSetupLabel_ya_nemo",
   "ya-granite": "speechBackendSetupLabel_ya_granite",
+  "ya-qwen": "speechBackendSetupLabel_ya_qwen",
 } as const satisfies Record<LocalSpeechBackendId, string>;
 
 export function SpeechBackendSetup() {
@@ -35,6 +36,7 @@ export function SpeechBackendSetup() {
   const [error, setError] = useState<string>();
   const [restarting, setRestarting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pendingWhisperGpu, setPendingWhisperGpu] = useState<boolean>();
   const [pendingToggle, setPendingToggle] = useState<{
     id: string;
     enabled: boolean;
@@ -63,6 +65,8 @@ export function SpeechBackendSetup() {
   useEffect(() => {
     setStatus(undefined);
     setError(undefined);
+    setSaving(false);
+    setPendingWhisperGpu(undefined);
     if (supported) void refresh();
   }, [refresh, supported]);
 
@@ -129,6 +133,33 @@ export function SpeechBackendSetup() {
     }
   };
 
+  const setWhisperGpu = async (enabled: boolean) => {
+    const target = transport;
+    setPendingWhisperGpu(enabled);
+    setSaving(true);
+    setError(undefined);
+    try {
+      const next = await target.fetch<SpeechBackendSetupStatus>(
+        "/speech/backends/ya-whisper/gpu",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled }),
+        },
+      );
+      if (scope.current === target) setStatus(next);
+    } catch (err) {
+      if (scope.current !== target) return;
+      await refresh();
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (scope.current === target) {
+        setSaving(false);
+        setPendingWhisperGpu(undefined);
+      }
+    }
+  };
+
   const restart = async () => {
     try {
       setRestarting(true);
@@ -158,6 +189,7 @@ export function SpeechBackendSetup() {
         "ya-parakeet",
         "ya-nemo",
         "ya-granite",
+        "ya-qwen",
         "install",
         "restart",
       ]}
@@ -176,6 +208,14 @@ export function SpeechBackendSetup() {
             rel="noreferrer"
           >
             NVIDIA
+          </a>
+          {" · "}
+          <a
+            href="https://x.ai/news/grok-stt-and-tts-apis"
+            target="_blank"
+            rel="noreferrer"
+          >
+            xAI
           </a>
         </p>
         {error && (
@@ -234,8 +274,32 @@ export function SpeechBackendSetup() {
                   {t("speechBackendSetupWhisperPerformance")}
                 </span>
               )}
+              {row.id === "ya-whisper" &&
+                typeof status?.whisperGpu === "boolean" && (
+                  <div>
+                    <label className={styles.enable}>
+                      <input
+                        type="checkbox"
+                        checked={pendingWhisperGpu ?? status.whisperGpu}
+                        disabled={saving || (!row.enabled && !row.advertised)}
+                        onChange={(event) =>
+                          void setWhisperGpu(event.currentTarget.checked)
+                        }
+                      />
+                      <span>{t("speechBackendSetupWhisperGpu")}</span>
+                    </label>
+                    <p className="settings-hint">
+                      {t("speechBackendSetupWhisperGpuHelp")}
+                    </p>
+                  </div>
+                )}
               {row.defaultModel === "distil-large-v3.5" && (
                 <span className="settings-hint">756M parameters</span>
+              )}
+              {row.id === "ya-nemo" && (
+                <p className="settings-hint">
+                  {t("speechBackendSetupStreamingAdvice")}
+                </p>
               )}
               {row.id === "ya-nemo" && (
                 <span className="settings-hint">

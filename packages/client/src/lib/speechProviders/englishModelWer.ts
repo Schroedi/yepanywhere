@@ -11,6 +11,7 @@ const SCORES: Readonly<Record<string, string>> = {
   "nvidia/parakeet-ctc-1.1b": "5.92",
   "nvidia/parakeet-rnnt-1.1b": "5.76",
   "ibm-granite/granite-speech-4.1-2b": "4.62",
+  "Qwen/Qwen3-ASR-1.7B-hf": "4.31",
 };
 
 export function englishModelWer(model: string): string {

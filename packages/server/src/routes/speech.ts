@@ -23,6 +23,7 @@ import {
 import type { SafeRestartService } from "../services/SafeRestartService.js";
 import type { SpeechBackendInstallService } from "../services/voice/speechBackendInstall.js";
 import { graniteModelFilesPresent } from "../services/voice/graniteModelCache.js";
+import { LocalWhisperBackend } from "../services/voice/localWhisperBackend.js";
 import type { SpeechBackendRegistry } from "../services/voice/registry.js";
 import {
   supportsStreaming,
@@ -953,6 +954,7 @@ async function speechBackendSetupStatus(
   const needsRestart = LOCAL_SPEECH_BACKEND_SPECS.some(
     (spec) => !enabledLocal.has(spec.id) && advertisedLocal.has(spec.id),
   );
+  const whisper = deps.speechBackendRegistry.getBackend("ya-whisper");
   return {
     envBackends,
     settingsBackends,
@@ -961,6 +963,11 @@ async function speechBackendSetupStatus(
     needsRestart,
     liveEnablement: true,
     workingDirectory: process.cwd(),
+    whisperGpu: deps.serverSettingsService
+      ? (deps.serverSettingsService.getSetting("speechWhisperGpu") ??
+        (whisper instanceof LocalWhisperBackend &&
+          whisper.getDevice() !== "cpu"))
+      : undefined,
     install: deps.speechBackendInstallService?.status() ?? {
       running: false,
       lines: [],
@@ -997,6 +1004,40 @@ export function createSpeechRoutes(deps: SpeechRouteDeps): Hono {
   routes.get("/backends", async (c) =>
     c.json(await speechBackendSetupStatus(deps)),
   );
+
+  routes.post("/backends/ya-whisper/gpu", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    if (!body || typeof body.enabled !== "boolean") {
+      return c.json({ error: "enabled must be a boolean" }, 400);
+    }
+    if (!deps.serverSettingsService) {
+      return c.json({ error: "Server settings are unavailable" }, 503);
+    }
+    const backend =
+      deps.speechBackendRegistry.getConfiguredBackend("ya-whisper");
+    if (!(backend instanceof LocalWhisperBackend)) {
+      return c.json(
+        { error: "Enable Whisper before changing its device" },
+        409,
+      );
+    }
+    await deps.serverSettingsService.updateSettings({
+      speechWhisperGpu: body.enabled,
+    });
+    try {
+      await backend.setGpuEnabled(body.enabled);
+      deps.speechBackendRegistry.revalidate("ya-whisper");
+      await deps.speechBackendRegistry.waitForValidation();
+      return c.json(await speechBackendSetupStatus(deps));
+    } catch (error) {
+      return c.json(
+        {
+          error: `Whisper device setting saved, but reload failed: ${error instanceof Error ? error.message : String(error)}`,
+        },
+        500,
+      );
+    }
+  });
 
   routes.post("/backends/restart", async (c) => {
     if (deps.speechBackendInstallService?.status().running) {
