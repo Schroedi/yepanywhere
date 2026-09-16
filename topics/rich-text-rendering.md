@@ -73,6 +73,13 @@ Provider formats observed so far:
 
 These run unconditionally and are not user-configurable:
 
+- **Wrapped lines stay separated** — Appearance line spacing may tighten prose,
+  but rendered markdown must never overlap its own wrapped lines. Body prose in
+  assistant text, streaming blocks, thinking blocks, and document previews keeps
+  a floor of `1.1em` at the tightest setting. Headings resolve line height
+  against their own font size rather than inheriting the container's body-sized
+  em length, with their own floor, so a heading that wraps stays legible at
+  every setting.
 - **ANSI escape stripping** — applied before all rendering so raw escape codes
   never appear as literal characters. (`stripAnsiEscapes` inside `renderFixedFontRichContent`)
 - **Shiki syntax highlighting** — server-side, keyed on file extension, stored as

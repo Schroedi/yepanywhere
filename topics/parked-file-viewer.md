@@ -125,11 +125,14 @@ was.
   the session header and its bottom meets the top of the composer; it never
   covers the composer in ordinary open mode. At 800px and below it becomes
   edge-to-edge within that reading region. Explicit fullscreen may still claim
-  the viewport. Its compact header reserves the first
-  row's right column for actions while the path and metadata wrap on the left;
-  the path uses at most two lines and the metrics remain on one. At 480px and
-  below the actions use a two-row grid. These header cutoffs use the viewer's
-  allocated width, so a narrow right pane receives the same compact controls.
+  the viewport. The header never trades the filename away for controls: the
+  path keeps a readable column of its own, uses at most two lines, and the
+  metrics stay on one line. When the controls no longer fit beside that column
+  they move to a compact second header row rather than squeezing the path into
+  a one-glyph stack. At 480px and below the actions use a two-row grid. These
+  header cutoffs use the viewer's allocated width, so a narrow right pane
+  receives the same compact controls. The back control is an arrow with no
+  label, matching the standalone file page's own back control.
   The four-column window block keeps
   link, move to new tab, minimize, and close on top and the atomic `− N +` zoom
   control across the same columns below. Those equal-width window cells are short
@@ -160,6 +163,15 @@ Shift-click or middle-click opens it in a new tab without closing. Move to new
 tab opens that viewer URL and closes the current viewer. It does not open a
 raw active-file response. Standalone pages omit move-out. Existing separate
 file-specific controls (preview, fullscreen, download) remain outside this group.
+
+A viewer registers itself with the session's managed-viewer controller, and
+registering again re-renders that controller's host. So a source may register
+only when the viewer's own state actually changes, never merely because the
+surface that owns it re-rendered and rebuilt a prop object. A source whose
+caller passes freshly allocated callbacks or navigation state each render must
+register on the values it presents and reach the caller's latest handlers
+indirectly; registering on object identity is an update loop that React aborts
+as exceeded update depth, replacing the session with the crash screen.
 
 **Keep the portaled controller and its positioning lifecycle in one component**
 (vs. embedding them in the composer toolbar):

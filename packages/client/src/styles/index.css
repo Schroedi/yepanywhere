@@ -406,18 +406,18 @@
   --fixed-inline-code-line-height: 1.15;
   --fixed-inline-code-baseline-shift: 0.04em;
   --thinking-prose-line-height-offset: 0px;
-  --thinking-prose-line-height: calc(
-    1.5em +
-    var(--thinking-prose-line-height-offset)
+  --thinking-prose-line-height: max(
+    1.1em,
+    calc(1.5em + var(--thinking-prose-line-height-offset))
   );
   --thinking-prose-font-variation-settings: var(
     --output-prose-font-variation-settings
   );
   --output-prose-vspace-offset: 0px;
   --output-prose-line-height-offset: 0px;
-  --output-prose-line-height: calc(
-    1.5em +
-    var(--output-prose-line-height-offset)
+  --output-prose-line-height: max(
+    1.1em,
+    calc(1.5em + var(--output-prose-line-height-offset))
   );
   --source-code-font-size: max(
     10px,

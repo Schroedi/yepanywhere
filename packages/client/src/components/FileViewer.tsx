@@ -22,6 +22,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api/client";
+import { BackArrowIcon } from "./BackArrowIcon";
 import {
   buildPublicShareFileHref,
   usePublicShareContext,
@@ -164,6 +165,8 @@ interface FileViewerProps {
   initialPresentation?: FileViewPresentation;
   /** Exact Git comparison selected for this file, when present. */
   diffMode?: GitFileDiffMode;
+  /** Page-level controls hosted in the header's leading slot. */
+  headerLeading?: ReactNode;
 }
 
 export type FileViewerMode = "full" | "range";
@@ -565,6 +568,7 @@ export const FileViewer = memo(function FileViewer({
   viewMode = "full",
   initialPresentation,
   diffMode,
+  headerLeading,
 }: FileViewerProps) {
   const { t } = useI18n();
   const quoteTextBlock = useQuoteReply();
@@ -1671,7 +1675,8 @@ export const FileViewer = memo(function FileViewer({
 
   // Header with file info and actions
   const header = (
-    <div className={`file-viewer-header ${viewerStyles.header}`}>
+    <div className="file-viewer-header">
+      {headerLeading}
       {onClose && (
         <button
           type="button"
@@ -1680,8 +1685,7 @@ export const FileViewer = memo(function FileViewer({
           title={t("actionBack")}
           aria-label={t("actionBack")}
         >
-          <BackIcon />
-          <span className={viewerStyles.backLabel}>{t("actionBack")}</span>
+          <BackArrowIcon />
         </button>
       )}
       <div className={`file-viewer-info ${viewerStyles.info}`}>
@@ -2024,24 +2028,6 @@ function FileViewerSelectionActions({
 }
 
 // Icons
-function BackIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M13.5 8h-11M6.5 4l-4 4 4 4" />
-    </svg>
-  );
-}
-
 function RawSourceIcon() {
   return (
     <svg
