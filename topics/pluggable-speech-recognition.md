@@ -27,8 +27,10 @@ behavior across streaming and batch STT.
   since providing a metered key is the operator's explicit opt-in. Configured
   backends appear immediately through `/api/version.voiceBackendStatuses`, but
   only backends that pass startup validation are routable and advertised as
-  `voiceBackends`. A settings or env change that adds a local backend takes
-  effect on the next YA restart.
+  `voiceBackends`. Saved additions validate asynchronously without restarting
+  YA; removing a running backend or changing the process environment takes
+  effect on the next YA restart. Existing workers and in-flight speech remain
+  intact while new backends validate.
 - Browser-native Web Speech recognition is a selectable local escape hatch,
   not a YA server backend. The browser still owns its recognizer, credentials,
   latency, and failure modes.
@@ -1246,14 +1248,40 @@ remains deferred to prewarm or transcription.
 
 ## Local backend enablement and install
 
-Speech settings ends with an install/enable table for the four local
+Speech settings ends with wrapping install/enable rows for the four local
 backends. Checkboxes write `speechVoiceBackends` in the YA data-directory
 settings file. `YEP_VOICE_BACKENDS` is copied into that list on startup when
 missing and is unioned at runtime, so an env entry cannot turn a saved backend
 off. Get / install runs the pixi bootstrap if needed, then downloads default
 weights into the Hugging Face cache; the scrollable install log is that
-command output. Restart YA (safe restart when the process supports it)
-re-reads the union and advertises backends that validate.
+command output. Installing retries a failed runtime validation without replacing
+an existing warm worker. Runtime validation does not prove the model weights
+are cached: install downloads them explicitly, and first use can download them
+too. The catalog displays checking, available, and failed validation with the
+failure reason. Its bounded polling runs only while setup or validation is
+active, and refreshes the shared speech-method catalog as readiness changes.
+
+Restart YA is a user-elected safe restart through the same service as the
+maintenance controls, including the ordinary server-main route mount. It waits
+for unsafe active work, is unavailable without a restart-capable launcher, and
+rejects restart while a model install is running. Disabling a running backend
+is saved immediately and takes effect on this restart.
+
+Model page / access opens inline instructions and a direct Hugging Face link.
+Granite enablement also opens those instructions when it is not yet available.
+Hugging Face blocks embedded frames, and gated-model access requests require a
+browser: the user accepts any terms/contact-sharing request on the model page,
+authenticates the server with `hf auth login` using the same account, and retries
+the install. Cached files are reused. The default Granite 4.1 2B repository
+reported `gated: false` on 2026-09-16; the access path remains available for
+changed gates or account-dependent failures.
+
+**Design decision:** add backends live while retaining restart for removals,
+rather than replacing running workers on every settings change. This preserves
+in-flight transcription and existing model instances. The additive
+`liveEnablement` receipt selects the new explanation; earlier setup-capable
+servers retain their restart-based explanation and routes. Servers lacking
+`speech-backend-setup` receive no setup request.
 
 | Backend | Enable | Install | Notes |
 | --- | --- | --- | --- |

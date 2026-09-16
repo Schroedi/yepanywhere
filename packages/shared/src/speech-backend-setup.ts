@@ -123,6 +123,8 @@ export interface SpeechBackendSetupRow {
   enabledByEnv: boolean;
   enabledBySettings: boolean;
   advertised: boolean;
+  validationStatus?: "pending" | "enabled" | "disabled";
+  disabledReason?: string;
   pixiEnvironment: LocalSpeechBackendSpec["pixiEnvironment"];
   bootstrapTask: string;
   defaultModel: string;
@@ -135,6 +137,8 @@ export interface SpeechBackendSetupStatus {
   advertisedBackends: string[];
   restartAvailable: boolean;
   needsRestart: boolean;
+  /** New enablements validate immediately; disabling an active backend needs restart. */
+  liveEnablement?: boolean;
   install: SpeechBackendInstallStatus;
   catalog: SpeechBackendSetupRow[];
 }

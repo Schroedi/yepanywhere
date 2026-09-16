@@ -7,7 +7,12 @@ import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import { attachUnifiedUpgradeHandler } from "../../src/frontend/index.js";
-import { createSpeechRoutes } from "../../src/routes/speech.js";
+import {
+  createSpeechRoutes,
+  type SpeechSessionDeps,
+} from "../../src/routes/speech.js";
+import { SafeRestartService } from "../../src/services/SafeRestartService.js";
+import { EventBus } from "../../src/watcher/EventBus.js";
 import { DUMMY_TRANSCRIPT } from "../../src/services/voice/dummyBackend.js";
 import { initSpeechBackendRegistry } from "../../src/services/voice/registry.js";
 import { SpeechBackendRegistry } from "../../src/services/voice/registry.js";
@@ -23,10 +28,7 @@ import type {
 async function createSpeechApp(
   dataDir?: string,
   speechBackendRegistry?: SpeechBackendRegistry,
-  options?: {
-    xaiSttApiKey?: string;
-    shareXaiSttApiKeyWithClients?: boolean;
-  },
+  options?: Partial<SpeechSessionDeps>,
 ) {
   const app = new Hono();
   const { upgradeWebSocket, wss } = createNodeWebSocket({ app });
@@ -39,6 +41,7 @@ async function createSpeechApp(
   app.route(
     "/api/speech",
     createSpeechRoutes({
+      ...options,
       speechBackendRegistry: registry,
       upgradeWebSocket,
       dataDir,
@@ -278,6 +281,34 @@ describe("speech routes", () => {
       "ya-granite",
     ]);
     expect(body.restartAvailable).toBe(false);
+  });
+
+  it("exposes and schedules the supplied safe restart service", async () => {
+    const restart = vi.fn();
+    const service = new SafeRestartService({
+      eventBus: new EventBus(),
+      getWorkerActivity: () => ({
+        activeWorkers: 1,
+        queueLength: 0,
+        hasActiveWork: true,
+      }),
+      restart,
+    });
+    try {
+      const { app } = await createSpeechApp(undefined, undefined, {
+        safeRestartService: service,
+      });
+      const catalog = await (await app.request("/api/speech/backends")).json();
+      expect(catalog.restartAvailable).toBe(true);
+      const response = await app.request("/api/speech/backends/restart", {
+        method: "POST",
+      });
+      expect(response.status).toBe(200);
+      expect((await response.json()).status).toBe("scheduled");
+      expect(restart).not.toHaveBeenCalled();
+    } finally {
+      service.dispose();
+    }
   });
 
   it("passes a requested local model to the selected batch backend", async () => {

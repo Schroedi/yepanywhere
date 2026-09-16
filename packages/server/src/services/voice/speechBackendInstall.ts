@@ -16,6 +16,10 @@ export class SpeechBackendInstallService {
   private current: SpeechBackendInstallStatus = { running: false, lines: [] };
   private queue: Promise<void> = Promise.resolve();
 
+  constructor(
+    private readonly onInstalled?: (id: LocalSpeechBackendId) => Promise<void>,
+  ) {}
+
   status(): SpeechBackendInstallStatus {
     return { ...this.current, lines: [...this.current.lines] };
   }
@@ -145,8 +149,9 @@ export class SpeechBackendInstallService {
       this.append(`Model download failed: ${downloaded.reason}`);
       return;
     }
+    await this.onInstalled?.(backendId);
     this.append(
-      `${spec.id} is installed. Enable it if needed, then restart YA to advertise it.`,
+      `${spec.id} is installed. Enable it to make it available for speech.`,
     );
     this.current = {
       ...this.current,

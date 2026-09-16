@@ -24,12 +24,22 @@ const BACKEND_LABEL_KEYS = {
 
 export function SpeechBackendSetup() {
   const { t } = useI18n();
-  const { version } = useVersion();
+  const { version, refetch: refreshVersion } = useVersion();
   const { transport } = useCurrentSourceRuntime();
   const { settings, updateSettings } = useServerSettings();
   const [status, setStatus] = useState<SpeechBackendSetupStatus>();
   const [error, setError] = useState<string>();
   const [restarting, setRestarting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [pendingToggle, setPendingToggle] = useState<{
+    id: string;
+    enabled: boolean;
+  }>();
+  const [modelPage, setModelPage] = useState<string>();
+  const supported = serverHasCapability(
+    version,
+    SPEECH_BACKEND_SETUP_CAPABILITY,
+  );
   const running = status?.install.running === true;
   const scope = useRef(transport);
   scope.current = transport;
@@ -37,51 +47,78 @@ export function SpeechBackendSetup() {
   const refresh = useCallback(async () => {
     try {
       const next =
-        await scope.current.fetch<SpeechBackendSetupStatus>("/speech/backends");
+        await transport.fetch<SpeechBackendSetupStatus>("/speech/backends");
+      if (scope.current !== transport) return;
       setStatus(next);
       setError(undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [transport]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    setStatus(undefined);
+    setError(undefined);
+    if (supported) void refresh();
+  }, [refresh, supported]);
 
   useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => {
+    if (
+      !supported ||
+      (!status?.install.running &&
+        !status?.catalog.some((row) => row.validationStatus === "pending"))
+    )
+      return;
+    const timer = setTimeout(() => {
       void refresh();
     }, INSTALL_POLL_MS);
-    return () => clearInterval(timer);
-  }, [refresh, running]);
+    return () => clearTimeout(timer);
+  }, [refresh, supported, status]);
 
-  if (!serverHasCapability(version, SPEECH_BACKEND_SETUP_CAPABILITY)) {
+  const catalogKey = status?.catalog
+    .map((row) => `${row.id}:${row.advertised}:${row.validationStatus}`)
+    .join(",");
+  useEffect(() => {
+    if (catalogKey) void refreshVersion();
+  }, [catalogKey, refreshVersion]);
+
+  if (!supported) {
     return null;
   }
 
   const toggle = async (row: SpeechBackendSetupRow, enabled: boolean) => {
-    if (row.enabledByEnv) return;
+    if (row.enabledByEnv || saving) return;
     const current =
       settings?.speechVoiceBackends ?? status?.settingsBackends ?? [];
     const next = enabled
       ? [...new Set([...current, row.id])]
       : current.filter((id) => id !== row.id);
     try {
+      setSaving(true);
+      setPendingToggle({ id: row.id, enabled });
+      if (enabled && row.id === "ya-granite" && !row.advertised)
+        setModelPage(row.defaultModel);
       await updateSettings({ speechVoiceBackends: next });
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+      setPendingToggle(undefined);
     }
   };
 
   const install = async (id: string) => {
     try {
       setError(undefined);
-      await transport.fetch(`/speech/backends/${id}/install`, {
+      const installStatus = await transport.fetch<
+        SpeechBackendSetupStatus["install"]
+      >(`/speech/backends/${id}/install`, {
         method: "POST",
       });
+      setStatus((current) =>
+        current ? { ...current, install: installStatus } : current,
+      );
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -96,7 +133,6 @@ export function SpeechBackendSetup() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-    } finally {
       setRestarting(false);
     }
   };
@@ -105,7 +141,11 @@ export function SpeechBackendSetup() {
     <SettingsItem
       id="speech-backend-setup"
       label={t("speechBackendSetupTitle")}
-      description={t("speechBackendSetupDescription")}
+      description={t(
+        status?.liveEnablement
+          ? "speechBackendSetupLiveDescription"
+          : "speechBackendSetupDescription",
+      )}
       keywords={[
         "YEP_VOICE_BACKENDS",
         "pixi",
@@ -118,7 +158,6 @@ export function SpeechBackendSetup() {
         "restart",
       ]}
       className="model-settings-item"
-      descriptionLayout="full-width-on-narrow"
     >
       <div className={styles.wrap}>
         {error && (
@@ -126,82 +165,111 @@ export function SpeechBackendSetup() {
             {error}
           </p>
         )}
-        <div className={styles.tableWrap}>
-          <table
-            className={styles.table}
-            aria-label={t("speechBackendSetupTitle")}
-          >
-            <thead>
-              <tr>
-                <th>{t("speechBackendSetupColBackend")}</th>
-                <th>{t("speechBackendSetupColEnable")}</th>
-                <th>{t("speechBackendSetupColInstall")}</th>
-                <th>{t("speechBackendSetupColEnablement")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(status?.catalog ?? []).map((row) => (
-                <tr key={row.id}>
-                  <td>
-                    <div>{t(BACKEND_LABEL_KEYS[row.id])}</div>
-                    <code>{row.id}</code>
-                    <div className={styles.meta}>
-                      {t("speechBackendSetupEnvHint", {
-                        env: "YEP_VOICE_BACKENDS",
-                        id: row.id,
-                      })}
-                    </div>
-                    {row.hfGated && (
-                      <div className={styles.meta}>
-                        {t("speechBackendSetupHfHint", {
-                          env: row.pixiEnvironment,
-                        })}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={row.enabled}
-                        disabled={row.enabledByEnv}
-                        onChange={(event) =>
-                          void toggle(row, event.currentTarget.checked)
-                        }
-                        aria-label={t("speechBackendSetupEnableLabel", {
-                          backend: t(BACKEND_LABEL_KEYS[row.id]),
-                        })}
-                      />
-                      <span className="toggle-slider" />
-                    </label>
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className={styles.install}
-                      disabled={running}
-                      onClick={() => void install(row.id)}
-                    >
-                      {t("speechBackendSetupInstall")}
-                    </button>
-                  </td>
-                  <td>
-                    {row.enabledByEnv
-                      ? t("speechBackendSetupFromEnv")
-                      : row.enabledBySettings
-                        ? t("speechBackendSetupFromSettings")
-                        : t("speechBackendSetupDisabled")}
-                    {row.advertised
-                      ? ` · ${t("speechBackendSetupLive")}`
+        <div className={styles.catalog}>
+          {(status?.catalog ?? []).map((row) => (
+            <section
+              className={styles.backend}
+              key={row.id}
+              aria-label={t(BACKEND_LABEL_KEYS[row.id])}
+            >
+              <label className={styles.enable}>
+                <input
+                  type="checkbox"
+                  checked={
+                    pendingToggle?.id === row.id
+                      ? pendingToggle.enabled
                       : row.enabled
-                        ? ` · ${t("speechBackendSetupNeedsRestart")}`
-                        : ""}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  }
+                  disabled={row.enabledByEnv || saving}
+                  onChange={(event) =>
+                    void toggle(row, event.currentTarget.checked)
+                  }
+                  aria-label={t(
+                    status?.liveEnablement
+                      ? "speechBackendSetupEnableNowLabel"
+                      : "speechBackendSetupEnableLabel",
+                    {
+                      backend: t(BACKEND_LABEL_KEYS[row.id]),
+                    },
+                  )}
+                />
+                <strong>{t(BACKEND_LABEL_KEYS[row.id])}</strong>
+              </label>
+              <code className={styles.model}>{row.defaultModel}</code>
+              <div className={styles.backendActions}>
+                <button
+                  type="button"
+                  className={styles.install}
+                  disabled={running}
+                  onClick={() => void install(row.id)}
+                >
+                  {t("speechBackendSetupInstall")}
+                </button>
+                <button
+                  type="button"
+                  className={styles.modelLink}
+                  onClick={() =>
+                    setModelPage(
+                      row.id === "ya-whisper"
+                        ? "distil-whisper/distil-large-v3.5-ct2"
+                        : row.defaultModel,
+                    )
+                  }
+                >
+                  {t("speechBackendSetupModelAccess")}
+                </button>
+              </div>
+              <p className={styles.meta}>
+                {row.enabledByEnv
+                  ? t("speechBackendSetupFromEnv")
+                  : row.enabledBySettings
+                    ? t("speechBackendSetupFromSettings")
+                    : t("speechBackendSetupDisabled")}
+                {row.advertised
+                  ? ` · ${t("speechBackendSetupLive")}`
+                  : row.enabled
+                    ? ` · ${t(row.validationStatus === "pending" ? "speechBackendSetupValidating" : row.validationStatus === "disabled" ? "speechBackendSetupUnavailable" : "speechBackendSetupNeedsRestart")}`
+                    : ""}
+                {!row.enabled &&
+                  row.advertised &&
+                  ` · ${t("speechBackendSetupDisableRestart")}`}
+              </p>
+              {row.disabledReason && (
+                <p className={styles.meta} role="alert">
+                  {row.disabledReason}
+                </p>
+              )}
+            </section>
+          ))}
         </div>
+        {modelPage && (
+          <section
+            className={styles.access}
+            aria-label={t("speechBackendSetupModelAccess")}
+          >
+            <p>{t("speechBackendSetupAccessHelp")}</p>
+            <a
+              href={`https://huggingface.co/${modelPage}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {modelPage} — {t("speechBackendSetupOpenBrowser")}
+            </a>
+            <code>
+              pixi run --frozen -e{" "}
+              {status?.catalog.find((row) => row.defaultModel === modelPage)
+                ?.pixiEnvironment ?? "stt"}{" "}
+              hf auth login
+            </code>
+            <button
+              type="button"
+              className={styles.install}
+              onClick={() => setModelPage(undefined)}
+            >
+              {t("speechBackendSetupCloseModel")}
+            </button>
+          </section>
+        )}
         <label
           className={styles.consoleLabel}
           htmlFor="speech-backend-install-log"
@@ -224,13 +292,15 @@ export function SpeechBackendSetup() {
             type="button"
             className={styles.restart}
             disabled={
-              restarting ||
-              status?.restartAvailable === false ||
-              status?.needsRestart !== true
+              restarting || running || status?.restartAvailable !== true
             }
             onClick={() => void restart()}
           >
-            {t("speechBackendSetupRestart")}
+            {t(
+              restarting
+                ? "speechBackendSetupRestartScheduled"
+                : "speechBackendSetupRestart",
+            )}
           </button>
           {status?.restartAvailable === false && (
             <p className="settings-hint">

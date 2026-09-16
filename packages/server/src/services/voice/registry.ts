@@ -122,6 +122,14 @@ export class SpeechBackendRegistry {
     return entry.backend;
   }
 
+  /** Retry a failed import probe after an explicit install, reusing its worker. */
+  revalidate(id: string): void {
+    const entry = this.entries.get(id);
+    if (entry && entry.info.validationStatus === "disabled") {
+      this.register(entry.backend);
+    }
+  }
+
   register(backend: SpeechBackend): void {
     // Record configured backends immediately for discovery, but keep them out
     // of the routable set until validation succeeds. This separates "known"
@@ -243,6 +251,7 @@ export async function registerSpeechBackends(
   options: SpeechRegistryInitOptions = {},
 ): Promise<void> {
   for (const backendId of getRequestedSpeechBackendIds(options)) {
+    if (registry.knownIds().includes(backendId)) continue;
     switch (backendId) {
       case "ya-dummy":
         registry.register(new DummyBackend());

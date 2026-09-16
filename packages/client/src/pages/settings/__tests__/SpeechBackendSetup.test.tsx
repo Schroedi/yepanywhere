@@ -4,6 +4,7 @@ import { SpeechBackendSetup } from "../SpeechBackendSetup";
 import { I18nProvider } from "../../../i18n";
 
 const transport = vi.hoisted(() => ({ fetch: vi.fn() }));
+const versionState = vi.hoisted(() => ({ current: "0.8.2", refetch: vi.fn() }));
 const settingsState = vi.hoisted(() => ({
   speechVoiceBackends: [] as string[],
   updateSettings: vi.fn(async (updates: { speechVoiceBackends?: string[] }) => {
@@ -16,8 +17,9 @@ vi.mock("../../../contexts/SourceRuntimeContext", () => ({
 }));
 vi.mock("../../../hooks/useVersion", () => ({
   useVersion: () => ({
-    version: { current: "0.8.2" },
+    version: { current: versionState.current },
     loading: false,
+    refetch: versionState.refetch,
   }),
 }));
 vi.mock("../../../hooks/useServerSettings", () => ({
@@ -30,9 +32,20 @@ vi.mock("../../../hooks/useServerSettings", () => ({
 afterEach(() => {
   vi.clearAllMocks();
   settingsState.speechVoiceBackends = [];
+  versionState.current = "0.8.2";
 });
 
 describe("SpeechBackendSetup", () => {
+  it("does not request setup routes on older servers", async () => {
+    versionState.current = "0.8.1";
+    render(
+      <I18nProvider>
+        <SpeechBackendSetup />
+      </I18nProvider>,
+    );
+    expect(transport.fetch).not.toHaveBeenCalled();
+    expect(screen.queryByText("Install and enable local backends")).toBeNull();
+  });
   it("enables a local backend in server settings and can request install", async () => {
     transport.fetch.mockImplementation(
       async (path: string, options?: { method?: string }) => {

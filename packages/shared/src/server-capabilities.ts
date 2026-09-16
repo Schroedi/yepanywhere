@@ -218,10 +218,7 @@ export const SERVER_CAPABILITIES = {
         "POST /api/speech/backends/:id/install",
         "POST /api/speech/backends/restart",
       ],
-      routeModules: [
-        "packages/server/src/routes/settings.ts",
-        "packages/server/src/routes/speech.ts",
-      ],
+      // Both route modules are shared with older capabilities, not wholly owned.
       requestFields: ["speechVoiceBackends"],
       responseFields: ["settings.speechVoiceBackends"],
     },

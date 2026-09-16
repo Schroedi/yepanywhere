@@ -950,7 +950,7 @@ function speechBackendSetupStatus(
     unionSpeechVoiceBackends(envBackends, settingsBackends),
   );
   const needsRestart = LOCAL_SPEECH_BACKEND_SPECS.some(
-    (spec) => enabledLocal.has(spec.id) !== advertisedLocal.has(spec.id),
+    (spec) => !enabledLocal.has(spec.id) && advertisedLocal.has(spec.id),
   );
   return {
     envBackends,
@@ -958,6 +958,7 @@ function speechBackendSetupStatus(
     advertisedBackends,
     restartAvailable: Boolean(deps.safeRestartService),
     needsRestart,
+    liveEnablement: true,
     install: deps.speechBackendInstallService?.status() ?? {
       running: false,
       lines: [],
@@ -968,6 +969,12 @@ function speechBackendSetupStatus(
       enabledByEnv: envBackends.includes(spec.id),
       enabledBySettings: settingsBackends.includes(spec.id),
       advertised: advertisedLocal.has(spec.id),
+      validationStatus: deps.speechBackendRegistry
+        .allInfo()
+        .find((entry) => entry.id === spec.id)?.validationStatus,
+      disabledReason: deps.speechBackendRegistry
+        .allInfo()
+        .find((entry) => entry.id === spec.id)?.disabledReason,
       pixiEnvironment: spec.pixiEnvironment,
       bootstrapTask: spec.bootstrapTask,
       defaultModel: spec.defaultModel,
@@ -982,6 +989,15 @@ export function createSpeechRoutes(deps: SpeechRouteDeps): Hono {
   routes.get("/backends", (c) => c.json(speechBackendSetupStatus(deps)));
 
   routes.post("/backends/restart", async (c) => {
+    if (deps.speechBackendInstallService?.status().running) {
+      return c.json(
+        {
+          error:
+            "Wait for the speech model install to finish before restarting YA.",
+        },
+        409,
+      );
+    }
     if (!deps.safeRestartService) {
       return c.json(
         {

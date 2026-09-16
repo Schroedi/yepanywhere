@@ -490,6 +490,7 @@ export interface AppOptions {
 }
 
 export interface AppResult {
+  safeRestartService?: SafeRestartService;
   focusedSessionWatchManager: FocusedSessionWatchManager;
   conversationSubscriptions: ConversationSubscriptions;
   artifactServer: ArtifactServer;
@@ -3079,6 +3080,7 @@ export function createApp(options: AppOptions): AppResult {
   return {
     app,
     conversationSubscriptions,
+    safeRestartService,
     focusedSessionWatchManager,
     artifactServer,
     supervisor,

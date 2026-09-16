@@ -15,36 +15,62 @@
   color: var(--text-secondary);
 }
 
-.tableWrap {
+.catalog {
+  display: grid;
+  gap: 12px;
   min-width: 0;
-  overflow-x: auto;
 }
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
+.backend {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
 }
-
-.table th,
-.table td {
-  padding: 8px 6px;
-  border-bottom: 1px solid var(--border-color);
-  text-align: left;
-  vertical-align: top;
-  font-weight: normal;
+.enable {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
 }
-
-.table thead th {
-  color: var(--text-secondary);
+.enable input {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.model {
+  overflow-wrap: anywhere;
   font-size: 12px;
 }
-
-.table code {
-  font-size: 12px;
+.backendActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.modelLink {
+  min-height: 44px;
+  border: 0;
+  background: none;
+  color: var(--link-color);
+  font: inherit;
+  cursor: pointer;
+}
+.access {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.access code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .meta {
+  overflow-wrap: anywhere;
   margin-top: 4px;
   color: var(--text-secondary);
   font-size: 12px;

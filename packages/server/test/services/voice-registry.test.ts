@@ -5,6 +5,7 @@ import { LocalNemoBackend } from "../../src/services/voice/localNemoBackend.js";
 import { LocalParakeetBackend } from "../../src/services/voice/localParakeetBackend.js";
 import {
   initSpeechBackendRegistry,
+  registerSpeechBackends,
   SpeechBackendRegistry,
 } from "../../src/services/voice/registry.js";
 import type { SpeechBackend } from "../../src/services/voice/SpeechBackend.js";
@@ -198,5 +199,41 @@ describe("initSpeechBackendRegistry", () => {
 
     expect(registry.enabledIds()).toEqual(["ya-pending"]);
     expect(registry.getBackend("ya-pending")).toBe(backend);
+  });
+
+  it("adds Granite without replacing an existing live backend", async () => {
+    vi.spyOn(LocalGraniteBackend.prototype, "validate").mockResolvedValue({
+      ok: true,
+    });
+    const registry = await initSpeechBackendRegistry({
+      voiceBackends: ["ya-dummy"],
+    });
+    await registry.waitForValidation();
+    const original = registry.getBackend("ya-dummy");
+    await registerSpeechBackends(registry, {
+      voiceBackends: ["ya-dummy", "ya-granite"],
+    });
+    expect(registry.getBackend("ya-dummy")).toBe(original);
+    await registry.waitForValidation();
+    expect(registry.enabledIds()).toEqual(["ya-dummy", "ya-granite"]);
+  });
+
+  it("retries a failed backend after install and retains its instance", async () => {
+    const backend: SpeechBackend = {
+      id: "ya-retry",
+      label: "Retry",
+      validate: vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, reason: "missing runtime" })
+        .mockResolvedValue({ ok: true }),
+      transcribe: async () => "ready",
+    };
+    const registry = new SpeechBackendRegistry();
+    registry.register(backend);
+    await registry.waitForValidation();
+    expect(registry.getBackend(backend.id)).toBeNull();
+    registry.revalidate(backend.id);
+    await registry.waitForValidation();
+    expect(registry.getBackend(backend.id)).toBe(backend);
   });
 });

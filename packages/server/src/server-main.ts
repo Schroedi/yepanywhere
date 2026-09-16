@@ -973,7 +973,6 @@ async function startServer() {
       `[Voice] Copied local backends from YEP_VOICE_BACKENDS into server settings: ${populatedSpeechBackends.join(", ")}`,
     );
   }
-  const speechBackendInstallService = new SpeechBackendInstallService();
   const speechBackendOptions: SpeechRegistryInitOptions = {
     voiceInputEnabled: config.voiceInputEnabled,
     voiceBackends: [...config.voiceBackends, ...populatedSpeechBackends],
@@ -990,6 +989,24 @@ async function startServer() {
     graniteDevice: config.graniteDevice,
   };
   const speechBackendRegistry = new SpeechBackendRegistry();
+  const speechBackendInstallService = new SpeechBackendInstallService(
+    async (id) => {
+      speechBackendRegistry.revalidate(id);
+      await speechBackendRegistry.waitForValidation();
+    },
+  );
+  serverSettingsService.onSettingsChanged((next, previous) => {
+    if (next.speechVoiceBackends === previous.speechVoiceBackends) return;
+    void registerSpeechBackends(speechBackendRegistry, {
+      ...speechBackendOptions,
+      voiceBackends: [
+        ...config.voiceBackends,
+        ...unionSpeechVoiceBackends(next.speechVoiceBackends),
+      ],
+    }).catch((error) => {
+      console.error("[Voice] Could not enable speech backends:", error);
+    });
+  });
   const requestedSpeechBackends =
     getRequestedSpeechBackendIds(speechBackendOptions);
   if (requestedSpeechBackends.length > 0) {
@@ -1018,6 +1035,7 @@ async function startServer() {
     artifactServer,
     conversationSubscriptions,
     focusedSessionWatchManager,
+    safeRestartService,
   } = createApp({
     getCatalogFamilies: () => installService.getCatalogFamilies(),
     artifacts: config.artifacts,
@@ -1241,6 +1259,7 @@ async function startServer() {
       shareXaiSttApiKeyWithClients: config.shareXaiSttApiKeyWithClients,
       envVoiceBackends: config.voiceBackends,
       speechBackendInstallService,
+      safeRestartService,
     }),
   );
   markStartup("speech routes mounted");

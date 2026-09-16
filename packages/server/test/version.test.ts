@@ -73,6 +73,12 @@ describe("GET /version", () => {
       const version = await (await routes.request(query)).json();
       expect(version.current).toBe("5756cfd");
       expect(
+        serverHasCapability(
+          version,
+          SERVER_CAPABILITIES.speechBackendSetup.name,
+        ),
+      ).toBe(true);
+      expect(
         serverHasCapability(version, SUBAGENT_MAX_DEPTH_SETTING_CAPABILITY),
       ).toBe(true);
     }
