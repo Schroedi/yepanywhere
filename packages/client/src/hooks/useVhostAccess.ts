@@ -20,6 +20,7 @@ export function useVhostAccess(config: ArtifactViewerStatus | undefined) {
   const [error, setError] = useState<string>();
   const [revision, setRevision] = useState(0);
   const refresh = useCallback(() => setRevision((value) => value + 1), []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: revision explicitly refreshes links after revocation or access changes.
   useEffect(() => {
     if (!supported || !config) return;
     let cancelled = false;

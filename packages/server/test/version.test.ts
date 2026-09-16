@@ -381,6 +381,10 @@ describe("GET /version", () => {
 
     const { createVersionRoutes } = await importVersion();
     const routes = createVersionRoutes({
+      getCurrentVersionInfo: async () => ({
+        version: "0.8.1",
+        installSource: "source",
+      }),
       getSessionSandboxAvailability: async () => ({
         state: "unsupported-platform",
         platform: "darwin",
@@ -392,7 +396,7 @@ describe("GET /version", () => {
     expect(version.capabilities).toBeUndefined();
     expect(version.optionalCapabilityBits).toEqual([
       [0, 1],
-      [2, 192],
+      [2, 4288],
     ]);
     expect(
       serverHasCapability(version, SERVER_CAPABILITIES.computerControl.name),

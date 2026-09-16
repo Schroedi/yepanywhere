@@ -20,8 +20,8 @@
   align-items: center;
 }
 
-.fields > label > input:not([type="checkbox"]),
-.vhostRow input:not([type="checkbox"]) {
+.vhostRow input:not([type="checkbox"]),
+.fields > label > input:not([type="checkbox"]) {
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
