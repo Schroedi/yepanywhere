@@ -45,7 +45,15 @@ export const MAX_GATEWAY_AUTO_STOP_SECONDS = 86_400;
  */
 export const GATEWAY_MODEL_ID_SEPARATOR = "::";
 
+/**
+ * Codex wire API for an endpoint. Current Codex releases accept only
+ * `responses` and refuse to load a profile that says `chat`
+ * ("`wire_api = \"chat\"` is no longer supported", codex-cli 0.154.0), so
+ * `chat` remains selectable only for an older CLI.
+ */
 export type GatewayServiceCodexWireApi = "chat" | "responses";
+export const DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API: GatewayServiceCodexWireApi =
+  "responses";
 
 export interface GatewayService {
   /** Stable slug. Survives relabeling; referenced by qualified model ids. */
@@ -221,6 +229,57 @@ export function gatewayServiceDisplayName(service: GatewayService): string {
   }
 }
 
+/** Where YA writes the provider-CLI exports; resolved by the server. */
+export interface GatewayServiceExportPaths {
+  /** `$CODEX_HOME`, or `~/.codex`. */
+  codexHome: string;
+  /** `$CLAUDE_CONFIG_DIR`, or `~/.claude`. */
+  claudeHome: string;
+}
+
+/** The Codex profile name for a service: `codex -p <name>`. */
+export function codexProfileName(service: Pick<GatewayService, "id">): string {
+  return `ya-${service.id}`;
+}
+
+function joinPath(directory: string, name: string): string {
+  const separator =
+    directory.includes("\\") && !directory.includes("/") ? "\\" : "/";
+  return directory.endsWith(separator)
+    ? `${directory}${name}`
+    : `${directory}${separator}${name}`;
+}
+
+export function codexProfilePath(
+  paths: GatewayServiceExportPaths,
+  service: Pick<GatewayService, "id">,
+): string {
+  return joinPath(paths.codexHome, `${codexProfileName(service)}.config.toml`);
+}
+
+export function claudeSettingsPath(
+  paths: GatewayServiceExportPaths,
+  service: Pick<GatewayService, "id">,
+): string {
+  return joinPath(paths.claudeHome, `ya-${service.id}.settings.json`);
+}
+
+/**
+ * The exact commands that reach a service from a terminal once the export is
+ * enabled. Shown verbatim in settings, so they must stay runnable as written.
+ */
+export function gatewayServiceCliInvocations(
+  service: Pick<GatewayService, "id" | "codexEnabled">,
+  paths: GatewayServiceExportPaths,
+): { claude: string; codex?: string } {
+  return {
+    claude: `claude --settings ${claudeSettingsPath(paths, service)}`,
+    ...(service.codexEnabled
+      ? { codex: `codex -p ${codexProfileName(service)}` }
+      : {}),
+  };
+}
+
 /** `<serviceId>::<modelId>`, used only when services collide on a model id. */
 export function qualifiedGatewayModelId(
   serviceId: string,
@@ -389,7 +448,8 @@ export function parseGatewayServices(value: unknown): GatewayService[] | null {
         ? {}
         : { maxModels: record.maxModels as number }),
       codexEnabled: record.codexEnabled ?? false,
-      codexWireApi: record.codexWireApi ?? "chat",
+      codexWireApi:
+        record.codexWireApi ?? DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
     });
   }
 

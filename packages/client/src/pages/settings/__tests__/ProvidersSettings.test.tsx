@@ -681,7 +681,7 @@ describe("ProvidersSettings additional models", () => {
           autoStop: false,
           autoStopAfterSeconds: 300,
           codexEnabled: false,
-          codexWireApi: "chat",
+          codexWireApi: "responses",
         },
       ],
       defaultGatewayServiceId: "vllm",
@@ -719,6 +719,85 @@ describe("ProvidersSettings additional models", () => {
       });
       expect(mockReloadProviders).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("states the terminal command for each service once export is on", () => {
+    versionState.capabilities = [
+      CLAUDE_GATEWAY_CAPABILITY,
+      CLAUDE_GATEWAY_SERVICES_CAPABILITY,
+    ];
+    hookState.settings = {
+      serviceWorkerEnabled: true,
+      persistRemoteSessionsToDisk: false,
+      gatewayServiceExportEnabled: true,
+      gatewayServiceExportPaths: {
+        codexHome: "/home/dev/.codex",
+        claudeHome: "/home/dev/.claude",
+      },
+      gatewayServices: [
+        {
+          id: "vllm",
+          label: "",
+          shortName: "",
+          url: "http://127.0.0.1:8001",
+          enabled: true,
+          autoStop: false,
+          autoStopAfterSeconds: 300,
+          codexEnabled: true,
+          codexWireApi: "responses",
+        },
+      ],
+      defaultGatewayServiceId: "vllm",
+    };
+    render(<ProvidersSettings />);
+
+    expect(
+      screen.getByText(
+        "claude --settings /home/dev/.claude/ya-vllm.settings.json",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("codex -p ya-vllm")).toBeTruthy();
+  });
+
+  it("hides the terminal commands until the export is enabled", () => {
+    versionState.capabilities = [
+      CLAUDE_GATEWAY_CAPABILITY,
+      CLAUDE_GATEWAY_SERVICES_CAPABILITY,
+    ];
+    hookState.settings = {
+      serviceWorkerEnabled: true,
+      persistRemoteSessionsToDisk: false,
+      gatewayServiceExportPaths: {
+        codexHome: "/home/dev/.codex",
+        claudeHome: "/home/dev/.claude",
+      },
+      gatewayServices: [
+        {
+          id: "vllm",
+          label: "",
+          shortName: "",
+          url: "http://127.0.0.1:8001",
+          enabled: true,
+          autoStop: false,
+          autoStopAfterSeconds: 300,
+          codexEnabled: true,
+          codexWireApi: "responses",
+        },
+      ],
+    };
+    render(<ProvidersSettings />);
+
+    expect(screen.queryByText("codex -p ya-vllm")).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /providersGatewayServiceExportTitle/u,
+      }),
+    );
+    expect(mockUpdateSetting).toHaveBeenCalledWith(
+      "gatewayServiceExportEnabled",
+      true,
+    );
   });
 
   it("adds a service entry with a slug derived from its endpoint", async () => {

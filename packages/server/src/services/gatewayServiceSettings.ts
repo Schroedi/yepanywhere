@@ -12,6 +12,7 @@
  */
 
 import {
+  DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
   DEFAULT_GATEWAY_SERVICE_ID,
   type GatewayService,
 } from "@yep-anywhere/shared";
@@ -50,7 +51,7 @@ function legacyServiceEntry(legacy: LegacyGatewaySettings): GatewayService {
     autoStop: false,
     autoStopAfterSeconds: 0,
     codexEnabled: false,
-    codexWireApi: "chat",
+    codexWireApi: DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
   };
 }
 

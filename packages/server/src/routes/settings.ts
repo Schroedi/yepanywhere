@@ -42,6 +42,7 @@ import {
 import type { SessionMetadataService } from "../metadata/index.js";
 import type { ProjectStoragePolicy } from "../projects/projectStoragePolicy.js";
 import { testSSHConnection } from "../sdk/remote-spawn.js";
+import { defaultGatewayServiceExportPaths } from "../sdk/providers/gatewayServiceExport.js";
 import type { PublicShareService } from "../services/PublicShareService.js";
 import type { HostAwakeService } from "../services/host-awake/HostAwakeService.js";
 import type {
@@ -97,6 +98,8 @@ export interface SettingsRoutesDeps {
   /** Callback to apply Claude Gateway transport settings at runtime. */
   onClaudeGatewaySettingsChanged?: (settings: {
     services: readonly GatewayService[];
+    /** Whether the services are also published for the provider CLIs. */
+    exportToProviderClis?: boolean;
     defaultServiceId?: string;
     disableAgent: boolean;
     disablePlanMode: boolean;
@@ -164,6 +167,10 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
       settings: {
         ...settings,
         ...(getIdleReapHours ? { idleReapHours: getIdleReapHours() } : {}),
+        // Where the provider-CLI export writes, so the client can state the
+        // exact command that reaches each service. Server-derived like
+        // idleReapHours above: reported, never accepted back.
+        gatewayServiceExportPaths: defaultGatewayServiceExportPaths(),
       },
     });
   });
@@ -700,6 +707,15 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
           updates.defaultGatewayServiceId = body.defaultGatewayServiceId;
         }
       }
+      if ("gatewayServiceExportEnabled" in body) {
+        if (typeof body.gatewayServiceExportEnabled !== "boolean") {
+          return c.json(
+            { error: "gatewayServiceExportEnabled must be a boolean" },
+            400,
+          );
+        }
+        updates.gatewayServiceExportEnabled = body.gatewayServiceExportEnabled;
+      }
       if ("claudeGatewayDisableAgent" in body) {
         if (typeof body.claudeGatewayDisableAgent !== "boolean") {
           return c.json(
@@ -1134,12 +1150,14 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
           "claudeGatewayDisableAgent" in updates ||
           "claudeGatewayDisablePlanMode" in updates ||
           "gatewayServices" in updates ||
-          "defaultGatewayServiceId" in updates) &&
+          "defaultGatewayServiceId" in updates ||
+          "gatewayServiceExportEnabled" in updates) &&
         onClaudeGatewaySettingsChanged
       ) {
         // Persisted settings are already reconciled, so the list and the
         // legacy keys agree by the time the runtime sees them.
         await onClaudeGatewaySettingsChanged({
+          exportToProviderClis: settings.gatewayServiceExportEnabled ?? false,
           services: settings.gatewayServices ?? [],
           ...(settings.defaultGatewayServiceId
             ? { defaultServiceId: settings.defaultGatewayServiceId }

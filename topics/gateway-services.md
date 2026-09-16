@@ -25,6 +25,10 @@ model serving.
   `serviceCommand`, `autoStop` with `autoStopAfterSeconds`, `contextWindowTokens`
   and `maxOutputTokens`, `maxModels`, `disableAgent` / `disablePlanMode`
   overrides, `codexEnabled`, and `codexWireApi`.
+- `codexWireApi` defaults to `responses`. Current Codex refuses to load a
+  provider that says `chat` ("`wire_api = \"chat\"` is no longer supported",
+  codex-cli 0.154.0); the value stays selectable only for an older CLI, and an
+  explicit choice is passed through rather than silently upgraded.
 - The list and the older single-gateway settings (`claudeGatewayUrl`,
   `claudeGatewayStartCommand`) are two views of one configuration. The default
   entry mirrors those keys in both directions, so a client without the
@@ -121,23 +125,43 @@ Without it, the client shows the single Claude Gateway URL and start-command
 form and writes only the older `claudeGateway*` settings, which the server keeps
 mirrored to the default entry.
 
-## No provider config files are written
+## Launches never edit the user's provider config
 
-Nothing here edits `~/.claude` or `~/.codex`. Claude Gateway supplies its
-transport through the Claude SDK's per-launch flag-settings layer and the child
-environment; CodexOSS passes `-c model_providers.<id>.…` overrides on the
-command line. A YA session therefore cannot disturb a concurrently running TUI,
-and uninstalling YA leaves no configuration behind.
+A launch writes nothing. Claude Gateway supplies its transport through the
+Claude SDK's per-launch flag-settings layer and the child environment; CodexOSS
+passes `-c model_providers.<id>.…` overrides on the command line. A YA session
+therefore cannot disturb a concurrently running TUI.
 
-The cost is that the models YA knows about are not reachable from the user's own
-`claude` or `codex` TUI. The preferred way to close that would keep the same
-property — Codex layers `$CODEX_HOME/<name>.config.toml` over the base config
-with `-p <name>`, so YA could own a separate profile file per service rather
-than editing the user's config at all, and Claude's routing is environment
-variables a small sourceable snippet could carry. Any such export is a
-user-visible addition, so it ships opt-in and default-off
-([vanilla-defaults](vanilla-defaults.md)), and any write to a file the user also
-edits is atomic (write a temporary file, then rename).
+## Terminal export
+
+`settings.gatewayServiceExportEnabled` is an opt-in, default-off setting that
+publishes the configured services for the provider CLIs, so the same models are
+selectable from a plain terminal session.
+
+- Per enabled service, YA writes `$CLAUDE_CONFIG_DIR/ya-<id>.settings.json`
+  carrying the transport environment, and — for a service CodexOSS may use —
+  `$CODEX_HOME/ya-<id>.config.toml` carrying a `model_providers` entry. The
+  commands are `claude --settings <that file>` and `codex -p ya-<id>`, and the
+  settings UI states them verbatim per service.
+- The Claude file also carries the window, because a terminal session gets no
+  other statement of it: Claude assumes 200K for a model its catalog does not
+  know, which would silently truncate a 252K local model. A declared context
+  size becomes `CLAUDE_CODE_MAX_CONTEXT_TOKENS` plus the derived compaction
+  window; with nothing declared, the file turns the assumption off rather than
+  inventing a number.
+- Both are YA-owned files distinct from the ones the user edits. `settings.json`
+  and `config.toml` are never read, modified, or merged: Claude loads the extra
+  file through `--settings`, and Codex layers the profile through `-p`.
+- The export re-syncs whenever the services list is known or changes, not only
+  when the setting is toggled. Each file is written to a temporary path and
+  renamed, since the directory is shared with a tool the user runs.
+- Files for services that disappear are removed, and turning the setting off
+  removes everything the export wrote. Only files carrying YA's managed marker
+  are ever deleted, so a hand-written file that happens to match the naming is
+  left alone.
+- `GET /api/settings` reports the resolved `gatewayServiceExportPaths` so the
+  client can state exact commands; it is server-derived and never accepted from
+  a client.
 
 ## Known gaps
 

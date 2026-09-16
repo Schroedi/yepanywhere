@@ -20,6 +20,7 @@ import type {
   CodexPlanToolMode,
   CodexReasoningSummary,
   GatewayService,
+  GatewayServiceExportPaths,
   HelperTargetConfig,
   HostIdentity,
   HostAwakeMode,
@@ -170,6 +171,17 @@ export interface ServerSettings {
   gatewayServices?: GatewayService[];
   /** Which entry Claude Gateway treats as its default service. */
   defaultGatewayServiceId?: string;
+  /**
+   * Whether YA writes the configured services out for the provider CLIs, so
+   * the same models are selectable from a plain terminal session. Default off.
+   */
+  gatewayServiceExportEnabled?: boolean;
+  /**
+   * Where that export writes. Reported by `GET /api/settings` so the client
+   * can state exact commands; resolved from the server environment and never
+   * accepted from a client.
+   */
+  gatewayServiceExportPaths?: GatewayServiceExportPaths;
   /** Anthropic-compatible endpoint for the isolated claude-gateway provider */
   claudeGatewayUrl?: string;
   /** Optional shell line that starts a loopback Claude Gateway on demand. */

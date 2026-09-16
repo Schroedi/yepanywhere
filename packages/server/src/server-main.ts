@@ -88,6 +88,7 @@ import {
 } from "./sdk/providers/provider-runtime-host.js";
 import { isProviderHostDegraded } from "./sdk/providers/provider-host-status.js";
 import { ClaudeGatewayProvider } from "./sdk/providers/claude-gateway.js";
+import { syncGatewayServiceExports } from "./sdk/providers/gatewayServiceExport.js";
 import { ClaudeOllamaProvider } from "./sdk/providers/claude-ollama.js";
 import { grokACPProvider } from "./sdk/providers/grok-acp.js";
 import { RealClaudeSDK } from "./sdk/real.js";
@@ -853,6 +854,11 @@ async function startServer() {
     disablePlanMode: serverSettingsService.getSetting(
       "claudeGatewayDisablePlanMode",
     ),
+  });
+  await syncGatewayServiceExports({
+    services: serverSettingsService.getSetting("gatewayServices") ?? [],
+    enabled:
+      serverSettingsService.getSetting("gatewayServiceExportEnabled") ?? false,
   });
   const savedOllamaUrl = serverSettingsService.getSetting("ollamaUrl");
   const savedOllamaSystemPrompt =

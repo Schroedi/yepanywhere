@@ -1226,6 +1226,7 @@ describe("Settings Routes", () => {
           }),
         ],
         defaultServiceId: "default",
+        exportToProviderClis: false,
         disableAgent: true,
         disablePlanMode: true,
       });
@@ -1262,6 +1263,7 @@ describe("Settings Routes", () => {
           }),
         ],
         defaultServiceId: "default",
+        exportToProviderClis: false,
         disableAgent: true,
         disablePlanMode: true,
       });
@@ -1286,6 +1288,7 @@ describe("Settings Routes", () => {
       });
       expect(onClaudeGatewaySettingsChanged).toHaveBeenCalledWith({
         services: [],
+        exportToProviderClis: false,
         disableAgent: false,
         disablePlanMode: true,
       });
@@ -1328,6 +1331,7 @@ describe("Settings Routes", () => {
       });
       expect(onClaudeGatewaySettingsChanged).toHaveBeenCalledWith({
         services: [],
+        exportToProviderClis: false,
         disableAgent: true,
         disablePlanMode: false,
       });
@@ -1417,6 +1421,7 @@ describe("Settings Routes", () => {
       });
       expect(onClaudeGatewaySettingsChanged).toHaveBeenCalledWith({
         services: [],
+        exportToProviderClis: false,
         disableAgent: true,
         disablePlanMode: true,
       });
@@ -1462,8 +1467,42 @@ describe("Settings Routes", () => {
           }),
         ],
         defaultServiceId: "vllm",
+        exportToProviderClis: false,
         disableAgent: true,
         disablePlanMode: true,
+      });
+    });
+
+    it("applies the terminal export toggle live", async () => {
+      const onClaudeGatewaySettingsChanged = vi.fn();
+      const routes = createSettingsRoutes({
+        serverSettingsService: mockServerSettingsService,
+        onClaudeGatewaySettingsChanged,
+      });
+
+      const response = await routes.request("/", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gatewayServiceExportEnabled: true }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(onClaudeGatewaySettingsChanged).toHaveBeenCalledWith(
+        expect.objectContaining({ exportToProviderClis: true }),
+      );
+    });
+
+    it("reports where the terminal export writes", async () => {
+      const routes = createSettingsRoutes({
+        serverSettingsService: mockServerSettingsService,
+      });
+
+      const response = await routes.request("/");
+      const body = await response.json();
+
+      expect(body.settings.gatewayServiceExportPaths).toMatchObject({
+        codexHome: expect.stringContaining(".codex"),
+        claudeHome: expect.stringContaining(".claude"),
       });
     });
 

@@ -80,6 +80,10 @@ base_url = "http://localhost:11434/v1"
 wire_api = "responses"
 ```
 
+Current Codex releases accept only `wire_api = "responses"`; a provider that
+says `chat` fails to load (`wire_api = "chat" is no longer supported`,
+codex-cli 0.154.0).
+
 ## How It Works
 
 1. **First turn:** Uses `codex exec --oss --json` to start a new session

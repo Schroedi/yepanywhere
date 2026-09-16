@@ -28,6 +28,7 @@ import {
   vhostAppControlAvailable,
 } from "./artifacts/VhostAppControl.js";
 import { gatewayServiceUsage } from "./sdk/providers/gatewayServiceUsage.js";
+import { syncGatewayServiceExports } from "./sdk/providers/gatewayServiceExport.js";
 import { noteGatewayServiceUsage } from "./sdk/providers/claude-gateway.js";
 import {
   isArtifactHost,
@@ -2615,8 +2616,15 @@ export function createApp(options: AppOptions): AppResult {
           ? (enabled) =>
               options.remoteSessionService?.setDiskPersistenceEnabled(enabled)
           : undefined,
-        onClaudeGatewaySettingsChanged: (settings) =>
-          ClaudeGatewayProvider.configureGatewayServices(settings),
+        onClaudeGatewaySettingsChanged: async (settings) => {
+          await ClaudeGatewayProvider.configureGatewayServices(settings);
+          // The export mirrors the configured list, so it re-syncs on every
+          // change rather than only when the export itself is toggled.
+          await syncGatewayServiceExports({
+            services: settings.services,
+            enabled: settings.exportToProviderClis ?? false,
+          });
+        },
         onOllamaUrlChanged: (url) => {
           ClaudeOllamaProvider.setOllamaUrl(url);
         },

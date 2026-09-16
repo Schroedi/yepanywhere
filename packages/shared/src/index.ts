@@ -170,6 +170,7 @@ export {
 
 export {
   DEFAULT_GATEWAY_AUTO_STOP_SECONDS,
+  DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
   DEFAULT_GATEWAY_SERVICE_ID,
   DEFAULT_GATEWAY_SERVICE_MODEL_LIMIT,
   GATEWAY_MODEL_ID_SEPARATOR,
@@ -184,6 +185,10 @@ export {
   MAX_GATEWAY_SERVICE_SHORT_NAME_LENGTH,
   MAX_GATEWAY_SERVICE_URL_LENGTH,
   MIN_GATEWAY_AUTO_STOP_SECONDS,
+  claudeSettingsPath,
+  codexProfileName,
+  codexProfilePath,
+  gatewayServiceCliInvocations,
   gatewayServiceDisplayName,
   gatewayServiceShortName,
   isValidGatewayServiceCommand,
@@ -198,6 +203,7 @@ export {
   qualifiedGatewayModelId,
   type GatewayService,
   type GatewayServiceCodexWireApi,
+  type GatewayServiceExportPaths,
 } from "./gateway-services.js";
 
 export {

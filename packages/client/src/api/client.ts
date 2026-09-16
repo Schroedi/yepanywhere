@@ -66,6 +66,7 @@ import type {
   UpdateProjectQueueItemRequest,
   UpdateProjectSessionDefaultsRequest,
   GatewayService,
+  GatewayServiceExportPaths,
   UploadedFile,
   UrlProjectId,
   UserQuestionAnswers,
@@ -1708,6 +1709,10 @@ export interface ServerSettings {
   gatewayServices?: GatewayService[];
   /** Which entry Claude Gateway treats as its default service. */
   defaultGatewayServiceId?: string;
+  /** Whether the configured services are also published for the provider CLIs. */
+  gatewayServiceExportEnabled?: boolean;
+  /** Server-reported export locations; read-only, used to show exact commands. */
+  gatewayServiceExportPaths?: GatewayServiceExportPaths;
   /** Anthropic-compatible endpoint for the isolated Claude Gateway provider */
   claudeGatewayUrl?: string;
   /** Optional shell line that starts a loopback Claude Gateway on demand */

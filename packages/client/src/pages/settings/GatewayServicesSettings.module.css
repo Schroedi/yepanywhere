@@ -89,6 +89,23 @@
   font-size: 0.9rem;
 }
 
+/* The exact commands, one per line, selectable and never wrapped mid-token. */
+.commands {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.commands > span {
+  opacity: 0.85;
+}
+
+.commands > code {
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;

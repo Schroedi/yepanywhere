@@ -22,7 +22,7 @@ describe("parseGatewayServices", () => {
         autoStop: false,
         autoStopAfterSeconds: 300,
         codexEnabled: false,
-        codexWireApi: "chat",
+        codexWireApi: "responses",
       },
     ]);
   });
@@ -95,7 +95,7 @@ describe("reconcileGatewaySettings", () => {
         autoStop: false,
         autoStopAfterSeconds: 0,
         codexEnabled: false,
-        codexWireApi: "chat",
+        codexWireApi: "responses",
       },
     ]);
     expect(result.defaultServiceId).toBe("default");

@@ -8,6 +8,7 @@
 
 import type { Settings } from "@anthropic-ai/claude-agent-sdk";
 import {
+  DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
   DEFAULT_GATEWAY_SERVICE_ID,
   DEFAULT_GATEWAY_SERVICE_MODEL_LIMIT,
   parseGatewayModelId,
@@ -596,7 +597,7 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
         autoStop: false,
         autoStopAfterSeconds: 0,
         codexEnabled: false,
-        codexWireApi: "chat",
+        codexWireApi: DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
       },
     ];
     ClaudeGatewayProvider.defaultServiceId =
@@ -644,7 +645,7 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
               autoStop: false,
               autoStopAfterSeconds: 0,
               codexEnabled: false,
-              codexWireApi: "chat",
+              codexWireApi: DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
             },
           ]
         : [],

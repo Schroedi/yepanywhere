@@ -35,7 +35,7 @@ function service(overrides: Partial<GatewayService> = {}): GatewayService {
     autoStop: false,
     autoStopAfterSeconds: 0,
     codexEnabled: true,
-    codexWireApi: "chat",
+    codexWireApi: "responses",
     ...overrides,
   };
 }
@@ -143,6 +143,22 @@ describe("CodexOSS gateway services", () => {
       "-c",
       'model="deepseek-v4-flash"',
     ]);
+  });
+
+  it("still emits the legacy chat wire API when one is configured", async () => {
+    // Current Codex refuses `chat`, but an older CLI needs it, so an explicit
+    // choice is passed through rather than silently upgraded.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => vllmCatalog(["deepseek-v4-flash"])),
+    );
+    const provider = new ExposedCodexOSSProvider();
+    provider.setGatewayServices([service({ codexWireApi: "chat" })]);
+    await provider.getAvailableModels();
+
+    expect(provider.firstTurnArgs("deepseek-v4-flash")).toContain(
+      'model_providers.ya_vllm.wire_api="chat"',
+    );
   });
 
   it("keeps the ollama path when no endpoint is configured", () => {

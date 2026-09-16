@@ -9,10 +9,12 @@
 
 import {
   DEFAULT_GATEWAY_AUTO_STOP_SECONDS,
+  DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
   MAX_GATEWAY_SERVICES,
   MAX_GATEWAY_SERVICE_COMMAND_LENGTH,
   MAX_GATEWAY_SERVICE_LABEL_LENGTH,
   MAX_GATEWAY_SERVICE_SHORT_NAME_LENGTH,
+  gatewayServiceCliInvocations,
   isLoopbackGatewayUrl,
   type GatewayService,
 } from "@yep-anywhere/shared";
@@ -54,7 +56,7 @@ function newService(taken: ReadonlySet<string>): GatewayService {
     autoStop: false,
     autoStopAfterSeconds: DEFAULT_GATEWAY_AUTO_STOP_SECONDS,
     codexEnabled: false,
-    codexWireApi: "chat",
+    codexWireApi: DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
   };
 }
 
@@ -89,7 +91,9 @@ export function GatewayServicesSettings({
   reloadProviders: () => Promise<void>;
 }) {
   const { t } = useI18n();
-  const { settings, updateSettings } = useServerSettings();
+  const { settings, updateSetting, updateSettings } = useServerSettings();
+  const exportEnabled = settings?.gatewayServiceExportEnabled ?? false;
+  const exportPaths = settings?.gatewayServiceExportPaths;
   const savedServices = useMemo(
     () => settings?.gatewayServices ?? [],
     [settings?.gatewayServices],
@@ -148,6 +152,22 @@ export function GatewayServicesSettings({
       <p className="settings-hint">
         {t("providersGatewayServicesDescription")}
       </p>
+      <label className={styles.check}>
+        <input
+          type="checkbox"
+          checked={exportEnabled}
+          onChange={(event) =>
+            void updateSetting(
+              "gatewayServiceExportEnabled",
+              event.target.checked,
+            )
+          }
+        />{" "}
+        <strong>{t("providersGatewayServiceExportTitle")}</strong>
+      </label>
+      <p className="settings-hint">
+        {t("providersGatewayServiceExportDescription")}
+      </p>
       <form
         className={styles.form}
         onSubmit={(event) => {
@@ -157,6 +177,10 @@ export function GatewayServicesSettings({
       >
         {services.map((service, index) => {
           const loopback = isLoopbackGatewayUrl(service.url);
+          const invocations =
+            exportEnabled && exportPaths && service.enabled
+              ? gatewayServiceCliInvocations(service, exportPaths)
+              : undefined;
           return (
             <fieldset className={styles.card} key={service.id}>
               <legend className={styles.legend}>
@@ -223,6 +247,14 @@ export function GatewayServicesSettings({
                   {t("providersGatewayServiceCodex")}
                 </label>
               </div>
+
+              {invocations && (
+                <div className={`${styles.commands} ${styles.wide}`}>
+                  <span>{t("providersGatewayServiceCliLabel")}</span>
+                  <code>{invocations.claude}</code>
+                  {invocations.codex && <code>{invocations.codex}</code>}
+                </div>
+              )}
 
               <label className={styles.field}>
                 <span>{t("providersGatewayServiceShortNameLabel")}</span>

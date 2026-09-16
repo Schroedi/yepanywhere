@@ -22,7 +22,7 @@ function service(overrides: Partial<GatewayService> = {}): GatewayService {
     autoStop: false,
     autoStopAfterSeconds: 0,
     codexEnabled: false,
-    codexWireApi: "chat",
+    codexWireApi: "responses",
     ...overrides,
   };
 }
