@@ -844,9 +844,11 @@ async function startServer() {
   updateFileAccess(serverSettingsService.getSetting("fileAccess"));
 
   // Seed Claude transport settings from persisted settings
-  await ClaudeGatewayProvider.configureGateway({
-    url: serverSettingsService.getSetting("claudeGatewayUrl"),
-    startCommand: serverSettingsService.getSetting("claudeGatewayStartCommand"),
+  await ClaudeGatewayProvider.configureGatewayServices({
+    services: serverSettingsService.getSetting("gatewayServices") ?? [],
+    defaultServiceId: serverSettingsService.getSetting(
+      "defaultGatewayServiceId",
+    ),
     disableAgent: serverSettingsService.getSetting("claudeGatewayDisableAgent"),
     disablePlanMode: serverSettingsService.getSetting(
       "claudeGatewayDisablePlanMode",

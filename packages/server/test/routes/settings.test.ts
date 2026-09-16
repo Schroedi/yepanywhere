@@ -5,6 +5,7 @@ import {
 } from "@yep-anywhere/shared";
 import type { ProjectStoragePolicy } from "../../src/projects/projectStoragePolicy.js";
 import { createSettingsRoutes } from "../../src/routes/settings.js";
+import { reconcileGatewaySettings } from "../../src/services/gatewayServiceSettings.js";
 import type { PublicShareService } from "../../src/services/PublicShareService.js";
 import type { HostAwakeService } from "../../src/services/host-awake/HostAwakeService.js";
 import type {
@@ -58,7 +59,32 @@ describe("Settings Routes", () => {
           settings[key],
       ),
       updateSettings: vi.fn(async (updates: Partial<ServerSettings>) => {
-        settings = { ...settings, ...updates };
+        const merged = { ...settings, ...updates };
+        // Mirror the real service: the services list and the legacy gateway
+        // keys are reconciled before anything reads the result.
+        const gateways = reconcileGatewaySettings(
+          merged.gatewayServices ?? [],
+          merged.defaultGatewayServiceId,
+          {
+            ...(merged.claudeGatewayUrl
+              ? { claudeGatewayUrl: merged.claudeGatewayUrl }
+              : {}),
+            ...(merged.claudeGatewayStartCommand
+              ? { claudeGatewayStartCommand: merged.claudeGatewayStartCommand }
+              : {}),
+          },
+          {
+            legacyUrlEdited: "claudeGatewayUrl" in updates,
+            legacyCommandEdited: "claudeGatewayStartCommand" in updates,
+          },
+        );
+        settings = {
+          ...merged,
+          gatewayServices: gateways.services,
+          defaultGatewayServiceId: gateways.defaultServiceId,
+          claudeGatewayUrl: gateways.claudeGatewayUrl,
+          claudeGatewayStartCommand: gateways.claudeGatewayStartCommand,
+        };
         return settings;
       }),
     } as unknown as ServerSettingsService;
@@ -1193,8 +1219,13 @@ describe("Settings Routes", () => {
         claudeGatewayUrl: "http://localhost:4141",
       });
       expect(onClaudeGatewaySettingsChanged).toHaveBeenCalledWith({
-        url: "http://localhost:4141",
-        startCommand: undefined,
+        services: [
+          expect.objectContaining({
+            id: "default",
+            url: "http://localhost:4141",
+          }),
+        ],
+        defaultServiceId: "default",
         disableAgent: true,
         disablePlanMode: true,
       });
@@ -1224,8 +1255,13 @@ describe("Settings Routes", () => {
         claudeGatewayStartCommand: "HOST=localhost gateway start",
       });
       expect(onClaudeGatewaySettingsChanged).toHaveBeenCalledWith({
-        url: "http://localhost:4141",
-        startCommand: "HOST=localhost gateway start",
+        services: [
+          expect.objectContaining({
+            url: "http://localhost:4141",
+            serviceCommand: "HOST=localhost gateway start",
+          }),
+        ],
+        defaultServiceId: "default",
         disableAgent: true,
         disablePlanMode: true,
       });
@@ -1249,8 +1285,7 @@ describe("Settings Routes", () => {
         claudeGatewayDisableAgent: false,
       });
       expect(onClaudeGatewaySettingsChanged).toHaveBeenCalledWith({
-        url: undefined,
-        startCommand: undefined,
+        services: [],
         disableAgent: false,
         disablePlanMode: true,
       });
@@ -1292,8 +1327,7 @@ describe("Settings Routes", () => {
         claudeGatewayDisablePlanMode: false,
       });
       expect(onClaudeGatewaySettingsChanged).toHaveBeenCalledWith({
-        url: undefined,
-        startCommand: undefined,
+        services: [],
         disableAgent: true,
         disablePlanMode: false,
       });
@@ -1382,11 +1416,100 @@ describe("Settings Routes", () => {
         claudeGatewayUrl: undefined,
       });
       expect(onClaudeGatewaySettingsChanged).toHaveBeenCalledWith({
-        url: undefined,
-        startCommand: undefined,
+        services: [],
         disableAgent: true,
         disablePlanMode: true,
       });
+    });
+
+    it("persists a services list and applies it live", async () => {
+      const onClaudeGatewaySettingsChanged = vi.fn();
+      const routes = createSettingsRoutes({
+        serverSettingsService: mockServerSettingsService,
+        onClaudeGatewaySettingsChanged,
+      });
+
+      const response = await routes.request("/", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gatewayServices: [
+            {
+              id: "vllm",
+              url: "http://127.0.0.1:8001/",
+              shortName: "vllm",
+              serviceCommand: "~/vllm/service-model start",
+              contextWindowTokens: 252_000,
+              codexEnabled: true,
+              codexWireApi: "responses",
+            },
+          ],
+          defaultGatewayServiceId: "vllm",
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(onClaudeGatewaySettingsChanged).toHaveBeenCalledWith({
+        services: [
+          expect.objectContaining({
+            id: "vllm",
+            url: "http://127.0.0.1:8001",
+            shortName: "vllm",
+            serviceCommand: "~/vllm/service-model start",
+            contextWindowTokens: 252_000,
+            codexEnabled: true,
+            codexWireApi: "responses",
+          }),
+        ],
+        defaultServiceId: "vllm",
+        disableAgent: true,
+        disablePlanMode: true,
+      });
+    });
+
+    it("refuses a service command on a non-loopback endpoint", async () => {
+      const routes = createSettingsRoutes({
+        serverSettingsService: mockServerSettingsService,
+      });
+
+      const response = await routes.request("/", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gatewayServices: [
+            {
+              id: "remote",
+              url: "https://gateway.example.com",
+              serviceCommand: "start-it",
+            },
+          ],
+        }),
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: expect.stringContaining("localhost"),
+      });
+    });
+
+    it("rejects a malformed services list without partial application", async () => {
+      const routes = createSettingsRoutes({
+        serverSettingsService: mockServerSettingsService,
+      });
+
+      const response = await routes.request("/", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gatewayServices: [
+            { id: "ok", url: "http://127.0.0.1:8001" },
+            { id: "Bad Id", url: "http://127.0.0.1:8002" },
+          ],
+        }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(mockServerSettingsService.updateSettings).not.toHaveBeenCalled();
     });
 
     it("accepts speech audio retention settings", async () => {

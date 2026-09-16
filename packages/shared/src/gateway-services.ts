@@ -21,6 +21,14 @@ export const MAX_GATEWAY_SERVICE_URL_LENGTH = 2_000;
 /** Token ceilings a declared window may state. Generous, not model-specific. */
 export const MAX_GATEWAY_SERVICE_CONTEXT_TOKENS = 100_000_000;
 export const MAX_GATEWAY_SERVICE_OUTPUT_TOKENS = 10_000_000;
+/**
+ * How many models one service contributes when its entry states no limit.
+ * copilot-api alone advertises roughly sixty, so the cap exists to keep a
+ * model menu usable rather than to ration anything.
+ */
+export const DEFAULT_GATEWAY_SERVICE_MODEL_LIMIT = 100;
+/** Upper bound for a per-service catalog truncation. */
+export const MAX_GATEWAY_SERVICE_MODEL_LIMIT = 1_000;
 
 /** Id carried by the entry that mirrors the legacy single-gateway settings. */
 export const DEFAULT_GATEWAY_SERVICE_ID = "default";
@@ -73,6 +81,11 @@ export interface GatewayService {
    */
   contextWindowTokens?: number;
   maxOutputTokens?: number;
+  /**
+   * Keep at most this many models from this service's catalog, in the order it
+   * advertises them. For an endpoint that lists far more than anyone selects.
+   */
+  maxModels?: number;
   /** Whether CodexOSS may launch against this service. */
   codexEnabled: boolean;
   /** Codex wire API for this endpoint when CodexOSS uses it. */
@@ -342,6 +355,13 @@ export function parseGatewayServices(value: unknown): GatewayService[] | null {
     ) {
       return null;
     }
+    if (
+      record.maxModels !== undefined &&
+      positiveTokenCount(record.maxModels, MAX_GATEWAY_SERVICE_MODEL_LIMIT) ===
+        undefined
+    ) {
+      return null;
+    }
 
     seen.add(record.id);
     services.push({
@@ -365,6 +385,9 @@ export function parseGatewayServices(value: unknown): GatewayService[] | null {
       ...(record.maxOutputTokens === undefined
         ? {}
         : { maxOutputTokens: record.maxOutputTokens as number }),
+      ...(record.maxModels === undefined
+        ? {}
+        : { maxModels: record.maxModels as number }),
       codexEnabled: record.codexEnabled ?? false,
       codexWireApi: record.codexWireApi ?? "chat",
     });

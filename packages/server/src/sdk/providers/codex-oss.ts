@@ -14,7 +14,14 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { promisify } from "node:util";
-import type { ModelInfo } from "@yep-anywhere/shared";
+import {
+  DEFAULT_GATEWAY_SERVICE_MODEL_LIMIT,
+  gatewayServiceDisplayName,
+  parseGatewayModelId,
+  qualifiedGatewayModelId,
+  type GatewayService,
+  type ModelInfo,
+} from "@yep-anywhere/shared";
 import {
   type CodexToolCallContext,
   normalizeCodexCommandExecutionOutput,
@@ -39,6 +46,12 @@ import type {
 import { inactiveProviderSessionOptionsResult } from "./types.js";
 
 const log = getLogger().child({ component: "codex-oss-provider" });
+
+/** Where a chosen model lives: a configured endpoint, or Ollama when absent. */
+interface CodexModelRoute {
+  serviceId?: string;
+  modelId: string;
+}
 const execAsync = promisify(exec);
 
 /**
@@ -182,6 +195,8 @@ export class CodexOSSProvider implements AgentProvider {
   readonly supportsSteering = false;
 
   private codexPath?: string;
+  private getServices: () => readonly GatewayService[] = () => [];
+  private modelRoutes = new Map<string, CodexModelRoute>();
   private readonly installationCoordinator: ProviderInstallationCoordinator;
   private readonly localProvider: "ollama" | "lmstudio";
   private readonly timeout: number;
@@ -212,9 +227,37 @@ export class CodexOSSProvider implements AgentProvider {
   }
 
   /**
-   * Check if local provider (Ollama) is available.
+   * Configured endpoints this provider may launch against.
+   *
+   * CodexOSS started as "Ollama, through Codex". A host that serves models
+   * some other way — vLLM, llama.cpp, anything OpenAI-compatible — is reachable
+   * by Codex through a model provider entry, so YA passes one at launch rather
+   * than requiring Ollama to exist.
+   */
+  setGatewayServices(services: readonly GatewayService[]): void {
+    this.setGatewayServicesGetter(() => services);
+  }
+
+  /**
+   * Read the configured endpoints at each use rather than at configuration
+   * time, so a settings change reaches the next launch without reconfiguring
+   * the provider registry.
+   */
+  setGatewayServicesGetter(getServices: () => readonly GatewayService[]): void {
+    this.getServices = getServices;
+  }
+
+  private codexServices(): readonly GatewayService[] {
+    return this.getServices().filter(
+      (service) => service.enabled && service.codexEnabled,
+    );
+  }
+
+  /**
+   * Check that something can serve a model: a configured endpoint, or Ollama.
    */
   async isAuthenticated(): Promise<boolean> {
+    if (this.codexServices().length > 0) return true;
     // For OSS mode, we just need Ollama running
     if (this.localProvider === "ollama") {
       try {
@@ -246,9 +289,134 @@ export class CodexOSSProvider implements AgentProvider {
   }
 
   /**
-   * Get available models from Ollama.
+   * Models from every configured endpoint, plus Ollama's when it is in use.
+   *
+   * A model id stays exactly as its source advertises it unless two sources
+   * offer the same one, in which case both gain their service prefix — the
+   * same rule Claude Gateway follows, so a launch can always name its source.
    */
   async getAvailableModels(): Promise<ModelInfo[]> {
+    const services = this.codexServices();
+    const perSource = await Promise.all([
+      ...services.map(async (service) => ({
+        serviceId: service.id,
+        models: await this.readServiceModels(service),
+      })),
+      ...(services.length === 0
+        ? [
+            {
+              serviceId: undefined,
+              models: await this.getOllamaModels(),
+            },
+          ]
+        : []),
+    ]);
+
+    const counts = new Map<string, number>();
+    for (const source of perSource) {
+      for (const model of source.models) {
+        counts.set(model.id, (counts.get(model.id) ?? 0) + 1);
+      }
+    }
+
+    const routes = new Map<string, CodexModelRoute>();
+    const models: ModelInfo[] = [];
+    for (const source of perSource) {
+      for (const model of source.models) {
+        const collides = (counts.get(model.id) ?? 0) > 1;
+        const exposedId =
+          collides && source.serviceId
+            ? qualifiedGatewayModelId(source.serviceId, model.id)
+            : model.id;
+        routes.set(exposedId, {
+          ...(source.serviceId ? { serviceId: source.serviceId } : {}),
+          modelId: model.id,
+        });
+        models.push(collides ? { ...model, id: exposedId } : model);
+      }
+    }
+    this.modelRoutes = routes;
+    return models;
+  }
+
+  /** Read one endpoint's OpenAI-compatible catalog. */
+  private async readServiceModels(
+    service: GatewayService,
+  ): Promise<ModelInfo[]> {
+    try {
+      const response = await fetch(`${service.url}/v1/models`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) return [];
+      const payload = (await response.json()) as {
+        data?: { id?: unknown; max_model_len?: unknown }[];
+      };
+      if (!Array.isArray(payload.data)) return [];
+      const limit = service.maxModels ?? DEFAULT_GATEWAY_SERVICE_MODEL_LIMIT;
+      const models: ModelInfo[] = [];
+      for (const row of payload.data) {
+        if (models.length >= limit) break;
+        const id = typeof row?.id === "string" ? row.id.trim() : "";
+        if (!id) continue;
+        const contextWindow =
+          service.contextWindowTokens ??
+          (typeof row.max_model_len === "number" && row.max_model_len > 0
+            ? row.max_model_len
+            : undefined);
+        models.push({
+          id,
+          name: id,
+          ...(contextWindow === undefined ? {} : { contextWindow }),
+        });
+      }
+      return models;
+    } catch (error) {
+      log.debug(
+        { error, serviceId: service.id, url: service.url },
+        "Failed to read CodexOSS service models",
+      );
+      return [];
+    }
+  }
+
+  /** Which configured endpoint serves a model, if any. */
+  private resolveModelRoute(model: string | undefined): CodexModelRoute {
+    if (!model) return { modelId: model ?? "" };
+    const known = this.modelRoutes.get(model);
+    if (known) return known;
+    const qualified = parseGatewayModelId(model, (serviceId) =>
+      this.codexServices().some((service) => service.id === serviceId),
+    );
+    return qualified ?? { modelId: model };
+  }
+
+  private serviceById(serviceId: string | undefined) {
+    return serviceId
+      ? this.codexServices().find((service) => service.id === serviceId)
+      : undefined;
+  }
+
+  /**
+   * Codex config overrides that point a launch at a configured endpoint.
+   *
+   * These are command-line overrides rather than edits to the user's
+   * `~/.codex/config.toml`: YA never rewrites a CLI's own settings files.
+   */
+  private serviceLaunchArgs(service: GatewayService): string[] {
+    const key = `ya_${service.id.replace(/-/gu, "_")}`;
+    return [
+      "-c",
+      `model_providers.${key}.name="${gatewayServiceDisplayName(service)}"`,
+      "-c",
+      `model_providers.${key}.base_url="${service.url}/v1"`,
+      "-c",
+      `model_providers.${key}.wire_api="${service.codexWireApi}"`,
+      "-c",
+      `model_provider="${key}"`,
+    ];
+  }
+
+  private async getOllamaModels(): Promise<ModelInfo[]> {
     if (this.localProvider !== "ollama") {
       return [];
     }
@@ -656,16 +824,16 @@ export class CodexOSSProvider implements AgentProvider {
    * Build CLI arguments for first turn: `codex exec --oss --json ...`
    */
   private buildFirstTurnArgs(options: StartSessionOptions): string[] {
-    const args: string[] = [
-      "exec",
-      "--oss",
-      "--local-provider",
-      this.localProvider,
-      "--json",
-    ];
+    const route = this.resolveModelRoute(options.model);
+    const service = this.serviceById(route.serviceId);
+    const args: string[] = service
+      ? // A configured endpoint replaces `--oss`, which only ever meant
+        // "whichever local provider Codex is configured for".
+        ["exec", ...this.serviceLaunchArgs(service), "--json"]
+      : ["exec", "--oss", "--local-provider", this.localProvider, "--json"];
 
     if (options.model) {
-      args.push("--model", options.model);
+      args.push("--model", route.modelId);
     }
 
     // Sandbox mode
@@ -689,17 +857,20 @@ export class CodexOSSProvider implements AgentProvider {
     sessionId: string,
     prompt: string,
   ): string[] {
+    const route = this.resolveModelRoute(options.model);
+    const service = this.serviceById(route.serviceId);
     const args: string[] = [
       "exec",
       "resume",
       sessionId,
       prompt,
-      "-c",
-      `model_provider="${this.localProvider}"`,
+      ...(service
+        ? this.serviceLaunchArgs(service)
+        : ["-c", `model_provider="${this.localProvider}"`]),
     ];
 
     if (options.model) {
-      args.push("-c", `model="${options.model}"`);
+      args.push("-c", `model="${route.modelId}"`);
     }
 
     return args;

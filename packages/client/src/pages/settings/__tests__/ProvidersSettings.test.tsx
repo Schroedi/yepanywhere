@@ -13,6 +13,7 @@ import {
   CLAUDE_GATEWAY_AUTOSTART_CAPABILITY,
   CLAUDE_GATEWAY_CAPABILITY,
   CLAUDE_GATEWAY_DISABLE_AGENT_CAPABILITY,
+  CLAUDE_GATEWAY_SERVICES_CAPABILITY,
   CLAUDE_GATEWAY_DISABLE_PLAN_MODE_CAPABILITY,
   CODEX_CYBER_ACCESS_PROGRAM_SETTING_CAPABILITY,
   CODEX_PLAN_TOOL_SETTING_CAPABILITY,
@@ -660,6 +661,90 @@ describe("ProvidersSettings additional models", () => {
 
     expect(input).toHaveProperty("value", "http://localhost:4141");
     expect(mockUpdateSetting).not.toHaveBeenCalled();
+  });
+
+  it("edits and saves the services list when the server supports it", async () => {
+    versionState.capabilities = [
+      CLAUDE_GATEWAY_CAPABILITY,
+      CLAUDE_GATEWAY_SERVICES_CAPABILITY,
+    ];
+    hookState.settings = {
+      serviceWorkerEnabled: true,
+      persistRemoteSessionsToDisk: false,
+      gatewayServices: [
+        {
+          id: "vllm",
+          label: "",
+          shortName: "",
+          url: "http://127.0.0.1:8001",
+          enabled: true,
+          autoStop: false,
+          autoStopAfterSeconds: 300,
+          codexEnabled: false,
+          codexWireApi: "chat",
+        },
+      ],
+      defaultGatewayServiceId: "vllm",
+    };
+    render(<ProvidersSettings />);
+
+    // The single-URL form belongs to older servers only.
+    expect(
+      screen.queryByRole("textbox", {
+        name: "providersClaudeGatewayUrlAria",
+      }),
+    ).toBeNull();
+
+    fireEvent.change(
+      screen.getByRole("spinbutton", {
+        name: "providersGatewayServiceContextAria",
+      }),
+      { target: { value: "252000" } },
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /providersGatewayServiceCodex/u }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "providersSave" }));
+
+    await waitFor(() => {
+      expect(mockUpdateSettings).toHaveBeenCalledWith({
+        gatewayServices: [
+          expect.objectContaining({
+            id: "vllm",
+            contextWindowTokens: 252000,
+            codexEnabled: true,
+          }),
+        ],
+        defaultGatewayServiceId: "vllm",
+      });
+      expect(mockReloadProviders).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("adds a service entry with a slug derived from its endpoint", async () => {
+    versionState.capabilities = [
+      CLAUDE_GATEWAY_CAPABILITY,
+      CLAUDE_GATEWAY_SERVICES_CAPABILITY,
+    ];
+    render(<ProvidersSettings />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "providersGatewayServiceAdd" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "providersSave" }));
+
+    await waitFor(() => {
+      expect(mockUpdateSettings).toHaveBeenCalledWith({
+        gatewayServices: [
+          expect.objectContaining({
+            id: "127-0-0-1-8001",
+            url: "http://127.0.0.1:8001",
+            enabled: true,
+          }),
+        ],
+        defaultGatewayServiceId: "127-0-0-1-8001",
+      });
+    });
   });
 
   it("hides Gateway autostart from servers with only the base capability", () => {

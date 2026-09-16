@@ -65,6 +65,7 @@ import type {
   TranscriptDisplayObject,
   UpdateProjectQueueItemRequest,
   UpdateProjectSessionDefaultsRequest,
+  GatewayService,
   UploadedFile,
   UrlProjectId,
   UserQuestionAnswers,
@@ -1700,6 +1701,13 @@ export interface ServerSettings {
   heartbeatTurnsAfterMinutes?: number;
   /** Default text queued as the synthetic heartbeat user turn */
   heartbeatTurnText?: string;
+  /**
+   * Configured model-serving endpoints. The default entry is mirrored by the
+   * single-gateway settings below, which older clients still read and write.
+   */
+  gatewayServices?: GatewayService[];
+  /** Which entry Claude Gateway treats as its default service. */
+  defaultGatewayServiceId?: string;
   /** Anthropic-compatible endpoint for the isolated Claude Gateway provider */
   claudeGatewayUrl?: string;
   /** Optional shell line that starts a loopback Claude Gateway on demand */

@@ -731,11 +731,38 @@ export class ServerSettingsService {
     this.ensureInitialized();
     const operation = this.updateTail.then(async () => {
       const previousSettings = this.state.settings;
+      const merged: ServerSettings = {
+        ...previousSettings,
+        ...updates,
+      };
+      // The services list and the legacy single-gateway keys are two views of
+      // one configuration, so an edit to either has to settle both before the
+      // save — the runtime reads this result, not the reloaded file.
+      const reconciledGateways = reconcileGatewaySettings(
+        merged.gatewayServices ?? [],
+        merged.defaultGatewayServiceId,
+        {
+          ...(merged.claudeGatewayUrl
+            ? { claudeGatewayUrl: merged.claudeGatewayUrl }
+            : {}),
+          ...(merged.claudeGatewayStartCommand
+            ? { claudeGatewayStartCommand: merged.claudeGatewayStartCommand }
+            : {}),
+        },
+        {
+          legacyUrlEdited: "claudeGatewayUrl" in updates,
+          legacyCommandEdited: "claudeGatewayStartCommand" in updates,
+        },
+      );
       const nextState: SettingsState = {
         version: CURRENT_VERSION,
         settings: {
-          ...previousSettings,
-          ...updates,
+          ...merged,
+          gatewayServices: reconciledGateways.services,
+          defaultGatewayServiceId: reconciledGateways.defaultServiceId,
+          claudeGatewayUrl: reconciledGateways.claudeGatewayUrl,
+          claudeGatewayStartCommand:
+            reconciledGateways.claudeGatewayStartCommand,
         },
       };
       let durabilityError: CommittedSettingsSaveError | undefined;

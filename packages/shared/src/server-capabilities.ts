@@ -1850,6 +1850,40 @@ export const SERVER_CAPABILITIES = {
         "No maintained client still branches on claude-gateway.",
     },
   },
+  claudeGatewayServices: {
+    id: CAPABILITY_ID_ALLOCATIONS.claudeGatewayServices.id,
+    name: "claude-gateway-services",
+    kind: "transitional",
+    area: "providers",
+    introducedIn: "0.8.2",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.claudeGatewayServices.id,
+    },
+    description:
+      "Server stores a list of model-serving endpoints with per-entry lifecycle commands, declared context and output sizes, harness-narrowing overrides, and CodexOSS opt-in, and mirrors its default entry through the older single-gateway settings.",
+    clientFallback:
+      "Show the single Claude Gateway URL and start-command form, writing only the older claudeGateway* settings.",
+    serverContract: {
+      routes: ["GET /api/settings", "PUT /api/settings", "GET /api/providers"],
+      requestFields: [
+        "settings.gatewayServices",
+        "settings.defaultGatewayServiceId",
+      ],
+      responseFields: [
+        "settings.gatewayServices",
+        "settings.defaultGatewayServiceId",
+      ],
+    },
+    lifecycle: {
+      kind: "transitional",
+      reviewAfter: "2027-03-16",
+      removeClientGateWhen:
+        "The hosted-client compatibility floor excludes servers older than the gateway services list.",
+      removeServerAdvertisementWhen:
+        "No maintained client still branches on claude-gateway-services.",
+    },
+  },
   claudeGatewayAutostart: {
     id: CAPABILITY_ID_ALLOCATIONS.claudeGatewayAutostart.id,
     name: "claude-gateway-autostart",
@@ -2862,6 +2896,8 @@ export const CLAUDE_ADDITIONAL_MODELS_CAPABILITY =
   SERVER_CAPABILITIES.claudeAdditionalModels.name;
 
 export const CLAUDE_GATEWAY_CAPABILITY = SERVER_CAPABILITIES.claudeGateway.name;
+export const CLAUDE_GATEWAY_SERVICES_CAPABILITY =
+  SERVER_CAPABILITIES.claudeGatewayServices.name;
 
 export const CLAUDE_GATEWAY_AUTOSTART_CAPABILITY =
   SERVER_CAPABILITIES.claudeGatewayAutostart.name;

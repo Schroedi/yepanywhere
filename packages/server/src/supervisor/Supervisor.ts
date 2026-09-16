@@ -557,6 +557,12 @@ export interface SupervisorOptions {
     contextWindow: number,
     provider: ProviderName,
   ) => void;
+  /**
+   * Called after a process joins or leaves the live inventory. Consumers that
+   * track "is anything still using X" — gateway service auto-stop, for one —
+   * recompute from the current process list here rather than polling.
+   */
+  onProcessInventoryChanged?: () => void;
   /** Callback to fetch session summary for initial metadata reconciliation */
   onSessionSummary?: OnSessionSummaryCallback;
   /** Notification policy only; called before a supported manual turn stop. */
@@ -632,6 +638,7 @@ export class Supervisor {
   private maxWorkers: number;
   private idlePreemptThresholdMs: number;
   private workerQueue: WorkerQueue;
+  private onProcessInventoryChanged?: () => void;
   private onSessionExecutor?: OnSessionExecutorCallback;
   private onSuccessfulProviderSession?: OnSuccessfulProviderSessionCallback;
   private getSessionChildEnv?: SupervisorOptions["getSessionChildEnv"];
@@ -746,6 +753,7 @@ export class Supervisor {
       eventBus: options.eventBus,
       maxQueueSize: options.maxQueueSize,
     });
+    this.onProcessInventoryChanged = options.onProcessInventoryChanged;
     this.onSessionExecutor = options.onSessionExecutor;
     this.onSuccessfulProviderSession = options.onSuccessfulProviderSession;
     this.getSessionChildEnv = options.getSessionChildEnv;
@@ -5359,6 +5367,7 @@ export class Supervisor {
     this.sessionToProcess.set(process.sessionId, process.id);
     this.everOwnedSessions.add(process.sessionId);
     this.sessionDone.recoverPendingDone(process);
+    this.onProcessInventoryChanged?.();
 
     const ownership: SessionOwnership = {
       owner: "self",
@@ -5515,6 +5524,7 @@ export class Supervisor {
     this.addTerminatedProcess(terminatedInfo);
 
     this.processes.delete(process.id);
+    this.onProcessInventoryChanged?.();
 
     // Delete all session ID mappings that point to this process
     // This handles both temp and real session IDs

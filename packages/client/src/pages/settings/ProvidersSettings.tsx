@@ -13,6 +13,7 @@ import {
   CLAUDE_GATEWAY_CAPABILITY,
   CLAUDE_GATEWAY_DISABLE_AGENT_CAPABILITY,
   CLAUDE_GATEWAY_DISABLE_PLAN_MODE_CAPABILITY,
+  CLAUDE_GATEWAY_SERVICES_CAPABILITY,
   CODEX_CYBER_ACCESS_PROGRAM_SETTING_CAPABILITY,
   CODEX_PLAN_TOOL_SETTING_CAPABILITY,
   CODEX_REASONING_SUMMARIES,
@@ -52,6 +53,7 @@ import { useToastContext } from "../../contexts/ToastContext";
 import { useCodexUpdateStatus } from "../../hooks/useCodexUpdateStatus";
 import { useProviders } from "../../hooks/useProviders";
 import { useServerSettings } from "../../hooks/useServerSettings";
+import { GatewayServicesSettings } from "./GatewayServicesSettings";
 import { useVersion } from "../../hooks/useVersion";
 import { useI18n } from "../../i18n";
 import {
@@ -1599,6 +1601,10 @@ export function ProvidersSettings() {
     version,
     CLAUDE_GATEWAY_AUTOSTART_CAPABILITY,
   );
+  const supportsGatewayServices = serverHasCapability(
+    version,
+    CLAUDE_GATEWAY_SERVICES_CAPABILITY,
+  );
   const supportsClaudeGatewayDisableAgent = serverHasCapability(
     version,
     CLAUDE_GATEWAY_DISABLE_AGENT_CAPABILITY,
@@ -1902,10 +1908,16 @@ export function ProvidersSettings() {
                   {provider.id === "claude-gateway" &&
                     supportsClaudeGateway && (
                       <>
-                        <ClaudeGatewaySettings
-                          reloadProviders={reloadProviders}
-                          supportsAutostart={supportsClaudeGatewayAutostart}
-                        />
+                        {supportsGatewayServices ? (
+                          <GatewayServicesSettings
+                            reloadProviders={reloadProviders}
+                          />
+                        ) : (
+                          <ClaudeGatewaySettings
+                            reloadProviders={reloadProviders}
+                            supportsAutostart={supportsClaudeGatewayAutostart}
+                          />
+                        )}
                         {supportsClaudeGatewayDisableAgent && (
                           <ClaudeGatewayToggleSetting
                             id="provider-claude-gateway-disable-agent"

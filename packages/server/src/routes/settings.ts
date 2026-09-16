@@ -24,6 +24,7 @@ import {
   isProjectQueueReadinessCommand,
   isLoopbackGatewayUrl,
   isValidGatewayServiceId,
+  type GatewayService,
   parseGatewayServices,
   normalizeYaClientBaseUrl,
   normalizeYaClientBaseUrlFromShareViewerUrl,
@@ -95,8 +96,8 @@ export interface SettingsRoutesDeps {
   ) => Promise<void> | void;
   /** Callback to apply Claude Gateway transport settings at runtime. */
   onClaudeGatewaySettingsChanged?: (settings: {
-    url?: string;
-    startCommand?: string;
+    services: readonly GatewayService[];
+    defaultServiceId?: string;
     disableAgent: boolean;
     disablePlanMode: boolean;
   }) => Promise<void> | void;
@@ -1131,12 +1132,18 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
         ("claudeGatewayUrl" in updates ||
           "claudeGatewayStartCommand" in updates ||
           "claudeGatewayDisableAgent" in updates ||
-          "claudeGatewayDisablePlanMode" in updates) &&
+          "claudeGatewayDisablePlanMode" in updates ||
+          "gatewayServices" in updates ||
+          "defaultGatewayServiceId" in updates) &&
         onClaudeGatewaySettingsChanged
       ) {
+        // Persisted settings are already reconciled, so the list and the
+        // legacy keys agree by the time the runtime sees them.
         await onClaudeGatewaySettingsChanged({
-          url: settings.claudeGatewayUrl,
-          startCommand: settings.claudeGatewayStartCommand,
+          services: settings.gatewayServices ?? [],
+          ...(settings.defaultGatewayServiceId
+            ? { defaultServiceId: settings.defaultGatewayServiceId }
+            : {}),
           disableAgent: settings.claudeGatewayDisableAgent,
           disablePlanMode: settings.claudeGatewayDisablePlanMode,
         });

@@ -480,6 +480,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "codex-cyber-access-program-setting",
     introducedIn: "0.8.2",
   },
+  claudeGatewayServices: {
+    id: 72,
+    direction: "server",
+    name: "claude-gateway-services",
+    introducedIn: "0.8.2",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

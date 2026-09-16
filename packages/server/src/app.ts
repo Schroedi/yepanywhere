@@ -27,6 +27,8 @@ import {
   VhostAppControl,
   vhostAppControlAvailable,
 } from "./artifacts/VhostAppControl.js";
+import { gatewayServiceUsage } from "./sdk/providers/gatewayServiceUsage.js";
+import { noteGatewayServiceUsage } from "./sdk/providers/claude-gateway.js";
 import {
   isArtifactHost,
   isArtifactOrigin,
@@ -619,6 +621,11 @@ export function createApp(options: AppOptions): AppResult {
       ),
       claudeGatewayDisablePlanMode: options.serverSettingsService?.getSetting(
         "claudeGatewayDisablePlanMode",
+      ),
+      gatewayServices:
+        options.serverSettingsService?.getSetting("gatewayServices"),
+      defaultGatewayServiceId: options.serverSettingsService?.getSetting(
+        "defaultGatewayServiceId",
       ),
       subagentMaxDepth: getConfiguredSubagentMaxDepth(),
       ollamaUrl: options.serverSettingsService?.getSetting("ollamaUrl"),
@@ -1389,6 +1396,11 @@ export function createApp(options: AppOptions): AppResult {
   supervisor = new Supervisor({
     onSessionStopRequested: (sessionId) =>
       pushNotifier?.suppressSession(sessionId),
+    onProcessInventoryChanged: () => {
+      // Gateway services that opted into auto-stop need to know when their
+      // last session goes away; the live process list is that answer.
+      noteGatewayServiceUsage(gatewayServiceUsage(supervisor));
+    },
     sdk: options.sdk,
     realSdk: options.realSdk,
     provider:
@@ -2604,7 +2616,7 @@ export function createApp(options: AppOptions): AppResult {
               options.remoteSessionService?.setDiskPersistenceEnabled(enabled)
           : undefined,
         onClaudeGatewaySettingsChanged: (settings) =>
-          ClaudeGatewayProvider.configureGateway(settings),
+          ClaudeGatewayProvider.configureGatewayServices(settings),
         onOllamaUrlChanged: (url) => {
           ClaudeOllamaProvider.setOllamaUrl(url);
         },

@@ -54,6 +54,14 @@ function legacyServiceEntry(legacy: LegacyGatewaySettings): GatewayService {
   };
 }
 
+/** Which legacy keys this particular update touched, if any. */
+export interface LegacyGatewayEdits {
+  /** The caller wrote `claudeGatewayUrl`, including writing it empty. */
+  legacyUrlEdited?: boolean;
+  /** The caller wrote `claudeGatewayStartCommand`, including writing it empty. */
+  legacyCommandEdited?: boolean;
+}
+
 export interface ReconciledGatewaySettings {
   services: GatewayService[];
   defaultServiceId: string | undefined;
@@ -73,9 +81,24 @@ export function reconcileGatewaySettings(
   services: readonly GatewayService[],
   defaultServiceId: string | undefined,
   legacy: LegacyGatewaySettings,
+  edits: LegacyGatewayEdits = {},
 ): ReconciledGatewaySettings {
   const legacyUrl = legacy.claudeGatewayUrl?.trim() || undefined;
   const legacyCommand = legacy.claudeGatewayStartCommand?.trim() || undefined;
+
+  // An older client clearing the gateway URL means "no gateway" for the one
+  // entry it can see. Honour that rather than mirroring the entry back and
+  // resurrecting the URL it just removed.
+  if (edits.legacyUrlEdited && !legacyUrl && services.length > 0) {
+    const cleared = defaultGatewayService(services, defaultServiceId);
+    const remaining = services.filter((service) => service.id !== cleared?.id);
+    return {
+      services: remaining,
+      defaultServiceId: remaining[0]?.id,
+      claudeGatewayUrl: remaining[0]?.url,
+      claudeGatewayStartCommand: remaining[0]?.serviceCommand,
+    };
+  }
 
   if (services.length === 0) {
     // No list yet. Only a configured legacy URL produces an entry; an unset
@@ -118,8 +141,9 @@ export function reconcileGatewaySettings(
   // Only a non-empty legacy value overrides the entry. An absent one is
   // indistinguishable from "this installation stopped mirroring", so treating
   // it as a clear would silently drop a command the list still shows.
-  const legacyChangedCommand =
-    legacyCommand !== undefined && legacyCommand !== active.serviceCommand;
+  const legacyChangedCommand = edits.legacyCommandEdited
+    ? legacyCommand !== active.serviceCommand
+    : legacyCommand !== undefined && legacyCommand !== active.serviceCommand;
   let adopted = active;
   if (legacyChangedUrl || legacyChangedCommand) {
     const { serviceCommand, ...rest } = active;
