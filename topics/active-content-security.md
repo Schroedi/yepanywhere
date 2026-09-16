@@ -496,6 +496,15 @@ protection is the directory's: anyone who can read it holds every unexpired
 artifact URL. It never holds artifact content, and artifact files keep the
 permissions their producer gave them.
 
+Several artifact servers may share one state directory — every server built
+from the same data directory does, and one process can hold more than one. A
+write must therefore stage under a name unique to that write, not merely to
+the process: a shared staging name lets one rename take the file another is
+about to rename, failing the loser with `ENOENT` and leaving a live-token file
+behind. The same rule governs the app-access generations file. A write that
+cannot complete removes its staging file, is reported, and does not stop the
+server from serving what it already holds.
+
 Restoring drops grants that expired while the server was down, and applies the
 same limits and validation as a fresh grant. Address or listener-port changes
 revoke outstanding grants as before, and a revoked or expired grant is removed

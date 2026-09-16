@@ -85,9 +85,16 @@ export class VhostAccess {
       };
       if (this.directory) {
         const file = join(this.directory, "app-access.json");
-        const staging = `${file}.${process.pid}`;
-        await writeFile(staging, JSON.stringify(next), { mode: 0o600 });
-        await rename(staging, file);
+        // Unique per write: two instances over one directory would otherwise
+        // stage to the same name and the loser's rename fails with ENOENT.
+        const staging = `${file}.${process.pid}.${randomUUID()}`;
+        try {
+          await writeFile(staging, JSON.stringify(next), { mode: 0o600 });
+          await rename(staging, file);
+        } catch (error) {
+          await unlink(staging).catch(() => {});
+          throw error;
+        }
       }
       this.generations = next;
     });

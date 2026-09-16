@@ -82,6 +82,13 @@ export class ArtifactServer {
     this.ready = Promise.all([this.restore(), this.vhostAccess.ready]).then(
       () => {},
     );
+    // Startup restores and saves before any caller awaits readiness, so a
+    // failed state write would otherwise reject with no handler attached and
+    // take down the process. Report it here; `ready` still rejects for the
+    // request paths that await it.
+    this.ready.catch((error: unknown) =>
+      console.warn("[ArtifactServer] Grant state unavailable:", error),
+    );
     this.registerHosts(this.config);
     this.app.use("*", async (c, next) => {
       await this.ready;
