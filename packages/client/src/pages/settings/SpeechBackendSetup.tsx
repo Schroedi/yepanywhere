@@ -211,6 +211,9 @@ export function SpeechBackendSetup() {
         <pre
           id="speech-backend-install-log"
           className={styles.console}
+          role="region"
+          aria-label={t("speechBackendSetupConsole")}
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard users need focus to scroll the install log.
           tabIndex={0}
         >
           {(status?.install.lines ?? []).join("\n") ||
