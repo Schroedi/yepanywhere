@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   standard or Daybreak programs on each turn for an enrolled account.
 
 ### Changed
+- Refresh the bundled Claude runtime to Claude Code 2.1.273 and Agent SDK
+  0.3.273.
 - Refresh Codex compatibility through CLI 0.154.0, including the regenerated
   app-server protocol subset, the new durable reasoning-effort history item,
   and the migrated approval path fields.

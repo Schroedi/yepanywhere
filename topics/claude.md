@@ -129,8 +129,8 @@ shell-startup and test-hermeticity rules for the local `BASH_ENV` bridge.
   deliberately does not identify which blocks are progress versus summarized
   reasoning, so YA must not infer that distinction from prose or reclassify
   them as task/plan events. The dedicated `display: "updates"` API beta would
-  make every non-empty thinking block a progress update, but Agent SDK 0.3.258
-  excludes that value and bundled Claude Code 2.1.258 rejects
+  make every non-empty thinking block a progress update, but Agent SDK 0.3.273
+  excludes that value and bundled Claude Code 2.1.273 rejects
   `--thinking-display updates`; expose a distinct progress presentation only
   after the supported SDK surface carries the mode. Sources: [Fable 5.1
   progress updates](https://platform.claude.com/docs/en/models/fable-5-1/whats-new-fable-5-1#progress-updates-between-tool-calls-beta)
