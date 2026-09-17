@@ -14,7 +14,7 @@
 - pluggable-speech-recognition - YA server-routed speech backends and browser-native fallback.
 - cost-efficiency - Preferring subscription/local over metered APIs; billing footgun masking.
 - gateway-services - Configured model-serving endpoints: lifecycle, union
-  catalogs, declared sizes, and CodexOSS use.
+  catalogs, declared sizes, thinking-effort levels, and CodexOSS use.
 - ya-env-vars - Catalog of YA env vars and the canonical YEP_/YEP_MODULE_
   naming conventions.
 - subprocess-environment - Runtime child-environment, shell-startup, and

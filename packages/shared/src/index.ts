@@ -207,6 +207,15 @@ export {
 } from "./gateway-services.js";
 
 export {
+  builtInGatewayModelEffort,
+  gatewayModelEffort,
+  isEffortLevel,
+  nearestGatewayEffortLevel,
+  type GatewayModelEffort,
+  type GatewayModelEffortSources,
+} from "./gateway-model-effort.js";
+
+export {
   DEFAULT_SNIPPET_CONTEXT_RADIUS,
   MAX_REVIEW_BATCHES,
   MAX_REVIEW_COMMENT_TEXT_LENGTH,

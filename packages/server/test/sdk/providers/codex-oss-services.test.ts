@@ -4,15 +4,22 @@ import { CodexOSSProvider } from "../../../src/sdk/providers/codex-oss.js";
 import type { StartSessionOptions } from "../../../src/sdk/providers/types.js";
 
 class ExposedCodexOSSProvider extends CodexOSSProvider {
-  firstTurnArgs(model?: string): string[] {
+  firstTurnArgs(
+    model?: string,
+    turn: Partial<StartSessionOptions> = {},
+  ): string[] {
     return (
       this as unknown as {
         buildFirstTurnArgs(options: StartSessionOptions): string[];
       }
-    ).buildFirstTurnArgs({ model } as StartSessionOptions);
+    ).buildFirstTurnArgs({ model, ...turn } as StartSessionOptions);
   }
 
-  resumeTurnArgs(model: string | undefined, sessionId: string): string[] {
+  resumeTurnArgs(
+    model: string | undefined,
+    sessionId: string,
+    turn: Partial<StartSessionOptions> = {},
+  ): string[] {
     return (
       this as unknown as {
         buildResumeTurnArgs(
@@ -21,7 +28,11 @@ class ExposedCodexOSSProvider extends CodexOSSProvider {
           prompt: string,
         ): string[];
       }
-    ).buildResumeTurnArgs({ model } as StartSessionOptions, sessionId, "go");
+    ).buildResumeTurnArgs(
+      { model, ...turn } as StartSessionOptions,
+      sessionId,
+      "go",
+    );
   }
 }
 
@@ -68,16 +79,32 @@ describe("CodexOSS gateway services", () => {
     const provider = new ExposedCodexOSSProvider();
     provider.setGatewayServices([service()]);
 
+    // The catalog states no effort vocabulary — no OpenAI-compatible row does —
+    // so the levels come from what YA knows about the model family.
+    const deepseekEffort = {
+      supportsEffort: true,
+      supportedEffortLevels: ["low", "high", "max"],
+      supportedReasoningEfforts: [
+        { reasoningEffort: "none" },
+        { reasoningEffort: "low" },
+        { reasoningEffort: "high" },
+        { reasoningEffort: "max" },
+      ],
+      defaultEffortLevel: "high",
+      defaultReasoningEffort: "high",
+    };
     await expect(provider.getAvailableModels()).resolves.toEqual([
       {
         id: "deepseek-v4-flash",
         name: "deepseek-v4-flash",
         contextWindow: 252_000,
+        ...deepseekEffort,
       },
       {
         id: "deepseek-v4-flash-0731",
         name: "deepseek-v4-flash-0731",
         contextWindow: 252_000,
+        ...deepseekEffort,
       },
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
@@ -143,6 +170,100 @@ describe("CodexOSS gateway services", () => {
       "-c",
       'model="deepseek-v4-flash"',
     ]);
+  });
+
+  it("carries the selected effort to the endpoint, and nothing when unset", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => vllmCatalog(["deepseek-v4-flash"])),
+    );
+    const provider = new ExposedCodexOSSProvider();
+    provider.setGatewayServices([service()]);
+    await provider.getAvailableModels();
+
+    expect(
+      provider.firstTurnArgs("deepseek-v4-flash", { effort: "max" }),
+    ).toContain('model_reasoning_effort="max"');
+    expect(
+      provider.resumeTurnArgs("deepseek-v4-flash", "thread-1", {
+        effort: "low",
+      }),
+    ).toContain('model_reasoning_effort="low"');
+
+    // A vanilla turn states no effort, so the endpoint keeps its own default.
+    expect(provider.firstTurnArgs("deepseek-v4-flash").join(" ")).not.toContain(
+      "model_reasoning_effort",
+    );
+  });
+
+  it("snaps an unlisted effort down rather than asking for it", async () => {
+    // DeepSeek V4 treats medium exactly as low, so it lists only the levels
+    // that reach a distinct behavior; a session carrying medium from another
+    // model must not end up buying more thinking than was asked for.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => vllmCatalog(["deepseek-v4-flash"])),
+    );
+    const provider = new ExposedCodexOSSProvider();
+    provider.setGatewayServices([service()]);
+    await provider.getAvailableModels();
+
+    expect(
+      provider.firstTurnArgs("deepseek-v4-flash", { effort: "medium" }),
+    ).toContain('model_reasoning_effort="low"');
+    expect(
+      provider.firstTurnArgs("deepseek-v4-flash", { effort: "xhigh" }),
+    ).toContain('model_reasoning_effort="high"');
+  });
+
+  it("turns thinking off through the effort the wire does carry", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => vllmCatalog(["deepseek-v4-flash"])),
+    );
+    const provider = new ExposedCodexOSSProvider();
+    provider.setGatewayServices([service()]);
+    await provider.getAvailableModels();
+
+    expect(
+      provider.firstTurnArgs("deepseek-v4-flash", {
+        thinking: { type: "disabled" },
+      }),
+    ).toContain('model_reasoning_effort="none"');
+  });
+
+  it("takes configured levels over the model family YA knows", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => vllmCatalog(["deepseek-v4-flash"])),
+    );
+    const provider = new ExposedCodexOSSProvider();
+    provider.setGatewayServices([
+      service({ effortLevels: ["low", "medium"], defaultEffortLevel: "low" }),
+    ]);
+    const [model] = await provider.getAvailableModels();
+
+    expect(model?.supportedEffortLevels).toEqual(["low", "medium"]);
+    expect(model?.defaultEffortLevel).toBe("low");
+    expect(
+      provider.firstTurnArgs("deepseek-v4-flash", { effort: "medium" }),
+    ).toContain('model_reasoning_effort="medium"');
+  });
+
+  it("states no effort for a model nothing describes", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => vllmCatalog(["qwen3-coder-30b"])),
+    );
+    const provider = new ExposedCodexOSSProvider();
+    provider.setGatewayServices([service()]);
+    const [model] = await provider.getAvailableModels();
+
+    expect(model?.supportsEffort).toBeUndefined();
+    expect(model?.supportedEffortLevels).toBeUndefined();
+    expect(
+      provider.firstTurnArgs("qwen3-coder-30b", { effort: "high" }).join(" "),
+    ).not.toContain("model_reasoning_effort");
   });
 
   it("still emits the legacy chat wire API when one is configured", async () => {

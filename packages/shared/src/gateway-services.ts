@@ -11,6 +11,9 @@
  * default entry.
  */
 
+import { isEffortLevel } from "./gateway-model-effort.js";
+import type { EffortLevel } from "./types.js";
+
 export const MAX_GATEWAY_SERVICES = 16;
 export const MAX_GATEWAY_SERVICE_ID_LENGTH = 32;
 export const MAX_GATEWAY_SERVICE_LABEL_LENGTH = 60;
@@ -94,6 +97,18 @@ export interface GatewayService {
    * advertises them. For an endpoint that lists far more than anyone selects.
    */
   maxModels?: number;
+  /**
+   * Thinking-effort levels the models this service serves accept, for an
+   * endpoint whose catalog states none — an OpenAI-compatible row normally
+   * says nothing about reasoning. Configuration is authoritative, so a stated
+   * list also overrides what a row does advertise.
+   */
+  effortLevels?: EffortLevel[];
+  /**
+   * The level the endpoint applies to a request that states none. Meaningful
+   * only alongside `effortLevels`, and must be one of them.
+   */
+  defaultEffortLevel?: EffortLevel;
   /** Whether CodexOSS may launch against this service. */
   codexEnabled: boolean;
   /** Codex wire API for this endpoint when CodexOSS uses it. */
@@ -422,6 +437,26 @@ export function parseGatewayServices(value: unknown): GatewayService[] | null {
       return null;
     }
 
+    let effortLevels: EffortLevel[] | undefined;
+    if (record.effortLevels !== undefined) {
+      if (
+        !Array.isArray(record.effortLevels) ||
+        record.effortLevels.length === 0 ||
+        !record.effortLevels.every(isEffortLevel) ||
+        new Set(record.effortLevels).size !== record.effortLevels.length
+      ) {
+        return null;
+      }
+      effortLevels = record.effortLevels;
+    }
+    if (
+      record.defaultEffortLevel !== undefined &&
+      (!isEffortLevel(record.defaultEffortLevel) ||
+        !effortLevels?.includes(record.defaultEffortLevel))
+    ) {
+      return null;
+    }
+
     seen.add(record.id);
     services.push({
       id: record.id,
@@ -447,6 +482,10 @@ export function parseGatewayServices(value: unknown): GatewayService[] | null {
       ...(record.maxModels === undefined
         ? {}
         : { maxModels: record.maxModels as number }),
+      ...(effortLevels ? { effortLevels } : {}),
+      ...(record.defaultEffortLevel === undefined
+        ? {}
+        : { defaultEffortLevel: record.defaultEffortLevel as EffortLevel }),
       codexEnabled: record.codexEnabled ?? false,
       codexWireApi:
         record.codexWireApi ?? DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,

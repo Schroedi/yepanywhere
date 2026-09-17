@@ -11,6 +11,7 @@ import {
   DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
   DEFAULT_GATEWAY_SERVICE_ID,
   DEFAULT_GATEWAY_SERVICE_MODEL_LIMIT,
+  gatewayModelEffort,
   parseGatewayModelId,
   qualifiedGatewayModelId,
   type EffortLevel,
@@ -282,8 +283,15 @@ export interface DeclaredGatewayWindows {
   maxOutputTokens?: number;
 }
 
+/** Thinking-effort levels stated in a service's own configuration. */
+export interface DeclaredGatewayEffort {
+  levels?: readonly EffortLevel[];
+  defaultLevel?: EffortLevel;
+}
+
 export interface ParseGatewayCatalogOptions {
   declared?: DeclaredGatewayWindows;
+  declaredEffort?: DeclaredGatewayEffort;
   /** Keep at most this many advertised models, in catalog order. */
   maxModels?: number;
 }
@@ -329,7 +337,20 @@ function parseClaudeGatewayCatalog(
         : typeof item.name === "string"
           ? item.name.trim()
           : "";
-    const supportedEffortLevels = modelEffortLevels(item);
+    // Configuration first, then the row, then the model family: a vLLM catalog
+    // states nothing about reasoning, so an endpoint that accepts effort is
+    // indistinguishable from one that does not until something says otherwise.
+    const effort = gatewayModelEffort({
+      modelId: id,
+      ...(options.declaredEffort?.levels
+        ? { configuredLevels: options.declaredEffort.levels }
+        : {}),
+      ...(options.declaredEffort?.defaultLevel
+        ? { configuredDefaultLevel: options.declaredEffort.defaultLevel }
+        : {}),
+      advertisedLevels: modelEffortLevels(item),
+    });
+    const supportedEffortLevels = effort?.levels ?? [];
     const advertisedWindows = modelWindows(item, options.declared);
     launchMetadata.set(
       id,
@@ -345,9 +366,19 @@ function parseClaudeGatewayCatalog(
       ...(supportedEffortLevels.length > 0
         ? {
             supportedEffortLevels,
+            // The Anthropic wire carries effort as `output_config.effort`,
+            // whose values stop at the named levels: there is no "none", so
+            // thinking-off is not one of the efforts this transport can ask
+            // for even when the model itself accepts it.
             supportedReasoningEfforts: supportedEffortLevels.map(
               (reasoningEffort) => ({ reasoningEffort }),
             ),
+          }
+        : {}),
+      ...(effort?.defaultLevel
+        ? {
+            defaultEffortLevel: effort.defaultLevel,
+            defaultReasoningEffort: effort.defaultLevel,
           }
         : {}),
       supportsAdaptiveThinking: supportedEffortLevels.length > 0,
@@ -876,6 +907,14 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
           ...(service.maxOutputTokens === undefined
             ? {}
             : { maxOutputTokens: service.maxOutputTokens }),
+        },
+        declaredEffort: {
+          ...(service.effortLevels === undefined
+            ? {}
+            : { levels: service.effortLevels }),
+          ...(service.defaultEffortLevel === undefined
+            ? {}
+            : { defaultLevel: service.defaultEffortLevel }),
         },
         ...(service.maxModels === undefined
           ? {}

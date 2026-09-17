@@ -320,6 +320,64 @@ describe("ClaudeGatewayProvider", () => {
     ]);
   });
 
+  it("offers effort for a known model family a bare catalog says nothing about", () => {
+    // A vLLM row carries an id, an owner and a window; nothing in it
+    // distinguishes a model that accepts reasoning effort from one that does
+    // not, so a model family YA knows supplies the levels.
+    expect(
+      parseClaudeGatewayModels({
+        data: [
+          { id: "deepseek-v4-flash", owned_by: "vllm", max_model_len: 252_000 },
+          { id: "qwen3-coder-30b", owned_by: "vllm", max_model_len: 262_144 },
+        ],
+      }),
+    ).toEqual([
+      {
+        id: "deepseek-v4-flash",
+        name: "deepseek-v4-flash",
+        contextWindow: 252_000,
+        supportsEffort: true,
+        supportedEffortLevels: ["low", "high", "max"],
+        // No "none": the Anthropic wire carries effort as
+        // `output_config.effort`, which has no value for "do not think".
+        supportedReasoningEfforts: [
+          { reasoningEffort: "low" },
+          { reasoningEffort: "high" },
+          { reasoningEffort: "max" },
+        ],
+        defaultEffortLevel: "high",
+        defaultReasoningEffort: "high",
+        supportsAdaptiveThinking: true,
+      },
+      {
+        id: "qwen3-coder-30b",
+        name: "qwen3-coder-30b",
+        contextWindow: 262_144,
+        supportsEffort: false,
+        supportsAdaptiveThinking: false,
+      },
+    ]);
+  });
+
+  it("takes the service's stated effort levels over the catalog's", () => {
+    const [model] = parseClaudeGatewayModels(
+      {
+        data: [
+          {
+            id: "gpt-5.6-terra",
+            capabilities: {
+              type: "chat",
+              supports: { reasoning_effort: ["low", "medium", "high"] },
+            },
+          },
+        ],
+      },
+      { declaredEffort: { levels: ["high", "max"], defaultLevel: "max" } },
+    );
+    expect(model?.supportedEffortLevels).toEqual(["high", "max"]);
+    expect(model?.defaultEffortLevel).toBe("max");
+  });
+
   it("isolates gateway overrides in flag settings and the spawned child", () => {
     ClaudeGatewayProvider.setGatewayUrl("http://localhost:4141");
     const provider = new ExposedClaudeGatewayProvider();

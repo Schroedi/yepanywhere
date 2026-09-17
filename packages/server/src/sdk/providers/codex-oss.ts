@@ -16,9 +16,12 @@ import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 import {
   DEFAULT_GATEWAY_SERVICE_MODEL_LIMIT,
+  gatewayModelEffort,
   gatewayServiceDisplayName,
+  nearestGatewayEffortLevel,
   parseGatewayModelId,
   qualifiedGatewayModelId,
+  type GatewayModelEffort,
   type GatewayService,
   type ModelInfo,
 } from "@yep-anywhere/shared";
@@ -363,10 +366,33 @@ export class CodexOSSProvider implements AgentProvider {
           (typeof row.max_model_len === "number" && row.max_model_len > 0
             ? row.max_model_len
             : undefined);
+        const effort = this.serviceModelEffort(service, id);
         models.push({
           id,
           name: id,
           ...(contextWindow === undefined ? {} : { contextWindow }),
+          ...(effort
+            ? {
+                supportsEffort: true,
+                supportedEffortLevels: effort.levels,
+                // Codex reaches these endpoints over the Responses API, whose
+                // `reasoning.effort` does carry "none", so a model that can
+                // stop thinking can say so here — unlike the Anthropic wire
+                // Claude Gateway speaks.
+                supportedReasoningEfforts: [
+                  ...(effort.noThinking ? [{ reasoningEffort: "none" }] : []),
+                  ...effort.levels.map((reasoningEffort) => ({
+                    reasoningEffort,
+                  })),
+                ],
+                ...(effort.defaultLevel
+                  ? {
+                      defaultEffortLevel: effort.defaultLevel,
+                      defaultReasoningEffort: effort.defaultLevel,
+                    }
+                  : {}),
+              }
+            : {}),
         });
       }
       return models;
@@ -402,6 +428,49 @@ export class CodexOSSProvider implements AgentProvider {
    * These are command-line overrides rather than edits to the user's
    * `~/.codex/config.toml`: YA never rewrites a CLI's own settings files.
    */
+  /** What one of a service's models offers by way of thinking effort. */
+  private serviceModelEffort(
+    service: GatewayService,
+    modelId: string,
+  ): GatewayModelEffort | undefined {
+    return gatewayModelEffort({
+      modelId,
+      ...(service.effortLevels === undefined
+        ? {}
+        : { configuredLevels: service.effortLevels }),
+      ...(service.defaultEffortLevel === undefined
+        ? {}
+        : { configuredDefaultLevel: service.defaultEffortLevel }),
+    });
+  }
+
+  /**
+   * The config override that carries the selected effort to the endpoint.
+   *
+   * Codex turns `model_reasoning_effort` into the Responses API's
+   * `reasoning.effort`, which an OpenAI-compatible server passes to the model's
+   * own chat encoder. Nothing is sent when no effort was selected, so a vanilla
+   * turn keeps whatever the endpoint does by default; an unlisted level snaps
+   * down to a listed one rather than asking for thinking the model has no
+   * distinct behavior for.
+   */
+  private reasoningEffortArgs(
+    options: StartSessionOptions,
+    route: CodexModelRoute,
+  ): string[] {
+    const service = this.serviceById(route.serviceId);
+    if (!service) return [];
+    const effort = this.serviceModelEffort(service, route.modelId);
+    if (!effort) return [];
+    if (options.thinking?.type === "disabled") {
+      const level = effort.noThinking ? "none" : effort.levels[0];
+      return level ? ["-c", `model_reasoning_effort="${level}"`] : [];
+    }
+    if (!options.effort) return [];
+    const level = nearestGatewayEffortLevel(effort, options.effort);
+    return level ? ["-c", `model_reasoning_effort="${level}"`] : [];
+  }
+
   private serviceLaunchArgs(service: GatewayService): string[] {
     const key = `ya_${service.id.replace(/-/gu, "_")}`;
     return [
@@ -835,6 +904,7 @@ export class CodexOSSProvider implements AgentProvider {
     if (options.model) {
       args.push("--model", route.modelId);
     }
+    args.push(...this.reasoningEffortArgs(options, route));
 
     // Sandbox mode
     if (options.permissionMode === "bypassPermissions") {
@@ -872,6 +942,7 @@ export class CodexOSSProvider implements AgentProvider {
     if (options.model) {
       args.push("-c", `model="${route.modelId}"`);
     }
+    args.push(...this.reasoningEffortArgs(options, route));
 
     return args;
   }

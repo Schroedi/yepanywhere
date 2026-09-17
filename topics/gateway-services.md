@@ -23,8 +23,9 @@ model serving.
   (lowercase slug, stable, referenced by qualified model ids), a `url`, and
   optionally a `label`, a compact `shortName` for showing where a model runs, a
   `serviceCommand`, `autoStop` with `autoStopAfterSeconds`, `contextWindowTokens`
-  and `maxOutputTokens`, `maxModels`, `disableAgent` / `disablePlanMode`
-  overrides, `codexEnabled`, and `codexWireApi`.
+  and `maxOutputTokens`, `maxModels`, `effortLevels` with `defaultEffortLevel`,
+  `disableAgent` / `disablePlanMode` overrides, `codexEnabled`, and
+  `codexWireApi`.
 - `codexWireApi` defaults to `responses`. Current Codex refuses to load a
   provider that says `chat` ("`wire_api = \"chat\"` is no longer supported",
   codex-cli 0.154.0); the value stays selectable only for an older CLI, and an
@@ -101,6 +102,35 @@ model serving.
   additionally keeps its legacy `YEP_COPILOT_API=1` marker for out-of-repo
   readers.
 
+### Thinking effort
+
+- An OpenAI-compatible catalog row normally states nothing about reasoning — a
+  vLLM row carries an id, an owner and a window — so a model that accepts effort
+  is indistinguishable from one that does not. Levels come from the entry's
+  `effortLevels` first, then from a row's
+  `capabilities.supports.reasoning_effort`, then from the model families YA
+  knows. A model no source describes offers no effort control at all rather than
+  a guessed one.
+- `defaultEffortLevel` states what the endpoint applies to a request naming no
+  effort. It is meaningful only alongside `effortLevels` and must be one of
+  them; a list stating nothing is no list at all, which restores the advertised
+  or built-in levels.
+- A selected level is sent, and only a selected level: a turn that states no
+  effort leaves the endpoint's own default in place. A level the model does not
+  list snaps down to the nearest listed one, never up, so a session carrying an
+  effort from another model cannot buy more thinking than was asked for.
+- What each transport can say differs. Claude Gateway carries effort as the
+  Anthropic `output_config.effort`, whose values are the named levels alone:
+  there is no "none", so thinking cannot be turned off over that transport even
+  for a model that accepts it. CodexOSS passes Codex's
+  `model_reasoning_effort`, which becomes the Responses API `reasoning.effort`
+  and does carry "none", so thinking-off is expressible there.
+- DeepSeek V4 is the family YA ships knowing. Its chat encoder collapses seven
+  request values onto four behaviors — `none` off, `minimal`/`low`/`medium` low,
+  `high`/`xhigh` high, `max` max — and thinks at high when a request states
+  nothing. Only the levels reaching a distinct behavior are offered (low, high,
+  max), so no two menu entries do the same thing.
+
 ### Harness narrowings
 
 - `disableAgent` and `disablePlanMode` are per-entry overrides that inherit the
@@ -114,6 +144,10 @@ model serving.
   models from `/v1/models` and passing Codex `model_providers.<id>` overrides on
   the command line — base URL and `wire_api` — rather than editing the user's
   `~/.codex/config.toml`. YA never rewrites a CLI's own settings files.
+- The services editor checks `codexEnabled` by default on a newly added entry:
+  an endpoint added to the list is usually the reason CodexOSS is being turned
+  on at all. Existing entries keep whatever was saved, and the single-gateway
+  legacy paths still default to off.
 - With no such entry configured, CodexOSS keeps its existing behavior exactly:
   `codex exec --oss --local-provider <ollama|lmstudio>`, with models enumerated
   from `ollama list`.
