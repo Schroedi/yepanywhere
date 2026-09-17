@@ -6,7 +6,8 @@ handles session management and tool calling.
 There are two ways to point it at a model server:
 
 - **A configured model service.** Add the endpoint under Settings → Providers →
-  Model services and allow CodexOSS to use it. YA then lists that endpoint's
+  Model services and allow CodexOSS to use it (new services already have the
+  "Allow CodexOSS" checkbox checked). YA then lists that endpoint's
   `/v1/models` and launches with Codex model-provider overrides on the command
   line, so any OpenAI-compatible server — vLLM, llama.cpp, LM Studio, Ollama —
   works without Ollama being installed and without editing `~/.codex/config.toml`.

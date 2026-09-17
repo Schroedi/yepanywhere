@@ -819,6 +819,9 @@ describe("ProvidersSettings additional models", () => {
             id: "127-0-0-1-8001",
             url: "http://127.0.0.1:8001",
             enabled: true,
+            // A newly added endpoint defaults into CodexOSS use, so the
+            // provider is usable without a separate local server.
+            codexEnabled: true,
           }),
         ],
         defaultGatewayServiceId: "127-0-0-1-8001",
