@@ -181,6 +181,24 @@ export function GatewayServicesSettings({
   );
 
   /**
+   * Move one entry within the list.
+   *
+   * This order is what the model pickers show, so it is worth being able to
+   * set: a deliberately configured local endpoint should be able to lead
+   * without having to become the default service, which means something else.
+   */
+  const moveService = useCallback((index: number, delta: number) => {
+    setServices((current) => {
+      const target = index + delta;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      const [moved] = next.splice(index, 1);
+      next.splice(target, 0, moved!);
+      return next;
+    });
+  }, []);
+
+  /**
    * Ask one endpoint what it accepts and tick what it answers.
    *
    * The answer lands in the draft entry as ordinary configuration rather than
@@ -255,6 +273,9 @@ export function GatewayServicesSettings({
       <p className="settings-hint">
         {t("providersGatewayServicesDescription")}
       </p>
+      {services.length > 1 && (
+        <p className="settings-hint">{t("providersGatewayServiceOrderHint")}</p>
+      )}
       <label className={styles.check}>
         <input
           type="checkbox"
@@ -318,6 +339,26 @@ export function GatewayServicesSettings({
                   }
                   aria-label={t("providersGatewayServiceIdAria")}
                 />
+                <span className={styles.reorder}>
+                  <button
+                    type="button"
+                    disabled={index === 0}
+                    title={t("providersGatewayServiceMoveUp")}
+                    aria-label={t("providersGatewayServiceMoveUp")}
+                    onClick={() => moveService(index, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    disabled={index === services.length - 1}
+                    title={t("providersGatewayServiceMoveDown")}
+                    aria-label={t("providersGatewayServiceMoveDown")}
+                    onClick={() => moveService(index, 1)}
+                  >
+                    ↓
+                  </button>
+                </span>
               </legend>
 
               <label className={styles.field}>

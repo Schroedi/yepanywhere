@@ -75,6 +75,12 @@ model serving.
 - Each service's own `/v1/models` is authoritative for that service. Claude
   Gateway returns the union across enabled services and never merges Claude's
   built-in aliases or borrows another service's rows.
+- The union follows the configured order of the entries, and so does the model
+  picker; both providers order it the same way for the same services. That
+  order is the user's to set by moving entries in the services editor. The
+  default entry is not hoisted: a read's authority to start a service is
+  decided by comparing its id against the default, and the reads run
+  concurrently, so position never affected anything but the picker.
 - A model id stays exactly as its service advertises it while only one service
   offers it. When two do, both gain a `<serviceId>::<model>` prefix; `/` is
   unusable as a separator because a vLLM server with no `--served-model-name`

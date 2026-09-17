@@ -176,6 +176,42 @@ describe("Claude Gateway services", () => {
     });
   });
 
+  it("lists models in the configured order, default entry included", async () => {
+    // The picker shows this order, so it belongs to whoever arranged the
+    // services editor. The default entry used to be hoisted to the front,
+    // which buried a deliberately configured local endpoint behind whichever
+    // service happened to be marked default.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url.startsWith("http://127.0.0.1:8001")
+          ? catalogResponse([vllmRow("local-first"), vllmRow("local-second")])
+          : catalogResponse([{ id: "hosted-first" }, { id: "hosted-second" }]),
+      ),
+    );
+    await ClaudeGatewayProvider.configureGatewayServices({
+      services: [
+        service(),
+        service({ id: "copilot", url: "http://127.0.0.1:4141" }),
+      ],
+      // Marked default, and second in the list: it is read and may be started
+      // first, but it does not jump the picker.
+      defaultServiceId: "copilot",
+    });
+    const provider = new ExposedClaudeGatewayProvider({
+      ensureReady: async () => null,
+    });
+
+    await expect(
+      provider.getAvailableModels().then((models) => models.map((m) => m.id)),
+    ).resolves.toEqual([
+      "local-first",
+      "local-second",
+      "hosted-first",
+      "hosted-second",
+    ]);
+  });
+
   it("starts only the default service while reading catalogs", async () => {
     const started: string[] = [];
     vi.stubGlobal(

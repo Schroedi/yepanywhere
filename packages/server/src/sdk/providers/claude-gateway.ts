@@ -721,15 +721,19 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
     await configureGatewayServiceLaunchers(services);
   }
 
-  /** Every enabled entry, default first so it is read and started first. */
+  /**
+   * Every enabled entry, in the configured order.
+   *
+   * That order is what the model picker shows, since the catalog union follows
+   * it, so it belongs to the user: moving an entry up in the services editor
+   * moves its models up the list. The default entry is deliberately not
+   * hoisted. It used to be, on the reasoning that it is read and started
+   * first, but the reads run concurrently and a read's authority to start a
+   * service is decided by comparing its id against the default — never by its
+   * position — so hoisting only ever reordered the picker.
+   */
   static enabledServices(): GatewayService[] {
-    const services = ClaudeGatewayProvider.services.filter(
-      (service) => service.enabled,
-    );
-    const defaultId = ClaudeGatewayProvider.defaultService()?.id;
-    return services.sort((left, right) =>
-      left.id === defaultId ? -1 : right.id === defaultId ? 1 : 0,
-    );
+    return ClaudeGatewayProvider.services.filter((service) => service.enabled);
   }
 
   static getServices(): GatewayService[] {

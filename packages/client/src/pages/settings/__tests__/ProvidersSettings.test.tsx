@@ -721,6 +721,54 @@ describe("ProvidersSettings additional models", () => {
     });
   });
 
+  it("saves a reordered services list, which is the order pickers show", () => {
+    versionState.capabilities = [
+      CLAUDE_GATEWAY_CAPABILITY,
+      CLAUDE_GATEWAY_SERVICES_CAPABILITY,
+    ];
+    const entry = (id: string, url: string) => ({
+      id,
+      label: "",
+      shortName: "",
+      url,
+      enabled: true,
+      autoStop: false,
+      autoStopAfterSeconds: 0,
+      codexEnabled: true,
+      codexWireApi: "responses" as const,
+    });
+    hookState.settings = {
+      serviceWorkerEnabled: true,
+      persistRemoteSessionsToDisk: false,
+      gatewayServices: [
+        entry("copilot", "http://127.0.0.1:4141"),
+        entry("vllm", "http://127.0.0.1:8001"),
+      ],
+      // The default entry is deliberately not the first one: marking a service
+      // default says which one is used when nothing names one, and must not be
+      // what decides where its models sit in the list.
+      defaultGatewayServiceId: "copilot",
+    };
+    render(<ProvidersSettings />);
+
+    const moveUp = screen.getAllByRole("button", {
+      name: "providersGatewayServiceMoveUp",
+    });
+    // Two entries, so the first entry's control is disabled and the second's
+    // is the one that can act.
+    expect(moveUp[0]).toHaveProperty("disabled", true);
+    fireEvent.click(moveUp[1]!);
+    fireEvent.click(screen.getByRole("button", { name: "providersSave" }));
+
+    expect(mockUpdateSettings).toHaveBeenCalledWith({
+      gatewayServices: [
+        expect.objectContaining({ id: "vllm" }),
+        expect.objectContaining({ id: "copilot" }),
+      ],
+      defaultGatewayServiceId: "copilot",
+    });
+  });
+
   it("states the terminal command for each service once export is on", () => {
     versionState.capabilities = [
       CLAUDE_GATEWAY_CAPABILITY,

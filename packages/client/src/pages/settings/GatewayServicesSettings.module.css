@@ -19,7 +19,37 @@
 }
 
 .legend {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0 0.35rem;
+}
+
+/* Reordering sits with the entry's title because the list order is what the
+   model pickers show, so it reads as a property of this entry's place in the
+   list rather than as one more setting inside it. */
+.reorder {
+  display: inline-flex;
+  gap: 0.15rem;
+}
+
+.reorder > button {
+  /* Square enough to stay a comfortable target on a phone without making the
+     legend taller than the border it sits on. */
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  padding: 0;
+  line-height: 1;
+  cursor: pointer;
+  border: 1px solid var(--border-color, #3a3a3a);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+}
+
+.reorder > button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* Hints and the wide rows read as their own band rather than as a column. */

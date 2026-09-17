@@ -270,6 +270,15 @@ export class CodexOSSProvider implements AgentProvider {
     this.getServices = getServices;
   }
 
+  /**
+   * The endpoints this provider may launch against, in the configured order.
+   *
+   * The catalog below follows this order, and so does the model picker. Keep it
+   * the settings list's own order: Claude Gateway reaches the same endpoints
+   * and shows them the same way, and a hoist here — of the default entry or of
+   * anything else — would make one provider's picker disagree with the other's
+   * for one set of services.
+   */
   private codexServices(): readonly GatewayService[] {
     return this.getServices().filter(
       (service) => service.enabled && service.codexEnabled,
