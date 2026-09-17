@@ -216,7 +216,18 @@ freshness. Claude summaries derive `updatedAt` from the latest meaningful
 attention nor false recent activity. Codex still derives `updatedAt` from
 rollout mtime (`getCodexRolloutActivityTimeMs`), so that provider remains
 exposed to the same class of false unread if a future teardown path touches the
-file without appending a row. See
+file without appending a row.
+
+That rule binds the durable session catalog too, not only the summary index.
+A retained collection read compares last-seen against the catalog row's
+`updatedAt`, and catalog rows are built for exactly the sessions the index
+cannot answer for — any append leaves a session dirty for a beat. A file-backed
+catalog family therefore needs a content-derived timestamp of its own for that
+window: Codex uses its rollout activity time, and Claude uses a bounded tail
+read for the latest `user`/`assistant` row. Storage time is the last resort,
+not the default, because Claude writes a `last-prompt` metadata row at
+shutdown and an idle reap would otherwise publish that moment as content
+recency. See
 [`2026-07-06-claude-idle-reap-mtime-unread.md`](../docs/project/2026-07-06-claude-idle-reap-mtime-unread.md).
 
 ## Project Queue Visibility

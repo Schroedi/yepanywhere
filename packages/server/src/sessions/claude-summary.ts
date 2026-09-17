@@ -211,6 +211,60 @@ export async function readClaudeCatalogTitle(
   }
 }
 
+/**
+ * The tail counterpart of `readClaudeCatalogTitle`: the latest conversation
+ * timestamp a collection row can claim without a full parse.
+ *
+ * Catalog rows are built for sessions the summary index cannot answer for —
+ * every session is dirty for a beat after any append — so their only other
+ * freshness source is file mtime. Claude writes non-conversation rows at
+ * shutdown (an idle reap's `last-prompt`), and an mtime taken from one of
+ * those makes a read session unread and falsely recent. See
+ * `docs/project/2026-07-06-claude-idle-reap-mtime-unread.md`.
+ *
+ * Like `getLastAgentExcerpt`, this scans raw lines from the end rather than
+ * building the DAG, so it approximates the active branch: a dead post-rewind
+ * branch at the tail could win. That is acceptable for a bounded projection
+ * the exact indexed summary replaces as soon as it is warm, and it is strictly
+ * closer than storage time either way. Returns undefined when no conversation
+ * row carries a usable timestamp inside the window, leaving the caller's
+ * storage-time fallback in place.
+ */
+export async function readClaudeCatalogRecency(
+  filePath: string,
+): Promise<string | undefined> {
+  const file = await open(filePath, "r");
+  try {
+    const { size } = await file.stat();
+    const windowBytes = Math.min(size, 256 * 1024);
+    const position = size - windowBytes;
+    const buffer = Buffer.alloc(windowBytes);
+    const { bytesRead } = await file.read(buffer, 0, windowBytes, position);
+    const lines = buffer.subarray(0, bytesRead).toString("utf8").split("\n");
+    // A window that starts mid-file opens mid-line; that fragment is not JSON.
+    if (position > 0) lines.shift();
+    for (let i = lines.length - 1; i >= 0; i -= 1) {
+      const line = lines[i]?.trim();
+      if (!line) continue;
+      let entry: ClaudeSessionEntry;
+      try {
+        entry = JSON.parse(line) as ClaudeSessionEntry;
+      } catch {
+        continue;
+      }
+      if (!entry || typeof entry !== "object") continue;
+      if (!CONVERSATION_TYPES.has(entry.type)) continue;
+      const timestampMs = Date.parse(getTimestamp(entry));
+      if (Number.isFinite(timestampMs)) {
+        return new Date(timestampMs).toISOString();
+      }
+    }
+    return undefined;
+  } finally {
+    await file.close();
+  }
+}
+
 function getAssistantUsage(entry: ClaudeSessionEntry): UsageFields | undefined {
   if (entry.type !== "assistant") return undefined;
   const usage = (entry as { message?: { usage?: UsageFields } }).message?.usage;
