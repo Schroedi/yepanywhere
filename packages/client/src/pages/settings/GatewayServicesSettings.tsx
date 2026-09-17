@@ -205,6 +205,9 @@ export function GatewayServicesSettings({
    * being applied invisibly, so it stays reviewable and trimmable before Save —
    * an endpoint states the levels its request schema accepts, which can be
    * more than the model behind it treats differently.
+   *
+   * Returns whether anything was ticked, so the caller can fall back when the
+   * endpoint had nothing to say.
    */
   const detectEffort = useCallback(
     async (index: number) => {
@@ -238,14 +241,57 @@ export function GatewayServicesSettings({
             ? {}
             : { defaultEffortLevel: undefined }),
         });
+        return answer.levels.length > 0;
       } catch {
         setDetections((current) => ({
           ...current,
           [service.id]: { state: "silent", reason: "unreachable" },
         }));
       }
+      return false;
     },
     [services, updateService],
+  );
+
+  /**
+   * Let the endpoint decide this service's levels.
+   *
+   * Stating no levels *is* how a service defers to what YA can find out, so
+   * the mode is the stored list being empty rather than a separate field. The
+   * global switch is turned on with it: leaving it off would make this choice
+   * mean "use the built-in families only", which is not what it says.
+   */
+  const chooseAskedEffort = useCallback(
+    async (index: number) => {
+      updateService(index, {
+        effortLevels: undefined,
+        defaultEffortLevel: undefined,
+      });
+      if (!effortDetectionEnabled) {
+        await updateSetting("gatewayServiceEffortDetection", true);
+      }
+    },
+    [effortDetectionEnabled, updateService, updateSetting],
+  );
+
+  /**
+   * Switch this service to a stated list, seeded with something real.
+   *
+   * The endpoint is asked first so the ticks start from what it actually
+   * accepts and the user trims rather than guesses. An endpoint that says
+   * nothing leaves every level YA names ticked, which is a starting point to
+   * cut down — and it keeps the mode honest, since an empty list would snap
+   * the radio straight back to asking.
+   */
+  const chooseStatedEffort = useCallback(
+    async (index: number) => {
+      if (await detectEffort(index)) return;
+      updateService(index, {
+        effortLevels: [...EFFORT_LEVEL_ORDER],
+        defaultEffortLevel: undefined,
+      });
+    },
+    [detectEffort, updateService],
   );
 
   const handleSave = useCallback(async () => {
@@ -273,6 +319,11 @@ export function GatewayServicesSettings({
       <p className="settings-hint">
         {t("providersGatewayServicesDescription")}
       </p>
+      {/* What allowing a service means, and what CodexOSS falls back to when
+          none is allowed: both are facts about the list rather than about any
+          one entry, so they are stated once here instead of being repeated
+          under every card's CodexOSS checkbox. */}
+      <p className="settings-hint">{t("providersGatewayServicesCodexHint")}</p>
       {services.length > 1 && (
         <p className="settings-hint">{t("providersGatewayServiceOrderHint")}</p>
       )}
@@ -318,6 +369,10 @@ export function GatewayServicesSettings({
         {services.map((service, index) => {
           const loopback = isLoopbackGatewayUrl(service.url);
           const detection = detections[service.id];
+          // A stated list is exactly what makes this service's own levels
+          // authoritative, so the radio reads off the list rather than out of
+          // a separate stored mode that could disagree with it.
+          const statesEffortLevels = !!service.effortLevels?.length;
           const invocations =
             exportEnabled && exportPaths && service.enabled
               ? gatewayServiceCliInvocations(service, exportPaths)
@@ -408,9 +463,6 @@ export function GatewayServicesSettings({
                   {t("providersGatewayServiceCodex")}
                 </label>
               </div>
-              <p className={`settings-hint ${styles.wide}`}>
-                {t("providersGatewayServiceCodexHint")}
-              </p>
 
               {invocations && (
                 <div className={`${styles.commands} ${styles.wide}`}>
@@ -587,10 +639,34 @@ export function GatewayServicesSettings({
                 <div className={`${styles.field} ${styles.wide}`}>
                   <span>{t("providersGatewayServiceEffortLabel")}</span>
                   <div className={styles.row}>
+                    <label className={styles.check}>
+                      <input
+                        type="radio"
+                        name={`gateway-effort-mode-${service.id}`}
+                        checked={!statesEffortLevels}
+                        onChange={() => void chooseAskedEffort(index)}
+                      />{" "}
+                      {t("providersGatewayServiceEffortModeAsk")}
+                    </label>
+                    <label className={styles.check}>
+                      <input
+                        type="radio"
+                        name={`gateway-effort-mode-${service.id}`}
+                        checked={statesEffortLevels}
+                        onChange={() => void chooseStatedEffort(index)}
+                      />{" "}
+                      {t("providersGatewayServiceEffortModeStated")}
+                    </label>
+                  </div>
+                  <div className={styles.row}>
                     {EFFORT_LEVEL_ORDER.map((level) => (
                       <label className={styles.check} key={level}>
                         <input
                           type="checkbox"
+                          // Greyed out under "ask": the ticks are what "stated"
+                          // means, so an editable tick there would be a second
+                          // way to say the opposite of the chosen mode.
+                          disabled={!statesEffortLevels}
                           checked={
                             service.effortLevels?.includes(level) ?? false
                           }
@@ -633,31 +709,20 @@ export function GatewayServicesSettings({
                     ))}
                   </select>
                 </label>
-                <div className={`${styles.row} ${styles.wide}`}>
-                  <button
-                    type="button"
-                    className="settings-button"
-                    disabled={detection?.state === "asking"}
-                    onClick={() => void detectEffort(index)}
-                  >
-                    {detection?.state === "asking"
+                {detection && (
+                  <p className={`settings-hint ${styles.wide}`}>
+                    {detection.state === "asking"
                       ? t("providersGatewayServiceEffortDetecting")
-                      : t("providersGatewayServiceEffortDetect")}
-                  </button>
-                  {detection?.state === "answered" && (
-                    <span className="settings-hint">
-                      {t("providersGatewayServiceEffortDetected", {
-                        model: detection.modelId,
-                        levels: detection.levels.join(", "),
-                      })}
-                    </span>
-                  )}
-                  {detection?.state === "silent" && (
-                    <span className="settings-hint">
-                      {t(EFFORT_DETECTION_FAILURE_MESSAGES[detection.reason])}
-                    </span>
-                  )}
-                </div>
+                      : detection.state === "answered"
+                        ? t("providersGatewayServiceEffortDetected", {
+                            model: detection.modelId,
+                            levels: detection.levels.join(", "),
+                          })
+                        : t(
+                            EFFORT_DETECTION_FAILURE_MESSAGES[detection.reason],
+                          )}
+                  </p>
+                )}
                 <p className="settings-hint">
                   {t("providersGatewayServiceEffortHint")}
                 </p>
