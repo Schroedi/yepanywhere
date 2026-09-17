@@ -209,6 +209,7 @@ import { createSharingRoutes } from "./routes/sharing.js";
 import { createSupervisorQueueRoutes } from "./routes/supervisor-queue.js";
 import { createToolResultMediaRoutes } from "./routes/tool-result-media.js";
 import { ClaudeGatewayProvider } from "./sdk/providers/claude-gateway.js";
+import { gatewayEffortProbeCache } from "./services/GatewayEffortProbe.js";
 import { ClaudeOllamaProvider } from "./sdk/providers/claude-ollama.js";
 import { grokACPProvider } from "./sdk/providers/grok-acp.js";
 
@@ -2617,6 +2618,9 @@ export function createApp(options: AppOptions): AppResult {
               options.remoteSessionService?.setDiskPersistenceEnabled(enabled)
           : undefined,
         onClaudeGatewaySettingsChanged: async (settings) => {
+          // Applied before the services are, so a read triggered by the
+          // reconfigure already sees the current answer about whether to ask.
+          gatewayEffortProbeCache.setEnabled(settings.effortDetection ?? true);
           await ClaudeGatewayProvider.configureGatewayServices(settings);
           // The export mirrors the configured list, so it re-syncs on every
           // change rather than only when the export itself is toggled.

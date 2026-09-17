@@ -207,6 +207,7 @@ export {
 } from "./gateway-services.js";
 
 export {
+  advertisedGatewayEffortLevels,
   builtInGatewayModelEffort,
   gatewayModelEffort,
   isEffortLevel,
@@ -214,6 +215,14 @@ export {
   type GatewayModelEffort,
   type GatewayModelEffortSources,
 } from "./gateway-model-effort.js";
+
+export {
+  GATEWAY_EFFORT_PROBE_VALUE,
+  gatewayEffortProbeRequest,
+  parseGatewayEffortProbe,
+  probeModelIdFromCatalog,
+  type GatewayEndpointEffortProbe,
+} from "./gateway-effort-probe.js";
 
 export {
   DEFAULT_SNIPPET_CONTEXT_RADIUS,

@@ -1227,6 +1227,7 @@ describe("Settings Routes", () => {
         ],
         defaultServiceId: "default",
         exportToProviderClis: false,
+        effortDetection: true,
         disableAgent: true,
         disablePlanMode: true,
       });
@@ -1264,6 +1265,7 @@ describe("Settings Routes", () => {
         ],
         defaultServiceId: "default",
         exportToProviderClis: false,
+        effortDetection: true,
         disableAgent: true,
         disablePlanMode: true,
       });
@@ -1289,6 +1291,7 @@ describe("Settings Routes", () => {
       expect(onClaudeGatewaySettingsChanged).toHaveBeenCalledWith({
         services: [],
         exportToProviderClis: false,
+        effortDetection: true,
         disableAgent: false,
         disablePlanMode: true,
       });
@@ -1332,6 +1335,7 @@ describe("Settings Routes", () => {
       expect(onClaudeGatewaySettingsChanged).toHaveBeenCalledWith({
         services: [],
         exportToProviderClis: false,
+        effortDetection: true,
         disableAgent: true,
         disablePlanMode: false,
       });
@@ -1422,6 +1426,7 @@ describe("Settings Routes", () => {
       expect(onClaudeGatewaySettingsChanged).toHaveBeenCalledWith({
         services: [],
         exportToProviderClis: false,
+        effortDetection: true,
         disableAgent: true,
         disablePlanMode: true,
       });
@@ -1468,6 +1473,7 @@ describe("Settings Routes", () => {
         ],
         defaultServiceId: "vllm",
         exportToProviderClis: false,
+        effortDetection: true,
         disableAgent: true,
         disablePlanMode: true,
       });

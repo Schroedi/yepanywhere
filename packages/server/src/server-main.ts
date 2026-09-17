@@ -88,6 +88,7 @@ import {
 } from "./sdk/providers/provider-runtime-host.js";
 import { isProviderHostDegraded } from "./sdk/providers/provider-host-status.js";
 import { ClaudeGatewayProvider } from "./sdk/providers/claude-gateway.js";
+import { gatewayEffortProbeCache } from "./services/GatewayEffortProbe.js";
 import { syncGatewayServiceExports } from "./sdk/providers/gatewayServiceExport.js";
 import { ClaudeOllamaProvider } from "./sdk/providers/claude-ollama.js";
 import { grokACPProvider } from "./sdk/providers/grok-acp.js";
@@ -845,6 +846,9 @@ async function startServer() {
   updateFileAccess(serverSettingsService.getSetting("fileAccess"));
 
   // Seed Claude transport settings from persisted settings
+  gatewayEffortProbeCache.setEnabled(
+    serverSettingsService.getSetting("gatewayServiceEffortDetection") ?? true,
+  );
   await ClaudeGatewayProvider.configureGatewayServices({
     services: serverSettingsService.getSetting("gatewayServices") ?? [],
     defaultServiceId: serverSettingsService.getSetting(

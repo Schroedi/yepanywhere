@@ -11,15 +11,21 @@ import {
   DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
   DEFAULT_GATEWAY_SERVICE_ID,
   DEFAULT_GATEWAY_SERVICE_MODEL_LIMIT,
+  advertisedGatewayEffortLevels,
   gatewayModelEffort,
   parseGatewayModelId,
   qualifiedGatewayModelId,
   type EffortLevel,
+  type GatewayEndpointEffortProbe,
   type GatewayService,
   type ModelInfo,
   type PromptCacheKeepaliveProviderInfo,
 } from "@yep-anywhere/shared";
 import { getLogger } from "../../logging/logger.js";
+import {
+  gatewayEffortProbeCache,
+  probeServiceEffort,
+} from "../../services/GatewayEffortProbe.js";
 import {
   ClaudeGatewayLauncher,
   claudeGatewayLauncher,
@@ -196,14 +202,6 @@ const CLAUDE_GATEWAY_ENDPOINTS = new Set([
   "/chat/completions",
 ]);
 
-const CLAUDE_GATEWAY_EFFORT_LEVELS = new Set<EffortLevel>([
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-]);
-
 function isGatewayModelVisible(item: GatewayModel, id: string): boolean {
   if (item.model_picker_enabled === false) return false;
   if (item.policy?.state && item.policy.state !== "enabled") return false;
@@ -217,16 +215,6 @@ function isGatewayModelVisible(item: GatewayModel, id: string): boolean {
   return item.supported_endpoints.some(
     (endpoint) =>
       typeof endpoint === "string" && CLAUDE_GATEWAY_ENDPOINTS.has(endpoint),
-  );
-}
-
-function modelEffortLevels(item: GatewayModel): EffortLevel[] {
-  const values = item.capabilities?.supports?.reasoning_effort;
-  if (!Array.isArray(values)) return [];
-  return values.filter(
-    (value): value is EffortLevel =>
-      typeof value === "string" &&
-      CLAUDE_GATEWAY_EFFORT_LEVELS.has(value as EffortLevel),
   );
 }
 
@@ -292,6 +280,8 @@ export interface DeclaredGatewayEffort {
 export interface ParseGatewayCatalogOptions {
   declared?: DeclaredGatewayWindows;
   declaredEffort?: DeclaredGatewayEffort;
+  /** What the endpoint answered when asked which efforts it accepts. */
+  probedEffort?: GatewayEndpointEffortProbe;
   /** Keep at most this many advertised models, in catalog order. */
   maxModels?: number;
 }
@@ -337,9 +327,10 @@ function parseClaudeGatewayCatalog(
         : typeof item.name === "string"
           ? item.name.trim()
           : "";
-    // Configuration first, then the row, then the model family: a vLLM catalog
-    // states nothing about reasoning, so an endpoint that accepts effort is
-    // indistinguishable from one that does not until something says otherwise.
+    // Configuration first, then the row, then the model family, then whatever
+    // the endpoint itself answered: a vLLM catalog states nothing about
+    // reasoning, so an endpoint that accepts effort is indistinguishable from
+    // one that does not until something says otherwise.
     const effort = gatewayModelEffort({
       modelId: id,
       ...(options.declaredEffort?.levels
@@ -348,7 +339,8 @@ function parseClaudeGatewayCatalog(
       ...(options.declaredEffort?.defaultLevel
         ? { configuredDefaultLevel: options.declaredEffort.defaultLevel }
         : {}),
-      advertisedLevels: modelEffortLevels(item),
+      advertisedLevels: advertisedGatewayEffortLevels(item),
+      ...(options.probedEffort ? { probed: options.probedEffort } : {}),
     });
     const supportedEffortLevels = effort?.levels ?? [];
     const advertisedWindows = modelWindows(item, options.declared);
@@ -399,7 +391,14 @@ interface ServiceCatalogRead {
   catalog: GatewayServiceCatalog;
 }
 
-/** Identity of the configured list, for change detection and cache keys. */
+/**
+ * Identity of the configured list, for change detection and cache keys.
+ *
+ * Every field that changes what a read publishes belongs here, including the
+ * stated effort levels: they are resolved while parsing a catalog, so a saved
+ * edit that this key ignored would leave the client holding a model list whose
+ * effort control no longer matches the configuration.
+ */
 function gatewayServicesKey(services: readonly GatewayService[]): string {
   return JSON.stringify(
     services.map((service) => [
@@ -412,6 +411,8 @@ function gatewayServicesKey(services: readonly GatewayService[]): string {
       service.maxModels ?? null,
       service.disableAgent ?? null,
       service.disablePlanMode ?? null,
+      service.effortLevels ?? null,
+      service.defaultEffortLevel ?? null,
     ]),
   );
 }
@@ -711,7 +712,12 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
     ClaudeGatewayProvider.gatewayDisableAgent = options.disableAgent ?? true;
     ClaudeGatewayProvider.gatewayDisablePlanMode =
       options.disablePlanMode ?? true;
-    if (changed) ClaudeGatewayProvider.forgetGatewayCatalog();
+    if (changed) {
+      ClaudeGatewayProvider.forgetGatewayCatalog();
+      // A reconfigured entry may point at a different server on the same
+      // address, whose effort vocabulary is its own.
+      gatewayEffortProbeCache.forget();
+    }
     await configureGatewayServiceLaunchers(services);
   }
 
@@ -899,7 +905,10 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
         signal: AbortSignal.timeout(5000),
       });
       if (!response.ok) return undefined;
-      const parsed = parseClaudeGatewayCatalog(await response.json(), {
+      const payload = await response.json();
+      const probedEffort = await probeServiceEffort(service, baseUrl, payload);
+      const parsed = parseClaudeGatewayCatalog(payload, {
+        ...(probedEffort ? { probedEffort } : {}),
         declared: {
           ...(service.contextWindowTokens === undefined
             ? {}

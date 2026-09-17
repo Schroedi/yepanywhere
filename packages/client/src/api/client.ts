@@ -65,6 +65,7 @@ import type {
   TranscriptDisplayObject,
   UpdateProjectQueueItemRequest,
   UpdateProjectSessionDefaultsRequest,
+  EffortLevel,
   GatewayService,
   GatewayServiceExportPaths,
   UploadedFile,
@@ -1394,6 +1395,21 @@ export const api = {
       )}${includeExpectedExpiry ? "&includeExpectedExpiry=1" : ""}`,
     ),
 
+  /** Ask one model-serving endpoint which thinking efforts it accepts. */
+  detectGatewayServiceEffort: (url: string) =>
+    fetchJSON<
+      | {
+          detected: true;
+          modelId: string;
+          levels: EffortLevel[];
+          noThinking: boolean;
+        }
+      | { detected: false; reason: "unreachable" | "no-models" | "undescribed" }
+    >("/settings/gateway-services/effort", {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+
   discoverHelperTargetModels: (baseUrl: string) =>
     fetchJSON<{ baseUrl: string; models: ModelInfo[] }>(
       "/settings/helper-targets/models",
@@ -1711,6 +1727,11 @@ export interface ServerSettings {
   defaultGatewayServiceId?: string;
   /** Whether the configured services are also published for the provider CLIs. */
   gatewayServiceExportEnabled?: boolean;
+  /**
+   * Whether YA asks each endpoint which thinking efforts it accepts and offers
+   * what it answers. Default on; ticked levels still win.
+   */
+  gatewayServiceEffortDetection?: boolean;
   /** Server-reported export locations; read-only, used to show exact commands. */
   gatewayServiceExportPaths?: GatewayServiceExportPaths;
   /** Anthropic-compatible endpoint for the isolated Claude Gateway provider */

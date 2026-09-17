@@ -5,6 +5,7 @@ import {
   parseClaudeGatewayModels,
 } from "../../../src/sdk/providers/claude-gateway.js";
 import { ClaudeOllamaProvider } from "../../../src/sdk/providers/claude-ollama.js";
+import { gatewayEffortProbeCache } from "../../../src/services/GatewayEffortProbe.js";
 import {
   configureProviderRuntime,
   getAllProviders,
@@ -31,6 +32,9 @@ describe("ClaudeGatewayProvider", () => {
     ClaudeGatewayProvider.setGatewayDisableAgent(true);
     ClaudeGatewayProvider.setGatewayDisablePlanMode(true);
     ClaudeGatewayProvider.forgetGatewayCatalog();
+    // Keyed by endpoint and process-wide, so one test's answer about
+    // 127.0.0.1:4141 would otherwise stand in for the next test's.
+    gatewayEffortProbeCache.forget();
     ClaudeOllamaProvider.setOllamaUrl(undefined);
     configureProviderRuntime({ isClaudeOllamaVisible: () => false });
     vi.unstubAllGlobals();
@@ -149,7 +153,12 @@ describe("ClaudeGatewayProvider", () => {
     const catalogRequested = new Promise<void>((resolve) => {
       markCatalogRequested = resolve;
     });
-    const fetchMock = vi.fn(() => {
+    const fetchMock = vi.fn((input: string | URL | Request) => {
+      // The effort probe is a second request to the same endpoint; only the
+      // catalog is the one this test holds open.
+      if (!String(input).endsWith("/v1/models")) {
+        return Promise.resolve(new Response("", { status: 404 }));
+      }
       markCatalogRequested();
       return new Promise<Response>((resolve) => {
         releaseCatalog = resolve;
@@ -207,7 +216,10 @@ describe("ClaudeGatewayProvider", () => {
     const ensureReady = vi.fn(async () => endpoints.shift() ?? null);
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => {
+      vi.fn(async (input: string | URL | Request) => {
+        if (!String(input).endsWith("/v1/models")) {
+          return new Response("", { status: 404 });
+        }
         const response = responses.shift();
         if (!response) throw new Error("Unexpected catalog request");
         return response;
@@ -376,6 +388,34 @@ describe("ClaudeGatewayProvider", () => {
     );
     expect(model?.supportedEffortLevels).toEqual(["high", "max"]);
     expect(model?.defaultEffortLevel).toBe("max");
+  });
+
+  it("offers what the endpoint answered for a model no other source describes", () => {
+    const probedEffort = {
+      levels: ["low", "medium", "high"] as const,
+      noThinking: true,
+    };
+    const [known, unknown] = parseClaudeGatewayModels(
+      {
+        data: [
+          { id: "deepseek-v4-flash", owned_by: "vllm" },
+          { id: "qwen3-coder-30b", owned_by: "vllm" },
+        ],
+      },
+      { probedEffort: { ...probedEffort, levels: [...probedEffort.levels] } },
+    );
+
+    // The family YA ships knowing distinguishes three behaviors, so its
+    // curated list stands even though the endpoint accepts more values.
+    expect(known?.supportedEffortLevels).toEqual(["low", "high", "max"]);
+    // Nothing describes this one, so the endpoint's own list is what there is.
+    expect(unknown?.supportedEffortLevels).toEqual(["low", "medium", "high"]);
+    // Still no "none" on this wire, whatever the endpoint accepts.
+    expect(unknown?.supportedReasoningEfforts).toEqual([
+      { reasoningEffort: "low" },
+      { reasoningEffort: "medium" },
+      { reasoningEffort: "high" },
+    ]);
   });
 
   it("isolates gateway overrides in flag settings and the spawned child", () => {
@@ -634,7 +674,10 @@ describe("ClaudeGatewayProvider", () => {
       new Response("unavailable", { status: 503 }),
       new Response(JSON.stringify({ data: [] }), { status: 200 }),
     ];
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (!String(input).endsWith("/v1/models")) {
+        return new Response("", { status: 404 });
+      }
       const response = responses.shift();
       if (!response) throw new Error("Unexpected catalog request");
       return response;

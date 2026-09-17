@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GatewayService } from "@yep-anywhere/shared";
 import { CodexOSSProvider } from "../../../src/sdk/providers/codex-oss.js";
+import { gatewayEffortProbeCache } from "../../../src/services/GatewayEffortProbe.js";
 import type { StartSessionOptions } from "../../../src/sdk/providers/types.js";
 
 class ExposedCodexOSSProvider extends CodexOSSProvider {
@@ -69,6 +70,9 @@ function vllmCatalog(ids: string[], maxModelLen = 252_000) {
 describe("CodexOSS gateway services", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    // The probe cache is process-wide and keyed by endpoint, so one test's
+    // answer about 127.0.0.1:8001 would otherwise stand in for the next's.
+    gatewayEffortProbeCache.forget();
   });
 
   it("lists models from a configured endpoint instead of ollama", async () => {
@@ -92,6 +96,7 @@ describe("CodexOSS gateway services", () => {
       ],
       defaultEffortLevel: "high",
       defaultReasoningEffort: "high",
+      supportsAdaptiveThinking: true,
     };
     await expect(provider.getAvailableModels()).resolves.toEqual([
       {
@@ -259,11 +264,100 @@ describe("CodexOSS gateway services", () => {
     provider.setGatewayServices([service()]);
     const [model] = await provider.getAvailableModels();
 
-    expect(model?.supportsEffort).toBeUndefined();
+    // Said explicitly rather than left unstated: the client offers a thinking
+    // control for a model that says nothing, so silence would show one here.
+    expect(model?.supportsEffort).toBe(false);
+    expect(model?.supportsAdaptiveThinking).toBe(false);
     expect(model?.supportedEffortLevels).toBeUndefined();
     expect(
       provider.firstTurnArgs("qwen3-coder-30b", { effort: "high" }).join(" "),
     ).not.toContain("model_reasoning_effort");
+  });
+
+  it("offers the effort a copilot-style row advertises, as Claude Gateway does", async () => {
+    // The asymmetry this covers: CodexOSS used to ignore a row's own claim, so
+    // the same endpoint offered effort through one provider and not the other.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          data: [
+            {
+              id: "gpt-5-codex",
+              capabilities: { supports: { reasoning_effort: ["low", "high"] } },
+            },
+          ],
+        }),
+      ),
+    );
+    const provider = new ExposedCodexOSSProvider();
+    provider.setGatewayServices([service()]);
+    const [model] = await provider.getAvailableModels();
+
+    expect(model).toMatchObject({
+      supportsEffort: true,
+      supportedEffortLevels: ["low", "high"],
+      supportsAdaptiveThinking: true,
+    });
+    expect(provider.firstTurnArgs("gpt-5-codex", { effort: "high" })).toContain(
+      'model_reasoning_effort="high"',
+    );
+  });
+
+  it("offers what the endpoint answered when nothing else describes the model", async () => {
+    // A vLLM row for an unknown family states nothing, so without the probe
+    // this model would carry no effort control at all.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) =>
+        String(input).endsWith("/v1/models")
+          ? vllmCatalog(["qwen3-coder-30b"])
+          : new Response(
+              JSON.stringify({
+                error: {
+                  message:
+                    "{'loc': 'body.reasoning_effort', 'msg': \"Input should " +
+                    "be 'none', 'low', 'high'\"}",
+                },
+              }),
+              { status: 400 },
+            ),
+      ),
+    );
+    const provider = new ExposedCodexOSSProvider();
+    provider.setGatewayServices([service()]);
+    const [model] = await provider.getAvailableModels();
+
+    expect(model).toMatchObject({
+      supportsEffort: true,
+      supportedEffortLevels: ["low", "high"],
+      supportsAdaptiveThinking: true,
+      // The Responses API carries "none", so thinking-off is expressible.
+      supportedReasoningEfforts: [
+        { reasoningEffort: "none" },
+        { reasoningEffort: "low" },
+        { reasoningEffort: "high" },
+      ],
+    });
+    // A launch must reach the same answer the catalog read published, which it
+    // cannot re-derive from configuration alone.
+    expect(
+      provider.firstTurnArgs("qwen3-coder-30b", { effort: "high" }),
+    ).toContain('model_reasoning_effort="high"');
+  });
+
+  it("does not ask an endpoint whose levels are already configured", async () => {
+    const fetchMock = vi.fn(async () => vllmCatalog(["qwen3-coder-30b"]));
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = new ExposedCodexOSSProvider();
+    provider.setGatewayServices([service({ effortLevels: ["low", "high"] })]);
+    await provider.getAvailableModels();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/v1/chat/completions"),
+      expect.anything(),
+    );
   });
 
   it("still emits the legacy chat wire API when one is configured", async () => {

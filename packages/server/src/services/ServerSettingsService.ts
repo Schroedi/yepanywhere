@@ -177,6 +177,13 @@ export interface ServerSettings {
    */
   gatewayServiceExportEnabled?: boolean;
   /**
+   * Whether YA asks each configured endpoint which thinking efforts it accepts
+   * and offers what it answers. Default on: an endpoint that can describe
+   * itself should not need its levels typed in by hand. An entry stating its
+   * own levels is never asked, and its levels still win.
+   */
+  gatewayServiceEffortDetection?: boolean;
+  /**
    * Where that export writes. Reported by `GET /api/settings` so the client
    * can state exact commands; resolved from the server environment and never
    * accepted from a client.

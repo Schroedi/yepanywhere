@@ -281,7 +281,12 @@ describe("Claude Gateway services", () => {
     ];
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => {
+      vi.fn(async (input: string | URL | Request) => {
+        // The effort probe is a second request per endpoint; only catalog
+        // reads draw from this queue.
+        if (!String(input).endsWith("/v1/models")) {
+          return new Response("", { status: 404 });
+        }
         const response = responses.shift();
         if (!response) throw new Error("Unexpected catalog request");
         return response;

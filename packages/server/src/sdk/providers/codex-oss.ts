@@ -16,11 +16,14 @@ import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 import {
   DEFAULT_GATEWAY_SERVICE_MODEL_LIMIT,
+  advertisedGatewayEffortLevels,
   gatewayModelEffort,
   gatewayServiceDisplayName,
   nearestGatewayEffortLevel,
   parseGatewayModelId,
   qualifiedGatewayModelId,
+  type EffortLevel,
+  type GatewayEndpointEffortProbe,
   type GatewayModelEffort,
   type GatewayService,
   type ModelInfo,
@@ -36,6 +39,7 @@ import {
   type ProviderInstallationCoordinator,
   providerInstallationCoordinator,
 } from "../../services/ProviderInstallationCoordinator.js";
+import { probeServiceEffort } from "../../services/GatewayEffortProbe.js";
 import { findCodexCliPath } from "../cli-detection.js";
 import { MessageQueue } from "../messageQueue.js";
 import type { SDKMessage } from "../types.js";
@@ -193,13 +197,29 @@ export class CodexOSSProvider implements AgentProvider {
   readonly name = "codex-oss" as const;
   readonly displayName = "CodexOSS";
   readonly supportsPermissionMode = false;
-  readonly supportsThinkingToggle = false;
+  /**
+   * A configured endpoint's model can carry thinking effort, so the control
+   * exists at the provider level and each model decides whether it appears.
+   * A model nothing describes — every Ollama one, and any endpoint that states
+   * nothing — says `supportsAdaptiveThinking: false` and shows no control,
+   * which is what this flag being false used to achieve for all of them.
+   */
+  readonly supportsThinkingToggle = true;
   readonly supportsSlashCommands = false;
   readonly supportsSteering = false;
 
   private codexPath?: string;
   private getServices: () => readonly GatewayService[] = () => [];
   private modelRoutes = new Map<string, CodexModelRoute>();
+  /**
+   * What each service-qualified model offered when its catalog was last read.
+   *
+   * A launch cannot re-derive this: the per-model and per-endpoint sources live
+   * in the catalog response, so resolving from configuration alone at launch
+   * time would drop a selected effort for exactly the models whose levels came
+   * from the endpoint rather than from the settings form.
+   */
+  private modelEfforts = new Map<string, GatewayModelEffort>();
   private readonly installationCoordinator: ProviderInstallationCoordinator;
   private readonly localProvider: "ollama" | "lmstudio";
   private readonly timeout: number;
@@ -352,9 +372,18 @@ export class CodexOSSProvider implements AgentProvider {
       });
       if (!response.ok) return [];
       const payload = (await response.json()) as {
-        data?: { id?: unknown; max_model_len?: unknown }[];
+        data?: {
+          id?: unknown;
+          max_model_len?: unknown;
+          /** copilot-api states a model's reasoning support here. */
+          capabilities?: { supports?: { reasoning_effort?: unknown } };
+        }[];
       };
       if (!Array.isArray(payload.data)) return [];
+      // The same sources Claude Gateway resolves from. A model reached over
+      // the Responses API offers the same thinking effort it offers over the
+      // Anthropic wire; only "none" differs, and that is expressed below.
+      const probed = await probeServiceEffort(service, service.url, payload);
       const limit = service.maxModels ?? DEFAULT_GATEWAY_SERVICE_MODEL_LIMIT;
       const models: ModelInfo[] = [];
       for (const row of payload.data) {
@@ -366,7 +395,10 @@ export class CodexOSSProvider implements AgentProvider {
           (typeof row.max_model_len === "number" && row.max_model_len > 0
             ? row.max_model_len
             : undefined);
-        const effort = this.serviceModelEffort(service, id);
+        const effort = this.serviceModelEffort(service, id, {
+          advertisedLevels: advertisedGatewayEffortLevels(row),
+          ...(probed ? { probed } : {}),
+        });
         models.push({
           id,
           name: id,
@@ -391,9 +423,24 @@ export class CodexOSSProvider implements AgentProvider {
                       defaultReasoningEffort: effort.defaultLevel,
                     }
                   : {}),
+                supportsAdaptiveThinking: true,
               }
-            : {}),
+            : {
+                // Nothing describes this model's reasoning, so it offers no
+                // thinking control rather than a guessed one. Said explicitly
+                // because the client's default for an unstated model is to
+                // offer the control.
+                supportsEffort: false,
+                supportsAdaptiveThinking: false,
+              }),
         });
+        const effortKey = qualifiedGatewayModelId(service.id, id);
+        // Overwritten rather than rebuilt per read, so a launch racing a
+        // refresh still finds the previous answer. A model that stopped
+        // offering effort is removed, or a narrowed configuration would leave
+        // a launch snapping onto levels no longer offered.
+        if (effort) this.modelEfforts.set(effortKey, effort);
+        else this.modelEfforts.delete(effortKey);
       }
       return models;
     } catch (error) {
@@ -423,15 +470,21 @@ export class CodexOSSProvider implements AgentProvider {
   }
 
   /**
-   * Codex config overrides that point a launch at a configured endpoint.
+   * What one of a service's models offers by way of thinking effort.
    *
-   * These are command-line overrides rather than edits to the user's
-   * `~/.codex/config.toml`: YA never rewrites a CLI's own settings files.
+   * `catalog` carries the per-model and per-endpoint sources, which are only
+   * available while a catalog is being read. A launch resolving effort for an
+   * already-chosen model passes none and gets the configured levels or the
+   * built-in family — enough to place the selected level, since a launch never
+   * needs to decide which levels to offer.
    */
-  /** What one of a service's models offers by way of thinking effort. */
   private serviceModelEffort(
     service: GatewayService,
     modelId: string,
+    catalog: {
+      advertisedLevels?: readonly EffortLevel[];
+      probed?: GatewayEndpointEffortProbe;
+    } = {},
   ): GatewayModelEffort | undefined {
     return gatewayModelEffort({
       modelId,
@@ -441,6 +494,10 @@ export class CodexOSSProvider implements AgentProvider {
       ...(service.defaultEffortLevel === undefined
         ? {}
         : { configuredDefaultLevel: service.defaultEffortLevel }),
+      ...(catalog.advertisedLevels?.length
+        ? { advertisedLevels: catalog.advertisedLevels }
+        : {}),
+      ...(catalog.probed ? { probed: catalog.probed } : {}),
     });
   }
 
@@ -460,7 +517,10 @@ export class CodexOSSProvider implements AgentProvider {
   ): string[] {
     const service = this.serviceById(route.serviceId);
     if (!service) return [];
-    const effort = this.serviceModelEffort(service, route.modelId);
+    const effort =
+      this.modelEfforts.get(
+        qualifiedGatewayModelId(service.id, route.modelId),
+      ) ?? this.serviceModelEffort(service, route.modelId);
     if (!effort) return [];
     if (options.thinking?.type === "disabled") {
       const level = effort.noThinking ? "none" : effort.levels[0];
@@ -471,6 +531,12 @@ export class CodexOSSProvider implements AgentProvider {
     return level ? ["-c", `model_reasoning_effort="${level}"`] : [];
   }
 
+  /**
+   * Codex config overrides that point a launch at a configured endpoint.
+   *
+   * These are command-line overrides rather than edits to the user's
+   * `~/.codex/config.toml`: YA never rewrites a CLI's own settings files.
+   */
   private serviceLaunchArgs(service: GatewayService): string[] {
     const key = `ya_${service.id.replace(/-/gu, "_")}`;
     return [
@@ -520,6 +586,11 @@ export class CodexOSSProvider implements AgentProvider {
             id: name,
             name: name,
             size: sizeBytes,
+            // `ollama list` states a name and a size. Nothing describes the
+            // model's reasoning, so it gets no thinking control — the same
+            // answer a configured endpoint that describes nothing gets.
+            supportsEffort: false,
+            supportsAdaptiveThinking: false,
           });
         }
       }

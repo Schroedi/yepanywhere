@@ -7,9 +7,17 @@
  * that accepts effort looks exactly like one that does not. The levels
  * therefore come from the service's own configuration first — the rule the
  * declared windows already follow — then from whatever the catalog advertises,
- * then from what YA knows about the model family.
+ * then from what YA knows about the model family, and last from what the
+ * endpoint said when asked (see `gateway-effort-probe.ts`).
+ *
+ * One resolution serves every transport that launches against these endpoints.
+ * Claude Gateway and CodexOSS reach the same model over different wires, and a
+ * model offering thinking effort through one of them offers it through the
+ * other; only what each wire can *say* about effort differs, which is the
+ * `noThinking` distinction below rather than a difference in levels.
  */
 
+import type { GatewayEndpointEffortProbe } from "./gateway-effort-probe.js";
 import { EFFORT_LEVEL_ORDER } from "./turn-effort.js";
 import type { EffortLevel } from "./types.js";
 
@@ -20,11 +28,37 @@ export interface GatewayModelEffort {
   defaultLevel?: EffortLevel;
   /**
    * The endpoint accepts `reasoning_effort: "none"`, so thinking can be turned
-   * off rather than only turned down. Stated by the model family, never by
-   * configuration: a level list says which levels exist, not whether the
-   * absence of thinking is one of them.
+   * off rather than only turned down. Stated by the model family or observed
+   * from the endpoint, never configured: a level list says which levels exist,
+   * not whether the absence of thinking is one of them.
    */
   noThinking?: boolean;
+}
+
+/** The shape of a catalog row's reasoning claim, as copilot-api writes it. */
+interface AdvertisingCatalogRow {
+  capabilities?: {
+    supports?: {
+      reasoning_effort?: unknown;
+    };
+  };
+}
+
+/**
+ * Effort levels a catalog row advertises for its own model.
+ *
+ * copilot-api states these per model; a vLLM row says nothing. Read from the
+ * row rather than from the service so both transports see the same claim: the
+ * row is the only per-model source either of them has.
+ */
+export function advertisedGatewayEffortLevels(
+  row: AdvertisingCatalogRow | null | undefined,
+): EffortLevel[] {
+  const values = row?.capabilities?.supports?.reasoning_effort;
+  if (!Array.isArray(values)) return [];
+  return orderedLevels(
+    values.filter((value): value is EffortLevel => isEffortLevel(value)),
+  );
 }
 
 export function isEffortLevel(value: unknown): value is EffortLevel {
@@ -104,6 +138,16 @@ export interface GatewayModelEffortSources {
   configuredDefaultLevel?: EffortLevel;
   /** Levels the catalog row advertises, for an endpoint that states them. */
   advertisedLevels?: readonly EffortLevel[];
+  /**
+   * What the endpoint itself answered when asked which efforts it accepts.
+   *
+   * Ranks below the model families YA ships knowing, because a probe reports
+   * the request schema the whole server validates against while a family entry
+   * describes one model's actual behavior — DeepSeek V4 accepts seven values
+   * and distinguishes three. The probe's job is to turn "no effort control at
+   * all" into the endpoint's stated vocabulary for a model nothing describes.
+   */
+  probed?: GatewayEndpointEffortProbe;
 }
 
 /**
@@ -116,11 +160,14 @@ export function gatewayModelEffort(
   const builtIn = builtInGatewayModelEffort(sources.modelId);
   const configured = orderedLevels(sources.configuredLevels ?? []);
   const advertised = orderedLevels(sources.advertisedLevels ?? []);
+  const probed = orderedLevels(sources.probed?.levels ?? []);
   const levels = configured.length
     ? configured
     : advertised.length
       ? advertised
-      : (builtIn?.levels ?? []);
+      : builtIn?.levels.length
+        ? builtIn.levels
+        : probed;
   if (!levels.length) return undefined;
 
   const configuredDefault =
@@ -135,9 +182,15 @@ export function gatewayModelEffort(
       ? builtIn.defaultLevel
       : undefined);
 
+  // Whether thinking can be switched off is its own question, answerable by
+  // either source regardless of which one supplied the levels: a configured
+  // list narrows what to offer without claiming anything about "none".
+  const noThinking =
+    (builtIn?.noThinking ?? false) || (sources.probed?.noThinking ?? false);
+
   return {
     levels,
     ...(defaultLevel ? { defaultLevel } : {}),
-    ...(builtIn?.noThinking ? { noThinking: true } : {}),
+    ...(noThinking ? { noThinking: true } : {}),
   };
 }

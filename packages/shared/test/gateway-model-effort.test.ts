@@ -1,10 +1,108 @@
 import { describe, expect, it } from "vitest";
 import {
+  advertisedGatewayEffortLevels,
   builtInGatewayModelEffort,
   gatewayModelEffort,
   nearestGatewayEffortLevel,
   parseGatewayServices,
+  type GatewayEndpointEffortProbe,
 } from "../src/index.js";
+
+/** What a vLLM endpoint answers when asked; see gateway-effort-probe. */
+const VLLM_PROBE: GatewayEndpointEffortProbe = {
+  levels: ["low", "medium", "high", "xhigh", "max"],
+  noThinking: true,
+};
+
+describe("advertisedGatewayEffortLevels", () => {
+  it("reads a copilot-style row's own claim, in ascending order", () => {
+    expect(
+      advertisedGatewayEffortLevels({
+        capabilities: { supports: { reasoning_effort: ["high", "low"] } },
+      }),
+    ).toEqual(["low", "high"]);
+  });
+
+  it("finds nothing in a vLLM row, which states no reasoning at all", () => {
+    expect(
+      advertisedGatewayEffortLevels({ capabilities: { supports: {} } }),
+    ).toEqual([]);
+    expect(advertisedGatewayEffortLevels(undefined)).toEqual([]);
+  });
+
+  it("ignores values that are not levels YA names", () => {
+    expect(
+      advertisedGatewayEffortLevels({
+        capabilities: {
+          supports: { reasoning_effort: ["none", "minimal", "high"] },
+        },
+      }),
+    ).toEqual(["high"]);
+  });
+});
+
+describe("gatewayModelEffort with a probed endpoint", () => {
+  it("offers what the endpoint answered when nothing else describes the model", () => {
+    expect(
+      gatewayModelEffort({ modelId: "qwen3-coder-30b", probed: VLLM_PROBE }),
+    ).toEqual({
+      levels: ["low", "medium", "high", "xhigh", "max"],
+      noThinking: true,
+    });
+  });
+
+  it("keeps a known family's curated levels over the endpoint's raw list", () => {
+    // The endpoint accepts five of YA's levels; DeepSeek V4 only behaves
+    // differently for three of them, and a menu must not repeat a behavior.
+    expect(
+      gatewayModelEffort({ modelId: "deepseek-v4-flash", probed: VLLM_PROBE }),
+    ).toEqual({
+      levels: ["low", "high", "max"],
+      defaultLevel: "high",
+      noThinking: true,
+    });
+  });
+
+  it("keeps configuration and per-model claims ahead of the endpoint's list", () => {
+    expect(
+      gatewayModelEffort({
+        modelId: "qwen3-coder-30b",
+        configuredLevels: ["low", "high"],
+        configuredDefaultLevel: "high",
+        probed: VLLM_PROBE,
+      }),
+    ).toMatchObject({ levels: ["low", "high"], defaultLevel: "high" });
+    expect(
+      gatewayModelEffort({
+        modelId: "qwen3-coder-30b",
+        advertisedLevels: ["medium"],
+        probed: VLLM_PROBE,
+      }),
+    ).toMatchObject({ levels: ["medium"] });
+  });
+
+  it("still learns thinking-off from the endpoint when levels came elsewhere", () => {
+    // Which levels to offer and whether thinking can be switched off are
+    // separate questions; a ticked list says nothing about the latter.
+    expect(
+      gatewayModelEffort({
+        modelId: "qwen3-coder-30b",
+        configuredLevels: ["low", "high"],
+        probed: VLLM_PROBE,
+      }),
+    ).toMatchObject({ noThinking: true });
+  });
+
+  it("offers no control at all when no source describes the model", () => {
+    expect(gatewayModelEffort({ modelId: "qwen3-coder-30b" })).toBeUndefined();
+    expect(
+      gatewayModelEffort({
+        modelId: "qwen3-coder-30b",
+        probed: { levels: [], noThinking: false },
+      }),
+    ).toBeUndefined();
+  });
+});
 
 describe("gatewayModelEffort", () => {
   it("knows the DeepSeek V4 vocabulary a bare catalog cannot state", () => {

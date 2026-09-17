@@ -22,6 +22,7 @@ import {
   type GatewayService,
 } from "@yep-anywhere/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { api } from "../../api/client";
 import { useI18n } from "../../i18n";
 import { useServerSettings } from "../../hooks/useServerSettings";
 import styles from "./GatewayServicesSettings.module.css";
@@ -117,6 +118,20 @@ function overrideValue(value: boolean | undefined): OverrideValue {
   return value === undefined ? "inherit" : value ? "on" : "off";
 }
 
+/** What one endpoint answered when asked which efforts it accepts. */
+type EffortDetection =
+  | { state: "asking" }
+  | { state: "answered"; levels: EffortLevel[]; modelId: string }
+  | { state: "silent"; reason: EffortDetectionFailure };
+
+type EffortDetectionFailure = "unreachable" | "no-models" | "undescribed";
+
+const EFFORT_DETECTION_FAILURE_MESSAGES = {
+  unreachable: "providersGatewayServiceEffortDetectUnreachable",
+  "no-models": "providersGatewayServiceEffortDetectNoModels",
+  undescribed: "providersGatewayServiceEffortDetectUndescribed",
+} as const;
+
 export function GatewayServicesSettings({
   reloadProviders,
 }: {
@@ -136,6 +151,12 @@ export function GatewayServicesSettings({
     savedDefaultId,
   );
   const [isSaving, setIsSaving] = useState(false);
+  const effortDetectionEnabled =
+    settings?.gatewayServiceEffortDetection ?? true;
+  /** The last detection answer per service id, shown next to its button. */
+  const [detections, setDetections] = useState<
+    Record<string, EffortDetection | undefined>
+  >({});
 
   useEffect(() => {
     setServices(savedServices);
@@ -157,6 +178,56 @@ export function GatewayServicesSettings({
       );
     },
     [],
+  );
+
+  /**
+   * Ask one endpoint what it accepts and tick what it answers.
+   *
+   * The answer lands in the draft entry as ordinary configuration rather than
+   * being applied invisibly, so it stays reviewable and trimmable before Save —
+   * an endpoint states the levels its request schema accepts, which can be
+   * more than the model behind it treats differently.
+   */
+  const detectEffort = useCallback(
+    async (index: number) => {
+      const service = services[index];
+      if (!service) return;
+      setDetections((current) => ({
+        ...current,
+        [service.id]: { state: "asking" },
+      }));
+      try {
+        const answer = await api.detectGatewayServiceEffort(service.url);
+        if (!answer.detected) {
+          setDetections((current) => ({
+            ...current,
+            [service.id]: { state: "silent", reason: answer.reason },
+          }));
+          return;
+        }
+        setDetections((current) => ({
+          ...current,
+          [service.id]: {
+            state: "answered",
+            levels: answer.levels,
+            modelId: answer.modelId,
+          },
+        }));
+        updateService(index, {
+          effortLevels: answer.levels.length ? answer.levels : undefined,
+          ...(service.defaultEffortLevel !== undefined &&
+          answer.levels.includes(service.defaultEffortLevel)
+            ? {}
+            : { defaultEffortLevel: undefined }),
+        });
+      } catch {
+        setDetections((current) => ({
+          ...current,
+          [service.id]: { state: "silent", reason: "unreachable" },
+        }));
+      }
+    },
+    [services, updateService],
   );
 
   const handleSave = useCallback(async () => {
@@ -200,6 +271,22 @@ export function GatewayServicesSettings({
       <p className="settings-hint">
         {t("providersGatewayServiceExportDescription")}
       </p>
+      <label className={styles.check}>
+        <input
+          type="checkbox"
+          checked={effortDetectionEnabled}
+          onChange={(event) =>
+            void updateSetting(
+              "gatewayServiceEffortDetection",
+              event.target.checked,
+            )
+          }
+        />{" "}
+        <strong>{t("providersGatewayServiceEffortDetectionTitle")}</strong>
+      </label>
+      <p className="settings-hint">
+        {t("providersGatewayServiceEffortDetectionDescription")}
+      </p>
       <form
         className={styles.form}
         onSubmit={(event) => {
@@ -209,6 +296,7 @@ export function GatewayServicesSettings({
       >
         {services.map((service, index) => {
           const loopback = isLoopbackGatewayUrl(service.url);
+          const detection = detections[service.id];
           const invocations =
             exportEnabled && exportPaths && service.enabled
               ? gatewayServiceCliInvocations(service, exportPaths)
@@ -504,6 +592,31 @@ export function GatewayServicesSettings({
                     ))}
                   </select>
                 </label>
+                <div className={`${styles.row} ${styles.wide}`}>
+                  <button
+                    type="button"
+                    className="settings-button"
+                    disabled={detection?.state === "asking"}
+                    onClick={() => void detectEffort(index)}
+                  >
+                    {detection?.state === "asking"
+                      ? t("providersGatewayServiceEffortDetecting")
+                      : t("providersGatewayServiceEffortDetect")}
+                  </button>
+                  {detection?.state === "answered" && (
+                    <span className="settings-hint">
+                      {t("providersGatewayServiceEffortDetected", {
+                        model: detection.modelId,
+                        levels: detection.levels.join(", "),
+                      })}
+                    </span>
+                  )}
+                  {detection?.state === "silent" && (
+                    <span className="settings-hint">
+                      {t(EFFORT_DETECTION_FAILURE_MESSAGES[detection.reason])}
+                    </span>
+                  )}
+                </div>
                 <p className="settings-hint">
                   {t("providersGatewayServiceEffortHint")}
                 </p>

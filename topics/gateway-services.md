@@ -109,8 +109,47 @@ model serving.
   is indistinguishable from one that does not. Levels come from the entry's
   `effortLevels` first, then from a row's
   `capabilities.supports.reasoning_effort`, then from the model families YA
-  knows. A model no source describes offers no effort control at all rather than
-  a guessed one.
+  knows, then from what the endpoint answered when asked. A model no source
+  describes offers no effort control at all rather than a guessed one.
+- One resolution serves both transports. Claude Gateway and CodexOSS reach the
+  same endpoint over different wires; a model offering effort through one offers
+  it through the other, so both read the same four sources. Only what each wire
+  can *say* differs, which is the "none" distinction below. CodexOSS therefore
+  advertises the thinking control at the provider level and lets each model
+  decide: a model no source describes states `supportsAdaptiveThinking: false`
+  and shows none, which is what every Ollama-listed model states.
+- A launch cannot re-derive the per-model and per-endpoint sources, which exist
+  only in a catalog response. CodexOSS keeps each service-qualified model's
+  resolved effort from its last catalog read and places the selected level
+  against that, falling back to configuration and the built-in families.
+
+### Asking an endpoint what it accepts
+
+- `settings.gatewayServiceEffortDetection` is a default-on setting: YA sends one
+  chat request naming an unrecognized effort, and request validation rejects it
+  with the accepted vocabulary spelled out. Observed against vLLM 0.11 serving
+  DeepSeek-V4-Flash: `Input should be 'none', 'minimal', 'low', 'medium',
+  'high', 'xhigh' or 'max'`. Validation runs before scheduling, so the probe
+  costs no inference and no accelerator time.
+- The answer describes the *endpoint's request schema*, not the model behind it:
+  a vLLM server hosting a model that ignores the field still answers with the
+  full vocabulary. That is why a probe answer ranks last, and why the entry's
+  own `effortLevels` — which win over everything — remain the correction for an
+  endpoint that overclaims.
+- An entry stating its own `effortLevels` is never asked: configuration wins for
+  every model of that service, so no answer could change the outcome.
+- Answers are cached per endpoint URL and shared between the two providers, 30
+  minutes for an answer and one minute for a silence, since the usual silence is
+  an endpoint that is not up yet. A reconfigured services list drops the cache,
+  because the same address may now front a different server.
+- A 2xx to the probe means the endpoint validates nothing and has therefore said
+  nothing; it is not read as accepting every level.
+- `POST /api/settings/gateway-services/effort` asks one endpoint on demand and
+  is what the services editor's button calls. It bypasses both the cache and the
+  setting, and its URL must be loopback or already configured: unlike catalog
+  discovery it sends a chat request, so it stays pointed at endpoints the server
+  already talks to. The answer is written into the draft entry's level
+  checkboxes for review rather than applied invisibly.
 - `defaultEffortLevel` states what the endpoint applies to a request naming no
   effort. It is meaningful only alongside `effortLevels` and must be one of
   them; a list stating nothing is no list at all, which restores the advertised
