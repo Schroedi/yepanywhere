@@ -9033,7 +9033,7 @@ a.sidebar-nav-item {
 
 .settings-subsection h3 {
   margin: 0 0 var(--space-2);
-  font-size: var(--font-size-base);
+  font-size: 1em; /* Matches the row label it titles, not the hints below it. */
 }
 
 .settings-subsection-hint {
