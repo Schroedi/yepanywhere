@@ -469,15 +469,31 @@ function SessionSearchPage() {
       ),
     [layoutKey],
   );
+  // Expansion out of the initial streaming shape waits for the scan to finish
+  // and for input to go quiet. Completion is re-checked when the quiet period
+  // elapses rather than gating entry to this effect: a needle refinement
+  // starts a scan, so gating on `scan.running` meant the effect bailed at the
+  // moment the needle changed, and the run that would have armed the timer
+  // afterwards never arrived. The rows then stayed clamped to one preview per
+  // role for good, however long the reader waited (fixed 2026-09-17; the
+  // "refines cached turns" browser checks cover it).
+  const scanRunning = useRef(scan.running);
+  scanRunning.current = scan.running;
   useEffect(() => {
-    if (!hasTurnFields || scan.running || compactedSearch === layoutKey) return;
+    if (!hasTurnFields || compactedSearch === layoutKey) return;
     let timer: ReturnType<typeof setTimeout>;
+    const settle = () => {
+      // Still acquiring: wait out another quiet period instead of expanding
+      // mid-scan, which is what the streaming shape exists to avoid.
+      if (scanRunning.current) {
+        idle();
+        return;
+      }
+      startTransition(() => setCompactedSearch(layoutKey));
+    };
     const idle = () => {
       clearTimeout(timer);
-      timer = setTimeout(
-        () => startTransition(() => setCompactedSearch(layoutKey)),
-        500,
-      );
+      timer = setTimeout(settle, 500);
     };
     idle();
     window.addEventListener("pointermove", idle);
@@ -489,7 +505,7 @@ function SessionSearchPage() {
       window.removeEventListener("keydown", idle);
       window.removeEventListener("wheel", idle);
     };
-  }, [scan.running, layoutKey, compactedSearch, hasTurnFields]);
+  }, [layoutKey, compactedSearch, hasTurnFields]);
   const [renderWindow, setRenderWindow] = useState({ query, count: 40 });
   const renderedCount = renderWindow.query === query ? renderWindow.count : 40;
   const more = useRef<HTMLButtonElement>(null);

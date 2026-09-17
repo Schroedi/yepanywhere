@@ -251,12 +251,19 @@ for (const viewport of [
     baseURL,
   }) => {
     test.setTimeout(60000);
+    // Titles carry the viewport, not just the session ids. Both viewports run
+    // against one server, and the previous run's entries can still be in the
+    // catalog when this one searches; with a shared title the "6 matching"
+    // button is satisfied by either set, so the test could select six sessions
+    // whose files this file's afterEach had already deleted and then find no
+    // matches at all.
+    const fixture = `cached ${viewport.name}`;
     for (let i = 0; i < 6; i++)
-      saveSession(`cached-${viewport.name}-${i}`, `cached ${i}`, true);
+      saveSession(`cached-${viewport.name}-${i}`, `${fixture} ${i}`, true);
     await page.setViewportSize(viewport);
     await page.goto(`${baseURL}/sessions`);
     const search = page.getByRole("searchbox", { name: "Search sessions..." });
-    await search.fill("Search fixture cached");
+    await search.fill(`Search fixture ${fixture}`);
     await page
       .getByRole("button", {
         name: "Keep just 6 matching sessions selected",
@@ -272,10 +279,17 @@ for (const viewport of [
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
+    // Hold the first wave so responses land after the needle and roles have
+    // already changed, which is what the cached-refinement assertions below
+    // exercise. Releasing also on the count, not only on four distinct
+    // sessions, is what keeps this from deadlocking: the client runs four
+    // concurrent acquisitions, so once four requests are held no further one
+    // can arrive, and a wave that spends two slots on the same session would
+    // otherwise wait for a fourth distinct id that can never come.
     await page.route("**/api/sessions/content-search", async (route) => {
       requests.push(route.request().postDataJSON());
-      if (new Set(requests.map((request) => request.sessionId)).size >= 4)
-        release();
+      const distinct = new Set(requests.map((request) => request.sessionId));
+      if (distinct.size >= 4 || requests.length >= 4) release();
       await gate;
       await route.continue();
     });
@@ -321,7 +335,7 @@ for (const viewport of [
       ).toBeLessThanOrEqual(3);
       await page.getByRole("checkbox", { name: /^Ass\./ }).uncheck();
       await page.getByRole("checkbox", { name: /^Ass\./ }).check();
-      await search.fill("quasarneedle cached 2");
+      await search.fill(`quasarneedle ${fixture} 2`);
       await expect(rows).toHaveCount(1);
       await expect(page.locator('[data-search-scanning="true"]')).toHaveCount(
         0,
