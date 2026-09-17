@@ -10,12 +10,15 @@
 import {
   DEFAULT_GATEWAY_AUTO_STOP_SECONDS,
   DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
+  EFFORT_LEVEL_ORDER,
   MAX_GATEWAY_SERVICES,
   MAX_GATEWAY_SERVICE_COMMAND_LENGTH,
   MAX_GATEWAY_SERVICE_LABEL_LENGTH,
   MAX_GATEWAY_SERVICE_SHORT_NAME_LENGTH,
   gatewayServiceCliInvocations,
+  isEffortLevel,
   isLoopbackGatewayUrl,
+  type EffortLevel,
   type GatewayService,
 } from "@yep-anywhere/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -55,8 +58,37 @@ function newService(taken: ReadonlySet<string>): GatewayService {
     enabled: true,
     autoStop: false,
     autoStopAfterSeconds: DEFAULT_GATEWAY_AUTO_STOP_SECONDS,
-    codexEnabled: false,
+    // New services default into CodexOSS use: a freshly added endpoint is
+    // usually the reason someone turns the provider on at all, and without an
+    // allowed service CodexOSS falls back to requiring a local Ollama.
+    codexEnabled: true,
     codexWireApi: DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
+  };
+}
+
+/**
+ * Adding or removing one effort level, with the default kept consistent.
+ *
+ * An empty list is stored as no list at all — "this endpoint states nothing",
+ * which is what restores the advertised or built-in levels — and a default that
+ * is no longer listed goes with it rather than becoming unreachable state.
+ */
+function toggledEffortLevel(
+  service: GatewayService,
+  level: EffortLevel,
+  { checked }: { checked: boolean },
+): Partial<GatewayService> {
+  const levels = EFFORT_LEVEL_ORDER.filter((candidate) =>
+    candidate === level
+      ? checked
+      : (service.effortLevels?.includes(candidate) ?? false),
+  );
+  const keepsDefault =
+    service.defaultEffortLevel !== undefined &&
+    levels.includes(service.defaultEffortLevel);
+  return {
+    effortLevels: levels.length ? levels : undefined,
+    ...(keepsDefault ? {} : { defaultEffortLevel: undefined }),
   };
 }
 
@@ -247,6 +279,9 @@ export function GatewayServicesSettings({
                   {t("providersGatewayServiceCodex")}
                 </label>
               </div>
+              <p className={`settings-hint ${styles.wide}`}>
+                {t("providersGatewayServiceCodexHint")}
+              </p>
 
               {invocations && (
                 <div className={`${styles.commands} ${styles.wide}`}>
@@ -419,6 +454,59 @@ export function GatewayServicesSettings({
                     <option value="responses">responses</option>
                   </select>
                 </label>
+
+                <div className={`${styles.field} ${styles.wide}`}>
+                  <span>{t("providersGatewayServiceEffortLabel")}</span>
+                  <div className={styles.row}>
+                    {EFFORT_LEVEL_ORDER.map((level) => (
+                      <label className={styles.check} key={level}>
+                        <input
+                          type="checkbox"
+                          checked={
+                            service.effortLevels?.includes(level) ?? false
+                          }
+                          onChange={(event) =>
+                            updateService(
+                              index,
+                              toggledEffortLevel(service, level, {
+                                checked: event.target.checked,
+                              }),
+                            )
+                          }
+                        />{" "}
+                        {level}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <label className={styles.field}>
+                  <span>{t("providersGatewayServiceEffortDefaultLabel")}</span>
+                  <select
+                    className="settings-input"
+                    value={service.defaultEffortLevel ?? ""}
+                    disabled={!service.effortLevels?.length}
+                    onChange={(event) =>
+                      updateService(index, {
+                        defaultEffortLevel: isEffortLevel(event.target.value)
+                          ? event.target.value
+                          : undefined,
+                      })
+                    }
+                    aria-label={t("providersGatewayServiceEffortDefaultLabel")}
+                  >
+                    <option value="">
+                      {t("providersGatewayServiceEffortDefaultUnknown")}
+                    </option>
+                    {(service.effortLevels ?? []).map((level) => (
+                      <option value={level} key={level}>
+                        {level}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p className="settings-hint">
+                  {t("providersGatewayServiceEffortHint")}
+                </p>
 
                 <label className={styles.field}>
                   <span>{t("providersGatewayServiceDisableAgentLabel")}</span>
