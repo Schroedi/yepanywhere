@@ -2415,6 +2415,7 @@ export class CodexProvider implements AgentProvider {
         // do not collide with active work or send `/compact` as plain text.
         if (
           runtimeState.activeTurnId ||
+          runtimeState.pendingTurnStart ||
           runtimeState.pendingCompaction ||
           runtimeState.overloadRetryController
         ) {
