@@ -52,7 +52,7 @@ import { SessionStatusBadge } from "./StatusBadge";
 import { ClearloopRemainingBadge } from "./ClearloopRemainingBadge";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import styles from "./SessionListItem.module.css";
-import { useSessionApps } from "../lib/sessionApps";
+import { useSessionHasApp } from "../lib/sessionApps";
 
 export interface SessionNavigationIntent {
   event: React.MouseEvent<HTMLAnchorElement>;
@@ -248,7 +248,7 @@ export function SessionListItem({
   publicShareControlsVisible = false,
 }: SessionListItemProps) {
   const { t } = useI18n();
-  const { value: sessionApps } = useSessionApps(
+  const hasSessionApp = useSessionHasApp(
     `${basePath}/${projectId}/${sessionId}`,
   );
   const navigate = useNavigate();
@@ -1031,7 +1031,7 @@ export function SessionListItem({
                     <ClearloopRemainingBadge badge={clearloop} />
                   )}
                 </span>
-                {sessionApps.latest && (
+                {hasSessionApp && (
                   <span className={styles.appChip}>
                     {t("sessionRightPaneApps")}
                   </span>
