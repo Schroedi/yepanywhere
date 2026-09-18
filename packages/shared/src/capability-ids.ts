@@ -481,7 +481,7 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     introducedIn: "0.8.2",
   },
   claudeGatewayServices: {
-    id: 72,
+    id: 77,
     direction: "server",
     name: "claude-gateway-services",
     introducedIn: "0.8.2",

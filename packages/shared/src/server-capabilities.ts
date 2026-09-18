@@ -27,6 +27,11 @@ export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
     index: CAPABILITY_ID_ALLOCATIONS.computerControlReleases.id,
     introducedIn: "0.8.2",
   },
+  claudeGatewayServices: {
+    name: "claude-gateway-services",
+    index: CAPABILITY_ID_ALLOCATIONS.claudeGatewayServices.id,
+    introducedIn: "0.8.2",
+  },
   computerControl: {
     name: "optional-computer-control",
     index: CAPABILITY_ID_ALLOCATIONS.computerControl.id,
