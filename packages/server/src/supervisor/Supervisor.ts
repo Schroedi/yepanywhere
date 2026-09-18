@@ -80,6 +80,7 @@ import type {
   ProviderRuntimeStatusChangedEvent,
   SessionAbortedEvent,
   SessionCreatedEvent,
+  SessionForkedEvent,
   SessionIdRemappedEvent,
   SessionStatusEvent,
   SessionUpdatedEvent,
@@ -3180,6 +3181,12 @@ export class Supervisor {
       sessionSandbox,
     });
     registerForkedSessionFile(provider.name, fork.sessionId, fork.filePath);
+    // The new transcript is written by us. Announce it so file-activity
+    // watchers do not read our own write as another program owning the
+    // session (the amber external-writer warning).
+    this.emitSessionForked(fork.sessionId, options.sessionId, {
+      projectPath: options.projectPath,
+    });
     return {
       sessionId: fork.sessionId,
       sandboxStateKey: sessionSandbox?.stateKey,
@@ -5036,6 +5043,23 @@ export class Supervisor {
         );
       }
     }
+  }
+
+  private emitSessionForked(
+    sessionId: string,
+    sourceSessionId: string,
+    location: { projectPath: string },
+  ): void {
+    if (!this.eventBus) return;
+
+    const event: SessionForkedEvent = {
+      type: "session-forked",
+      sessionId,
+      sourceSessionId,
+      projectId: encodeProjectId(location.projectPath),
+      timestamp: new Date().toISOString(),
+    };
+    this.eventBus.emit(event);
   }
 
   private emitSessionAborted(sessionId: string, projectId: UrlProjectId): void {

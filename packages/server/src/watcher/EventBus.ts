@@ -234,6 +234,21 @@ export interface SessionAbortedEvent {
 }
 
 /**
+ * Event emitted when this server forks a transcript into a new session. The
+ * new session's file is written by us, so listeners that infer "another
+ * program is writing this session" from file activity must not do so here.
+ */
+export interface SessionForkedEvent {
+  type: "session-forked";
+  /** The new session created by the fork. */
+  sessionId: string;
+  /** The session the transcript was forked from. */
+  sourceSessionId: string;
+  projectId: UrlProjectId;
+  timestamp: string;
+}
+
+/**
  * Event emitted when session content changes (title, messageCount, etc.).
  * This is different from session-metadata-changed which is for user-set metadata.
  * This event is for auto-derived values from the session JSONL file.
@@ -329,6 +344,7 @@ export type BusEvent =
   | ProjectCodeNameChangedEvent
   | SessionMetadataChangedEvent
   | SessionAbortedEvent
+  | SessionForkedEvent
   | SessionUpdatedEvent
   | NetworkBindingChangedEvent
   | BrowserTabConnectedEvent

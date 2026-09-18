@@ -6791,6 +6791,38 @@ describe("Supervisor", () => {
   });
 
   describe("eventBus integration", () => {
+    it("announces a fork so its own transcript writes are not read as external", async () => {
+      const eventBus = new EventBus();
+      const events: BusEvent[] = [];
+      eventBus.subscribe((event) => events.push(event));
+
+      const provider = {
+        ...testProvider(async () => {
+          throw new Error("not started in this test");
+        }),
+        forkSession: async () => ({
+          sessionId: "sess-fork",
+          filePath: "/tmp/test/sess-fork.jsonl",
+        }),
+      } as unknown as AgentProvider;
+      const supervisorWithBus = new Supervisor({ provider, eventBus });
+
+      await supervisorWithBus.forkSession({
+        sessionId: "sess-source",
+        projectPath: "/tmp/test",
+        providerName: "claude",
+      });
+
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: "session-forked",
+          sessionId: "sess-fork",
+          sourceSessionId: "sess-source",
+          projectId: encodeProjectId("/tmp/test"),
+        }),
+      );
+    });
+
     it("emits process-state-changed event when session starts", async () => {
       const eventBus = new EventBus();
       const events: BusEvent[] = [];
