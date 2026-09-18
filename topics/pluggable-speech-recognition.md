@@ -700,7 +700,7 @@ that is recovered by a rescan, since each session's checkpoint is written in the
 same batch as the counts it covers. Shutdown, reset, and the adoption of the
 previous layout's files write immediately instead of waiting; the old files are
 deleted only after the adopting write lands, so a server killed inside the
-interval still has them.
+interval still has them, and so does one whose adopting write failed.
 
 The filter has two responses to filling up, and the cheap one gets the first
 chance. At a false-positive rate of a tenth of a percent — 137.6 million
@@ -726,7 +726,8 @@ through a temporary file and a rename so no reader sees a partial file. An
 unreadable settings file reverts to defaults with a logged warning rather than
 failing server construction. The previous layout's `speech-words.json`,
 `speech-word-case.json`, and `speech-seen.hash` are adopted once on first start
-and then deleted.
+and deleted once the write carrying the adopted counts commits; a write that
+fails keeps them, and the next start adopts them again.
 
 The controls live at the top of Settings → Speech backends, under Learned
 speech vocabulary. Settings search finds them by vocabulary, keyterms, lexicon,

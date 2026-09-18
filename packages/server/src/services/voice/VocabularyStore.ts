@@ -669,10 +669,12 @@ export class VocabularyStore {
         this.caseForms.set(word, entry);
         this.dirtyForms.add(word);
       }
-    // Deleting the old files has to wait for the adopted rows to land. The
-    // ordinary write waits for its interval, and a server killed inside that
-    // window would otherwise have removed the only copy of these counts.
-    void this.settled().then(
+    // Deleting the old files has to wait for the adopted rows to land, and
+    // landing has to mean the write succeeded: these files are the only other
+    // copy of these counts, and writer quiescence says nothing about whether
+    // the commit went through. A failure keeps them for the next start, which
+    // adopts them again because the table is still empty.
+    void this.landed().then(
       () => {
         for (const name of [
           LEGACY_WORDS_FILE,
@@ -898,12 +900,7 @@ export class VocabularyStore {
 
   private write(): void {
     this.lastWriteAt = Date.now();
-    void this.saver.save().catch((error: unknown) => {
-      getLogger().warn(
-        { component: "speech", err: error },
-        "Speech vocabulary table write failed; retrying on the next flush",
-      );
-    });
+    void this.saver.save().catch(warnWriteFailed);
   }
 
   /** Writer body. Runs one at a time, coalescing whatever arrived meanwhile. */
@@ -944,16 +941,29 @@ export class VocabularyStore {
   }
 
   /**
-   * Write anything still waiting for its interval, then wait for the writer to
-   * go quiet. Shutdown, reset, and tests; never the scan.
+   * Write anything still waiting for its interval and resolve only once it
+   * landed, rethrowing what the writer threw. A caller that is about to discard
+   * the only other copy of what the write carried needs this rather than
+   * `settled()`, which reports quiescence.
    */
-  async settled(): Promise<void> {
+  private async landed(): Promise<void> {
     if (this.writeTimer) {
       clearTimeout(this.writeTimer);
       this.writeTimer = undefined;
     }
-    if (!this.clean) this.write();
-    await this.saver.idle();
+    // Nothing of ours is waiting, but a write that is already running still has
+    // to finish before anything here counts as landed.
+    if (this.clean) return this.saver.idle();
+    this.lastWriteAt = Date.now();
+    await this.saver.flush();
+  }
+
+  /**
+   * Write anything still waiting for its interval, then wait for the writer to
+   * go quiet. Shutdown, reset, and tests; never the scan.
+   */
+  async settled(): Promise<void> {
+    await this.landed().catch(warnWriteFailed);
   }
 
   async reset(): Promise<void> {
@@ -1105,6 +1115,14 @@ export class VocabularyStore {
     this.database?.close();
     this.database = undefined;
   }
+}
+
+/** A failed write leaves its rows dirty, so the next one carries them again. */
+function warnWriteFailed(error: unknown): void {
+  getLogger().warn(
+    { component: "speech", err: error },
+    "Speech vocabulary table write failed; retrying on the next flush",
+  );
 }
 
 function readJsonFile<T>(path: string): T | undefined {
