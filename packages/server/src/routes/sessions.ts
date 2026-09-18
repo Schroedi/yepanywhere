@@ -1601,10 +1601,7 @@ function resolveForkBeforeBoundary(
   };
 }
 
-function forkSummaryTitle(
-  summary: string,
-  fallback: string | undefined,
-): string {
+function forkSummaryTitleCandidate(summary: string): string | undefined {
   const firstLine = summary
     .split("\n")
     .map((line) => line.trim())
@@ -1614,7 +1611,27 @@ function forkSummaryTitle(
     .replace(/^title:\s*/iu, "")
     .trim()
     .replace(/[.!?]+$/u, "");
-  return truncateSessionTitle(candidate || fallback || "Forked session");
+  return candidate || undefined;
+}
+
+/** An existing fork/clone prefix is replaced by the new one, never stacked. */
+const FORK_TITLE_PREFIX_PATTERN = /^(?:fork|clone)(?:\s+\d+)?:\s*/iu;
+
+/**
+ * Title a fork so repeated forks of one session are told apart: the first is
+ * `Fork: <source>`, the next `Fork 2: <source>`. `ordinal` is the source
+ * session's fork count from `nextForkOrdinal`, which counts forks created, so
+ * deleting a fork does not hand its number to a later one.
+ */
+function forkTitleWithOrdinal(
+  base: string,
+  ordinal: number,
+  prefix: "Fork" | "Clone" = "Fork",
+): string {
+  const core = base.replace(FORK_TITLE_PREFIX_PATTERN, "").trim() || base;
+  return truncateSessionTitle(
+    ordinal > 1 ? `${prefix} ${ordinal}: ${core}` : `${prefix}: ${core}`,
+  );
 }
 
 function generatedRetitleCandidate(title: string): string | undefined {
@@ -1696,6 +1713,7 @@ function deriveRestartTitle(params: {
 function deriveForkTitle(params: {
   preferredTitle?: string | null;
   sourceSession: Session;
+  ordinal: number;
 }): string {
   const candidates = [
     params.preferredTitle,
@@ -1706,8 +1724,7 @@ function deriveForkTitle(params: {
   const base =
     candidates.map(normalizeRestartTitleCandidate).find(Boolean) ??
     "forked session";
-  const title = /^Fork:/i.test(base) ? base : `Fork: ${base}`;
-  return truncateRestartTitle(title);
+  return forkTitleWithOrdinal(base, params.ordinal);
 }
 
 function buildRestartHandoff(params: {
@@ -5348,6 +5365,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       const forkTitle = deriveForkTitle({
         preferredTitle: originalMetadata?.customTitle,
         sourceSession,
+        ordinal:
+          (await deps.sessionMetadataService?.nextForkOrdinal(sessionId)) ?? 1,
       });
       let fork: Awaited<ReturnType<Supervisor["forkSession"]>>;
       try {
@@ -5800,10 +5819,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
     const titlePrefix = forkKind === "clone-latest-complete" ? "Clone" : "Fork";
     const forkTitle = baseTitle
-      ? truncateSessionTitle(
-          new RegExp(`^${titlePrefix}:`, "i").test(baseTitle)
-            ? baseTitle
-            : `${titlePrefix}: ${baseTitle}`,
+      ? forkTitleWithOrdinal(
+          baseTitle,
+          (await deps.sessionMetadataService?.nextForkOrdinal(sessionId)) ?? 1,
+          titlePrefix,
         )
       : undefined;
 
@@ -6271,11 +6290,16 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       const baseTitle = normalizeRestartTitleCandidate(
         originalMetadata?.customTitle ?? sourceSession.title,
       );
-      const fallbackTitle = baseTitle
-        ? truncateSessionTitle(
-            /^Fork:/i.test(baseTitle) ? baseTitle : `Fork: ${baseTitle}`,
-          )
-        : undefined;
+      // Claim a fork ordinal only when the generated summary yields no title,
+      // so an unused number is not burned on every fork-after-summary.
+      const fallbackTitle = async (): Promise<string | undefined> =>
+        baseTitle
+          ? forkTitleWithOrdinal(
+              baseTitle,
+              (await deps.sessionMetadataService?.nextForkOrdinal(sessionId)) ??
+                1,
+            )
+          : undefined;
       const savedExecutor = parseOptionalExecutor(
         deps.sessionMetadataService.getExecutor(sessionId),
       ).executor;
@@ -6351,7 +6375,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             throw new DOMException("Fork summary cancelled", "AbortError");
           }
 
-          const title = forkSummaryTitle(generated.text, fallbackTitle);
+          const summaryTitle = forkSummaryTitleCandidate(generated.text);
+          const title = summaryTitle
+            ? truncateSessionTitle(summaryTitle)
+            : ((await fallbackTitle()) ?? "Forked session");
           targetTitle = title;
           const target = await deps.supervisor.forkSession({
             sessionId,

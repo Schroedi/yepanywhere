@@ -53,6 +53,16 @@ window the trim dot controls).
   guidance, and the client makes no fork request. Providers without a real
   fork primitive and servers without the unified intent contract retain the
   older hidden-surface fallback.
+- Repeated forks of one source session are numbered so they can be told apart
+  in a session list: the first is `Fork: <source>`, the next `Fork 2: <source>`,
+  and so on. The ordinal comes from `SessionMetadataService.nextForkOrdinal`,
+  which counts forks *created* from the source and persists that count on the
+  source's metadata (`forksCreated`), so deleting a fork never reissues its
+  number, and Clone shares the same per-source count. A source title that
+  already carries a `Fork`/`Clone` prefix has it replaced, not stacked, so
+  forking a fork yields `Fork: <original>` rather than `Fork: Fork: <original>`.
+  Fork-after-summary titles from the generated summary line and only claims an
+  ordinal when that summary yields no title.
 - Clone copies through the latest completed response, titles the target
   `Clone: <source>`, records the source in `forkedFromSessionId`, navigates in
   the same tab, and opens cold with an empty target composer. It does not

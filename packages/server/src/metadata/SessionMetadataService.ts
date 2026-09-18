@@ -69,6 +69,13 @@ export interface SessionMetadata {
   parentSessionKind?: "btw-aside";
   /** Source session whose provider transcript was cloned or forked. */
   forkedFromSessionId?: string;
+  /**
+   * How many forks/clones have been created from this session, so each new one
+   * can be titled with its own ordinal instead of repeating "Fork: <source>".
+   * Counts forks created, never forks that still exist: deleting a fork does
+   * not release its number.
+   */
+  forksCreated?: number;
   /** Saved viewer-only objects placed in the transcript. */
   transcriptDisplayObjects?: TranscriptDisplayObject[];
   /** Durable YA-owned recap rows merged into the transcript view only. */
@@ -649,6 +656,22 @@ export class SessionMetadataService {
   }
 
   /**
+   * Claim the next fork ordinal for a source session: 1 for its first fork, 2
+   * for the next, and so on. Callers use it to title repeated forks of one
+   * session "Fork: X", "Fork 2: X", "Fork 3: X" instead of naming them alike.
+   * The count only ever rises, so a deleted fork's number is not reissued.
+   */
+  async nextForkOrdinal(sessionId: string): Promise<number> {
+    const ordinal = (this.getMetadata(sessionId)?.forksCreated ?? 0) + 1;
+    this.updateSessionMetadata(sessionId, (metadata) => ({
+      ...metadata,
+      forksCreated: ordinal,
+    }));
+    await this.save();
+    return ordinal;
+  }
+
+  /**
    * Set the YA model id (launch alias) chosen when YA started this session.
    * Persisted so per-model settings still key by the requested YA id after a
    * server restart. See topics/provider-abstraction.md § Per-model settings keying.
@@ -1047,6 +1070,9 @@ export class SessionMetadataService {
     }
     if (updated.forkedFromSessionId) {
       cleaned.forkedFromSessionId = updated.forkedFromSessionId;
+    }
+    if (updated.forksCreated) {
+      cleaned.forksCreated = updated.forksCreated;
     }
     if (updated.transcriptDisplayObjects?.length) {
       cleaned.transcriptDisplayObjects = updated.transcriptDisplayObjects;

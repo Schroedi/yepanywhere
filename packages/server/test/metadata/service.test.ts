@@ -1213,6 +1213,35 @@ describe("SessionMetadataService", () => {
     });
   });
 
+  describe("nextForkOrdinal", () => {
+    it("hands out rising ordinals per source session and persists them", async () => {
+      await service.initialize();
+
+      expect(await service.nextForkOrdinal("session-1")).toBe(1);
+      expect(await service.nextForkOrdinal("session-1")).toBe(2);
+      // A second source session counts its own forks.
+      expect(await service.nextForkOrdinal("session-2")).toBe(1);
+
+      expect(service.getMetadata("session-1")).toEqual({ forksCreated: 2 });
+
+      const restarted = new SessionMetadataService({ dataDir: testDir });
+      await restarted.initialize();
+      expect(await restarted.nextForkOrdinal("session-1")).toBe(3);
+    });
+
+    it("preserves other metadata while counting forks", async () => {
+      await service.initialize();
+      await service.setTitle("session-1", "My Title");
+
+      await service.nextForkOrdinal("session-1");
+
+      expect(service.getMetadata("session-1")).toEqual({
+        customTitle: "My Title",
+        forksCreated: 1,
+      });
+    });
+  });
+
   describe("getAllMetadata", () => {
     it("returns copy of all entries", async () => {
       await service.initialize();
