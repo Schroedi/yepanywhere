@@ -113,7 +113,6 @@ describe("durable artifact grants", () => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);
     const server = serverFor(base, {
       expiryDays: 1,
-      deleteOnExpiry: true,
     });
     const grant = await server.createGrant(entry, "local", true);
     expect(grant.owned).toBe(true);
@@ -131,7 +130,6 @@ describe("durable artifact grants", () => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);
     const first = serverFor(base, {
       expiryDays: 1,
-      deleteOnExpiry: true,
     });
     await first.createGrant(entry, "local", true);
     await first.settleExpired();
@@ -141,7 +139,6 @@ describe("durable artifact grants", () => {
     clock.mockReturnValue(now + 25 * 3600_000);
     const second = serverFor(base, {
       expiryDays: 1,
-      deleteOnExpiry: true,
     });
     await second.ready;
     expect(await exists(bundle)).toBe(false);
@@ -150,7 +147,7 @@ describe("durable artifact grants", () => {
 
   it("deletes on revocation and leaves a borrowed directory alone", async () => {
     const { base, bundle, entry } = await workspace();
-    const owning = serverFor(base, { deleteOnExpiry: true });
+    const owning = serverFor(base);
     const owned = await owning.createGrant(entry, "local", true);
     await owning.revoke(owned.id);
     await owning.settleExpired();
@@ -159,7 +156,7 @@ describe("durable artifact grants", () => {
 
     await mkdir(bundle, { recursive: true });
     await writeFile(entry, "<h1>Artifact</h1>");
-    const borrowing = serverFor(base, { deleteOnExpiry: false });
+    const borrowing = serverFor(base);
     const borrowed = await borrowing.createGrant(entry, "local");
     expect(borrowed.owned).toBe(false);
     await borrowing.revoke(borrowed.id);
@@ -171,7 +168,7 @@ describe("durable artifact grants", () => {
   it("refuses to own a working tree or a protected directory", async () => {
     const { base, bundle, entry } = await workspace();
     await mkdir(join(bundle, ".git"), { recursive: true });
-    const server = serverFor(base, { deleteOnExpiry: true });
+    const server = serverFor(base);
     const grant = await server.createGrant(entry, "local", true);
     expect(grant.owned).toBe(false);
     await server.settleExpired();
@@ -195,7 +192,7 @@ describe("durable artifact grants", () => {
     await writeFile(join(bundle, "assets", "app.js"), "// served");
     const now = Date.now();
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);
-    const server = serverFor(base, { expiryDays: 1, deleteOnExpiry: true });
+    const server = serverFor(base, { expiryDays: 1 });
     const grant = await server.createGrant(entry, "local", true);
     expect(grant.owned).toBe(true);
 
@@ -215,7 +212,7 @@ describe("durable artifact grants", () => {
     const { base, bundle, entry } = await workspace();
     const now = Date.now();
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);
-    const server = serverFor(base, { expiryDays: 1, deleteOnExpiry: true });
+    const server = serverFor(base, { expiryDays: 1 });
     await server.createGrant(entry, "local", true);
     clock.mockReturnValue(now + 25 * 3600_000);
     await server.settleExpired();
@@ -226,7 +223,7 @@ describe("durable artifact grants", () => {
   it("refuses to own a directory under a home directory", async () => {
     const { base, bundle, entry } = await workspace();
     home.path = base;
-    const server = serverFor(base, { expiryDays: 1, deleteOnExpiry: true });
+    const server = serverFor(base, { expiryDays: 1 });
     const grant = await server.createGrant(entry, "local", true);
     expect(grant.owned).toBe(false);
 
@@ -252,7 +249,7 @@ describe("durable artifact grants", () => {
     await git(checkout, ["init"]);
     await git(checkout, ["add", "docs/index.html"]);
 
-    const server = serverFor(base, { expiryDays: 1, deleteOnExpiry: true });
+    const server = serverFor(base, { expiryDays: 1 });
     const grant = await server.createGrant(entry, "local", true);
     expect(grant.owned).toBe(true);
 
@@ -277,7 +274,7 @@ describe("durable artifact grants", () => {
     await git(checkout, ["init"]);
     await git(checkout, ["add", "docs/index.html"]);
 
-    const server = serverFor(base, { expiryDays: 1, deleteOnExpiry: true });
+    const server = serverFor(base, { expiryDays: 1 });
     const grant = await server.createGrant(entry, "local", true);
     expect(grant.owned).toBe(false);
 
@@ -291,13 +288,17 @@ describe("durable artifact grants", () => {
 
   it("never inherits ownership from configuration", async () => {
     const { base, entry } = await workspace();
-    const server = serverFor(base, { deleteOnExpiry: true });
+    // `deleteOnExpiry` was a setting that never reached this decision; a
+    // config still carrying it, saved or sent either way, changes nothing.
+    const server = serverFor(base, { deleteOnExpiry: false });
     const owned = await server.createGrant(entry, "local", true);
-    await server.configure({ ...server.config, deleteOnExpiry: false });
     expect(owned.owned).toBe(true);
+    await server.configure({
+      ...server.config,
+      deleteOnExpiry: true,
+    } as typeof server.config);
     const borrowed = await server.createGrant(entry, "local");
     expect(borrowed.owned).toBe(false);
-    // An explicit request still overrides the configured default either way.
     expect((await server.createGrant(entry, "local", true)).owned).toBe(true);
     await server.close();
   });

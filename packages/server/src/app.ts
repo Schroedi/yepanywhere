@@ -832,9 +832,7 @@ export function createApp(options: AppOptions): AppResult {
       port: 4402,
     };
   artifactServer = new ArtifactServer(
-    // The mechanism borrows by default; YA's own product default is to let a
-    // link clean up the directory it was created for.
-    validateArtifactConfig(artifactConfig, undefined, true),
+    validateArtifactConfig(artifactConfig),
     localResourcePathPolicy,
     {
       stateDir: join(effectiveDataDir, "artifacts"),

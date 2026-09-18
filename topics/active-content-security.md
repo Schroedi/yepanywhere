@@ -533,10 +533,11 @@ ownership only to a request that asks for it with `owned`; everything else
 borrows. That asymmetry is deliberate: an interactive preview of a file the
 user already had must not delete it when the viewer closes, and only the
 caller that produced a directory can know it is disposable. YA's capture
-command asks, because it wrote the directory it is publishing. The setting
-**Delete captured artifacts when their link expires**, on by default, is what
-that caller consults. Changing it is not retroactive in either direction:
-existing grants keep the mode they were created with.
+command asks, because it wrote the directory it is publishing; a caller that
+wants its capture to outlive the link passes `ownArtifact: false` and borrows
+instead. No setting governs this: the request is the whole decision, so the
+settings page states the resulting behaviour instead of offering a control
+that could only contradict the caller.
 
 A pending deletion is part of the persisted state, so a server that stops
 between expiry and deletion still deletes on its next start. Deletion is

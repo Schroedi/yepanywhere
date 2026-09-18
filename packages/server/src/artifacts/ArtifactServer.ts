@@ -329,7 +329,6 @@ export class ArtifactServer {
     config = validateArtifactConfig(
       config,
       this.config.expiryDays,
-      this.config.deleteOnExpiry,
       this.config,
     );
     const previous = this.config;

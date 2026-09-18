@@ -331,9 +331,11 @@ it("validates whole expiry days, rounding a legacy hours write up to a day", () 
       "whole hours",
     );
   }
-  expect(() =>
-    validateArtifactConfig({ port: 4402, deleteOnExpiry: "yes" }),
-  ).toThrow("true or false");
+  // A settings file or hosted client written before the setting was removed
+  // still sends it; it is dropped rather than rejected.
+  expect(
+    validateArtifactConfig({ port: 4402, deleteOnExpiry: true }),
+  ).not.toHaveProperty("deleteOnExpiry");
 });
 
 it("keeps launch overrides explicit and rejects shared-loopback origins", () => {
