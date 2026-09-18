@@ -390,6 +390,16 @@ export class SessionActivationCoordinator {
     };
   }
 
+  /**
+   * Snapshot a live process's current settings (model, effort, thinking,
+   * mode) as the session's durable launch settings, so a restart that follows
+   * — a same-session rewind, for example — resumes with what the user last
+   * applied rather than what the process was launched with.
+   */
+  async persistLiveProcessLaunchSettings(process: Process): Promise<void> {
+    await this.persistProcessLaunchSettings(process);
+  }
+
   private async persistProcessLaunchSettings(process: Process): Promise<void> {
     const state = this.stateFor(process.sessionId);
     const pending: PendingProcessLaunchSettings = {

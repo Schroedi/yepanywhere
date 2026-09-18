@@ -4754,6 +4754,13 @@ export class Supervisor {
     return result;
   }
 
+  /** Persist the live process's current settings before a planned restart. */
+  async persistLiveLaunchSettings(sessionId: string): Promise<void> {
+    const process = this.getProcessForSession(sessionId);
+    if (!process || process.isTerminated) return;
+    await this.activationCoordinator.persistLiveProcessLaunchSettings(process);
+  }
+
   async abortSessionWithVerification(
     sessionId: string,
   ): Promise<ProcessAbortResult | null> {

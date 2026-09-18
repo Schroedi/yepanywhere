@@ -5853,6 +5853,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
 
     let processAborted = false;
     if (process) {
+      // A mid-session effort/model/mode change lives only on the process;
+      // persist it so the resume after this rewind (and every clearloop
+      // iteration) launches with the current settings.
+      await deps.supervisor.persistLiveLaunchSettings(sessionId);
       await deps.supervisor.abortSessionWithVerification(sessionId);
       processAborted = true;
     }

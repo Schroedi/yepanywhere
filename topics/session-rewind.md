@@ -252,6 +252,13 @@ iteration count. It rides the session summaries (`clearloopRemaining`) and
 the session metadata change event, so it updates live and clears when the
 loop ends.
 
+**Settings changes take effect on the next iteration.** Before a rewind
+stops the live process it persists that process's current effort, thinking,
+model, and permission mode as the session's launch settings, so the resume
+that sends the next prompt (a clearloop iteration or the user's next send)
+uses what was last applied mid-session rather than the original launch
+values.
+
 **The loop's own rewind is not a stop.** Rewinding stops the live process
 to arm the truncating resume, which raises the same session-aborted signal
 as the stop button. The service ignores that signal while its own rewind is
