@@ -110,19 +110,17 @@ async function main(): Promise<void> {
         throw new Error(`Unknown provider ${request.providerName}`);
       if (request.providerName === "claude-gateway") {
         await provider.getAvailableModels();
-        const gatewayProcessGroupId =
-          ClaudeGatewayProvider.getOwnedGatewayProcessGroupId();
-        if (gatewayProcessGroupId) {
-          if (typeof process.send === "function" && process.connected) {
-            process.send({
-              type: "retainedProcessGroup",
-              processGroupId: gatewayProcessGroupId,
-            });
-          }
-          ClaudeGatewayProvider.relinquishOwnedGatewayProcessGroup(
-            gatewayProcessGroupId,
-          );
-        }
+        await ClaudeGatewayProvider.retainOwnedGatewayProcessGroups(
+          (processGroupId) => {
+            // A worker with no live channel still gives the child up: the
+            // gateway is a shared service that has to outlive this session
+            // either way, and killing it on this worker's exit is worse than
+            // the runtime host not knowing about it.
+            if (typeof process.send === "function" && process.connected) {
+              process.send({ type: "retainedProcessGroup", processGroupId });
+            }
+          },
+        );
       }
 
       const sandboxOptions = providerOptions.sessionSandboxOptions;

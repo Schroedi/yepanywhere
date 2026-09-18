@@ -75,6 +75,11 @@ model serving.
 - Each service owns its own launcher: reconfiguring or removing one never
   disturbs another's process, and a removed entry's child and pending stop
   check are torn down with it.
+- A server restart hands over *every* service child YA owns, not one of them:
+  each is retained by the wrapper or the provider runtime host before its
+  launcher gives up ownership, so no service is stopped merely because another
+  service was handed over first. A child whose handoff fails stays owned and is
+  stopped with the server, which is also what keeps the failure visible.
 
 ### Catalogs and model identity
 

@@ -521,6 +521,15 @@ function relinquishGatewayProcessGroup(processGroupId: number): boolean {
   return false;
 }
 
+/** What became of one owned service child during a handoff. */
+export interface GatewayProcessGroupRetention {
+  processGroupId: number;
+  /** Whatever the handoff threw; the launcher still owns this child. */
+  error?: unknown;
+  /** True once the launcher handed this child to the retainer. */
+  relinquished: boolean;
+}
+
 /**
  * Ask a service to stop once nothing uses it.
  *
@@ -758,16 +767,35 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
     await shutdownGatewayServiceLaunchers();
   }
 
-  static getOwnedGatewayProcessGroupId(): number | undefined {
-    return ownedGatewayProcessGroupIds()[0];
-  }
-
-  static getOwnedGatewayProcessGroupIds(): number[] {
-    return ownedGatewayProcessGroupIds();
-  }
-
-  static relinquishOwnedGatewayProcessGroup(processGroupId: number): boolean {
-    return relinquishGatewayProcessGroup(processGroupId);
+  /**
+   * Hand every owned service child to something that outlives this process.
+   *
+   * Each configured service owns its own foreground child, so a restart has to
+   * walk all of them: handing over only the first left every other service's
+   * child to die with the server that spawned it. `retain` runs before the
+   * launcher gives a child up, so a child whose `retain` throws stays owned
+   * here and the caller's ordinary stop path still reaches it. One service's
+   * failure does not end the walk — a caller that treats a failure as fatal
+   * reports it from the returned records, once the remaining children are
+   * safe.
+   */
+  static async retainOwnedGatewayProcessGroups(
+    retain: (processGroupId: number) => void | Promise<void>,
+  ): Promise<GatewayProcessGroupRetention[]> {
+    const retentions: GatewayProcessGroupRetention[] = [];
+    for (const processGroupId of ownedGatewayProcessGroupIds()) {
+      try {
+        await retain(processGroupId);
+      } catch (error) {
+        retentions.push({ processGroupId, error, relinquished: false });
+        continue;
+      }
+      retentions.push({
+        processGroupId,
+        relinquished: relinquishGatewayProcessGroup(processGroupId),
+      });
+    }
+    return retentions;
   }
 
   static getGatewayUrl(): string | undefined {

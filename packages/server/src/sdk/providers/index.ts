@@ -189,15 +189,13 @@ function hostedProvider(rawProvider: AgentProvider): AgentProvider {
       ) {
         return async () => {
           const models = await target.getAvailableModels();
-          const processGroupId =
-            ClaudeGatewayProvider.getOwnedGatewayProcessGroupId();
-          if (processGroupId) {
-            await retainProviderRuntimeProcessGroup(processGroupId);
-            if (
-              !ClaudeGatewayProvider.relinquishOwnedGatewayProcessGroup(
-                processGroupId,
-              )
-            ) {
+          const retentions =
+            await ClaudeGatewayProvider.retainOwnedGatewayProcessGroups(
+              retainProviderRuntimeProcessGroup,
+            );
+          for (const retention of retentions) {
+            if (retention.error) throw retention.error;
+            if (!retention.relinquished) {
               throw new Error(
                 "Claude Gateway ownership changed during host transfer",
               );

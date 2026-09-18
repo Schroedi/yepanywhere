@@ -321,26 +321,28 @@ async function gracefulShutdown(signal: string): Promise<void> {
   }
 
   let retainedGateway = false;
-  const gatewayProcessGroupId =
-    signal === "SIGHUP"
-      ? ClaudeGatewayProvider.getOwnedGatewayProcessGroupId()
-      : undefined;
-  if (gatewayProcessGroupId) {
-    try {
-      await retainProviderRuntimeProcessGroup(gatewayProcessGroupId);
-      retainedGateway =
-        ClaudeGatewayProvider.relinquishOwnedGatewayProcessGroup(
-          gatewayProcessGroupId,
-        );
-      if (retainedGateway) {
-        console.log("[Shutdown] Managed Claude Gateway retained by wrapper");
-      }
-    } catch (error) {
-      console.error(
-        "[Shutdown] Could not retain managed Claude Gateway:",
-        error,
+  if (signal === "SIGHUP") {
+    const retentions =
+      await ClaudeGatewayProvider.retainOwnedGatewayProcessGroups(
+        retainProviderRuntimeProcessGroup,
       );
+    for (const retention of retentions) {
+      if (retention.error) {
+        console.error(
+          `[Shutdown] Could not retain managed Claude Gateway process group ${retention.processGroupId}:`,
+          retention.error,
+        );
+      } else if (retention.relinquished) {
+        console.log(
+          `[Shutdown] Managed Claude Gateway process group ${retention.processGroupId} retained by wrapper`,
+        );
+      }
     }
+    // Stop the gateway unless every service handed its child over: a child
+    // that stayed owned here is still this process's to kill.
+    retainedGateway =
+      retentions.length > 0 &&
+      retentions.every((retention) => retention.relinquished);
   }
   if (!retainedGateway) {
     try {
