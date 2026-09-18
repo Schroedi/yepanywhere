@@ -15,7 +15,7 @@ import type { Process } from "../supervisor/Process.js";
 export interface SessionQueueSummaryDeps {
   sessionQueuePersistenceService?: SessionQueuePersistenceService;
   sessionMetadataService?: Pick<SessionMetadataService, "getMetadata">;
-  clearloopService?: Pick<ClearloopService, "getRunningJob">;
+  clearloopService?: Pick<ClearloopService, "getRunningJob" | "getProgress">;
 }
 
 export function persistedPatientQueueSummary(
@@ -116,7 +116,10 @@ export function sessionQueueSummaries(
   // The clearloop entry is always last: it owns its own send boundary and
   // never holds a deferred or patient position (topics/session-rewind.md).
   const clearloop = deps.clearloopService?.getRunningJob(sessionId);
-  return clearloop
+  const progress = clearloop
+    ? deps.clearloopService?.getProgress(sessionId)
+    : undefined;
+  return clearloop && progress
     ? [
         ...ordered,
         {
@@ -125,11 +128,7 @@ export function sessionQueueSummaries(
           timestamp: clearloop.startedAt,
           kind: "ya-command" as const,
           yaCommand: "clearloop" as const,
-          clearloop: {
-            completed: clearloop.completed,
-            total: clearloop.total,
-            state: clearloop.state,
-          },
+          clearloop: progress,
           status: "queued" as const,
         },
       ]

@@ -1,6 +1,7 @@
 import type {
   MarkdownAugment,
   ProjectQueueItemStatus,
+  SessionQueuedClearloopProgress,
   SessionQueuedMessageSummary,
   TranscriptDisplayObject,
   UploadedFile,
@@ -1093,6 +1094,31 @@ interface QueuedMessageActionsProps {
   onCancel?: () => void;
   /** Overrides the default cancel label (used by the /clearloop entry). */
   cancelLabel?: string;
+}
+
+/**
+ * Client-side countdown to the next /clearloop rewind: the server publishes
+ * the quiet anchor and window (topics/session-rewind.md), and this ticks once
+ * a second locally; no server update drives the seconds.
+ */
+function ClearloopCountdown({
+  progress,
+}: {
+  progress: SessionQueuedClearloopProgress;
+}) {
+  const { t } = useI18n();
+  const nowMs = useRelativeNow(1000);
+  const quietSinceMs = progress.quietSince
+    ? Date.parse(progress.quietSince)
+    : Number.NaN;
+  if (Number.isNaN(quietSinceMs) || progress.windowSeconds === undefined) {
+    return <>{t("clearloopWorking")}</>;
+  }
+  const remaining = Math.max(
+    0,
+    Math.ceil((quietSinceMs + progress.windowSeconds * 1000 - nowMs) / 1000),
+  );
+  return <>{t("clearloopCountdown", { seconds: String(remaining) })}</>;
 }
 
 const subscribeComposerEditAvailable = () => () => {};
@@ -5093,7 +5119,9 @@ export const MessageList = memo(function MessageList({
             const deferredStatus = tailRow.isRecovered
               ? t("sessionRecoveredQueuedPaused")
               : isClearloop
-                ? t("clearloopStatus")
+                ? deferred.clearloop && (
+                    <ClearloopCountdown progress={deferred.clearloop} />
+                  )
                 : tailRow.isYaCommand
                   ? t("sessionQueuedYaCommandAfterTurn")
                   : getDeferredMessageStatus({

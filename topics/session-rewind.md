@@ -219,7 +219,14 @@ A running loop reads the current value at each boundary.
 
 **Queue rail entry.** While a loop is running, the canonical queued-message
 projection carries one entry `kind: "ya-command", yaCommand: "clearloop"`
-with the prompt, `m/M`, and state. It renders through the existing chip
+with the prompt, `m/M`, and state. Once the server observes inactivity the
+entry also carries the quiet anchor (`quietSince`) and the window; the
+client counts down to the next rewind once a second from that anchor
+locally, with no per-second server traffic. The server republishes the
+entry whenever it re-checks (every 5 s while the provider is busy, once when
+quiet), so a moved anchor corrects the countdown within that lag. The loop
+itself runs on the server and does not depend on any client viewing the
+session. It renders through the existing chip
 surface with a **m/M badge**, is always ordered last in the rail, and its
 tooltip shows the full prompt. It never occupies a deferred, patient, or
 provider delivery position, exposes no Steer or edit action, and no queued

@@ -57,6 +57,13 @@ describe("sessionQueueSummaries clearloop entry", () => {
             startedAt: "2026-09-18T09:00:00.000Z",
             commandText: "/clearloop 1 3: try again",
           }),
+          getProgress: () => ({
+            completed: 1,
+            total: 3,
+            state: "running" as const,
+            quietSince: "2026-09-18T09:00:30.000Z",
+            windowSeconds: 60,
+          }),
         },
       },
       "session-1",
@@ -69,7 +76,13 @@ describe("sessionQueueSummaries clearloop entry", () => {
         timestamp: "2026-09-18T09:00:00.000Z",
         kind: "ya-command",
         yaCommand: "clearloop",
-        clearloop: { completed: 1, total: 3, state: "running" },
+        clearloop: {
+          completed: 1,
+          total: 3,
+          state: "running",
+          quietSince: "2026-09-18T09:00:30.000Z",
+          windowSeconds: 60,
+        },
         status: "queued",
       },
     ]);
@@ -79,7 +92,10 @@ describe("sessionQueueSummaries clearloop entry", () => {
     const deferred = sessionQueueSummaries(
       {
         sessionMetadataService: { getMetadata: () => undefined },
-        clearloopService: { getRunningJob: () => undefined },
+        clearloopService: {
+          getRunningJob: () => undefined,
+          getProgress: () => undefined,
+        },
       },
       "session-1",
       undefined,

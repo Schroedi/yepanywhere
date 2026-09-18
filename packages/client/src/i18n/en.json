@@ -2174,6 +2174,8 @@
   "clearloopFailed": "clearloop failed: {message}",
   "clearloopProgress": "clearloop {completed}/{total}",
   "clearloopStatus": "Repeating after turn — cancel keeps the current work",
+  "clearloopWorking": "Working — the countdown starts once the session is quiet",
+  "clearloopCountdown": "Next rewind in {seconds}s of quiet",
   "clearloopCancel": "Cancel clearloop",
   "clearloopCancelFailed": "Could not cancel clearloop: {message}",
   "rewoundGroupLabel": "/clear {index}",

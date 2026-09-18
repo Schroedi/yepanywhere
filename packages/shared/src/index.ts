@@ -946,6 +946,7 @@ export type {
   SessionMetadataResponse,
   SessionQueuedMessageKind,
   SessionQueuedMessageStatus,
+  SessionQueuedClearloopProgress,
   SessionQueuedMessageSummary,
   SessionQueuedYaCommand,
   // Agent session types

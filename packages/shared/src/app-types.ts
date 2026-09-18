@@ -668,6 +668,13 @@ export interface SessionQueuedClearloopProgress {
   completed: number;
   total: number;
   state: "running" | "completed" | "cancelled" | "interrupted";
+  /**
+   * ISO time the session was last active, published once the server has
+   * observed inactivity; the next rewind is due `windowSeconds` after it.
+   * Absent while the provider is still working.
+   */
+  quietSince?: string;
+  windowSeconds?: number;
 }
 
 export type SessionQueuedMessageKind = "deferred" | "patient" | "ya-command";

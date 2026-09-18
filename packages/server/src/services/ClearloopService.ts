@@ -14,6 +14,7 @@ import type {
   DurableLocalCommandMessage,
   SessionClearloopJob,
   SessionClearloopState,
+  SessionQueuedClearloopProgress,
   UrlProjectId,
 } from "@yep-anywhere/shared";
 import type { SessionMetadataService } from "../metadata/SessionMetadataService.js";
@@ -209,12 +210,15 @@ export class ClearloopService {
   }
 
   /** End the iteration once the session has been quiet for the window. */
-  private async check(sessionId: string): Promise<void> {
-    const context = this.contexts.get(sessionId);
-    const job = this.getRunningJob(sessionId);
-    if (!context || !job || context.working) return;
-    const now = Date.now();
-    const windowMs = this.options.getInactivitySeconds() * 1000;
+  /**
+   * When the session last did anything (user send, provider progress), or
+   * `busy` while a turn is running and the due time is unknown.
+   */
+  private readQuietAnchor(
+    sessionId: string,
+    job: SessionClearloopJob,
+    now: number,
+  ): { busy: true } | { busy: false; anchorMs: number } {
     const process = this.options
       .getSupervisor()
       .getProcessForSession(sessionId);
@@ -223,8 +227,7 @@ export class ClearloopService {
     if (sentAt !== null) candidates.push(sentAt);
     if (process) {
       if (process.state.type === "in-turn" || process.queueDepth > 0) {
-        this.scheduleCheck(sessionId, BUSY_RECHECK_MS);
-        return;
+        return { busy: true };
       }
       const liveness = process.getLivenessSnapshot(new Date(now));
       const state = process.state;
@@ -236,8 +239,45 @@ export class ClearloopService {
         if (value !== null) candidates.push(value);
       }
     }
-    const anchor = candidates.length > 0 ? Math.max(...candidates) : now;
-    const dueInMs = anchor + windowMs - now;
+    return {
+      busy: false,
+      anchorMs: candidates.length > 0 ? Math.max(...candidates) : now,
+    };
+  }
+
+  /** Queue-entry progress for the running loop, with the countdown anchor. */
+  getProgress(sessionId: string): SessionQueuedClearloopProgress | undefined {
+    const job = this.getRunningJob(sessionId);
+    if (!job) return undefined;
+    const quiet = this.readQuietAnchor(sessionId, job, Date.now());
+    return {
+      completed: job.completed,
+      total: job.total,
+      state: job.state,
+      ...(quiet.busy
+        ? {}
+        : {
+            quietSince: new Date(quiet.anchorMs).toISOString(),
+            windowSeconds: this.options.getInactivitySeconds(),
+          }),
+    };
+  }
+
+  private async check(sessionId: string): Promise<void> {
+    const context = this.contexts.get(sessionId);
+    const job = this.getRunningJob(sessionId);
+    if (!context || !job || context.working) return;
+    const now = Date.now();
+    const windowMs = this.options.getInactivitySeconds() * 1000;
+    const quiet = this.readQuietAnchor(sessionId, job, now);
+    // Every check republishes the entry so clients see the busy/quiet
+    // transition and can count down from the current anchor.
+    this.publishQueueEntry(sessionId);
+    if (quiet.busy) {
+      this.scheduleCheck(sessionId, BUSY_RECHECK_MS);
+      return;
+    }
+    const dueInMs = quiet.anchorMs + windowMs - now;
     if (dueInMs > 0) {
       this.scheduleCheck(sessionId, dueInMs);
       return;
@@ -283,8 +323,15 @@ export class ClearloopService {
       ...(context ? { projectId: context.projectId } : {}),
       timestamp: new Date().toISOString(),
     });
-    // A live process republishes the queue projection so the m/M badge
-    // updates without a reload; a dead session refreshes on its next read.
+    this.publishQueueEntry(sessionId);
+  }
+
+  /**
+   * A live process republishes the queue projection so the m/M badge and
+   * countdown update without a reload; a dead session refreshes on its next
+   * read.
+   */
+  private publishQueueEntry(sessionId: string): void {
     this.options
       .getSupervisor()
       .getProcessForSession(sessionId)
