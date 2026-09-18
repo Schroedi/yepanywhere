@@ -541,10 +541,19 @@ existing grants keep the mode they were created with.
 A pending deletion is part of the persisted state, so a server that stops
 between expiry and deletion still deletes on its next start. Deletion is
 refused, and the grant is created as borrowing instead, when the directory is
-a Git working tree, a home directory, the checkout root, or the YA data
-directory; a directory that holds a repository or an operator's home is not a
-disposable artifact bundle, whatever a caller claims. A deletion that fails is
-recorded and dropped rather than retried forever.
+a working tree's own root, a home directory, or a directory holding YA's data
+directory, and — outside any working tree, where nothing else distinguishes a
+bundle from ordinary content — when it sits under a home directory or under
+YA's state. `~/Downloads` is the case that decides that rule.
+
+Inside a working tree, location is not the evidence: a capture written to
+`<checkout>/.artifacts/` is still the caller's to clean up. There the frozen
+fileset excludes Git's own metadata and every path Git tracks under the root,
+staged-but-uncommitted included, so a capture beside a checkout's own files may
+take itself away and leaves them. Tracked-ness is read once, when the grant is
+created. A root whose files are all the working tree's own leaves nothing to
+own, so it borrows; so does a root where Git will not answer. A deletion that
+fails is recorded and dropped rather than retried forever.
 
 The frame remains in the existing viewer owner while parked; no cooperative
 suspension or CPU/memory containment is claimed. Dedicated HTML viewport,

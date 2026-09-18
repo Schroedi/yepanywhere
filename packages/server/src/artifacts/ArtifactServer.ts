@@ -440,8 +440,9 @@ export class ArtifactServer {
     // the user already had must not delete it when the viewer closes. Only a
     // caller that produced the directory says so, by asking.
     const wants = owned === true;
-    // Ownership freezes the fileset: exactly what is here now is what this
-    // grant may remove later, whatever else the directory collects.
+    // Ownership freezes the fileset: what is here now and is not the working
+    // tree's own is what this grant may remove later, whatever else the
+    // directory collects. Nothing left to own means nothing to own it.
     const frozen =
       wants && (await deletableDirectory(root, this.protectedPaths))
         ? await GrantStore.freeze(root)

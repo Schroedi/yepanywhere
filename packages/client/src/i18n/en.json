@@ -181,7 +181,7 @@
   "artifactExpiryDaysLabel": "Link expiry (days)",
   "artifactExpiryDaysHint": "1–30 days. Applies to new links; existing links keep their original expiry.",
   "artifactDeleteOnExpiry": "Delete captured artifacts when their link expires",
-  "artifactDeleteOnExpiryHint": "Applies to artifacts YA itself produces, such as captures: their directory is removed when the link expires or is revoked. Previewing a file you already had never deletes anything. Only the files present when the link was created are removed, the directory goes only if it is then empty, and a directory holding a Git repository, a home directory, or YA's own state is never touched.",
+  "artifactDeleteOnExpiryHint": "Applies to artifacts YA itself produces, such as captures: their directory is removed when the link expires or is revoked. Previewing a file you already had never deletes anything. Only the files present when the link was created are removed, the directory goes only if it is then empty, and files Git tracks are left where they are. A checkout's own root, a home directory or anything under it, and YA's own state are never treated as artifact directories.",
   "appsSettingsAutosave": "Text fields save when you leave them. Toggles and sliders save when changed.",
   "artifactSaved": "Artifact settings saved",
   "artifactSaving": "Saving…",
