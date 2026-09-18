@@ -83,6 +83,7 @@ import type {
   SessionForkedEvent,
   SessionIdRemappedEvent,
   SessionStatusEvent,
+  SessionStopRequestedEvent,
   SessionUpdatedEvent,
   WorkerActivityEvent,
 } from "../watcher/EventBus.js";
@@ -566,8 +567,6 @@ export interface SupervisorOptions {
   onProcessInventoryChanged?: () => void;
   /** Callback to fetch session summary for initial metadata reconciliation */
   onSessionSummary?: OnSessionSummaryCallback;
-  /** Notification policy only; called before a supported manual turn stop. */
-  onSessionStopRequested?: (sessionId: string) => void;
   /** Best-effort transcript recovery for sessions without a launch snapshot. */
   recoverSessionLaunchSettings?: RecoverSessionLaunchSettingsCallback;
   /** Callback to read the current heartbeat-turn settings for a session */
@@ -659,7 +658,6 @@ export class Supervisor {
     };
   }
   private onSessionSummary?: OnSessionSummaryCallback;
-  private onSessionStopRequested?: (sessionId: string) => void;
   private recoverSessionLaunchSettings?: RecoverSessionLaunchSettingsCallback;
   private staleCheckTimer: ReturnType<typeof setInterval>;
   private getHeartbeatTurnSettings?: (
@@ -760,7 +758,6 @@ export class Supervisor {
     this.getSessionChildEnv = options.getSessionChildEnv;
     this.onContextWindowObserved = options.onContextWindowObserved;
     this.onSessionSummary = options.onSessionSummary;
-    this.onSessionStopRequested = options.onSessionStopRequested;
     this.recoverSessionLaunchSettings = options.recoverSessionLaunchSettings;
     this.getHeartbeatTurnSettings = options.getHeartbeatTurnSettings;
     this.getHeartbeatTurnCandidates = options.getHeartbeatTurnCandidates;
@@ -4781,7 +4778,7 @@ export class Supervisor {
     if (!process) return { success: false, supported: false };
 
     if (process.supportsInterrupt) {
-      this.onSessionStopRequested?.(process.sessionId);
+      this.emitSessionStopRequested(process.sessionId, process.projectId);
     }
 
     await this.pauseRecapsUntilUserTurn(processId);
@@ -5078,6 +5075,25 @@ export class Supervisor {
 
     const event: SessionAbortedEvent = {
       type: "session-aborted",
+      sessionId,
+      projectId,
+      timestamp: new Date().toISOString(),
+    };
+    this.eventBus.emit(event);
+  }
+
+  /**
+   * Announce an intentional stop of the current turn before the interrupt is
+   * attempted, so a listener sees it ahead of the idle report the stop causes.
+   */
+  private emitSessionStopRequested(
+    sessionId: string,
+    projectId: UrlProjectId,
+  ): void {
+    if (!this.eventBus) return;
+
+    const event: SessionStopRequestedEvent = {
+      type: "session-stop-requested",
       sessionId,
       projectId,
       timestamp: new Date().toISOString(),

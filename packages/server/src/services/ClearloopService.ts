@@ -100,10 +100,15 @@ export class ClearloopService {
 
   constructor(private readonly options: ClearloopServiceOptions) {
     options.eventBus?.subscribe((event) => {
-      if (event.type !== "session-aborted") return;
-      // The loop's own rewind stops the live process to arm the truncating
-      // resume; only a stop it did not request ends the loop.
-      if (this.contexts.get(event.sessionId)?.rewinding) return;
+      if (event.type === "session-aborted") {
+        // The loop's own rewind aborts the live process to arm the truncating
+        // resume; only a stop it did not request ends the loop.
+        if (this.contexts.get(event.sessionId)?.rewinding) return;
+      } else if (event.type !== "session-stop-requested") {
+        return;
+      }
+      // A stop request is never the loop's own: the rewind aborts rather than
+      // interrupting, so this one always came from outside the loop.
       void this.interrupt(event.sessionId, "Session was stopped");
     });
   }

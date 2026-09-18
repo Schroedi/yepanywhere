@@ -285,10 +285,12 @@ that sends the next prompt (a clearloop iteration or the user's next send)
 uses what was last applied mid-session rather than the original launch
 values.
 
-**The loop's own rewind is not a stop.** Rewinding stops the live process
-to arm the truncating resume, which raises the same session-aborted signal
-as the stop button. The service ignores that signal while its own rewind is
-in flight; only a stop it did not request interrupts the loop.
+**The loop's own rewind is not a stop.** Rewinding aborts the live process
+to arm the truncating resume, which raises the same abort signal as a kill.
+The service ignores that signal while its own rewind is in flight; only a
+stop it did not request interrupts the loop. A requested turn stop is a
+separate signal that the rewind never raises, so it ends the loop whenever
+it arrives.
 
 **Stopping.**
 

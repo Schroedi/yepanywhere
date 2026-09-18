@@ -240,6 +240,21 @@ export interface SessionAbortedEvent {
 }
 
 /**
+ * Event emitted when something asks this server to stop a live session's
+ * current turn — the Stop control or a restart handoff — before the interrupt
+ * is attempted. The process stays alive and may report idle immediately after,
+ * so listeners that treat an idle report as finished work use this to tell an
+ * intentional stop from a completed turn. A hard abort emits
+ * `session-aborted` instead.
+ */
+export interface SessionStopRequestedEvent {
+  type: "session-stop-requested";
+  sessionId: string;
+  projectId: UrlProjectId;
+  timestamp: string;
+}
+
+/**
  * Event emitted when this server forks a transcript into a new session. The
  * new session's file is written by us, so listeners that infer "another
  * program is writing this session" from file activity must not do so here.
@@ -350,6 +365,7 @@ export type BusEvent =
   | ProjectCodeNameChangedEvent
   | SessionMetadataChangedEvent
   | SessionAbortedEvent
+  | SessionStopRequestedEvent
   | SessionForkedEvent
   | SessionUpdatedEvent
   | NetworkBindingChangedEvent

@@ -1419,10 +1419,6 @@ export function createApp(options: AppOptions): AppResult {
   void clearloopService?.reconcileAfterRestart();
 
   supervisor = new Supervisor({
-    onSessionStopRequested: (sessionId) => {
-      pushNotifier?.suppressSession(sessionId);
-      void clearloopService?.interrupt(sessionId, "Session was stopped");
-    },
     onProcessInventoryChanged: () => {
       // Gateway services that opted into auto-stop need to know when their
       // last session goes away; the live process list is that answer.
