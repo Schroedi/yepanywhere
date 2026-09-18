@@ -53,9 +53,7 @@ export class IssueIndexer {
     readonly store: IssueStore,
     private readonly deps: IssueIndexerDeps,
   ) {
-    store.run(
-      "UPDATE issue_index_jobs SET state='queued' WHERE state='indexing'",
-    );
+    store.requeueIndexing();
   }
   settings(): IssueSettings {
     return this.deps.settings();
@@ -67,9 +65,7 @@ export class IssueIndexer {
     this.store.reconcileJira();
     // Settings decide what a sweep admits, so a change invalidates the mark.
     this.sweptMark = undefined;
-    this.store.run(
-      "UPDATE issue_index_jobs SET state='queued' WHERE state='indexing'",
-    );
+    this.store.requeueIndexing();
     if (!this.settings().enabled || this.closed) return;
     this.refresh();
   }
@@ -191,18 +187,13 @@ export class IssueIndexer {
       current.source === source
     )
       return;
-    this.store.run(
-      `INSERT INTO issue_index_jobs(session_id,project_id,source_version,cursor,state,updated_at,source_json,priority)
-      VALUES (?,?,?,NULL,'queued',?,?,?) ON CONFLICT(session_id) DO UPDATE SET
-      state=CASE WHEN issue_index_jobs.source_version!=excluded.source_version OR issue_index_jobs.state='paused' THEN 'queued' ELSE issue_index_jobs.state END,
-      project_id=excluded.project_id,source_json=excluded.source_json,source_version=excluded.source_version,priority=excluded.priority`,
-      row.sessionId,
+    this.store.admitJob({
+      sessionId: row.sessionId,
       projectId,
-      row.sourceVersion,
-      Date.now(),
+      sourceVersion: row.sourceVersion,
       source,
       priority,
-    );
+    });
   }
   /** Only already-authorized persisted windows enter here; public shares never call it. */
   observe(source: IssueSource, messages: readonly Message[]): void {
@@ -211,12 +202,10 @@ export class IssueIndexer {
     if (this.viewTasks.size >= 16) {
       // Do not allocate another pending task merely to report saturation.
       try {
-        this.store.run(
-          `INSERT INTO issue_index_jobs(session_id,project_id,source_version,state,error,updated_at,source_json,priority) VALUES (?,?,'','partial','Viewed window queue full',?,'null',1)
-           ON CONFLICT(session_id) DO UPDATE SET state=CASE WHEN issue_index_jobs.state='viewed' THEN 'partial' ELSE issue_index_jobs.state END`,
+        this.store.refuseViewedJob(
           source.sessionId,
           source.projectId,
-          Date.now(),
+          "Viewed window queue full",
         );
       } catch {
         this.lastError = "Evidence could not be saved";
@@ -270,14 +259,11 @@ export class IssueIndexer {
         }
       }
       if (!signal.aborted)
-        this.store.run(
-          `INSERT INTO issue_index_jobs(session_id,project_id,source_version,state,error,updated_at,source_json,priority) VALUES (?,?,'',?,?,?,'null',1)
-        ON CONFLICT(session_id) DO UPDATE SET project_id=excluded.project_id,state=CASE WHEN excluded.state='partial' AND issue_index_jobs.state='viewed' THEN 'partial' ELSE issue_index_jobs.state END,error=COALESCE(excluded.error,issue_index_jobs.error)`,
+        this.store.recordViewedJob(
           source.sessionId,
           source.projectId,
           partial ? "partial" : "viewed",
           partial ? "Viewed window exceeded acquisition budget" : null,
-          Date.now(),
         );
     })()
       .catch(() => {
@@ -311,9 +297,7 @@ export class IssueIndexer {
     const signal = this.controller.signal;
     while (!signal.aborted && !this.closed) {
       const resolved = this.store.processResolutions();
-      const jobs = this.store.rows(
-        "SELECT * FROM issue_index_jobs WHERE state='queued' ORDER BY priority DESC,updated_at,session_id LIMIT 16",
-      );
+      const jobs = this.store.nextQueuedJobs(16);
       if (!jobs.length) {
         if (resolved) {
           await yieldTurn();
@@ -324,14 +308,9 @@ export class IssueIndexer {
       let processed = false;
       for (const job of jobs) {
         if (signal.aborted) return;
-        const row: SessionCatalogRow | null = JSON.parse(
-          String(job.source_json),
-        );
+        const row: SessionCatalogRow | null = JSON.parse(job.source);
         if (!row) {
-          this.store.run(
-            "UPDATE issue_index_jobs SET state='viewed' WHERE session_id=?",
-            job.session_id!,
-          );
+          this.store.markJob(job.sessionId, "viewed");
           continue;
         }
         const recent =
@@ -339,28 +318,23 @@ export class IssueIndexer {
           Date.parse(row.updatedAt) >=
             Date.now() - this.settings().recentDays * 86400_000;
         if (!recent && !this.deps.viewed?.(row.sessionId)) {
-          this.store.run(
-            "UPDATE issue_index_jobs SET state='paused' WHERE session_id=?",
-            row.sessionId,
-          );
+          this.store.markJob(row.sessionId, "paused");
           processed = true;
           continue;
         }
         processed = true;
-        this.store.run(
-          "UPDATE issue_index_jobs SET state='indexing' WHERE session_id=?",
-          row.sessionId,
-        );
+        this.store.markJob(row.sessionId, "indexing");
         try {
           const batch = await this.deps.read(row, {
-            cursor: typeof job.cursor === "string" ? job.cursor : undefined,
+            cursor: job.cursor,
             signal,
           });
           if (signal.aborted) return;
           if (!batch) {
-            this.store.run(
-              "UPDATE issue_index_jobs SET state='unsupported',error='Background acquisition unavailable' WHERE session_id=?",
+            this.store.markJob(
               row.sessionId,
+              "unsupported",
+              "Background acquisition unavailable",
             );
             continue;
           }
@@ -377,7 +351,7 @@ export class IssueIndexer {
                   projectId:
                     this.deps.projectForSession?.(row.sessionId) ??
                     row.projectId,
-                  sourceVersion: String(job.source_version),
+                  sourceVersion: job.sourceVersion,
                 },
                 {
                   ...message,
@@ -394,22 +368,23 @@ export class IssueIndexer {
               if (signal.aborted) return;
             }
           }
-          this.store.run(
-            "UPDATE issue_index_jobs SET cursor=?,state=?,error=?,updated_at=? WHERE session_id=? AND source_version=?",
-            batch.cursor,
-            batch.done ? (batch.partial ? "partial" : "indexed") : "queued",
-            batch.partial ? "Some source records could not be indexed" : null,
-            Date.now(),
-            row.sessionId,
-            job.source_version!,
-          );
+          this.store.recordJobBatch(row.sessionId, job.sourceVersion, {
+            cursor: batch.cursor,
+            state: batch.done
+              ? batch.partial
+                ? "partial"
+                : "indexed"
+              : "queued",
+            error: batch.partial
+              ? "Some source records could not be indexed"
+              : null,
+          });
         } catch {
           if (!signal.aborted)
-            this.store.run(
-              "UPDATE issue_index_jobs SET state='failed',error='Session source unavailable or changed',updated_at=? WHERE session_id=? AND source_version=?",
-              Date.now(),
+            this.store.failJob(
               row.sessionId,
-              job.source_version!,
+              job.sourceVersion,
+              "Session source unavailable or changed",
             );
         }
         await yieldTurn();
@@ -424,11 +399,7 @@ export class IssueIndexer {
       knownJiraProjects: this.store.knownJiraProjects(),
       active: Boolean(this.work || this.enumeration || this.viewTasks.size),
       error: this.lastError,
-      counts: this.store
-        .rows(
-          "SELECT state,COUNT(*) AS count FROM issue_index_jobs GROUP BY state",
-        )
-        .map((row) => ({ state: String(row.state), count: Number(row.count) })),
+      counts: this.store.jobStateCounts(),
     };
   }
   /** Fence buffered observations before a user delete; old completed checkpoints stay put. */
@@ -436,18 +407,14 @@ export class IssueIndexer {
     this.controller.abort();
     this.controller = new AbortController();
     this.store.delete(id);
-    this.store.run(
-      "UPDATE issue_index_jobs SET state='queued' WHERE state='indexing'",
-    );
+    this.store.requeueIndexing();
     this.kick();
   }
   remap(oldId: string, newId: string): void {
     this.controller.abort();
     this.controller = new AbortController();
     this.store.remap(oldId, newId);
-    this.store.run(
-      "UPDATE issue_index_jobs SET state='queued' WHERE state='indexing'",
-    );
+    this.store.requeueIndexing();
     this.refresh();
   }
   async settled(): Promise<void> {

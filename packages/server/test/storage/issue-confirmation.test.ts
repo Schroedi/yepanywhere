@@ -8,6 +8,7 @@ import { IssueStore } from "../../src/services/issues/IssueStore.js";
 import { IssueConfirmer } from "../../src/services/issues/confirm.js";
 import { IssueCredentials } from "../../src/services/issues/credentials.js";
 import type { SqliteDatabase, SqliteValue } from "../../src/storage/sqlite.js";
+import { storedRows } from "./sqlite-rows.js";
 
 const directories: string[] = [];
 afterEach(() => {
@@ -50,9 +51,10 @@ function harness(overrides: Partial<IssueSettings> = {}) {
         { id: `${sessionId}-${text.length}`, text },
       ),
     pending: () =>
-      store
-        .rows("SELECT ref_key,state FROM issue_confirmations ORDER BY ref_key")
-        .map((row) => [String(row.ref_key), String(row.state)]),
+      storedRows(
+        store.database,
+        "SELECT ref_key,state FROM issue_confirmations ORDER BY ref_key",
+      ).map((row) => [String(row.ref_key), String(row.state)]),
   };
 }
 
@@ -223,7 +225,8 @@ describe("tracker confirmation", () => {
     expect(h.pending()).toEqual([["PROJ-7", "unreachable"]]);
     expect(fetcher).not.toHaveBeenCalled();
     expect(
-      h.store.rows("SELECT detail FROM issue_confirmations")[0]!.detail,
+      storedRows(h.store.database, "SELECT detail FROM issue_confirmations")[0]!
+        .detail,
     ).toContain("No jira credential");
     await confirmer.close();
     h.db.close();
@@ -283,9 +286,10 @@ describe("tracker confirmation", () => {
     // Paying once still buys the same answer: the resolved key is confirmable,
     // alongside the URL sighting that taught the registry its site.
     expect(
-      store
-        .rows("SELECT ref_key,state FROM issue_confirmations ORDER BY ref_key")
-        .map((row) => [String(row.ref_key), String(row.state)]),
+      storedRows(
+        store.database,
+        "SELECT ref_key,state FROM issue_confirmations ORDER BY ref_key",
+      ).map((row) => [String(row.ref_key), String(row.state)]),
     ).toEqual([
       ["PROJ-1", "pending"],
       ["PROJ-7", "pending"],

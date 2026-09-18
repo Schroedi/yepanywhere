@@ -338,6 +338,22 @@ owns the bounded mapping/candidate reconciliation pass. SQL statements finalize;
 Storage errors do not acknowledge unsaved writes or become successful empty lists.
 The server owns disposal and awaits indexing before closing its database.
 
+`IssueStore` owns every statement against those tables. It answers its callers
+through methods named for the decision being recorded — admit this candidate,
+move this job to this state, record this acquisition batch against the source
+version it read, store this tracker verdict — and exposes no general-purpose
+SQL entry point, so no column name, state string or upsert rule is spelled in
+a route, the index worker or the confirmation worker. The workers keep the
+policy: which state a job earns, and the wording of the reason stored with it.
+
+A hand-attached reference is one such decision and costs one write. The HTTP
+route supplies the session and the URL the user chose; the store mints the
+message identity, records the reference as `manual` evidence and stores the
+user's note as its excerpt in the same insert an extracted reference pays for.
+Manual evidence is authoritative for namespace learning and identity
+resolution even where the extractor would have read the same URL as an
+ordinary mention.
+
 ## Compatibility and migrations
 
 The approved optional-feature review covered v0.8.0 (2026-08-31) and v0.8.1

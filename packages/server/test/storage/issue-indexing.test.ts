@@ -11,6 +11,7 @@ import {
 import { readIssueTextBatch } from "../../src/sessions/issue-text-reader.js";
 import type { SessionCatalogRow } from "../../src/sessions/catalog-types.js";
 import type { SqliteDatabase, SqliteValue } from "../../src/storage/sqlite.js";
+import { storedRows } from "./sqlite-rows.js";
 const dirs: string[] = [];
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -614,9 +615,9 @@ it("re-queues a paused job when the catalog admits it again", async () => {
   indexer.refresh();
   await indexer.settled();
   expect(read).toEqual([]);
-  expect(store.rows("SELECT state FROM issue_index_jobs")[0]?.state).toBe(
-    "paused",
-  );
+  expect(
+    storedRows(store.database, "SELECT state FROM issue_index_jobs")[0]?.state,
+  ).toBe("paused");
 
   // Reopened, and nothing about the catalog row changed. Only the upsert
   // returns a paused job to the queue, so skipping it as unchanged would

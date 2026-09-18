@@ -15,6 +15,7 @@ import {
   issueUrl,
 } from "../../src/services/issues/extract.js";
 import { visibleMessageText } from "../../src/sessions/message-text.js";
+import { storedRows } from "./sqlite-rows.js";
 const dirs: string[] = [];
 const services: DiscoverySqliteService[] = [];
 function fixture() {
@@ -264,18 +265,18 @@ describe("append-only discovery migrations", () => {
         migrateDiscoveryDatabase(db);
         migrateDiscoveryDatabase(db);
         const store = new IssueStore(db);
-        expect(store.rows("PRAGMA user_version")[0]?.user_version).toBe(
+        expect(storedRows(db, "PRAGMA user_version")[0]?.user_version).toBe(
           DISCOVERY_MIGRATIONS.length,
         );
         if (prefix)
-          expect(store.rows("SELECT value FROM retained")[0]?.value).toBe(
+          expect(storedRows(db, "SELECT value FROM retained")[0]?.value).toBe(
             "keep",
           );
         expect(store.list()).toEqual([]);
         expect(() =>
           migrateDiscoveryDatabase(db, DISCOVERY_MIGRATIONS.slice(0, 3)),
         ).toThrow("newer");
-        expect(store.rows("PRAGMA user_version")[0]?.user_version).toBe(
+        expect(storedRows(db, "PRAGMA user_version")[0]?.user_version).toBe(
           DISCOVERY_MIGRATIONS.length,
         );
       } finally {
@@ -296,10 +297,10 @@ describe("append-only discovery migrations", () => {
           },
         ]),
       ).toThrow();
-      const store = new IssueStore(db);
-      expect(store.rows("PRAGMA user_version")[0]?.user_version).toBe(3);
+      expect(storedRows(db, "PRAGMA user_version")[0]?.user_version).toBe(3);
       expect(
-        store.rows(
+        storedRows(
+          db,
           "SELECT name FROM sqlite_schema WHERE name='external_issues'",
         ),
       ).toEqual([]);

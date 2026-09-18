@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type {
   SqliteDatabase,
   SqliteRow,
@@ -28,6 +28,29 @@ export interface AdmittedJob {
   /** Serialized catalog row, compared verbatim against the candidate's. */
   source: string;
 }
+/** One candidate session the worker may pick up, as the queue holds it. */
+export interface QueuedJob {
+  sessionId: string;
+  sourceVersion: string;
+  /** Acquisition position to resume from, absent before the first read. */
+  cursor?: string;
+  /** Serialized catalog row; `"null"` for a viewed window with no catalog row. */
+  source: string;
+}
+/** A candidate admitted by a catalog sweep. */
+export interface JobAdmission {
+  sessionId: string;
+  projectId: string;
+  sourceVersion: string;
+  source: string;
+  priority: number;
+}
+/** A tracker reference awaiting its one confirmation query. */
+export interface PendingConfirmation {
+  projectId: string;
+  provider: string;
+  refKey: string;
+}
 const escaped = (value: string) => `%${value.replace(/[\\%_]/g, "\\$&")}%`;
 export const unresolvedId = (project: string, key: string) =>
   `ref:${JSON.stringify([project, key])}`;
@@ -43,7 +66,7 @@ export class IssueStore {
       recentDays: 7,
     }),
   ) {}
-  rows(sql: string, ...values: SqliteValue[]): SqliteRow[] {
+  private rows(sql: string, ...values: SqliteValue[]): SqliteRow[] {
     const s = this.database.prepare(sql);
     try {
       return s.all(...values);
@@ -51,7 +74,7 @@ export class IssueStore {
       s.finalize();
     }
   }
-  run(sql: string, ...values: SqliteValue[]): void {
+  private run(sql: string, ...values: SqliteValue[]): void {
     const s = this.database.prepare(sql);
     try {
       s.run(...values);
@@ -117,6 +140,170 @@ export class IssueStore {
         projectId,
       );
     });
+  }
+  // The operational tables below are driven by the index worker and the
+  // confirmation worker. They are named after what the caller is deciding, so
+  // no column name, state string or upsert rule lives outside this file; the
+  // workers own the policy, the store owns the statements.
+  /** Return jobs a previous process left mid-acquisition to the queue. */
+  requeueIndexing(): void {
+    this.run(
+      "UPDATE issue_index_jobs SET state='queued' WHERE state='indexing'",
+    );
+  }
+  /**
+   * Admit one catalog candidate. A changed source version or a paused job
+   * returns to the queue; an already-running or finished job keeps its state.
+   */
+  admitJob(job: JobAdmission): void {
+    this.run(
+      `INSERT INTO issue_index_jobs(session_id,project_id,source_version,cursor,state,updated_at,source_json,priority)
+      VALUES (?,?,?,NULL,'queued',?,?,?) ON CONFLICT(session_id) DO UPDATE SET
+      state=CASE WHEN issue_index_jobs.source_version!=excluded.source_version OR issue_index_jobs.state='paused' THEN 'queued' ELSE issue_index_jobs.state END,
+      project_id=excluded.project_id,source_json=excluded.source_json,source_version=excluded.source_version,priority=excluded.priority`,
+      job.sessionId,
+      job.projectId,
+      job.sourceVersion,
+      Date.now(),
+      job.source,
+      job.priority,
+    );
+  }
+  /** Record a viewed window that was refused outright, without indexing it. */
+  refuseViewedJob(sessionId: string, projectId: string, error: string): void {
+    this.run(
+      `INSERT INTO issue_index_jobs(session_id,project_id,source_version,state,error,updated_at,source_json,priority) VALUES (?,?,'','partial',?,?,'null',1)
+       ON CONFLICT(session_id) DO UPDATE SET state=CASE WHEN issue_index_jobs.state='viewed' THEN 'partial' ELSE issue_index_jobs.state END`,
+      sessionId,
+      projectId,
+      error,
+      Date.now(),
+    );
+  }
+  /** Record a viewed window whose observations have landed. */
+  recordViewedJob(
+    sessionId: string,
+    projectId: string,
+    state: "viewed" | "partial",
+    error: string | null,
+  ): void {
+    this.run(
+      `INSERT INTO issue_index_jobs(session_id,project_id,source_version,state,error,updated_at,source_json,priority) VALUES (?,?,'',?,?,?,'null',1)
+      ON CONFLICT(session_id) DO UPDATE SET project_id=excluded.project_id,state=CASE WHEN excluded.state='partial' AND issue_index_jobs.state='viewed' THEN 'partial' ELSE issue_index_jobs.state END,error=COALESCE(excluded.error,issue_index_jobs.error)`,
+      sessionId,
+      projectId,
+      state,
+      error,
+      Date.now(),
+    );
+  }
+  /** One fair worker batch: viewed windows first, then least recently touched. */
+  nextQueuedJobs(limit: number): QueuedJob[] {
+    return this.rows(
+      "SELECT session_id,source_version,cursor,source_json FROM issue_index_jobs WHERE state='queued' ORDER BY priority DESC,updated_at,session_id LIMIT ?",
+      limit,
+    ).map((row) => ({
+      sessionId: String(row.session_id),
+      sourceVersion: String(row.source_version),
+      ...(typeof row.cursor === "string" ? { cursor: row.cursor } : {}),
+      source: String(row.source_json),
+    }));
+  }
+  /**
+   * Move one job to a new state, leaving its cursor and acquisition time
+   * alone. An `error` is supplied only when the new state carries a reason;
+   * omitting it keeps whatever reason the row already holds.
+   */
+  markJob(sessionId: string, state: string, error?: string): void {
+    if (error === undefined)
+      this.run(
+        "UPDATE issue_index_jobs SET state=? WHERE session_id=?",
+        state,
+        sessionId,
+      );
+    else
+      this.run(
+        "UPDATE issue_index_jobs SET state=?,error=? WHERE session_id=?",
+        state,
+        error,
+        sessionId,
+      );
+  }
+  /**
+   * Record one acquisition batch against the source version it read. A job
+   * whose source changed underneath it matches nothing and keeps the state its
+   * re-admission gave it.
+   */
+  recordJobBatch(
+    sessionId: string,
+    sourceVersion: string,
+    batch: { cursor: string; state: string; error: string | null },
+  ): void {
+    this.run(
+      "UPDATE issue_index_jobs SET cursor=?,state=?,error=?,updated_at=? WHERE session_id=? AND source_version=?",
+      batch.cursor,
+      batch.state,
+      batch.error,
+      Date.now(),
+      sessionId,
+      sourceVersion,
+    );
+  }
+  /** Fail one job against the source version it was reading. */
+  failJob(sessionId: string, sourceVersion: string, error: string): void {
+    this.run(
+      "UPDATE issue_index_jobs SET state='failed',error=?,updated_at=? WHERE session_id=? AND source_version=?",
+      error,
+      Date.now(),
+      sessionId,
+      sourceVersion,
+    );
+  }
+  /** Queue coverage for the settings page: how many jobs hold each state. */
+  jobStateCounts(): { state: string; count: number }[] {
+    return this.rows(
+      "SELECT state,COUNT(*) AS count FROM issue_index_jobs GROUP BY state",
+    ).map((row) => ({ state: String(row.state), count: Number(row.count) }));
+  }
+  /** Queue one reference to be asked about again. */
+  requeueConfirmation(
+    projectId: string,
+    provider: string,
+    refKey: string,
+  ): void {
+    this.run(
+      "UPDATE issue_confirmations SET state='pending' WHERE project_id=? AND provider=? AND ref_key=?",
+      projectId,
+      provider,
+      refKey,
+    );
+  }
+  /** References still awaiting their one query, oldest key first. */
+  pendingConfirmations(limit: number): PendingConfirmation[] {
+    return this.rows(
+      "SELECT project_id,provider,ref_key FROM issue_confirmations WHERE state='pending' ORDER BY ref_key LIMIT ?",
+      limit,
+    ).map((row) => ({
+      projectId: String(row.project_id),
+      provider: String(row.provider),
+      refKey: String(row.ref_key),
+    }));
+  }
+  /** Store one tracker verdict, which stands until an explicit recheck. */
+  recordConfirmation(
+    reference: PendingConfirmation,
+    verdict: { state: string; title?: string; detail?: string },
+  ): void {
+    this.run(
+      "UPDATE issue_confirmations SET state=?,title=?,detail=?,checked_at=? WHERE project_id=? AND provider=? AND ref_key=?",
+      verdict.state,
+      verdict.title ?? null,
+      verdict.detail ?? null,
+      Date.now(),
+      reference.projectId,
+      reference.provider,
+      reference.refKey,
+    );
   }
   private link(issue: string, session: string): number {
     this.run(
@@ -261,6 +448,37 @@ export class IssueStore {
     ownedStart = offset,
     ownedEnd = Number.POSITIVE_INFINITY,
   ): void {
+    this.captureText(source, message, offset, ownedStart, ownedEnd);
+  }
+  /**
+   * Record the reference in a URL a user attached to a session by hand, with
+   * their note as its excerpt. Its evidence kind is `manual`, which is what
+   * makes it authoritative for namespace learning and identity resolution even
+   * when the extractor would have read the same URL as an ordinary mention.
+   *
+   * The caller supplies the session and the URL; the message identity, the
+   * evidence kind and the note's placement belong here, so a hand attachment
+   * costs the same single insert as an extracted one.
+   */
+  captureManual(source: IssueSource, url: string, note: string): void {
+    this.captureText(
+      source,
+      { id: `manual-${randomUUID()}`, text: url },
+      0,
+      0,
+      Number.POSITIVE_INFINITY,
+      note,
+    );
+  }
+  private captureText(
+    source: IssueSource,
+    message: VisibleMessageText,
+    offset: number,
+    ownedStart: number,
+    ownedEnd: number,
+    /** Present for a hand-attached reference; its excerpt is the user's note. */
+    manualNote?: string,
+  ): void {
     const settings = this.settings();
     const refs = extractIssueReferences(message.text).filter(
       (ref) =>
@@ -351,20 +569,24 @@ export class IssueStore {
             ref.key,
             ref.provider,
             link,
-            ref.contextual
-              ? "contextual-number"
-              : ref.url
-                ? "message-url"
-                : "ticket-key",
+            manualNote !== undefined
+              ? "manual"
+              : ref.contextual
+                ? "contextual-number"
+                : ref.url
+                  ? "message-url"
+                  : "ticket-key",
             ref.contextual
               ? message.text.slice(ref.start, ref.end)
               : (ref.url ?? ref.key),
-            issueExcerpt(
-              message.text.slice(
-                Math.max(0, ref.start - 140),
-                Math.max(0, ref.start - 140) + 512,
-              ),
-            ),
+            manualNote !== undefined
+              ? manualNote
+              : issueExcerpt(
+                  message.text.slice(
+                    Math.max(0, ref.start - 140),
+                    Math.max(0, ref.start - 140) + 512,
+                  ),
+                ),
             message.id,
             Date.now(),
             message.timestamp ?? null,
