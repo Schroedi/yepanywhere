@@ -119,6 +119,8 @@ export interface SessionMetadataChangedEvent {
   parentSessionId?: string | null;
   parentSessionKind?: "btw-aside" | null;
   forkedFromSessionId?: string | null;
+  /** Remaining `/clearloop` iterations; null when the loop ended. */
+  clearloopRemaining?: number | null;
   heartbeatTurnsEnabled?: boolean;
   heartbeatTurnsAfterMinutes?: number | null;
   heartbeatTurnText?: string | null;

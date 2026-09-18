@@ -181,6 +181,17 @@ input, the reader instead emits the dropped rows as a **rewound group**:
   top level and each rewound group.
 - Every rewind produces its own group, so M clearloop iterations leave M
   reviewable groups at the same cut, in order.
+- The header row carries the cut row's timestamp, not the rewind time:
+  timeline entries are ordered by their latest row time, and a later time on
+  the header would drag the cut's turn past the group's own rows. The rewind
+  time is kept in the header's `rewoundGroup.at`.
+
+**Composer recall.** `/clear N`, `/fork N`, and `/clearloop …` never become
+transcript turns, so accepted commands are recorded per session in browser
+storage and merged ahead of the turn history in the recall drawer
+(Ctrl+Up). A command that fails to parse is put back into the composer
+instead of being discarded. Harness-injected user rows such as task
+notifications are never offered for recall.
 - Search, copy, and turn navigation treat grouped rows as history: they are
   reachable when expanded and never counted as turns for `N`.
 
@@ -234,6 +245,17 @@ send is ever admitted through the patient or deferred lane to start an
 iteration: the loop sends its prompt directly at the boundary it owns.
 Because the projection is server-owned, the badge is identical on every
 tab and survives reloads.
+
+**Remaining-count badge.** While a loop runs, the session's sidebar row and
+its title in the session header show a green badge with the remaining
+iteration count. It rides the session summaries (`clearloopRemaining`) and
+the session metadata change event, so it updates live and clears when the
+loop ends.
+
+**The loop's own rewind is not a stop.** Rewinding stops the live process
+to arm the truncating resume, which raises the same session-aborted signal
+as the stop button. The service ignores that signal while its own rewind is
+in flight; only a stop it did not request interrupts the loop.
 
 **Stopping.**
 

@@ -183,6 +183,7 @@ const REMAP_MERGE_GROUPS = {
     "parentSessionId",
     "parentSessionKind",
     "forkedFromSessionId",
+    "clearloopRemaining",
     "executor",
   ],
   projectObservedAt: ["projectId", "projectName"],
@@ -1255,6 +1256,7 @@ function withMetadataFields(
     parentSessionId?: string | null;
     parentSessionKind?: "btw-aside" | null;
     forkedFromSessionId?: string | null;
+    clearloopRemaining?: number | null;
     executor?: string;
   },
   observation: SessionCollectionObservation,
@@ -1321,6 +1323,17 @@ function withMetadataFields(
             isFresh,
           )
         ? { forkedFromSessionId: fields.forkedFromSessionId }
+        : {}),
+    ...(fields.clearloopRemaining === null
+      ? isFresh
+        ? { clearloopRemaining: undefined }
+        : {}
+      : canApplyObservedField(
+            record.clearloopRemaining,
+            fields.clearloopRemaining,
+            isFresh,
+          )
+        ? { clearloopRemaining: fields.clearloopRemaining }
         : {}),
     ...(canApplyObservedField(record.executor, fields.executor, isFresh)
       ? { executor: fields.executor }
@@ -2131,6 +2144,7 @@ export function applySessionCollectionMetadataChanged(
       parentSessionId: event.parentSessionId,
       parentSessionKind: event.parentSessionKind,
       forkedFromSessionId: event.forkedFromSessionId,
+      clearloopRemaining: event.clearloopRemaining,
     },
     observation,
   );

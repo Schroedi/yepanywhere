@@ -72,6 +72,13 @@ function collectRewoundRows(
     else childrenByParent.set(parentUuid, [child]);
   }
 
+  const timestampByUuid = new Map<string, string>();
+  for (const raw of rawMessages) {
+    const uuid = raw ? getEntryUuid(raw) : undefined;
+    if (uuid && "timestamp" in raw && typeof raw.timestamp === "string") {
+      timestampByUuid.set(uuid, raw.timestamp);
+    }
+  }
   const sorted = [...records].sort((left, right) =>
     left.at.localeCompare(right.at),
   );
@@ -98,7 +105,11 @@ function collectRewoundRows(
       subtype: REWOUND_GROUP_SUBTYPE,
       uuid: `rewound-group-${record.id}`,
       parentUuid: record.cutMessageId,
-      timestamp: record.at,
+      // The header sits at the cut in time as well as in order: timeline
+      // entries sort by their latest row time, and the rewind time would
+      // drag the cut's turn past later rows. The rewind time is in
+      // `rewoundGroup.at`.
+      timestamp: timestampByUuid.get(record.cutMessageId) ?? record.at,
       content: "",
       isSynthetic: true,
       rewoundGroupId: record.id,

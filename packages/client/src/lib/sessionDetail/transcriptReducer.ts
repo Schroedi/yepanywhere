@@ -196,13 +196,17 @@ export function applyRewindToMessages(
     return { ...message, rewoundGroupId: record.id } as Message;
   });
   if (rowCount === 0) return messages;
+  const cutTimestamp = (messages[cutIndex] as { timestamp?: unknown })
+    .timestamp;
   const header = {
     type: "system",
     subtype: "rewound_group",
     uuid: headerId,
     id: headerId,
     parentUuid: record.cutMessageId,
-    timestamp: record.at,
+    // Same time as the cut so timeline ordering keeps it in place; the
+    // rewind time lives in rewoundGroup.at.
+    timestamp: typeof cutTimestamp === "string" ? cutTimestamp : record.at,
     content: "",
     isSynthetic: true,
     rewoundGroupId: record.id,

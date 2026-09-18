@@ -885,6 +885,7 @@ export function Sidebar({
         hasUnread={session.hasUnread}
         isStarred={session.isStarred}
         isArchived={session.isArchived}
+        clearloopRemaining={session.clearloopRemaining}
         mode="compact"
         isCurrent={session.id === currentSessionId}
         activity={getSidebarRowActivity(session)}

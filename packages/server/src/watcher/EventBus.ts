@@ -204,6 +204,8 @@ export interface SessionMetadataChangedEvent {
   parentSessionKind?: "btw-aside" | null;
   /** Updated provider-fork provenance link. */
   forkedFromSessionId?: string | null;
+  /** Remaining `/clearloop` iterations; null when the loop ended. */
+  clearloopRemaining?: number | null;
   /** Updated heartbeat opt-in flag (if changed) */
   heartbeatTurnsEnabled?: boolean;
   /** Updated per-session heartbeat interval override (if changed) */

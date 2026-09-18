@@ -582,6 +582,8 @@ export interface AppSessionSummary {
   parentSessionKind?: "btw-aside";
   /** Source session whose provider transcript was cloned or forked. */
   forkedFromSessionId?: string;
+  /** Iterations a running `/clearloop` still has to do; absent when none runs. */
+  clearloopRemaining?: number;
   /** Saved viewer-only objects placed in the transcript, never provider context. */
   transcriptDisplayObjects?: TranscriptDisplayObject[];
   /** Initial prompt text accepted by YA for new-session recovery/copy. */

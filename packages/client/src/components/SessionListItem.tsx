@@ -48,6 +48,7 @@ import { PublicShareManagerModal } from "./PublicShareManagerModal";
 import { SessionMenu } from "./SessionMenu";
 import { LegacySessionShareModal } from "./SessionShareModal";
 import { SessionStatusBadge } from "./StatusBadge";
+import { ClearloopRemainingBadge } from "./ClearloopRemainingBadge";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import styles from "./SessionListItem.module.css";
 import { useSessionApps } from "../lib/sessionApps";
@@ -110,6 +111,8 @@ interface SessionListItemProps {
 
   // Actions (menu hidden when all undefined)
   isStarred?: boolean;
+  /** Remaining `/clearloop` iterations; shows a green count badge. */
+  clearloopRemaining?: number;
   isArchived?: boolean;
   onToggleStar?: () => void;
   onToggleArchive?: () => void;
@@ -216,6 +219,7 @@ export function SessionListItem({
   openNonHumanUserTurn = false,
   // Actions
   isStarred: isStarredProp,
+  clearloopRemaining,
   isArchived: isArchivedProp,
   onToggleStar,
   onToggleArchive,
@@ -880,6 +884,9 @@ export function SessionListItem({
                     </span>
                   )}
                   {titleContent ?? <span>{visibleTitle}</span>}
+                  {clearloopRemaining !== undefined && (
+                    <ClearloopRemainingBadge remaining={clearloopRemaining} />
+                  )}
                   {hasDraft && (
                     <span className="session-draft-badge">Draft</span>
                   )}
@@ -1019,6 +1026,9 @@ export function SessionListItem({
                     </span>
                   )}
                   <span>{visibleTitle}</span>
+                  {clearloopRemaining !== undefined && (
+                    <ClearloopRemainingBadge remaining={clearloopRemaining} />
+                  )}
                 </span>
                 {sessionApps.latest && (
                   <span className={styles.appChip}>

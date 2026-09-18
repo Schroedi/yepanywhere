@@ -59,6 +59,7 @@ import {
 import sessionHeaderStyles from "../components/SessionHeader.module.css";
 import styles from "./SessionPage.module.css";
 import { GoalFlag } from "../components/GoalNotice";
+import { ClearloopRemainingBadge } from "../components/ClearloopRemainingBadge";
 import { buildBangEchoText, collectBangHistory } from "../lib/bangCommands";
 import { serverSupportsBangCommands } from "../lib/bangCommandAvailability";
 import { BtwAsidePane } from "../components/BtwAsidePane";
@@ -229,7 +230,10 @@ import {
 import { createSessionDraftStorageKey } from "../lib/sessionDraftStorage";
 import {
   type ComposerTurnRecallCache,
+  type ComposerTurnRecallEntry,
+  createCommandRecallEntry,
   createComposerTurnRecallCache,
+  mergeCommandRecallEntries,
 } from "../lib/composerTurnRecall";
 import { turnContentText } from "../lib/sessionMessageText";
 import {
@@ -2846,9 +2850,52 @@ function SessionPageContent({
     composerTurnRecallCacheRef.current = createComposerTurnRecallCache();
   }
   const composerTurnRecallCache = composerTurnRecallCacheRef.current;
+  // Accepted YA commands never become turns; keep them recallable per session
+  // (browser-local, newest first) and merge them ahead of the transcript turns.
+  const commandRecallStorageKey = `ya:command-recall:${actualSessionId}`;
+  const [commandRecallEntries, setCommandRecallEntries] = useState<
+    ComposerTurnRecallEntry[]
+  >(() => {
+    try {
+      const raw = window.localStorage.getItem(commandRecallStorageKey);
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed)
+        ? parsed.filter(
+            (entry): entry is ComposerTurnRecallEntry =>
+              typeof entry?.id === "string" && typeof entry?.text === "string",
+          )
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  const recordCommandRecall = useCallback(
+    (text: string) => {
+      setCommandRecallEntries((previous) => {
+        const next = [
+          createCommandRecallEntry(text),
+          ...previous.filter((entry) => entry.text !== text),
+        ].slice(0, 50);
+        try {
+          window.localStorage.setItem(
+            commandRecallStorageKey,
+            JSON.stringify(next),
+          );
+        } catch {
+          // Browser storage is best effort; the in-memory list still serves.
+        }
+        return next;
+      });
+    },
+    [commandRecallStorageKey],
+  );
   const composerTurnRecallEntries = useMemo(
-    () => composerTurnRecallCache.derive(messages),
-    [composerTurnRecallCache, messages],
+    () =>
+      mergeCommandRecallEntries(
+        commandRecallEntries,
+        composerTurnRecallCache.derive(messages),
+      ),
+    [commandRecallEntries, composerTurnRecallCache, messages],
   );
   // Go-to-turn: the recall drawer row asks to scroll the transcript to a prior
   // user turn by its render id. Mirror the isearch jump path (which reaches
@@ -4319,10 +4366,18 @@ function SessionPageContent({
           "error",
         );
       };
+      // A malformed command is handed back to the composer rather than lost.
+      const restoreDraft = () => {
+        draftControlsRef.current?.setDraft(
+          `/${command}${argument ? ` ${argument}` : ""}`,
+        );
+        showToast(t("rewindCommandSyntax"), "error");
+      };
+      const commandText = `/${command}${argument ? ` ${argument.trim()}` : ""}`;
       if (command === "clearloop") {
         const parsed = parseClearloopArguments(argument);
         if (!parsed) {
-          showToast(t("rewindCommandSyntax"), "error");
+          restoreDraft();
           return true;
         }
         const index = parsed.turnIndex ?? ids.length;
@@ -4331,6 +4386,7 @@ function SessionPageContent({
           turnMissing(index);
           return true;
         }
+        recordCommandRecall(commandText);
         void startClearloop(
           sourceMessageId,
           index,
@@ -4343,10 +4399,11 @@ function SessionPageContent({
         allowEmpty: command === "clear",
       });
       if (index === null) {
-        showToast(t("rewindCommandSyntax"), "error");
+        restoreDraft();
         return true;
       }
       if (command === "clear" && index === 0) {
+        recordCommandRecall(commandText);
         clearToNewSession();
         return true;
       }
@@ -4355,6 +4412,7 @@ function SessionPageContent({
         turnMissing(index);
         return true;
       }
+      recordCommandRecall(commandText);
       if (command === "fork") {
         void createDirectTurnFork(sourceMessageId, "after-user-turn");
         return true;
@@ -4365,6 +4423,7 @@ function SessionPageContent({
     [
       clearToNewSession,
       createDirectTurnFork,
+      recordCommandRecall,
       rewindToCut,
       sessionTurnIndex,
       showToast,
@@ -5624,6 +5683,11 @@ function SessionPageContent({
                       aria-expanded={showRecentSessions}
                     >
                       <span className="session-title-text">{displayTitle}</span>
+                      {session?.clearloopRemaining !== undefined && (
+                        <ClearloopRemainingBadge
+                          remaining={session.clearloopRemaining}
+                        />
+                      )}
                     </button>
                     {currentGoal && (
                       <GoalFlag

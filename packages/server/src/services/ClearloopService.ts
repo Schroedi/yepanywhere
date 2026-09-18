@@ -62,6 +62,8 @@ interface LoopContext {
   timer: NodeJS.Timeout | null;
   /** Guards against overlapping iterate/check work. */
   working: boolean;
+  /** True while the loop's own rewind may stop the live process. */
+  rewinding: boolean;
 }
 
 function parseIsoMs(value: string | undefined): number | null {
@@ -70,15 +72,30 @@ function parseIsoMs(value: string | undefined): number | null {
   return Number.isNaN(ms) ? null : ms;
 }
 
+/**
+ * Remaining iterations for session summaries, from the durable job record
+ * alone. A record left `running` by a previous server process is not shown:
+ * the loop cannot advance, and `getRunningJob` reports it as not running.
+ */
+export function clearloopRemainingFromJob(
+  job: SessionClearloopJob | undefined,
+  isLive: boolean,
+): number | undefined {
+  if (job?.state !== "running" || !isLive) return undefined;
+  return Math.max(0, job.total - job.completed);
+}
+
 export class ClearloopService {
   private runner: ClearloopRunner | null = null;
   private readonly contexts = new Map<string, LoopContext>();
 
   constructor(private readonly options: ClearloopServiceOptions) {
     options.eventBus?.subscribe((event) => {
-      if (event.type === "session-aborted") {
-        void this.interrupt(event.sessionId, "Session was stopped");
-      }
+      if (event.type !== "session-aborted") return;
+      // The loop's own rewind stops the live process to arm the truncating
+      // resume; only a stop it did not request ends the loop.
+      if (this.contexts.get(event.sessionId)?.rewinding) return;
+      void this.interrupt(event.sessionId, "Session was stopped");
     });
   }
 
@@ -97,6 +114,14 @@ export class ClearloopService {
 
   isRunning(sessionId: string): boolean {
     return this.getRunningJob(sessionId) !== undefined;
+  }
+
+  /** Remaining iterations for the sidebar/title badge, or undefined. */
+  getRemaining(sessionId: string): number | undefined {
+    return clearloopRemainingFromJob(
+      this.options.sessionMetadataService.getClearloop(sessionId),
+      this.contexts.has(sessionId),
+    );
   }
 
   async start(
@@ -123,7 +148,12 @@ export class ClearloopService {
       startedAt: new Date().toISOString(),
       commandText: params.commandText,
     };
-    this.contexts.set(sessionId, { projectId, timer: null, working: false });
+    this.contexts.set(sessionId, {
+      projectId,
+      timer: null,
+      working: false,
+      rewinding: false,
+    });
     await this.persist(sessionId, job);
     void this.iterate(sessionId);
     return job;
@@ -159,12 +189,17 @@ export class ClearloopService {
     context.working = true;
     const iteration = job.completed + 1;
     try {
-      await this.runner.rewind({
-        sessionId,
-        projectId: context.projectId,
-        job,
-        iteration,
-      });
+      context.rewinding = true;
+      try {
+        await this.runner.rewind({
+          sessionId,
+          projectId: context.projectId,
+          job,
+          iteration,
+        });
+      } finally {
+        context.rewinding = false;
+      }
       // Cancel may have landed while rewinding.
       if (!this.getRunningJob(sessionId)) return;
       const sending: SessionClearloopJob = {
@@ -321,6 +356,10 @@ export class ClearloopService {
       type: "session-metadata-changed",
       sessionId,
       ...(context ? { projectId: context.projectId } : {}),
+      clearloopRemaining:
+        job.state === "running" && context
+          ? Math.max(0, job.total - job.completed)
+          : null,
       timestamp: new Date().toISOString(),
     });
     this.publishQueueEntry(sessionId);

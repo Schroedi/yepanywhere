@@ -57,6 +57,8 @@ export interface SessionCollectionRecord {
   parentSessionId?: string;
   parentSessionKind?: "btw-aside";
   forkedFromSessionId?: string;
+  /** Iterations a running `/clearloop` still has to do; absent when none runs. */
+  clearloopRemaining?: number;
   initialPrompt?: string;
   executor?: string;
   lastAgentText?: string;

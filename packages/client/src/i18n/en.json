@@ -2175,6 +2175,7 @@
   "clearloopProgress": "clearloop {completed}/{total}",
   "clearloopStatus": "Repeating after turn — cancel keeps the current work",
   "clearloopWorking": "Working — the countdown starts once the session is quiet",
+  "clearloopRemainingBadge": "{count} clearloop iteration(s) remaining",
   "clearloopCountdown": "Next rewind in {seconds}s of quiet",
   "clearloopCancel": "Cancel clearloop",
   "clearloopCancelFailed": "Could not cancel clearloop: {message}",
