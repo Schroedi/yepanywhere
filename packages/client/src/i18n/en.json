@@ -3725,5 +3725,7 @@
   "sessionSearchMoreMatches": "More turn matches",
   "sessionSearchBackToResults": "Back to sessions",
   "providersGatewayServiceEffortModeAsk": "Ask the endpoint",
-  "providersGatewayServiceEffortModeStated": "Use the levels below"
+  "providersGatewayServiceEffortModeStated": "Use the levels below",
+  "toolShellPollWaitingLabel": "Waiting",
+  "toolShellPollWaitingSummary": "{target} · running"
 }
