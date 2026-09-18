@@ -148,12 +148,27 @@ export interface AppMessageExtensions {
   isSubagent?: boolean;
 
   /**
+   * 1-based ordinal of this real user turn over the full session sequence,
+   * counting turns a same-session rewind later grouped. Stamped by server
+   * normalization; the turn menu's `[N]` and `/clear N` share it. See
+   * topics/session-rewind.md.
+   */
+  turnIndex?: number;
+
+  /**
    * Set on rows a same-session rewind dropped. The value is the rewind
    * record id; the UI renders these rows as one collapsed group headed by a
    * `rewound_group` system row carrying the same id. See
    * topics/session-rewind.md.
    */
   rewoundGroupId?: string;
+
+  /**
+   * For a rewound group nested inside an earlier one (its cut lies inside
+   * that group's span): the enclosing group's record id, on the header and
+   * every member row. Collapsing the enclosing group hides the whole span.
+   */
+  rewoundParentGroupId?: string;
 
   /**
    * Allow any additional fields from JSONL.

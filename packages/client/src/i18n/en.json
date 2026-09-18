@@ -2166,6 +2166,7 @@
   "rewindNoop": "Nothing to clear: that turn is already the last one",
   "rewindUnavailable": "Same-session rewind needs a Claude session on a server with rewind support",
   "rewindTurnNotFound": "Turn {index} is not in this session",
+  "rewindTurnCleared": "Turn {index} is inside a cleared span; rewinding into cleared history is not supported yet",
   "rewindNoTurns": "This session has no turns to rewind to",
   "rewindClearZero": "/clear 0 starts a fresh session; use Clear in the session menu",
   "rewindFailed": "Rewind failed: {message}",

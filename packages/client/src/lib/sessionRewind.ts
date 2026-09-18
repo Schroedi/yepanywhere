@@ -31,39 +31,51 @@ export function supportsSessionRewind(
 }
 
 export interface SessionTurnIndex {
-  /** Render id of every live user turn, in order; index N is `ids[N - 1]`. */
-  ids: string[];
+  /** Render id by turn index N over the full sequence, cleared turns too. */
+  idByIndex: Map<number, string>;
   indexById: Map<string, number>;
+  /** Turns currently inside a cleared span (not valid `/clear` targets). */
+  clearedIds: Set<string>;
+  /** Highest index known to this client. */
+  lastIndex: number;
 }
 
 /**
- * The stable turn index N for every live user turn (topics/session-rewind.md
- * § Vocabulary): plain user turns in display order, skipping subagent rows
- * and rows a rewind dropped.
+ * The stable turn index N for every user turn (topics/session-rewind.md
+ * § Vocabulary). Server normalization stamps `turnIndex` over the full
+ * sequence, cleared turns included; rows not yet stamped (live stream rows)
+ * continue the count from the last stamped turn, so a partially loaded
+ * window still numbers correctly as long as its first turn is stamped.
  */
 export function getSessionTurnIndex(
   messages: readonly Message[],
 ): SessionTurnIndex {
-  const ids: string[] = [];
+  const idByIndex = new Map<number, string>();
   const indexById = new Map<string, number>();
+  const clearedIds = new Set<string>();
+  let lastIndex = 0;
   for (const message of messages) {
     const extras = message as {
       isSubagent?: unknown;
       rewoundGroupId?: unknown;
       isSynthetic?: unknown;
+      turnIndex?: unknown;
     };
     if (
       !isPlainUserTurn(message) ||
       extras.isSubagent === true ||
-      typeof extras.rewoundGroupId === "string" ||
       extras.isSynthetic === true
     ) {
       continue;
     }
     const id = getMessageId(message);
     if (!id || indexById.has(id)) continue;
-    ids.push(id);
-    indexById.set(id, ids.length);
+    const index =
+      typeof extras.turnIndex === "number" ? extras.turnIndex : lastIndex + 1;
+    lastIndex = Math.max(lastIndex, index);
+    idByIndex.set(index, id);
+    indexById.set(id, index);
+    if (typeof extras.rewoundGroupId === "string") clearedIds.add(id);
   }
-  return { ids, indexById };
+  return { idByIndex, indexById, clearedIds, lastIndex };
 }

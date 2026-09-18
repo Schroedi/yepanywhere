@@ -37,9 +37,11 @@ interface RewoundGroupHeader {
 }
 
 /**
- * Rows a rewind record dropped: descendants of the cut written before the
- * rewind. The walk stops at rows written after the record, which are the live
- * continuation, so their descendants stay live too.
+ * Rows a rewind record dropped. The session is the full sequence of rows in
+ * file order (topics/session-rewind.md): a rewind at a cut groups every row
+ * after the cut's line that was written before the rewind and not already
+ * claimed by an earlier rewind. Membership is positional, not by parent
+ * chain, so a compaction inside the cleared span cannot split it.
  */
 function collectRewoundRows(
   rawMessages: ClaudeSessionEntry[],
@@ -52,52 +54,42 @@ function collectRewoundRows(
   const headers = new Map<string, RewoundGroupHeader>();
   if (records.length === 0) return { rewoundGroupByUuid, headers };
 
-  const childrenByParent = new Map<
-    string,
-    Array<{ uuid: string; lineIndex: number; timestamp: string | undefined }>
-  >();
+  const rows: Array<{
+    uuid: string;
+    lineIndex: number;
+    timestamp: string | undefined;
+  }> = [];
+  const lineByUuid = new Map<string, number>();
+  const timestampByUuid = new Map<string, string>();
   for (let lineIndex = 0; lineIndex < rawMessages.length; lineIndex++) {
     const raw = rawMessages[lineIndex];
     if (!raw || raw.type === "progress") continue;
     const uuid = getEntryUuid(raw);
-    const parentUuid = getEntryParentUuid(raw);
-    if (!uuid || !parentUuid) continue;
+    if (!uuid) continue;
     const timestamp =
       "timestamp" in raw && typeof raw.timestamp === "string"
         ? raw.timestamp
         : undefined;
-    const siblings = childrenByParent.get(parentUuid);
-    const child = { uuid, lineIndex, timestamp };
-    if (siblings) siblings.push(child);
-    else childrenByParent.set(parentUuid, [child]);
+    rows.push({ uuid, lineIndex, timestamp });
+    lineByUuid.set(uuid, lineIndex);
+    if (timestamp) timestampByUuid.set(uuid, timestamp);
   }
 
-  const timestampByUuid = new Map<string, string>();
-  for (const raw of rawMessages) {
-    const uuid = raw ? getEntryUuid(raw) : undefined;
-    if (uuid && "timestamp" in raw && typeof raw.timestamp === "string") {
-      timestampByUuid.set(uuid, raw.timestamp);
-    }
-  }
   const sorted = [...records].sort((left, right) =>
     left.at.localeCompare(right.at),
   );
   for (const record of sorted) {
-    const queue = [record.cutMessageId];
+    const cutLine = lineByUuid.get(record.cutMessageId);
+    if (cutLine === undefined) continue;
     let firstLineIndex = Number.POSITIVE_INFINITY;
     let count = 0;
-    while (queue.length > 0) {
-      const parent = queue.shift() as string;
-      for (const child of childrenByParent.get(parent) ?? []) {
-        if (rewoundGroupByUuid.has(child.uuid)) continue;
-        if (child.timestamp !== undefined && child.timestamp > record.at) {
-          continue;
-        }
-        rewoundGroupByUuid.set(child.uuid, record.id);
-        firstLineIndex = Math.min(firstLineIndex, child.lineIndex);
-        count += 1;
-        queue.push(child.uuid);
-      }
+    for (const row of rows) {
+      if (row.lineIndex <= cutLine) continue;
+      if (rewoundGroupByUuid.has(row.uuid)) continue;
+      if (row.timestamp !== undefined && row.timestamp > record.at) continue;
+      rewoundGroupByUuid.set(row.uuid, record.id);
+      firstLineIndex = Math.min(firstLineIndex, row.lineIndex);
+      count += 1;
     }
     if (count === 0) continue;
     const header = {
@@ -356,28 +348,55 @@ export function collectVisibleClaudeEntries(
   }
 
   // Rewound rows rejoin as extras under their cut, headed by the group row,
-  // so they render after the kept turn and before the live continuation.
+  // so they render after the kept turn and before the live continuation. A
+  // group whose cut is itself inside an earlier group nests: its header and
+  // rows attach under the outermost live cut, in file order, and carry the
+  // enclosing group as `rewoundParentGroupId` so the client can collapse
+  // the whole span with the outer header.
   if (rewoundGroupByUuid.size > 0) {
     const cutByRecord = new Map<string, string>();
     for (const record of options.rewindRecords ?? []) {
       cutByRecord.set(record.id, record.cutMessageId);
     }
-    for (const [recordId, header] of rewoundHeaders) {
-      const cut = cutByRecord.get(recordId);
-      if (cut && activeBranchUuids.has(cut)) {
-        pushExtra(cut, header.raw, header.lineIndex);
+    const parentByRecord = new Map<string, string>();
+    for (const [recordId, cut] of cutByRecord) {
+      const parent = rewoundGroupByUuid.get(cut);
+      if (parent && parent !== recordId) parentByRecord.set(recordId, parent);
+    }
+    const liveCutFor = (recordId: string): string | undefined => {
+      let current: string | undefined = recordId;
+      const seen = new Set<string>();
+      while (current && !seen.has(current)) {
+        seen.add(current);
+        const cut = cutByRecord.get(current);
+        if (cut && activeBranchUuids.has(cut)) return cut;
+        current = parentByRecord.get(current);
       }
+      return undefined;
+    };
+    const nested = (recordId: string, raw: ClaudeSessionEntry) => {
+      const parent = parentByRecord.get(recordId);
+      return (
+        parent ? { ...raw, rewoundParentGroupId: parent } : raw
+      ) as ClaudeSessionEntry;
+    };
+    for (const [recordId, header] of rewoundHeaders) {
+      const cut = liveCutFor(recordId);
+      if (cut) pushExtra(cut, nested(recordId, header.raw), header.lineIndex);
     }
     for (let lineIndex = 0; lineIndex < allRawMessages.length; lineIndex++) {
       const raw = allRawMessages[lineIndex];
       const uuid = raw ? getEntryUuid(raw) : undefined;
       const recordId = uuid ? rewoundGroupByUuid.get(uuid) : undefined;
       if (!raw || !recordId) continue;
-      const cut = cutByRecord.get(recordId);
-      if (!cut || !activeBranchUuids.has(cut)) continue;
+      const cut = liveCutFor(recordId);
+      if (!cut) continue;
       pushExtra(
         cut,
-        { ...raw, rewoundGroupId: recordId } as unknown as ClaudeSessionEntry,
+        nested(recordId, {
+          ...raw,
+          rewoundGroupId: recordId,
+        } as unknown as ClaudeSessionEntry),
         lineIndex,
       );
     }

@@ -4367,14 +4367,28 @@ function SessionPageContent({
         showToast(t("rewindUnavailable"), "error");
         return true;
       }
-      const ids = sessionTurnIndex.ids;
+      const { idByIndex, clearedIds, lastIndex } = sessionTurnIndex;
       const turnMissing = (index: number) => {
         showToast(
-          ids.length === 0
+          lastIndex === 0
             ? t("rewindNoTurns")
             : t("rewindTurnNotFound", { index: String(index) }),
           "error",
         );
+      };
+      // Turn N over the full sequence; a turn inside a cleared span is not
+      // a rewind target yet (tree hops are unspecified).
+      const resolveTurn = (index: number): string | null => {
+        const id = idByIndex.get(index);
+        if (index < 1 || !id) {
+          turnMissing(index);
+          return null;
+        }
+        if (command !== "fork" && clearedIds.has(id)) {
+          showToast(t("rewindTurnCleared", { index: String(index) }), "error");
+          return null;
+        }
+        return id;
       };
       // A malformed command is handed back to the composer rather than lost.
       const restoreDraft = () => {
@@ -4390,12 +4404,9 @@ function SessionPageContent({
           restoreDraft();
           return true;
         }
-        const index = parsed.turnIndex ?? ids.length;
-        const sourceMessageId = ids[index - 1];
-        if (index < 1 || !sourceMessageId) {
-          turnMissing(index);
-          return true;
-        }
+        const index = parsed.turnIndex ?? lastIndex;
+        const sourceMessageId = resolveTurn(index);
+        if (!sourceMessageId) return true;
         recordCommandRecall(commandText);
         draftControlsRef.current?.confirmInputClear();
         void startClearloop(
@@ -4419,11 +4430,8 @@ function SessionPageContent({
         clearToNewSession();
         return true;
       }
-      const sourceMessageId = ids[index - 1];
-      if (index < 1 || !sourceMessageId) {
-        turnMissing(index);
-        return true;
-      }
+      const sourceMessageId = resolveTurn(index);
+      if (!sourceMessageId) return true;
       recordCommandRecall(commandText);
       // The command was consumed here, so the persisted draft is cleared as
       // a sent message would be; otherwise a reload restores it.

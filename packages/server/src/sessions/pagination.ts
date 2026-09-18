@@ -372,6 +372,17 @@ export function sliceAtUserTurnBoundary(
   } else if (totalUserTurns > tailTurns) {
     sliceFromIdx = userTurnIndices[totalUserTurns - tailTurns] ?? 0;
   }
+  // A window must not start inside a rewound group: the group's header row
+  // precedes its rows, and a headerless partial group has nothing to expand
+  // from. Back up to the header (topics/session-rewind.md).
+  const startGroup = (messages[sliceFromIdx] as { rewoundGroupId?: unknown })
+    ?.rewoundGroupId;
+  if (typeof startGroup === "string") {
+    const headerIdx = messages.findIndex(
+      (m) => (m as { rewoundGroupId?: unknown }).rewoundGroupId === startGroup,
+    );
+    if (headerIdx >= 0 && headerIdx < sliceFromIdx) sliceFromIdx = headerIdx;
+  }
 
   const slicedMessages = messages.slice(sliceFromIdx);
   const firstId = slicedMessages[0]

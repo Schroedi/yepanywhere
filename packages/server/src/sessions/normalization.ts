@@ -53,6 +53,7 @@ import {
 } from "../sdk/providers/opencode-tools.js";
 import type { ContentBlock, Message, Session } from "../supervisor/types.js";
 import { collectVisibleClaudeEntries } from "./claude-messages.js";
+import { stampTurnIndexes } from "./turn-index.js";
 import {
   type CodexUserResponseKind,
   classifyCodexUserResponse,
@@ -358,8 +359,10 @@ export function normalizeSession(
         rawMessages,
         rewindRecords.length > 0 ? { rewindRecords } : {},
       );
-      const messages: Message[] = entries.map((raw, index) =>
-        convertClaudeMessage(raw, index, orphanedToolUses),
+      const messages: Message[] = stampTurnIndexes(
+        entries.map((raw, index) =>
+          convertClaudeMessage(raw, index, orphanedToolUses),
+        ),
       );
 
       if (rewindRecords.length === 0) {
@@ -378,29 +381,35 @@ export function normalizeSession(
     case "codex-oss":
       return {
         ...summary,
-        messages: convertCodexEntries(data.session.entries, summary.id),
+        messages: stampTurnIndexes(
+          convertCodexEntries(data.session.entries, summary.id),
+        ),
       };
     case "gemini":
       return {
         ...summary,
-        messages: convertGeminiMessages(data.session.messages),
+        messages: stampTurnIndexes(
+          convertGeminiMessages(data.session.messages),
+        ),
       };
     case "grok":
       return {
         ...summary,
-        messages: data.session.messages as Message[],
+        messages: stampTurnIndexes(data.session.messages as Message[]),
       };
     case "pi":
       // pi messages are already normalized YA messages (PiSessionReader maps
       // the v3 JSONL tree), like grok — pass through.
       return {
         ...summary,
-        messages: data.session.messages as Message[],
+        messages: stampTurnIndexes(data.session.messages as Message[]),
       };
     case "opencode":
       return {
         ...summary,
-        messages: convertOpenCodeEntries(data.session.messages),
+        messages: stampTurnIndexes(
+          convertOpenCodeEntries(data.session.messages),
+        ),
       };
   }
 }

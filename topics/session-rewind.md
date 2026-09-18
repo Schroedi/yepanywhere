@@ -36,13 +36,20 @@ is one server-wide value).
 
 ## Vocabulary
 
-- **Turn index `N`.** The 1-based ordinal of a real user turn in the
-  session's active branch, in display order. Tool-result user rows, compact
-  rows, injected context, and synthetic rows are not turns (same boundary
-  rule as [fork-from-turn](fork-from-turn.md)). `N` is a stable identifier: a
-  rewind only removes turns *after* its cut, so every surviving turn keeps
-  its index, and turns written after a rewind continue the count from the cut.
-  `N = 0` names the empty prefix before turn 1.
+- **The session is the full sequence.** YA's logical session is every turn
+  ever made, in transcript order, including turns a clear later removed from
+  the assistant's context. A clear changes which turn the next turn's parent
+  is (the kept prefix stays byte-identical, so the prompt cache stays warm);
+  it never removes turns from the session's history.
+- **Turn index `N`.** The 1-based ordinal of a real user turn over that full
+  sequence, cleared turns included. Tool-result user rows, compact rows,
+  injected context, and synthetic rows are not turns (same boundary rule as
+  [fork-from-turn](fork-from-turn.md)). `N` therefore never renumbers: after
+  `/clear 2` the cleared turns keep 3–5 and the next new turn is 6, and its
+  turn menu shows `[6]`. Server normalization stamps the ordinal on each
+  user turn (`turnIndex`), and both the tooltip and `/clear N` resolve
+  through that one stamp, which is the invariant. `N = 0` names the empty
+  prefix before turn 1.
 - **Cut.** The last kept chain entry. *After turn N* keeps turn N's prompt
   and its complete response; *before turn N* keeps everything preceding
   turn N's prompt, which is the same cut as *after turn N−1*.
@@ -157,11 +164,21 @@ a deliberate rewind branch (the active branch continues through a user row)
 per [claude](claude.md) § Transcript Structure. With rewind records as an
 input, the reader instead emits the dropped rows as a **rewound group**:
 
-- Group membership: rows descending from the cut whose branch was written
-  before the record's `at`. Rows the session writes after the rewind are the
-  live branch and are never grouped, even before the next turn exists (the
-  record, not tip selection, decides the cut; until a new turn is written the
-  displayed tail is the cut itself).
+- Group membership is positional: every row after the cut's line in file
+  order that was written before the record's `at` and not already claimed by
+  an earlier rewind (a row keeps its first claim). Rows the session writes
+  after the rewind are the live branch and are never grouped, even before
+  the next turn exists (the record, not tip selection, decides the cut;
+  until a new turn is written the displayed tail is the cut itself).
+  Positional membership means a compaction inside a cleared span cannot
+  split it and clock skew between transcript and server cannot move rows.
+- **Nesting.** A clear whose cut is earlier than an existing group's cut
+  encloses that group: the new block claims the unclaimed rows after its
+  cut, the older block sits inside it unchanged, and it renders nested,
+  collapsed under the outer header and expandable on its own once the outer
+  block is open (`rewoundParentGroupId` on the inner header and rows).
+- A tail window never starts inside a group: when the window boundary
+  lands on a grouped row, it backs up to that group's header.
 - Placement: at the cut, in transcript order, before any later live rows.
 - Presentation: one collapsed outline entry by default. Expanding shows the
   dropped turns with their ordinary rendering, styled as nested rows (the
@@ -326,6 +343,20 @@ history, not a toast, and is never model context.
   (`/tree`) that could back it; both are follow-on work and neither changes
   the command vocabulary or the rewound-group presentation.
 
+## Future work: continuing from any node
+
+The positional model supports the well-defined tree operation of continuing
+from any turn, including one inside a cleared span (Claude's truncating
+resume accepts any chain entry). It is deliberately not exposed yet:
+`/clear N` on a cleared turn is refused with a message, because the UI is
+unspecified. The naive display would leave the new parent and its ancestors
+hidden inside the collapsed block they belong to, so the part of history now
+back in the assistant's context would not be re-exposed; that is acceptable
+for a first version only with a warning banner saying so. Selecting the
+target belongs in an interactive `/tree` picker (as Pi's `/tree`), with a
+dotted path notation for addressing nodes. The reader's active-branch
+selection also needs a rule for a live branch whose ancestors are grouped.
+
 ## Implementation map
 
 Durable pointers by symbol and module; grep for the symbol.
@@ -348,9 +379,14 @@ Durable pointers by symbol and module; grep for the symbol.
   timer (`iterate`, `check`, `readQuietAnchor`), `getProgress` for the queue
   entry, `getBadge`/`clearloopBadgeFromJob` for summaries,
   `reconcileAfterRestart`, the durable notice.
-- `sessions/claude-messages.ts` — `collectRewoundRows`; the
-  `rewindRecords` option of `collectVisibleClaudeEntries`, threaded through
-  `normalizeSession` in `sessions/normalization.ts`.
+- `sessions/claude-messages.ts` — `collectRewoundRows` (positional
+  membership, nesting); the `rewindRecords` option of
+  `collectVisibleClaudeEntries`, threaded through `normalizeSession` in
+  `sessions/normalization.ts`.
+- `sessions/turn-index.ts` — `isRealUserTurn`, `stampTurnIndexes` (the
+  `turnIndex` stamp applied by `normalizeSession` for every provider),
+  `turnIndexOf` (used by the rewind routes for the record's `N`).
+- `sessions/pagination.ts` — the tail window backs up to a group header.
 - `metadata/SessionMetadataService.ts` — `rewindRecords`, `pendingRewind`,
   `clearloop` fields and their accessors.
 - `routes/session-queue-summaries.ts` — the clearloop queue entry, always

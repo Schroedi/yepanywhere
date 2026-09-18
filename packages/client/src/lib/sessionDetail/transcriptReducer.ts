@@ -189,8 +189,16 @@ export function applyRewindToMessages(
   }
   let rowCount = 0;
   const tail = messages.slice(cutIndex + 1).map((message) => {
-    if ((message as { rewoundGroupId?: unknown }).rewoundGroupId) {
-      return message;
+    const grouped = message as {
+      rewoundGroupId?: unknown;
+      rewoundParentGroupId?: unknown;
+    };
+    if (grouped.rewoundGroupId) {
+      // An earlier group inside the new span nests under it (a row keeps its
+      // first claim); only a group without an enclosure gains one.
+      return grouped.rewoundParentGroupId
+        ? message
+        : ({ ...message, rewoundParentGroupId: record.id } as Message);
     }
     rowCount += 1;
     return { ...message, rewoundGroupId: record.id } as Message;

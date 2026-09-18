@@ -34,9 +34,17 @@ describe("getSessionTurnIndex", () => {
       userTurn("syn", { isSynthetic: true }),
       userTurn("u3"),
     ]);
-    expect(index.ids).toEqual(["u1", "u2", "u3"]);
-    expect(index.indexById.get("u3")).toBe(3);
-    expect(index.indexById.has("dropped")).toBe(false);
+    // Full-sequence numbering: the cleared turn keeps its ordinal and is
+    // marked cleared; subagent and synthetic rows are not turns.
+    expect([...index.idByIndex.entries()]).toEqual([
+      [1, "u1"],
+      [2, "u2"],
+      [3, "dropped"],
+      [4, "u3"],
+    ]);
+    expect(index.indexById.get("u3")).toBe(4);
+    expect(index.clearedIds.has("dropped")).toBe(true);
+    expect(index.lastIndex).toBe(4);
   });
 });
 

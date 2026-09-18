@@ -37,6 +37,7 @@ import {
   ClearloopConflictError,
   type ClearloopService,
 } from "../services/ClearloopService.js";
+import { turnIndexOf } from "../sessions/turn-index.js";
 import { mkdir } from "node:fs/promises";
 import { hostname } from "node:os";
 import { performance } from "node:perf_hooks";
@@ -5907,7 +5908,9 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     projectId: UrlProjectId;
     sessionId: string;
     cut: RewindCut;
-  }): Promise<RewindFailure | { ok: true; cutMessageId: string }> => {
+  }): Promise<
+    RewindFailure | { ok: true; cutMessageId: string; cutTurnIndex: number }
+  > => {
     const { providerName, process } = await resolveRewindProvider(
       input.project,
       input.projectId,
@@ -5923,8 +5926,23 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     if (!session) {
       return { ok: false, error: "Session not found", status: 404 };
     }
-    const liveMessages = session.messages.filter(
-      (message) => !message.rewoundGroupId,
+    // Numbering spans the full sequence, cleared turns included, but a cut
+    // inside a cleared span is a tree hop whose UI is unspecified; refuse it
+    // (topics/session-rewind.md § Vocabulary).
+    const sourceMessage = session.messages.find(
+      (message) => messageId(message) === input.cut.sourceMessageId,
+    );
+    if (sourceMessage?.rewoundGroupId) {
+      return {
+        ok: false,
+        error:
+          "That turn is inside a cleared span; rewinding into cleared history is not supported yet",
+        status: 409,
+      };
+    }
+    const messages = session.messages.filter(
+      (message) =>
+        (message as { subtype?: unknown }).subtype !== "rewound_group",
     );
     const sourceIsBusy = Boolean(
       deps.externalTracker?.isExternal(input.sessionId) ||
@@ -5934,12 +5952,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     const boundary =
       input.cut.kind === "before-user-turn"
         ? resolveForkBeforeBoundary(
-            liveMessages,
+            messages,
             input.cut.sourceMessageId,
             providerName,
           )
         : resolveForkAfterBoundary(
-            liveMessages,
+            messages,
             input.cut.sourceMessageId,
             sourceIsBusy,
             providerName,
@@ -5954,7 +5972,20 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         status: 409,
       };
     }
-    return { ok: true, cutMessageId: boundary.providerBoundary.messageId };
+    // The kept turn's stamped ordinal is the record's N: the same number the
+    // turn menu shows, so `/clear N` and the label agree by construction.
+    const sourceIndex = turnIndexOf(sourceMessage);
+    const cutTurnIndex =
+      sourceIndex === undefined
+        ? 0
+        : input.cut.kind === "before-user-turn"
+          ? Math.max(0, sourceIndex - 1)
+          : sourceIndex;
+    return {
+      ok: true,
+      cutMessageId: boundary.providerBoundary.messageId,
+      cutTurnIndex,
+    };
   };
 
   const parseRewindCut = (body: unknown): RewindCut | { error: string } => {
@@ -5971,13 +6002,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       return { error: "cut.sourceMessageId is required" };
     }
     return { kind, sourceMessageId: sourceMessageId.trim() };
-  };
-
-  const parseCutTurnIndex = (body: unknown): number => {
-    const value = (body as { cutTurnIndex?: unknown })?.cutTurnIndex;
-    return typeof value === "number" && Number.isInteger(value) && value >= 0
-      ? value
-      : 0;
   };
 
   /** Resume the session with one direct prompt using its saved launch settings. */
@@ -6130,7 +6154,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       projectId,
       sessionId,
       cutMessageId: resolved.cutMessageId,
-      cutTurnIndex: parseCutTurnIndex(body),
+      cutTurnIndex: resolved.cutTurnIndex,
       reason: "clear",
     });
     if (!result.ok) {
@@ -6215,7 +6239,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       try {
         const job = await deps.clearloopService.start(sessionId, projectId, {
           cutMessageId: resolved.cutMessageId,
-          cutTurnIndex: parseCutTurnIndex(body),
+          cutTurnIndex: resolved.cutTurnIndex,
           prompt,
           total,
           commandText,
