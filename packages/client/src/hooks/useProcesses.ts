@@ -37,6 +37,8 @@ export interface ProcessInfo {
   pid?: number;
   /** Session title from first user message */
   sessionTitle: string | null;
+  /** Iterations a running `/clearloop` still has to do; absent when none runs. */
+  clearloopRemaining?: number;
   /** Only present for terminated processes */
   terminatedAt?: string;
   terminationReason?: string;

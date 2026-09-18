@@ -252,6 +252,8 @@ export interface ProcessInfo {
   projectPath: string;
   projectName: string; // path.basename(projectPath)
   sessionTitle: string | null; // from session data
+  /** Iterations a running `/clearloop` still has to do; absent when none runs. */
+  clearloopRemaining?: number;
   state: AgentActivity;
   startedAt: string;
   queueDepth: number;

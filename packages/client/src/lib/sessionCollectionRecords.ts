@@ -32,6 +32,7 @@ export function sessionCollectionRecordToGlobalSessionItem(
     parentSessionId: record.parentSessionId,
     parentSessionKind: record.parentSessionKind,
     forkedFromSessionId: record.forkedFromSessionId,
+    clearloopRemaining: record.clearloopRemaining,
     initialPrompt: record.initialPrompt,
     executor: record.executor,
     lastAgentText: record.lastAgentText,

@@ -4387,6 +4387,7 @@ function SessionPageContent({
           return true;
         }
         recordCommandRecall(commandText);
+        draftControlsRef.current?.confirmInputClear();
         void startClearloop(
           sourceMessageId,
           index,
@@ -4404,6 +4405,7 @@ function SessionPageContent({
       }
       if (command === "clear" && index === 0) {
         recordCommandRecall(commandText);
+        draftControlsRef.current?.confirmInputClear();
         clearToNewSession();
         return true;
       }
@@ -4413,6 +4415,9 @@ function SessionPageContent({
         return true;
       }
       recordCommandRecall(commandText);
+      // The command was consumed here, so the persisted draft is cleared as
+      // a sent message would be; otherwise a reload restores it.
+      draftControlsRef.current?.confirmInputClear();
       if (command === "fork") {
         void createDirectTurnFork(sourceMessageId, "after-user-turn");
         return true;
@@ -5676,7 +5681,7 @@ function SessionPageContent({
                   <>
                     <button
                       type="button"
-                      className="session-title session-title-recent-trigger"
+                      className={`session-title session-title-recent-trigger ${sessionHeaderStyles.titleWithBadge}`}
                       onClick={() => setShowRecentSessions(!showRecentSessions)}
                       title={titleTooltip}
                       aria-haspopup="menu"

@@ -7,7 +7,8 @@
   margin-left: var(--space-1);
   padding: 0 var(--space-1);
   border-radius: 999px;
-  background: var(--success-color, #16a34a);
+  /* A deep green keeps white digits readable in both themes. */
+  background: #15803d;
   color: #fff;
   font-size: var(--font-size-xs, 0.75rem);
   font-weight: 700;

@@ -24,6 +24,7 @@ import {
   type Supervisor,
 } from "../supervisor/Supervisor.js";
 import type { ProcessInfo, Project } from "../supervisor/types.js";
+import { clearloopRemainingFromJob } from "../services/ClearloopService.js";
 
 export interface ProcessesDeps {
   supervisor: Supervisor;
@@ -109,6 +110,14 @@ async function enrichProcessInfo(
     // Only set sessionTitle if we have something meaningful (not "Untitled")
     if (displayTitle !== "Untitled") {
       enriched.sessionTitle = displayTitle;
+    }
+
+    const clearloopRemaining = clearloopRemainingFromJob(
+      metadata?.clearloop,
+      true,
+    );
+    if (clearloopRemaining !== undefined) {
+      enriched.clearloopRemaining = clearloopRemaining;
     }
 
     // Add model if available
