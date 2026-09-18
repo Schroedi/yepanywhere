@@ -7,6 +7,7 @@ import { DiscoverySqliteService } from "../../src/storage/discovery-sqlite.js";
 import { IssueStore } from "../../src/services/issues/IssueStore.js";
 import { IssueConfirmer } from "../../src/services/issues/confirm.js";
 import { IssueCredentials } from "../../src/services/issues/credentials.js";
+import type { SqliteDatabase, SqliteValue } from "../../src/storage/sqlite.js";
 
 const directories: string[] = [];
 afterEach(() => {
@@ -226,6 +227,70 @@ describe("tracker confirmation", () => {
     ).toContain("No jira credential");
     await confirmer.close();
     h.db.close();
+  });
+
+  it("registers a bare Jira key once, not once per question asked about it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ya-issue-confirm-"));
+    directories.push(dir);
+    const service = new DiscoverySqliteService({ dataDir: dir, mode: "auto" });
+    const database = service.getDatabase()!;
+    let registrations = 0;
+    // Resolving a bare key to a canonical identity registers that identity, so
+    // asking the question writes a row. Count those writes: deciding whether a
+    // reference is confirmable must not be what pays for one, and a single
+    // sighting must not pay twice.
+    const counted: SqliteDatabase = {
+      ...database,
+      prepare(sql: string) {
+        const statement = database.prepare(sql);
+        if (!/INSERT OR IGNORE INTO external_issues/i.test(sql))
+          return statement;
+        return {
+          ...statement,
+          run: (...values: SqliteValue[]) => {
+            registrations += 1;
+            return statement.run(...values);
+          },
+        };
+      },
+    };
+    const store = new IssueStore(counted, () => ({
+      enabled: true,
+      scope: "viewed",
+      recentDays: 7,
+      // Aggressive matching would answer the confirmation question without
+      // consulting the registry at all; off is where both callers resolve.
+      aggressiveMatching: false,
+      confirmation: {
+        enabled: true,
+        jiraSite: "https://example.atlassian.net",
+        jiraEmail: "someone@example.com",
+      },
+    }));
+    const source = { sessionId: "s", projectId: "p" };
+    // One site for the prefix, so a later bare key resolves unambiguously.
+    store.capture(source, {
+      id: "url",
+      text: "https://tracker.test/browse/PROJ-1",
+    });
+    while (store.processResolutions()) {
+      /* Settle namespace learning before measuring the bare key. */
+    }
+
+    registrations = 0;
+    store.capture(source, { id: "key", text: "PROJ-7 needs a fix" });
+    expect(registrations).toBe(1);
+    // Paying once still buys the same answer: the resolved key is confirmable,
+    // alongside the URL sighting that taught the registry its site.
+    expect(
+      store
+        .rows("SELECT ref_key,state FROM issue_confirmations ORDER BY ref_key")
+        .map((row) => [String(row.ref_key), String(row.state)]),
+    ).toEqual([
+      ["PROJ-1", "pending"],
+      ["PROJ-7", "pending"],
+    ]);
+    service.close();
   });
 
   it("sends Jira basic auth to the configured site and GitHub a bearer token", async () => {

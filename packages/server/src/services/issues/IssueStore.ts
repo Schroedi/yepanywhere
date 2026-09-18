@@ -284,19 +284,26 @@ export class IssueStore {
             ).length
           )
             continue;
+          // Resolving a bare Jira key registers the identity it finds, so the
+          // question is asked once per sighting and its answer reused, rather
+          // than asked again from inside the confirmation test below.
+          let identity =
+            ref.identity ??
+            (ref.provider === "jira"
+              ? this.jiraIdentity(ref.key, source.projectId)
+              : null);
           // A fresh sighting queues exactly one confirmation, and only while
           // confirmation is on, so turning it on never asks about a backlog.
           // OR IGNORE is the whole retry policy: a reference that already has
           // a verdict, even an unreachable one, is never asked about again.
           if (
             settings.confirmation?.enabled &&
-            (ref.identity ||
+            (identity ||
               ref.provider === "github" ||
               (!(settings.jiraKeyBlocklist ?? DEFAULT_JIRA_KEY_BLOCKLIST).some(
                 (prefix) => prefix === ref.key.split("-")[0],
               ) &&
-                (settings.aggressiveMatching ||
-                  this.jiraIdentity(ref.key, source.projectId))))
+                settings.aggressiveMatching))
           )
             this.run(
               "INSERT OR IGNORE INTO issue_confirmations(project_id,provider,ref_key,state,checked_at) VALUES (?,?,?,'pending',0)",
@@ -304,8 +311,7 @@ export class IssueStore {
               ref.provider,
               ref.key,
             );
-          let identity = ref.identity;
-          if (identity) {
+          if (ref.identity) {
             if (ref.provider === "jira" && ref.url)
               this.learnJira(ref.url, source.projectId);
             this.run(
@@ -319,9 +325,7 @@ export class IssueStore {
               ref.title,
               Date.now(),
             );
-          } else if (ref.provider === "jira") {
-            identity = this.jiraIdentity(ref.key, source.projectId);
-          } else {
+          } else if (ref.provider !== "jira") {
             // Only observations in this project establish a namespace mapping.
             const matches = this.rows(
               `SELECT DISTINCT i.id FROM external_issues i JOIN session_issue_links l ON l.issue_id=i.id
