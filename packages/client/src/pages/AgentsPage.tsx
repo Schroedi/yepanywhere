@@ -337,8 +337,8 @@ function ProcessCard({
           <span className={styles.cardSessionTitle}>
             {process.sessionTitle || t("agentsUntitled" as never)}
           </span>
-          {process.clearloopRemaining !== undefined && (
-            <ClearloopRemainingBadge remaining={process.clearloopRemaining} />
+          {process.clearloop !== undefined && (
+            <ClearloopRemainingBadge badge={process.clearloop} />
           )}
           <span
             className={cx(

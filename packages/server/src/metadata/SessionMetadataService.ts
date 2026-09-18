@@ -452,6 +452,13 @@ export class SessionMetadataService {
     await this.metadataSaver.flush();
   }
 
+  /** Sessions whose durable clearloop record still says `running`. */
+  listSessionIdsWithRunningClearloop(): string[] {
+    return Object.entries(this.state.sessions)
+      .filter(([, metadata]) => metadata.clearloop?.state === "running")
+      .map(([sessionId]) => sessionId);
+  }
+
   getClearloop(sessionId: string): SessionClearloopJob | undefined {
     return this.state.sessions[this.resolveSessionId(sessionId)]?.clearloop;
   }

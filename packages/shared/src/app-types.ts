@@ -8,6 +8,7 @@
  * App types extend these with runtime fields that are computed or added during processing.
  */
 
+import type { SessionClearloopBadge } from "./session-rewind.js";
 import type {
   AssistantEntry,
   SessionEntry,
@@ -583,7 +584,7 @@ export interface AppSessionSummary {
   /** Source session whose provider transcript was cloned or forked. */
   forkedFromSessionId?: string;
   /** Iterations a running `/clearloop` still has to do; absent when none runs. */
-  clearloopRemaining?: number;
+  clearloop?: SessionClearloopBadge;
   /** Saved viewer-only objects placed in the transcript, never provider context. */
   transcriptDisplayObjects?: TranscriptDisplayObject[];
   /** Initial prompt text accepted by YA for new-session recovery/copy. */

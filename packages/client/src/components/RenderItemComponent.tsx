@@ -11,6 +11,7 @@ import { useSessionRewind } from "../contexts/SessionRewindContext";
 import { useTextTooltipAttributes } from "../hooks/useTooltipAppearance";
 import { useI18n } from "../i18n";
 import { getRenderItemRewoundGroupId } from "../lib/sessionDetail/renderItems";
+import { CopyTextButton } from "./ui/CopyTextButton";
 import { AsyncQuestionMessage } from "./AsyncQuestions";
 import {
   MESSAGE_STALE_THRESHOLD_MS,
@@ -288,20 +289,39 @@ function RewoundGroupHeader({
         })
       : t("rewoundGroupLabel", { index });
   const tooltip = t("rewoundGroupTooltip", { count });
+  // A clearloop iteration's header copies the command that would resume the
+  // loop from here: the iterations still to run after this one.
+  const relaunchCommand =
+    details.clearloopIteration !== undefined &&
+    details.clearloopTotal !== undefined &&
+    details.clearloopPrompt
+      ? `/clearloop ${index} ${Math.max(0, details.clearloopTotal - details.clearloopIteration)}: ${details.clearloopPrompt}`
+      : null;
   return (
-    <button
-      type="button"
+    <div
       className={`system-message system-message-local-command ${styles.rewoundGroupHeader}`}
-      aria-expanded={expanded}
-      title={`${tooltip} — ${expanded ? t("rewoundGroupCollapse") : t("rewoundGroupExpand")}`}
-      onClick={() => groupId && rewind.toggleRewoundGroup(groupId)}
     >
-      <span className={styles.rewoundGroupToggle} aria-hidden="true">
-        {expanded ? "−" : "+"}
-      </span>
-      <span className="system-message-icon">↶</span>
-      <span className="system-message-text">{label}</span>
-    </button>
+      <button
+        type="button"
+        className={styles.rewoundGroupToggleButton}
+        aria-expanded={expanded}
+        title={`${tooltip} — ${expanded ? t("rewoundGroupCollapse") : t("rewoundGroupExpand")}`}
+        onClick={() => groupId && rewind.toggleRewoundGroup(groupId)}
+      >
+        <span className={styles.rewoundGroupToggle} aria-hidden="true">
+          {expanded ? "−" : "+"}
+        </span>
+        <span className="system-message-icon">↶</span>
+        <span className="system-message-text">{label}</span>
+      </button>
+      {relaunchCommand && (
+        <CopyTextButton
+          text={relaunchCommand}
+          label={t("rewoundGroupCopyRelaunch")}
+          className={`user-prompt-action user-prompt-action-copy ${styles.rewoundGroupCopy}`}
+        />
+      )}
+    </div>
   );
 }
 

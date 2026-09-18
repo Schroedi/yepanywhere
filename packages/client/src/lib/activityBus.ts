@@ -1,3 +1,4 @@
+import type { SessionClearloopBadge } from "@yep-anywhere/shared";
 import type {
   AgentActivity,
   NonHumanUserTurn,
@@ -121,7 +122,7 @@ export interface SessionMetadataChangedEvent {
   parentSessionKind?: "btw-aside" | null;
   forkedFromSessionId?: string | null;
   /** Remaining `/clearloop` iterations; null when the loop ended. */
-  clearloopRemaining?: number | null;
+  clearloop?: SessionClearloopBadge | null;
   /** A same-session rewind just recorded; the open session applies it. */
   rewindRecord?: SessionRewindRecord;
   heartbeatTurnsEnabled?: boolean;

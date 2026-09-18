@@ -1,3 +1,4 @@
+import type { SessionClearloopBadge } from "@yep-anywhere/shared";
 import type {
   AgentActivity,
   PendingInputType,
@@ -58,7 +59,7 @@ export interface SessionCollectionRecord {
   parentSessionKind?: "btw-aside";
   forkedFromSessionId?: string;
   /** Iterations a running `/clearloop` still has to do; absent when none runs. */
-  clearloopRemaining?: number;
+  clearloop?: SessionClearloopBadge;
   initialPrompt?: string;
   executor?: string;
   lastAgentText?: string;

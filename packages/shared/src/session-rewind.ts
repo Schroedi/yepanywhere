@@ -100,6 +100,20 @@ export interface SessionClearloopJob {
   commandText: string;
 }
 
+/**
+ * What a session summary carries about its running `/clearloop`, enough for
+ * the remaining-count badge and its contract tooltip.
+ */
+export interface SessionClearloopBadge {
+  remaining: number;
+  total: number;
+  completed: number;
+  cutTurnIndex: number;
+  prompt: string;
+  /** Inactivity window in seconds, when the producer knows it. */
+  windowSeconds?: number;
+}
+
 /** Synthetic system subtype that heads a rewound group in the transcript. */
 export const REWOUND_GROUP_SUBTYPE = "rewound_group";
 

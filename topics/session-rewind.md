@@ -277,8 +277,12 @@ in flight; only a stop it did not request interrupts the loop.
   the window elapses.
 - A rewind refusal or provider failure ends the loop as `interrupted` with
   the error.
-- A server restart during a running loop marks it `interrupted`; YA never
-  resumes a loop on startup.
+- A server restart during a running loop marks it `interrupted` at the next
+  startup (with the durable notice); YA never resumes a loop on startup.
+- The remaining-count chip in the session header is also the cancel control:
+  clicking it (after a confirmation) cancels like the queue entry's x, so the
+  current turn finishes and no further rewind happens. The sidebar and Agents
+  chips are passive. Every chip's tooltip states the contract.
 
 **Durable notice.** Every terminal state writes a durable notice into the
 session at the tail (a `local_command` display row, like goal receipts):

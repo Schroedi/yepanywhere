@@ -16,3 +16,16 @@
   line-height: 1.5;
   vertical-align: middle;
 }
+
+.cancelable {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.cancelable:hover,
+.cancelable:focus-visible {
+  background: #b91c1c;
+  outline: none;
+}

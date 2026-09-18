@@ -12,6 +12,7 @@
 import { randomUUID } from "node:crypto";
 import type {
   DurableLocalCommandMessage,
+  SessionClearloopBadge,
   SessionClearloopJob,
   SessionClearloopState,
   SessionQueuedClearloopProgress,
@@ -77,12 +78,20 @@ function parseIsoMs(value: string | undefined): number | null {
  * alone. A record left `running` by a previous server process is not shown:
  * the loop cannot advance, and `getRunningJob` reports it as not running.
  */
-export function clearloopRemainingFromJob(
+export function clearloopBadgeFromJob(
   job: SessionClearloopJob | undefined,
   isLive: boolean,
-): number | undefined {
+  windowSeconds?: number,
+): SessionClearloopBadge | undefined {
   if (job?.state !== "running" || !isLive) return undefined;
-  return Math.max(0, job.total - job.completed);
+  return {
+    remaining: Math.max(0, job.total - job.completed),
+    total: job.total,
+    completed: job.completed,
+    cutTurnIndex: job.cutTurnIndex,
+    prompt: job.prompt,
+    ...(windowSeconds !== undefined ? { windowSeconds } : {}),
+  };
 }
 
 export class ClearloopService {
@@ -103,6 +112,29 @@ export class ClearloopService {
     this.runner = runner;
   }
 
+  /**
+   * Loop state does not survive a server restart: a record left `running`
+   * belongs to a previous server process and can never advance. Mark each
+   * one interrupted with the usual durable notice so badges and history
+   * agree. Called once after session metadata has loaded.
+   */
+  async reconcileAfterRestart(): Promise<void> {
+    const sessionIds =
+      this.options.sessionMetadataService.listSessionIdsWithRunningClearloop?.() ??
+      [];
+    for (const sessionId of sessionIds) {
+      if (this.contexts.has(sessionId)) continue;
+      const job = this.options.sessionMetadataService.getClearloop(sessionId);
+      if (job?.state !== "running") continue;
+      await this.finish(
+        sessionId,
+        job,
+        "interrupted",
+        "Server restarted while the loop was running",
+      );
+    }
+  }
+
   /** The job the queue projection should show, or undefined. */
   getRunningJob(sessionId: string): SessionClearloopJob | undefined {
     const job = this.options.sessionMetadataService.getClearloop(sessionId);
@@ -116,11 +148,12 @@ export class ClearloopService {
     return this.getRunningJob(sessionId) !== undefined;
   }
 
-  /** Remaining iterations for the sidebar/title badge, or undefined. */
-  getRemaining(sessionId: string): number | undefined {
-    return clearloopRemainingFromJob(
+  /** Badge data for the sidebar/title chip, or undefined when no loop runs. */
+  getBadge(sessionId: string): SessionClearloopBadge | undefined {
+    return clearloopBadgeFromJob(
       this.options.sessionMetadataService.getClearloop(sessionId),
       this.contexts.has(sessionId),
+      this.options.getInactivitySeconds(),
     );
   }
 
@@ -356,9 +389,13 @@ export class ClearloopService {
       type: "session-metadata-changed",
       sessionId,
       ...(context ? { projectId: context.projectId } : {}),
-      clearloopRemaining:
+      clearloop:
         job.state === "running" && context
-          ? Math.max(0, job.total - job.completed)
+          ? clearloopBadgeFromJob(
+              job,
+              true,
+              this.options.getInactivitySeconds(),
+            )
           : null,
       timestamp: new Date().toISOString(),
     });

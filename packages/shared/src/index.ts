@@ -654,6 +654,7 @@ export {
   MAX_CLEARLOOP_INACTIVITY_SECONDS,
   MIN_CLEARLOOP_INACTIVITY_SECONDS,
   REWOUND_GROUP_SUBTYPE,
+  type SessionClearloopBadge,
   type SessionClearloopJob,
   type SessionClearloopState,
   type SessionPendingRewind,

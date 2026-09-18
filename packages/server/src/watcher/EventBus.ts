@@ -2,6 +2,7 @@
  * Simple in-memory pub/sub event bus for file change and session status events.
  */
 
+import type { SessionClearloopBadge } from "@yep-anywhere/shared";
 import type {
   AgentActivity,
   NonHumanUserTurn,
@@ -206,7 +207,7 @@ export interface SessionMetadataChangedEvent {
   /** Updated provider-fork provenance link. */
   forkedFromSessionId?: string | null;
   /** Remaining `/clearloop` iterations; null when the loop ended. */
-  clearloopRemaining?: number | null;
+  clearloop?: SessionClearloopBadge | null;
   /** A same-session rewind just recorded; viewers apply it in place. */
   rewindRecord?: SessionRewindRecord;
   /** Updated heartbeat opt-in flag (if changed) */

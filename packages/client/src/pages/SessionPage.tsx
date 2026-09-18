@@ -5698,9 +5698,14 @@ function SessionPageContent({
                       aria-expanded={showRecentSessions}
                     >
                       <span className="session-title-text">{displayTitle}</span>
-                      {session?.clearloopRemaining !== undefined && (
+                      {session?.clearloop !== undefined && (
                         <ClearloopRemainingBadge
-                          remaining={session.clearloopRemaining}
+                          badge={session.clearloop}
+                          onCancel={() => {
+                            if (window.confirm(t("clearloopCancelConfirm"))) {
+                              void handleCancelClearloop();
+                            }
+                          }}
                         />
                       )}
                     </button>

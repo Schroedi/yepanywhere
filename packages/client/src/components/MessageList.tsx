@@ -5158,6 +5158,10 @@ export const MessageList = memo(function MessageList({
                           completed: String(deferred.clearloop.completed),
                           total: String(deferred.clearloop.total),
                         })}
+                        title={t("clearloopIterationBadgeTitle", {
+                          completed: String(deferred.clearloop.completed),
+                          total: String(deferred.clearloop.total),
+                        })}
                       >
                         {deferred.clearloop.completed}/
                         {deferred.clearloop.total}

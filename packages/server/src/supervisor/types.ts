@@ -1,3 +1,4 @@
+import type { SessionClearloopBadge } from "@yep-anywhere/shared";
 import type {
   AppSessionSummary,
   NonHumanUserTurn,
@@ -253,7 +254,7 @@ export interface ProcessInfo {
   projectName: string; // path.basename(projectPath)
   sessionTitle: string | null; // from session data
   /** Iterations a running `/clearloop` still has to do; absent when none runs. */
-  clearloopRemaining?: number;
+  clearloop?: SessionClearloopBadge;
   state: AgentActivity;
   startedAt: string;
   queueDepth: number;

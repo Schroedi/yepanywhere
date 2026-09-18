@@ -5,6 +5,7 @@
  * this returns a flat list suitable for navigation/sidebar use.
  */
 
+import type { SessionClearloopBadge } from "@yep-anywhere/shared";
 import {
   isUrlProjectId,
   type ProviderChildSessionSummary,
@@ -56,6 +57,7 @@ import {
   getActiveSessionIndexOptions,
   isSessionAutoArchived,
 } from "./session-list-options.js";
+import { clearloopBadgeFromJob } from "../services/ClearloopService.js";
 
 export interface GlobalSessionsDeps {
   retainedCollections?: RetainedSessionCollections;
@@ -112,6 +114,8 @@ export interface GlobalSessionItem {
   customTitle?: string;
   isArchived?: boolean;
   isStarred?: boolean;
+  /** Iterations a running `/clearloop` still has to do; absent when none runs. */
+  clearloop?: SessionClearloopBadge;
   /** True when an explicit manual termination disabled automatic resume. */
   autoResumeDisabled?: boolean;
   /** Interactive Mother session for a YA-owned `/btw` aside. */
@@ -697,6 +701,7 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
           parentSessionId,
           parentSessionKind,
           forkedFromSessionId,
+          clearloop: clearloopBadgeFromJob(metadata?.clearloop, true),
           workstreamId: metadata?.workstreamId,
           initialPrompt: initialPrompt ?? undefined,
           executor,

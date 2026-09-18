@@ -19,7 +19,7 @@ import {
 } from "@yep-anywhere/shared";
 import type { ISessionIndexService } from "../indexes/types.js";
 import type { SessionMetadataService } from "../metadata/SessionMetadataService.js";
-import { clearloopRemainingFromJob } from "../services/ClearloopService.js";
+import { clearloopBadgeFromJob } from "../services/ClearloopService.js";
 import type { ISessionReader } from "./types.js";
 
 /**
@@ -95,7 +95,7 @@ export class Session extends SessionView {
       customTitle: metadata?.customTitle,
       isArchived: metadata?.isArchived,
       isStarred: metadata?.isStarred,
-      clearloopRemaining: clearloopRemainingFromJob(metadata?.clearloop, true),
+      clearloop: clearloopBadgeFromJob(metadata?.clearloop, true),
       executor: metadata?.executor,
     };
 

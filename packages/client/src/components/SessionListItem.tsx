@@ -1,3 +1,4 @@
+import type { SessionClearloopBadge } from "@yep-anywhere/shared";
 import {
   type ReactNode,
   useCallback,
@@ -112,7 +113,7 @@ interface SessionListItemProps {
   // Actions (menu hidden when all undefined)
   isStarred?: boolean;
   /** Remaining `/clearloop` iterations; shows a green count badge. */
-  clearloopRemaining?: number;
+  clearloop?: SessionClearloopBadge;
   isArchived?: boolean;
   onToggleStar?: () => void;
   onToggleArchive?: () => void;
@@ -219,7 +220,7 @@ export function SessionListItem({
   openNonHumanUserTurn = false,
   // Actions
   isStarred: isStarredProp,
-  clearloopRemaining,
+  clearloop,
   isArchived: isArchivedProp,
   onToggleStar,
   onToggleArchive,
@@ -884,8 +885,8 @@ export function SessionListItem({
                     </span>
                   )}
                   {titleContent ?? <span>{visibleTitle}</span>}
-                  {clearloopRemaining !== undefined && (
-                    <ClearloopRemainingBadge remaining={clearloopRemaining} />
+                  {clearloop !== undefined && (
+                    <ClearloopRemainingBadge badge={clearloop} />
                   )}
                   {hasDraft && (
                     <span className="session-draft-badge">Draft</span>
@@ -1026,8 +1027,8 @@ export function SessionListItem({
                     </span>
                   )}
                   <span>{visibleTitle}</span>
-                  {clearloopRemaining !== undefined && (
-                    <ClearloopRemainingBadge remaining={clearloopRemaining} />
+                  {clearloop !== undefined && (
+                    <ClearloopRemainingBadge badge={clearloop} />
                   )}
                 </span>
                 {sessionApps.latest && (

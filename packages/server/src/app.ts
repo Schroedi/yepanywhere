@@ -1414,6 +1414,9 @@ export function createApp(options: AppOptions): AppResult {
           ) ?? DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
       })
     : undefined;
+  // Session metadata is initialized before createApp; loops left running by
+  // a previous server process are closed out here.
+  void clearloopService?.reconcileAfterRestart();
 
   supervisor = new Supervisor({
     onSessionStopRequested: (sessionId) => {

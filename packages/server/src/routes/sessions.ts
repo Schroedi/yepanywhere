@@ -2776,7 +2776,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         customTitle: metadata?.customTitle,
         isArchived: metadata?.isArchived,
         isStarred: metadata?.isStarred,
-        clearloopRemaining: deps.clearloopService?.getRemaining(sessionId),
+        clearloop: deps.clearloopService?.getBadge(sessionId),
         parentSessionId:
           metadata?.parentSessionId ?? sessionSummary?.parentSessionId,
         parentSessionKind:
@@ -3293,7 +3293,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             customTitle: metadata?.customTitle,
             isArchived: metadata?.isArchived,
             isStarred: metadata?.isStarred,
-            clearloopRemaining: deps.clearloopService?.getRemaining(sessionId),
+            clearloop: deps.clearloopService?.getBadge(sessionId),
             parentSessionId: metadata?.parentSessionId,
             parentSessionKind: metadata?.parentSessionKind,
             forkedFromSessionId: metadata?.forkedFromSessionId,
@@ -3719,7 +3719,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         customTitle: metadata?.customTitle,
         isArchived: metadata?.isArchived,
         isStarred: metadata?.isStarred,
-        clearloopRemaining: deps.clearloopService?.getRemaining(sessionId),
+        clearloop: deps.clearloopService?.getBadge(sessionId),
         parentSessionId: metadata?.parentSessionId ?? session.parentSessionId,
         parentSessionKind:
           metadata?.parentSessionKind ?? session.parentSessionKind,
