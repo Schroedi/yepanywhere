@@ -22,6 +22,7 @@ import {
   type PromptCacheKeepaliveProviderInfo,
 } from "@yep-anywhere/shared";
 import { getLogger } from "../../logging/logger.js";
+import { refreshPiModelExport } from "./piModelExport.js";
 import {
   gatewayEffortProbeCache,
   probeServiceEffort,
@@ -80,6 +81,14 @@ interface GatewayServiceCatalog {
   disableAgent: boolean;
   disablePlanMode: boolean;
   launchMetadata: Map<string, GatewayModelLaunchMetadata>;
+  /**
+   * What this service advertised, as this service names it.
+   *
+   * Retained rather than only unioned because an export to another CLI's model
+   * registry has to say which endpoint serves which model, and the union
+   * deliberately loses that by qualifying ids only when two services collide.
+   */
+  models: ModelInfo[];
 }
 
 /** Which service serves an exposed model id, and under what name it knows it. */
@@ -913,6 +922,11 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
     ) {
       return [];
     }
+    // pi's registry can only name models an endpoint has actually advertised,
+    // which is known here and nowhere earlier.
+    void refreshPiModelExport(
+      ClaudeGatewayProvider.advertisedModelsByService(),
+    );
     return models;
   }
 
@@ -975,6 +989,7 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
             service.disablePlanMode ??
             ClaudeGatewayProvider.gatewayDisablePlanMode,
           launchMetadata: parsed.launchMetadata,
+          models: parsed.models,
         },
       };
     } catch (error) {
@@ -1021,6 +1036,21 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
     const snapshot = ClaudeGatewayProvider.currentSnapshot();
     const catalog = snapshot?.services.get(service.id);
     if (catalog) catalog.baseUrl = listeningUrl;
+  }
+
+  /**
+   * What each configured service most recently advertised, by service id.
+   *
+   * For exports to other CLIs' registries, which need the endpoint-by-endpoint
+   * view rather than the union YA's own picker shows.
+   */
+  static advertisedModelsByService(): Map<string, ModelInfo[]> {
+    const snapshot = ClaudeGatewayProvider.currentSnapshot();
+    const byService = new Map<string, ModelInfo[]>();
+    for (const [serviceId, catalog] of snapshot?.services ?? []) {
+      byService.set(serviceId, catalog.models);
+    }
+    return byService;
   }
 
   private static currentSnapshot(): GatewayCatalogSnapshot | undefined {

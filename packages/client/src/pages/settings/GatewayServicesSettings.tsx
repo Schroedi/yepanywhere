@@ -602,6 +602,7 @@ export function GatewayServicesSettings({
                   <span>{t("providersGatewayServiceCliLabel")}</span>
                   <code>{invocations.claude}</code>
                   {invocations.codex && <code>{invocations.codex}</code>}
+                  <code>{invocations.pi}</code>
                 </div>
               )}
 

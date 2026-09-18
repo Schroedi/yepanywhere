@@ -200,6 +200,7 @@ export {
   normalizeGatewayServiceUrl,
   parseGatewayModelId,
   parseGatewayServices,
+  piProviderName,
   qualifiedGatewayModelId,
   tomlString,
   type GatewayService,

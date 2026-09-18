@@ -254,8 +254,10 @@ mirrored to the default entry.
 
 ## Launches never edit the user's provider config
 
-A launch writes nothing. Claude Gateway supplies its transport through the
-Claude SDK's per-launch flag-settings layer and the child environment; CodexOSS
+A launch writes nothing. (The opt-in terminal export is a separate act, and its
+pi half is the one place YA does merge into a CLI's own file — see above.)
+Claude Gateway supplies its transport through the Claude SDK's per-launch
+flag-settings layer and the child environment; CodexOSS
 passes `-c model_providers.<id>.…` overrides on the command line. A YA session
 therefore cannot disturb a concurrently running TUI.
 
@@ -265,6 +267,20 @@ therefore cannot disturb a concurrently running TUI.
 publishes the configured services for the provider CLIs, so the same models are
 selectable from a plain terminal session.
 
+- pi is the one exception to the rule below, because pi gives no way to keep
+  it. `ModelConfig.load()` reads exactly one registry, `<agent dir>/models.json`,
+  and `PI_CODING_AGENT_DIR` relocates the whole agent directory — auth,
+  sessions and settings with it — rather than the registry alone (verified
+  against installed Pi 0.85.1). The export therefore merges into the user's own
+  file: every provider named `ya-<service id>` belongs to YA and is rewritten or
+  removed with the services list, every other key is preserved, and the file is
+  copied once to `models.json.ya-backup` before the first rewrite. A registry
+  YA cannot parse as plain JSON is left alone rather than rewritten from a
+  guess. The command is `pi --provider ya-<id>`.
+- pi's registry states each model outright, so it can only name what an
+  endpoint has advertised: it is refreshed from each catalog read, and a
+  service whose catalog has not been read yet keeps the models pi was last
+  told rather than being emptied.
 - Per enabled service, YA writes `$CLAUDE_CONFIG_DIR/ya-<id>.settings.json`
   carrying the transport environment, and — for a service CodexOSS may use —
   `$CODEX_HOME/ya-<id>.config.toml` carrying a `model_providers` entry. The

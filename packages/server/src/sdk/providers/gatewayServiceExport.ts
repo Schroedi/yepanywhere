@@ -33,7 +33,11 @@ import {
   type GatewayServiceExportPaths,
 } from "@yep-anywhere/shared";
 import { getLogger } from "../../logging/logger.js";
-import { gatewayAutoCompactWindow } from "./claude-gateway.js";
+import {
+  ClaudeGatewayProvider,
+  gatewayAutoCompactWindow,
+} from "./claude-gateway.js";
+import { syncPiModelExport } from "./piModelExport.js";
 
 /**
  * First line of every generated file. Recognizing our own output is what makes
@@ -171,6 +175,8 @@ async function removeStaleManagedFiles(
 export interface GatewayServiceExportResult {
   written: string[];
   removed: string[];
+  /** pi's own registry, which is merged rather than written whole. */
+  piModelsPath?: string;
 }
 
 /**
@@ -183,6 +189,11 @@ export async function syncGatewayServiceExports(options: {
   services: readonly GatewayService[];
   enabled: boolean;
   paths?: GatewayServiceExportPaths;
+  /**
+   * Where pi's registry lives. Defaults to pi's own agent directory; a test
+   * states one so a focused run cannot reach the developer's real registry.
+   */
+  piAgentDir?: string;
 }): Promise<GatewayServiceExportResult> {
   const paths = options.paths ?? defaultGatewayServiceExportPaths();
   const exported = options.enabled
@@ -237,5 +248,16 @@ export async function syncGatewayServiceExports(options: {
     )),
   ];
 
-  return { written, removed };
+  // pi has no per-launch registry override, so its own `models.json` is merged
+  // instead of a YA-owned file being written beside it. It is driven from the
+  // same setting and the same list, so turning the export off withdraws the
+  // services from pi exactly as it deletes the other two CLIs' files.
+  const pi = await syncPiModelExport({
+    services: options.services,
+    enabled: options.enabled,
+    models: ClaudeGatewayProvider.advertisedModelsByService(),
+    ...(options.piAgentDir ? { agentDir: options.piAgentDir } : {}),
+  });
+
+  return { written, removed, piModelsPath: pi.path };
 }

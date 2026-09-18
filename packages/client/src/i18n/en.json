@@ -2703,7 +2703,7 @@
   "providersGatewayServiceAutoSaved": "Saved",
   "providersGatewayServicePendingBlur": "Saves when you leave the field",
   "providersGatewayServiceExportTitle": "Make these services usable from the terminal",
-  "providersGatewayServiceExportDescription": "Writes one file per service for the Claude and Codex CLIs, so the same models can be selected outside YA. YA owns those files and rewrites them whenever the services change; your own ~/.claude/settings.json and ~/.codex/config.toml are never read or edited. Turning this off deletes what YA wrote.",
+  "providersGatewayServiceExportDescription": "Writes one file per service for the Claude and Codex CLIs, so the same models can be selected outside YA. YA owns those files and rewrites them whenever the services change; your own ~/.claude/settings.json and ~/.codex/config.toml are never read or edited. pi has no such per-launch file, so its ~/.pi/agent/models.json instead gains one ya-<service> provider per service, leaving everything else in it alone and keeping a one-time .ya-backup copy. Turning this off deletes what YA wrote and withdraws the pi providers.",
   "providersGatewayServiceCliLabel": "Run this service from a terminal:",
   "providersClaudeGatewayDisableAgentTitle": "Disable Agent tool",
   "providersClaudeGatewayDisableAgentDescription": "Pass Claude Code a deny rule for the Agent tool in Claude Gateway sessions, preventing built-in and custom subagent delegation. Takes effect when a Gateway process starts or resumes; regular Claude is unchanged. Turning this off stops YA from adding the rule, but other Claude settings may still deny the tool.",

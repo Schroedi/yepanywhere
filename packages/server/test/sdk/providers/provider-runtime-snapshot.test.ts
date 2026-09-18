@@ -55,6 +55,7 @@ describe("applyProviderRuntimeSnapshot", () => {
       levels: ["low", "high"],
       noThinking: true,
     });
-    expect(asked).toHaveBeenCalledTimes(1);
+    // Schema stage, then the chat-template stage that narrows it.
+    expect(asked).toHaveBeenCalledTimes(2);
   });
 });

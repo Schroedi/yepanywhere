@@ -298,13 +298,21 @@ export function claudeSettingsPath(
 export function gatewayServiceCliInvocations(
   service: Pick<GatewayService, "id" | "codexEnabled">,
   paths: GatewayServiceExportPaths,
-): { claude: string; codex?: string } {
+): { claude: string; codex?: string; pi: string } {
   return {
     claude: `claude --settings ${claudeSettingsPath(paths, service)}`,
     ...(service.codexEnabled
       ? { codex: `codex -p ${codexProfileName(service)}` }
       : {}),
+    // pi selects a provider by name out of its one registry rather than by
+    // loading a file, because that registry is the only place it looks.
+    pi: `pi --provider ${piProviderName(service)}`,
   };
+}
+
+/** pi's provider name for a service, as the export writes it into models.json. */
+export function piProviderName(service: Pick<GatewayService, "id">): string {
+  return `ya-${service.id}`;
 }
 
 /** `<serviceId>::<modelId>`, used only when services collide on a model id. */
