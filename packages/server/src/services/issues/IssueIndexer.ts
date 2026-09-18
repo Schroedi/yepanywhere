@@ -6,7 +6,7 @@ import type {
 } from "../../sessions/issue-text-reader.js";
 import type { Message } from "../../supervisor/types.js";
 import { issueMessageText } from "../../sessions/normalization.js";
-import type { IssueStore, IssueSource } from "./IssueStore.js";
+import type { AdmittedJob, IssueStore, IssueSource } from "./IssueStore.js";
 
 import type { IssueSettings } from "@yep-anywhere/shared";
 export type { IssueSettings } from "@yep-anywhere/shared";
@@ -105,22 +105,35 @@ export class IssueIndexer {
       // server, none of which can change a row. Only a session that already
       // has a row can move, and a row created later during this sweep carries
       // its own project, so one read up front replaces all of them.
-      const owned = this.store.ownedSessions();
+      const owned = this.store.ownedProjects();
+      // Read once, and only if something is actually admitted: a sweep in
+      // viewed scope with no open session must not pay for a queue it will
+      // not touch.
+      let queue: Map<string, AdmittedJob> | undefined;
+      const admitted = () => (queue ??= this.store.admittedJobs());
       let count = 0;
       for await (const row of this.deps.candidates()) {
         if (signal.aborted) return;
-        // Current project ownership updates independently of scan eligibility.
-        if (owned.has(row.sessionId))
-          this.store.updateProject(
-            row.sessionId,
-            this.deps.projectForSession?.(row.sessionId) ?? row.projectId,
-          );
+        const projectId =
+          this.deps.projectForSession?.(row.sessionId) ?? row.projectId;
+        // Current project ownership updates independently of scan eligibility,
+        // and only for a session some stored row still files elsewhere: the
+        // update statements are no-ops otherwise, but their transaction is a
+        // file lock either way.
+        const stored = owned.get(row.sessionId);
+        if (stored && [...stored].some((held) => held !== projectId))
+          this.store.updateProject(row.sessionId, projectId);
         if (
           (this.settings().scope === "recent" &&
             Date.parse(row.updatedAt) >= cutoff) ||
           this.deps.viewed?.(row.sessionId)
         ) {
-          this.enqueue(row, this.deps.viewed?.(row.sessionId) ? 1 : 0);
+          this.enqueue(
+            row,
+            this.deps.viewed?.(row.sessionId) ? 1 : 0,
+            projectId,
+            admitted(),
+          );
         }
         if (++count % 100 === 0) await yieldTurn();
       }
@@ -146,17 +159,47 @@ export class IssueIndexer {
       });
   }
   private lastError: string | null = null;
-  private enqueue(row: Readonly<SessionCatalogRow>, priority: number): void {
+  /**
+   * Admit one candidate, writing only when the queue would actually change.
+   * The upsert below assigns project, source, version and priority whatever
+   * the stored row holds, so a job that already holds all four would be
+   * rewritten with its own bytes — thousands of locks a minute in recent
+   * scope, where every publication re-admits every recent session. A paused
+   * job is the exception: the upsert's `CASE` is what returns it to the queue
+   * when a widened recent window or a reopened session admits it again.
+   *
+   * `queued` is this sweep's opening snapshot, so a job the running worker
+   * pauses mid-sweep can be skipped here and stays paused until the next
+   * publication reads it as paused and re-queues it. The unconditional write
+   * had the same one-publication delay with the outcome reversed: whichever
+   * of the pause and the upsert landed second decided the state.
+   */
+  private enqueue(
+    row: Readonly<SessionCatalogRow>,
+    priority: number,
+    projectId: string,
+    queued: ReadonlyMap<string, AdmittedJob>,
+  ): void {
+    const source = JSON.stringify(row);
+    const current = queued.get(row.sessionId);
+    if (
+      current &&
+      current.state !== "paused" &&
+      current.priority === priority &&
+      current.projectId === projectId &&
+      current.source === source
+    )
+      return;
     this.store.run(
       `INSERT INTO issue_index_jobs(session_id,project_id,source_version,cursor,state,updated_at,source_json,priority)
       VALUES (?,?,?,NULL,'queued',?,?,?) ON CONFLICT(session_id) DO UPDATE SET
       state=CASE WHEN issue_index_jobs.source_version!=excluded.source_version OR issue_index_jobs.state='paused' THEN 'queued' ELSE issue_index_jobs.state END,
       project_id=excluded.project_id,source_json=excluded.source_json,source_version=excluded.source_version,priority=excluded.priority`,
       row.sessionId,
-      this.deps.projectForSession?.(row.sessionId) ?? row.projectId,
+      projectId,
       row.sourceVersion,
       Date.now(),
-      JSON.stringify(row),
+      source,
       priority,
     );
   }

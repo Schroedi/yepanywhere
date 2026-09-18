@@ -10,7 +10,7 @@ import {
 } from "../../src/services/issues/IssueIndexer.js";
 import { readIssueTextBatch } from "../../src/sessions/issue-text-reader.js";
 import type { SessionCatalogRow } from "../../src/sessions/catalog-types.js";
-import type { SqliteDatabase } from "../../src/storage/sqlite.js";
+import type { SqliteDatabase, SqliteValue } from "../../src/storage/sqlite.js";
 const dirs: string[] = [];
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -467,10 +467,165 @@ it("sweeps a catalog for moved projects without a write transaction per session"
   expect(transactions).toBe(1);
   expect(store.evidence(store.list()[0]!.id)[0]?.projectId).toBe("moved");
 
+  // Sweeping again over the same catalog moves nothing, and a session whose
+  // rows already file under the current project costs no transaction at all —
+  // the update statements would match no row, but the lock is taken anyway.
   transactions = 0;
   indexer.refresh();
   await indexer.settled();
-  expect(transactions).toBe(1);
+  expect(transactions).toBe(0);
+});
+it("re-admits an unchanged recent catalog without a write per session", async () => {
+  const service = new DiscoverySqliteService({
+    dataDir: directory(),
+    mode: "auto",
+  });
+  const database = service.getDatabase()!;
+  let writes = 0;
+  let admissions = 0;
+  // Recent scope admits every recent session on every publication, and the
+  // admitting upsert runs in autocommit, so it never reached the transaction
+  // counter above while still taking one file lock per session per
+  // publication. Count the write statements themselves.
+  const counted: SqliteDatabase = {
+    ...database,
+    prepare(sql: string) {
+      const statement = database.prepare(sql);
+      if (!/^\s*(INSERT|UPDATE|DELETE)/i.test(sql)) return statement;
+      return {
+        ...statement,
+        run: (...values: SqliteValue[]) => {
+          writes += 1;
+          if (/^\s*INSERT INTO issue_index_jobs/i.test(sql)) admissions += 1;
+          return statement.run(...values);
+        },
+      };
+    },
+  };
+  const settings: IssueSettings = {
+    enabled: true,
+    scope: "recent",
+    recentDays: 7,
+  };
+  const store = new IssueStore(counted, () => settings);
+  while (store.processResolutions()) {
+    /* Finish one-time schema backfill before measuring idle sweeps. */
+  }
+  const rows = Array.from(
+    { length: 200 },
+    (_, i) =>
+      ({
+        sessionId: `s${i}`,
+        projectId: "p",
+        sourceVersion: "one",
+        updatedAt: new Date().toISOString(),
+        location: { kind: "file", path: "unused" },
+      }) as SessionCatalogRow,
+  );
+  const read: string[] = [];
+  const indexer = new IssueIndexer(store, {
+    settings: () => settings,
+    candidates: async function* () {
+      yield* rows;
+    },
+    read: async (row) => {
+      read.push(row.sessionId);
+      return {
+        messages: [],
+        cursor: "end",
+        done: true,
+        partial: false,
+        bytesRead: 0,
+      };
+    },
+  });
+  cleanup.push(async () => {
+    await indexer.close();
+    service.close();
+  });
+
+  admissions = 0;
+  indexer.refresh();
+  await indexer.settled();
+  expect(admissions).toBe(200);
+
+  // Every session update republishes the catalog, so this is what an idle
+  // server pays between real changes: nothing at all, not merely less.
+  writes = 0;
+  indexer.refresh();
+  await indexer.settled();
+  expect(writes).toBe(0);
+
+  // A session whose source really changed is still admitted, and alone.
+  rows[3] = { ...rows[3]!, sourceVersion: "two" } as SessionCatalogRow;
+  admissions = 0;
+  read.length = 0;
+  indexer.refresh();
+  await indexer.settled();
+  expect(admissions).toBe(1);
+  expect(read).toEqual(["s3"]);
+});
+it("re-queues a paused job when the catalog admits it again", async () => {
+  const service = new DiscoverySqliteService({
+    dataDir: directory(),
+    mode: "auto",
+  });
+  const settings: IssueSettings = {
+    enabled: true,
+    scope: "recent",
+    recentDays: 7,
+  };
+  const store = new IssueStore(service.getDatabase()!, () => settings);
+  // Older than the recent window, so only an open view admits it.
+  const row = {
+    sessionId: "s",
+    projectId: "p",
+    sourceVersion: "one",
+    updatedAt: new Date(Date.now() - 30 * 86400_000).toISOString(),
+    location: { kind: "file", path: "unused" },
+  } as SessionCatalogRow;
+  let viewing = true;
+  let closesAfterAdmission = true;
+  const read: string[] = [];
+  const indexer = new IssueIndexer(store, {
+    settings: () => settings,
+    candidates: async function* () {
+      yield row;
+      // The view closes between admission and the worker reaching the job.
+      if (closesAfterAdmission) viewing = false;
+    },
+    viewed: () => viewing,
+    read: async (candidate) => {
+      read.push(candidate.sessionId);
+      return {
+        messages: [],
+        cursor: "end",
+        done: true,
+        partial: false,
+        bytesRead: 0,
+      };
+    },
+  });
+  cleanup.push(async () => {
+    await indexer.close();
+    service.close();
+  });
+
+  indexer.refresh();
+  await indexer.settled();
+  expect(read).toEqual([]);
+  expect(store.rows("SELECT state FROM issue_index_jobs")[0]?.state).toBe(
+    "paused",
+  );
+
+  // Reopened, and nothing about the catalog row changed. Only the upsert
+  // returns a paused job to the queue, so skipping it as unchanged would
+  // leave this session indefinitely unindexed.
+  viewing = true;
+  closesAfterAdmission = false;
+  indexer.refresh();
+  await indexer.settled();
+  expect(read).toEqual(["s"]);
 });
 it("skips a republished catalog that has not changed, and still sweeps on demand", async () => {
   const dir = directory();

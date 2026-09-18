@@ -24,6 +24,14 @@ export interface IssueSource {
   sessionId: string;
   projectId: string;
 }
+/** The columns a re-admission would rewrite, as the queue currently holds them. */
+export interface AdmittedJob {
+  projectId: string;
+  priority: number;
+  state: string;
+  /** Serialized catalog row, compared verbatim against the candidate's. */
+  source: string;
+}
 const escaped = (value: string) => `%${value.replace(/[\\%_]/g, "\\$&")}%`;
 export const unresolvedId = (project: string, key: string) =>
   `ref:${JSON.stringify([project, key])}`;
@@ -56,16 +64,46 @@ export class IssueStore {
     }
   }
   /**
-   * Sessions that have a row `updateProject` could change. A sweep over a
-   * whole session catalog consults this once instead of opening a write
-   * transaction per candidate: SQLite takes a file lock per transaction, so
-   * thousands of guaranteed-empty updates are thousands of locks.
+   * The project each stored row holds, for every session `updateProject`
+   * could move. A sweep over a whole session catalog consults this once
+   * instead of opening a write transaction per candidate: SQLite takes a file
+   * lock per transaction, so thousands of guaranteed-empty updates are
+   * thousands of locks. A session absent here has nothing to move, and one
+   * whose rows all hold the current project has nothing to change.
    */
-  ownedSessions(): Set<string> {
-    return new Set(
+  ownedProjects(): Map<string, Set<string>> {
+    const owned = new Map<string, Set<string>>();
+    for (const row of this.rows(
+      "SELECT session_id,project_id FROM issue_index_jobs UNION SELECT session_id,project_id FROM session_issue_evidence",
+    )) {
+      const session = String(row.session_id);
+      const projects = owned.get(session) ?? new Set<string>();
+      projects.add(String(row.project_id));
+      owned.set(session, projects);
+    }
+    return owned;
+  }
+  /**
+   * What each queued session already holds, for the same reason
+   * `ownedProjects` exists: re-admitting a catalog row that has not changed
+   * would rewrite the row with its own values, and in recent scope that is one
+   * autocommit upsert — one file lock — per recent session per catalog
+   * publication. One read names the queue and the sweep writes only real
+   * changes.
+   */
+  admittedJobs(): Map<string, AdmittedJob> {
+    return new Map(
       this.rows(
-        "SELECT session_id FROM issue_index_jobs UNION SELECT session_id FROM session_issue_evidence",
-      ).map((row) => String(row.session_id)),
+        "SELECT session_id,project_id,priority,state,source_json FROM issue_index_jobs",
+      ).map((row) => [
+        String(row.session_id),
+        {
+          projectId: String(row.project_id),
+          priority: Number(row.priority),
+          state: String(row.state),
+          source: String(row.source_json),
+        },
+      ]),
     );
   }
   updateProject(sessionId: string, projectId: string): void {

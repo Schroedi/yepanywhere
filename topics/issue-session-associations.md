@@ -288,15 +288,25 @@ its own reason to sweep — a settings change, a session-id remap — is not key
 and always runs, and only a sweep that ran to completion retires its mark, so
 an aborted one is repeated rather than assumed.
 
-A catalog sweep costs write transactions only for sessions whose working
-project actually moved. Ownership can change only for a session that already
-has a job or evidence row, so one read names that set before the sweep begins
-and every other candidate is skipped without opening a transaction. The
-observable requirement is that admitting an unchanged catalog of any size
-performs no writes: SQLite takes a file lock per transaction, and an idle
-server was previously taking roughly one lock per known session per catalog
-publication, which is fatal on the network filesystems
-[optional SQLite](optional-sqlite.md) now refuses.
+A catalog sweep writes only for sessions that actually changed, in every
+scope. The observable requirement is that admitting an unchanged catalog of
+any size performs no writes at all: SQLite takes a file lock per write, and an
+idle server was previously taking roughly one lock per known session per
+catalog publication, which is fatal on the network filesystems
+[optional SQLite](optional-sqlite.md) now refuses. Recent scope is the case
+that makes this visible, because it re-admits every session inside the window
+on every publication, and an active server republishes every few seconds.
+
+Two reads before the sweep replace all of those writes. Ownership can change
+only for a session that already has a job or evidence row, so one read names
+those sessions and the project each of their rows currently holds; a candidate
+with no row, or whose rows all hold its current project, is skipped without
+opening a transaction. The other read names what each queued job already
+holds, so a candidate whose project, priority and serialized catalog row all
+match the stored job is admitted without a write — the upsert would otherwise
+rewrite the row with its own bytes. A paused job is the exception and is
+always written, because returning it to the queue is exactly what the upsert
+does when a widened recent window or a reopened session admits it again.
 
 Provider-owned acquisition uses 64 KiB reads, an 8 MiB/2,000-record batch budget,
 a 30-second acquisition deadline and a 1 MiB individual JSONL record limit.
