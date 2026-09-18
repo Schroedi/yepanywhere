@@ -704,7 +704,6 @@ function CodexUpdatePanel() {
           className="settings-button"
           onClick={() => void refresh(true)}
           disabled={isChecking}
-          style={{ marginLeft: "auto" }}
         >
           {isChecking
             ? t("providersCodexUpdateChecking")
@@ -720,6 +719,61 @@ function CodexUpdatePanel() {
             {t("providersCodexUpdateReleaseNotes")}
           </a>
         )}
+        {/* A div rather than a fieldset: a <legend> is laid out in the border
+            area whatever the fieldset's display is, so it always took a line of
+            its own above radios that fit beside it. */}
+        <div
+          role="radiogroup"
+          aria-label={t("providersCodexUpdatePolicyTitle")}
+          style={{
+            display: "flex",
+            gap: "var(--space-3)",
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <span className="settings-hint">
+            {t("providersCodexUpdatePolicyTitle")}
+          </span>
+          {(["auto", "notify", "off"] as const).map((value) => {
+            const disabled = value === "auto" && !canAuto;
+            return (
+              <label
+                key={value}
+                style={{
+                  display: "inline-flex",
+                  gap: 4,
+                  alignItems: "center",
+                  opacity: disabled ? 0.55 : 1,
+                  cursor: disabled ? "not-allowed" : "pointer",
+                }}
+                title={
+                  disabled
+                    ? t("providersCodexUpdatePolicyAutoUnavailable")
+                    : undefined
+                }
+              >
+                <input
+                  type="radio"
+                  name="codex-update-policy"
+                  value={value}
+                  checked={policy === value}
+                  disabled={disabled}
+                  onChange={() =>
+                    void updateSetting("codexUpdatePolicy", value)
+                  }
+                />
+                <span>
+                  {value === "auto"
+                    ? t("commonAuto")
+                    : value === "notify"
+                      ? t("providersCodexUpdatePolicyNotify")
+                      : t("commonOff")}
+                </span>
+              </label>
+            );
+          })}
+        </div>
       </div>
 
       {updateAvailable && (
@@ -798,57 +852,6 @@ function CodexUpdatePanel() {
           </pre>
         </details>
       )}
-
-      <fieldset
-        style={{
-          border: "none",
-          padding: 0,
-          marginTop: "var(--space-3)",
-          display: "flex",
-          gap: "var(--space-3)",
-          flexWrap: "wrap",
-        }}
-      >
-        <legend className="settings-hint" style={{ marginBottom: 4 }}>
-          {t("providersCodexUpdatePolicyTitle")}
-        </legend>
-        {(["auto", "notify", "off"] as const).map((value) => {
-          const disabled = value === "auto" && !canAuto;
-          return (
-            <label
-              key={value}
-              style={{
-                display: "inline-flex",
-                gap: 4,
-                alignItems: "center",
-                opacity: disabled ? 0.55 : 1,
-                cursor: disabled ? "not-allowed" : "pointer",
-              }}
-              title={
-                disabled
-                  ? t("providersCodexUpdatePolicyAutoUnavailable")
-                  : undefined
-              }
-            >
-              <input
-                type="radio"
-                name="codex-update-policy"
-                value={value}
-                checked={policy === value}
-                disabled={disabled}
-                onChange={() => void updateSetting("codexUpdatePolicy", value)}
-              />
-              <span>
-                {value === "auto"
-                  ? t("commonAuto")
-                  : value === "notify"
-                    ? t("providersCodexUpdatePolicyNotify")
-                    : t("commonOff")}
-              </span>
-            </label>
-          );
-        })}
-      </fieldset>
     </div>
   );
 }

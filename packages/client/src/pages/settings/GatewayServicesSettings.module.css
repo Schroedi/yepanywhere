@@ -11,7 +11,11 @@
      a rem 18.4px, so 16rem asked for more than two columns could ever have. */
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  align-items: end;
+  /* Fields align at the top of their row. Bottom alignment let a short field
+     drop to the foot of a row whose height came from a neighbour's hint, which
+     left a hole above it and put two labels in the same row at different
+     heights. */
+  align-items: start;
   gap: 0.5rem 1rem;
   margin: 0;
   padding: 0.75rem;
@@ -57,6 +61,18 @@
 /* Hints and the wide rows read as their own band rather than as a column. */
 .wide {
   grid-column: 1 / -1;
+}
+
+/* A field whose value is long — a URL, a shell command — takes two tracks, so
+   it stays readable where the short ones pair off.
+ 
+   Only once there is a second column to take. A span wider than the explicit
+   track count does not clamp: it creates an implicit track, which on a phone
+   turned the whole card into two ~130px columns whose labels all wrapped. */
+@media (min-width: 480px) {
+  .span2 {
+    grid-column: span 2;
+  }
 }
 
 /* A hint belonging to one field sits inside that field's cell, so a card of
@@ -123,17 +139,7 @@
   font-size: 0.9rem;
 }
 
-/* The same two-across grid as the card, so the short selects and inputs in
-   here pair off instead of stacking one per row down a long column. */
-.advanced {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  align-items: end;
-  gap: 0.5rem 1rem;
-}
-
 .advanced > summary {
-  grid-column: 1 / -1;
   cursor: pointer;
   min-height: 2.25rem;
   display: flex;
@@ -141,13 +147,22 @@
   font-size: 0.9rem;
 }
 
-/* A closed <details> lays out nothing but its summary; the grid would still
-   reserve its row gaps. */
-.advanced:not([open]) {
-  display: block;
+/* The same grid as the card, on a wrapper rather than on the <details> itself:
+   a browser with a `::details-content` box lays every child after the summary
+   out inside one anonymous block, so a grid on the <details> reaches exactly
+   one item and everything inside it stacks. */
+.advancedBody {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  /* Fields align at the top of their row. Bottom alignment let a short field
+     drop to the foot of a row whose height came from a neighbour's hint, which
+     left a hole above it and put two labels in the same row at different
+     heights. */
+  align-items: start;
+  gap: 0.5rem 1rem;
 }
 
-.advanced > button {
+.advancedBody > button {
   grid-column: 1 / -1;
   justify-self: start;
 }
