@@ -1130,6 +1130,42 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
     ],
   );
 
+  // A described command shows the description in the header, so the command
+  // itself is only reachable by hover: always offer it (with elapsed), rather
+  // than only when the visible text overflows.
+  const handleDescribedCommandPointerEnter = useCallback(
+    (event: React.PointerEvent<HTMLElement>) => {
+      if (!headerCommand) {
+        setElementTextTooltip(event.currentTarget, null, tooltipMode);
+        return;
+      }
+      const elapsed = computeCommandElapsed({
+        toolInput,
+        structuredResult,
+        status,
+        startTimestampMs,
+        resultTimestampMs,
+        nowMs: Date.now(),
+      });
+      setElementTextTooltip(
+        event.currentTarget,
+        elapsed
+          ? `[${formatCommandDuration(elapsed.seconds)}] ${headerCommand}`
+          : headerCommand,
+        tooltipMode,
+      );
+    },
+    [
+      headerCommand,
+      toolInput,
+      structuredResult,
+      status,
+      startTimestampMs,
+      resultTimestampMs,
+      tooltipMode,
+    ],
+  );
+
   // The visible preview is the first N output lines; hovering it shows the
   // tail in the tooltip — "[Ns] ..." followed by the last N lines.
   const handleOutputPreviewPointerEnter = useCallback(
@@ -1452,7 +1488,17 @@ const ToolCallRowContent = memo(function ToolCallRowContent({
             </span>
           </span>
         ) : (
-          <span className="tool-summary">
+          <span
+            className="tool-summary"
+            {...(hasBashDescription && headerCommand
+              ? getTextTooltipAttributes(headerCommand, tooltipMode)
+              : {})}
+            onPointerEnter={
+              hasBashDescription && headerCommand
+                ? handleDescribedCommandPointerEnter
+                : undefined
+            }
+          >
             {summary}
             {status === "aborted" && (
               <span className="tool-aborted-label"> (interrupted)</span>

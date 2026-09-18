@@ -235,6 +235,15 @@ function systemDetailToText(detail: string | ContentBlock[]): string {
 const COMPACT_EMPTY_DETAIL =
   "No provider summary was retained for this compaction.";
 
+/**
+ * The local-command marker is itself a slash, so a row whose text already
+ * starts with the command's own slash would read as a stray "/ /command".
+ * Drop the marker there; the command name carries it.
+ */
+function systemIconForText(icon: string, text: string): string {
+  return icon === "/" && text.trimStart().startsWith("/") ? "" : icon;
+}
+
 function CollapsibleSystemMessage({
   item,
   icon,
@@ -256,6 +265,8 @@ function CollapsibleSystemMessage({
   const summaryClass = isCompactBoundary
     ? "system-message-summary system-message-compact-summary"
     : "system-message-summary system-message-local-command-summary";
+  const text = label ?? item.content;
+  const resolvedIcon = systemIconForText(icon, text);
 
   // All compact boundaries stay outline-expandable so users can inspect what
   // was kept/summarized; local-command rows still collapse to a flat chip when
@@ -263,9 +274,11 @@ function CollapsibleSystemMessage({
   if (!isCompactBoundary && details.length === 0) {
     return (
       <div className={`system-message ${variantClass}`}>
-        <span className="system-message-icon">{icon}</span>
+        {resolvedIcon && (
+          <span className="system-message-icon">{resolvedIcon}</span>
+        )}
         <span className="system-message-text">
-          <LinkifiedText text={label ?? item.content} />
+          <LinkifiedText text={text} />
         </span>
       </div>
     );
@@ -283,9 +296,11 @@ function CollapsibleSystemMessage({
         <span className="collapsible__icon" aria-hidden="true">
           ▸
         </span>
-        <span className="system-message-icon">{icon}</span>
+        {resolvedIcon && (
+          <span className="system-message-icon">{resolvedIcon}</span>
+        )}
         <span className="system-message-text">
-          <LinkifiedText text={label ?? item.content} />
+          <LinkifiedText text={text} />
         </span>
       </summary>
       <div
@@ -1484,11 +1499,13 @@ export const RenderItemComponent = memo(function RenderItemComponent({
           <div
             className={`system-message ${isCompacting ? "system-message-compacting" : ""} ${isError ? "system-message-error" : ""} ${isWarning ? "system-message-warning" : ""} ${isHighlightedConfigAck ? "system-message-config-ack" : ""} ${isLocalCommand ? "system-message-local-command" : ""}`}
           >
-            <span
-              className={`system-message-icon ${isCompacting ? "spinning" : ""}`}
-            >
-              {icon}
-            </span>
+            {systemIconForText(icon, item.content) && (
+              <span
+                className={`system-message-icon ${isCompacting ? "spinning" : ""}`}
+              >
+                {systemIconForText(icon, item.content)}
+              </span>
+            )}
             <span className="system-message-text">
               <LinkifiedText text={item.content} />
             </span>
