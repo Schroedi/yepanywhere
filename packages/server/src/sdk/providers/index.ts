@@ -130,6 +130,8 @@ export interface ProviderRuntimeSnapshot {
   /** Configured model-serving endpoints; the legacy keys mirror the default. */
   gatewayServices?: readonly GatewayService[];
   defaultGatewayServiceId?: string;
+  /** Whether endpoints may be asked which thinking efforts they accept. */
+  gatewayServiceEffortDetection?: boolean;
   subagentMaxDepth?: SubagentMaxDepth;
   ollamaUrl?: string;
   ollamaSystemPrompt?: string;

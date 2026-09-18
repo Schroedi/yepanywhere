@@ -629,6 +629,9 @@ export function createApp(options: AppOptions): AppResult {
       defaultGatewayServiceId: options.serverSettingsService?.getSetting(
         "defaultGatewayServiceId",
       ),
+      gatewayServiceEffortDetection: options.serverSettingsService?.getSetting(
+        "gatewayServiceEffortDetection",
+      ),
       subagentMaxDepth: getConfiguredSubagentMaxDepth(),
       ollamaUrl: options.serverSettingsService?.getSetting("ollamaUrl"),
       ollamaSystemPrompt:

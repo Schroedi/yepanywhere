@@ -154,6 +154,11 @@ model serving.
   minutes for an answer and one minute for a silence, since the usual silence is
   an endpoint that is not up yet. A reconfigured services list drops the cache,
   because the same address may now front a different server.
+- The setting governs every process that reads a catalog, not only the server's
+  own reads. A hosted session runs in a provider worker with its own module
+  state, so the launch snapshot carries the setting and the worker applies it
+  before configuring services; a worker that did not would ask the endpoint
+  while the user had switched asking off.
 - A 2xx to the probe means the endpoint validates nothing and has therefore said
   nothing; it is not read as accepting every level.
 - `POST /api/settings/gateway-services/effort` asks one endpoint on demand. It
