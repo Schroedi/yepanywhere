@@ -26,6 +26,10 @@ size and complete bytes are checked before native installation. The signed
 manager/catalog verification remains mandatory. Download failure, invalid
 signatures or incompatibility leave the existing installation unchanged.
 The installed version is persisted and older release-feed versions are refused.
+A persisted installed version that is not a released `x.y.z` version — settings
+are hand-editable JSON — is ignored with a logged warning and reported as no
+installed version, so status and update checks keep working instead of failing
+on every comparison; the next successful install records a usable version again.
 
 Check for updates is explicit and available while disabled. Managed installs
 also check on enabled startup and every 24 hours while automatic updates are

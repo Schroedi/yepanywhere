@@ -46,6 +46,12 @@ export interface ReleaseProgress {
   total?: number;
 }
 
+/** Persisted and hand-edited version text is not necessarily comparable;
+ * `compareVersions` and the release feed accept only `x.y.z`. */
+export function isReleaseVersion(value: unknown): value is string {
+  return typeof value === "string" && versionPattern.test(value);
+}
+
 export function compareVersions(left: string, right: string): number {
   if (!versionPattern.test(left) || !versionPattern.test(right))
     throw new Error("Invalid release version");
