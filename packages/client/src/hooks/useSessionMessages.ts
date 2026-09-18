@@ -530,6 +530,14 @@ export function useSessionMessages(
     (record: SessionRewindRecord): boolean => {
       const current =
         coordinator.readSelected(selectSessionDetailMessages) ?? [];
+      // Already applied (this tab issued the rewind, or the event repeated).
+      if (
+        current.some(
+          (message) => getMessageId(message) === `rewound-group-${record.id}`,
+        )
+      ) {
+        return true;
+      }
       const next = applyRewindToMessages(current, record);
       if (next === current) return false;
       dispatchSessionDetailAction({ type: "applyRewind", record });

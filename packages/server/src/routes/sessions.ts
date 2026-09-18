@@ -5890,6 +5890,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       type: "session-metadata-changed",
       sessionId,
       projectId,
+      rewindRecord: record,
       timestamp: new Date().toISOString(),
     });
     return {

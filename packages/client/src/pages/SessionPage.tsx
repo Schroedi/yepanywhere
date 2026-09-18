@@ -4316,6 +4316,16 @@ function SessionPageContent({
     },
     [actualSessionId, projectId, showToast, t],
   );
+  // A rewind performed elsewhere (a clearloop iteration, another tab) arrives
+  // on the metadata event; apply it to the loaded transcript in place.
+  useEffect(
+    () =>
+      activityBus.on("session-metadata-changed", (data) => {
+        if (data.sessionId !== actualSessionId || !data.rewindRecord) return;
+        if (!applyRewindLocally(data.rewindRecord)) reloadSession();
+      }),
+    [actualSessionId, applyRewindLocally, reloadSession],
+  );
   const handleCancelClearloop = useCallback(async () => {
     try {
       await api.cancelClearloop(projectId, actualSessionId);

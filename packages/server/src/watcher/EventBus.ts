@@ -6,6 +6,7 @@ import type {
   AgentActivity,
   NonHumanUserTurn,
   CacheMissBillingRecord,
+  SessionRewindRecord,
   ContextUsage,
   PendingInputType,
   ProjectCodeNameChangedEvent,
@@ -206,6 +207,8 @@ export interface SessionMetadataChangedEvent {
   forkedFromSessionId?: string | null;
   /** Remaining `/clearloop` iterations; null when the loop ended. */
   clearloopRemaining?: number | null;
+  /** A same-session rewind just recorded; viewers apply it in place. */
+  rewindRecord?: SessionRewindRecord;
   /** Updated heartbeat opt-in flag (if changed) */
   heartbeatTurnsEnabled?: boolean;
   /** Updated per-session heartbeat interval override (if changed) */
