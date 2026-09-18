@@ -388,8 +388,11 @@ costs the routes a first read of every project.
 ## YA-owned provider cache storage
 
 Gemini's YA-owned hash-to-project map lives at
-`<YEP_DATA_DIR>/gemini-project-map.json`, outside the recursively watched native
-session tree. On first use, an existing `<GEMINI_SESSIONS_DIR>/project-map.json`
+`gemini-project-map.json` in the server's data directory, outside the
+recursively watched native session tree. That directory is the one
+`getDataDir()` resolves — `YEP_DATA_DIR`, else `~/.yep-anywhere-<YEP_PROFILE>`,
+else `~/.yep-anywhere` — so two profiles keep two maps rather than overwriting
+one. On first use, an existing `<GEMINI_SESSIONS_DIR>/project-map.json`
 is copied into that location; subsequent reads and atomic writes use only the
 new map. The legacy file is retained for older installs. Besides avoiding
 spurious provider events, this keeps short-lived atomic-write files away from
