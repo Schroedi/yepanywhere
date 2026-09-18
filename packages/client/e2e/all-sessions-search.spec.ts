@@ -666,8 +666,12 @@ for (const viewport of [
     page,
     baseURL,
   }) => {
+    // The inner waits below already declare 30s, which the 15s default test
+    // budget cannot deliver; the siblings in this file set the same 60s.
+    test.setTimeout(60000);
+    const id = `reservation-${viewport.name}`;
     saveSession(
-      `reservation-${viewport.name}`,
+      id,
       `${"Context before ".repeat(30)}quasarneedle ${"context after ".repeat(30)}`,
     );
     await page.setViewportSize(viewport);
@@ -684,6 +688,13 @@ for (const viewport of [
       await page.goto(`${baseURL}/sessions`);
       const search = page.getByRole("searchbox", {
         name: "Search sessions...",
+      });
+      // Catalog discovery of a just-written file is its own asynchronous step,
+      // and in a full-suite run it can outlast the needle's own wait. Waiting
+      // for the fixture to be listed keeps a discovery delay from being
+      // reported as a search or layout failure.
+      await expect(page.locator(`a[href*="${id}"]`).first()).toBeVisible({
+        timeout: 30000,
       });
       await search.fill("quasarneedle");
       const row = page.locator(".session-list-item--card");

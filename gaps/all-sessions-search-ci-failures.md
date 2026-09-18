@@ -80,6 +80,14 @@ says completion alone does not immediately reflow. The effect depends on
 — so finishing a scan rearms a full 500ms. The file is 13/13 in two
 consecutive clean runs.
 
+Same test, second cause, found in the next full-suite run: it reported no
+sessions at all, having exceeded its own 15s budget while its inner waits
+declared 30s (the siblings in this file set 60s). Catalog discovery of a
+just-written fixture file is an asynchronous step of its own, and under the
+load of the whole browser suite it can outlast the needle's wait, which then
+reads as a search or layout failure. The test now waits for the fixture to be
+listed before typing and carries the 60s budget its inner waits assume.
+
 Still unresolved from the runs above: the appended-turn discovery
 and copy-selection assertions, and whether CI's
 browser/runtime versions surface anything these local runs do not. The
