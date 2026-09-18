@@ -200,7 +200,10 @@ rewinds and sends again.
 - Stop conditions: the stop button, or any manual user turn other than a
   question answer (strict-turn variant), ends the loop. The clearloop
   indication itself is also explicitly cancelable with the usual x / cancel
-  control on the queued entry. Every stop path, including cancel, leaves the
+  control on the queued entry: that cancel stops the loop without
+  hard-stopping the in-flight assistant work and without entering a new
+  turn, so the current iteration runs to completion and simply is not
+  followed by another rewind. Every stop path, including cancel, leaves the
   durable record: YA writes a notice into the session with the original
   `/clearloop N M: [prompt]` line, completed x times, interrupted with M-x
   remaining. The notice is session history, not a toast.
