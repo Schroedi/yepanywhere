@@ -8,6 +8,7 @@ import {
 } from "../../src/sessions/provider-resolution.js";
 import type { ISessionIndexService } from "../../src/indexes/types.js";
 import type { CodexSessionReader } from "../../src/sessions/codex-reader.js";
+import { MergedSessionReader } from "../../src/sessions/merged-reader.js";
 import type { ISessionReader } from "../../src/sessions/types.js";
 import type { Project, SessionSummary } from "../../src/supervisor/types.js";
 
@@ -266,6 +267,83 @@ describe("provider resolution", () => {
     expect(sessions[1]).not.toHaveProperty("messageCount");
     expect(sessions[1]).not.toHaveProperty("model");
     expect(sessions[1]).not.toHaveProperty("lastAgentText");
+  });
+
+  it("carries the indexed hint through a merged reader's roots", async () => {
+    const projectId = "proj-merged" as UrlProjectId;
+    // A sandboxed Codex project reads through MergedSessionReader, so the hint
+    // the index supplies has to survive the extra hop.
+    const cachedSummary: SessionSummary = {
+      id: "session-sandboxed",
+      projectId,
+      title: "Cached title",
+      fullTitle: "Cached full title",
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:02:00.000Z",
+      messageCount: 7,
+      ownership: { owner: "none" },
+      provider: "codex",
+    };
+    const inner = makeReader(null);
+    inner.getSessionListSummary = vi.fn(
+      async (sessionId, resolvedProjectId) => ({
+        id: sessionId,
+        projectId: resolvedProjectId,
+        title: "Bounded title",
+        fullTitle: "Bounded full title",
+        updatedAt: "2026-06-01T00:03:00.000Z",
+        provider: "codex" as const,
+      }),
+    );
+    const merged = new MergedSessionReader([inner]);
+    const sessionIndexService = makeSessionIndexService(cachedSummary);
+
+    const resolved = await findSessionListSummaryAcrossProviders(
+      {
+        id: projectId,
+        path: "/tmp/sandboxed",
+        name: "sandboxed",
+        sessionCount: 1,
+        sessionDir: "/tmp/sandboxed/.codex-sessions",
+        activeOwnedCount: 0,
+        activeExternalCount: 0,
+        lastActivity: null,
+        provider: "codex",
+      },
+      "session-sandboxed",
+      projectId,
+      {
+        readerFactory: vi.fn(() => merged),
+        codexSessionsDir: "/tmp/sandboxed/.codex-sessions",
+        codexReaderFactory: vi.fn(
+          () => merged as unknown as CodexSessionReader,
+        ),
+        sessionIndexService,
+      },
+      "codex",
+    );
+
+    expect(resolved?.summary).toEqual({
+      id: "session-sandboxed",
+      projectId,
+      title: "Bounded title",
+      fullTitle: "Bounded full title",
+      updatedAt: "2026-06-01T00:03:00.000Z",
+      provider: "codex",
+    });
+    expect(inner.getSessionListSummary).toHaveBeenCalledWith(
+      "session-sandboxed",
+      projectId,
+      {
+        id: "session-sandboxed",
+        projectId,
+        title: "Cached title",
+        fullTitle: "Cached full title",
+        updatedAt: "2026-06-01T00:02:00.000Z",
+        provider: "codex",
+      },
+      undefined,
+    );
   });
 
   it("lists OpenCode sessions for a project whose primary provider is Claude", async () => {
