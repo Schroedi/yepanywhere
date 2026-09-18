@@ -178,7 +178,7 @@ it("serves an authorized HTML directory with executable bytes and revocable acce
       })
     ).status,
   ).toBe(421);
-  server.revoke(grant.id);
+  await server.revoke(grant.id);
   expect((await server.app.request(grant.url)).status).toBe(404);
 });
 
