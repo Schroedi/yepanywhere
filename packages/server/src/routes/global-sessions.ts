@@ -209,6 +209,50 @@ interface CollectionRequest {
   generation: number;
 }
 
+/**
+ * Which rows a `GET /api/sessions` query admits.
+ *
+ * The retained read and the full walk answer the same contract, so the fields
+ * a `q` matches — and the archived/starred/project rules around it — are
+ * decided here once. Divergence here is invisible to a client: it just gets
+ * fewer rows in one summary mode than the other for the same query.
+ *
+ * `searchQuery` is already lowercased by the route.
+ */
+function matchesGlobalSessionQuery(
+  row: Pick<
+    GlobalSessionItem,
+    | "title"
+    | "customTitle"
+    | "projectName"
+    | "initialPrompt"
+    | "projectId"
+    | "isArchived"
+    | "isStarred"
+  >,
+  query: Pick<
+    CollectionRequest,
+    "filterProjectId" | "searchQuery" | "includeArchived" | "starredOnly"
+  >,
+): boolean {
+  if (row.isArchived && !query.includeArchived) return false;
+  if (query.starredOnly && !row.isStarred) return false;
+  if (query.filterProjectId && row.projectId !== query.filterProjectId) {
+    return false;
+  }
+  const needle = query.searchQuery;
+  if (!needle) return true;
+  return [row.title, row.customTitle, row.projectName, row.initialPrompt].some(
+    (text) => text?.toLowerCase().includes(needle),
+  );
+}
+
+/** Cursor pagination: a page holds rows strictly older than the client's last. */
+function isBeforeCursor(updatedAt: string, afterCursor?: string): boolean {
+  if (!afterCursor) return true;
+  return Date.parse(updatedAt) < Date.parse(afterCursor);
+}
+
 function createEmptyStats(): GlobalSessionStats {
   return {
     totalCount: 0,
@@ -426,14 +470,12 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
       );
       const rows = retained.sessions.filter(
         (row) =>
-          (includeArchived || !row.isArchived) &&
-          (!starredOnly || row.isStarred) &&
-          (!filterProjectId || row.projectId === filterProjectId) &&
-          (!searchQuery ||
-            [row.title, row.customTitle, row.projectName].some((text) =>
-              text?.toLowerCase().includes(searchQuery),
-            )) &&
-          (!afterCursor || Date.parse(row.updatedAt) < Date.parse(afterCursor)),
+          matchesGlobalSessionQuery(row, {
+            filterProjectId,
+            searchQuery,
+            includeArchived,
+            starredOnly,
+          }) && isBeforeCursor(row.updatedAt, afterCursor),
       );
       return c.json({
         ...retained,
@@ -518,10 +560,8 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
   ): Promise<GlobalSessionsResponse> {
     const {
       filterProjectId,
-      searchQuery,
       afterCursor,
       includeArchived,
-      starredOnly,
       includeStats,
       limit,
       generation,
@@ -572,9 +612,6 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
           : session;
         const effectiveProjectId =
           metadata?.workingProjectId ?? session.projectId;
-        if (filterProjectId && effectiveProjectId !== filterProjectId) {
-          continue;
-        }
         const effectiveProject =
           projectsById.get(effectiveProjectId) ?? project;
 
@@ -595,12 +632,6 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
         const initialPrompt =
           metadata?.initialPrompt ?? overlaidSession.fullTitle;
         const executor = metadata?.executor;
-
-        // Skip archived sessions unless explicitly requested
-        if (isArchived && !includeArchived) continue;
-
-        // Skip non-starred sessions if starred filter is active
-        if (starredOnly && !isStarred) continue;
 
         // Compute status
         const process = deps.supervisor?.getProcessForSession(session.id);
@@ -654,32 +685,11 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
           }
         }
 
-        // Apply search filter
-        if (searchQuery) {
-          const titleMatch = overlaidSession.title
-            ?.toLowerCase()
-            .includes(searchQuery);
-          const customTitleMatch = customTitle
-            ?.toLowerCase()
-            .includes(searchQuery);
-          const projectNameMatch = effectiveProject.name
-            .toLowerCase()
-            .includes(searchQuery);
-          const initialPromptMatch = initialPrompt
-            ?.toLowerCase()
-            .includes(searchQuery);
-
-          if (
-            !titleMatch &&
-            !customTitleMatch &&
-            !projectNameMatch &&
-            !initialPromptMatch
-          ) {
-            continue;
-          }
-        }
-
-        allSessions.push({
+        // Admission is decided on the finished row, by the same predicate the
+        // retained read uses, so neither mode can match fields the other does
+        // not. Enriching a row we then discard costs only in-memory lookups;
+        // every project is walked either way.
+        const item: GlobalSessionItem = {
           id: overlaidSession.id,
           title: overlaidSession.title,
           fullTitle: overlaidSession.fullTitle,
@@ -712,7 +722,10 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
             pendingNonHumanUserTurn(
               deps.sessionMetadataService?.getMetadata(overlaidSession.id),
             ) ?? null,
-        });
+        };
+
+        if (!matchesGlobalSessionQuery(item, request)) continue;
+        allSessions.push(item);
       }
     }
 
@@ -755,13 +768,9 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
     );
 
     // Apply cursor pagination
-    let filteredSessions = allSessions;
-    if (afterCursor) {
-      const afterTime = new Date(afterCursor).getTime();
-      filteredSessions = allSessions.filter(
-        (s) => new Date(s.updatedAt).getTime() < afterTime,
-      );
-    }
+    const filteredSessions = allSessions.filter((s) =>
+      isBeforeCursor(s.updatedAt, afterCursor),
+    );
 
     // Get one extra to determine hasMore
     const sessionsWithExtra = filteredSessions.slice(0, limit + 1);
