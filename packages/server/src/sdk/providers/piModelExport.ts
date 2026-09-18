@@ -196,7 +196,7 @@ export async function syncPiModelExport(options: {
       );
       // An unread catalog keeps whatever pi was already told, so a restart
       // before the first read does not empty a working registry.
-      const previous = (existing.providers ?? {})[id];
+      const previous = existing.providers?.[id];
       if (entry) owned.set(id, entry);
       else if (previous) owned.set(id, previous as PiProviderEntry);
     }
