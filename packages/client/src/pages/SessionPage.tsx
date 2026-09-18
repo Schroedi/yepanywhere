@@ -645,6 +645,7 @@ function SessionPageContent({
     session,
     updateSession,
     reloadSession,
+    applyRewindLocally,
     messages,
     agentContent,
     mergeLoadedAgentContent,
@@ -4177,9 +4178,11 @@ function SessionPageContent({
           }),
           "success",
         );
-        // The dropped tail is still in this tab's transcript model; refetch
-        // the transcript so the server's grouped state replaces it in place.
-        reloadSession();
+        // Restructure the loaded transcript in place; only a cut older than
+        // the loaded window needs the server's projection refetched.
+        if (!result.record || !applyRewindLocally(result.record)) {
+          reloadSession();
+        }
         return true;
       } catch (error) {
         showToast(
@@ -4191,7 +4194,14 @@ function SessionPageContent({
         return false;
       }
     },
-    [actualSessionId, projectId, reloadSession, showToast, t],
+    [
+      actualSessionId,
+      applyRewindLocally,
+      projectId,
+      reloadSession,
+      showToast,
+      t,
+    ],
   );
   const clearAfterUserMessage = useCallback(
     (messageId: string) => {

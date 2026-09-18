@@ -47,7 +47,10 @@ import {
   type RenderTimelineEntry,
   type RenderTurnGroup,
 } from "../renderSelectors";
-import { createInitialSessionDetailState } from "../transcriptReducer";
+import {
+  applyRewindToMessages,
+  createInitialSessionDetailState,
+} from "../transcriptReducer";
 
 function displayObject(
   id: string,
@@ -2087,5 +2090,57 @@ describe("session detail render selectors", () => {
         },
       ]),
     ).toBeNull();
+  });
+});
+
+describe("applyRewindToMessages", () => {
+  const record = {
+    id: "rw-1",
+    at: "2026-09-18T20:00:00.000Z",
+    cutMessageId: "a1",
+    cutTurnIndex: 1,
+    droppedTurnCount: 1,
+    reason: "clear" as const,
+  };
+  const rows = [
+    { type: "user", uuid: "u1", message: { role: "user", content: "one" } },
+    {
+      type: "assistant",
+      uuid: "a1",
+      message: { role: "assistant", content: "r" },
+    },
+    { type: "user", uuid: "u2", message: { role: "user", content: "two" } },
+    {
+      type: "assistant",
+      uuid: "a2",
+      message: { role: "assistant", content: "s" },
+    },
+  ] as unknown as Message[];
+
+  it("groups rows after the cut behind a synthetic header", () => {
+    const next = applyRewindToMessages(rows, record);
+    expect(next.map((m) => m.uuid)).toEqual([
+      "u1",
+      "a1",
+      "rewound-group-rw-1",
+      "u2",
+      "a2",
+    ]);
+    expect(
+      next
+        .slice(2)
+        .every(
+          (m) => (m as { rewoundGroupId?: string }).rewoundGroupId === "rw-1",
+        ),
+    ).toBe(true);
+    expect((next[2] as { subtype?: string }).subtype).toBe("rewound_group");
+  });
+
+  it("returns the same array when the cut is not loaded or nothing follows it", () => {
+    expect(applyRewindToMessages(rows, { ...record, cutMessageId: "zz" })).toBe(
+      rows,
+    );
+    const prefixOnly = rows.slice(0, 2);
+    expect(applyRewindToMessages(prefixOnly, record)).toBe(prefixOnly);
   });
 });

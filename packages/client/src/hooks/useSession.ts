@@ -1172,6 +1172,7 @@ export function useSession(
     updateActiveWindowFollowingBottom,
     restoredFromSnapshot,
     reloadSession,
+    applyRewindLocally,
   } = useSessionMessages({
     projectId,
     sessionId,
@@ -2658,6 +2659,8 @@ export function useSession(
     setSessionModel,
     /** Discard the loaded transcript and fetch it again from the server. */
     reloadSession,
+    /** Apply a same-session rewind to the loaded transcript in place. */
+    applyRewindLocally,
     messages,
     agentContent, // Subagent messages keyed by agentId (for Task tool)
     mergeLoadedAgentContent,

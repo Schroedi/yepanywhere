@@ -9,7 +9,9 @@ import {
 import type { PaginationInfo } from "../api/client";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
 import { getMessageId } from "@yep-anywhere/shared/transcript/message";
+import type { SessionRewindRecord } from "@yep-anywhere/shared";
 import { createFinalMarkdownAugmentAction } from "../lib/sessionDetail/actionAdapters";
+import { applyRewindToMessages } from "../lib/sessionDetail/transcriptReducer";
 import type { SessionDetailRevealSnapshotResult } from "../lib/sessionDetail/revealSnapshot";
 import {
   buildReturnedToolUseToAgent,
@@ -227,6 +229,11 @@ export interface UseSessionMessagesResult {
   restoredFromSnapshot: boolean;
   /** Discard cached transcript state and fetch the session again in place. */
   reloadSession: () => void;
+  /**
+   * Restructure the loaded transcript for a same-session rewind without a
+   * refetch. False when the cut is outside the loaded window.
+   */
+  applyRewindLocally: (record: SessionRewindRecord) => boolean;
 }
 
 function readSessionLoadCache(
@@ -519,6 +526,17 @@ export function useSessionMessages(
     coordinator.resetEntryState();
     setReloadGeneration((generation) => generation + 1);
   }, [coordinator]);
+  const applyRewindLocally = useCallback(
+    (record: SessionRewindRecord): boolean => {
+      const current =
+        coordinator.readSelected(selectSessionDetailMessages) ?? [];
+      const next = applyRewindToMessages(current, record);
+      if (next === current) return false;
+      dispatchSessionDetailAction({ type: "applyRewind", record });
+      return true;
+    },
+    [coordinator, dispatchSessionDetailAction],
+  );
 
   // Hold the store entry for the mounted session: retention protects it from
   // TTL/LRU eviction, so incremental dispatches always land on real state.
@@ -710,6 +728,7 @@ export function useSessionMessages(
     markReloadPerfPhase("session_snapshot_lookup_start", {
       projectId,
       sessionId,
+      reloadGeneration,
     });
     // A requested reload discards every cached view of the transcript so the
     // server's current projection (for example after a same-session rewind)
@@ -1643,5 +1662,6 @@ export function useSessionMessages(
     updateActiveWindowFollowingBottom,
     restoredFromSnapshot: Boolean(cachedLoad),
     reloadSession,
+    applyRewindLocally,
   };
 }

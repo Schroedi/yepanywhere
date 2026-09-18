@@ -9,6 +9,7 @@ import {
 import { isUnconfirmedSelfSend } from "../deliveryState";
 import { reconcileCodexToolMessages } from "../codexToolReconciliation";
 import { getMessageId } from "@yep-anywhere/shared/transcript/message";
+import type { SessionRewindRecord } from "@yep-anywhere/shared";
 import {
   findMessageIndexById,
   mergeJSONLMessages,
@@ -164,6 +165,65 @@ function messageMatchesTempId(message: Message, tempId: string): boolean {
   }
   const tempIds = (message as { tempIds?: unknown }).tempIds;
   return Array.isArray(tempIds) && tempIds.includes(tempId);
+}
+
+/**
+ * Mirror the server's rewound-group projection on the loaded transcript
+ * (topics/session-rewind.md): rows after the cut join the record's group
+ * behind a synthetic header, without refetching. Returns the same array when
+ * the cut is not loaded so the caller can fall back to a reload.
+ */
+export function applyRewindToMessages(
+  messages: Message[],
+  record: SessionRewindRecord,
+): Message[] {
+  const cutIndex = messages.findIndex(
+    (message) =>
+      getMessageId(message) === record.cutMessageId &&
+      !(message as { rewoundGroupId?: unknown }).rewoundGroupId,
+  );
+  if (cutIndex < 0) return messages;
+  const headerId = `rewound-group-${record.id}`;
+  if (messages.some((message) => getMessageId(message) === headerId)) {
+    return messages;
+  }
+  let rowCount = 0;
+  const tail = messages.slice(cutIndex + 1).map((message) => {
+    if ((message as { rewoundGroupId?: unknown }).rewoundGroupId) {
+      return message;
+    }
+    rowCount += 1;
+    return { ...message, rewoundGroupId: record.id } as Message;
+  });
+  if (rowCount === 0) return messages;
+  const header = {
+    type: "system",
+    subtype: "rewound_group",
+    uuid: headerId,
+    id: headerId,
+    parentUuid: record.cutMessageId,
+    timestamp: record.at,
+    content: "",
+    isSynthetic: true,
+    rewoundGroupId: record.id,
+    rewoundGroup: {
+      reason: record.reason,
+      cutTurnIndex: record.cutTurnIndex,
+      droppedTurnCount: record.droppedTurnCount,
+      rowCount,
+      at: record.at,
+      ...(record.clearloopIteration !== undefined
+        ? { clearloopIteration: record.clearloopIteration }
+        : {}),
+      ...(record.clearloopTotal !== undefined
+        ? { clearloopTotal: record.clearloopTotal }
+        : {}),
+      ...(record.clearloopPrompt
+        ? { clearloopPrompt: record.clearloopPrompt }
+        : {}),
+    },
+  } as unknown as Message;
+  return [...messages.slice(0, cutIndex + 1), header, ...tail];
 }
 
 function removeUnconfirmedSelfSend(
@@ -729,6 +789,11 @@ export function reduceSessionDetailState(
 
     case "removeUnconfirmedSelfSend": {
       const messages = removeUnconfirmedSelfSend(state.messages, action.tempId);
+      return messages === state.messages ? state : { ...state, messages };
+    }
+
+    case "applyRewind": {
+      const messages = applyRewindToMessages(state.messages, action.record);
       return messages === state.messages ? state : { ...state, messages };
     }
 
