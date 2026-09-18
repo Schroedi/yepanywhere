@@ -262,7 +262,9 @@ import {
 } from "../lib/sessionTitleHelpers";
 import {
   CLIENT_SLASH_COMMANDS,
+  REWIND_SLASH_COMMANDS,
   createClientSlashCommand,
+  isRewindSlashCommand,
   normalizeSlashCommandForMatch,
   resolveComposerDoneTarget,
   resolveComposerSessionOperation,
@@ -1158,6 +1160,10 @@ function SessionPageContent({
       SERVER_CAPABILITIES.turnEffortModifiers.name,
     ) &&
     (effectiveProvider === "codex" || isClaudeProviderName(effectiveProvider));
+  // Same-session rewind commands work on an idle or stopped session as well
+  // as a live one, so they are offered whenever the server and provider
+  // support rewind (topics/session-rewind.md), not only for a live process.
+  const supportsRewind = supportsSessionRewind(versionInfo, effectiveProvider);
   const allSlashCommands = useMemo(() => {
     if (status.owner === "external") {
       return [];
@@ -1168,6 +1174,7 @@ function SessionPageContent({
         ? CLIENT_SLASH_COMMANDS.filter(
             (command) =>
               command !== "model" &&
+              !isRewindSlashCommand(command) &&
               (!isTurnEffort(command) || supportsTurnEffort) &&
               (command !== "btw" || supportsBtwAsides) &&
               (command !== "done" ||
@@ -1177,6 +1184,11 @@ function SessionPageContent({
                 (syntheticDoneEnabled && supportsSyntheticTerminate)),
           ).map(createClientSlashCommand)
         : [];
+    if (supportsRewind) {
+      for (const command of REWIND_SLASH_COMMANDS) {
+        orderedCommands.push(createClientSlashCommand(command));
+      }
+    }
     if (supportsManualCompact) {
       const compact = slashCommands.find(
         (command) => normalizeSlashCommandForMatch(command.name) === "compact",
@@ -1194,6 +1206,9 @@ function SessionPageContent({
       const normalized = normalizeSlashCommandForMatch(command.name);
       const providerModelSkill =
         normalized === "model" && command.invocation?.kind === "skill";
+      // YA's same-session /clear deliberately shadows the provider's native
+      // /clear on rewind-capable providers (topics/session-rewind.md).
+      if (supportsRewind && normalized === "clear") continue;
       if (
         (normalized !== "model" || providerModelSkill) &&
         !orderedCommands.some(
@@ -1218,6 +1233,7 @@ function SessionPageContent({
     status.owner,
     supportsBtwAsides,
     supportsManualCompact,
+    supportsRewind,
     supportsSyntheticTerminate,
     supportsTurnEffort,
     syntheticDoneEnabled,
@@ -4122,7 +4138,6 @@ function SessionPageContent({
 
   // Same-session rewind (topics/session-rewind.md): the stable turn index N,
   // the turn-menu Clear entries, /clear N, /fork N, and /clearloop.
-  const supportsRewind = supportsSessionRewind(versionInfo, effectiveProvider);
   const sessionTurnIndex = useMemo(
     () => getSessionTurnIndex(messages),
     [messages],

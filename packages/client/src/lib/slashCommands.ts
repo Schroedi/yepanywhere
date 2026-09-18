@@ -24,6 +24,13 @@ export const CLIENT_SLASH_COMMANDS = [
   "clearloop",
 ] as const;
 
+/** Same-session rewind commands; offered only where rewind is supported. */
+export const REWIND_SLASH_COMMANDS = ["clear", "fork", "clearloop"] as const;
+
+export function isRewindSlashCommand(command: string): boolean {
+  return (REWIND_SLASH_COMMANDS as readonly string[]).includes(command);
+}
+
 export type ComposerSlashCommand =
   | { kind: TurnEffort; argument: string }
   | { kind: "run"; argument: string }
