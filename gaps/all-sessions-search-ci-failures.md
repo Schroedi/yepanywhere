@@ -65,8 +65,23 @@ two consecutive clean runs (13/13 for the file):
   previous run's catalog entries can no longer satisfy this run's "6 matching"
   selection.
 
-Still unresolved from the runs above: the appended-turn discovery,
-arriving-match layout, and copy-selection assertions, and whether CI's
+2026-09-18 — the arriving-match layout failure is fixed. "reserves arriving
+matches and fits long titles" failed on one viewport in a full-file run
+(reserved row height 133.59px measured before the held response was released,
+119.59px once the arriving match was visible) while the same test passed when
+run alone, which is the shape of a timer race rather than a layout rule.
+Cause: the quiet period that permits the settled column was measured from
+whenever the timer was last armed, not from completion. A timer armed mid-scan
+could come due a few milliseconds after the final match landed, so the row
+reflowed in the same breath as the arrival and never held its reservation.
+[All-Session Content Search](../topics/all-session-content-search.md) already
+says completion alone does not immediately reflow. The effect depends on
+`scan.running` again — without the early return that caused the earlier clamp
+— so finishing a scan rearms a full 500ms. The file is 13/13 in two
+consecutive clean runs.
+
+Still unresolved from the runs above: the appended-turn discovery
+and copy-selection assertions, and whether CI's
 browser/runtime versions surface anything these local runs do not. The
 deadlock plausibly accounts for several of the recorded failures, but that is
 inference from the mechanism, not from a re-run of those CI jobs.

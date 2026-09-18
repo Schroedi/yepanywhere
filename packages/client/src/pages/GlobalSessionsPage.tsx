@@ -477,6 +477,15 @@ function SessionSearchPage() {
   // afterwards never arrived. The rows then stayed clamped to one preview per
   // role for good, however long the reader waited (fixed 2026-09-17; the
   // "refines cached turns" browser checks cover it).
+  //
+  // The quiet period is also measured from completion, not from whenever the
+  // timer last happened to be armed. `scan.running` is a dependency again —
+  // without the early return that caused the clamp — so a scan finishing
+  // rearms a full 500ms. Otherwise a timer armed mid-scan could come due a few
+  // milliseconds after the last match arrived and reflow the row in the same
+  // breath, which is exactly the "completion alone does not immediately
+  // reflow" case the reserved streaming height exists to cover (fixed
+  // 2026-09-18; the "reserves arriving matches" browser checks cover it).
   const scanRunning = useRef(scan.running);
   scanRunning.current = scan.running;
   useEffect(() => {
@@ -505,7 +514,7 @@ function SessionSearchPage() {
       window.removeEventListener("keydown", idle);
       window.removeEventListener("wheel", idle);
     };
-  }, [layoutKey, compactedSearch, hasTurnFields]);
+  }, [scan.running, layoutKey, compactedSearch, hasTurnFields]);
   const [renderWindow, setRenderWindow] = useState({ query, count: 40 });
   const renderedCount = renderWindow.query === query ? renderWindow.count : 40;
   const more = useRef<HTMLButtonElement>(null);
