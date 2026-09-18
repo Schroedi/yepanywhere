@@ -402,9 +402,9 @@ describe("GET /version", () => {
     expect(version.capabilities).toBeUndefined();
     expect(version.optionalCapabilityBits).toEqual([
       [0, 1],
-      // Bit 72 (claude-gateway-services) rides in the same word as the
-      // computer-control bits, hence 4288 + 256.
-      [2, 4544],
+      // Bit 77 (claude-gateway-services) rides in the same word as the
+      // computer-control bits, hence 4288 + 8192.
+      [2, 12480],
     ]);
     expect(
       serverHasCapability(
