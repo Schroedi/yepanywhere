@@ -88,7 +88,7 @@ export class ClearloopService {
   /** The job the queue projection should show, or undefined. */
   getRunningJob(sessionId: string): SessionClearloopJob | undefined {
     const job = this.options.sessionMetadataService.getClearloop(sessionId);
-    if (!job || job.state !== "running") return undefined;
+    if (job?.state !== "running") return undefined;
     // A running record without a live context is a leftover from a previous
     // server process; it can never advance, so it is not shown as running.
     return this.contexts.has(sessionId) ? job : undefined;
