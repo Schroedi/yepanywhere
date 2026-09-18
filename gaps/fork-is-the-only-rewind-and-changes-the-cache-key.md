@@ -79,19 +79,22 @@ records what each harness actually does, what YA already has, and the gap.
   same transcript, which is what `buildDag`'s active branch already renders.
   YA cannot invoke the interactive menu; the SDK truncating resume above is
   the same operation on the headless lane.
-- **The Claude cache-shard premise is unsupported.** Anthropic's prompt
-  caching docs name only exact prefix match and organization/workspace
-  isolation as cache determinants; there is no explicit cache key, and
-  `metadata.user_id` is documented only as an abuse-detection identifier.
-  Two Claude Code changelog entries are direct evidence that a new session id
-  can reuse a parent's cache: `/fork` was improved to "keep the original
-  conversation's prompt cache in the new background session", and a
+- **Measured 2026-09-18: a Claude fork within the cache window is a cache
+  hit.** Forking a Claude session within 5 minutes of its last use and firing
+  a new turn always hit the parent's prompt cache (user measurement). A later
+  observation the same day saw a fork hit the cache 16 minutes after last
+  use, past the 5-minute default TTL, which weakens the suspicion that the
+  1-hour cache TTL YA requests for Claude is not taking effect; more
+  observations are needed before treating the 1-hour window as confirmed. This
+  matches the Anthropic docs, which name only exact prefix match and
+  organization/workspace isolation as cache determinants with no per-session
+  key, and the Claude Code changelog entries where `/fork` keeps "the original
+  conversation's prompt cache in the new background session" and a
   `subagent_type: "fork"` subagent "inherits the full conversation and prompt
-  cache". YA's Claude fork keeps the prefix byte-identical, so the Codex
-  measurement in the Quick Answer gap should not be assumed to transfer.
-  Measure a warm-parent Claude fork before treating rewind as necessary on
-  that provider; the sticky-routing writeups found were about proxies
-  (LiteLLM), not Anthropic.
+  cache". YA's Claude fork keeps the prefix byte-identical. So on Claude the
+  Codex fork-miss measurement in the Quick Answer gap does not transfer, and
+  in-place rewind is a UX and history question, not a cache-cost one. The
+  sticky-routing writeups found were about proxies (LiteLLM), not Anthropic.
 
 ## The gap
 
@@ -110,9 +113,94 @@ An in-place rewind is the right shape for "try that turn again" and for the
 recap/aside flows that fork only because they need a parent prefix; it is not
 a replacement for fork when the parent must keep running. The kept prefix is
 the same bytes under the same id, which is the strongest cache-reuse position
-either provider offers a client. That is an argument from key identity, not a
-measurement; the first implementation must measure first-request cached
-tokens on warm parents exactly as the Quick Answer gap requires.
+either provider offers a client. On Codex that is an argument from key
+identity, not a measurement, and the first implementation must measure
+first-request cached tokens on warm parents exactly as the Quick Answer gap
+requires. On Claude the fork measurement above already shows the cache is
+kept either way; the rewind is wanted there for same-session history, not
+cost.
+
+## Planned: rewind + new turn in the same session (Claude first)
+
+Build and enable this for the Claude provider, where the truncating resume is
+already wired end to end. Codex follows once `thread/revert` is in the
+generated protocol.
+
+**Turn menu.** The existing per-turn fork menu
+(`packages/client/src/components/blocks/UserPromptBlock.tsx`, the
+`onForkBefore` / `onForkAfter` / `onForkAfterSummary` handlers, labels
+`forkBeforeTurnLabel` etc. in `packages/client/src/i18n/en.json`) gains two
+same-session entries:
+
+- **Clear after this turn** — keep this turn and its response; drop
+  everything later. Same cut point as fork-after.
+- **Clear replacing this turn** — drop this turn and everything later, and
+  put this turn's prompt text back in the composer (the Codex Esc-Esc
+  shape). Same cut point as fork-before.
+
+Turn numbering: the tooltip for the existing entry becomes
+`Fork from this turn [N]`, where N is the same index a user can pass on the
+command line below, so the menu teaches the command. Fork numbering already
+exists for fork children (`ff937f36e`); reuse that index, do not invent a
+second one.
+
+**Commands.** These are YA-routed emulated commands per
+[emulated-slash-commands](../topics/emulated-slash-commands.md) and are
+intercepted before provider ingress:
+
+- `/clear N` — rewind so that turn N is the last kept turn ("clear after
+  N"). `/clear` with no argument is `/clear 0`: drop every turn, keep the
+  session id. This intercepts the provider's native `/clear` on Claude; the
+  native command would start a fresh context under the same CLI session,
+  which is the same user-visible result without YA's grouped history below.
+- `/fork N` — new command, identical to the menu's fork-after at turn N.
+- N counts real user turns in the active branch as the menu displays them,
+  never provider message uuids.
+
+**Server verb.** Add a `rewindSession` operation beside the fork endpoints in
+`routes/sessions.ts` and `Supervisor`. On Claude it is the existing
+`resume` + `resumeSessionAt` restart
+(`routes/session-claude-resume-guard.ts`, `routes/sessions.ts:4469-4510`,
+`Supervisor.ts:2580`) with the cut chosen by the user instead of the
+API-error blocker, and `resumeDropsTurn` passed so a queued message or task
+notification in the discarded tail refuses rather than vanishing. The rewind
+must run between turns; a request during an in-flight turn waits for or
+requires a stop, as the Codex constraint above already says.
+
+**Durable history: rewound turns stay visible, grouped and collapsed.** YA's
+durable session view must not lose the rewound turns. On every rewind, the
+discarded tail becomes one grouped outline entry at the cut point, collapsed
+by default, labelled with the cut (`cleared after turn N`, timestamp, turn
+count). Claude's transcript already branches by `parentUuid`, and `buildDag`
+already renders the active branch; the inactive branch is what the group
+shows. Reusing the nested subagent presentation is allowed: the
+`isSubagent` / `subagent-item` handling in
+`packages/client/src/components/RenderItemComponent.tsx` gives the main
+session view a collapsible nested group, and the sidebar's nested-session
+rendering can show the same group. The main-session group is required; the
+sidebar part is optional.
+
+**`/clearloop N M: [prompt]`.** M times: `/clear N`, then send `[prompt]`.
+One iteration is a full assistant turn, including any blocking question and
+its reply: the loop waits while the session is `waiting-input` and treats
+the user's answer as part of the iteration, not as a manual turn. Then it
+rewinds and sends again.
+
+- Stop conditions: the stop button, or any manual user turn other than a
+  question answer, ends the loop. YA then writes a durable notice into the
+  session: the original `/clearloop N M: [prompt]` line, completed x times,
+  interrupted with M-x remaining. The notice is session history, not a
+  toast.
+- Progress: while the loop runs, a badged queued-turn entry shows `m/M` and
+  the prompt. Queued entries are server-owned per
+  [queued-messages](../topics/queued-messages.md), so the loop's state lives
+  on the server and the client only renders it; the topic already allows
+  YA-local command chips to reuse that projection without entering a
+  provider delivery queue. The badge persists across client reloads because
+  the state is server-side.
+- Each iteration's discarded output lands in the grouped history above, so
+  the M attempts remain reviewable after the loop ends. This subsumes the
+  `/rep N <prompt>` idea in the follow-on section below.
 
 Constraints the implementation inherits:
 
@@ -130,13 +218,13 @@ Constraints the implementation inherits:
   `parentUuid`, which `buildDag` already resolves to an active branch; Codex
   `thread/revert` rewrites durable history, which the reader re-reads.
 
-## Follow-on: repeat a prompt from the same parent
+## Prior art for repeating a prompt from the same parent
 
-A `/rep N <prompt>` operation is N sends of the same prompt from the same
-parent state, equivalent to prompt, rewind, prompt, rewind, ... (N-1 rewinds),
+`/clearloop N M: [prompt]` above is M sends of the same prompt from the same
+parent state, equivalent to prompt, rewind, prompt, rewind, ... (M-1 rewinds),
 with every attempt starting from an identical warm prefix under one session
-id. It composes directly from the rewind verb above plus a cursor over the
-attempts' results; nothing beyond that is needed on the provider side.
+id. It composes directly from the rewind verb plus the grouped history as
+the cursor over attempts; nothing beyond that is needed on the provider side.
 
 No harness or wrapper ships it (web survey 2026-09-18). Closest matches, each
 single-shot and interactive: Claude Code `/branch`, `--fork-session`, and SDK
@@ -152,5 +240,7 @@ the simpler route and, per the changelog fork entries above, plausibly still
 hit the parent's cache; on Codex the rewind verb is required.
 
 Found 2026-09-18 while researching whether harness-native rewind avoids the
-fork cache misses recorded in the Quick Answer gap.
+fork cache misses recorded in the Quick Answer gap. Extended 2026-09-18 with
+the Claude fork cache measurements and the same-session rewind, `/clear N`,
+`/fork N`, grouped rewound history, and `/clearloop` design.
 Contributing-model: fable-5.1
