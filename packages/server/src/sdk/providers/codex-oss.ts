@@ -462,6 +462,25 @@ export class CodexOSSProvider implements AgentProvider {
     }
   }
 
+  /**
+   * Which configured endpoint a launch with this model would use.
+   *
+   * Public so that auto-stop can attribute a live CodexOSS process the same way
+   * its launch did — `gatewayServiceUsage` asks this the way it asks
+   * `ClaudeGatewayProvider.resolveServiceForModel`. Nothing comes back for a
+   * model no configured endpoint serves, which is the honest answer: that
+   * launch went to the local provider and holds no service open.
+   */
+  resolveServiceForModel(
+    model: string | undefined,
+  ): { serviceId: string; modelId: string } | undefined {
+    const route = this.resolveModelRoute(model);
+    const service = this.serviceById(route.serviceId);
+    return service
+      ? { serviceId: service.id, modelId: route.modelId }
+      : undefined;
+  }
+
   /** Which configured endpoint serves a model, if any. */
   private resolveModelRoute(model: string | undefined): CodexModelRoute {
     if (!model) return { modelId: model ?? "" };

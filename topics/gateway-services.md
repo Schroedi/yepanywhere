@@ -65,7 +65,13 @@ model serving.
   verb still ends up stopped. Signalling uses the shared port-listener control:
   a unique, same-user listener that is never YA or one of its ancestors.
 - `autoStop` schedules that stop request once no live session uses the service,
-  after the entry's idle delay; any later use cancels it.
+  after the entry's idle delay; any later use cancels it. Use counts live
+  processes from both providers that reach these endpoints, each attributed to
+  the service its launch model resolves to, so a CodexOSS session holds its
+  endpoint open exactly as a Claude Gateway one does. The two differ where a
+  model resolves to nothing: a Claude Gateway session is attributed to the
+  default service, since it must be using some service, while a CodexOSS
+  session launched against the local provider holds no service open at all.
 - Each service owns its own launcher: reconfiguring or removing one never
   disturbs another's process, and a removed entry's child and pending stop
   check are torn down with it.
