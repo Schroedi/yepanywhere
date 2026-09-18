@@ -57,6 +57,22 @@
   grid-column: 1 / -1;
 }
 
+/* A hint belonging to one field sits inside that field's cell, so a card of
+   short inputs stays two columns instead of alternating input and full-width
+   explanation down a single column. */
+.hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  opacity: 0.7;
+}
+
+.status {
+  align-self: center;
+  font-size: 0.85rem;
+  opacity: 0.75;
+}
+
 /* The id doubles as the entry's title, so it reads as a heading rather than
    as one more field in the stack. */
 .id {
@@ -105,18 +121,33 @@
   font-size: 0.9rem;
 }
 
+/* The same two-across grid as the card, so the short selects and inputs in
+   here pair off instead of stacking one per row down a long column. */
 .advanced {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  align-items: end;
+  gap: 0.5rem 1rem;
 }
 
 .advanced > summary {
+  grid-column: 1 / -1;
   cursor: pointer;
   min-height: 2.25rem;
   display: flex;
   align-items: center;
   font-size: 0.9rem;
+}
+
+/* A closed <details> lays out nothing but its summary; the grid would still
+   reserve its row gaps. */
+.advanced:not([open]) {
+  display: block;
+}
+
+.advanced > button {
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 
 /* The exact commands, one per line, selectable and never wrapped mid-token. */

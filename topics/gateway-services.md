@@ -44,6 +44,11 @@ model serving.
   never silently loses a service they believe is configured.
 - A `serviceCommand` is accepted only for a loopback URL. A non-loopback entry
   is an endpoint YA merely talks to: never started, stopped, or signalled.
+- The editor has no Save button. A typed field writes the whole list when it
+  loses focus and a checkbox, radio, select, reorder, add, or remove writes it
+  as it is operated, which is the convention everywhere else in settings. A
+  Save at the foot of a list of endpoints is scrolled out of sight exactly when
+  there is enough configured for it to matter.
 
 ### Lifecycle
 
@@ -146,13 +151,27 @@ model serving.
   chat request naming an unrecognized effort, and request validation rejects it
   with the accepted vocabulary spelled out. Observed against vLLM 0.11 serving
   DeepSeek-V4-Flash: `Input should be 'none', 'minimal', 'low', 'medium',
-  'high', 'xhigh' or 'max'`. Validation runs before scheduling, so the probe
+  'high', 'xhigh' or 'max'`. Validation runs before scheduling, so this stage
   costs no inference and no accelerator time.
 - The answer describes the *endpoint's request schema*, not the model behind it:
   a vLLM server hosting a model that ignores the field still answers with the
   full vocabulary. That is why a probe answer ranks last, and why the entry's
   own `effortLevels` — which win over everything — remain the correction for an
   endpoint that overclaims.
+- Request validation and the chat template are two gatekeepers, and only the
+  second describes the model. A second probe stage therefore asks with the
+  highest level the schema listed and reads the template's rejection, which
+  names both the set the model distinguishes and the level it applies by
+  default. Observed against vLLM 0.29 serving Qwen3.8-Flash-Next, whose schema
+  accepts all seven literals: `Unexpected reasoning effort high. Supported types
+  are xhigh (default), medium, and low.` Without it the picker offered `high`
+  and `max`, and choosing either failed the user's turn.
+- A template answer replaces the schema answer entirely rather than intersecting
+  with it, `none` included: a level the template does not list only buys a turn
+  that fails. A template that *accepts* the highest schema level is not
+  narrowing from the top, so the schema answer stands — at the cost of one
+  prefill and one token, which is the second stage's whole price and the one
+  case where asking is not free.
 - An entry stating its own `effortLevels` is never asked: configuration wins for
   every model of that service, so no answer could change the outcome.
 - Answers are cached per endpoint URL and shared between the two providers, 30
@@ -171,7 +190,7 @@ model serving.
   already configured: unlike catalog discovery it sends a chat request, so it
   stays pointed at endpoints the server already talks to. The answer is written
   into the draft entry's level checkboxes for review rather than applied
-  invisibly.
+  invisibly, along with the default level when the template named one.
 - The editor presents an entry's two states as a choice between asking the
   endpoint and stating the levels, because that is what they are: an entry
   holding no list defers, and one holding a list decides. Nothing new is

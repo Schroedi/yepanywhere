@@ -220,7 +220,9 @@ export {
 export {
   GATEWAY_EFFORT_PROBE_VALUE,
   gatewayEffortProbeRequest,
+  gatewayTemplateEffortProbeRequest,
   parseGatewayEffortProbe,
+  parseGatewayTemplateEffortRejection,
   probeModelIdFromCatalog,
   type GatewayEndpointEffortProbe,
 } from "./gateway-effort-probe.js";

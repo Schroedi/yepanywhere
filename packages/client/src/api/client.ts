@@ -1460,6 +1460,10 @@ export const api = {
           modelId: string;
           levels: EffortLevel[];
           noThinking: boolean;
+          /** Present only when the endpoint named the level it applies by
+              default, which its chat template states and its request schema
+              does not. */
+          defaultLevel?: EffortLevel;
         }
       | { detected: false; reason: "unreachable" | "no-models" | "undescribed" }
     >("/settings/gateway-services/effort", {

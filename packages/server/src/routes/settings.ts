@@ -1308,6 +1308,7 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
       modelId: detection.modelId,
       levels: detection.probe.levels,
       noThinking: detection.probe.noThinking,
+      defaultLevel: detection.probe.defaultLevel,
     });
   });
 
