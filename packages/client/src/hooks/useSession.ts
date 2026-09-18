@@ -17,6 +17,7 @@ import { api } from "../api/client";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
 import { markReloadPerfPhase } from "../lib/diagnostics/reloadPerfProbe";
 import { logSessionUiTrace } from "../lib/diagnostics/uiTrace";
+import { createStreamDispatchCoalescer } from "../lib/streamDispatchCoalescer";
 import {
   isBrowserDebugPerformanceRecording,
   recordBrowserDebugPerformanceMetric,
@@ -82,6 +83,8 @@ export type { AgentContent, AgentContentMap } from "./useSessionMessages";
 const THROTTLE_MS = 500;
 const FILE_CHANGE_FACT_DEDUPE_MS = 1000;
 const STREAM_ACTIVITY_TOKEN_UPDATE_MS = 500;
+
+type StreamMessageData = { eventType: string; [key: string]: unknown };
 const STREAM_LIVENESS_UPDATE_MS = 500;
 const FALLBACK_STREAM_LONG_SILENCE_THRESHOLD_MS = 300_000;
 // Background "away recap" scheduling. A session is "away" when its tab is
@@ -2569,6 +2572,31 @@ export function useSession(
     setDeferredMessages,
   ]);
 
+  // Coalesce stream events before they reach React state. A late-join replay
+  // or a busy turn on a large transcript otherwise commits once per event;
+  // once commits fall behind arrivals React 19 treats the run as an infinite
+  // update loop and throws (lib/streamDispatchCoalescer.ts).
+  const handleStreamMessageRef = useRef(handleStreamMessage);
+  handleStreamMessageRef.current = handleStreamMessage;
+  const streamDispatchCoalescerRef = useRef<ReturnType<
+    typeof createStreamDispatchCoalescer<StreamMessageData>
+  > | null>(null);
+  if (!streamDispatchCoalescerRef.current) {
+    streamDispatchCoalescerRef.current =
+      createStreamDispatchCoalescer<StreamMessageData>((data) =>
+        handleStreamMessageRef.current(data),
+      );
+  }
+  const dispatchStreamMessage = useCallback((data: StreamMessageData) => {
+    streamDispatchCoalescerRef.current?.dispatch(data);
+  }, []);
+  // SessionPage is the only caller and mounts one instance per session id, so
+  // unmount is the session boundary; queued events never outlive the session.
+  useEffect(() => {
+    const coalescer = streamDispatchCoalescerRef.current;
+    return () => coalescer?.dispose();
+  }, []);
+
   // Only connect to session stream when we own the session
   // External sessions are tracked via the activity stream instead
   const {
@@ -2577,7 +2605,7 @@ export function useSession(
     resubscribing: sessionStreamResubscribing,
   } = useSessionStream(
     !backgroundEffectsPaused && status.owner === "self" ? sessionId : null,
-    { onMessage: handleStreamMessage, onError: handleStreamError },
+    { onMessage: dispatchStreamMessage, onError: handleStreamError },
   );
 
   const sessionUpdatesConnected =
