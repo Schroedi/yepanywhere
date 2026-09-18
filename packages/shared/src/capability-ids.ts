@@ -486,6 +486,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "claude-gateway-services",
     introducedIn: "0.8.2",
   },
+  sessionRewind: {
+    id: 78,
+    direction: "server",
+    name: "session-rewind",
+    introducedIn: "0.8.2",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

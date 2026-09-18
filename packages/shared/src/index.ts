@@ -649,6 +649,23 @@ export {
   clampProjectQueueQuietSeconds,
 } from "./project-queue.js";
 export {
+  type ClearloopCommandArguments,
+  DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
+  MAX_CLEARLOOP_INACTIVITY_SECONDS,
+  MIN_CLEARLOOP_INACTIVITY_SECONDS,
+  REWOUND_GROUP_SUBTYPE,
+  type SessionClearloopJob,
+  type SessionClearloopState,
+  type SessionPendingRewind,
+  type SessionRewindReason,
+  type SessionRewindRecord,
+  clampClearloopInactivitySeconds,
+  formatDurationSeconds,
+  parseClearloopArguments,
+  parseDurationSeconds,
+  parseTurnIndexArgument,
+} from "./session-rewind.js";
+export {
   DEFAULT_HEARTBEAT_TURN_TEXT,
   DEFAULT_HEARTBEAT_TURNS_AFTER_MINUTES,
   MAX_HEARTBEAT_TURN_TEXT_LENGTH,
@@ -714,6 +731,7 @@ export {
   PROJECT_FILE_COMPLETION_CAPABILITY,
   SESSION_CONVERSATION_CONTEXT_CAPABILITY,
   SESSION_ASYNC_QUESTIONS_CAPABILITY,
+  SESSION_REWIND_CAPABILITY,
   NON_HUMAN_USER_TURN_CAPABILITY,
   SESSION_CONTENT_SEARCH_CAPABILITY,
   GIT_WORKING_TREE_SECTIONS_CAPABILITY,

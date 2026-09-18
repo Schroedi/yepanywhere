@@ -45,6 +45,10 @@ import type {
   UrlProjectId,
 } from "@yep-anywhere/shared";
 import {
+  DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
+  clampClearloopInactivitySeconds,
+} from "@yep-anywhere/shared";
+import {
   DEFAULT_HEARTBEAT_TURN_TEXT,
   DEFAULT_HEARTBEAT_TURNS_AFTER_MINUTES,
   DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
@@ -139,6 +143,7 @@ import { createFilesRoutes } from "./routes/files.js";
 import { canonicalizeManagedAttachmentPath } from "./uploads/attachmentAccess.js";
 import { createBangCommandsRoutes } from "./routes/bang-commands.js";
 import { BangCommandService } from "./services/BangCommandService.js";
+import { ClearloopService } from "./services/ClearloopService.js";
 import { createGitBrowseRoutes } from "./routes/git-browse.js";
 import { createGitFileRevisionRoutes } from "./routes/git-file-revision.js";
 import { createGitFileProjectionRoutes } from "./routes/git-file-projections.js";
@@ -1396,9 +1401,25 @@ export function createApp(options: AppOptions): AppResult {
     inactivityPushNotifier?.dispose();
   };
 
+  const clearloopService = options.sessionMetadataService
+    ? new ClearloopService({
+        getSupervisor: () => supervisor,
+        sessionMetadataService: options.sessionMetadataService,
+        eventBus: options.eventBus,
+        getInactivitySeconds: () =>
+          clampClearloopInactivitySeconds(
+            options.serverSettingsService?.getSetting(
+              "clearloopInactivitySeconds",
+            ),
+          ) ?? DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
+      })
+    : undefined;
+
   supervisor = new Supervisor({
-    onSessionStopRequested: (sessionId) =>
-      pushNotifier?.suppressSession(sessionId),
+    onSessionStopRequested: (sessionId) => {
+      pushNotifier?.suppressSession(sessionId);
+      void clearloopService?.interrupt(sessionId, "Session was stopped");
+    },
     onProcessInventoryChanged: () => {
       // Gateway services that opted into auto-stop need to know when their
       // last session goes away; the live process list is that answer.
@@ -2000,6 +2021,7 @@ export function createApp(options: AppOptions): AppResult {
       toolResultMediaStore,
       dataDir: options.dataDir,
       persistedAugmentDelayMs: options.persistedAugmentDelayMs,
+      clearloopService,
       resolveAbsoluteFilePaths: localResourcePathPolicy.findAllowedFilePaths,
     }),
   );

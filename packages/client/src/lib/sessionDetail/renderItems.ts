@@ -263,11 +263,38 @@ export function getLatestVisibleTimestampMs({
   return latest;
 }
 
+/** The rewind group a render item belongs to, when a rewind dropped it. */
+export function getRenderItemRewoundGroupId(
+  item: RenderItem,
+): string | undefined {
+  for (const message of item.sourceMessages) {
+    const groupId = (message as { rewoundGroupId?: unknown }).rewoundGroupId;
+    if (typeof groupId === "string" && groupId) return groupId;
+  }
+  return undefined;
+}
+
 export function getDisplayRenderItems(
   items: readonly RenderItem[],
-  options: { thinkingItemsVisible: boolean },
+  options: {
+    thinkingItemsVisible: boolean;
+    /** Rewound groups whose rows are shown; others stay collapsed. */
+    expandedRewoundGroups?: ReadonlySet<string>;
+  },
 ): readonly RenderItem[] {
-  return options.thinkingItemsVisible
-    ? items
-    : items.filter((item) => item.type !== "thinking");
+  const expanded = options.expandedRewoundGroups;
+  const shows = (item: RenderItem): boolean => {
+    if (!options.thinkingItemsVisible && item.type === "thinking") {
+      return false;
+    }
+    const groupId = getRenderItemRewoundGroupId(item);
+    if (!groupId) return true;
+    // The synthetic header row stays visible; its body rows follow its toggle.
+    if (item.type === "system" && item.subtype === "rewound_group") {
+      return true;
+    }
+    return expanded?.has(groupId) ?? false;
+  };
+  // Callers memoize on identity: an unchanged list must come back as-is.
+  return items.every(shows) ? items : items.filter(shows);
 }

@@ -7,7 +7,13 @@
 
 Topic: session-rewind
 
-Status: specified 2026-09-18; Claude is the first provider. Codex follows
+Status: implemented 2026-09-18 for Claude (`/clear N`, `/fork N`, the
+turn-menu Clear entries, rewound groups in the main session view, and
+`/clearloop` with the inactivity boundary). Known limits of this first
+landing: after a rewind the current tab reloads the session page to render
+the grouped state, a Claude drop-guard refusal at resume time is reported by
+the resume error rather than automatically deleting its rewind record, and
+the sidebar does not yet nest rewound groups. Codex follows
 once `thread/revert` is in YA's generated protocol (see
 [gaps/fork-is-the-only-rewind-and-changes-the-cache-key.md](../gaps/fork-is-the-only-rewind-and-changes-the-cache-key.md)
 for the provider primitives and the cache measurements that motivated this).
@@ -108,10 +114,11 @@ implicitly.
 ## Server rewind operation
 
 `POST /api/projects/:projectId/sessions/:sessionId/rewind` with
-`{ cut: { kind: "after-user-turn" | "before-user-turn", sourceMessageId } }`
-or `{ cut: { kind: "after-turn-index", turnIndex } }`. The server resolves
-the real human-turn boundary from the transcript exactly as the fork route
-does (provider ids stay server-side), then:
+`{ cut: { kind: "after-user-turn" | "before-user-turn", sourceMessageId },
+cutTurnIndex? }`. The client resolves `N` to the turn's YA message id from
+its own turn index; the server resolves the real human-turn boundary from
+the transcript exactly as the fork route does (provider ids stay
+server-side), then:
 
 1. Rejects (`409`) when the session is `in-turn`, `waiting-input`, or
    compacting, when a live queued or steered message is pending, or when the
@@ -121,17 +128,20 @@ does (provider ids stay server-side), then:
    provider: `{ id, at, cutMessageId, droppedFromMessageId, droppedTurnCount,
    reason: "clear" | "clearloop" (+ loop id and iteration) }`. It is a
    display object: never model context, survives restart and device change.
-3. Restarts the provider process with `resumeSessionAt = cutMessageId`. When
-   exactly one turn is dropped, `resumeDropsTurn` names that turn's prompt
-   UUID so the CLI refuses if the discarded range holds anything the user's
-   view had not seen (an absorbed queued message, a task notification). The
-   SDK validates only a single declared turn, so a multi-turn drop passes no
-   `resumeDropsTurn` and YA performs the equivalent check itself from the
-   transcript: the discarded range must consist of the dropped turns' own
-   rows. A refusal is deterministic; YA reports it, deletes the rewind
-   record, and does not retry.
-4. Returns the new turn count and the rewind record. The queue projection and
-   session metadata event carry the record so every client converges.
+3. Stops the live process, if any, and arms the record as the session's
+   **pending rewind**. Claude's truncation is a resume option, so the rewind
+   takes effect on the next send: the resume path (`POST …/resume`, and the
+   `/clearloop` sender) passes `resumeSessionAt = cutMessageId` and clears
+   the pending rewind once the process starts. When exactly one turn is
+   dropped, `resumeDropsTurn` names that turn's prompt UUID so the CLI
+   refuses if the discarded range holds anything the user's view had not
+   seen (an absorbed queued message, a task notification). The SDK validates
+   only a single declared turn, so a multi-turn drop passes no
+   `resumeDropsTurn`. A refusal is deterministic and must not be retried.
+4. Returns the record (`null` when the cut was already the tail, a no-op)
+   and whether a process was stopped. The session metadata event carries
+   the record so every client converges; the current tab reloads the session
+   to drop the discarded tail from its in-memory transcript.
 
 The rewind changes only the conversation. Files, worktree state, and
 provider-side file checkpoints are untouched; a code-restoring rewind is the
@@ -238,7 +248,7 @@ history, not a toast, and is never model context.
   provider's own rewound timeline. Authorized by graehl on 2026-09-18 in the
   originating request.
 - `session-rewind` is a permanent, version-implied server capability,
-  **ID 66**, introduced after 0.8.2, gating the rewind route, the clearloop
+  **ID 78**, introduced after 0.8.2, gating the rewind route, the clearloop
   routes, the `clearloop` queued-entry kind, and the rewind records in
   metadata. The optional-feature horizon on 2026-09-18 is v0.8.0 and
   v0.8.1 (the latest two stable releases and all releases from the
@@ -249,7 +259,12 @@ history, not a toast, and is never model context.
   unchanged. The originating request approved this gate.
 - Providers: Claude, Claude Gateway, and Claude Ollama sessions. Others
   report rewind unsupported; the route returns `409` and the client hides
-  the surface.
+  the surface. This Claude-only placement is the accepted first revision
+  (graehl, 2026-09-18). Codex can support the same verb through
+  `thread/revert` once YA's generated protocol carries it, with the cache
+  effect still unmeasured, and Pi has a more general tree operation
+  (`/tree`) that could back it; both are follow-on work and neither changes
+  the command vocabulary or the rewound-group presentation.
 
 ## Tests that should fail on contract regressions
 

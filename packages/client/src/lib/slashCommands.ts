@@ -19,6 +19,9 @@ export const CLIENT_SLASH_COMMANDS = [
   "terminate",
   "title",
   "model",
+  "clear",
+  "fork",
+  "clearloop",
 ] as const;
 
 export type ComposerSlashCommand =
@@ -252,6 +255,9 @@ const COMMAND_DISPLAY: Record<string, { label: string; shortcut: string }> = {
   terminate: { label: "terminate session", shortcut: "/terminate" },
   title: { label: "title session", shortcut: "/title" },
   model: { label: "model", shortcut: "/m" },
+  clear: { label: "clear after turn N", shortcut: "/clear" },
+  fork: { label: "fork after turn N", shortcut: "/fork" },
+  clearloop: { label: "clearloop [N] M: prompt", shortcut: "/clearloop" },
 };
 
 export function createClientSlashCommand(name: string): SlashCommand {
@@ -343,6 +349,12 @@ export function parseComposerSlashCommand(
     return { kind: "custom", command: "title", argument };
   }
   if (command === "compact") {
+    return { kind: "custom", command, argument };
+  }
+  // Same-session rewind commands (topics/session-rewind.md). `/clear`
+  // deliberately shadows the provider's native command on rewind-capable
+  // providers; the handler falls back when rewind is unavailable.
+  if (command === "clear" || command === "fork" || command === "clearloop") {
     return { kind: "custom", command, argument };
   }
 

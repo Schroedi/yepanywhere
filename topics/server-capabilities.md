@@ -534,9 +534,31 @@ the same ledger:
 | 63 | server | 0.8.2 | `retained-session-collections` |
 | 64 | server | 0.8.2 | `local-speech-model-selection` |
 | 65 | server | 0.8.2 | `speech-vocabulary` |
+| 66 | server | 0.8.2 | `speech-vocabulary-session-terms` |
+| 67 | server | 0.8.2 | `codex-cyber-access-program-setting` |
+| 68 | server | 0.8.2 | `issue-session-associations-v1` |
+| 69 | server | 0.8.2 | `experimental-simple-client-conversation` |
+| 70 | server | 0.8.2 | `optional-computer-control` |
+| 71 | server | 0.8.2 | `computer-control-releases` |
+| 72 | server | 0.8.2 | `non-human-user-turn` |
+| 73 | server | 0.8.2 | `session-content-search` |
+| 74 | server | 0.8.2 | `speech-backend-setup` |
+| 75 | server | 0.8.2 | `vhost-app-control` |
+| 76 | server | 0.8.2 | `vhost-bearer-access` |
+| 77 | server | 0.8.2 | `claude-gateway-services` |
+| 78 | server | 0.8.2 | `session-rewind` |
 
 The code ledger is authoritative. The next client or server capability takes
-ID 66; retired rows stay in the ledger as reserved IDs.
+ID 79; retired rows stay in the ledger as reserved IDs.
+
+`session-rewind` (ID 78, permanent, version-implied from 0.8.2) gates the
+same-session rewind route, the `/clearloop` start and cancel routes, the
+`clearloop` queued-entry kind, `message.rewoundGroupId`, and the
+`clearloopInactivitySeconds` setting. The 2026-09-18 optional-feature horizon
+is v0.8.0 and v0.8.1; neither has any of these. Without the capability the
+client hides the turn-menu Clear entries, marks `/clear N`, `/fork N`, and
+`/clearloop` unavailable, hides the inactivity setting, and makes no rewind
+or clearloop request. See [session-rewind](session-rewind.md).
 
 `speech-vocabulary` (ID 65, optional bit from 0.8.2) owns GET/PUT
 `/api/speech/vocabulary` and POST `.../scan` and `.../reset`. It is advertised

@@ -1,6 +1,7 @@
 import { visibleIssueText } from "../services/issues/extract.js";
 import type {
   ClaudeSessionEntry,
+  SessionRewindRecord,
   CodexAsyncUserInputQuestion,
   CodexCompactedEntry,
   CodexCustomToolCallPayload,
@@ -318,7 +319,15 @@ export function normalizeConversationEntries(
 /**
  * Normalize a UnifiedSession into the generic Session format expected by the frontend.
  */
-export function normalizeSession(loaded: LoadedSession): Session {
+export interface NormalizeSessionOptions {
+  /** YA same-session rewinds; Claude rows they dropped render as groups. */
+  rewindRecords?: readonly SessionRewindRecord[];
+}
+
+export function normalizeSession(
+  loaded: LoadedSession,
+  options: NormalizeSessionOptions = {},
+): Session {
   const { summary, data } = loaded;
 
   switch (data.provider) {
@@ -327,7 +336,13 @@ export function normalizeSession(loaded: LoadedSession): Session {
     case "claude-ollama": {
       const rawMessages = data.session.messages;
       const lastEntry = rawMessages[rawMessages.length - 1];
-      const cached = claudeMessageCache.get(rawMessages);
+      const rewindRecords = options.rewindRecords ?? [];
+      // The per-array cache assumes one projection per transcript; a rewound
+      // session has one per record set, so it bypasses the cache.
+      const cached =
+        rewindRecords.length === 0
+          ? claudeMessageCache.get(rawMessages)
+          : undefined;
       if (
         cached &&
         cached.length === rawMessages.length &&
@@ -339,17 +354,21 @@ export function normalizeSession(loaded: LoadedSession): Session {
         };
       }
 
-      const { entries, orphanedToolUses } =
-        collectVisibleClaudeEntries(rawMessages);
+      const { entries, orphanedToolUses } = collectVisibleClaudeEntries(
+        rawMessages,
+        rewindRecords.length > 0 ? { rewindRecords } : {},
+      );
       const messages: Message[] = entries.map((raw, index) =>
         convertClaudeMessage(raw, index, orphanedToolUses),
       );
 
-      claudeMessageCache.set(rawMessages, {
-        length: rawMessages.length,
-        lastEntry,
-        messages,
-      });
+      if (rewindRecords.length === 0) {
+        claudeMessageCache.set(rawMessages, {
+          length: rawMessages.length,
+          lastEntry,
+          messages,
+        });
+      }
       return {
         ...summary,
         messages,

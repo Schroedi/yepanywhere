@@ -1,12 +1,17 @@
 import {
   type BusyComposerDefaultAction,
+  DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
   DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
   DEFAULT_PROJECT_QUEUE_CTRL_ENTER_ENABLED,
   DEFAULT_STEER_NOW_ENABLED,
   MAX_PROJECT_QUEUE_QUIET_SECONDS,
   PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
   type ProjectQueueReadinessCommand,
+  SESSION_REWIND_CAPABILITY,
+  clampClearloopInactivitySeconds,
   clampProjectQueueQuietSeconds,
+  formatDurationSeconds,
+  parseDurationSeconds,
   serverHasCapability,
 } from "@yep-anywhere/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -54,9 +59,17 @@ function parseProjectQueueQuietSeconds(value: string): number {
   );
 }
 
+/** `45s` / `2m` / `1h` text → clamped whole seconds, or null when unparseable. */
+function parseClearloopInactivityText(value: string): number | null {
+  const seconds = parseDurationSeconds(value);
+  if (seconds === null) return null;
+  return clampClearloopInactivitySeconds(seconds) ?? null;
+}
+
 interface MessageDeliveryBaseline {
   joinWindowSeconds: number;
   projectQueueQuietSeconds: number;
+  clearloopInactivitySeconds: number;
   projectQueueReadinessCheck: ProjectQueueReadinessCommand | null;
   composeAnchorsEnabled: boolean;
   turnTimestamps: TurnTimestampsPlacement;
@@ -84,6 +97,10 @@ export function MessageDeliverySettings() {
     PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
   );
   const supportsBangCommands = serverSupportsBangCommands(version);
+  const supportsClearloop = serverHasCapability(
+    version,
+    SESSION_REWIND_CAPABILITY,
+  );
   const {
     keepMobileKeyboardOpenAfterDelivery,
     setKeepMobileKeyboardOpenAfterDelivery,
@@ -95,6 +112,9 @@ export function MessageDeliverySettings() {
   // or a save is in flight, cleared once the server catches up.
   const [draftJoinWindow, setDraftJoinWindow] = useState<string | null>(null);
   const [draftProjectQueueQuiet, setDraftProjectQueueQuiet] = useState<
+    string | null
+  >(null);
+  const [draftClearloopInactivity, setDraftClearloopInactivity] = useState<
     string | null
   >(null);
   const [draftAnchors, setDraftAnchors] = useState<boolean | null>(null);
@@ -118,6 +138,9 @@ export function MessageDeliverySettings() {
   const serverProjectQueueQuietSeconds =
     clampProjectQueueQuietSeconds(settings?.projectQueueQuietSeconds) ??
     DEFAULT_PROJECT_QUEUE_QUIET_SECONDS;
+  const serverClearloopInactivitySeconds =
+    clampClearloopInactivitySeconds(settings?.clearloopInactivitySeconds) ??
+    DEFAULT_CLEARLOOP_INACTIVITY_SECONDS;
   const serverComposeAnchorsEnabled = settings?.composeAnchorsEnabled ?? false;
   const serverReadinessCheck = settings?.projectQueueReadinessCheck ?? null;
   const serverTurnTimestamps = settings?.turnTimestamps ?? "off";
@@ -140,6 +163,10 @@ export function MessageDeliverySettings() {
         projectQueueQuietSeconds:
           clampProjectQueueQuietSeconds(settings.projectQueueQuietSeconds) ??
           DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
+        clearloopInactivitySeconds:
+          clampClearloopInactivitySeconds(
+            settings.clearloopInactivitySeconds,
+          ) ?? DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
         composeAnchorsEnabled: settings.composeAnchorsEnabled ?? false,
         projectQueueReadinessCheck: settings.projectQueueReadinessCheck ?? null,
         turnTimestamps: settings.turnTimestamps ?? "off",
@@ -167,6 +194,12 @@ export function MessageDeliverySettings() {
     draftProjectQueueQuiet ?? String(serverProjectQueueQuietSeconds);
   const shownProjectQueueQuietSeconds = parseProjectQueueQuietSeconds(
     shownProjectQueueQuietText,
+  );
+  const shownClearloopInactivityText =
+    draftClearloopInactivity ??
+    formatDurationSeconds(serverClearloopInactivitySeconds);
+  const shownClearloopInactivitySeconds = parseClearloopInactivityText(
+    shownClearloopInactivityText,
   );
   const shownAnchors = draftAnchors ?? serverComposeAnchorsEnabled;
   const shownTurnTimestamps = draftTurnTimestamps ?? serverTurnTimestamps;
@@ -210,6 +243,23 @@ export function MessageDeliverySettings() {
     updateSettings,
   ]);
 
+  useEffect(() => {
+    if (!supportsClearloop || draftClearloopInactivity === null) return;
+    const parsed = parseClearloopInactivityText(draftClearloopInactivity);
+    if (parsed === null || parsed === serverClearloopInactivitySeconds) return;
+    const timer = setTimeout(() => {
+      void updateSettings({ clearloopInactivitySeconds: parsed }).catch(() => {
+        // surfaced via the hook's error state
+      });
+    }, SECONDS_SLIDER_SAVE_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [
+    draftClearloopInactivity,
+    serverClearloopInactivitySeconds,
+    supportsClearloop,
+    updateSettings,
+  ]);
+
   // Drop drafts once the server reflects them.
   useEffect(() => {
     if (
@@ -219,6 +269,15 @@ export function MessageDeliverySettings() {
       setDraftJoinWindow(null);
     }
   }, [draftJoinWindow, serverJoinWindowSeconds]);
+  useEffect(() => {
+    if (
+      draftClearloopInactivity !== null &&
+      parseClearloopInactivityText(draftClearloopInactivity) ===
+        serverClearloopInactivitySeconds
+    ) {
+      setDraftClearloopInactivity(null);
+    }
+  }, [draftClearloopInactivity, serverClearloopInactivitySeconds]);
   useEffect(() => {
     if (
       draftProjectQueueQuiet !== null &&
@@ -285,6 +344,10 @@ export function MessageDeliverySettings() {
     (shownJoinWindowSeconds !== baseline.joinWindowSeconds ||
       (supportsProjectQueue &&
         shownProjectQueueQuietSeconds !== baseline.projectQueueQuietSeconds) ||
+      (supportsClearloop &&
+        shownClearloopInactivitySeconds !== null &&
+        shownClearloopInactivitySeconds !==
+          baseline.clearloopInactivitySeconds) ||
       shownAnchors !== baseline.composeAnchorsEnabled ||
       (supportsReadinessCheck &&
         JSON.stringify(serverReadinessCheck) !==
@@ -307,6 +370,7 @@ export function MessageDeliverySettings() {
     setQuestionAsidesEnabled(snapshot.questionAsidesEnabled);
     setDraftJoinWindow(null);
     setDraftProjectQueueQuiet(null);
+    setDraftClearloopInactivity(null);
     setDraftAnchors(null);
     setDraftTurnTimestamps(null);
     setDraftBangCommands(null);
@@ -321,6 +385,9 @@ export function MessageDeliverySettings() {
       deferredJoinWindowSeconds: snapshot.joinWindowSeconds,
       ...(supportsProjectQueue
         ? { projectQueueQuietSeconds: snapshot.projectQueueQuietSeconds }
+        : {}),
+      ...(supportsClearloop
+        ? { clearloopInactivitySeconds: snapshot.clearloopInactivitySeconds }
         : {}),
       composeAnchorsEnabled: snapshot.composeAnchorsEnabled,
       ...(supportsReadinessCheck
@@ -348,6 +415,7 @@ export function MessageDeliverySettings() {
     setKeepMobileKeyboardOpenAfterDelivery,
     setQuestionAsidesEnabled,
     supportsBangCommands,
+    supportsClearloop,
     supportsProjectQueue,
     supportsReadinessCheck,
     updateSettings,
@@ -402,6 +470,38 @@ export function MessageDeliverySettings() {
                 })}
           </span>
         </SettingsItem>
+
+        {supportsClearloop && (
+          <SettingsItem
+            label={t("messageDeliveryClearloopTitle")}
+            description={t("messageDeliveryClearloopDescription")}
+            valueText={
+              shownClearloopInactivitySeconds === null
+                ? shownClearloopInactivityText
+                : formatDurationSeconds(shownClearloopInactivitySeconds)
+            }
+            className="model-settings-item"
+          >
+            <input
+              type="text"
+              inputMode="text"
+              className="settings-input-small"
+              value={shownClearloopInactivityText}
+              onChange={(e) => setDraftClearloopInactivity(e.target.value)}
+              aria-label={t("messageDeliveryClearloopTitle")}
+              aria-invalid={shownClearloopInactivitySeconds === null}
+            />
+            <span className="settings-hint">
+              {shownClearloopInactivitySeconds === null
+                ? t("messageDeliveryClearloopInvalid")
+                : t("messageDeliveryClearloopHint", {
+                    duration: formatDurationSeconds(
+                      shownClearloopInactivitySeconds,
+                    ),
+                  })}
+            </span>
+          </SettingsItem>
+        )}
 
         {supportsProjectQueue && (
           <SettingsSection title={t("projectQueueTitle")}>

@@ -33,6 +33,8 @@ import {
   thinkingOptionToConfig,
   SERVER_CAPABILITIES,
   isTurnEffort,
+  parseClearloopArguments,
+  parseTurnIndexArgument,
 } from "@yep-anywhere/shared";
 import {
   type ComponentProps,
@@ -243,6 +245,14 @@ import {
 } from "../lib/sessionNavigationState";
 import { getPublicShareInitialPrompt } from "../lib/sessionPublicSharePrompt";
 import { getUnifiedSessionForkAvailability } from "../lib/sessionForkAvailability";
+import {
+  SessionRewindProvider,
+  type SessionRewindContextValue,
+} from "../contexts/SessionRewindContext";
+import {
+  getSessionTurnIndex,
+  supportsSessionRewind,
+} from "../lib/sessionRewind";
 import { isBtwAsideSession } from "../lib/btwAsideSessions";
 import {
   composeGeneratedRetitle,
@@ -4110,6 +4120,234 @@ function SessionPageContent({
     [applyMotherComposerTransfer, mainComposerForAside, setFocusedBtwAsideId],
   );
 
+  // Same-session rewind (topics/session-rewind.md): the stable turn index N,
+  // the turn-menu Clear entries, /clear N, /fork N, and /clearloop.
+  const supportsRewind = supportsSessionRewind(versionInfo, effectiveProvider);
+  const sessionTurnIndex = useMemo(
+    () => getSessionTurnIndex(messages),
+    [messages],
+  );
+  const [expandedRewoundGroups, setExpandedRewoundGroups] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
+  const toggleRewoundGroup = useCallback((groupId: string) => {
+    setExpandedRewoundGroups((previous) => {
+      const next = new Set(previous);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  }, []);
+  const rewindToCut = useCallback(
+    async (
+      cut: {
+        kind: "after-user-turn" | "before-user-turn";
+        sourceMessageId: string;
+      },
+      cutTurnIndex: number,
+    ): Promise<boolean> => {
+      try {
+        const result = await api.rewindSession(projectId, actualSessionId, {
+          cut,
+          cutTurnIndex,
+        });
+        if (result.noop) {
+          showToast(t("rewindNoop"), "success");
+          return true;
+        }
+        showToast(
+          t("rewindDone", {
+            count: String(result.record?.droppedTurnCount ?? 0),
+          }),
+          "success",
+        );
+        // The dropped tail is still in this tab's transcript model; a fresh
+        // load renders the grouped state the server now reports.
+        navigate(0);
+        return true;
+      } catch (error) {
+        showToast(
+          t("rewindFailed", {
+            message: error instanceof Error ? error.message : String(error),
+          }),
+          "error",
+        );
+        return false;
+      }
+    },
+    [actualSessionId, navigate, projectId, showToast, t],
+  );
+  const clearAfterUserMessage = useCallback(
+    (messageId: string) => {
+      const index = sessionTurnIndex.indexById.get(messageId) ?? 0;
+      void rewindToCut(
+        { kind: "after-user-turn", sourceMessageId: messageId },
+        index,
+      );
+    },
+    [rewindToCut, sessionTurnIndex],
+  );
+  const clearReplacingUserMessage = useCallback(
+    (messageId: string) => {
+      const index = sessionTurnIndex.indexById.get(messageId) ?? 1;
+      if (index <= 1) {
+        // Turn 1 has no earlier boundary; an empty prefix is the
+        // new-session Clear (topics/session-rewind.md § Commands).
+        showToast(t("rewindClearZero"), "error");
+        return;
+      }
+      const source = messages.find((m) => (m.uuid ?? m.id) === messageId);
+      const promptText = turnContentText(source?.message?.content).trim();
+      if (promptText) {
+        // Persist the draft before the reload that follows the rewind.
+        draftControlsRef.current?.setDraft(promptText);
+        draftControlsRef.current?.flushDraft();
+      }
+      void rewindToCut(
+        { kind: "before-user-turn", sourceMessageId: messageId },
+        index - 1,
+      );
+    },
+    [messages, rewindToCut, sessionTurnIndex, showToast, t],
+  );
+  const startClearloop = useCallback(
+    async (
+      sourceMessageId: string,
+      cutTurnIndex: number,
+      parsed: { total: number; prompt: string },
+      commandText: string,
+    ) => {
+      try {
+        await api.startClearloop(projectId, actualSessionId, {
+          cut: { kind: "after-user-turn", sourceMessageId },
+          cutTurnIndex,
+          prompt: parsed.prompt,
+          total: parsed.total,
+          commandText,
+        });
+        showToast(
+          t("clearloopStarted", {
+            total: String(parsed.total),
+            index: String(cutTurnIndex),
+          }),
+          "success",
+        );
+      } catch (error) {
+        showToast(
+          t("clearloopFailed", {
+            message: error instanceof Error ? error.message : String(error),
+          }),
+          "error",
+        );
+      }
+    },
+    [actualSessionId, projectId, showToast, t],
+  );
+  const handleCancelClearloop = useCallback(async () => {
+    try {
+      await api.cancelClearloop(projectId, actualSessionId);
+    } catch (error) {
+      showToast(
+        t("clearloopCancelFailed", {
+          message: error instanceof Error ? error.message : String(error),
+        }),
+        "error",
+      );
+    }
+  }, [actualSessionId, projectId, showToast, t]);
+  const clearToNewSession = useCallback(() => {
+    const params = new URLSearchParams({ projectId });
+    if (effectiveProvider) params.set("provider", effectiveProvider);
+    if (session?.model) params.set("model", session.model);
+    navigate(`${basePath}/new-session?${params.toString()}`);
+  }, [basePath, effectiveProvider, navigate, projectId, session?.model]);
+  const sessionRewindContextValue = useMemo<SessionRewindContextValue>(
+    () => ({
+      turnIndexById: sessionTurnIndex.indexById,
+      onClearAfter: supportsRewind ? clearAfterUserMessage : undefined,
+      onClearReplacing: supportsRewind ? clearReplacingUserMessage : undefined,
+      expandedRewoundGroups,
+      toggleRewoundGroup,
+    }),
+    [
+      clearAfterUserMessage,
+      clearReplacingUserMessage,
+      expandedRewoundGroups,
+      sessionTurnIndex,
+      supportsRewind,
+      toggleRewoundGroup,
+    ],
+  );
+  const handleRewindCommand = useCallback(
+    (command: "clear" | "fork" | "clearloop", argument: string): boolean => {
+      if (!supportsRewind) {
+        showToast(t("rewindUnavailable"), "error");
+        return true;
+      }
+      const ids = sessionTurnIndex.ids;
+      const turnMissing = (index: number) => {
+        showToast(
+          ids.length === 0
+            ? t("rewindNoTurns")
+            : t("rewindTurnNotFound", { index: String(index) }),
+          "error",
+        );
+      };
+      if (command === "clearloop") {
+        const parsed = parseClearloopArguments(argument);
+        if (!parsed) {
+          showToast(t("rewindCommandSyntax"), "error");
+          return true;
+        }
+        const index = parsed.turnIndex ?? ids.length;
+        const sourceMessageId = ids[index - 1];
+        if (index < 1 || !sourceMessageId) {
+          turnMissing(index);
+          return true;
+        }
+        void startClearloop(
+          sourceMessageId,
+          index,
+          parsed,
+          `/clearloop ${argument.trim()}`,
+        );
+        return true;
+      }
+      const index = parseTurnIndexArgument(argument, {
+        allowEmpty: command === "clear",
+      });
+      if (index === null) {
+        showToast(t("rewindCommandSyntax"), "error");
+        return true;
+      }
+      if (command === "clear" && index === 0) {
+        clearToNewSession();
+        return true;
+      }
+      const sourceMessageId = ids[index - 1];
+      if (index < 1 || !sourceMessageId) {
+        turnMissing(index);
+        return true;
+      }
+      if (command === "fork") {
+        void createDirectTurnFork(sourceMessageId, "after-user-turn");
+        return true;
+      }
+      void rewindToCut({ kind: "after-user-turn", sourceMessageId }, index);
+      return true;
+    },
+    [
+      clearToNewSession,
+      createDirectTurnFork,
+      rewindToCut,
+      sessionTurnIndex,
+      showToast,
+      startClearloop,
+      supportsRewind,
+      t,
+    ],
+  );
+
   const handleCustomCommand = useCallback(
     (command: string, argument = "") => {
       if (command === "model") {
@@ -4132,11 +4370,19 @@ function SessionPageContent({
         }
         return true;
       }
+      if (
+        command === "clear" ||
+        command === "fork" ||
+        command === "clearloop"
+      ) {
+        return handleRewindCommand(command, argument);
+      }
       return false;
     },
     [
       closeFocusedBtwAside,
       handleCompactSession,
+      handleRewindCommand,
       showToast,
       startBtwAside,
       supportsManualCompact,
@@ -5823,134 +6069,151 @@ function SessionPageContent({
                   projectId={projectId}
                   sessionId={sessionId}
                 >
-                  <SessionViewerProvider
-                    sessionId={actualSessionId}
-                    inactive={isDomLingerParked}
-                    onSendComment={handleSessionViewerCommentSend}
-                    onOpenApp={rightPane.enabled ? rightPane.select : undefined}
-                    appConfig={rightPane.config}
-                    rightPaneTarget={rightPaneTarget}
-                  >
-                    <MessageList
-                      messages={messages}
-                      transcriptDisplayObjects={
-                        session?.transcriptDisplayObjects
+                  <SessionRewindProvider value={sessionRewindContextValue}>
+                    <SessionViewerProvider
+                      sessionId={actualSessionId}
+                      inactive={isDomLingerParked}
+                      onSendComment={handleSessionViewerCommentSend}
+                      onOpenApp={
+                        rightPane.enabled ? rightPane.select : undefined
                       }
-                      provider={effectiveProvider}
-                      isProcessing={sessionActivityUi.showProcessingIndicator}
-                      isCompacting={isCompacting}
-                      scrollTrigger={scrollTrigger}
-                      scrollToTurnRequest={scrollToTurnRequest}
-                      pendingMessages={pendingMessages}
-                      deferredMessages={deferredMessages}
-                      queuedEffortContext={(() => {
-                        const model = currentProviderInfo?.models?.find(
-                          (candidate) =>
-                            candidate.id ===
-                            (effectiveModelConfig?.requestedModel ??
-                              liveBadgeModel),
-                        );
-                        const normal = getImplicitComposerThinking();
-                        return model && normal
-                          ? { model, normal, provider: effectiveProvider }
-                          : undefined;
-                      })()}
-                      projectQueueMessages={inlineProjectQueueMessages}
-                      projectQueueDispatchPaused={
-                        projectQueues.dispatchState.status === "paused"
-                      }
-                      projectQueueDispatchMutating={
-                        projectQueues.mutatingDispatchState
-                      }
-                      btwAsides={historyBtwAsides}
-                      onFocusBtwAside={setFocusedBtwAsideId}
-                      onDoneBtwAside={handleDoneBtwAside}
-                      onStopBtwAside={handleStopBtwAsideFromTranscript}
-                      onToggleBtwAsideExpanded={toggleBtwAsideExpanded}
-                      onTransferBtwAsideTurn={transferBtwTurnToMotherComposer}
-                      onQuoteSelection={insertQuotedSelection}
-                      onStartNewSessionFromSelection={
-                        startNewSessionFromSelection
-                      }
-                      composerDraftSignal={composerDraftSignal}
-                      composerEditAvailabilityStore={
-                        composerEditAvailabilityStore
-                      }
-                      quoteClearSignal={quoteClearSignal}
-                      onCancelDeferred={handleCancelDeferred}
-                      onEditDeferred={handleEditDeferred}
-                      onCancelUnconfirmedUserMessage={
-                        handleCancelUnconfirmedUserMessage
-                      }
-                      onSteerDeferred={handleSteerDeferred}
-                      onResumeRecoveredDeferred={handleResumeRecoveredDeferred}
-                      onSteerRecoveredDeferred={handleSteerRecoveredDeferred}
-                      onDeleteRecoveredDeferred={handleDeleteRecoveredDeferred}
-                      onCancelProjectQueueMessage={handleCancelProjectQueueItem}
-                      onEditProjectQueueMessage={handleEditProjectQueueItem}
-                      onSteerProjectQueueMessage={handleSteerProjectQueueItem}
-                      onResumeProjectQueueDispatch={
-                        handleResumeProjectQueueDispatch
-                      }
-                      onCorrectLatestUserMessage={
-                        handleCorrectLatestUserMessage
-                      }
-                      onTrimBeforeUserMessage={trimClientFromUserMessage}
-                      onForkBeforeUserMessage={
-                        supportsForkFromTurn ? forkBeforeUserMessage : undefined
-                      }
-                      onForkAfterUserMessage={
-                        supportsForkFromTurn ? forkAfterUserMessage : undefined
-                      }
-                      onForkAfterSummaryUserMessage={
-                        supportsForkFromTurn ? beginForkAfterSummary : undefined
-                      }
-                      forkAfterUserMessageDisabled={forkAfterDisabled}
-                      forkUnavailableMessage={forkUnavailableMessage}
-                      onCopyUserMessage={copyUserMessage}
-                      onHandoffFromUserMessage={handoffFromUserMessage}
-                      markdownAugments={markdownAugments}
-                      activeToolApproval={activeToolApproval}
-                      hasOlderMessages={pagination?.hasOlderMessages}
-                      totalMessageCount={pagination?.totalMessageCount}
-                      olderMessagesCursor={
-                        pagination?.truncatedBeforeMessageId ?? null
-                      }
-                      activeWindowTrimRevision={activeWindowTrimRevision}
-                      loadingOlder={loadingOlder}
-                      olderLoadContinuationRequired={
-                        olderLoadContinuationRequired
-                      }
-                      onLoadOlderMessages={loadOlderMessages}
-                      onReadOlderSearchPage={readOlderSearchPage}
-                      clientTailActive={clientTailActive}
-                      progressiveRenderEnabled={sessionLoadingProgressEnabled}
-                      progressiveRenderStatusVisible={
-                        sessionLoadingProgressDetailsVisible
-                      }
-                      progressiveRenderKey={`${clientSummarySourceKey}:${projectId}:${sessionId}:${location.search}`}
-                      progressiveRenderPauseSignal={
-                        progressiveRenderPauseSignal
-                      }
-                      conversationViewStateKey={`${clientSummarySourceKey}:${projectId}:${sessionId}:${location.search}`}
-                      initialScrollSnapshot={initialScrollSnapshot}
-                      onScrollSnapshotChange={updateRouteScrollSnapshot}
-                      onFollowingBottomChange={
-                        updateActiveWindowFollowingBottom
-                      }
-                      onFollowCurrent={handleFollowCurrent}
-                      scrollBehaviorMode={sessionScrollBehaviorMode}
-                      getForkSummaryTargetHref={getForkSummaryTargetHref}
-                      onCancelForkSummary={handleCancelForkSummary}
-                      onToggleForkSummaryAutoOpen={
-                        handleToggleForkSummaryAutoOpen
-                      }
-                      onFollowForkSummary={followForkSummary}
-                      bangCommandHandlers={bangCommandHandlers}
-                      transcriptPositionStore={transcriptPositionStore}
-                      inert={isDomLingerParked}
-                    />
-                  </SessionViewerProvider>
+                      appConfig={rightPane.config}
+                      rightPaneTarget={rightPaneTarget}
+                    >
+                      <MessageList
+                        messages={messages}
+                        transcriptDisplayObjects={
+                          session?.transcriptDisplayObjects
+                        }
+                        provider={effectiveProvider}
+                        isProcessing={sessionActivityUi.showProcessingIndicator}
+                        isCompacting={isCompacting}
+                        scrollTrigger={scrollTrigger}
+                        scrollToTurnRequest={scrollToTurnRequest}
+                        pendingMessages={pendingMessages}
+                        deferredMessages={deferredMessages}
+                        queuedEffortContext={(() => {
+                          const model = currentProviderInfo?.models?.find(
+                            (candidate) =>
+                              candidate.id ===
+                              (effectiveModelConfig?.requestedModel ??
+                                liveBadgeModel),
+                          );
+                          const normal = getImplicitComposerThinking();
+                          return model && normal
+                            ? { model, normal, provider: effectiveProvider }
+                            : undefined;
+                        })()}
+                        projectQueueMessages={inlineProjectQueueMessages}
+                        projectQueueDispatchPaused={
+                          projectQueues.dispatchState.status === "paused"
+                        }
+                        projectQueueDispatchMutating={
+                          projectQueues.mutatingDispatchState
+                        }
+                        btwAsides={historyBtwAsides}
+                        onFocusBtwAside={setFocusedBtwAsideId}
+                        onDoneBtwAside={handleDoneBtwAside}
+                        onStopBtwAside={handleStopBtwAsideFromTranscript}
+                        onToggleBtwAsideExpanded={toggleBtwAsideExpanded}
+                        onTransferBtwAsideTurn={transferBtwTurnToMotherComposer}
+                        onQuoteSelection={insertQuotedSelection}
+                        onStartNewSessionFromSelection={
+                          startNewSessionFromSelection
+                        }
+                        composerDraftSignal={composerDraftSignal}
+                        composerEditAvailabilityStore={
+                          composerEditAvailabilityStore
+                        }
+                        quoteClearSignal={quoteClearSignal}
+                        onCancelDeferred={handleCancelDeferred}
+                        onCancelClearloop={handleCancelClearloop}
+                        onEditDeferred={handleEditDeferred}
+                        onCancelUnconfirmedUserMessage={
+                          handleCancelUnconfirmedUserMessage
+                        }
+                        onSteerDeferred={handleSteerDeferred}
+                        onResumeRecoveredDeferred={
+                          handleResumeRecoveredDeferred
+                        }
+                        onSteerRecoveredDeferred={handleSteerRecoveredDeferred}
+                        onDeleteRecoveredDeferred={
+                          handleDeleteRecoveredDeferred
+                        }
+                        onCancelProjectQueueMessage={
+                          handleCancelProjectQueueItem
+                        }
+                        onEditProjectQueueMessage={handleEditProjectQueueItem}
+                        onSteerProjectQueueMessage={handleSteerProjectQueueItem}
+                        onResumeProjectQueueDispatch={
+                          handleResumeProjectQueueDispatch
+                        }
+                        onCorrectLatestUserMessage={
+                          handleCorrectLatestUserMessage
+                        }
+                        onTrimBeforeUserMessage={trimClientFromUserMessage}
+                        onForkBeforeUserMessage={
+                          supportsForkFromTurn
+                            ? forkBeforeUserMessage
+                            : undefined
+                        }
+                        onForkAfterUserMessage={
+                          supportsForkFromTurn
+                            ? forkAfterUserMessage
+                            : undefined
+                        }
+                        onForkAfterSummaryUserMessage={
+                          supportsForkFromTurn
+                            ? beginForkAfterSummary
+                            : undefined
+                        }
+                        forkAfterUserMessageDisabled={forkAfterDisabled}
+                        forkUnavailableMessage={forkUnavailableMessage}
+                        onCopyUserMessage={copyUserMessage}
+                        onHandoffFromUserMessage={handoffFromUserMessage}
+                        markdownAugments={markdownAugments}
+                        activeToolApproval={activeToolApproval}
+                        hasOlderMessages={pagination?.hasOlderMessages}
+                        totalMessageCount={pagination?.totalMessageCount}
+                        olderMessagesCursor={
+                          pagination?.truncatedBeforeMessageId ?? null
+                        }
+                        activeWindowTrimRevision={activeWindowTrimRevision}
+                        loadingOlder={loadingOlder}
+                        olderLoadContinuationRequired={
+                          olderLoadContinuationRequired
+                        }
+                        onLoadOlderMessages={loadOlderMessages}
+                        onReadOlderSearchPage={readOlderSearchPage}
+                        clientTailActive={clientTailActive}
+                        progressiveRenderEnabled={sessionLoadingProgressEnabled}
+                        progressiveRenderStatusVisible={
+                          sessionLoadingProgressDetailsVisible
+                        }
+                        progressiveRenderKey={`${clientSummarySourceKey}:${projectId}:${sessionId}:${location.search}`}
+                        progressiveRenderPauseSignal={
+                          progressiveRenderPauseSignal
+                        }
+                        conversationViewStateKey={`${clientSummarySourceKey}:${projectId}:${sessionId}:${location.search}`}
+                        initialScrollSnapshot={initialScrollSnapshot}
+                        onScrollSnapshotChange={updateRouteScrollSnapshot}
+                        onFollowingBottomChange={
+                          updateActiveWindowFollowingBottom
+                        }
+                        onFollowCurrent={handleFollowCurrent}
+                        scrollBehaviorMode={sessionScrollBehaviorMode}
+                        getForkSummaryTargetHref={getForkSummaryTargetHref}
+                        onCancelForkSummary={handleCancelForkSummary}
+                        onToggleForkSummaryAutoOpen={
+                          handleToggleForkSummaryAutoOpen
+                        }
+                        onFollowForkSummary={followForkSummary}
+                        bangCommandHandlers={bangCommandHandlers}
+                        transcriptPositionStore={transcriptPositionStore}
+                        inert={isDomLingerParked}
+                      />
+                    </SessionViewerProvider>
+                  </SessionRewindProvider>
                 </AgentContentProvider>
               </SessionMetadataProvider>
             )}

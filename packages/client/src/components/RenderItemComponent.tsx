@@ -7,8 +7,10 @@ import {
   useRef,
   useState,
 } from "react";
+import { useSessionRewind } from "../contexts/SessionRewindContext";
 import { useTextTooltipAttributes } from "../hooks/useTooltipAppearance";
 import { useI18n } from "../i18n";
+import { getRenderItemRewoundGroupId } from "../lib/sessionDetail/renderItems";
 import { AsyncQuestionMessage } from "./AsyncQuestions";
 import {
   MESSAGE_STALE_THRESHOLD_MS,
@@ -242,6 +244,59 @@ const COMPACT_EMPTY_DETAIL =
  */
 function systemIconForText(icon: string, text: string): string {
   return icon === "/" && text.trimStart().startsWith("/") ? "" : icon;
+}
+
+interface RewoundGroupDetails {
+  reason?: string;
+  cutTurnIndex?: number;
+  droppedTurnCount?: number;
+  rowCount?: number;
+  clearloopIteration?: number;
+}
+
+/**
+ * Header row of a rewound group (topics/session-rewind.md § Durable
+ * history). The group's body rows are shown or hidden by the display filter
+ * through the shared rewind context; this row only owns the toggle.
+ */
+function RewoundGroupHeader({
+  item,
+}: {
+  item: Extract<RenderItem, { type: "system" }>;
+}) {
+  const { t } = useI18n();
+  const rewind = useSessionRewind();
+  const groupId = getRenderItemRewoundGroupId(item);
+  const source = item.sourceMessages[0] as
+    | { rewoundGroup?: RewoundGroupDetails }
+    | undefined;
+  const details = source?.rewoundGroup ?? {};
+  const expanded = groupId ? rewind.expandedRewoundGroups.has(groupId) : false;
+  const count = String(details.droppedTurnCount ?? details.rowCount ?? 0);
+  const index = String(details.cutTurnIndex ?? 0);
+  const label =
+    details.clearloopIteration !== undefined
+      ? t("rewoundGroupClearloopLabel", {
+          iteration: String(details.clearloopIteration),
+          count,
+          index,
+        })
+      : t("rewoundGroupLabel", { count, index });
+  return (
+    <button
+      type="button"
+      className={`system-message system-message-local-command ${styles.rewoundGroupHeader}`}
+      aria-expanded={expanded}
+      title={expanded ? t("rewoundGroupCollapse") : t("rewoundGroupExpand")}
+      onClick={() => groupId && rewind.toggleRewoundGroup(groupId)}
+    >
+      <span className="collapsible__icon" aria-hidden="true">
+        {expanded ? "▾" : "▸"}
+      </span>
+      <span className="system-message-icon">↶</span>
+      <span className="system-message-text">{label}</span>
+    </button>
+  );
 }
 
 function CollapsibleSystemMessage({
@@ -1359,6 +1414,7 @@ export const RenderItemComponent = memo(function RenderItemComponent({
         return (
           <UserPromptBlock
             content={item.content}
+            messageId={item.id}
             projectPathLinks={item.projectPathLinks}
             onCorrect={onCorrectUserPrompt}
             onCancelUnconfirmed={
@@ -1425,6 +1481,9 @@ export const RenderItemComponent = memo(function RenderItemComponent({
         );
 
       case "system": {
+        if (item.subtype === "rewound_group") {
+          return <RewoundGroupHeader item={item} />;
+        }
         if (item.subtype === "local_command" && item.content === "/goal") {
           const [objective = "", ...status] = (item.details ?? []).map(
             systemDetailToText,
@@ -1527,6 +1586,11 @@ export const RenderItemComponent = memo(function RenderItemComponent({
         hasTimestamp ? "has-message-age" : "",
         showAgeByDefault ? "is-message-age-visible" : "",
         item.isSubagent ? "subagent-item" : "",
+        // Rewound rows reuse the nested (subagent) presentation.
+        getRenderItemRewoundGroupId(item) &&
+        !(item.type === "system" && item.subtype === "rewound_group")
+          ? `subagent-item ${styles.rewoundItem}`
+          : "",
       ]
         .filter(Boolean)
         .join(" ")}

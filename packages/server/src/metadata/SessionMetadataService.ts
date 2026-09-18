@@ -19,6 +19,9 @@ import {
   type ProviderName,
   type PromptSuggestionMode,
   type RecapMode,
+  type SessionClearloopJob,
+  type SessionPendingRewind,
+  type SessionRewindRecord,
   type SessionSandboxLevel,
   type SlashCommand,
   type ThinkingConfig,
@@ -88,6 +91,12 @@ export interface SessionMetadata {
   /** Durable YA-owned recap rows merged into the transcript view only. */
   recapMessages?: DurableRecapMessage[];
   localCommandMessages?: DurableLocalCommandMessage[];
+  /** Same-session rewinds; the reader groups the rows they dropped. */
+  rewindRecords?: SessionRewindRecord[];
+  /** A rewind the next provider resume must apply. */
+  pendingRewind?: SessionPendingRewind;
+  /** The latest `/clearloop` job, running or terminal. */
+  clearloop?: SessionClearloopJob;
   /** Last observed goal, independent of historical command receipts. */
   goalCommand?: SlashCommand;
   /** Pre-Claude name for the same record; still read, no longer written. */
@@ -388,6 +397,72 @@ export class SessionMetadataService {
         ),
         message,
       ],
+    }));
+    await this.metadataSaver.flush();
+  }
+
+  getRewindRecords(sessionId: string): SessionRewindRecord[] {
+    return [
+      ...(this.state.sessions[this.resolveSessionId(sessionId)]
+        ?.rewindRecords ?? []),
+    ];
+  }
+
+  getPendingRewind(sessionId: string): SessionPendingRewind | undefined {
+    return this.state.sessions[this.resolveSessionId(sessionId)]?.pendingRewind;
+  }
+
+  /** Record a rewind and arm it for the next provider resume. */
+  async addRewindRecord(
+    sessionId: string,
+    record: SessionRewindRecord,
+    pending: SessionPendingRewind,
+  ): Promise<void> {
+    this.updateSessionMetadata(sessionId, (metadata) => ({
+      ...metadata,
+      rewindRecords: [
+        ...(metadata.rewindRecords ?? []).filter((row) => row.id !== record.id),
+        record,
+      ],
+      pendingRewind: pending,
+    }));
+    await this.metadataSaver.flush();
+  }
+
+  /** Forget a rewind that was refused before it could apply. */
+  async removeRewindRecord(sessionId: string, recordId: string): Promise<void> {
+    this.updateSessionMetadata(sessionId, (metadata) => ({
+      ...metadata,
+      rewindRecords: (metadata.rewindRecords ?? []).filter(
+        (row) => row.id !== recordId,
+      ),
+      pendingRewind:
+        metadata.pendingRewind?.recordId === recordId
+          ? undefined
+          : metadata.pendingRewind,
+    }));
+    await this.metadataSaver.flush();
+  }
+
+  async clearPendingRewind(sessionId: string): Promise<void> {
+    this.updateSessionMetadata(sessionId, (metadata) => ({
+      ...metadata,
+      pendingRewind: undefined,
+    }));
+    await this.metadataSaver.flush();
+  }
+
+  getClearloop(sessionId: string): SessionClearloopJob | undefined {
+    return this.state.sessions[this.resolveSessionId(sessionId)]?.clearloop;
+  }
+
+  async setClearloop(
+    sessionId: string,
+    job: SessionClearloopJob | undefined,
+  ): Promise<void> {
+    this.updateSessionMetadata(sessionId, (metadata) => ({
+      ...metadata,
+      clearloop: job,
     }));
     await this.metadataSaver.flush();
   }
@@ -1116,6 +1191,15 @@ export class SessionMetadataService {
     }
     if (updated.localCommandMessages?.length) {
       cleaned.localCommandMessages = updated.localCommandMessages;
+    }
+    if (updated.rewindRecords?.length) {
+      cleaned.rewindRecords = updated.rewindRecords;
+    }
+    if (updated.pendingRewind) {
+      cleaned.pendingRewind = updated.pendingRewind;
+    }
+    if (updated.clearloop) {
+      cleaned.clearloop = updated.clearloop;
     }
     if (updated.goalCommand) {
       cleaned.goalCommand = updated.goalCommand;

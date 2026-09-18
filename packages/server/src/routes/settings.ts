@@ -7,6 +7,10 @@ import {
   CODEX_PLAN_TOOL_MODES,
   CODEX_CYBER_ACCESS_PROGRAMS,
   MAX_HEARTBEAT_TURN_TEXT_LENGTH,
+  DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
+  MAX_CLEARLOOP_INACTIVITY_SECONDS,
+  MIN_CLEARLOOP_INACTIVITY_SECONDS,
+  clampClearloopInactivitySeconds,
   DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
   DEFAULT_PROMPT_CACHE_KEEPALIVE_INACTIVITY_MINUTES,
   MAX_PROJECT_QUEUE_QUIET_SECONDS,
@@ -436,6 +440,32 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
           return c.json(
             {
               error: `projectQueueQuietSeconds must be a number of seconds from 0 to ${MAX_PROJECT_QUEUE_QUIET_SECONDS}`,
+            },
+            400,
+          );
+        }
+      }
+
+      if ("clearloopInactivitySeconds" in body) {
+        if (
+          body.clearloopInactivitySeconds === undefined ||
+          body.clearloopInactivitySeconds === null
+        ) {
+          updates.clearloopInactivitySeconds =
+            DEFAULT_CLEARLOOP_INACTIVITY_SECONDS;
+        } else if (
+          typeof body.clearloopInactivitySeconds === "number" &&
+          Number.isFinite(body.clearloopInactivitySeconds) &&
+          body.clearloopInactivitySeconds >= MIN_CLEARLOOP_INACTIVITY_SECONDS &&
+          body.clearloopInactivitySeconds <= MAX_CLEARLOOP_INACTIVITY_SECONDS
+        ) {
+          updates.clearloopInactivitySeconds =
+            clampClearloopInactivitySeconds(body.clearloopInactivitySeconds) ??
+            DEFAULT_CLEARLOOP_INACTIVITY_SECONDS;
+        } else {
+          return c.json(
+            {
+              error: `clearloopInactivitySeconds must be a number of seconds from ${MIN_CLEARLOOP_INACTIVITY_SECONDS} to ${MAX_CLEARLOOP_INACTIVITY_SECONDS}`,
             },
             400,
           );

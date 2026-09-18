@@ -1,5 +1,12 @@
-import type { ClaudeSessionEntry } from "@yep-anywhere/shared";
-import { getLogicalParentUuid, isCompactBoundary } from "@yep-anywhere/shared";
+import type {
+  ClaudeSessionEntry,
+  SessionRewindRecord,
+} from "@yep-anywhere/shared";
+import {
+  REWOUND_GROUP_SUBTYPE,
+  getLogicalParentUuid,
+  isCompactBoundary,
+} from "@yep-anywhere/shared";
 import {
   buildDag,
   collectAllToolResultIds,
@@ -15,6 +22,100 @@ export interface VisibleClaudeEntriesResult {
 
 interface NormalizeClaudeEntriesOptions {
   includeOrphans?: boolean;
+  /**
+   * Same-session rewinds recorded by YA. Rows a rewind dropped are removed
+   * from active-branch selection and re-emitted after the cut as a group
+   * headed by a synthetic `rewound_group` system row. See
+   * topics/session-rewind.md.
+   */
+  rewindRecords?: readonly SessionRewindRecord[];
+}
+
+interface RewoundGroupHeader {
+  raw: ClaudeSessionEntry;
+  lineIndex: number;
+}
+
+/**
+ * Rows a rewind record dropped: descendants of the cut written before the
+ * rewind. The walk stops at rows written after the record, which are the live
+ * continuation, so their descendants stay live too.
+ */
+function collectRewoundRows(
+  rawMessages: ClaudeSessionEntry[],
+  records: readonly SessionRewindRecord[],
+): {
+  rewoundGroupByUuid: Map<string, string>;
+  headers: Map<string, RewoundGroupHeader>;
+} {
+  const rewoundGroupByUuid = new Map<string, string>();
+  const headers = new Map<string, RewoundGroupHeader>();
+  if (records.length === 0) return { rewoundGroupByUuid, headers };
+
+  const childrenByParent = new Map<
+    string,
+    Array<{ uuid: string; lineIndex: number; timestamp: string | undefined }>
+  >();
+  for (let lineIndex = 0; lineIndex < rawMessages.length; lineIndex++) {
+    const raw = rawMessages[lineIndex];
+    if (!raw || raw.type === "progress") continue;
+    const uuid = getEntryUuid(raw);
+    const parentUuid = getEntryParentUuid(raw);
+    if (!uuid || !parentUuid) continue;
+    const timestamp =
+      "timestamp" in raw && typeof raw.timestamp === "string"
+        ? raw.timestamp
+        : undefined;
+    const siblings = childrenByParent.get(parentUuid);
+    const child = { uuid, lineIndex, timestamp };
+    if (siblings) siblings.push(child);
+    else childrenByParent.set(parentUuid, [child]);
+  }
+
+  const sorted = [...records].sort((left, right) =>
+    left.at.localeCompare(right.at),
+  );
+  for (const record of sorted) {
+    const queue = [record.cutMessageId];
+    let firstLineIndex = Number.POSITIVE_INFINITY;
+    let count = 0;
+    while (queue.length > 0) {
+      const parent = queue.shift() as string;
+      for (const child of childrenByParent.get(parent) ?? []) {
+        if (rewoundGroupByUuid.has(child.uuid)) continue;
+        if (child.timestamp !== undefined && child.timestamp > record.at) {
+          continue;
+        }
+        rewoundGroupByUuid.set(child.uuid, record.id);
+        firstLineIndex = Math.min(firstLineIndex, child.lineIndex);
+        count += 1;
+        queue.push(child.uuid);
+      }
+    }
+    if (count === 0) continue;
+    const header = {
+      type: "system",
+      subtype: REWOUND_GROUP_SUBTYPE,
+      uuid: `rewound-group-${record.id}`,
+      parentUuid: record.cutMessageId,
+      timestamp: record.at,
+      content: "",
+      isSynthetic: true,
+      rewoundGroupId: record.id,
+      rewoundGroup: {
+        reason: record.reason,
+        cutTurnIndex: record.cutTurnIndex,
+        droppedTurnCount: record.droppedTurnCount,
+        rowCount: count,
+        at: record.at,
+        ...(record.clearloopIteration !== undefined
+          ? { clearloopIteration: record.clearloopIteration }
+          : {}),
+      },
+    } as unknown as ClaudeSessionEntry;
+    headers.set(record.id, { raw: header, lineIndex: firstLineIndex - 0.5 });
+  }
+  return { rewoundGroupByUuid, headers };
 }
 
 function hasQueueOperationContent(raw: ClaudeSessionEntry): boolean {
@@ -118,10 +219,23 @@ function isCompactSummaryEntry(raw: ClaudeSessionEntry): boolean {
 }
 
 export function collectVisibleClaudeEntries(
-  rawMessages: ClaudeSessionEntry[],
+  allRawMessages: ClaudeSessionEntry[],
   options: NormalizeClaudeEntriesOptions = {},
 ): VisibleClaudeEntriesResult {
   const { includeOrphans = true } = options;
+  const { rewoundGroupByUuid, headers: rewoundHeaders } = collectRewoundRows(
+    allRawMessages,
+    options.rewindRecords ?? [],
+  );
+  // Rewound rows are withheld from tip selection so the cut is the live tail
+  // until the session writes past it; they rejoin below as grouped extras.
+  const rawMessages =
+    rewoundGroupByUuid.size === 0
+      ? allRawMessages
+      : allRawMessages.filter((raw) => {
+          const uuid = getEntryUuid(raw);
+          return !uuid || !rewoundGroupByUuid.has(uuid);
+        });
   const { activeBranch } = buildDag(rawMessages);
   const activeBranchUuids = new Set(activeBranch.map((node) => node.uuid));
   const allToolResultIds = collectAllToolResultIds(rawMessages);
@@ -221,6 +335,34 @@ export function collectVisibleClaudeEntries(
   for (const branch of findSiblingToolBranches(activeBranch, rawMessages)) {
     for (const node of branch.nodes) {
       pushExtra(branch.branchPoint, node.raw, node.lineIndex);
+    }
+  }
+
+  // Rewound rows rejoin as extras under their cut, headed by the group row,
+  // so they render after the kept turn and before the live continuation.
+  if (rewoundGroupByUuid.size > 0) {
+    const cutByRecord = new Map<string, string>();
+    for (const record of options.rewindRecords ?? []) {
+      cutByRecord.set(record.id, record.cutMessageId);
+    }
+    for (const [recordId, header] of rewoundHeaders) {
+      const cut = cutByRecord.get(recordId);
+      if (cut && activeBranchUuids.has(cut)) {
+        pushExtra(cut, header.raw, header.lineIndex);
+      }
+    }
+    for (let lineIndex = 0; lineIndex < allRawMessages.length; lineIndex++) {
+      const raw = allRawMessages[lineIndex];
+      const uuid = raw ? getEntryUuid(raw) : undefined;
+      const recordId = uuid ? rewoundGroupByUuid.get(uuid) : undefined;
+      if (!raw || !recordId) continue;
+      const cut = cutByRecord.get(recordId);
+      if (!cut || !activeBranchUuids.has(cut)) continue;
+      pushExtra(
+        cut,
+        { ...raw, rewoundGroupId: recordId } as unknown as ClaudeSessionEntry,
+        lineIndex,
+      );
     }
   }
 

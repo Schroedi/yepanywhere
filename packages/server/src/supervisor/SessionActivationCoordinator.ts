@@ -59,6 +59,12 @@ export interface ModelSettings {
   resumeMode?: "full" | "compact-first";
   /** Resume only through this transcript message UUID. */
   resumeSessionAt?: string;
+  /**
+   * With `resumeSessionAt`: the prompt UUID of the single turn being
+   * dropped, so the provider refuses a truncation that would discard
+   * anything else. See topics/session-rewind.md.
+   */
+  resumeDropsTurn?: string;
   /** Per-model preemptive compaction threshold percentage. */
   compactAtContextPercent?: number;
   /** Effective context window used by the compaction threshold. */

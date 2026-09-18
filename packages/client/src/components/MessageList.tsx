@@ -21,6 +21,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useAsyncQuestions } from "../contexts/AsyncQuestionsContext";
+import { useSessionRewind } from "../contexts/SessionRewindContext";
 import { getShowThinkingSetting } from "../hooks/useModelSettings";
 import {
   QueuedEffortBadge,
@@ -814,6 +815,8 @@ interface Props {
   quoteClearSignal?: number;
   /** Callback to cancel a deferred message */
   onCancelDeferred?: (tempId: string) => void;
+  /** Cancel the running /clearloop without stopping in-flight work. */
+  onCancelClearloop?: () => void;
   /** Move a live deferred message back into an empty composer. */
   onEditDeferred?: (tempId: string) => void;
   /** Callback to cancel an optimistic steering send before the provider acts. */
@@ -1085,6 +1088,8 @@ interface QueuedMessageActionsProps {
   onSteer?: () => void;
   steerLabel?: string;
   onCancel?: () => void;
+  /** Overrides the default cancel label (used by the /clearloop entry). */
+  cancelLabel?: string;
 }
 
 const subscribeComposerEditAvailable = () => () => {};
@@ -1101,6 +1106,7 @@ function QueuedMessageActions({
   onSteer,
   steerLabel,
   onCancel,
+  cancelLabel: cancelLabelOverride,
 }: QueuedMessageActionsProps) {
   const { t } = useI18n();
   const composerCanEdit = useSyncExternalStore(
@@ -1113,9 +1119,9 @@ function QueuedMessageActions({
   const editLabel = isProject
     ? t("projectQueueInlineEdit")
     : t("sessionQueuedEdit");
-  const cancelLabel = isProject
-    ? t("projectQueueInlineCancel")
-    : t("sessionQueuedCancel");
+  const cancelLabel =
+    cancelLabelOverride ??
+    (isProject ? t("projectQueueInlineCancel") : t("sessionQueuedCancel"));
 
   return (
     <div className="deferred-message-actions" data-queue-actions={variant}>
@@ -1460,6 +1466,7 @@ export const MessageList = memo(function MessageList({
   composerEditAvailabilityStore,
   quoteClearSignal = 0,
   onCancelDeferred,
+  onCancelClearloop,
   onEditDeferred,
   onCancelUnconfirmedUserMessage,
   onSteerDeferred,
@@ -2134,9 +2141,14 @@ export const MessageList = memo(function MessageList({
       thinkingLatestOnly,
     ],
   );
+  const { expandedRewoundGroups } = useSessionRewind();
   const fullDisplayRenderItems = useMemo(
-    () => getDisplayRenderItems(renderItems, { thinkingItemsVisible }),
-    [renderItems, thinkingItemsVisible],
+    () =>
+      getDisplayRenderItems(renderItems, {
+        thinkingItemsVisible,
+        expandedRewoundGroups,
+      }),
+    [expandedRewoundGroups, renderItems, thinkingItemsVisible],
   );
   const conversationWindow = useMemo(
     () =>
@@ -4994,16 +5006,19 @@ export const MessageList = memo(function MessageList({
 
           const deferred = tailRow.message;
           const recoveredQueueId = tailRow.recoveredQueueId;
+          const isClearloop = deferred.yaCommand === "clearloop";
           const deferredStatus = tailRow.isRecovered
             ? t("sessionRecoveredQueuedPaused")
-            : tailRow.isYaCommand
-              ? t("sessionQueuedYaCommandAfterTurn")
-              : getDeferredMessageStatus({
-                  isPatient: tailRow.isPatient,
-                  lanePosition: tailRow.lanePosition,
-                  timestampMs,
-                  nowMs,
-                });
+            : isClearloop
+              ? t("clearloopStatus")
+              : tailRow.isYaCommand
+                ? t("sessionQueuedYaCommandAfterTurn")
+                : getDeferredMessageStatus({
+                    isPatient: tailRow.isPatient,
+                    lanePosition: tailRow.lanePosition,
+                    timestampMs,
+                    nowMs,
+                  });
           const earlierPatientCount = tailRow.lanePosition?.patientIndex ?? 0;
           const steerQueuedLabel =
             earlierPatientCount > 0
@@ -5020,7 +5035,22 @@ export const MessageList = memo(function MessageList({
               } ${showAgeByDefault ? "is-message-age-visible" : ""}`}
             >
               <div className="message-render-content">
-                <div className={`message-user-prompt ${styles.queuedBubble}`}>
+                <div
+                  className={`message-user-prompt ${styles.queuedBubble}`}
+                  title={isClearloop ? deferred.content : undefined}
+                >
+                  {isClearloop && deferred.clearloop ? (
+                    <span
+                      className={styles.clearloopBadge}
+                      role="img"
+                      aria-label={t("clearloopProgress", {
+                        completed: String(deferred.clearloop.completed),
+                        total: String(deferred.clearloop.total),
+                      })}
+                    >
+                      {deferred.clearloop.completed}/{deferred.clearloop.total}
+                    </span>
+                  ) : null}
                   <LinkifiedText text={deferred.content} />
                 </div>
                 {deferred.attachments?.length ? (
@@ -5167,7 +5197,12 @@ export const MessageList = memo(function MessageList({
                       onCancel={
                         tailRow.allowsDeferredCancel && onCancelDeferred
                           ? () => onCancelDeferred(deferred.tempId as string)
-                          : undefined
+                          : isClearloop && onCancelClearloop
+                            ? onCancelClearloop
+                            : undefined
+                      }
+                      cancelLabel={
+                        isClearloop ? t("clearloopCancel") : undefined
                       }
                     />
                   )}

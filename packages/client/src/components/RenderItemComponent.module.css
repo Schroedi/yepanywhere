@@ -173,3 +173,25 @@
 .toolOutputDetails pre {
   color: var(--text-primary);
 }
+
+/*
+ * Rewound-group header (topics/session-rewind.md). A whole-row button so the
+ * collapsed group reads like the other outline chips and stays a touch
+ * target.
+ */
+.rewoundGroupHeader {
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.rewoundGroupHeader:hover,
+.rewoundGroupHeader:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
+}
+
+.rewoundItem {
+  opacity: 0.85;
+}

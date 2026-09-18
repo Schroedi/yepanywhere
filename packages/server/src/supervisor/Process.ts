@@ -3967,7 +3967,7 @@ export class Process {
    * deliberately separate from both deferred and patient provider input.
    */
   queueYaCommand(
-    command: SessionQueuedYaCommand,
+    command: Extract<SessionQueuedYaCommand, "done">,
     options?: {
       content?: SyntheticSessionBoundaryCommand;
       tempId?: string;
@@ -4224,6 +4224,15 @@ export class Process {
   /**
    * Signal that subscribers should publish the canonical deferred queue state.
    */
+  /**
+   * Re-publish the queue projection to live subscribers. Used when a
+   * server-owned entry outside this process (the `/clearloop` job) changes,
+   * since the transport re-queries the canonical projection on this event.
+   */
+  notifyQueueProjectionChanged(yaCommand?: SessionQueuedYaCommand): void {
+    this.emitDeferredQueueChange("queued", undefined, yaCommand);
+  }
+
   private emitDeferredQueueChange(
     reason?: "queued" | "cancelled" | "promoted",
     tempId?: string,

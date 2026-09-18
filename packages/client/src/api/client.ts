@@ -57,7 +57,9 @@ import type {
   RevokePublicSessionSharesResponse,
   RevokeAllPublicSharesResponse,
   RevokePublicShareResponse,
+  SessionClearloopJob,
   SessionQueuedMessageSummary,
+  SessionRewindRecord,
   SessionSandboxEnforcement,
   SessionSandboxLevel,
   ShowThinking,
@@ -1098,6 +1100,58 @@ export const api = {
       { method: "DELETE" },
     ),
 
+  /**
+   * Same-session rewind: drop everything after the cut while keeping the
+   * session id; the dropped turns stay in history as a collapsed group.
+   * See topics/session-rewind.md.
+   */
+  rewindSession: (
+    projectId: string,
+    sessionId: string,
+    body: {
+      cut: {
+        kind: "after-user-turn" | "before-user-turn";
+        sourceMessageId: string;
+      };
+      cutTurnIndex?: number;
+    },
+  ) =>
+    fetchJSON<{
+      record: SessionRewindRecord | null;
+      cutMessageId: string;
+      noop: boolean;
+      processAborted: boolean;
+    }>(`/projects/${projectId}/sessions/${sessionId}/rewind`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  startClearloop: (
+    projectId: string,
+    sessionId: string,
+    body: {
+      cut: {
+        kind: "after-user-turn" | "before-user-turn";
+        sourceMessageId: string;
+      };
+      cutTurnIndex?: number;
+      prompt: string;
+      total: number;
+      commandText: string;
+    },
+  ) =>
+    fetchJSON<{ job: SessionClearloopJob }>(
+      `/projects/${projectId}/sessions/${sessionId}/clearloop`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  /** Cancel a running /clearloop without stopping in-flight work. */
+  cancelClearloop: (projectId: string, sessionId: string) =>
+    fetchJSON<{ job: SessionClearloopJob }>(
+      `/projects/${projectId}/sessions/${sessionId}/clearloop`,
+      { method: "DELETE" },
+    ),
+
   cancelUnconfirmedSteerMessage: (sessionId: string, tempId: string) =>
     fetchJSON<{ cancelled: boolean }>(
       `/sessions/${sessionId}/steering/${encodeURIComponent(tempId)}`,
@@ -1817,6 +1871,8 @@ export interface ServerSettings {
   turnTimestamps?: "off" | "before" | "after";
   /** Seconds Project Queue waits after whole-project idle before promotion. */
   projectQueueQuietSeconds?: number;
+  /** Seconds of session inactivity that end one /clearloop iteration. */
+  clearloopInactivitySeconds?: number;
   /** Optional server-wide executable gate; null disables it. */
   projectQueueReadinessCheck?: ProjectQueueReadinessCommand | null;
 }

@@ -38,9 +38,11 @@ import {
   DEFAULT_CODEX_REASONING_SUMMARY,
   DEFAULT_HEARTBEAT_TURN_TEXT,
   DEFAULT_HOST_AWAKE_BATTERY_FLOOR_PERCENT,
+  DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
   DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
   DEFAULT_SUBAGENT_MAX_DEPTH,
   MAX_HEARTBEAT_TURN_TEXT_LENGTH,
+  clampClearloopInactivitySeconds,
   clampProjectQueueQuietSeconds,
   isIdleReapHours,
   isSubagentMaxDepth,
@@ -296,6 +298,11 @@ export interface ServerSettings {
    * Queue promotes one item. Range 0-300, default 30.
    */
   projectQueueQuietSeconds?: number;
+  /**
+   * Seconds without a user send or provider progress that end one
+   * `/clearloop` iteration. Range 10-3600, default 60.
+   */
+  clearloopInactivitySeconds?: number;
   /** Optional server-wide executable gate; null disables it. */
   projectQueueReadinessCheck?: ProjectQueueReadinessCommand | null;
 }
@@ -354,6 +361,7 @@ export const DEFAULT_SERVER_SETTINGS: ServerSettings = {
   clientDefaults: DEFAULT_CLIENT_DEFAULTS,
   cacheMissBilling: DEFAULT_CACHE_MISS_BILLING_SETTINGS,
   projectQueueQuietSeconds: DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
+  clearloopInactivitySeconds: DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
   postCompactReplay: DEFAULT_POST_COMPACT_REPLAY_SETTINGS,
 };
 
@@ -593,6 +601,9 @@ function normalizeLoadedSettings(settings: ServerSettings): ServerSettings {
   normalized.projectQueueQuietSeconds =
     clampProjectQueueQuietSeconds(settings.projectQueueQuietSeconds) ??
     DEFAULT_PROJECT_QUEUE_QUIET_SECONDS;
+  normalized.clearloopInactivitySeconds =
+    clampClearloopInactivitySeconds(settings.clearloopInactivitySeconds) ??
+    DEFAULT_CLEARLOOP_INACTIVITY_SECONDS;
   normalized.sourceReviewSubmissionsEnabled =
     typeof settings.sourceReviewSubmissionsEnabled === "boolean"
       ? settings.sourceReviewSubmissionsEnabled

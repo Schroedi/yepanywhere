@@ -147,6 +147,14 @@ export interface AppMessageExtensions {
   isSubagent?: boolean;
 
   /**
+   * Set on rows a same-session rewind dropped. The value is the rewind
+   * record id; the UI renders these rows as one collapsed group headed by a
+   * `rewound_group` system row carrying the same id. See
+   * topics/session-rewind.md.
+   */
+  rewoundGroupId?: string;
+
+  /**
    * Allow any additional fields from JSONL.
    * This makes the type compatible with pass-through of unknown fields.
    */
@@ -653,7 +661,14 @@ export interface SessionMetadataPayload
   workstreamId?: WorkstreamId;
 }
 
-export type SessionQueuedYaCommand = "done";
+export type SessionQueuedYaCommand = "done" | "clearloop";
+
+/** Progress of a running `/clearloop`, carried on its queued-entry chip. */
+export interface SessionQueuedClearloopProgress {
+  completed: number;
+  total: number;
+  state: "running" | "completed" | "cancelled" | "interrupted";
+}
 
 export type SessionQueuedMessageKind = "deferred" | "patient" | "ya-command";
 
@@ -676,6 +691,8 @@ export interface SessionQueuedMessageSummary {
   kind?: SessionQueuedMessageKind;
   /** YA-local command projected through queue UI without provider delivery. */
   yaCommand?: SessionQueuedYaCommand;
+  /** Present on the `clearloop` YA-command entry. */
+  clearloop?: SessionQueuedClearloopProgress;
   status?: SessionQueuedMessageStatus;
   sessionId?: string;
   projectId?: UrlProjectId;

@@ -2581,6 +2581,10 @@ export class Supervisor {
       resumeSessionAt: resumeSessionId
         ? modelSettings?.resumeSessionAt
         : undefined,
+      resumeDropsTurn:
+        resumeSessionId && modelSettings?.resumeSessionAt
+          ? modelSettings?.resumeDropsTurn
+          : undefined,
       permissionMode: effectiveMode,
       model: modelSettings?.model,
       serviceTier: modelSettings?.serviceTier,

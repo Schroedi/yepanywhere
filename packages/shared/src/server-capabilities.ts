@@ -520,6 +520,35 @@ export const SERVER_CAPABILITIES = {
       reason: "Older servers do not retain cross-session delivery provenance.",
     },
   },
+  sessionRewind: {
+    id: CAPABILITY_ID_ALLOCATIONS.sessionRewind.id,
+    name: "session-rewind",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Same-session rewind (/clear N), turn-menu Clear entries, rewound-group history, and /clearloop.",
+    clientFallback:
+      "Hide the Clear menu entries, mark /clear N, /fork N, and /clearloop unavailable, and make no rewind or clearloop request.",
+    serverContract: {
+      routes: [
+        "POST /api/projects/:projectId/sessions/:sessionId/rewind",
+        "POST /api/projects/:projectId/sessions/:sessionId/clearloop",
+        "DELETE /api/projects/:projectId/sessions/:sessionId/clearloop",
+      ],
+      responseFields: [
+        "deferredMessages[].clearloop",
+        "message.rewoundGroupId",
+        "settings.clearloopInactivitySeconds",
+      ],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "In-place rewind is a server-owned provider operation with durable rewind records.",
+    },
+  },
   sessionAsyncQuestions: {
     id: CAPABILITY_ID_ALLOCATIONS.sessionAsyncQuestions.id,
     name: "session-async-questions",
@@ -2818,6 +2847,7 @@ export const RETAINED_SESSION_COLLECTIONS_CAPABILITY =
   SERVER_CAPABILITIES.retainedSessionCollections.name;
 export const SESSION_ASYNC_QUESTIONS_CAPABILITY =
   SERVER_CAPABILITIES.sessionAsyncQuestions.name;
+export const SESSION_REWIND_CAPABILITY = SERVER_CAPABILITIES.sessionRewind.name;
 export const NON_HUMAN_USER_TURN_CAPABILITY =
   SERVER_CAPABILITIES.nonHumanUserTurn.name;
 export const SESSION_CONTENT_SEARCH_CAPABILITY =
