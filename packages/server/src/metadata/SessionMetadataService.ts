@@ -70,12 +70,19 @@ export interface SessionMetadata {
   /** Source session whose provider transcript was cloned or forked. */
   forkedFromSessionId?: string;
   /**
-   * How many forks/clones have been created from this session, so each new one
-   * can be titled with its own ordinal instead of repeating "Fork: <source>".
-   * Counts forks created, never forks that still exist: deleting a fork does
-   * not release its number.
+   * How many forks/clones have been created in this session's fork lineage, so
+   * each new one can be titled with its own ordinal instead of repeating
+   * "Fork: <source>". Only meaningful on a lineage root — a session whose own
+   * `forkLineageRootId` is absent. Counts forks created, never forks that still
+   * exist: deleting a fork does not release its number.
    */
   forksCreated?: number;
+  /**
+   * The lineage root whose `forksCreated` numbers this session's forks. Set on
+   * every fork target so forking a fork continues the original session's
+   * numbering instead of restarting at "Fork:".
+   */
+  forkLineageRootId?: string;
   /** Saved viewer-only objects placed in the transcript. */
   transcriptDisplayObjects?: TranscriptDisplayObject[];
   /** Durable YA-owned recap rows merged into the transcript view only. */
@@ -656,19 +663,25 @@ export class SessionMetadataService {
   }
 
   /**
-   * Claim the next fork ordinal for a source session: 1 for its first fork, 2
-   * for the next, and so on. Callers use it to title repeated forks of one
-   * session "Fork: X", "Fork 2: X", "Fork 3: X" instead of naming them alike.
+   * Claim the next fork ordinal for a source session: 1 for the lineage's first
+   * fork, 2 for the next, and so on. Callers use it to title repeated forks
+   * "Fork: X", "Fork 2: X", "Fork 3: X" instead of naming them alike, and must
+   * record the returned `lineageRootId` on the new fork (see `updateMetadata`'s
+   * `forkLineageRootId`) so forking that fork continues the same sequence.
    * The count only ever rises, so a deleted fork's number is not reissued.
    */
-  async nextForkOrdinal(sessionId: string): Promise<number> {
-    const ordinal = (this.getMetadata(sessionId)?.forksCreated ?? 0) + 1;
-    this.updateSessionMetadata(sessionId, (metadata) => ({
+  async nextForkOrdinal(
+    sessionId: string,
+  ): Promise<{ ordinal: number; lineageRootId: string }> {
+    const lineageRootId =
+      this.getMetadata(sessionId)?.forkLineageRootId ?? sessionId;
+    const ordinal = (this.getMetadata(lineageRootId)?.forksCreated ?? 0) + 1;
+    this.updateSessionMetadata(lineageRootId, (metadata) => ({
       ...metadata,
       forksCreated: ordinal,
     }));
     await this.save();
-    return ordinal;
+    return { ordinal, lineageRootId };
   }
 
   /**
@@ -834,6 +847,15 @@ export class SessionMetadataService {
   }
 
   /**
+   * The session whose fork count numbers this session's forks: the lineage
+   * root, or the session itself when it is one. Read-only companion to
+   * `nextForkOrdinal` for callers that record lineage without claiming a number.
+   */
+  forkLineageRoot(sessionId: string): string {
+    return this.getMetadata(sessionId)?.forkLineageRootId ?? sessionId;
+  }
+
+  /**
    * Get the executor for a session.
    * Returns undefined if the session ran locally or executor is unknown.
    */
@@ -925,6 +947,7 @@ export class SessionMetadataService {
       parentSessionId?: string | null;
       parentSessionKind?: "btw-aside" | null;
       forkedFromSessionId?: string | null;
+      forkLineageRootId?: string | null;
       heartbeatTurnsEnabled?: boolean;
       wakeTurnsEnabled?: boolean | null;
       autoResumeDisabled?: boolean;
@@ -973,6 +996,14 @@ export class SessionMetadataService {
       if (updates.forkedFromSessionId !== undefined) {
         result.forkedFromSessionId =
           updates.forkedFromSessionId?.trim() || undefined;
+      }
+
+      if (updates.forkLineageRootId !== undefined) {
+        const lineageRootId = updates.forkLineageRootId?.trim() || undefined;
+        // A session is never its own lineage root record: the root's count is
+        // found by the absence of this field.
+        result.forkLineageRootId =
+          lineageRootId === sessionId ? undefined : lineageRootId;
       }
 
       if (updates.heartbeatTurnsEnabled !== undefined) {
@@ -1073,6 +1104,9 @@ export class SessionMetadataService {
     }
     if (updated.forksCreated) {
       cleaned.forksCreated = updated.forksCreated;
+    }
+    if (updated.forkLineageRootId) {
+      cleaned.forkLineageRootId = updated.forkLineageRootId;
     }
     if (updated.transcriptDisplayObjects?.length) {
       cleaned.transcriptDisplayObjects = updated.transcriptDisplayObjects;

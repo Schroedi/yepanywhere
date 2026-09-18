@@ -56,13 +56,18 @@ window the trim dot controls).
 - Repeated forks of one source session are numbered so they can be told apart
   in a session list: the first is `Fork: <source>`, the next `Fork 2: <source>`,
   and so on. The ordinal comes from `SessionMetadataService.nextForkOrdinal`,
-  which counts forks *created* from the source and persists that count on the
-  source's metadata (`forksCreated`), so deleting a fork never reissues its
-  number, and Clone shares the same per-source count. A source title that
-  already carries a `Fork`/`Clone` prefix has it replaced, not stacked, so
-  forking a fork yields `Fork: <original>` rather than `Fork: Fork: <original>`.
+  which counts forks *created* in the lineage and persists that count on the
+  lineage root's metadata (`forksCreated`), so deleting a fork never reissues
+  its number, and Clone shares the same count. Every fork target records its
+  root in `forkLineageRootId`, so forking a fork continues the original
+  session's sequence instead of restarting at `Fork:`; the whole tree therefore
+  numbers `Fork:`, `Fork 2:`, `Fork 3:` with no repeats. A source title that
+  already carries a `Fork`/`Clone` prefix has it replaced, not stacked, so a
+  fork of `Fork 2: X` is `Fork 3: X`, never `Fork 3: Fork 2: X`.
   Fork-after-summary titles from the generated summary line and only claims an
   ordinal when that summary yields no title.
+- A fork target is never reported as externally active for YA's own creation
+  write — see [session-ownership](session-ownership.md) § The ownership model.
 - Clone copies through the latest completed response, titles the target
   `Clone: <source>`, records the source in `forkedFromSessionId`, navigates in
   the same tab, and opens cold with an empty target composer. It does not

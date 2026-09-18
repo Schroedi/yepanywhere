@@ -4418,7 +4418,10 @@ describe("Sessions metadata route", () => {
         getRequestedModel: vi.fn(() => undefined),
         setRequestedModel: vi.fn(async () => undefined),
         getExecutor: vi.fn(() => undefined),
-        nextForkOrdinal: vi.fn(async () => 1),
+        nextForkOrdinal: vi.fn(async () => ({
+          ordinal: 1,
+          lineageRootId: "sess-1",
+        })),
         getMetadata: vi.fn(() => ({
           customTitle: "Refactor session",
           sandboxLevel: "project-write",
@@ -4513,6 +4516,7 @@ describe("Sessions metadata route", () => {
     });
     expect(updateMetadata).toHaveBeenCalledWith("sess-fork", {
       title: "Fork: Refactor session",
+      forkLineageRootId: "sess-1",
     });
   });
 
@@ -4551,7 +4555,10 @@ describe("Sessions metadata route", () => {
         getRequestedModel: vi.fn(() => undefined),
         setRequestedModel: vi.fn(async () => undefined),
         getExecutor: vi.fn(() => undefined),
-        nextForkOrdinal: vi.fn(async () => 1),
+        nextForkOrdinal: vi.fn(async () => ({
+          ordinal: 1,
+          lineageRootId: "sess-1",
+        })),
         getMetadata: vi.fn(() => ({
           customTitle: "Refactor session",
           sandboxLevel: "project-write",
@@ -4608,6 +4615,7 @@ describe("Sessions metadata route", () => {
     expect(updateMetadata).toHaveBeenCalledWith("sess-fork", {
       title: "Fork: Refactor session",
       forkedFromSessionId: "sess-1",
+      forkLineageRootId: "sess-1",
     });
   });
 
@@ -4618,7 +4626,7 @@ describe("Sessions metadata route", () => {
     let forksCreated = 0;
     const nextForkOrdinal = vi.fn(async () => {
       forksCreated += 1;
-      return forksCreated;
+      return { ordinal: forksCreated, lineageRootId: "sess-1" };
     });
 
     const routes = createSessionsRoutes({
@@ -4672,12 +4680,14 @@ describe("Sessions metadata route", () => {
     expect(updateMetadata).toHaveBeenLastCalledWith("sess-fork", {
       title: "Fork 3: Refactor session",
       forkedFromSessionId: "sess-1",
+      forkLineageRootId: "sess-1",
     });
   });
 
   it("renumbers rather than stacks the prefix when forking a fork", async () => {
     const project = createProject();
     const forkSession = vi.fn(async () => ({ sessionId: "sess-fork-2" }));
+    const updateMetadata = vi.fn(async () => undefined);
 
     const routes = createSessionsRoutes({
       supervisor: {
@@ -4701,11 +4711,14 @@ describe("Sessions metadata route", () => {
         getRequestedModel: vi.fn(() => undefined),
         setRequestedModel: vi.fn(async () => undefined),
         getExecutor: vi.fn(() => undefined),
-        nextForkOrdinal: vi.fn(async () => 2),
+        nextForkOrdinal: vi.fn(async () => ({
+          ordinal: 2,
+          lineageRootId: "sess-root",
+        })),
         getMetadata: vi.fn(() => ({ customTitle: "Fork: Refactor session" })),
         setProvider: vi.fn(async () => undefined),
         setSessionSandbox: vi.fn(async () => undefined),
-        updateMetadata: vi.fn(async () => undefined),
+        updateMetadata,
       } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
       eventBus: { emit: vi.fn() } as unknown as SessionsDeps["eventBus"],
     });
@@ -4721,6 +4734,12 @@ describe("Sessions metadata route", () => {
 
     expect(response.status).toBe(200);
     expect((await response.json()).title).toBe("Fork 2: Refactor session");
+    // The fork of a fork stays in the original session's numbering lineage.
+    expect(updateMetadata).toHaveBeenCalledWith("sess-fork-2", {
+      title: "Fork 2: Refactor session",
+      forkedFromSessionId: "sess-fork",
+      forkLineageRootId: "sess-root",
+    });
   });
 
   it("clones the latest completed transcript cold with Clone lineage", async () => {
@@ -4758,7 +4777,10 @@ describe("Sessions metadata route", () => {
         setRequestedModel,
         getExecutor: vi.fn(() => undefined),
         getRequestedModel: vi.fn(() => "default"),
-        nextForkOrdinal: vi.fn(async () => 1),
+        nextForkOrdinal: vi.fn(async () => ({
+          ordinal: 1,
+          lineageRootId: "sess-1",
+        })),
         getMetadata: vi.fn(() => ({ customTitle: "Short session" })),
         updateMetadata,
       } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
@@ -4794,6 +4816,7 @@ describe("Sessions metadata route", () => {
     expect(updateMetadata).toHaveBeenCalledWith("sess-clone", {
       title: "Clone: Short session",
       forkedFromSessionId: "sess-1",
+      forkLineageRootId: "sess-1",
     });
     expect(setRequestedModel).toHaveBeenCalledWith("sess-clone", "gpt-5.6-sol");
     expect(resumeSession).not.toHaveBeenCalled();
@@ -4824,7 +4847,10 @@ describe("Sessions metadata route", () => {
         getProvider: vi.fn(() => "claude"),
         setProvider: vi.fn(async () => undefined),
         getRequestedModel: vi.fn(() => undefined),
-        nextForkOrdinal: vi.fn(async () => 1),
+        nextForkOrdinal: vi.fn(async () => ({
+          ordinal: 1,
+          lineageRootId: "sess-1",
+        })),
         getMetadata: vi.fn(() => ({})),
       } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
     });
@@ -4937,7 +4963,10 @@ describe("Sessions metadata route", () => {
         setRequestedModel: vi.fn(async () => undefined),
         getExecutor: vi.fn(() => undefined),
         getRequestedModel: vi.fn(() => undefined),
-        nextForkOrdinal: vi.fn(async () => 1),
+        nextForkOrdinal: vi.fn(async () => ({
+          ordinal: 1,
+          lineageRootId: "sess-1",
+        })),
         getMetadata: vi.fn(() => ({ customTitle: "Tool turn" })),
         updateMetadata: vi.fn(async () => undefined),
       } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
@@ -5073,7 +5102,10 @@ describe("Sessions metadata route", () => {
         setRequestedModel: vi.fn(async () => undefined),
         getExecutor: vi.fn(() => undefined),
         getRequestedModel: vi.fn(() => undefined),
-        nextForkOrdinal: vi.fn(async () => 1),
+        nextForkOrdinal: vi.fn(async () => ({
+          ordinal: 1,
+          lineageRootId: "sess-1",
+        })),
         getMetadata: vi.fn(() => ({ customTitle: "Codex tools" })),
         updateMetadata: vi.fn(async () => undefined),
       } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
@@ -5486,6 +5518,7 @@ describe("Sessions metadata route", () => {
           sandboxProjectPath: project.path,
         })),
         getTranscriptDisplayObjects: vi.fn(() => transcriptDisplayObjects),
+        forkLineageRoot: vi.fn((id: string) => id),
         addTranscriptDisplayObject,
         updateTranscriptDisplayObject,
         setProvider,
@@ -5598,11 +5631,13 @@ describe("Sessions metadata route", () => {
       title: "Refactor continuation",
       archived: true,
       forkedFromSessionId: "sess-1",
+      forkLineageRootId: "sess-1",
     });
     expect(updateMetadata).toHaveBeenCalledWith("sess-target", {
       title: "Refactor continuation",
       archived: false,
       forkedFromSessionId: "sess-1",
+      forkLineageRootId: "sess-1",
     });
     expect(setProvider).toHaveBeenCalledWith("sess-target", "claude");
     expect(setProvider).toHaveBeenCalledWith("sess-generator", "claude");
@@ -5728,6 +5763,7 @@ describe("Sessions metadata route", () => {
         getExecutor: vi.fn(() => undefined),
         getMetadata: vi.fn(() => ({})),
         getTranscriptDisplayObjects: vi.fn(() => transcriptDisplayObjects),
+        forkLineageRoot: vi.fn((id: string) => id),
         addTranscriptDisplayObject,
         updateTranscriptDisplayObject,
         setProvider: vi.fn(async () => undefined),
@@ -5807,6 +5843,7 @@ describe("Sessions metadata route", () => {
       sessionMetadataService: {
         getProvider: vi.fn(() => "claude"),
         getTranscriptDisplayObjects: vi.fn(() => []),
+        forkLineageRoot: vi.fn((id: string) => id),
       } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
     });
 
@@ -5865,6 +5902,7 @@ describe("Sessions metadata route", () => {
       sessionMetadataService: {
         getProvider: vi.fn(() => "codex"),
         getTranscriptDisplayObjects: vi.fn(() => []),
+        forkLineageRoot: vi.fn((id: string) => id),
       } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
     });
 
@@ -5930,6 +5968,7 @@ describe("Sessions metadata route", () => {
       sessionMetadataService: {
         getProvider: vi.fn(() => "claude"),
         getTranscriptDisplayObjects: vi.fn(() => []),
+        forkLineageRoot: vi.fn((id: string) => id),
       } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
     });
 
@@ -5985,6 +6024,7 @@ describe("Sessions metadata route", () => {
       sessionMetadataService: {
         getProvider: vi.fn(() => "claude"),
         getTranscriptDisplayObjects: vi.fn(() => []),
+        forkLineageRoot: vi.fn((id: string) => id),
       } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
     });
 
@@ -6056,6 +6096,7 @@ describe("Sessions metadata route", () => {
         getExecutor: vi.fn(() => undefined),
         getMetadata: vi.fn(() => ({})),
         getTranscriptDisplayObjects: vi.fn(() => transcriptDisplayObjects),
+        forkLineageRoot: vi.fn((id: string) => id),
         addTranscriptDisplayObject: vi.fn(async (_sessionId, object) => {
           transcriptDisplayObjects = [...transcriptDisplayObjects, object];
         }),

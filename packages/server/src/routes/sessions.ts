@@ -2037,11 +2037,13 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     sourceSessionId: string,
     title: string,
     archived: boolean,
+    forkLineageRootId?: string,
   ): Promise<void> => {
     await deps.sessionMetadataService?.updateMetadata(childSessionId, {
       title,
       archived,
       forkedFromSessionId: sourceSessionId,
+      ...(forkLineageRootId ? { forkLineageRootId } : {}),
     });
     deps.eventBus?.emit({
       type: "session-metadata-changed",
@@ -5362,11 +5364,15 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       body.mode ?? sourceLaunchSettings?.permissionMode;
 
     if (restartMode === "fork") {
+      const { ordinal, lineageRootId } =
+        (await deps.sessionMetadataService?.nextForkOrdinal(sessionId)) ?? {
+          ordinal: 1,
+          lineageRootId: sessionId,
+        };
       const forkTitle = deriveForkTitle({
         preferredTitle: originalMetadata?.customTitle,
         sourceSession,
-        ordinal:
-          (await deps.sessionMetadataService?.nextForkOrdinal(sessionId)) ?? 1,
+        ordinal,
       });
       let fork: Awaited<ReturnType<Supervisor["forkSession"]>>;
       try {
@@ -5484,6 +5490,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       if (deps.sessionMetadataService) {
         await deps.sessionMetadataService.updateMetadata(result.sessionId, {
           title: forkTitle,
+          forkLineageRootId: lineageRootId,
         });
         deps.eventBus?.emit({
           type: "session-metadata-changed",
@@ -5818,12 +5825,15 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       baseTitle = normalizeRestartTitleCandidate(sessionSummary?.title);
     }
     const titlePrefix = forkKind === "clone-latest-complete" ? "Clone" : "Fork";
+    const claimed = baseTitle
+      ? await deps.sessionMetadataService?.nextForkOrdinal(sessionId)
+      : undefined;
+    const forkLineageRootId =
+      claimed?.lineageRootId ??
+      deps.sessionMetadataService?.forkLineageRoot(sessionId) ??
+      sessionId;
     const forkTitle = baseTitle
-      ? forkTitleWithOrdinal(
-          baseTitle,
-          (await deps.sessionMetadataService?.nextForkOrdinal(sessionId)) ?? 1,
-          titlePrefix,
-        )
+      ? forkTitleWithOrdinal(baseTitle, claimed?.ordinal ?? 1, titlePrefix)
       : undefined;
 
     let fork: Awaited<ReturnType<Supervisor["forkSession"]>>;
@@ -5915,6 +5925,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       await deps.sessionMetadataService.updateMetadata(fork.sessionId, {
         title: forkTitle,
         forkedFromSessionId: sessionId,
+        forkLineageRootId,
       });
       deps.eventBus?.emit({
         type: "session-metadata-changed",
@@ -6291,15 +6302,16 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         originalMetadata?.customTitle ?? sourceSession.title,
       );
       // Claim a fork ordinal only when the generated summary yields no title,
-      // so an unused number is not burned on every fork-after-summary.
-      const fallbackTitle = async (): Promise<string | undefined> =>
-        baseTitle
-          ? forkTitleWithOrdinal(
-              baseTitle,
-              (await deps.sessionMetadataService?.nextForkOrdinal(sessionId)) ??
-                1,
-            )
-          : undefined;
+      // so an unused number is not burned on every fork-after-summary. The
+      // lineage the target belongs to is recorded either way.
+      const forkLineageRootId =
+        deps.sessionMetadataService.forkLineageRoot(sessionId);
+      const fallbackTitle = async (): Promise<string | undefined> => {
+        if (!baseTitle) return undefined;
+        const claimed =
+          await deps.sessionMetadataService?.nextForkOrdinal(sessionId);
+        return forkTitleWithOrdinal(baseTitle, claimed?.ordinal ?? 1);
+      };
       const savedExecutor = parseOptionalExecutor(
         deps.sessionMetadataService.getExecutor(sessionId),
       ).executor;
@@ -6396,6 +6408,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             sessionId,
             title,
             true,
+            forkLineageRootId,
           );
           await persistLaunchMetadata(
             target.sessionId,
@@ -6486,6 +6499,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             sessionId,
             title,
             false,
+            forkLineageRootId,
           );
           await deps.sessionMetadataService?.updateTranscriptDisplayObject(
             sessionId,

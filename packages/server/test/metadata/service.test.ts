@@ -1214,19 +1214,55 @@ describe("SessionMetadataService", () => {
   });
 
   describe("nextForkOrdinal", () => {
-    it("hands out rising ordinals per source session and persists them", async () => {
+    it("hands out rising ordinals per lineage and persists them", async () => {
       await service.initialize();
 
-      expect(await service.nextForkOrdinal("session-1")).toBe(1);
-      expect(await service.nextForkOrdinal("session-1")).toBe(2);
+      expect(await service.nextForkOrdinal("session-1")).toEqual({
+        ordinal: 1,
+        lineageRootId: "session-1",
+      });
+      expect(await service.nextForkOrdinal("session-1")).toEqual({
+        ordinal: 2,
+        lineageRootId: "session-1",
+      });
       // A second source session counts its own forks.
-      expect(await service.nextForkOrdinal("session-2")).toBe(1);
+      expect(await service.nextForkOrdinal("session-2")).toEqual({
+        ordinal: 1,
+        lineageRootId: "session-2",
+      });
 
       expect(service.getMetadata("session-1")).toEqual({ forksCreated: 2 });
 
       const restarted = new SessionMetadataService({ dataDir: testDir });
       await restarted.initialize();
-      expect(await restarted.nextForkOrdinal("session-1")).toBe(3);
+      expect(await restarted.nextForkOrdinal("session-1")).toEqual({
+        ordinal: 3,
+        lineageRootId: "session-1",
+      });
+    });
+
+    it("continues the root's numbering when a fork is itself forked", async () => {
+      await service.initialize();
+
+      const first = await service.nextForkOrdinal("session-1");
+      await service.updateMetadata("fork-a", {
+        forkLineageRootId: first.lineageRootId,
+      });
+
+      // Forking the fork draws from the root's count, not a fresh one.
+      expect(await service.nextForkOrdinal("fork-a")).toEqual({
+        ordinal: 2,
+        lineageRootId: "session-1",
+      });
+      expect(service.getMetadata("session-1")).toEqual({ forksCreated: 2 });
+      expect(service.getMetadata("fork-a")).toEqual({
+        forkLineageRootId: "session-1",
+      });
+      // The source session keeps drawing from the same sequence.
+      expect(await service.nextForkOrdinal("session-1")).toEqual({
+        ordinal: 3,
+        lineageRootId: "session-1",
+      });
     });
 
     it("preserves other metadata while counting forks", async () => {
