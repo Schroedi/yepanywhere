@@ -201,6 +201,7 @@ export {
   parseGatewayModelId,
   parseGatewayServices,
   qualifiedGatewayModelId,
+  tomlString,
   type GatewayService,
   type GatewayServiceCodexWireApi,
   type GatewayServiceExportPaths,

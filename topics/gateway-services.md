@@ -197,6 +197,11 @@ model serving.
   models from `/v1/models` and passing Codex `model_providers.<id>` overrides on
   the command line — base URL and `wire_api` — rather than editing the user's
   `~/.codex/config.toml`. YA never rewrites a CLI's own settings files.
+- Every value YA interpolates into an override or an exported profile is quoted
+  as a TOML string. A label only has to be trimmed and free of control
+  characters and a model id is whatever the endpoint's catalog row says, so a
+  `"` or `\` in either reaches Codex as written instead of ending the string
+  early and failing the launch.
 - The services editor checks `codexEnabled` by default on a newly added entry:
   an endpoint added to the list is usually the reason CodexOSS is being turned
   on at all. Existing entries keep whatever was saved, and the single-gateway

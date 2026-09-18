@@ -22,6 +22,7 @@ import {
   nearestGatewayEffortLevel,
   parseGatewayModelId,
   qualifiedGatewayModelId,
+  tomlString,
   type EffortLevel,
   type GatewayEndpointEffortProbe,
   type GatewayModelEffort,
@@ -533,11 +534,11 @@ export class CodexOSSProvider implements AgentProvider {
     if (!effort) return [];
     if (options.thinking?.type === "disabled") {
       const level = effort.noThinking ? "none" : effort.levels[0];
-      return level ? ["-c", `model_reasoning_effort="${level}"`] : [];
+      return level ? ["-c", `model_reasoning_effort=${tomlString(level)}`] : [];
     }
     if (!options.effort) return [];
     const level = nearestGatewayEffortLevel(effort, options.effort);
-    return level ? ["-c", `model_reasoning_effort="${level}"`] : [];
+    return level ? ["-c", `model_reasoning_effort=${tomlString(level)}`] : [];
   }
 
   /**
@@ -545,18 +546,22 @@ export class CodexOSSProvider implements AgentProvider {
    *
    * These are command-line overrides rather than edits to the user's
    * `~/.codex/config.toml`: YA never rewrites a CLI's own settings files.
+   *
+   * Each value is a TOML string, so a display name carrying a quote or a
+   * backslash reaches Codex as the name the user typed instead of breaking
+   * the override.
    */
   private serviceLaunchArgs(service: GatewayService): string[] {
     const key = `ya_${service.id.replace(/-/gu, "_")}`;
     return [
       "-c",
-      `model_providers.${key}.name="${gatewayServiceDisplayName(service)}"`,
+      `model_providers.${key}.name=${tomlString(gatewayServiceDisplayName(service))}`,
       "-c",
-      `model_providers.${key}.base_url="${service.url}/v1"`,
+      `model_providers.${key}.base_url=${tomlString(`${service.url}/v1`)}`,
       "-c",
-      `model_providers.${key}.wire_api="${service.codexWireApi}"`,
+      `model_providers.${key}.wire_api=${tomlString(service.codexWireApi)}`,
       "-c",
-      `model_provider="${key}"`,
+      `model_provider=${tomlString(key)}`,
     ];
   }
 
@@ -1016,11 +1021,11 @@ export class CodexOSSProvider implements AgentProvider {
       prompt,
       ...(service
         ? this.serviceLaunchArgs(service)
-        : ["-c", `model_provider="${this.localProvider}"`]),
+        : ["-c", `model_provider=${tomlString(this.localProvider)}`]),
     ];
 
     if (options.model) {
-      args.push("-c", `model="${route.modelId}"`);
+      args.push("-c", `model=${tomlString(route.modelId)}`);
     }
     args.push(...this.reasoningEffortArgs(options, route));
 

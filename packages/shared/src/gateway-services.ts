@@ -257,6 +257,18 @@ export function codexProfileName(service: Pick<GatewayService, "id">): string {
   return `ya-${service.id}`;
 }
 
+/**
+ * A value quoted as a TOML basic string, whose escapes are JSON's.
+ *
+ * Every value YA writes into a generated Codex profile or passes as a
+ * `codex -c <key>=<value>` launch override goes through this. A label such as
+ * `My "vLLM"` otherwise closes the string early and Codex rejects the
+ * override, so the launch fails on a name the user was allowed to type.
+ */
+export function tomlString(value: string): string {
+  return JSON.stringify(value);
+}
+
 function joinPath(directory: string, name: string): string {
   const separator =
     directory.includes("\\") && !directory.includes("/") ? "\\" : "/";

@@ -28,6 +28,7 @@ import {
   codexProfileName,
   codexProfilePath,
   gatewayServiceDisplayName,
+  tomlString,
   type GatewayService,
   type GatewayServiceExportPaths,
 } from "@yep-anywhere/shared";
@@ -55,10 +56,6 @@ export function defaultGatewayServiceExportPaths(): GatewayServiceExportPaths {
 /** Codex's provider key for a service, matching what YA passes at launch. */
 function codexProviderKey(service: GatewayService): string {
   return `ya_${service.id.replace(/-/gu, "_")}`;
-}
-
-function tomlString(value: string): string {
-  return JSON.stringify(value);
 }
 
 function codexProfileContents(service: GatewayService): string {
