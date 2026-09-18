@@ -150,12 +150,20 @@ model serving.
   because the same address may now front a different server.
 - A 2xx to the probe means the endpoint validates nothing and has therefore said
   nothing; it is not read as accepting every level.
-- `POST /api/settings/gateway-services/effort` asks one endpoint on demand and
-  is what the services editor's button calls. It bypasses both the cache and the
-  setting, and its URL must be loopback or already configured: unlike catalog
-  discovery it sends a chat request, so it stays pointed at endpoints the server
-  already talks to. The answer is written into the draft entry's level
-  checkboxes for review rather than applied invisibly.
+- `POST /api/settings/gateway-services/effort` asks one endpoint on demand. It
+  bypasses both the cache and the setting, and its URL must be loopback or
+  already configured: unlike catalog discovery it sends a chat request, so it
+  stays pointed at endpoints the server already talks to. The answer is written
+  into the draft entry's level checkboxes for review rather than applied
+  invisibly.
+- The editor presents an entry's two states as a choice between asking the
+  endpoint and stating the levels, because that is what they are: an entry
+  holding no list defers, and one holding a list decides. Nothing new is
+  stored for it. Choosing to state the levels asks the endpoint first and ticks
+  the answer, falling back to every level YA names, so the list is never left
+  empty — an empty list would mean the opposite of the chosen mode. Choosing to
+  ask turns the detection setting on, since leaving it off would make the
+  choice mean "use the built-in families only".
 - `defaultEffortLevel` states what the endpoint applies to a request naming no
   effort. It is meaningful only alongside `effortLevels` and must be one of
   them; a list stating nothing is no list at all, which restores the advertised
