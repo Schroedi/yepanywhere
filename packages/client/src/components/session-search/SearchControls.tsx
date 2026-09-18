@@ -111,8 +111,16 @@ export function SearchHeader({
   useEffect(() => {
     const editable =
       'input:not([type="checkbox"]):not([type="radio"]),textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="combobox"],[role="menu"],[role="dialog"]';
+    // Space presses whatever control has focus, so that key stays with the
+    // control: capturing it means Tab to a field checkbox or status filter and
+    // press Space toggles nothing and lands a space in the needle. Characters
+    // the control ignores remain needle input, so clicking a filter and
+    // continuing to type still reaches the search.
+    const pressable =
+      'button,summary,a[href],input[type="checkbox"],input[type="radio"],[role="button"],[role="checkbox"],[role="radio"],[role="switch"],[role="tab"],[role="menuitem"],[role="option"],[tabindex]:not([tabindex="-1"])';
     const type = (event: KeyboardEvent) => {
       const search = input.current;
+      const target = event.target instanceof Element ? event.target : null;
       if (
         !search ||
         document.activeElement === search ||
@@ -123,7 +131,8 @@ export function SearchHeader({
         event.altKey ||
         !matchMedia("(min-width: 701px)").matches ||
         document.querySelector('[role="dialog"],dialog[open]') ||
-        (event.target instanceof Element && event.target.closest(editable))
+        target?.closest(editable) ||
+        (event.key === " " && target?.closest(pressable))
       )
         return;
       const printable = [...event.key].length === 1;

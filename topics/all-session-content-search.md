@@ -71,10 +71,14 @@ reordering or revalidation does not dismiss it.
 Ctrl+S selects assistant search and Ctrl+R selects user search, focusing the
 search box. On a server without turn-search support they only focus title
 search. Desktop typing outside an actual text entry returns to the search's end
-and applies the typed character. Clicking, selecting, right-clicking and copying
-do not steal focus; other text inputs and dialogs retain their interaction. Mobile never
-autofocuses search. The header has no redundant All Sessions caption. Search in
-appears only when the field checkboxes occupy their own row.
+and applies the typed character. A focused control keeps the keys it acts on:
+Space presses the focused button or toggles the focused checkbox instead of
+reaching the needle, while characters that control ignores still reach it, so
+clicking a filter and continuing to type loses nothing. Clicking, selecting,
+right-clicking and copying do not steal focus; other text inputs and dialogs
+retain their interaction. Mobile never autofocuses search. The header has no
+redundant All Sessions caption. Search in appears only when the field
+checkboxes occupy their own row.
 
 ## Time and result limits
 
