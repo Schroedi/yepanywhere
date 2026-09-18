@@ -161,7 +161,7 @@ export class IssueConfirmer {
       this.again = true;
       return;
     }
-    this.draining = this.drain()
+    this.draining = this.pass()
       .catch(() => {})
       .finally(() => {
         this.draining = undefined;
@@ -172,8 +172,19 @@ export class IssueConfirmer {
       });
   }
 
-  /** Awaitable single pass, used by tests and by an explicit recheck. */
+  /**
+   * Awaitable drain, used by tests and by an explicit recheck. Coalesced like
+   * `schedule()` and then awaited to quiescence: a caller arriving while a
+   * pass is in flight adds a follow-up pass rather than a second loop over the
+   * same pending rows, which would ask the tracker twice about each of them.
+   */
   async drain(): Promise<void> {
+    this.schedule();
+    while (this.draining) await this.draining;
+  }
+
+  /** One pass over the pending rows, `BATCH` at a time. */
+  private async pass(): Promise<void> {
     while (!this.closed && this.enabled()) {
       const pending = this.store.rows(
         "SELECT project_id,provider,ref_key FROM issue_confirmations WHERE state='pending' ORDER BY ref_key LIMIT ?",

@@ -194,7 +194,11 @@ when a reference is first captured, and only while confirmation is on, so
 enabling the feature never sets a backlog loose. The insert ignores conflicts,
 so a reference holding any verdict, unreachable included, is never asked about
 again by itself. Nothing polls. `POST /api/issues/confirm` is the only second
-question and belongs to an explicit user action. Verdicts are per project, and
+question and belongs to an explicit user action. Overlapping drains coalesce:
+a recheck arriving while a capture-triggered lookup is still out joins that
+work instead of starting a second pass over the same pending references, so
+one reference costs one request however many drains overlap, and the recheck
+answers only once a pass has settled its own row. Verdicts are per project, and
 the most decisive one wins across projects: one project confirming a key
 settles it even if another recorded only an outage.
 

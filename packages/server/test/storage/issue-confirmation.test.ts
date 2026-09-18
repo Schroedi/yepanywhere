@@ -132,6 +132,47 @@ describe("tracker confirmation", () => {
     h.db.close();
   });
 
+  it("asks once per reference when a recheck overlaps a drain in flight", async () => {
+    const h = harness();
+    const asked: string[] = [];
+    let release = () => {};
+    const inFlight = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const fetcher = vi.fn(async (url: string | URL | Request) => {
+      asked.push(String(url));
+      await inFlight;
+      return new Response(
+        JSON.stringify({ title: "A pull", fields: { summary: "A ticket" } }),
+        { status: 200 },
+      );
+    });
+    const confirmer = new IssueConfirmer(h.store, {
+      settings: h.settings,
+      credentials: h.credentials,
+      fetch: fetcher as unknown as typeof fetch,
+    });
+    h.capture("PROJ-7 and https://github.com/Owner/Repo/issues/3");
+
+    // A capture starts a drain; the user rechecks while its first lookup is
+    // still out. Both references must be asked about once, not once per drain.
+    confirmer.schedule();
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    confirmer.recheck("p", "jira", "PROJ-7");
+    const recheck = confirmer.drain();
+    release();
+    await recheck;
+
+    expect(asked).toHaveLength(2);
+    expect(new Set(asked).size).toBe(2);
+    expect(h.pending()).toEqual([
+      ["PROJ-7", "confirmed"],
+      ["owner/repo#3", "confirmed"],
+    ]);
+    await confirmer.close();
+    h.db.close();
+  });
+
   it("queues nothing while confirmation is off, including a backlog", async () => {
     const h = harness({ confirmation: undefined });
     const fetcher = vi.fn(async () => new Response("{}", { status: 200 }));
