@@ -4,7 +4,9 @@ import {
   DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
   DEFAULT_PROJECT_QUEUE_CTRL_ENTER_ENABLED,
   DEFAULT_STEER_NOW_ENABLED,
+  MAX_CLEARLOOP_INACTIVITY_SECONDS,
   MAX_PROJECT_QUEUE_QUIET_SECONDS,
+  MIN_CLEARLOOP_INACTIVITY_SECONDS,
   PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
   type ProjectQueueReadinessCommand,
   SESSION_REWIND_CAPABILITY,
@@ -482,15 +484,33 @@ export function MessageDeliverySettings() {
             }
             className="model-settings-item"
           >
-            <input
-              type="text"
-              inputMode="text"
-              className="settings-input-small"
-              value={shownClearloopInactivityText}
-              onChange={(e) => setDraftClearloopInactivity(e.target.value)}
-              aria-label={t("messageDeliveryClearloopTitle")}
-              aria-invalid={shownClearloopInactivitySeconds === null}
-            />
+            <span className="output-appearance-slider-row">
+              <CommittedRangeInput
+                id="message-delivery-clearloop-inactivity"
+                min={MIN_CLEARLOOP_INACTIVITY_SECONDS}
+                max={MAX_CLEARLOOP_INACTIVITY_SECONDS}
+                step={10}
+                value={
+                  shownClearloopInactivitySeconds ??
+                  serverClearloopInactivitySeconds
+                }
+                aria-label={t("messageDeliveryClearloopTitle")}
+                onCommit={(value) =>
+                  setDraftClearloopInactivity(formatDurationSeconds(value))
+                }
+              />
+              <span className="output-appearance-number-wrap">
+                <input
+                  type="text"
+                  inputMode="text"
+                  className="settings-input-small output-appearance-number"
+                  value={shownClearloopInactivityText}
+                  onChange={(e) => setDraftClearloopInactivity(e.target.value)}
+                  aria-label={t("messageDeliveryClearloopTitle")}
+                  aria-invalid={shownClearloopInactivitySeconds === null}
+                />
+              </span>
+            </span>
             <span className="settings-hint">
               {shownClearloopInactivitySeconds === null
                 ? t("messageDeliveryClearloopInvalid")

@@ -111,6 +111,12 @@ function collectRewoundRows(
         ...(record.clearloopIteration !== undefined
           ? { clearloopIteration: record.clearloopIteration }
           : {}),
+        ...(record.clearloopTotal !== undefined
+          ? { clearloopTotal: record.clearloopTotal }
+          : {}),
+        ...(record.clearloopPrompt
+          ? { clearloopPrompt: record.clearloopPrompt }
+          : {}),
       },
     } as unknown as ClaudeSessionEntry;
     headers.set(record.id, { raw: header, lineIndex: firstLineIndex - 0.5 });

@@ -644,6 +644,7 @@ function SessionPageContent({
   const {
     session,
     updateSession,
+    reloadSession,
     messages,
     agentContent,
     mergeLoadedAgentContent,
@@ -4176,9 +4177,9 @@ function SessionPageContent({
           }),
           "success",
         );
-        // The dropped tail is still in this tab's transcript model; a fresh
-        // load renders the grouped state the server now reports.
-        navigate(0);
+        // The dropped tail is still in this tab's transcript model; refetch
+        // the transcript so the server's grouped state replaces it in place.
+        reloadSession();
         return true;
       } catch (error) {
         showToast(
@@ -4190,7 +4191,7 @@ function SessionPageContent({
         return false;
       }
     },
-    [actualSessionId, navigate, projectId, showToast, t],
+    [actualSessionId, projectId, reloadSession, showToast, t],
   );
   const clearAfterUserMessage = useCallback(
     (messageId: string) => {

@@ -5754,6 +5754,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     reason: SessionRewindReason;
     clearloopId?: string;
     clearloopIteration?: number;
+    clearloopTotal?: number;
+    clearloopPrompt?: string;
   }): Promise<RewindFailure | RewindSuccess> => {
     const { project, projectId, sessionId } = input;
     const { providerName, process } = await resolveRewindProvider(
@@ -5862,6 +5864,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       ...(input.clearloopId ? { clearloopId: input.clearloopId } : {}),
       ...(input.clearloopIteration !== undefined
         ? { clearloopIteration: input.clearloopIteration }
+        : {}),
+      ...(input.clearloopTotal !== undefined
+        ? { clearloopTotal: input.clearloopTotal }
+        : {}),
+      ...(input.clearloopPrompt
+        ? { clearloopPrompt: input.clearloopPrompt }
         : {}),
     };
     await deps.sessionMetadataService?.addRewindRecord(sessionId, record, {
@@ -6057,6 +6065,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         reason: "clearloop",
         clearloopId: job.id,
         clearloopIteration: iteration,
+        clearloopTotal: job.total,
+        clearloopPrompt: job.prompt,
       });
       if (!result.ok) throw new Error(result.error);
       return result.record ? "rewound" : "noop";

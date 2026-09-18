@@ -252,6 +252,8 @@ interface RewoundGroupDetails {
   droppedTurnCount?: number;
   rowCount?: number;
   clearloopIteration?: number;
+  clearloopTotal?: number;
+  clearloopPrompt?: string;
 }
 
 /**
@@ -274,20 +276,24 @@ function RewoundGroupHeader({
   const expanded = groupId ? rewind.expandedRewoundGroups.has(groupId) : false;
   const count = String(details.droppedTurnCount ?? details.rowCount ?? 0);
   const index = String(details.cutTurnIndex ?? 0);
+  // Reads as the command that produced it: `/clear N`, or for a clearloop
+  // iteration `/clear N [#m/M: prompt]` (topics/session-rewind.md).
   const label =
     details.clearloopIteration !== undefined
       ? t("rewoundGroupClearloopLabel", {
           iteration: String(details.clearloopIteration),
-          count,
+          total: String(details.clearloopTotal ?? "?"),
+          prompt: details.clearloopPrompt ?? "",
           index,
         })
-      : t("rewoundGroupLabel", { count, index });
+      : t("rewoundGroupLabel", { index });
+  const tooltip = t("rewoundGroupTooltip", { count });
   return (
     <button
       type="button"
       className={`system-message system-message-local-command ${styles.rewoundGroupHeader}`}
       aria-expanded={expanded}
-      title={expanded ? t("rewoundGroupCollapse") : t("rewoundGroupExpand")}
+      title={`${tooltip} — ${expanded ? t("rewoundGroupCollapse") : t("rewoundGroupExpand")}`}
       onClick={() => groupId && rewind.toggleRewoundGroup(groupId)}
     >
       <span className="collapsible__icon" aria-hidden="true">

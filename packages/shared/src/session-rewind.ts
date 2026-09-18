@@ -58,9 +58,11 @@ export interface SessionRewindRecord {
   droppedFromMessageId?: string;
   droppedTurnCount: number;
   reason: SessionRewindReason;
-  /** For clearloop rewinds: the loop and the iteration that produced it. */
+  /** For clearloop rewinds: the loop, the iteration, and its M and prompt. */
   clearloopId?: string;
   clearloopIteration?: number;
+  clearloopTotal?: number;
+  clearloopPrompt?: string;
 }
 
 /** A recorded rewind the next provider resume must apply. */

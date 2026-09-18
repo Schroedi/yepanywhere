@@ -1171,6 +1171,7 @@ export function useSession(
     updateRouteScrollSnapshot,
     updateActiveWindowFollowingBottom,
     restoredFromSnapshot,
+    reloadSession,
   } = useSessionMessages({
     projectId,
     sessionId,
@@ -2655,6 +2656,8 @@ export function useSession(
     session,
     updateSession,
     setSessionModel,
+    /** Discard the loaded transcript and fetch it again from the server. */
+    reloadSession,
     messages,
     agentContent, // Subagent messages keyed by agentId (for Task tool)
     mergeLoadedAgentContent,

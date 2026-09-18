@@ -225,6 +225,8 @@ export interface UseSessionMessagesResult {
   updateActiveWindowFollowingBottom: (followingBottom: boolean) => void;
   /** True when the initial render was hydrated from a retained route snapshot */
   restoredFromSnapshot: boolean;
+  /** Discard cached transcript state and fetch the session again in place. */
+  reloadSession: () => void;
 }
 
 function readSessionLoadCache(
@@ -510,6 +512,13 @@ export function useSessionMessages(
     },
     [coordinator],
   );
+  const [reloadGeneration, setReloadGeneration] = useState(0);
+  const forceFreshLoadRef = useRef(false);
+  const reloadSession = useCallback(() => {
+    forceFreshLoadRef.current = true;
+    coordinator.resetEntryState();
+    setReloadGeneration((generation) => generation + 1);
+  }, [coordinator]);
 
   // Hold the store entry for the mounted session: retention protects it from
   // TTL/LRU eviction, so incremental dispatches always land on real state.
@@ -702,7 +711,13 @@ export function useSessionMessages(
       projectId,
       sessionId,
     });
-    const warmLoad = readSessionLoadCache(coordinator);
+    // A requested reload discards every cached view of the transcript so the
+    // server's current projection (for example after a same-session rewind)
+    // replaces it rather than being appended to.
+    const warmLoad = forceFreshLoadRef.current
+      ? undefined
+      : readSessionLoadCache(coordinator);
+    forceFreshLoadRef.current = false;
     markReloadPerfPhase("session_snapshot_lookup_complete", {
       projectId,
       sessionId,
@@ -1018,6 +1033,7 @@ export function useSessionMessages(
   }, [
     projectId,
     sessionId,
+    reloadGeneration,
     effectiveTailTurns,
     initialHistoryCompactions,
     tailFrom,
@@ -1626,5 +1642,6 @@ export function useSessionMessages(
     updateRouteScrollSnapshot,
     updateActiveWindowFollowingBottom,
     restoredFromSnapshot: Boolean(cachedLoad),
+    reloadSession,
   };
 }

@@ -406,6 +406,19 @@ function processMessage(
       return;
     }
 
+    // Header of a same-session rewound group (topics/session-rewind.md). The
+    // group details ride on the source message; the header carries no text.
+    if (subtype === "rewound_group") {
+      items.push({
+        type: "system",
+        id: msgId,
+        subtype,
+        content: typeof msg.content === "string" ? msg.content : "",
+        sourceMessages: [msg],
+      });
+      return;
+    }
+
     if (subtype === "tool_output") {
       const toolName =
         typeof msg.codexToolName === "string" ? msg.codexToolName : "";
