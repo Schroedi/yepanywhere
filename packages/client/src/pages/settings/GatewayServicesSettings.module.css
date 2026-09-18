@@ -5,10 +5,12 @@
 }
 
 .card {
-  /* Two fields across once the row is wide enough for both to stay legible;
-     one column on a phone, where a 200px field would wrap every label. */
+  /* As many short fields across as stay legible: two in the settings pane at a
+     laptop width, three in a wide one, one on a phone. 16rem paired nothing —
+     the pane is ~430px inside a 1000px viewport, and this app's root font makes
+     a rem 18.4px, so 16rem asked for more than two columns could ever have. */
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   align-items: end;
   gap: 0.5rem 1rem;
   margin: 0;
@@ -125,7 +127,7 @@
    here pair off instead of stacking one per row down a long column. */
 .advanced {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   align-items: end;
   gap: 0.5rem 1rem;
 }

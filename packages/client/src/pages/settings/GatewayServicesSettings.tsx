@@ -481,11 +481,11 @@ export function GatewayServicesSettings({
                 </span>
               </legend>
 
-              {/* Endpoint and short name are both one-line text and belong to
-                  the same question — where this service is and what to call it
-                  — so they share a row, and their hints sit under their own
-                  field instead of as full-width bands between rows. */}
-              <label className={styles.field}>
+              {/* The endpoint keeps its own row — a URL is the one long value
+                  here — and the short fields after it pair off. Each hint sits
+                  under its own field rather than as a full-width band between
+                  rows, which is what made two services fill a phone screen. */}
+              <label className={`${styles.field} ${styles.wide}`}>
                 <span>{t("providersGatewayServiceUrlLabel")}</span>
                 <input
                   type="url"
@@ -521,7 +521,10 @@ export function GatewayServicesSettings({
                 </p>
               </label>
 
-              <div className={`${styles.row} ${styles.wide}`}>
+              {/* Not a full-width band: three short checkboxes wrap to about
+                  the height of the short-name hint beside them, so they fill
+                  the cell that hint would otherwise leave empty. */}
+              <div className={styles.row}>
                 <label className={styles.check}>
                   <input
                     type="radio"
