@@ -122,9 +122,10 @@ cost.
 
 ## Planned: rewind + new turn in the same session (Claude first)
 
-Build and enable this for the Claude provider, where the truncating resume is
-already wired end to end. Codex follows once `thread/revert` is in the
-generated protocol.
+The binding contract is now [topics/session-rewind.md](../topics/session-rewind.md);
+this section is the design history that fed it. Build and enable this for
+the Claude provider, where the truncating resume is already wired end to
+end. Codex follows once `thread/revert` is in the generated protocol.
 
 **Turn menu.** The existing per-turn fork menu
 (`packages/client/src/components/blocks/UserPromptBlock.tsx`, the

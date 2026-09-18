@@ -23,7 +23,10 @@ as the runtime skills directory.
 - Provider-native commands take precedence. If the provider reports `/wish`,
   `/doubt`, `/rep`, `/harsh-review`, `/goal`, or another native equivalent, YA
   must expose and send the native command unaltered unless a provider-specific
-  topic explicitly says otherwise.
+  topic explicitly says otherwise. The one standing exception is `/clear` on
+  rewind-capable providers, which [session-rewind](session-rewind.md) owns as
+  YA's same-session `/clear N`; that topic also owns `/fork N` and
+  `/clearloop`, whose progress entry is a `ya-command` chip.
 - Codex user skills activate through `$skill`, not `/skill`. For Codex-backed
   sessions, YA preserves native/system slash commands such as a leading
   `/goal`, but translates an exact `/name` token to `$name` only when the
