@@ -677,6 +677,7 @@ async function runPiPair(fixture: NativeDisplayCase) {
     lastUsage: null,
     lastCostUsd: null,
     terminalEvent: "agent_settled",
+    turnError: null,
     toolStates: new Map(),
   };
   const output = {
