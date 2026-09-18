@@ -88,6 +88,17 @@ load of the whole browser suite it can outlast the needle's wait, which then
 reads as a search or layout failure. The test now waits for the fixture to be
 listed before typing and carries the 60s budget its inner waits assume.
 
+Both fixes above are local-run evidence only. CI at `ffdc3dddf` still stops
+`e2e-tests` early on this file in both
+[graehl](https://github.com/graehl/yepanywhere/actions/runs/35315091100) and
+[kzahel](https://github.com/kzahel/yepanywhere/actions/runs/35314982232):
+appended-turn discovery, the copy/typing check, streaming-and-selection on both
+viewports, and "reserves arriving matches" on both viewports, each through two
+retries at ~31s. The 31s shape is the fixture-discovery wait timing out, not the
+reservation assertion, so CI is hitting the discovery latency the local budget
+fix only made visible. Whatever makes catalog discovery that slow on a CI runner
+is the open question; local runs of this file are 13/13.
+
 Still unresolved from the runs above: the appended-turn discovery
 and copy-selection assertions, and whether CI's
 browser/runtime versions surface anything these local runs do not. The
