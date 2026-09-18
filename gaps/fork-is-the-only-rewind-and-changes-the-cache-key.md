@@ -188,11 +188,22 @@ its reply: the loop waits while the session is `waiting-input` and treats
 the user's answer as part of the iteration, not as a manual turn. Then it
 rewinds and sends again.
 
+- Iteration boundary, two candidate variants. **Strict turn:** one
+  iteration is one full assistant turn plus any blocking question and its
+  reply, which requires YA to classify a user send as a question answer
+  versus a manual turn. **Inactivity:** one iteration ends after a
+  settings-defaulted inactivity window (for example 1 minute) with no user
+  send and no assistant progress, which needs no answer/turn classification
+  and also covers a session that stalls without a question. v1 will hard
+  pick one; both may be useful later, so keep the boundary policy a single
+  seam.
 - Stop conditions: the stop button, or any manual user turn other than a
-  question answer, ends the loop. YA then writes a durable notice into the
-  session: the original `/clearloop N M: [prompt]` line, completed x times,
-  interrupted with M-x remaining. The notice is session history, not a
-  toast.
+  question answer (strict-turn variant), ends the loop. The clearloop
+  indication itself is also explicitly cancelable with the usual x / cancel
+  control on the queued entry. Every stop path, including cancel, leaves the
+  durable record: YA writes a notice into the session with the original
+  `/clearloop N M: [prompt]` line, completed x times, interrupted with M-x
+  remaining. The notice is session history, not a toast.
 - Progress: while the loop runs, a badged queued-turn entry shows `m/M` and
   the prompt. Queued entries are server-owned per
   [queued-messages](../topics/queued-messages.md), so the loop's state lives
