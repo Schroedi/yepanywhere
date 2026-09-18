@@ -253,8 +253,11 @@ the Stop hook and remembers the objective, and resume reissues
 `/goal <objective>`. The paused objective exists only in YA, so it is saved in
 session metadata and restored when the session is resumed or the server
 restarts; an active goal is not restored that way because Claude reports it
-itself. Clearing a paused goal needs no provider text. Reissuing the live
-objective reads it rather than spending a turn re-acknowledging it.
+itself. Because the Stop hook fires before the queued clear is delivered, a
+not-yet-met row for the same objective can arrive first; it leaves the pending
+pause in place, and only a hook carrying a different objective discards it.
+Clearing a paused goal needs no provider text. Reissuing the live objective
+reads it rather than spending a turn re-acknowledging it.
 
 A `/goal` that is a session's first message — a new session, or the first
 message after its process was reaped — is delivered as that prompt instead of
@@ -355,6 +358,8 @@ recap/goal implementation.
   is the one YA requested for a pause.
 - Claude `/goal pause` sends a clear and reports `paused` only once the
   transcript confirms it; `/goal resume` reissues the remembered objective.
+- A not-yet-met row for the pausing objective, arriving before the clear,
+  still yields `paused`; an installed row for another objective does not.
 - A Claude build advertising no native `/goal` keeps the `/loop wish` alias and
   publishes no goal state.
 - Supported `/archive` projects `/archive`; an archive-incapable but done-capable

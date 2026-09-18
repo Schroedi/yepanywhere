@@ -12,10 +12,14 @@ import {
 
 const SESSION_ID = "session-1";
 
-/** One transcript row of each shape Claude Code writes for `/goal`. */
+/**
+ * One transcript row of each shape Claude Code writes for `/goal`. An
+ * `iteration` row is the Stop hook reporting the goal not yet met, which
+ * Claude appends on its own while the hook is installed.
+ */
 const goalRow = (
   condition: string,
-  kind: "set" | "cleared" | "met" | "impossible",
+  kind: "set" | "iteration" | "cleared" | "met" | "impossible",
 ) =>
   `${JSON.stringify({
     type: "attachment",
@@ -107,6 +111,35 @@ describe("ClaudeGoalTracker", () => {
     });
 
     // A clear of some other goal is a real clear, not a pause.
+    await append(goalRow("ship something else", "cleared"));
+    await tracker.refresh();
+    expect(tracker.snapshot).toEqual({ objective: null, status: null });
+  });
+
+  it("keeps a requested pause across a not-yet-met iteration row", async () => {
+    await append(goalRow("ship the fix", "set"));
+    await tracker.refresh();
+
+    // Claude's Stop hook fires between YA's pause request and the clear it
+    // sent, so a read can end on the iteration row rather than the clear.
+    tracker.notePauseRequested("ship the fix");
+    await append(goalRow("ship the fix", "iteration"));
+    await tracker.refresh();
+    await append(goalRow("ship the fix", "cleared"));
+    await tracker.refresh();
+    expect(tracker.snapshot).toEqual({
+      objective: "ship the fix",
+      status: "paused",
+    });
+  });
+
+  it("drops a requested pause when Claude installs a different goal", async () => {
+    await append(goalRow("ship the fix", "set"));
+    await tracker.refresh();
+
+    tracker.notePauseRequested("ship the fix");
+    await append(goalRow("ship something else", "set"));
+    await tracker.refresh();
     await append(goalRow("ship something else", "cleared"));
     await tracker.refresh();
     expect(tracker.snapshot).toEqual({ objective: null, status: null });
@@ -211,6 +244,32 @@ describe("runClaudeGoalCommand", () => {
       objective: "ship the fix",
       status: "active",
     });
+  });
+
+  it("pauses across an iteration row that precedes Claude's clear", async () => {
+    await run("ship the fix");
+    sent = [];
+
+    // The Stop hook fires before the queued `/goal clear` is delivered, so the
+    // first confirmation read sees only the not-yet-met row.
+    let polls = 0;
+    const paused = await runClaudeGoalCommand("pause", {
+      tracker,
+      send: (text) => {
+        sent.push(text);
+      },
+      confirmationTimeoutMs: 500,
+      wait: async () => {
+        polls += 1;
+        if (polls === 1) await append(goalRow("ship the fix", "iteration"));
+        if (polls === 2) await append(goalRow("ship the fix", "cleared"));
+      },
+    });
+    expect(sent).toEqual(["/goal clear"]);
+    expect(paused.output?.details).toEqual(["ship the fix", "Goal paused"]);
+
+    const resumed = await run("resume");
+    expect(resumed.output?.details).toEqual(["ship the fix", "Goal resumed"]);
   });
 
   it("clears a paused goal without sending Claude anything", async () => {
