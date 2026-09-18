@@ -168,6 +168,17 @@ input, the reader instead emits the dropped rows as a **rewound group**:
   (`subagent-item` rows in `RenderItemComponent`) may be reused for the
   group body. The main session view is required; the sidebar's nested
   rendering of the same group is optional.
+- The header reads as the command that produced the group: `/clear N`, or
+  `/clear N [#m/M: prompt]` for a clearloop iteration. It carries a boxed
+  `+`/`−` marker; expanded rows hang off a vertical bar beneath it. Toggling
+  keeps the header fixed under the pointer (the list never jumps to the
+  tail), and works the same with Conversation view on or off, where the
+  expanded rows are projected like any other rows.
+- **Margin navigation.** A click on a row's margin (the row itself, not its
+  content or a control) scrolls so the next row at the same outline level
+  lands just under the pointer; right-click goes to the previous one. A
+  further click without moving the mouse steps again. Outline levels are the
+  top level and each rewound group.
 - Every rewind produces its own group, so M clearloop iterations leave M
   reviewable groups at the same cut, in order.
 - Search, copy, and turn navigation treat grouped rows as history: they are

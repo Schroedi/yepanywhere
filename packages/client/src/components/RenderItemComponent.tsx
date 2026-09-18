@@ -296,8 +296,8 @@ function RewoundGroupHeader({
       title={`${tooltip} — ${expanded ? t("rewoundGroupCollapse") : t("rewoundGroupExpand")}`}
       onClick={() => groupId && rewind.toggleRewoundGroup(groupId)}
     >
-      <span className="collapsible__icon" aria-hidden="true">
-        {expanded ? "▾" : "▸"}
+      <span className={styles.rewoundGroupToggle} aria-hidden="true">
+        {expanded ? "−" : "+"}
       </span>
       <span className="system-message-icon">↶</span>
       <span className="system-message-text">{label}</span>
@@ -1602,6 +1602,11 @@ export const RenderItemComponent = memo(function RenderItemComponent({
         .join(" ")}
       data-render-type={item.type}
       data-render-id={item.id}
+      data-rewound-group={
+        item.type === "system" && item.subtype === "rewound_group"
+          ? undefined
+          : getRenderItemRewoundGroupId(item)
+      }
       onClick={handleClick}
     >
       <div className="message-render-content">
