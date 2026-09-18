@@ -138,11 +138,13 @@ same-session entries:
   put this turn's prompt text back in the composer (the Codex Esc-Esc
   shape). Same cut point as fork-before.
 
-Turn numbering: the tooltip for the existing entry becomes
-`Fork from this turn [N]`, where N is the same index a user can pass on the
-command line below, so the menu teaches the command. Fork numbering already
-exists for fork children (`ff937f36e`); reuse that index, do not invent a
-second one.
+Turn numbering: N is the turn index, a stable identifier for a user turn in
+the session. The tooltip for the existing entry becomes
+`Fork from this turn [N]`, where N is the same index a user passes on the
+command line below, so the menu teaches the command. Stability is the point:
+a rewind only removes turns after N, so N still names the same turn after
+every `/clear N`, which is what lets `/clearloop` repeat `/clear N` without
+recomputing anything.
 
 **Commands.** These are YA-routed emulated commands per
 [emulated-slash-commands](../topics/emulated-slash-commands.md) and are
