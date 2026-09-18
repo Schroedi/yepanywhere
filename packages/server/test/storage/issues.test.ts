@@ -13,8 +13,8 @@ import { IssueStore } from "../../src/services/issues/IssueStore.js";
 import {
   extractIssueReferences,
   issueUrl,
-  visibleIssueText,
 } from "../../src/services/issues/extract.js";
+import { visibleMessageText } from "../../src/sessions/message-text.js";
 const dirs: string[] = [];
 const services: DiscoverySqliteService[] = [];
 function fixture() {
@@ -107,7 +107,7 @@ describe("issue reference extraction", () => {
   });
   it("reads nested normalized text and excludes tool results, reasoning and setup", () => {
     expect(
-      visibleIssueText({
+      visibleMessageText({
         uuid: "one",
         type: "user",
         message: {
@@ -119,10 +119,10 @@ describe("issue reference extraction", () => {
       })?.text,
     ).toBe("ABC-123");
     expect(
-      visibleIssueText({ uuid: "one", type: "system", content: "ABC-123" }),
+      visibleMessageText({ uuid: "one", type: "system", content: "ABC-123" }),
     ).toBeNull();
     expect(
-      visibleIssueText({
+      visibleMessageText({
         uuid: "one",
         type: "user",
         content: "# AGENTS.md instructions ABC-123",

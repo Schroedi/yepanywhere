@@ -220,6 +220,12 @@ source inventory, rather than password dots, indicates configured credentials.
 
 ## Identity and evidence
 
+Which message text the index may see is not the feature's decision: the visible
+user/assistant projection (`sessions/message-text.ts`) and the Codex source id
+(the normalizer's `getCodexMessageSourceId`) are owned by the shared transcript
+path, and the issue index consumes both. Nothing under `sessions/` imports
+`services/issues`, so a change to this feature cannot alter a session read.
+
 `services/issues/extract.ts` recognizes Jira browse URLs and uppercase Jira keys,
 GitHub issue/PR URLs, and repository-qualified `owner/repo#123` references.
 A bare `#123` needs explicit issue/PR wording and exactly one GitHub repository

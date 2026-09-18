@@ -4,8 +4,9 @@ import type {
   IssueReadOptions,
   IssueTextBatch,
 } from "../../sessions/issue-text-reader.js";
+import type { VisibleMessageText } from "../../sessions/message-text.js";
 import type { Message } from "../../supervisor/types.js";
-import { issueMessageText } from "../../sessions/normalization.js";
+import { visibleMessageTextWithSourceId } from "../../sessions/normalization.js";
 import type { AdmittedJob, IssueStore, IssueSource } from "./IssueStore.js";
 
 import type { IssueSettings } from "@yep-anywhere/shared";
@@ -223,7 +224,7 @@ export class IssueIndexer {
       return;
     }
     // Bound retained references even when many tabs return large detail windows.
-    const selected: import("./extract.js").IssueText[] = [];
+    const selected: VisibleMessageText[] = [];
     let bytes = 0;
     let partial = false;
     let records = 0;
@@ -232,7 +233,7 @@ export class IssueIndexer {
         partial = true;
         break;
       }
-      const text = issueMessageText(message);
+      const text = visibleMessageTextWithSourceId(message);
       if (!text) continue;
       const size = text.text.length * 2 + 512;
       if (bytes + size + this.viewBytes > 8 * 1024 * 1024) {

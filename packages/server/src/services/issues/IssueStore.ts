@@ -4,12 +4,8 @@ import type {
   SqliteRow,
   SqliteValue,
 } from "../../storage/sqlite.js";
-import {
-  extractIssueReferences,
-  issueUrl,
-  issueExcerpt,
-  type IssueText,
-} from "./extract.js";
+import type { VisibleMessageText } from "../../sessions/message-text.js";
+import { extractIssueReferences, issueUrl, issueExcerpt } from "./extract.js";
 
 import {
   DEFAULT_JIRA_KEY_BLOCKLIST,
@@ -260,7 +256,7 @@ export class IssueStore {
   /** At most 25 observations per transaction, including namespace learning. */
   capture(
     source: IssueSource,
-    message: IssueText,
+    message: VisibleMessageText,
     offset = 0,
     ownedStart = offset,
     ownedEnd = Number.POSITIVE_INFINITY,
