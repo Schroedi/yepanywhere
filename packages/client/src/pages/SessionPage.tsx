@@ -1900,6 +1900,14 @@ function SessionPageContent({
   const [generatedRetitle, setGeneratedRetitle] =
     useState<GeneratedRetitleState | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const titleInputWantsFocusRef = useRef(false);
+  const attachTitleInput = useCallback((input: HTMLInputElement | null) => {
+    renameInputRef.current = input;
+    if (!input || !titleInputWantsFocusRef.current) return;
+    titleInputWantsFocusRef.current = false;
+    input.focus();
+    input.select();
+  }, []);
   const titleEditControlsRef = useRef<HTMLDivElement>(null);
   const isSavingTitleRef = useRef(false);
   const retitleRequestIdRef = useRef(0);
@@ -5101,11 +5109,18 @@ function SessionPageContent({
     setRetitleState(null);
   };
 
+  // Asking to edit the title means the user is about to type, so focus lands
+  // in the commit that creates the input (attachTitleInput) instead of a
+  // timer hop later, during which keys reach the page's own shortcuts. When
+  // the input is already mounted this focuses it directly.
   const focusAndSelectTitleInput = () => {
-    setTimeout(() => {
-      renameInputRef.current?.focus();
-      renameInputRef.current?.select();
-    }, 0);
+    const input = renameInputRef.current;
+    if (!input) {
+      titleInputWantsFocusRef.current = true;
+      return;
+    }
+    input.focus();
+    input.select();
   };
 
   const captureGeneratedRetitleInsertion = (): GeneratedRetitleInsertion => {
@@ -5705,7 +5720,7 @@ function SessionPageContent({
                       }
                     >
                       <input
-                        ref={renameInputRef}
+                        ref={attachTitleInput}
                         type="text"
                         className="session-title-input"
                         value={

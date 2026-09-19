@@ -316,15 +316,16 @@ export function SessionListItem({
   const publicShareMenuVisible =
     publicShareManagementAvailable || publicShareCreationAvailable;
 
-  // Focus input when entering edit mode
-  useEffect(() => {
-    if (isEditing) {
-      setTimeout(() => {
-        renameInputRef.current?.focus();
-        renameInputRef.current?.select();
-      }, 0);
-    }
-  }, [isEditing]);
+  // Take focus in the commit that creates the rename input rather than a
+  // timer later: entering edit mode means the user is about to type, and a
+  // key struck before focus arrives reaches the session list instead. The
+  // select() keeps rename's replace-the-title behaviour.
+  const attachRenameInput = useCallback((input: HTMLInputElement | null) => {
+    renameInputRef.current = input;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, []);
 
   const hasUnread = hasUnreadProp;
 
@@ -839,7 +840,7 @@ export function SessionListItem({
       <div className={styles.body}>
         {isEditing ? (
           <input
-            ref={renameInputRef}
+            ref={attachRenameInput}
             type="text"
             className="session-rename-input"
             value={renameValue}

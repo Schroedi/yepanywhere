@@ -983,6 +983,46 @@ describe("NewSessionForm", () => {
     });
   });
 
+  it("keeps what was typed while a launch seed was still being fetched", async () => {
+    const submit = vi.fn(async () => {});
+    const launch = (initialMessage: string) => ({
+      draftKey: "draft-handoff:session-late",
+      initialMessage,
+      fixedProject: true,
+      allowAttachments: false,
+      allowProjectQueue: false,
+      submit,
+    });
+    // The modal renders this form while it fetches the handoff text, so the
+    // composer is focused and typeable before the seed exists.
+    const { rerender } = render(
+      <NewSessionForm
+        projectId="project-1"
+        selectedProject={chooserProjects[0]}
+        launch={launch("")}
+      />,
+    );
+    const composer = document.querySelector<HTMLTextAreaElement>(
+      "textarea.new-session-form-textarea",
+    );
+    if (!composer) throw new Error("expected the new-session composer");
+    expect(document.activeElement).toBe(composer);
+    fireEvent.change(composer, { target: { value: "and also this" } });
+
+    rerender(
+      <NewSessionForm
+        projectId="project-1"
+        selectedProject={chooserProjects[0]}
+        launch={launch("Prepared handoff")}
+      />,
+    );
+
+    const merged = await screen.findByDisplayValue(
+      "Prepared handoffand also this",
+    );
+    expect(merged).toBe(composer);
+  });
+
   it("reuses new-session selection semantics for a seeded launch", async () => {
     const submit = vi.fn(async () => {});
     const codexProvider = providersState.providers.find(

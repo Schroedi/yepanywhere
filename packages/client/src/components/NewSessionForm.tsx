@@ -499,6 +499,8 @@ export function NewSessionForm({
   const hasUserCustomizedDefaultsRef = useRef(false);
   const lastSyncedProjectIdRef = useRef<string | null>(null);
   const hasSeededMessageRef = useRef(false);
+  const seedBaselineRef = useRef<string | null>(null);
+  const autoFocusRef = useRef(autoFocus);
 
   // Thinking toggle state
   const {
@@ -553,6 +555,10 @@ export function NewSessionForm({
   const composerMuted = launch?.composer === "muted";
   const showProviderAndModel = !(launch?.fixedProviderModel ?? false);
 
+  // What the composer held on the first render: a restored draft arrives
+  // synchronously from storage, so anything beyond this was typed here.
+  if (seedBaselineRef.current === null) seedBaselineRef.current = message;
+
   // A launch may resolve its seed asynchronously — the handoff draft is
   // fetched — so wait for content rather than seeding an empty composer once
   // and never again. A restored draft is the user's own earlier edit of this
@@ -561,7 +567,25 @@ export function NewSessionForm({
     if (!launch || hasSeededMessageRef.current) return;
     if (!launch.initialMessage) return;
     hasSeededMessageRef.current = true;
-    if (!message) setMessage(launch.initialMessage);
+    const baseline = seedBaselineRef.current ?? "";
+    if (!message) {
+      setMessage(launch.initialMessage);
+      return;
+    }
+    if (baseline) return;
+    // The composer is focused and typeable while the seed is still being
+    // fetched, so keys can land before it arrives. They belong after the
+    // seeded text rather than instead of it — dropping the seed because
+    // someone typed one character lost the whole handoff.
+    const combined = `${launch.initialMessage}${message}`;
+    pendingTextareaSelectionRef.current = {
+      value: combined,
+      restore: (textarea) => {
+        textarea.focus();
+        textarea.setSelectionRange(combined.length, combined.length);
+      },
+    };
+    setMessage(combined);
   }, [launch, message, setMessage]);
 
   const writeDraftAttachmentState = useCallback(
@@ -1775,12 +1799,21 @@ export function NewSessionForm({
   const activeSpeechSmartTurnSettings: SpeechSmartTurnSettings | undefined =
     supportsSelectedSpeechSmartTurn ? speechSmartTurnSettings : undefined;
 
-  // Focus textarea on mount if autoFocus is enabled
-  useEffect(() => {
-    if (autoFocus) {
-      textareaRef.current?.focus();
-    }
-  }, [autoFocus]);
+  // Focus in the commit that creates the textarea rather than a passive
+  // effect after paint: this form is reached by a navigation whose point is
+  // that the user can type, so a key struck in that gap must not fall through
+  // to the page behind it. The caret goes after any seeded text.
+  const attachComposerTextarea = useCallback(
+    (textarea: HTMLTextAreaElement | null) => {
+      textareaRef.current = textarea;
+      if (!textarea || !autoFocusRef.current) return;
+      autoFocusRef.current = false;
+      textarea.focus();
+      const caret = textarea.value.length;
+      textarea.setSelectionRange(caret, caret);
+    },
+    [],
+  );
 
   useLayoutEffect(() => {
     const pending = pendingTextareaSelectionRef.current;
@@ -3217,7 +3250,7 @@ export function NewSessionForm({
             </div>
           )}
           <textarea
-            ref={textareaRef}
+            ref={attachComposerTextarea}
             data-composer-input
             value={message}
             onChange={(e) => {
