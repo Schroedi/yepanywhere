@@ -285,7 +285,10 @@ entry, plus completions for the current objective, `clear`, and whichever of
 `pause`/`resume` applies. The header flag, its tooltip, its toggle, and the
 right-click objective fill are the same controls as the Codex goal flag. When
 Claude is old enough to lack a native `/goal`, YA's `/loop wish` alias stays in
-place, carries no goal state, and offers no controls.
+place, carries no goal state, and offers no controls. A saved goal observation
+never displaces it: the stopped-session restore fills in a native entry that
+reports no objective, never an emulated one, whose provider text is the only
+way YA can send the command at all.
 
 Compatibility: Claude goal state uses the same optional inventory fields as
 Codex, so a server that omits them leaves the client with no flag and no
@@ -369,7 +372,11 @@ recap/goal implementation.
 - A not-yet-met row for the pausing objective, arriving before the clear,
   still yields `paused`; an installed row for another objective does not.
 - A Claude build advertising no native `/goal` keeps the `/loop wish` alias and
-  publishes no goal state.
+  publishes no goal state, including when session metadata holds a saved goal
+  observation.
+- A Claude session whose transcript gains a goal row mid-turn publishes the new
+  state in a `commands_changed` inventory at the turn boundary, and publishes
+  Claude's own auto-clear the same way.
 - Supported `/archive` projects `/archive`; an archive-incapable but done-capable
   server projects `/done` without receiving an archive request. `/title` is
   handled locally and never reaches a provider or focused aside.

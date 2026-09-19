@@ -6,6 +6,7 @@ import type {
   DurableLocalCommandMessage,
   DurableRecapMessage,
   ProviderName,
+  SlashCommand,
   TranscriptDisplayObject,
   UrlProjectId,
 } from "@yep-anywhere/shared";
@@ -2553,6 +2554,125 @@ describe("Sessions metadata route", () => {
       }
     },
   );
+
+  it("keeps Claude's emulated goal alias over a saved goal observation", async () => {
+    const project = createProject();
+    const alias: SlashCommand = {
+      name: "goal",
+      description: "Keep working toward a verifiable end state until it is met",
+      argumentHint: "<verifiable end state>",
+      emulation: { providerText: "/loop wish {{argument}}" },
+      invocation: { kind: "emulated", prefix: "/" },
+    };
+    const savedGoal: SlashCommand = {
+      name: "goal",
+      description: "Keep working toward a verifiable end state until it is met",
+      providerDetails: {
+        claude: { goalObjective: "Ship the fix", goalStatus: "active" },
+      },
+      argumentCompletions: [
+        { value: "Ship the fix", description: "Current goal" },
+      ],
+    };
+
+    const routes = createSessionsRoutes({
+      supervisor: {
+        getProcessForSession: vi.fn(() => ({
+          id: "proc-1",
+          sessionId: "sess-1",
+          permissionMode: "default",
+          modeVersion: 0,
+          state: { type: "idle", since: new Date("2026-03-10T09:47:00.000Z") },
+          provider: "claude",
+          supportsDynamicCommands: true,
+          supportedCommands: vi.fn(async () => [
+            { name: "compact", description: "Compact the conversation" },
+            alias,
+          ]),
+          getDeferredQueueSummary: vi.fn(() => []),
+          getProviderRuntimeStatus: vi.fn(() => null),
+        })),
+      } as unknown as SessionsDeps["supervisor"],
+      scanner: {
+        getOrCreateProject: vi.fn(async () => project),
+      } as unknown as SessionsDeps["scanner"],
+      readerFactory: vi.fn(
+        () =>
+          ({
+            getSessionSummary: vi.fn(async () => ({
+              ...createSummary(),
+              provider: "claude" as const,
+            })),
+          }) as unknown as ISessionReader,
+      ),
+      sessionMetadataService: {
+        getMetadata: vi.fn(() => ({ goalCommand: savedGoal })),
+        getProvider: vi.fn(() => "claude"),
+      } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
+    });
+
+    const response = await routes.request(
+      `/projects/${project.id}/sessions/sess-1/metadata`,
+    );
+    expect(response.status).toBe(200);
+
+    const json = await response.json();
+    // The alias is the only goal entry: it keeps the provider text YA sends,
+    // and the saved observation is neither merged into it nor appended beside.
+    expect(
+      json.slashCommands.filter(
+        (command: { name: string }) => command.name === "goal",
+      ),
+    ).toEqual([alias]);
+  });
+
+  it("restores a saved goal for a stopped session of any provider", async () => {
+    const project = createProject();
+    const savedGoal: SlashCommand = {
+      name: "goal",
+      description: "Keep working toward a verifiable end state until it is met",
+      argumentHint: "<verifiable end state>",
+      providerDetails: {
+        claude: { goalObjective: "Ship the fix", goalStatus: "paused" },
+      },
+      argumentCompletions: [
+        { value: "Ship the fix", description: "Current goal" },
+        { value: "resume", description: "Resume the current goal" },
+      ],
+    };
+
+    const routes = createSessionsRoutes({
+      supervisor: {
+        getProcessForSession: vi.fn(() => null),
+        wasEverOwned: vi.fn(() => false),
+      } as unknown as SessionsDeps["supervisor"],
+      scanner: {
+        getOrCreateProject: vi.fn(async () => project),
+      } as unknown as SessionsDeps["scanner"],
+      readerFactory: vi.fn(
+        () =>
+          ({
+            getSessionSummary: vi.fn(async () => ({
+              ...createSummary(),
+              provider: "claude" as const,
+            })),
+          }) as unknown as ISessionReader,
+      ),
+      sessionMetadataService: {
+        getMetadata: vi.fn(() => ({ goalCommand: savedGoal })),
+        getProvider: vi.fn(() => "claude"),
+      } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
+    });
+
+    const response = await routes.request(
+      `/projects/${project.id}/sessions/sess-1/metadata`,
+    );
+    expect(response.status).toBe(200);
+
+    // Claude advertises no static inventory, so the saved goal is the whole
+    // stopped-session inventory rather than being dropped with it.
+    expect((await response.json()).slashCommands).toEqual([savedGoal]);
+  });
 
   it("passes cached summary hints into bounded Codex detail reads", async () => {
     const project = { ...createProject(), provider: "codex" as const };
