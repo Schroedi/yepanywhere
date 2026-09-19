@@ -17,6 +17,9 @@ import {
   ContentSearchPool,
   ContentSearchScan,
   MIN_TURN_SEARCH_QUERY_LENGTH,
+  scanDone,
+  scanHasCompletePass,
+  scanLimited,
 } from "./ContentSearchScan";
 
 const EMPTY_MATCHES = new Map<string, SessionContentMatch[]>();
@@ -117,7 +120,7 @@ export function useContentSearch(
         replacement?.query === current.query &&
         ([...current.wanted].every(([id, version]) => {
           const entry = replacement.entries.get(id);
-          return entry?.done && entry.revision === version;
+          return entry && scanDone(entry) && entry.revision === version;
         }) ||
           [...replacement.entries].filter(
             ([id, entry]) =>
@@ -155,7 +158,7 @@ export function useContentSearch(
           ).length >= capacity.current ||
           [...current.wanted].every(([id, version]) => {
             const entry = second.entries.get(id);
-            return entry?.done && entry.revision === version;
+            return entry && scanDone(entry) && entry.revision === version;
           });
         current.scans.splice(ready ? 0 : 1, 1)[0]!.stop();
       }
@@ -208,23 +211,24 @@ export function useContentSearch(
   const limitedSessions = new Set<string>();
   for (const [id, version] of wanted) {
     const complete = exact?.entries.get(id);
-    if (
-      !complete ||
-      (!complete.done && !complete.tailing && !complete.seed?.done)
-    )
-      acquiring = true;
-    if (complete?.limited) {
+    if (!complete || !scanHasCompletePass(complete)) acquiring = true;
+    if (complete && scanLimited(complete)) {
       limited++;
       limitedSessions.add(id);
     }
-    if (complete?.done && (complete.limited || complete.revision === version))
+    if (
+      complete &&
+      scanDone(complete) &&
+      (scanLimited(complete) || complete.revision === version)
+    )
       scanned++;
     const found = new Map<string, SessionContentMatch>();
     for (const scan of scans) {
       if (!query.startsWith(scan.query)) continue;
       const entry = scan.entries.get(id);
       if (!entry) continue;
-      if (scan === exact && entry.done) found.clear();
+      const settled = scan === exact && scanDone(entry);
+      if (settled) found.clear();
       for (const hit of entry.matches) {
         if (
           !roles.includes(hit.role) ||
@@ -239,9 +243,9 @@ export function useContentSearch(
         if (match) found.set(match.id, match);
       }
       if (entry.partial !== undefined) partial.set(id, entry.partial);
-      else if (scan === exact && entry.done) partial.delete(id);
+      else if (settled) partial.delete(id);
       if (entry.diagnostics.length) diagnostics.set(id, entry.diagnostics);
-      else if (scan === exact && entry.done) diagnostics.delete(id);
+      else if (settled) diagnostics.delete(id);
     }
     if (found.size) matches.set(id, [...found.values()]);
   }

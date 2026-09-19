@@ -313,7 +313,10 @@ valid continuation after replacement, truncation, layout or boundary changes.
 Normal appends continue quietly; unfinished final JSON awaits its next append
 without a malformed-record warning. Legacy requests retain their original
 source-version checks and 409 restart response. Expired cursors restart only the
-affected session; acquisition errors do not stop the remaining traversal.
+affected session; acquisition errors do not stop the remaining traversal. A
+session whose read failed keeps showing that reason, but it is neither resumed
+from its tail nor adopted as cached text by a stricter needle: the next needle
+reads it again.
 
 Provider metadata advertises `supportsBoundedTurnSearch`, independently of
 installation or authentication. The Providers menu explains which providers
