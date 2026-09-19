@@ -191,6 +191,31 @@ export interface ClientSummaryState {
   providerRuntime: ProviderRuntimeState;
 }
 
+export interface CatalogLoadState {
+  /** The catalog is still filling and has produced no rows yet. */
+  awaitingFirstRows: boolean;
+  /** The last catalog refresh failed, shaped for a consumer's error slot. */
+  refreshError: Error | null;
+}
+
+/**
+ * What a retained catalog says about a collection a consumer is showing:
+ * whether an empty list is a cold catalog still filling rather than an
+ * answered-and-empty one, and whether its last refresh failed.
+ */
+export function catalogLoadState(
+  catalog: RetainedSessionCollectionState | undefined,
+  rowCount: number,
+): CatalogLoadState {
+  return {
+    awaitingFirstRows:
+      rowCount === 0 && catalog?.complete === false && catalog.refreshing,
+    refreshError: catalog?.refreshError
+      ? new Error(catalog.refreshError)
+      : null,
+  };
+}
+
 export function resolveSessionCollectionId(
   state: Pick<ClientSummaryState, "sessions">,
   sessionId: string,
