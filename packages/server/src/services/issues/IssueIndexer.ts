@@ -17,6 +17,15 @@ export interface CatalogMark {
   catalogGeneration: number;
 }
 
+/** Bytes of one capture chunk; a message longer than this is captured in several. */
+const CAPTURE_CHUNK = 32 * 1024;
+/**
+ * Bytes each chunk reads beyond its own range, so a reference crossing a chunk
+ * boundary is still read whole. Ownership stays with the chunk the reference
+ * starts in, so the overlap adds context without a second sighting.
+ */
+const CAPTURE_OVERLAP = 4096;
+
 export interface IssueIndexerDeps {
   settings: () => IssueSettings;
   candidates: () => AsyncIterable<Readonly<SessionCatalogRow>>;
@@ -48,19 +57,28 @@ export class IssueIndexer {
     readonly store: IssueStore,
     private readonly deps: IssueIndexerDeps,
   ) {
-    store.requeueIndexing();
+    this.fence();
   }
   settings(): IssueSettings {
     return this.deps.settings();
   }
-  configure(): void {
+  /**
+   * Abandon in-flight acquisition and return the jobs it was mid-way through
+   * to the queue, so what a caller does next cannot land beside writes from
+   * the state it just invalidated. Work started after this reads the new
+   * signal; work already running sees its own aborted one.
+   */
+  private fence(): void {
     this.controller.abort();
     this.controller = new AbortController();
+    this.store.requeueIndexing();
+  }
+  configure(): void {
+    this.fence();
     this.lastError = null;
     this.store.reconcileJira();
     // Settings decide what a sweep admits, so a change invalidates the mark.
     this.sweptMark = undefined;
-    this.store.requeueIndexing();
     if (!this.settings().enabled || this.closed) return;
     this.refresh();
   }
@@ -190,6 +208,41 @@ export class IssueIndexer {
       priority,
     });
   }
+  /**
+   * Capture one message in chunks, yielding between them so a long message
+   * cannot hold the loop. Each chunk reads `CAPTURE_OVERLAP` bytes on either
+   * side but owns only its own range, so a reference crossing a boundary is
+   * read whole and recorded once, at the offset it holds in the source.
+   * Returns early on abort; the caller decides what an unfinished message
+   * means at its own seam.
+   */
+  private async captureChunked(
+    source: IssueSource,
+    message: VisibleMessageText,
+    signal: AbortSignal,
+  ): Promise<void> {
+    for (
+      let offset = 0;
+      offset < message.text.length;
+      offset += CAPTURE_CHUNK
+    ) {
+      if (signal.aborted) return;
+      this.store.capture(
+        source,
+        {
+          ...message,
+          text: message.text.slice(
+            Math.max(0, offset - CAPTURE_OVERLAP),
+            offset + CAPTURE_CHUNK + CAPTURE_OVERLAP,
+          ),
+        },
+        Math.max(0, offset - CAPTURE_OVERLAP),
+        offset,
+        offset + CAPTURE_CHUNK,
+      );
+      await yieldTurn();
+    }
+  }
   /** Only already-authorized persisted windows enter here; public shares never call it. */
   observe(source: IssueSource, messages: readonly Message[]): void {
     if (this.closed || !this.settings().enabled) return;
@@ -232,26 +285,7 @@ export class IssueIndexer {
       await yieldTurn();
       for (const text of selected) {
         if (signal.aborted) return;
-        if (text) {
-          // Overlap catches references crossing chunk boundaries. Retain source offsets.
-          for (let offset = 0; offset < text.text.length; offset += 32 * 1024) {
-            if (signal.aborted) return;
-            this.store.capture(
-              source,
-              {
-                ...text,
-                text: text.text.slice(
-                  Math.max(0, offset - 4096),
-                  offset + 32 * 1024 + 4096,
-                ),
-              },
-              Math.max(0, offset - 4096),
-              offset,
-              offset + 32 * 1024,
-            );
-            await yieldTurn();
-          }
-        }
+        await this.captureChunked(source, text, signal);
       }
       if (!signal.aborted)
         this.store.recordViewedJob(
@@ -333,35 +367,16 @@ export class IssueIndexer {
             );
             continue;
           }
+          const source: IssueSource = {
+            sessionId: row.sessionId,
+            projectId:
+              this.deps.projectForSession?.(row.sessionId) ?? row.projectId,
+            sourceVersion: job.sourceVersion,
+          };
           for (const message of batch.messages) {
             if (signal.aborted) return;
-            for (
-              let offset = 0;
-              offset < message.text.length;
-              offset += 32 * 1024
-            ) {
-              this.store.capture(
-                {
-                  sessionId: row.sessionId,
-                  projectId:
-                    this.deps.projectForSession?.(row.sessionId) ??
-                    row.projectId,
-                  sourceVersion: job.sourceVersion,
-                },
-                {
-                  ...message,
-                  text: message.text.slice(
-                    Math.max(0, offset - 4096),
-                    offset + 32 * 1024 + 4096,
-                  ),
-                },
-                Math.max(0, offset - 4096),
-                offset,
-                offset + 32 * 1024,
-              );
-              await yieldTurn();
-              if (signal.aborted) return;
-            }
+            await this.captureChunked(source, message, signal);
+            if (signal.aborted) return;
           }
           this.store.recordJobBatch(row.sessionId, job.sourceVersion, {
             cursor: batch.cursor,
@@ -399,17 +414,13 @@ export class IssueIndexer {
   }
   /** Fence buffered observations before a user delete; old completed checkpoints stay put. */
   delete(id: string): void {
-    this.controller.abort();
-    this.controller = new AbortController();
+    this.fence();
     this.store.delete(id);
-    this.store.requeueIndexing();
     this.kick();
   }
   remap(oldId: string, newId: string): void {
-    this.controller.abort();
-    this.controller = new AbortController();
+    this.fence();
     this.store.remap(oldId, newId);
-    this.store.requeueIndexing();
     this.refresh();
   }
   async settled(): Promise<void> {

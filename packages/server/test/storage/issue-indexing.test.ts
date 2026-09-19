@@ -687,3 +687,60 @@ it("skips a republished catalog that has not changed, and still sweeps on demand
   await indexer.settled();
   expect(enumerations).toBe(4);
 });
+
+it("reads a reference straddling a capture chunk boundary", async () => {
+  // The reference starts five bytes before the 32 KiB boundary and ends after
+  // it, so only a chunk that reads past its own range sees it whole; the chunk
+  // that starts after it does not own it and would never file it.
+  const text = `${"x".repeat(32 * 1024 - 6)} https://github.com/a/b/pull/42 tail`;
+  const service = new DiscoverySqliteService({
+    dataDir: directory(),
+    mode: "auto",
+  });
+  const store = new IssueStore(service.getDatabase()!, () => ({
+    enabled: true,
+    scope: "viewed",
+    recentDays: 7,
+    aggressiveMatching: true,
+  }));
+  const row = {
+    sessionId: "background",
+    projectId: "p",
+    sourceVersion: "v1",
+    updatedAt: new Date().toISOString(),
+    location: { kind: "file", path: "unused" },
+  } as SessionCatalogRow;
+  const indexer = new IssueIndexer(store, {
+    settings: () => ({ enabled: true, scope: "recent", recentDays: 7 }),
+    candidates: async function* () {
+      yield row;
+    },
+    read: async () => ({
+      messages: [{ id: "m", text }],
+      cursor: "end",
+      done: true,
+      partial: false,
+      bytesRead: text.length,
+    }),
+  });
+  cleanup.push(async () => {
+    await indexer.close();
+    service.close();
+  });
+
+  indexer.refresh();
+  await indexer.settled();
+  expect(store.list("a/b#42")).toHaveLength(1);
+
+  // The viewed window captures through the same loop, so it answers the same.
+  indexer.observe({ sessionId: "viewed", projectId: "p" }, [
+    { type: "user", uuid: "m", message: { content: text } },
+  ]);
+  await indexer.settled();
+  expect(
+    storedRows(
+      store.database,
+      "SELECT session_id FROM session_issue_evidence WHERE ref_key='a/b#42' ORDER BY session_id",
+    ).map((evidence) => evidence.session_id),
+  ).toEqual(["background", "viewed"]);
+});

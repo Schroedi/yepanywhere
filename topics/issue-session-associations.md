@@ -324,10 +324,15 @@ requeue automatically. Provider readers never fall back to full-transcript reads
 
 Viewed windows add no file read. Their retained text budget is 8 MiB across up to
 16 pending windows, inspecting at most 16,000 normalized records per admission;
-overflow reports partial coverage. Extraction yields between 32 KiB text windows
-with 4 KiB overlap. Transactions handle at most 25 observations or resolution rows
+overflow reports partial coverage. Both viewed windows and background batches
+extract through the same loop: it yields between 32 KiB text windows read with
+4 KiB of overlap on either side, and each window records only the references
+starting inside its own range, so a reference crossing a window boundary is read
+whole and recorded once. Transactions handle at most 25 observations or resolution rows
 per batch; large project-key resolution runs through a durable continuation queue.
-Settings changes, deletion, remaps and shutdown abort stale generations. Closing
+Settings changes, deletion, remaps and shutdown abort stale generations, and the
+same fence returns a session interrupted mid-acquisition to the queue, so no
+session is left indexing by a generation that no longer exists. Closing
 the final view releases the existing session-view demand; this feature adds no
 independent tail watcher or recurring per-session task.
 
