@@ -1,3 +1,4 @@
+import { isSessionUnreadEvent } from "@yep-anywhere/shared";
 import type { SessionClearloopBadge } from "@yep-anywhere/shared";
 import type {
   AgentActivity,
@@ -2220,7 +2221,7 @@ export function applySessionCollectionSeen(
   );
   const record = withUnreadField(
     getRecord(state, event.sessionId),
-    event.timestamp === "",
+    isSessionUnreadEvent(event),
     observation,
   );
   return putRecord(state, record);

@@ -572,6 +572,11 @@ export type {
   SessionWakeReasonSnapshot,
 } from "./session-liveness.js";
 
+export {
+  SESSION_UNREAD_TIMESTAMP,
+  isSessionUnreadEvent,
+} from "./session-seen.js";
+
 export type {
   UserMessageCompositionMetadata,
   NonHumanUserTurn,

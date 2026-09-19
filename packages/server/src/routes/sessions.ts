@@ -21,6 +21,7 @@ import {
   type UrlProjectId,
   type WorkstreamId,
   GOAL_COMMAND_NAME,
+  SESSION_UNREAD_TIMESTAMP,
   agentHarness,
   buildEffectiveAgentContext,
   getModelContextWindow,
@@ -8199,7 +8200,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       deps.eventBus.emit({
         type: "session-seen",
         sessionId,
-        timestamp: "", // Empty timestamp signals "unread"
+        timestamp: SESSION_UNREAD_TIMESTAMP,
       });
     }
 

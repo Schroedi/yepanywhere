@@ -82,6 +82,7 @@ export interface SessionIdRemappedEvent {
 export interface SessionSeenEvent {
   type: "session-seen";
   sessionId: string;
+  /** When the session was read; `SESSION_UNREAD_TIMESTAMP` means unread. */
   timestamp: string;
   messageId?: string;
 }
