@@ -265,6 +265,16 @@ async function waitForRuntimeProcessGroupExit(target, timeoutMs) {
   return true;
 }
 
+function signalRuntimeProcessGroup(signalTarget, signal) {
+  try {
+    process.kill(signalTarget, signal);
+  } catch (error) {
+    // The group can exit between the liveness check and the signal; that is
+    // the outcome being asked for, not a failed reap.
+    if (error?.code !== "ESRCH") throw error;
+  }
+}
+
 function managedTarget(child) {
   if (!child?.pid) return null;
   return isWindows ? child.pid : -child.pid;
@@ -373,13 +383,13 @@ async function reapRuntimeProcessGroup(reportedTarget) {
       : reportedTarget;
   const signalTarget = -target.processGroupId;
   if (!runtimeProcessGroupAlive(target)) return;
-  if (runtimeProcessGroupAlive(target)) process.kill(signalTarget, "SIGTERM");
+  signalRuntimeProcessGroup(signalTarget, "SIGTERM");
   if (await waitForRuntimeProcessGroupExit(target, 1_500)) return;
   if (!runtimeProcessGroupAlive(target)) return;
-  if (runtimeProcessGroupAlive(target)) process.kill(signalTarget, "SIGTERM");
+  signalRuntimeProcessGroup(signalTarget, "SIGTERM");
   if (await waitForRuntimeProcessGroupExit(target, 500)) return;
   if (!runtimeProcessGroupAlive(target)) return;
-  if (runtimeProcessGroupAlive(target)) process.kill(signalTarget, "SIGKILL");
+  signalRuntimeProcessGroup(signalTarget, "SIGKILL");
   if (!(await waitForRuntimeProcessGroupExit(target, 1_000))) {
     throw new Error(
       `Runtime process group ${target.processGroupId} survived SIGKILL`,

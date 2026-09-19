@@ -359,7 +359,10 @@ Each reported native process group is paired with the start time of its leader
 from `/proc`. The host and wrapper verify that identity before signaling it, so
 a stale registry entry cannot kill an unrelated process after PID reuse. If a
 leader exits while its original descendants remain in the group, the missing
-leader does not prevent cleanup of those descendants.
+leader does not prevent cleanup of those descendants. Identity is verified once
+per stage rather than re-checked immediately before the signal: a group whose
+last member exits in that window is already in the state the stage was asking
+for, so the sweep treats it as cleaned up instead of failing the shutdown.
 
 ### Routing decision
 
