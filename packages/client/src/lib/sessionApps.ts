@@ -154,9 +154,27 @@ export function writeSessionApps(key: string, apps: SessionApps): void {
   notify();
 }
 
+/**
+ * Stop offering the named announcements for this session, permanently.
+ *
+ * Dismissal reads what is stored rather than a caller's snapshot, so a stale
+ * render cannot resurrect an announcement dismissed since. The session keeps no
+ * latest app afterwards: everything it had to offer has just been dismissed.
+ */
+export function dismissSessionApps(
+  key: string,
+  announcementIds: readonly string[],
+): void {
+  const stored = readSessionApps(key);
+  writeSessionApps(key, {
+    dismissed: [...new Set([...stored.dismissed, ...announcementIds])],
+  });
+}
+
 export function useSessionApps(key: string): {
   value: SessionApps;
   save: (apps: SessionApps) => void;
+  dismiss: (announcementIds: readonly string[]) => void;
 } {
   const read = useCallback(() => readSessionApps(key), [key]);
   const value = useSyncExternalStore(subscribe, read, read);
@@ -164,7 +182,12 @@ export function useSessionApps(key: string): {
     (apps: SessionApps) => writeSessionApps(key, apps),
     [key],
   );
-  return { value, save };
+  const dismiss = useCallback(
+    (announcementIds: readonly string[]) =>
+      dismissSessionApps(key, announcementIds),
+    [key],
+  );
+  return { value, save, dismiss };
 }
 
 /**
