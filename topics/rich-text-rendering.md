@@ -526,7 +526,10 @@ scan or unbounded cache. The prepared record carries parsed values, execution
 status and rich/partial/raw classification. Rejections use an explicit failure
 schema or raw inspection, never a success parser. The effective error flag is
 `isError ?? status === "error"` for every operation; pending, incomplete and
-aborted remain distinct states. Standalone support is declared per tool.
+aborted remain distinct states. One exported pair decides it — `prepareDisplay`
+exports `effectiveToolError(record)` and, for a transcript invocation whose flag
+sits on the result, `effectiveInvocationError(item)` — so no surface outside it
+restates the expression. Standalone support is declared per tool.
 
 Known consumed augments (highlights, Markdown, diffs, media, project links and
 task snapshots) are checked explicitly. Nested Task content checks its block

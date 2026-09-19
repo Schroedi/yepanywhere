@@ -26,6 +26,27 @@ export function recordFromLegacyArgs(
   return { input, result, isError, status };
 }
 
+/** The effective error flag: a result's own flag when the provider set one,
+ * otherwise the call's status. `pending`, `incomplete` and `aborted` are not
+ * failures. `topics/rich-text-rendering.md` names this the one interpretation.
+ */
+export function effectiveToolError(
+  record: Pick<DisplayRecord, "status" | "isError">,
+): boolean {
+  return record.isError ?? record.status === "error";
+}
+
+/** The same flag for a transcript invocation, which carries the result flag on
+ * the result rather than beside the status. */
+export function effectiveInvocationError(
+  item: Pick<ToolCallItem, "status" | "toolResult">,
+): boolean {
+  return effectiveToolError({
+    status: item.status,
+    isError: item.toolResult?.isError,
+  });
+}
+
 export interface DisplayContract<I extends z.ZodType, R extends z.ZodType> {
   input: I;
   result: R;
@@ -44,7 +65,7 @@ export function prepareDisplay<I extends z.ZodType, R extends z.ZodType>(
   contract: DisplayContract<I, R>,
   record: DisplayRecord,
 ) {
-  const isError = record.isError ?? record.status === "error";
+  const isError = effectiveToolError(record);
   const input = contract.input.safeParse(record.input);
   const resultSchema = isError
     ? contract.failure

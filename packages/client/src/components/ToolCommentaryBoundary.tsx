@@ -39,6 +39,7 @@ import type {
 import { AcliCommentary } from "./AcliCommentary";
 import { ActivityDetailModal } from "./ActivityDetailModal";
 import { BashModalContent } from "./renderers/tools/BashOutputDetail";
+import { effectiveInvocationError } from "./renderers/tools/prepareDisplay";
 import type { BashInput, BashResult } from "./renderers/tools/types";
 
 interface Props {
@@ -90,6 +91,7 @@ function firstLineDeclaresCommentary(text: string, pending: boolean) {
 
 function CodeModeBoundary(props: InvocationProps) {
   const source = props.toolResult?.structured ?? props.toolResult?.content;
+  const isError = effectiveInvocationError(props);
   const decoded = useMemo(() => {
     const cached = props.toolResult
       ? codeModeResults.get(props.toolResult)
@@ -121,7 +123,7 @@ function CodeModeBoundary(props: InvocationProps) {
           ...props.toolResult,
           content: part.text,
           structured: undefined,
-          isError: props.toolResult?.isError ?? props.status === "error",
+          isError,
         },
         replaceText: (text) => ({
           ...block,
@@ -144,7 +146,7 @@ function CodeModeBoundary(props: InvocationProps) {
     if (props.toolResult && props.status !== "pending")
       codeModeResults.set(props.toolResult, result);
     return result;
-  }, [source, props.toolResult, props.status]);
+  }, [source, props.toolResult, props.status, isError]);
   const [projections, setProjections] = useState(
     () =>
       new Map<
@@ -205,7 +207,7 @@ function CodeModeBoundary(props: InvocationProps) {
           ...props.toolResult,
           content: JSON.stringify(blocks),
           structured: blocks,
-          isError: props.toolResult?.isError ?? props.status === "error",
+          isError,
         },
         workflow,
       )}
@@ -343,6 +345,7 @@ function CommentaryOutput(
   },
 ) {
   const { t } = useI18n();
+  const isError = effectiveInvocationError(props);
   // The outer key remounts this invocation when its serialized schema changes.
   const [workflowContext] = useState(props.workflow?.toolContext);
   const [initial] = useState(() => {
@@ -454,14 +457,14 @@ function CommentaryOutput(
     return {
       ...props.toolResult,
       content: projection.stdout,
-      isError: props.toolResult?.isError ?? props.status === "error",
+      isError,
       structured: props.output.shell
         ? { ...props.output.shell, stdout: projection.stdout, stderr }
         : props.output.stderr
           ? { stdout: projection.stdout, stderr }
           : undefined,
     };
-  }, [props.toolResult, props.output, projection, props.status]);
+  }, [props.toolResult, props.output, projection, isError]);
   const projectedInput = useMemo(() => {
     const input = record(props.toolInput);
     return input
@@ -491,7 +494,7 @@ function CommentaryOutput(
             <BashModalContent
               input={props.toolInput as BashInput}
               result={projectedResult?.structured as BashResult}
-              isError={props.toolResult?.isError ?? props.status === "error"}
+              isError={isError}
               projectPathLinks={props.toolResult?.projectPathLinks}
             />
           ) : (

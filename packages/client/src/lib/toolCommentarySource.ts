@@ -1,4 +1,5 @@
 import { decodeCodeModeOutput, initialAcliFormat } from "@yep-anywhere/shared";
+import { effectiveInvocationError } from "../components/renderers/tools/prepareDisplay";
 import { normalizeBashResult } from "./bashResult";
 import type { ToolCallItem } from "@yep-anywhere/shared/transcript/items";
 
@@ -23,10 +24,7 @@ export function readToolCommentaryOutput(props: Invocation) {
       props.toolName.toLowerCase(),
     )
   ) {
-    const shell = normalizeBashResult(
-      raw,
-      props.toolResult?.isError ?? props.status === "error",
-    );
+    const shell = normalizeBashResult(raw, effectiveInvocationError(props));
     return {
       stdout: shell.stdout ?? "",
       stderr: shell.stderr ?? "",
