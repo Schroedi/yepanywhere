@@ -4,6 +4,7 @@ import type { ToolCallItem } from "@yep-anywhere/shared/transcript/items";
 import type { RenderContext } from "../types";
 import type { DisplayRecord, CheckedToolDefinition } from "./defineTool";
 import { defineTool } from "./defineTool";
+import { recordFromLegacyArgs } from "./prepareDisplay";
 import { z } from "zod";
 // Import and register tool renderers
 import { askUserQuestionRenderer } from "./AskUserQuestionRenderer";
@@ -143,12 +144,17 @@ export const toolRegistry = {
     context: RenderContext,
     input?: unknown,
   ): ReactNode {
-    return this.prepare(name, {
-      input,
-      result,
-      isError,
-      status: isError ? "error" : "complete",
-    }).renderToolResult(context);
+    return this.prepare(
+      name,
+      // A tool_result block exists only once the call settled, so a missing
+      // payload is not a call still running.
+      recordFromLegacyArgs(
+        input,
+        result,
+        isError,
+        isError ? "error" : "complete",
+      ),
+    ).renderToolResult(context);
   },
   renderCollapsedPreview(
     name: string,
@@ -157,12 +163,10 @@ export const toolRegistry = {
     isError: boolean,
     context: RenderContext,
   ): ReactNode {
-    return this.prepare(name, {
-      input,
-      result,
-      isError,
-      status: isError ? "error" : result === undefined ? "pending" : "complete",
-    }).renderCollapsedPreview(context);
+    return this.prepare(
+      name,
+      recordFromLegacyArgs(input, result, isError),
+    ).renderCollapsedPreview(context);
   },
   renderInteractiveSummary(
     name: string,
@@ -171,12 +175,10 @@ export const toolRegistry = {
     isError: boolean,
     context: RenderContext,
   ): ReactNode {
-    return this.prepare(name, {
-      input,
-      result,
-      isError,
-      status: isError ? "error" : result === undefined ? "pending" : "complete",
-    }).renderInteractiveSummary(context);
+    return this.prepare(
+      name,
+      recordFromLegacyArgs(input, result, isError),
+    ).renderInteractiveSummary(context);
   },
   renderInline(
     name: string,
@@ -186,8 +188,9 @@ export const toolRegistry = {
     status: ToolCallItem["status"],
     context: RenderContext,
   ): ReactNode {
-    return this.prepare(name, { input, result, isError, status }).renderInline(
-      context,
-    );
+    return this.prepare(
+      name,
+      recordFromLegacyArgs(input, result, isError, status),
+    ).renderInline(context);
   },
 };

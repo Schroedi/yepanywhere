@@ -9,6 +9,23 @@ export interface DisplayRecord {
   isError?: boolean;
   toolName?: string;
 }
+/** The positional `(input, result, isError)` dispatch arguments as a record.
+ * A call carrying no result is still running unless it failed; a caller whose
+ * surface only exists once the call settled passes `status` itself.
+ */
+export function recordFromLegacyArgs(
+  input: unknown,
+  result: unknown,
+  isError: boolean,
+  status: DisplayStatus = isError
+    ? "error"
+    : result === undefined
+      ? "pending"
+      : "complete",
+): DisplayRecord {
+  return { input, result, isError, status };
+}
+
 export interface DisplayContract<I extends z.ZodType, R extends z.ZodType> {
   input: I;
   result: R;

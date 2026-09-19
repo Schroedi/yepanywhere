@@ -514,6 +514,11 @@ all registered variants; `tools/index.tsx` enforces exact registration coverage.
 Types derive from schema output. Public callers receive safe prepared operations
 or inert metadata, never unchecked callbacks. Summaries and dynamic names use
 the same boundary as collapsed, expanded, inline, standalone and nested views.
+A registration's only display entry point is `prepare(record)`. The registry's
+positional `(input, result, isError)` dispatch becomes that record in one place,
+where a call carrying no result is still running unless it failed; the
+tool_result path states its own settled status because that block exists only
+after the call ended.
 
 Preparation is data-only, bounded to the displayed record and shared across row
 operations after commentary transforms its input/output. There is no transcript

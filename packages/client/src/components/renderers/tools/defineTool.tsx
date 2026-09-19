@@ -38,7 +38,7 @@ export interface PreparedToolDisplay {
 }
 
 const checkedDefinition = Symbol("checked tool definition");
-export interface CheckedToolDefinition extends ToolCallbacks<unknown, unknown> {
+export interface CheckedToolDefinition {
   readonly [checkedDefinition]: true;
   readonly tool: string;
   readonly displayName?: string;
@@ -73,7 +73,7 @@ export function defineTool<
     "renderInline",
     "displayNameForCall",
   ].filter((key) => typeof Reflect.get(callbacks, key) === "function");
-  const definition = Object.freeze({
+  return Object.freeze({
     [checkedDefinition]: true as const,
     tool: callbacks.tool,
     displayName: callbacks.displayName,
@@ -264,90 +264,6 @@ export function defineTool<
           ),
       };
     },
-  });
-  return Object.freeze({
-    ...definition,
-    renderToolUse: (input: unknown, context: RenderContext) =>
-      definition.prepare({ input, status: "pending" }).renderToolUse(context),
-    renderToolResult: (
-      result: unknown,
-      isError: boolean,
-      context: RenderContext,
-      input?: unknown,
-    ) =>
-      definition
-        .prepare({
-          input,
-          result,
-          isError,
-          status: isError ? "error" : "complete",
-        })
-        .renderToolResult(context),
-    getUseSummary: (input: unknown, context?: ToolSummaryContext) =>
-      definition.prepare({ input, status: "pending" }).getUseSummary(context) ??
-      "",
-    getResultSummary: (
-      result: unknown,
-      isError: boolean,
-      input?: unknown,
-      context?: ToolSummaryContext,
-    ) =>
-      definition
-        .prepare({
-          input,
-          result,
-          isError,
-          status: isError ? "error" : "complete",
-        })
-        .getResultSummary(context) ?? "",
-    displayNameForCall: (input: unknown, status: DisplayStatus) =>
-      definition.prepare({ input, status }).getDisplayName(),
-    renderCollapsedPreview: (
-      input: unknown,
-      result: unknown,
-      isError: boolean,
-      context: RenderContext,
-    ) =>
-      definition
-        .prepare({
-          input,
-          result,
-          isError,
-          status: isError
-            ? "error"
-            : result === undefined
-              ? "pending"
-              : "complete",
-        })
-        .renderCollapsedPreview(context),
-    renderInteractiveSummary: (
-      input: unknown,
-      result: unknown,
-      isError: boolean,
-      context: RenderContext,
-    ) =>
-      definition
-        .prepare({
-          input,
-          result,
-          isError,
-          status: isError
-            ? "error"
-            : result === undefined
-              ? "pending"
-              : "complete",
-        })
-        .renderInteractiveSummary(context),
-    renderInline: (
-      input: unknown,
-      result: unknown,
-      isError: boolean,
-      status: DisplayStatus,
-      context: RenderContext,
-    ) =>
-      definition
-        .prepare({ input, result, isError, status })
-        .renderInline(context),
   });
 }
 
