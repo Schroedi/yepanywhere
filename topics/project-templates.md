@@ -251,10 +251,15 @@ and renders through WebGL from a small TypeScript glue file, so `ts` +
 nanovg-js is the no-Zig form of the same element.
 
 **App name reservation.** A vhost row, with the operator's public root,
-already yields `name.graehl.org` through the operator's tunnel. When a
-template declares an `app`, the create flow reserves that row at creation
-(decided 2026-09-19): the app name defaults to the project name and may be
-edited to differ; the row is written to Settings → Apps like any other, with
+already yields `name.graehl.org` through the operator's tunnel. Every
+templated project reserves a row at creation, whether or not its template
+declares an `app` (decided 2026-09-19): an interactive-less project does not
+need a subdomain, but owning one by default costs nothing and lets a later
+"add a server" land on a name that is already its own. The reserved name
+defaults to the project's short code name ([[project-code-names]]), which
+already differs from the directory path and is itself editable, and the
+reservation may be edited to differ from both; the row is written to
+Settings → Apps like any other, with
 a `project` field naming the project it was reserved for, and the port left
 to be filled when the agent picks one (the boot prompt tells it the reserved
 name and to report the port). Reservations stay ordinary rows: the operator
@@ -307,7 +312,8 @@ YA's client is a later refactor question, not a v1 dependency.
 - Bundle format details: header syntax, size limits, binary files.
 - Whether the user library may also be a subdir of an existing user git repo
   rather than its own repository.
-- Reservation rows: whether a portless reserved row is a new row state or
+- Reservation rows: whether a later code-name edit offers to rename the
+  reservation, whether a portless reserved row is a new row state or
   just a row with port `0`, and what Apps settings shows for the project
   field when the project is later hidden or deleted.
 - Shipped-repo mechanics: whether `graehl/yep-project-templates` stays the
