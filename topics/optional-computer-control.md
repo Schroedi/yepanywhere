@@ -142,7 +142,11 @@ or timeout after writing is unknown delivery and is never automatically retried.
 Native provider, fidelity, delivery, effect and uncertainty remain in results;
 confirmed delivery is not independent proof of a desktop effect. Revocation
 during an in-flight operation withholds desktop data while preserving known
-delivery/effect metadata and the need to inspect effects independently.
+delivery/effect metadata and the need to inspect effects independently. An
+operation runs against the resident it was dispatched to: a stop that releases
+the resident mid-call neither fails that operation nor skips its activity
+refresh, and the observation it returns still authorizes the grant's later
+references.
 
 Native screenshot reads accept only exact artifact IDs under the owned
 instance/session directory, reject links/path substitution and validate PNG

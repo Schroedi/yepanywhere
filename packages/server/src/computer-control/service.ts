@@ -530,17 +530,17 @@ export class ComputerControlService {
         throw new Error("Computer control grant revoked during startup");
       if (
         "expectedGeneration" in request &&
-        request.expectedGeneration !== this.runtime.generation
+        request.expectedGeneration !== runtime.generation
       )
         throw new Error(
           "Resident generation changed; take a fresh observation",
         );
-      this.runtime.activity();
+      runtime.activity();
       nativeResult = await (this.deps.call ?? callComputerPipe)(
-        this.runtime.owner.pipe,
+        runtime.owner.pipe,
         { ...request, requestId: randomUUID() },
       );
-      this.runtime?.activity();
+      runtime.activity();
       if (
         nativeResult.sessionId !== runtime.owner.sessionId ||
         nativeResult.generation !== runtime.generation
@@ -568,7 +568,7 @@ export class ComputerControlService {
         nativeResult.accepted &&
         ["windows", "snapshot", "screenshot"].includes(request.operation)
       ) {
-        grant.generation = this.runtime.generation;
+        grant.generation = runtime.generation;
         if (request.operation === "snapshot") grant.references.clear();
         const collect = (value: unknown, depth = 0) => {
           if (depth > 20 || !value || typeof value !== "object") return;
@@ -593,7 +593,7 @@ export class ComputerControlService {
         contentItems.push({
           type: "inputImage",
           imageUrl: await (this.deps.image ?? readComputerImage)(
-            this.runtime.owner.artifactRoot,
+            runtime.owner.artifactRoot,
             nativeResult.data as Record<string, unknown>,
           ),
         });

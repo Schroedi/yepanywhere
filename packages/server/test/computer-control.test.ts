@@ -259,6 +259,42 @@ describe("computer-control authority and lifecycle", () => {
     expect(call).toHaveBeenCalledTimes(2);
     expect(stop).not.toHaveBeenCalled();
   });
+  it("finishes an in-flight operation against the resident it dispatched on", async () => {
+    await enable();
+    const grant = service.select("selected", true, "codex")!;
+    await grant.call("computer_control", { operation: "windows" });
+    call.mockImplementationOnce(async (_pipe, request) => {
+      await service.stop();
+      return {
+        ...request,
+        schema: "machine-control/v0",
+        accepted: true,
+        sessionId: 1,
+        generation,
+        delivery: "confirmed",
+        effect: "not_applicable",
+        actualRoute: "windows.user_session/native",
+        data: { elements: [{ reference: "owned", hwnd: 42 }] },
+      };
+    });
+    const result = await grant.call("computer_control", {
+      operation: "snapshot",
+      hwnd: 42,
+    });
+    expect(result.success).toBe(true);
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(activity).toHaveBeenCalledTimes(4);
+    expect(
+      (
+        await grant.call("computer_control", {
+          operation: "invoke",
+          reference: "owned",
+          expectedGeneration: generation,
+        })
+      ).success,
+    ).toBe(true);
+    expect(start).toHaveBeenCalledTimes(2);
+  });
   it("rejects duplicate provider call IDs and persists settings without persisting grants", async () => {
     await enable();
     const grant = service.select("selected", true, "codex")!;
