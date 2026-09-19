@@ -195,6 +195,43 @@ bypass it. The superuser may opt into the same setting for their own account
 only for limited users. For session guests the cutoff expires the grant
 instead of redirecting, as stated above.
 
+## Grants management
+
+Guest grants that are temporary by default make an explicit **permanent**
+grant a deliberate act, and that act needs a place where everything the
+host has handed out can be seen at once. Today the sub-operator grants are
+scattered: public session shares have their own authenticated management
+routes, app links are revoked per row in Settings → Apps, and interactive
+artifact links have no inventory at all
+([`gaps/artifact-grant-revocation-ui.md`](../gaps/artifact-grant-revocation-ui.md),
+[`gaps/app-artifact-access-control.md`](../gaps/app-artifact-access-control.md)).
+
+Proposed: a **Settings → Limited Users** category, superuser only, that is
+both the user directory and the grants recap:
+
+- **Users.** Each limited user with lock, stale cutoff, parent directory,
+  enabled/disabled, last login, and reset/disable/delete actions.
+- **Project memberships.** Every project's owner, editors, and viewers, the
+  same data the per-project members UI edits, listed across projects so a
+  name can be found and removed everywhere in one place.
+- **Live shares.** Every session guest grant: session, guest name, mode,
+  temporary or permanent, remaining time, last seen, revoke. A permanent
+  guest is created only here or from the session's share menu with an
+  explicit "does not expire" choice, and is marked in this list.
+- **Document and app grants.** A read-only recap of the other bearer
+  grants the host has outstanding, with revoke: public session shares, app
+  links per vhost row and their generation, and interactive artifact links.
+  This is the inventory the two gaps above ask for; landing it here rather
+  than as three panes is the point of the recap.
+
+Each row links to the surface that owns it (the project page, the Apps row,
+the session), and the recap never becomes a second editor for those
+records; it lists and revokes. Counts of outstanding grants by kind appear
+at the top so a host can tell at a glance whether anything is shared at
+all. The category is hidden entirely when no limited user, guest, or bearer
+grant exists, in keeping with [[settings-ui-placement]] and
+[[vanilla-defaults]].
+
 ## Execution boundary
 
 The [[session-sandboxing]] Linux mechanism is the enforcement floor: a
@@ -244,7 +281,8 @@ rather than decided here.
    hosted-client login with a username, pairing flow update
    ([[mobile-server-pairing]]). ‖
 4. **Viewers**, **session guests**, and the template-only New Project for
-   limited users, once [[project-templates]] phase 2 exists. Guests may land
+   limited users, plus the Settings → Limited Users grants recap, once
+   [[project-templates]] phase 2 exists. Guests may land
    earlier than viewers since their scope is one session and needs no
    project-level filtering beyond a 404 for everything else.
 
