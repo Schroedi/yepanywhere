@@ -72,6 +72,24 @@ describe("gateway service export", () => {
     });
   });
 
+  it("underscores a hyphenated service id into the provider key", async () => {
+    await syncGatewayServiceExports({
+      services: [service({ id: "local-vllm" })],
+      enabled: true,
+      paths,
+      piAgentDir,
+    });
+
+    const codex = await readFile(
+      join(paths.codexHome, "ya-local-vllm.config.toml"),
+      "utf8",
+    );
+    // The key a `codex -c model_providers.<key>…` launch passes for the same
+    // service, so the profile and the launch reach one provider entry.
+    expect(codex).toContain('model_provider = "ya_local_vllm"');
+    expect(codex).toContain("[model_providers.ya_local_vllm]");
+  });
+
   it("states the declared window so a terminal session is not truncated", async () => {
     await syncGatewayServiceExports({
       services: [

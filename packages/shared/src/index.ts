@@ -189,6 +189,7 @@ export {
   claudeSettingsPath,
   codexProfileName,
   codexProfilePath,
+  codexProviderKey,
   gatewayServiceCliInvocations,
   gatewayServiceDisplayName,
   gatewayServiceShortName,

@@ -258,6 +258,17 @@ export function codexProfileName(service: Pick<GatewayService, "id">): string {
 }
 
 /**
+ * Codex's `model_providers` key for a service.
+ *
+ * A launch override (`codex -c model_providers.<key>.base_url=…`) and the
+ * generated `ya-<id>.config.toml` profile must name the same provider, so both
+ * spell the key here rather than each deriving it from the service id.
+ */
+export function codexProviderKey(service: Pick<GatewayService, "id">): string {
+  return `ya_${service.id.replace(/-/gu, "_")}`;
+}
+
+/**
  * A value quoted as a TOML basic string, whose escapes are JSON's.
  *
  * Every value YA writes into a generated Codex profile or passes as a

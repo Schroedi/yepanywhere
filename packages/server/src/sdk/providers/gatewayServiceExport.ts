@@ -27,6 +27,7 @@ import {
   claudeSettingsPath,
   codexProfileName,
   codexProfilePath,
+  codexProviderKey,
   gatewayServiceDisplayName,
   tomlString,
   type GatewayService,
@@ -55,11 +56,6 @@ export function defaultGatewayServiceExportPaths(): GatewayServiceExportPaths {
     codexHome: process.env.CODEX_HOME ?? join(homedir(), ".codex"),
     claudeHome: process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"),
   };
-}
-
-/** Codex's provider key for a service, matching what YA passes at launch. */
-function codexProviderKey(service: GatewayService): string {
-  return `ya_${service.id.replace(/-/gu, "_")}`;
 }
 
 function codexProfileContents(service: GatewayService): string {

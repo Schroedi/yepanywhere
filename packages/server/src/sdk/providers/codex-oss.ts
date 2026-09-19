@@ -17,6 +17,7 @@ import { promisify } from "node:util";
 import {
   DEFAULT_GATEWAY_SERVICE_MODEL_LIMIT,
   advertisedGatewayEffortLevels,
+  codexProviderKey,
   gatewayModelEffort,
   gatewayServiceDisplayName,
   nearestGatewayEffortLevel,
@@ -547,7 +548,7 @@ export class CodexOSSProvider implements AgentProvider {
    * the override.
    */
   private serviceLaunchArgs(service: GatewayService): string[] {
-    const key = `ya_${service.id.replace(/-/gu, "_")}`;
+    const key = codexProviderKey(service);
     return [
       "-c",
       `model_providers.${key}.name=${tomlString(gatewayServiceDisplayName(service))}`,

@@ -177,6 +177,22 @@ describe("CodexOSS gateway services", () => {
     ]);
   });
 
+  it("underscores a hyphenated service id into the provider key", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => vllmCatalog(["deepseek-v4-flash"])),
+    );
+    const provider = new ExposedCodexOSSProvider();
+    provider.setGatewayServices([service({ id: "local-vllm" })]);
+    await provider.getAvailableModels();
+
+    // The same key the export writes into ya-local-vllm.config.toml, which is
+    // why both spell it through the shared `codexProviderKey`.
+    expect(provider.firstTurnArgs("deepseek-v4-flash")).toContain(
+      'model_provider="ya_local_vllm"',
+    );
+  });
+
   it("quotes a label and a model id that carry TOML metacharacters", async () => {
     vi.stubGlobal(
       "fetch",

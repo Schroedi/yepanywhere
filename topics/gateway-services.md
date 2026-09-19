@@ -229,9 +229,13 @@ model serving.
 ### CodexOSS
 
 - CodexOSS launches against the entries with `codexEnabled`, listing their
-  models from `/v1/models` and passing Codex `model_providers.<id>` overrides on
+  models from `/v1/models` and passing Codex `model_providers.<key>` overrides on
   the command line — base URL and `wire_api` — rather than editing the user's
   `~/.codex/config.toml`. YA never rewrites a CLI's own settings files.
+- One service has one Codex provider key, `ya_<service id>` with the id's
+  hyphens replaced by underscores. A launch override and the exported profile
+  name that same key, so a terminal session started from the profile and a YA
+  session reach the same provider entry.
 - Every value YA interpolates into an override or an exported profile is quoted
   as a TOML string. A label only has to be trimmed and free of control
   characters and a model id is whatever the endpoint's catalog row says, so a
@@ -258,7 +262,7 @@ A launch writes nothing. (The opt-in terminal export is a separate act, and its
 pi half is the one place YA does merge into a CLI's own file — see above.)
 Claude Gateway supplies its transport through the Claude SDK's per-launch
 flag-settings layer and the child environment; CodexOSS
-passes `-c model_providers.<id>.…` overrides on the command line. A YA session
+passes `-c model_providers.<key>.…` overrides on the command line. A YA session
 therefore cannot disturb a concurrently running TUI.
 
 ## Terminal export
