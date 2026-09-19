@@ -27,6 +27,7 @@ import {
   DEFAULT_PATIENT_QUEUE_PATIENCE_SECONDS,
   HELPER_SIDE_MODEL_CHEAPEST,
   HELPER_SIDE_MODEL_SAME_AS_MAIN,
+  capTurnText,
   clampPatientPatienceSeconds,
   hasInvocationCandidate,
   isClaudeProviderName,
@@ -34,7 +35,6 @@ import {
   isLocalCommandEchoTurn,
   isPostCompactReplayText,
   MAX_POST_COMPACT_REPLAY_TURNS,
-  MAX_POST_COMPACT_REPLAY_TURN_CHARS,
   normalizeRecapAfterSeconds,
   stripPatientQueuePrefix,
   type PostCompactReplayTurn,
@@ -124,7 +124,6 @@ type RecentAssistantRecapEntry = {
   completedAtMs: number;
   text: string;
 };
-type RecentProseTurn = PostCompactReplayTurn;
 type NativeRecapRecord = {
   receivedAtMs: number;
   text: string;
@@ -1042,7 +1041,7 @@ export class Process {
    * buffer is bounded; older entries are dropped as new ones arrive.
    */
   private recentAssistantRecapEntries: RecentAssistantRecapEntry[] = [];
-  private recentProseTurns: RecentProseTurn[] = [];
+  private recentProseTurns: PostCompactReplayTurn[] = [];
   private static readonly RECENT_TEXT_MAX_ENTRIES = 15;
   private static readonly RECENT_TEXT_MAX_CHARS_PER_ENTRY = 1500;
   /**
@@ -2947,12 +2946,12 @@ export class Process {
   ): void {
     const trimmed = text.trim();
     if (!trimmed) return;
+    // The provider echoes YA's own continuation back as an ordinary user row;
+    // admitting it would spend a window slot the next replay wants for real
+    // prose, which the selector's later skip can no longer recover.
     if (isPostCompactReplayText(trimmed)) return;
     if (role === "user" && trimmed.startsWith("/")) return;
-    const capped =
-      trimmed.length > MAX_POST_COMPACT_REPLAY_TURN_CHARS
-        ? `${trimmed.slice(0, MAX_POST_COMPACT_REPLAY_TURN_CHARS)} …[truncated]`
-        : trimmed;
+    const capped = capTurnText(trimmed);
     const last = this.recentProseTurns[this.recentProseTurns.length - 1];
     if (last && last.role === role && last.text === capped) {
       return;

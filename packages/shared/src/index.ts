@@ -44,6 +44,7 @@ export {
   POST_COMPACT_REPLAY_PREAMBLE,
   buildPostCompactReplayPrompt,
   buildPostCompactReplayText,
+  capTurnText,
   formatPostCompactReplayPrompt,
   clampPostCompactReplayTurnCount,
   isPostCompactReplayEnabledForProvider,
