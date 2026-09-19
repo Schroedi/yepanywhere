@@ -101,9 +101,12 @@ disk.
   returns an indistinguishable error only at the proof step, and the
   handler pads every hello response to a minimum elapsed time (sleep to a
   floor such as the observed p95 of a real challenge) so a fast path cannot
-  be distinguished from a slow one. Today the single configured name
-  already leaks existence by answering "unknown identity" early; this
-  closes that too.
+  be distinguished from a slow one. The remaining signal is what network
+  timing resolution allows: an attacker sees only round-trip times through
+  the relay, so the floor needs to hide millisecond-scale differences, not
+  microsecond ones, and jitter from the relay hop already masks most of
+  it. Today the single configured name already leaks existence by
+  answering "unknown identity" early; this closes that too.
 
   **Per-user server sockets** remain an option a new YA server can add
   without relay changes: register `<server>-<username>` on an additional
