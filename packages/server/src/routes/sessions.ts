@@ -21,6 +21,7 @@ import {
   type UrlProjectId,
   type WorkstreamId,
   GOAL_COMMAND_NAME,
+  agentHarness,
   buildEffectiveAgentContext,
   getModelContextWindow,
   readGoalDetails,
@@ -1857,13 +1858,8 @@ function formatRestartSessionTurnHint(params: {
   provider: string | undefined;
   sessionId: string;
 }): string | undefined {
-  const provider = params.provider ?? "";
-  const harness = provider.startsWith("claude")
-    ? "claude"
-    : provider.startsWith("codex")
-      ? "codex"
-      : undefined;
-  if (!harness) {
+  const harness = agentHarness(params.provider ?? "");
+  if (harness !== "claude" && harness !== "codex") {
     return undefined;
   }
   return `- Ask the source session itself (non-forking; needs the optional session-turn helper on PATH): echo '<question>' | session-turn ${harness} ${compactRestartLine(params.sessionId, 200)}`;

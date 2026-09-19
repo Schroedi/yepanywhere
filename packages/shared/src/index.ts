@@ -452,6 +452,7 @@ export {
   CODEX_REASONING_SUMMARIES,
   DEFAULT_CODEX_REASONING_SUMMARY,
   SESSION_SANDBOX_LEVELS,
+  agentHarness,
   isClaudeProviderName,
   isCodexReasoningSummary,
   HELPER_SIDE_MODEL_CHEAPEST,
