@@ -8,6 +8,12 @@ import type { ConversationSubscriptions } from "../experimental/conversation-sub
  */
 export const CONVERSATION_SNAPSHOT_DEADLINE_MS = 30_000;
 
+/**
+ * A count reaches the query only in canonical decimal form; its range is
+ * `ConversationQuerySchema`'s alone, so the route never restates the bounds.
+ */
+const CANONICAL_COUNT = /^(?:0|[1-9]\d*)$/;
+
 /** Existing app auth also protects these explicitly experimental routes. */
 export function createExperimentalConversationRoutes(
   subscriptions: ConversationSubscriptions,
@@ -25,7 +31,9 @@ export function createExperimentalConversationRoutes(
       query: {
         sessionId: params.sessionId,
         maxMessages:
-          count && /^(?:[1-9]\d?|100)$/.test(count) ? Number(count) : null,
+          count !== undefined && CANONICAL_COUNT.test(count)
+            ? Number(count)
+            : null,
         anchorMessageId: params.anchorMessageId ?? null,
       },
     });
