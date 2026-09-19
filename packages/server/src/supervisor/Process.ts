@@ -900,10 +900,11 @@ export interface ProcessConstructorOptions extends ProcessOptions {
   /** Function to change max thinking tokens at runtime (SDK 0.2.7+) */
   setMaxThinkingTokensFn?: (tokens: number | null) => Promise<void>;
   /** Function to change effort without restarting the provider process. */
+  setEffortFn?: (effort?: EffortLevel) => Promise<void>;
+  /** Publish selected/pending settings to the optional owning-session projection. */
   publishAgentSelfSelectionFn?: (
     selection: import("../agent-tools/protocol.js").AgentSelfSelection,
   ) => void | Promise<void>;
-  setEffortFn?: (effort?: EffortLevel) => Promise<void>;
   /** Whether effort changes can be published into an active provider turn. */
   effortUpdatesActiveTurn?: boolean;
   /** Function to interrupt current turn gracefully (SDK 0.2.7+) */
@@ -1094,8 +1095,9 @@ export class Process {
     | ((tokens: number | null) => Promise<void>)
     | null;
   /** Function to change effort without restarting the provider process. */
-  private publishAgentSelfSelectionFn: ProcessConstructorOptions["publishAgentSelfSelectionFn"];
   private setEffortFn: ((effort?: EffortLevel) => Promise<void>) | null;
+  /** Publish selected/pending settings to the optional owning-session projection. */
+  private publishAgentSelfSelectionFn: ProcessConstructorOptions["publishAgentSelfSelectionFn"];
   private effortUpdatesActiveTurn: boolean;
 
   /** Function to interrupt current turn gracefully (SDK 0.2.7+) */
@@ -1262,8 +1264,8 @@ export class Process {
     this._thinking = options.thinking;
     this._effort = options.effort;
     this.setMaxThinkingTokensFn = options.setMaxThinkingTokensFn ?? null;
-    this.publishAgentSelfSelectionFn = options.publishAgentSelfSelectionFn;
     this.setEffortFn = options.setEffortFn ?? null;
+    this.publishAgentSelfSelectionFn = options.publishAgentSelfSelectionFn;
     this.effortUpdatesActiveTurn = options.effortUpdatesActiveTurn === true;
     this.interruptFn = options.interruptFn ?? null;
     this.steerFn = options.steerFn ?? null;
