@@ -82,6 +82,7 @@ import {
   mapSpeechInsertionRangeThroughReplacement,
   retargetSpeechInsertionRange,
   type SpeechInsertionRange,
+  textBeforeSpeechCursor,
 } from "../lib/speechRecognition";
 import {
   commitSpeechTranscript,
@@ -959,11 +960,10 @@ export function MessageInput({
         sessionTerms: speechVocabulary?.terms(),
         clientTurnId: ensureSpeechTurnId(),
         speechTargetId: activeSpeechTargetIdRef.current ?? undefined,
-        textBeforeCursor: draft.slice(
-          0,
-          speechInsertionRangeRef.current?.end ??
-            textareaRef.current?.selectionStart ??
-            draft.length,
+        textBeforeCursor: textBeforeSpeechCursor(
+          draft,
+          speechInsertionRangeRef.current,
+          textareaRef.current,
         ),
       };
     }, [
