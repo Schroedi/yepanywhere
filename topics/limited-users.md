@@ -226,9 +226,30 @@ both the user directory and the grants recap:
 
 Each row links to the surface that owns it (the project page, the Apps row,
 the session), and the recap never becomes a second editor for those
-records; it lists and revokes. Counts of outstanding grants by kind appear
-at the top so a host can tell at a glance whether anything is shared at
-all. The category is hidden entirely when no limited user, guest, or bearer
+records; it lists and revokes.
+
+**Summary line.** The category opens with one line so a host can tell at a
+glance what is shared, in this shape:
+
+```text
+3 URL-enabled public grants (1 permanent, 2 temporary, expiring 2m–7d) ·
+2 username-gated grants active (1 permanent, 1 temporary, expiring 4h) ·
+exposing 2 projects and 4 project templates to limited users
+```
+
+- *URL-enabled public grants* count everything reachable by link alone:
+  public session shares, app links, artifact links, and Public vhost rows.
+- *Username-gated grants* count session guests and project memberships
+  held by limited users.
+- *Exposing N projects* counts projects with at least one limited-user
+  member or guest; *N project templates* counts templates limited users may
+  create from ([[project-templates]]).
+- Wherever a kind can be either, permanent and temporary are counted
+  separately, and the temporary count shows its expiry range from soonest to
+  latest (for example `2m–7d`), or a single value when they coincide.
+  Kinds that cannot expire show no range.
+
+The category is hidden entirely when no limited user, guest, or bearer
 grant exists, in keeping with [[settings-ui-placement]] and
 [[vanilla-defaults]].
 
