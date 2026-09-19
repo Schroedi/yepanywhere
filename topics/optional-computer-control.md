@@ -98,7 +98,9 @@ explicit selection when starting/creating the session. Other operating systems,
 Bun, providers and executors are unavailable. Grants expire after 30 minutes
 by default (operator API range 10 seconds to one hour). They are scoped to the
 selected provider thread: child threads, revoked grants and aborted sessions
-cannot dispatch. An agent with unrelated unsandboxed same-user shell access is
+cannot dispatch. A launch whose provider start fails releases its grant before
+the failure reaches the caller, so a session that never began holds none of the
+32 concurrent grants until expiry. An agent with unrelated unsandboxed same-user shell access is
 not contained by these grants; this is a computer-tool authority boundary.
 
 For Advanced local import, the operator selects an extracted workstation package
