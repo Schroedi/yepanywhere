@@ -5,6 +5,9 @@
   per-language renderer registry with Mermaid diagrams as its one member)
 - Task-list rendering from incremental Claude `Task*` events (problem framing)
 - Codex GPT-5.5 model and protocol compatibility
+- [Mid-session effort change](mid-session-effort-change.md) (long-context
+  warning before an effort change, per-provider threshold, fork at the new
+  effort)
 - Pluggable speech recognition providers
 - Browser-load session UI reliability
 - Public read-only session shares

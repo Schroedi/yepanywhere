@@ -55,6 +55,18 @@ export {
   type PostCompactReplayPrompt,
   type PostCompactReplayTurn,
 } from "./postCompactReplay.js";
+export {
+  DEFAULT_LONG_CONTEXT_EFFORT_WARNING_SETTINGS,
+  DEFAULT_LONG_CONTEXT_EFFORT_WARNING_TOKENS,
+  LONG_CONTEXT_EFFORT_WARNING_SLIDER_MAX_TOKENS,
+  LONG_CONTEXT_EFFORT_WARNING_SLIDER_STEP_TOKENS,
+  effortChangeKeepsPromptCache,
+  effortOfThinkingOption,
+  parseLongContextEffortWarningSettings,
+  shouldWarnLongContextEffortChange,
+  type LongContextEffortChangeQuery,
+  type LongContextEffortWarningSettings,
+} from "./long-context-effort-warning.js";
 
 export {
   EFFORT_LEVEL_ORDER,

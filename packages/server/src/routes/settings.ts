@@ -36,6 +36,7 @@ import {
   normalizeIdleReapHours,
   parseClaudeAdditionalModelSelections,
   parseClaudeSteerBackgroundBashSettings,
+  parseLongContextEffortWarningSettings,
   parsePostCompactReplaySettings,
   parseSpeechVoiceBackends,
 } from "@yep-anywhere/shared";
@@ -932,6 +933,22 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
           );
         }
         updates.postCompactReplay = parsedReplay;
+      }
+
+      if ("longContextEffortWarning" in body) {
+        const parsedWarning = parseLongContextEffortWarningSettings(
+          body.longContextEffortWarning,
+        );
+        if (parsedWarning === null) {
+          return c.json(
+            {
+              error:
+                "longContextEffortWarning must use known provider checkboxes and a non-negative integer thresholdTokens",
+            },
+            400,
+          );
+        }
+        updates.longContextEffortWarning = parsedWarning;
       }
 
       if ("promptCacheKeepalive" in body) {

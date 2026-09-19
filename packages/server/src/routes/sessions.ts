@@ -20,6 +20,8 @@ import {
   type UserMessageMetadata,
   type UrlProjectId,
   type WorkstreamId,
+  type EffortLevel,
+  EFFORT_LEVEL_ORDER,
   GOAL_COMMAND_NAME,
   SESSION_UNREAD_TIMESTAMP,
   agentHarness,
@@ -208,6 +210,14 @@ function effectiveModelSettingsFromMetadata(
     thinking: settings.thinking,
     effort: settings.effort,
   };
+}
+
+/** A fork body's optional launch thinking: `off`, `auto`, or `on:<level>`. */
+function isForkThinkingOption(value: unknown): value is ThinkingOption {
+  if (typeof value !== "string") return false;
+  if (value === "off" || value === "auto") return true;
+  const level = value.startsWith("on:") ? value.slice(3) : value;
+  return EFFORT_LEVEL_ORDER.includes(level as EffortLevel);
 }
 
 function permissionModeError(mode: unknown): string | undefined {
@@ -6459,6 +6469,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       forkKind?: unknown;
       sourceMessageId?: unknown;
       upToMessageId?: unknown;
+      thinking?: unknown;
     } = {};
     try {
       const parsed = await c.req.json<unknown>();
@@ -6468,6 +6479,16 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       body = parsed as typeof body;
     } catch {
       // Body is optional; full-transcript fork.
+    }
+    let forkThinking: ThinkingOption | undefined;
+    if (body.thinking !== undefined) {
+      if (!isForkThinkingOption(body.thinking)) {
+        return c.json(
+          { error: "thinking must be off, auto, or on:<effort level>" },
+          400,
+        );
+      }
+      forkThinking = body.thinking;
     }
     const hasIntentFields =
       body.forkKind !== undefined || body.sourceMessageId !== undefined;
@@ -6699,6 +6720,27 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           originalMetadata?.workingProjectId ?? (projectId as UrlProjectId),
       },
     );
+    if (deps.sessionMetadataService && forkThinking !== undefined) {
+      // A fork asked to start at a different effort (the long-context
+      // effort-change warning's "fork instead" path) records that choice as
+      // the fork's launch settings, so its first send and every later
+      // server-side turn use it rather than the browser's per-model default.
+      // See topics/mid-session-effort-change.md.
+      const sourceLaunch = originalMetadata?.effectiveLaunchSettings;
+      const { thinking, effort } = buildThinkingOptions({
+        thinking: forkThinking,
+      });
+      await deps.sessionMetadataService.recordEffectiveLaunchSettings(
+        fork.sessionId,
+        {
+          permissionMode: sourceLaunch?.permissionMode ?? "default",
+          requestedModel: inheritedModel ?? null,
+          serviceTier: sourceLaunch?.serviceTier ?? null,
+          thinking: thinking ?? null,
+          effort: effort ?? null,
+        },
+      );
+    }
     if (deps.sessionMetadataService) {
       await deps.sessionMetadataService.updateMetadata(fork.sessionId, {
         title: forkTitle,

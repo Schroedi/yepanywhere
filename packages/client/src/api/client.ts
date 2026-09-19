@@ -48,6 +48,7 @@ import type {
   PromptSuggestionMode,
   PromptCacheKeepaliveSettings,
   PostCompactReplaySettings,
+  LongContextEffortWarningSettings,
   ProviderInfo,
   ProviderChildSessionSummary,
   ProviderName,
@@ -900,6 +901,8 @@ export const api = {
       | { upToMessageId?: string }
       | {
           forkKind: "clone-latest-complete";
+          /** Launch thinking/effort for the fork instead of the source's. */
+          thinking?: ThinkingOption;
         }
       | {
           forkKind: "before-user-turn" | "after-user-turn";
@@ -1848,6 +1851,11 @@ export interface ServerSettings {
    * Absent on older servers; default off.
    */
   postCompactReplay?: PostCompactReplaySettings;
+  /**
+   * Warn before a mid-session effort change on a long-context session and
+   * offer a fork instead. Absent on older servers, which then never warn.
+   */
+  longContextEffortWarning?: LongContextEffortWarningSettings;
   /** Usage-accounting monitor for suspected prompt-cache billing misses */
   cacheMissBilling?: CacheMissBillingSettings;
   /** Browser-client defaults used when local storage has no explicit value */

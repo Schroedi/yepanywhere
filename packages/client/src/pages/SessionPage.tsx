@@ -11,6 +11,7 @@ import type {
   ProjectQueueStagedAttachments,
   SlashCommand,
   ThinkingMode,
+  ThinkingOption,
   TranscriptDisplayObject,
   UploadedFile,
   UserQuestionAnswers,
@@ -139,6 +140,11 @@ import { recordSessionVisit } from "../hooks/useRecentSessions";
 import { recordSessionInteraction } from "../lib/sessionInteractionOrder";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { useServerSettings } from "../hooks/useServerSettings";
+import {
+  forkSessionAtEffort,
+  useLongContextEffortGuard,
+} from "../hooks/useLongContextEffortGuard";
+import { LongContextEffortWarningModal } from "../components/LongContextEffortWarningModal";
 import { useSessionLoadingProgress } from "../hooks/useSessionLoadingProgress";
 import type { SessionLoadProgress } from "../hooks/useSessionMessages";
 import { useSessionPerformanceSettings } from "../hooks/useSessionPerformanceSettings";
@@ -1318,6 +1324,44 @@ function SessionPageContent({
     status.owner === "external" ||
     processState === "in-turn" ||
     processState === "waiting-input";
+  const forkAtEffort = useCallback(
+    async (thinking: ThinkingOption) => {
+      try {
+        const result = await forkSessionAtEffort(
+          projectId,
+          actualSessionId,
+          thinking,
+        );
+        showToast(t("forkFromTurnStarted"), "success");
+        navigate(
+          `${basePath}/projects/${projectId}/sessions/${result.sessionId}`,
+        );
+      } catch (error) {
+        showToast(
+          t("longContextEffortWarningForkFailed", {
+            message: error instanceof Error ? error.message : String(error),
+          }),
+          "error",
+        );
+      }
+    },
+    [actualSessionId, basePath, navigate, projectId, showToast, t],
+  );
+  const {
+    guardEffortChange,
+    warning: longContextEffortWarning,
+    choose: chooseLongContextEffortWarning,
+  } = useLongContextEffortGuard({
+    provider: effectiveProvider,
+    providerInfo: currentProviderInfo,
+    model: effectiveModelConfig?.requestedModel ?? effectiveModelConfig?.model,
+    contextTokens: session?.contextUsage?.inputTokens,
+    settings: serverSettings?.longContextEffortWarning,
+    canFork: supportsForkFromTurn && !forkAfterDisabled,
+    forkWithThinking: forkAtEffort,
+    translateEffort: t,
+    noEffortLabel: t("longContextEffortWarningNoEffort"),
+  });
   const submitForkAfterSummary = useCallback(
     async (sourceMessageId: string, instructions: string) => {
       const requestSessionId = actualSessionId;
@@ -3899,9 +3943,20 @@ function SessionPageContent({
       if (status.owner !== "self" || !currentOwnedProcessId) {
         return;
       }
+      const nextThinking = thinkingOptionFromSelection(mode, effortLevel);
+      const verdict = await guardEffortChange(
+        nextThinking,
+        liveThinkingSelection
+          ? thinkingOptionFromSelection(
+              liveThinkingSelection.mode,
+              liveThinkingSelection.effortLevel,
+            )
+          : undefined,
+      );
+      if (verdict === "skip") return;
       try {
         const result = await api.setProcessConfig(currentOwnedProcessId, {
-          thinking: thinkingOptionFromSelection(mode, effortLevel),
+          thinking: nextThinking,
           showThinking: getShowThinkingSetting(),
         });
         setLiveModelConfigSnapshot((current) => {
@@ -3939,6 +3994,8 @@ function SessionPageContent({
     },
     [
       currentOwnedProcessId,
+      guardEffortChange,
+      liveThinkingSelection,
       reconnectStream,
       showToast,
       status.owner,
@@ -6136,6 +6193,18 @@ function SessionPageContent({
           />
         )}
 
+        {longContextEffortWarning && (
+          <LongContextEffortWarningModal
+            provider={longContextEffortWarning.provider}
+            contextTokens={longContextEffortWarning.contextTokens}
+            currentEffortLabel={longContextEffortWarning.currentEffortLabel}
+            nextEffortLabel={longContextEffortWarning.nextEffortLabel}
+            canFork={longContextEffortWarning.canFork}
+            busy={longContextEffortWarning.busy}
+            onChoose={(choice) => void chooseLongContextEffortWarning(choice)}
+          />
+        )}
+
         {/* Model Switch Modal */}
         {showModelSwitchModal && (
           <ModelSwitchModal
@@ -6144,6 +6213,7 @@ function SessionPageContent({
             currentModel={session?.model}
             sessionProvider={effectiveProvider}
             onModelChanged={handleModelChanged}
+            guardEffortChange={guardEffortChange}
             initialTab={modelPanelInitialTab}
             infoPane={
               session ? (

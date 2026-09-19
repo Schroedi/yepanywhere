@@ -24,6 +24,7 @@ import type {
   HelperTargetConfig,
   HostIdentity,
   HostAwakeMode,
+  LongContextEffortWarningSettings,
   NewSessionDefaults,
   PostCompactReplaySettings,
   PromptCacheKeepaliveSettings,
@@ -56,8 +57,10 @@ import {
   parseClaudeAdditionalModelSelections,
   parseClaudeSteerBackgroundBashSettings,
   parseGatewayServices,
+  parseLongContextEffortWarningSettings,
   parsePostCompactReplaySettings,
   parseSpeechVoiceBackends,
+  DEFAULT_LONG_CONTEXT_EFFORT_WARNING_SETTINGS,
   DEFAULT_POST_COMPACT_REPLAY_SETTINGS,
 } from "@yep-anywhere/shared";
 import { reconcileGatewaySettings } from "./gatewayServiceSettings.js";
@@ -244,6 +247,11 @@ export interface ServerSettings {
    * their own compact summary.
    */
   postCompactReplay?: PostCompactReplaySettings;
+  /**
+   * Warn before a mid-session effort change on a long-context session and
+   * offer a fork instead. Per-provider; default on for Claude and Codex.
+   */
+  longContextEffortWarning?: LongContextEffortWarningSettings;
   /** Usage-accounting monitor for suspected prompt-cache billing misses. */
   cacheMissBilling?: CacheMissBillingSettings;
   /** Whether lifecycle webhook delivery is enabled */
@@ -363,6 +371,7 @@ export const DEFAULT_SERVER_SETTINGS: ServerSettings = {
   projectQueueQuietSeconds: DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
   clearloopInactivitySeconds: DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
   postCompactReplay: DEFAULT_POST_COMPACT_REPLAY_SETTINGS,
+  longContextEffortWarning: DEFAULT_LONG_CONTEXT_EFFORT_WARNING_SETTINGS,
 };
 
 const TOOLBAR_PRESENCE_TIERS = new Set(["pin", "last", "mid", "first"]);
@@ -626,6 +635,9 @@ function normalizeLoadedSettings(settings: ServerSettings): ServerSettings {
   normalized.postCompactReplay =
     parsePostCompactReplaySettings(settings.postCompactReplay) ??
     DEFAULT_POST_COMPACT_REPLAY_SETTINGS;
+  normalized.longContextEffortWarning =
+    parseLongContextEffortWarningSettings(settings.longContextEffortWarning) ??
+    DEFAULT_LONG_CONTEXT_EFFORT_WARNING_SETTINGS;
   return normalized;
 }
 

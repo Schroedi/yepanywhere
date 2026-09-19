@@ -401,3 +401,5 @@
   local transport and Codex/Sky execution reference findings.
 - multi-machine-architecture - Discussion map for execution ownership,
   deployment, grants, machine control, delegation and session migration.
+- mid-session-effort-change - Long-context warning before a mid-session
+  effort change, per-provider threshold setting, fork at the new effort.

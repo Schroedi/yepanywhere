@@ -2407,6 +2407,50 @@ describe("Settings Routes", () => {
       expect(mockServerSettingsService.updateSettings).not.toHaveBeenCalled();
     });
 
+    it("persists long-context effort warning settings", async () => {
+      const routes = createSettingsRoutes({
+        serverSettingsService: mockServerSettingsService,
+      });
+
+      const response = await routes.request("/", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          longContextEffortWarning: {
+            providers: { claude: true, codex: false },
+            thresholdTokens: 750000,
+          },
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(mockServerSettingsService.updateSettings).toHaveBeenCalledWith({
+        longContextEffortWarning: {
+          providers: { claude: true },
+          thresholdTokens: 750000,
+        },
+      });
+    });
+
+    it("rejects invalid long-context effort warning settings", async () => {
+      const routes = createSettingsRoutes({
+        serverSettingsService: mockServerSettingsService,
+      });
+
+      const response = await routes.request("/", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          longContextEffortWarning: { thresholdTokens: -5 },
+        }),
+      });
+
+      expect(response.status).toBe(400);
+      const json = await response.json();
+      expect(json.error).toContain("longContextEffortWarning must use");
+      expect(mockServerSettingsService.updateSettings).not.toHaveBeenCalled();
+    });
+
     it("rejects invalid prompt-cache keepalive settings", async () => {
       const routes = createSettingsRoutes({
         serverSettingsService: mockServerSettingsService,
