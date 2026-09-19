@@ -163,7 +163,11 @@ default, maximum 100). It loads source summaries only for the returned page and
 returns one initial mention per session. Mentions sort by source-message time,
 then occurrence ID; unknown source times follow dated mentions in occurrence
 order. Expand loads further mentions through session-filtered
-`GET /api/issues/evidence`, in bounded pages. Collapsing preserves loaded mentions.
+`GET /api/issues/evidence`, in bounded pages. Collapsing preserves loaded mentions,
+and so does a refresh: a confirm, dismiss, title save, or the Refresh button
+reloads the rows in place, leaving every row expanded over the mentions it has
+already loaded, with the initial mention replaced by the reloaded one. Only
+choosing a different issue empties the pane back to its loading state.
 Dismissed evidence stays hidden unless the filter includes it. Unavailable source
 sessions keep historical excerpts but have no navigation or preview request.
 Selections, expansions and asynchronous responses belong to the selected source;
