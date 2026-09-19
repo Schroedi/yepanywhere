@@ -4367,10 +4367,10 @@ function SessionPageContent({
         showToast(t("rewindUnavailable"), "error");
         return true;
       }
-      const { idByIndex, clearedIds, lastIndex } = sessionTurnIndex;
+      const { idByIndex, clearedIds, lastLiveIndex } = sessionTurnIndex;
       const turnMissing = (index: number) => {
         showToast(
-          lastIndex === 0
+          lastLiveIndex === 0
             ? t("rewindNoTurns")
             : t("rewindTurnNotFound", { index: String(index) }),
           "error",
@@ -4404,7 +4404,10 @@ function SessionPageContent({
           restoreDraft();
           return true;
         }
-        const index = parsed.turnIndex ?? lastIndex;
+        // No N means "loop from here": the last turn still in the
+        // conversation, which is the N its own Clear-after entry offers. A
+        // dropped turn holds a higher ordinal and is not a rewind target.
+        const index = parsed.turnIndex ?? lastLiveIndex;
         const sourceMessageId = resolveTurn(index);
         if (!sourceMessageId) return true;
         recordCommandRecall(commandText);

@@ -85,10 +85,14 @@ fails visibly with the draft retained (never falls through as prompt text).
 - **`/clearloop [N] M: <prompt>`** — repeat: rewind to *after turn N*, send
   `<prompt>`, wait for the iteration to end, M times. The colon after `M` is
   required and separates the counts from the prompt, which is taken
-  verbatim (leading whitespace trimmed). When `N` is omitted, `N` is the
-  current last turn index, so the first rewind is a no-op and
-  `/clear N` followed by `/clearloop M: p` is equivalent to
-  `/clearloop N M: p`. `M ≥ 1`.
+  verbatim (leading whitespace trimmed). When `N` is omitted, `N` is the last
+  turn still in the conversation — the index that turn's own **Clear after
+  this turn** offers, not a higher ordinal held by an already-dropped turn —
+  so the first rewind is a no-op and `/clear N` followed by
+  `/clearloop M: p` is equivalent to `/clearloop N M: p`. That no-op first
+  rewind may or may not leave a group header; it has nothing to expand
+  either way. A session with no live turn has no "here" to loop from and
+  reports that instead. `M ≥ 1`.
 
 **Native `/clear` is deliberately shadowed.** The
 [emulated-slash-commands](emulated-slash-commands.md) rule that a

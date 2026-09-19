@@ -36,8 +36,15 @@ export interface SessionTurnIndex {
   indexById: Map<string, number>;
   /** Turns currently inside a cleared span (not valid `/clear` targets). */
   clearedIds: Set<string>;
-  /** Highest index known to this client. */
+  /** Highest index known to this client, cleared turns included. */
   lastIndex: number;
+  /**
+   * Highest index still in the live conversation — the turn a command that
+   * omits `N` means by "here". A rewound session's dropped turns keep higher
+   * ordinals than the cut, so `lastIndex` names a turn no longer in the
+   * conversation; 0 when nothing live remains.
+   */
+  lastLiveIndex: number;
 }
 
 /**
@@ -54,6 +61,7 @@ export function getSessionTurnIndex(
   const indexById = new Map<string, number>();
   const clearedIds = new Set<string>();
   let lastIndex = 0;
+  let lastLiveIndex = 0;
   for (const message of messages) {
     const extras = message as {
       isSubagent?: unknown;
@@ -76,6 +84,7 @@ export function getSessionTurnIndex(
     idByIndex.set(index, id);
     indexById.set(id, index);
     if (typeof extras.rewoundGroupId === "string") clearedIds.add(id);
+    else lastLiveIndex = Math.max(lastLiveIndex, index);
   }
-  return { idByIndex, indexById, clearedIds, lastIndex };
+  return { idByIndex, indexById, clearedIds, lastIndex, lastLiveIndex };
 }
