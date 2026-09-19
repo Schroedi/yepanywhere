@@ -98,7 +98,7 @@ user may do:
 | Projects list, project pages | only owned or member projects; others 404, not 403 |
 | New Project | only from a template ([[project-templates]]), into a parent directory the superuser configured for that user; the created project is owned by them |
 | Add existing directory | refused |
-| Sessions in a member project | create, message, approve, fork, rewind; sandbox forced on |
+| Sessions in a member project | create, message, approve, fork, rewind; sandbox forced on; provider/model/effort within the user's lock (below) |
 | Sessions elsewhere | 404 |
 | Files, source control, git status | within member projects only; the same sandbox roots the session sees |
 | Server-wide settings | read where harmless, write refused |
@@ -119,6 +119,30 @@ list (add by username, remove), and later a viewers list. Editor means
 start sandboxed sessions and everything in the table above. Viewer, later:
 see sessions and transcripts, open the project's app, but no turns, no new
 sessions, no files outside what the transcript shows.
+
+**Provider lock.** The superuser may pin a limited user to a provider, a
+provider plus model, or provider plus model plus effort; any subset is
+representable, but those three are the expected shapes. Stored on the user
+record as `lock: { provider?, model?, effort? }`. Semantics:
+
+- **New sessions** the user creates take the locked values, and the New
+  Session form shows those fields fixed rather than offering a choice. A
+  locked value beats [[session-defaults]] and any per-project default.
+- **Existing sessions.** By default a limited user may send turns only to
+  sessions whose current provider, model, and effort all fall within the
+  lock; a session outside it is visible in member projects but read-only for
+  that user, with the reason shown. The superuser may relax this per user
+  (`lock.existingSessions: "any"`), which keeps the lock for creation only.
+- **Mid-session changes** ([[mid-session-effort-change]], model switches)
+  are refused for a locked field.
+- The lock bounds what the user can spend and which provider account they
+  reach; it is enforced server-side at session create and message routes,
+  never only hidden in the form.
+
+The check reuses the same provider, model, and effort identifiers the
+session-create route already validates, so a lock names only values the
+server could launch. An unlaunchable locked value blocks the user's session
+creation with a clear message rather than silently falling back.
 
 ## Execution boundary
 
@@ -163,7 +187,8 @@ rather than decided here.
    useful as a landing for tests. ‖
 2. **Project access.** `project-access.json`, owner and editors, route-family
    checks from the table, members UI, 404 scoping of lists and pages,
-   forced sandbox, bang-command refusal or confinement. ‖
+   forced sandbox, bang-command refusal or confinement, provider lock at
+   create and message routes. ‖
 3. **Relay.** Compound `server-username` claims, per-user SRP verifiers,
    hosted-client login with a username, pairing flow update
    ([[mobile-server-pairing]]). ‖
