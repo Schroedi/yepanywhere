@@ -9,11 +9,11 @@
 
 import { type RefObject, useEffect } from "react";
 import { RENDER_MODE_GLYPH_MARKUP } from "../components/ui/RenderModeGlyph";
-import { resolveAppearance } from "../lib/codeFence/mermaidRenderer";
 import {
   type CodeFenceRenderer,
   getCodeFenceRenderer,
 } from "../lib/codeFence/renderers";
+import { getResolvedTheme } from "./useTheme";
 import styles from "./useCodeFenceRenderers.module.css";
 
 /**
@@ -159,7 +159,7 @@ async function renderBlock(
     return;
   }
 
-  const key = cacheKey(renderer, source, resolveAppearance(pre.ownerDocument));
+  const key = cacheKey(renderer, source, getResolvedTheme());
   const block = pre.closest(`[${BLOCK}]`);
   if (block instanceof HTMLElement && block.dataset.yaRenderKey === key) {
     return;

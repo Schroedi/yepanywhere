@@ -138,6 +138,12 @@ with the new palette instead of reusing stale SVG; the hook watches
 hold rendered SVG, so the cache is bounded and evicts the oldest rather than
 growing for the life of the tab.
 
+That appearance has one owner, `getResolvedTheme` in `hooks/useTheme.ts`, which
+is the same answer every other client surface asks for: the stored preference,
+with `auto` following the OS and `verydark` resolving to dark. The cache key and
+Mermaid's own theme configuration both read it, so a diagram cannot be drawn in
+one appearance and then cached under another.
+
 ### Inline SVG from a reviewed renderer is allowed
 
 Mermaid's SVG is displayed inline as ordinary reviewed-renderer output. No new
