@@ -3,10 +3,12 @@
 Topic: simple-client-api
 
 Status: The offline TypeScript/Kotlin contract, shared compiler, bounded live
-Conversation API, and first multi-server web preview are implemented. The web
-preview is deliberate-entry only; Android UI, indexed history acquisition,
-representative cost measurements, and stable-contract promotion remain ahead.
-Partial-message token assembly and iOS are deferred.
+Conversation API, the multi-server web preview and the first Android Compose
+preview screen are implemented. The web preview is deliberate-entry only and the
+Compose screen opens from the existing multi-host home; indexed history
+acquisition, the SourceOverview operation review, representative cost
+measurements, and stable-contract promotion remain ahead. Partial-message token
+assembly and iOS are deferred.
 
 ## Purpose and first consumers
 
@@ -293,9 +295,10 @@ The TypeScript and Kotlin binding helpers reject duplicate/out-of-order frames,
 old subscription IDs, closed bindings and mismatched client-owned source IDs.
 Android's one-shot consumer uses the existing foreground connection lease and
 generated decoder. It does not alter native subscription replay semantics.
-Neither a web preview page nor a Compose preview screen is mounted yet. Live
-native subscription/reconnect integration, raw token assembly, provider-indexed
-tail acquisition, and real provider-loop identity continuity remain follow-ups.
+At that checkpoint neither a web preview page nor a Compose preview screen was
+mounted, and live native subscription/reconnect integration, raw token assembly,
+provider-indexed tail acquisition, and real provider-loop identity continuity
+were open follow-ups. Both previews are recorded in the sections below.
 
 ## Transport bindings
 

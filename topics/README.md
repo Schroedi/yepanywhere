@@ -94,7 +94,8 @@
   coordination rules, tripwire matrix, and verification tiers for the
   large-file extraction campaign)
 - Portable transcript compiler (stable server ingest, bounded window + prefix
-  facts, and shared semantic projection for web/Android/iOS native renderers)
+  facts, and shared semantic projection for web and Android native renderers,
+  with iOS following later)
 - [Simple Client API](simple-client-api.md) (server-owned typed summaries and
   Conversation views; multi-server web demo with early Compose consumption and
   TypeScript/Kotlin schema conformance and a capture-tested server producer;

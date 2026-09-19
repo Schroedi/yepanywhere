@@ -396,7 +396,7 @@
 - optional-sqlite - Built-in SQLite discovery storage: runtime adapters, data
   directory placement, and the transaction cost callers must respect.
 - simple-client-api - Experimental typed server views with a multi-server web
-  demo and early Kotlin/Compose and Swift/SwiftUI consumers.
+  demo and an early Kotlin/Compose consumer; iOS deferred.
 - optional-computer-control - On-demand session-scoped native control,
   local transport and Codex/Sky execution reference findings.
 - multi-machine-architecture - Discussion map for execution ownership,
