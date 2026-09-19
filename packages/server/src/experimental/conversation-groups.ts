@@ -88,8 +88,10 @@ function append(target: Group, content: Content): void {
   // Reserve the last row for an honest omission notice. Never silently discard
   // a late failure after the content-count ceiling is reached.
   if (target.message.content.length >= MAX_MESSAGE_CONTENT_ITEMS - 1) {
+    // A row ceiling is not byte pressure: the message reports `truncated` and
+    // carries the omission notice, and coverage stays honest without claiming
+    // a payload limit the request never approached.
     target.dropped = true;
-    target.byteLimited = true;
     target.droppedFailure ||= content.kind === "failure";
     target.message.truncated = true;
     return;
@@ -344,7 +346,9 @@ export function groupConversation(
     const blockIndex =
       item.type === "tool_call" && Array.isArray(sourceContent)
         ? sourceContent.findIndex((block) => block.id === item.id)
-        : Number(item.id.slice(getMessageId(source).length + 1)) || 0;
+        : item.type === "text" || item.type === "thinking"
+          ? (item.sourceBlockIndex ?? 0)
+          : 0;
     while (
       extras[extraIndex] &&
       (extras[extraIndex]!.position < position ||

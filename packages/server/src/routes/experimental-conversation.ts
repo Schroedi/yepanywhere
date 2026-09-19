@@ -2,6 +2,12 @@ import { Hono } from "hono";
 import { parseConversationBinding } from "@yep-anywhere/shared/experimental/conversation-protocol";
 import type { ConversationSubscriptions } from "../experimental/conversation-subscriptions.js";
 
+/**
+ * A one-shot read waits for the first publication. A source that opens but
+ * never publishes must not hold the request open until the client gives up.
+ */
+export const CONVERSATION_SNAPSHOT_DEADLINE_MS = 30_000;
+
 /** Existing app auth also protects these explicitly experimental routes. */
 export function createExperimentalConversationRoutes(
   subscriptions: ConversationSubscriptions,
@@ -31,9 +37,11 @@ export function createExperimentalConversationRoutes(
       return new Promise<Response>((resolve) => {
         let release: (() => void) | undefined;
         let finished = false;
+        let deadline: ReturnType<typeof setTimeout> | undefined;
         const finish = (response: Response) => {
           if (finished) return;
           finished = true;
+          if (deadline !== undefined) clearTimeout(deadline);
           signal.removeEventListener("abort", abort);
           resolve(response);
           queueMicrotask(() => release?.());
@@ -44,6 +52,10 @@ export function createExperimentalConversationRoutes(
           abort();
           return;
         }
+        deadline = setTimeout(
+          () => finish(new Response(null, { status: 503 })),
+          CONVERSATION_SNAPSHOT_DEADLINE_MS,
+        );
         try {
           release = subscriptions.subscribe(
             parsed.query,

@@ -194,13 +194,21 @@ Observable projection rules:
   remain opaque; this read-only revision never enables an action. More than 16
   requests or 32 KiB of request models returns `unavailable`, rather than hiding
   a pending decision to make the snapshot fit.
-- Content-count/text limits mark affected messages truncated. If the complete
+- Content-count/text limits mark affected messages truncated. A message that
+  reaches the 64-row content ceiling keeps its omission notice and its
+  `truncated` flag, and coverage reports incompleteness without `bytes`: a row
+  ceiling is not byte pressure, and a short reply with many rows must not tell
+  a client the payload budget was reached. Text and failure-message length
+  limits do report `bytes`. If the complete
   encoded snapshot exceeds 256 KiB, older selected rows are omitted first while
   retaining the requested newest anchor. An individually oversized remaining
   message becomes a visible omission notice that explicitly mentions omitted
   failures when present. Coverage records the byte limit and incompleteness.
   `serializeConversationSnapshot` restores the original kinds of opaque content
   and pending requests before validating the actual wire representation.
+- Block order inside one source message comes from the compiler's
+  `sourceBlockIndex`, not from parsing a composed row identifier, so merged
+  unsupported blocks keep their position if the identifier format changes.
 
 The Claude/Codex fixtures are now exact native-input producer outputs consumed
 by TypeScript and Kotlin tests. Adapter replay also verifies grouped identities,
@@ -271,7 +279,10 @@ no alternate authentication or provider transcript store is introduced.
   server teardown emits `closed`; SSE closes its body. HTTP one-shot demand,
   request abort, SSE cancellation, WebSocket unsubscribe and app shutdown all
   release ownership. A slow SSE reader retains at most one queued frame and one
-  pending replacement, so it can skip intermediate sequence values.
+  pending replacement, so it can skip intermediate sequence values. A one-shot
+  read that receives no snapshot within 30 seconds answers 503 and releases its
+  demand, so a source that opens but never publishes cannot hold the request
+  open until the client gives up.
 - Native acquisition resolves an unambiguous session through the retained
   catalog and reuses the existing Claude active-branch and Codex normalizers.
   Before parsing it caps the file at 8 MiB, individual records at 1 MiB and the
@@ -285,7 +296,10 @@ no alternate authentication or provider transcript store is introduced.
   memory. Raw token frames and provisional `_isStreaming` frames are not yet
   assembled. A working managed session does not reread disk for provider
   events; idle reconciliation refreshes durable evidence. Unknown approvals
-  remain opaque read-only rows. Unmanaged activity is `unknown`.
+  remain opaque read-only rows. Unmanaged activity is `unknown`. A live record
+  the source cannot keep — no stable identity, or over its memory budget —
+  makes reads fail only until the next durable reconciliation succeeds; the
+  refusal is not permanent for the lifetime of the lease.
 - Existing focused file watches are shared with the full client and released
   with source demand. Native history is not polled by a new permanent loop.
   Activity/file observation can retry an unavailable source; absence of new

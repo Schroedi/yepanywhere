@@ -601,6 +601,7 @@ function processMessage(
         type: "text",
         id: msgId,
         text: content,
+        sourceBlockIndex: 0,
         sourceMessages: [msg],
         isSubagent: msg.isSubagent,
         augmentHtml: messageHtml ?? augments?.markdown?.[msgId]?.html,
@@ -679,6 +680,7 @@ function processMessage(
           type: "text",
           id: blockId,
           text: block.text,
+          sourceBlockIndex: i,
           sourceMessages: [msg],
           isSubagent: msg.isSubagent,
           // Only show streaming cursor on the last text block
@@ -695,6 +697,7 @@ function processMessage(
           type: "thinking",
           id: blockId,
           thinking,
+          sourceBlockIndex: i,
           signature: undefined,
           status: msg._isStreaming ? "streaming" : "complete",
           sourceMessages: [msg],
