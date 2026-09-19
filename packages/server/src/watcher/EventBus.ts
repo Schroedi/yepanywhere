@@ -210,6 +210,11 @@ export interface SessionMetadataChangedEvent {
   clearloop?: SessionClearloopBadge | null;
   /** A same-session rewind just recorded; viewers apply it in place. */
   rewindRecord?: SessionRewindRecord;
+  /**
+   * A rewind record deleted because the provider refused to apply it; the
+   * rows it grouped are live again and viewers reload the transcript.
+   */
+  rewindRecordRemoved?: string;
   /** Updated heartbeat opt-in flag (if changed) */
   heartbeatTurnsEnabled?: boolean;
   /** Updated per-session heartbeat interval override (if changed) */
@@ -236,6 +241,13 @@ export interface SessionAbortedEvent {
   type: "session-aborted";
   sessionId: string;
   projectId: UrlProjectId;
+  /**
+   * `idle-reap` when the supervisor tore down an idle process for want of
+   * viewers; absent for a requested abort. A quiet session waiting out a
+   * `/clearloop` inactivity window is reaped like any other and is not
+   * thereby stopped.
+   */
+  reason?: "idle-reap";
   timestamp: string;
 }
 

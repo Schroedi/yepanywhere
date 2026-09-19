@@ -4372,7 +4372,14 @@ function SessionPageContent({
   useEffect(
     () =>
       activityBus.on("session-metadata-changed", (data) => {
-        if (data.sessionId !== actualSessionId || !data.rewindRecord) return;
+        if (data.sessionId !== actualSessionId) return;
+        // A refused rewind deletes its record; the grouped rows are live
+        // again and only the server projection knows the result.
+        if (data.rewindRecordRemoved) {
+          reloadSession();
+          return;
+        }
+        if (!data.rewindRecord) return;
         if (!applyRewindLocally(data.rewindRecord)) reloadSession();
       }),
     [actualSessionId, applyRewindLocally, reloadSession],

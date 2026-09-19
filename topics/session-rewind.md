@@ -9,12 +9,18 @@ Topic: session-rewind
 
 Status: implemented 2026-09-18 for Claude (`/clear N`, `/fork N`, the
 turn-menu Clear entries, rewound groups in the main session view, and
-`/clearloop` with the inactivity boundary). Known limits of this first
-landing: a Claude drop-guard refusal at resume time is reported by the
-resume error rather than automatically deleting its rewind record, the
-sidebar does not nest rewound groups, and `/clear 0` starts a new session
-rather than rewinding in place. Codex follows
-once `thread/revert` is in YA's generated protocol (see
+`/clearloop` with the inactivity boundary). Hardened 2026-09-19: the pending
+rewind is consumed at the supervisor's process-launch seam rather than by the
+`/resume` route, a drop-guard refusal deletes its record, forks and clones of
+a session with an armed rewind keep the cut, cached client transcripts
+reload across a rewind, an idle reap no longer ends a clearloop, and the tail
+window counts live turns. Known limits: the sidebar does not nest rewound
+groups, `/clear 0` starts a new session rather than rewinding in place, and
+secondary readers (catalog previews, search, counts) still project without
+records until the next turn
+([gaps/rewind-records-ignored-by-secondary-readers.md](../gaps/rewind-records-ignored-by-secondary-readers.md)).
+Codex: `thread/revert` is in YA's generated protocol as of 2026-09-19, so the
+Codex rewind is unblocked follow-on work (see § Defaults and compatibility and
 [gaps/fork-is-the-only-rewind-and-changes-the-cache-key.md](../gaps/fork-is-the-only-rewind-and-changes-the-cache-key.md)
 for the provider primitives and the cache measurements that motivated this).
 
@@ -140,21 +146,52 @@ server-side), then:
    display object: never model context, survives restart and device change.
 3. Stops the live process, if any, and arms the record as the session's
    **pending rewind**. Claude's truncation is a resume option, so the rewind
-   takes effect on the next send: the resume path (`POST …/resume`, and the
-   `/clearloop` sender) passes `resumeSessionAt = cutMessageId` and clears
-   the pending rewind once the process starts. When exactly one turn is
-   dropped, `resumeDropsTurn` names that turn's prompt UUID so the CLI
-   refuses if the discarded range holds anything the user's view had not
+   takes effect when the next process for the session launches, whichever
+   path launches it: the `/resume` route, the `/clearloop` sender, Project
+   Queue dispatch, a heartbeat or wake turn, reactivate, or a settings
+   restart. The supervisor resolves the truncation at that one seam
+   (`resolveResumeTruncation`): a pending rewind passes
+   `resumeSessionAt = cutMessageId` and wins over any caller-supplied
+   truncation (the API-error tail cut), and the record stops being pending
+   once the process has started. A route never consumes it itself, so no
+   launch path can replay a tail the view shows as dropped. When exactly one
+   turn is dropped, `resumeDropsTurn` names that turn's prompt UUID so the
+   CLI refuses if the discarded range holds anything the user's view had not
    seen (an absorbed queued message, a task notification). The SDK validates
    only a single declared turn, so a multi-turn drop passes no
-   `resumeDropsTurn`. A refusal is deterministic and must not be retried.
+   `resumeDropsTurn`. A refusal is deterministic and is never retried: it
+   arrives as an `error_during_execution` result whose text starts with
+   `Resume rejected by --resume-drops-turn:`; the supervisor deletes that
+   rewind record, emits the metadata event with `rewindRecordRemoved`, every
+   open view reloads the transcript (the grouped rows are live again), a
+   running clearloop ends as `interrupted`, and the next send resumes the
+   full chain.
 4. Returns the record (`null` when the cut was already the tail, a no-op)
    and whether a process was stopped. The session metadata event carries
    the record (`rewindRecord`); every open view of the session applies it
    to its loaded transcript in place (rows after the cut join the group
    behind the synthetic header), and refetches only when the cut lies
    outside its loaded window. The tab that issued the rewind applies it
-   from the response before the event arrives.
+   from the response before the event arrives. The detail response carries
+   `rewindRecordIds`, the ids of the records its projection applied; a tab
+   returning to the session with a cached transcript compares them and
+   reloads whole when they differ, since an incremental catch-up can only
+   append rows, never regroup older ones.
+
+**Forks and clones.** The SDK fork copies file lines positionally and
+remaps every uuid, so rewind records cannot travel with a fork. A fork or
+clone whose slice point is at or before a cut excludes the dropped rows
+outright; one sliced at a later live turn carries them as a dead branch the
+reader hides. A full copy taken while a rewind is still pending (no turn yet
+written past the cut) is sliced at the cut, so the child is exactly the kept
+prefix rather than a session whose tip is the dropped tail. The legacy
+`/clone` route copies the transcript verbatim with its uuids, so it copies
+`rewindRecords` and any pending rewind to the child instead.
+
+**Idle reaps are not stops.** An idle reap tears down a quiet process for
+want of viewers and reports `session-aborted` with `reason: "idle-reap"`;
+a clearloop waiting out its inactivity window ignores it and its next send
+starts a fresh process as it would have anyway.
 
 The rewind changes only the conversation. Files, worktree state, and
 provider-side file checkpoints are untouched; a code-restoring rewind is the
@@ -375,11 +412,17 @@ history, not a toast, and is never model context.
 - Providers: Claude, Claude Gateway, and Claude Ollama sessions. Others
   report rewind unsupported; the route returns `409` and the client hides
   the surface. This Claude-only placement is the accepted first revision
-  (graehl, 2026-09-18). Codex can support the same verb through
-  `thread/revert` once YA's generated protocol carries it, with the cache
-  effect still unmeasured, and Pi has a more general tree operation
-  (`/tree`) that could back it; both are follow-on work and neither changes
-  the command vocabulary or the rewound-group presentation.
+  (graehl, 2026-09-18). Codex supports the same verb through
+  `thread/revert {threadId, beforeTurnId}`, which keeps the thread id and so
+  the prompt-cache key; the generated protocol carries `ThreadRevertParams`,
+  `ThreadRevertResponse`, and `ThreadRevertedNotification` as of 2026-09-19
+  (graehl approved the refresh). A fork-based Codex rewind is ruled out: the
+  Quick Answer measurements show a Codex fork child starts 94% uncached, so
+  the feature stays disabled on Codex until the in-place verb is wired
+  (between turns, on an idle thread, with the thread re-read afterwards) and
+  its cache effect measured. Pi has a more general tree operation (`/tree`)
+  that could back it. Neither changes the command vocabulary or the
+  rewound-group presentation.
 
 ## Future work: continuing from any node
 
@@ -411,8 +454,14 @@ Durable pointers by symbol and module; grep for the symbol.
 **Server** (`packages/server/src`)
 - `routes/sessions.ts` — `rewindSessionToCut` (the rewind operation),
   `resolveRewindCut`, `sendClearloopPrompt`, the `/rewind` and `/clearloop`
-  routes, the clearloop runner; the `/resume` route consumes
-  `pendingRewind` into `resumeSessionAt`/`resumeDropsTurn`.
+  routes, the clearloop runner, `rewindRecordIdsFor` on the detail
+  responses, the `/clone` rewind-state copy.
+- `supervisor/resume-truncation.ts` — `resolveResumeTruncation` (the
+  activation-seam consumption of `pendingRewind`) and
+  `isResumeDropsTurnRefusal`; `Supervisor.consumePendingRewind`,
+  `Supervisor.discardRefusedRewind`, `Process.appliedRewindRecordId`, the
+  pending-cut slice in `Supervisor.forkSessionWithinSandboxLaunch`;
+  `SessionMetadataService.copyRewindState`.
 - `services/ClearloopService.ts` — the loop state machine and inactivity
   timer (`iterate`, `check`, `readQuietAnchor`), `getProgress` for the queue
   entry, `getBadge`/`clearloopBadgeFromJob` for summaries,
@@ -491,3 +540,13 @@ Durable pointers by symbol and module; grep for the symbol.
   `s`/`m`/`h` suffixes.
 - Without `session-rewind`, the client shows no Clear menu entries and sends
   no rewind request for a typed `/clear N`.
+- A pending rewind is applied by every Claude launch path, and it wins over
+  a caller-supplied `resumeSessionAt`; a non-Claude provider or a new
+  session gets no truncation (`resumeTruncation.test.ts`).
+- A `Resume rejected by --resume-drops-turn:` result deletes the record and
+  ends a running clearloop as `interrupted`; an idle-reap abort leaves the
+  loop running (`ClearloopService.test.ts`).
+- An unchanged transcript re-projects when its rewind record set changes,
+  including when a record is deleted (`normalization.test.ts`).
+- The tail window and `totalUserTurns` count live turns only; grouped rows
+  ride along with their cut (`pagination.test.ts`).

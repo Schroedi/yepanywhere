@@ -119,10 +119,25 @@ export class ClearloopService {
 
   constructor(private readonly options: ClearloopServiceOptions) {
     options.eventBus?.subscribe((event) => {
+      if (event.type === "session-metadata-changed") {
+        // The provider refused the iteration's rewind; the session view no
+        // longer shows the cut, so the loop cannot honestly continue.
+        if (event.rewindRecordRemoved && this.contexts.has(event.sessionId)) {
+          void this.interrupt(
+            event.sessionId,
+            "The provider refused the rewind; the dropped turns were kept",
+          );
+        }
+        return;
+      }
       if (event.type === "session-aborted") {
         // The loop's own rewind aborts the live process to arm the truncating
         // resume; only a stop it did not request ends the loop.
         if (this.contexts.get(event.sessionId)?.rewinding) return;
+        // An idle reap tears down a quiet process for want of viewers. The
+        // session is still waiting out the inactivity window; the next
+        // iteration's send starts a fresh process as it would anyway.
+        if (event.reason === "idle-reap") return;
       } else if (event.type !== "session-stop-requested") {
         return;
       }

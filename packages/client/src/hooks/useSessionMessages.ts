@@ -863,8 +863,26 @@ export function useSessionMessages(
       return reveal;
     };
 
+    // A cached transcript whose applied rewinds differ from the server's was
+    // projected before a rewind (or before a refused one was deleted); an
+    // incremental catch-up can only append, never regroup older rows, so the
+    // cache is discarded and the current projection loaded whole.
+    const warmSnapshotPredatesRewind = (data: GetSessionResult): boolean => {
+      if (!warmLoad) return false;
+      const cached = warmLoad.session.rewindRecordIds ?? [];
+      const current = data.session.rewindRecordIds ?? [];
+      return (
+        cached.length !== current.length ||
+        cached.some((id, index) => id !== current[index])
+      );
+    };
+
     const applyWarmDataBeforeHydration = (data: GetSessionResult) => {
       if (!warmLoad) return;
+      if (warmSnapshotPredatesRewind(data)) {
+        reloadSession();
+        return;
+      }
       markReloadPerfPhase(
         "session_initial_load_data_ready",
         coordinator.buildInitialLoadDataReadyPerfDetail(data, {
@@ -891,6 +909,10 @@ export function useSessionMessages(
 
     const applyWarmDeltaAfterHydration = (data: GetSessionResult) => {
       if (!warmLoad) return;
+      if (warmSnapshotPredatesRewind(data)) {
+        reloadSession();
+        return;
+      }
       markReloadPerfPhase(
         "session_initial_load_data_ready",
         coordinator.buildInitialLoadDataReadyPerfDetail(data, {
@@ -1073,6 +1095,7 @@ export function useSessionMessages(
     processStreamMessage,
     processStreamSubagentMessage,
     readStoreLastMessageId,
+    reloadSession,
     snapshotKeyString,
     sourceApi,
     warnSessionDetailStore,

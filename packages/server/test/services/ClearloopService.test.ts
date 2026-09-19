@@ -240,6 +240,46 @@ describe("ClearloopService stop handling", () => {
     release();
   });
 
+  it("keeps running when an idle reap tears down the quiet process", async () => {
+    const { service, eventBus, sessionMetadataService, started, release } =
+      startLoop();
+    await started;
+    await vi.waitFor(() => expect(service.isRunning(sessionId)).toBe(true));
+
+    eventBus.emit({ ...aborted(), reason: "idle-reap" });
+    await Promise.resolve();
+    expect(sessionMetadataService.getClearloop(sessionId)?.state).toBe(
+      "running",
+    );
+
+    release();
+  });
+
+  it("ends the loop when the provider refuses the iteration's rewind", async () => {
+    const { service, eventBus, sessionMetadataService, started, release } =
+      startLoop();
+    await started;
+    await vi.waitFor(() => expect(service.isRunning(sessionId)).toBe(true));
+
+    eventBus.emit({
+      type: "session-metadata-changed",
+      sessionId,
+      projectId,
+      rewindRecordRemoved: "rw-1",
+      timestamp: new Date().toISOString(),
+    });
+    await vi.waitFor(() =>
+      expect(sessionMetadataService.getClearloop(sessionId)?.state).toBe(
+        "interrupted",
+      ),
+    );
+    expect(sessionMetadataService.getClearloop(sessionId)?.error).toContain(
+      "refused the rewind",
+    );
+
+    release();
+  });
+
   it("keeps running through the abort its own rewind causes", async () => {
     const { service, eventBus, sessionMetadataService, started, release } =
       startLoop({ holdRewind: true });

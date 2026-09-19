@@ -245,7 +245,13 @@ function isUserTurn(m: Message): boolean {
       : typeof record.message?.role === "string"
         ? record.message.role
         : undefined;
-  return (m.type === "user" || role === "user") && !isSyntheticUserTurn(m);
+  return (
+    (m.type === "user" || role === "user") &&
+    !isSyntheticUserTurn(m) &&
+    // A turn a same-session rewind dropped is history, not a window unit:
+    // the tail window is measured in live turns (topics/session-rewind.md).
+    typeof (m as { rewoundGroupId?: unknown }).rewoundGroupId !== "string"
+  );
 }
 
 /**

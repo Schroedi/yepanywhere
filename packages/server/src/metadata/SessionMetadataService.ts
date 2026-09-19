@@ -444,6 +444,29 @@ export class SessionMetadataService {
     await this.metadataSaver.flush();
   }
 
+  /**
+   * Give a verbatim transcript copy the source's rewind history. Only valid
+   * when the copy keeps the source's message uuids (the legacy Claude clone);
+   * an SDK fork remaps them and is sliced at the cut instead.
+   */
+  async copyRewindState(
+    sourceSessionId: string,
+    targetSessionId: string,
+  ): Promise<void> {
+    const source = this.state.sessions[this.resolveSessionId(sourceSessionId)];
+    if (!source?.rewindRecords?.length && !source?.pendingRewind) return;
+    this.updateSessionMetadata(targetSessionId, (metadata) => ({
+      ...metadata,
+      ...(source.rewindRecords?.length
+        ? { rewindRecords: [...source.rewindRecords] }
+        : {}),
+      ...(source.pendingRewind
+        ? { pendingRewind: { ...source.pendingRewind } }
+        : {}),
+    }));
+    await this.metadataSaver.flush();
+  }
+
   async clearPendingRewind(sessionId: string): Promise<void> {
     this.updateSessionMetadata(sessionId, (metadata) => ({
       ...metadata,

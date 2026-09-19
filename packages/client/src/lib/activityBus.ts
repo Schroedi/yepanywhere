@@ -125,6 +125,8 @@ export interface SessionMetadataChangedEvent {
   clearloop?: SessionClearloopBadge | null;
   /** A same-session rewind just recorded; the open session applies it. */
   rewindRecord?: SessionRewindRecord;
+  /** A rewind record the provider refused; the open session reloads. */
+  rewindRecordRemoved?: string;
   heartbeatTurnsEnabled?: boolean;
   heartbeatTurnsAfterMinutes?: number | null;
   heartbeatTurnText?: string | null;

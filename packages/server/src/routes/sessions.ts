@@ -2374,6 +2374,16 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     return null;
   };
 
+  /**
+   * Ids of the rewinds a detail response's projection applied, so a client
+   * holding a cached transcript can tell whether it predates a rewind
+   * (topics/session-rewind.md). Absent when the session has none.
+   */
+  const rewindRecordIdsFor = (sessionId: string): string[] | undefined => {
+    const records = deps.sessionMetadataService?.getRewindRecords?.(sessionId);
+    return records?.length ? records.map((record) => record.id) : undefined;
+  };
+
   const loadRestartSourceSession = async (
     project: Project,
     sessionId: string,
@@ -2781,6 +2791,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         isArchived: metadata?.isArchived,
         isStarred: metadata?.isStarred,
         clearloop: deps.clearloopService?.getBadge(sessionId),
+        rewindRecordIds: rewindRecordIdsFor(sessionId),
         parentSessionId:
           metadata?.parentSessionId ?? sessionSummary?.parentSessionId,
         parentSessionKind:
@@ -3298,6 +3309,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             isArchived: metadata?.isArchived,
             isStarred: metadata?.isStarred,
             clearloop: deps.clearloopService?.getBadge(sessionId),
+            rewindRecordIds: rewindRecordIdsFor(sessionId),
             parentSessionId: metadata?.parentSessionId,
             parentSessionKind: metadata?.parentSessionKind,
             forkedFromSessionId: metadata?.forkedFromSessionId,
@@ -3724,6 +3736,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         isArchived: metadata?.isArchived,
         isStarred: metadata?.isStarred,
         clearloop: deps.clearloopService?.getBadge(sessionId),
+        rewindRecordIds: rewindRecordIdsFor(sessionId),
         parentSessionId: metadata?.parentSessionId ?? session.parentSessionId,
         parentSessionKind:
           metadata?.parentSessionKind ?? session.parentSessionKind,
@@ -4492,16 +4505,13 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     };
 
     let resumeSessionAt: string | undefined;
-    let resumeDropsTurn: string | undefined;
-    // A recorded same-session rewind is applied by this resume (see
-    // topics/session-rewind.md); it takes precedence over the API-error
-    // truncation below because its cut is already a completed boundary.
+    // A recorded same-session rewind is applied by the supervisor at process
+    // launch, whichever path starts the process (topics/session-rewind.md);
+    // it wins over the API-error truncation below, whose blocker check is
+    // skipped here because the dropped tail is already accounted for.
     const pendingRewind =
       deps.sessionMetadataService?.getPendingRewind?.(sessionId);
-    if (pendingRewind && isClaudeSdkProviderName(providerName)) {
-      resumeSessionAt = pendingRewind.cutMessageId;
-      resumeDropsTurn = pendingRewind.dropsTurnPromptId;
-    } else if (isClaudeSdkProviderName(providerName)) {
+    if (!pendingRewind && isClaudeSdkProviderName(providerName)) {
       let blocker: ClaudeResumeApiErrorBlocker | null = null;
       try {
         blocker = await getClaudeResumeBlockerFromReader(
@@ -4596,7 +4606,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           helperSideModel: helperSettings.helperSideModel,
           resumeMode,
           resumeSessionAt,
-          resumeDropsTurn,
           ...resolveCompactModelSettings(deps, {
             provider: providerName,
             yaModelId: requestedModel,
@@ -4670,10 +4679,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         },
         202,
       ); // 202 Accepted - queued for processing
-    }
-
-    if (pendingRewind && resumeSessionAt === pendingRewind.cutMessageId) {
-      await deps.sessionMetadataService?.clearPendingRewind?.(sessionId);
     }
 
     return c.json({
@@ -6038,8 +6043,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       settledSandboxLevel === "project-write"
         ? (persistedMetadata?.sandboxProjectPath ?? project.path)
         : project.path;
-    const pendingRewind =
-      deps.sessionMetadataService?.getPendingRewind?.(sessionId);
     const serverTimestamp = Date.now();
     const userMessage: UserMessage = {
       text: input.prompt,
@@ -6068,9 +6071,9 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           deps.sessionMetadataService?.getRecapAfterSeconds?.(sessionId),
         promptSuggestionMode:
           deps.sessionMetadataService?.getPromptSuggestionMode?.(sessionId),
+        // The iteration's rewind is armed as the session's pending rewind;
+        // the supervisor applies it when this resume launches the process.
         resumeMode: "full",
-        resumeSessionAt: pendingRewind?.cutMessageId,
-        resumeDropsTurn: pendingRewind?.dropsTurnPromptId,
         ...resolveCompactModelSettings(deps, {
           provider: providerName,
           yaModelId: requestedModel,
@@ -6081,9 +6084,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     );
     if (isQueueFullResponse(result)) {
       throw new Error("Queue is full");
-    }
-    if (pendingRewind) {
-      await deps.sessionMetadataService?.clearPendingRewind?.(sessionId);
     }
   };
 
@@ -8453,6 +8453,13 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         };
       } else {
         result = await cloneClaudeSession(sessionDir, sessionId);
+        // The verbatim copy keeps every uuid, so the source's rewound groups
+        // and any still-pending rewind mean the same rows in the clone
+        // (topics/session-rewind.md).
+        await deps.sessionMetadataService?.copyRewindState?.(
+          sessionId,
+          result.newSessionId,
+        );
       }
 
       // Set clone metadata. /btw asides pass parentSessionId so the child

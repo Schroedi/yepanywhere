@@ -982,6 +982,12 @@ export class Process {
   readonly sandboxEnforcement: SessionSandboxEnforcement | undefined;
   readonly sandboxStateKey: string | undefined;
   readonly sandboxProjectPath: string | undefined;
+  /**
+   * The same-session rewind record this launch's truncating resume applied,
+   * until the provider either accepts it (first successful turn) or refuses
+   * it (topics/session-rewind.md). Set by the supervisor at launch.
+   */
+  appliedRewindRecordId: string | undefined;
 
   private legacyQueue: UserMessage[] = [];
   private messageQueue: AgentMessageQueue | null;

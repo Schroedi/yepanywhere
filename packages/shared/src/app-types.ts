@@ -600,6 +600,12 @@ export interface AppSessionSummary {
   forkedFromSessionId?: string;
   /** Iterations a running `/clearloop` still has to do; absent when none runs. */
   clearloop?: SessionClearloopBadge;
+  /**
+   * Ids of the same-session rewinds the transcript projection applied, in
+   * order. A cached transcript whose ids differ predates a rewind and must be
+   * reloaded rather than caught up incrementally. See topics/session-rewind.md.
+   */
+  rewindRecordIds?: string[];
   /** Saved viewer-only objects placed in the transcript, never provider context. */
   transcriptDisplayObjects?: TranscriptDisplayObject[];
   /** Initial prompt text accepted by YA for new-session recovery/copy. */

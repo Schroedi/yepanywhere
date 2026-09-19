@@ -281,9 +281,15 @@ const claudeMessageCache = new WeakMap<
   {
     length: number;
     lastEntry: ClaudeSessionEntry | undefined;
+    /** The rewind records the projection applied; a different set re-projects. */
+    rewindKey: string;
     messages: Message[];
   }
 >();
+
+function rewindCacheKey(records: readonly SessionRewindRecord[]): string {
+  return records.map((record) => record.id).join("\n");
+}
 
 function normalizeClaudeQueueOperationContent(content: unknown): string {
   if (content === undefined) {
@@ -360,16 +366,16 @@ export function normalizeSession(
       const rawMessages = data.session.messages;
       const lastEntry = rawMessages[rawMessages.length - 1];
       const rewindRecords = options.rewindRecords ?? [];
-      // The per-array cache assumes one projection per transcript; a rewound
-      // session has one per record set, so it bypasses the cache.
-      const cached =
-        rewindRecords.length === 0
-          ? claudeMessageCache.get(rawMessages)
-          : undefined;
+      // One projection per (transcript, rewind record set): a new rewind
+      // changes the projection of an unchanged file, so the record ids are
+      // part of the cache identity.
+      const rewindKey = rewindCacheKey(rewindRecords);
+      const cached = claudeMessageCache.get(rawMessages);
       if (
         cached &&
         cached.length === rawMessages.length &&
-        cached.lastEntry === lastEntry
+        cached.lastEntry === lastEntry &&
+        cached.rewindKey === rewindKey
       ) {
         return {
           ...summary,
@@ -387,13 +393,12 @@ export function normalizeSession(
         ),
       );
 
-      if (rewindRecords.length === 0) {
-        claudeMessageCache.set(rawMessages, {
-          length: rawMessages.length,
-          lastEntry,
-          messages,
-        });
-      }
+      claudeMessageCache.set(rawMessages, {
+        length: rawMessages.length,
+        lastEntry,
+        rewindKey,
+        messages,
+      });
       return {
         ...summary,
         messages,
