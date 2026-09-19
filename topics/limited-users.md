@@ -144,6 +144,24 @@ session-create route already validates, so a lock names only values the
 server could launch. An unlaunchable locked value blocks the user's session
 creation with a clear message rather than silently falling back.
 
+**Stale-session cutoff.** A child or casual user does not know that
+resuming a session idle for a day misses its prompt cache and costs far more
+than a fresh one. A per-user setting, a time slider from off through minutes
+to days (`staleAfter`), makes YA redirect: when the user sends a turn to a
+session whose last activity is older than the cutoff, the message instead
+opens a **new session** in the same project. The new session's first turn is
+the user's text, prefixed with a short reference to the previous session
+(its YA id and title) and a hint that the agent should read it if the
+request refers to something not otherwise explained; the previous session is
+left untouched. Beyond the cutoff the old session's composer shows the
+redirect plainly ("this will start a new session"), so the behavior is
+visible rather than surprising, and the superuser may set the slider to off
+to keep ordinary resume behavior. The redirect is server-side at the message
+route, keyed by the session's last activity time, so a stale client cannot
+bypass it. Whether the superuser's own account may opt into the same setting
+is an open decision; it is useful to anyone, but this proposal only requires
+it for limited users.
+
 ## Execution boundary
 
 The [[session-sandboxing]] Linux mechanism is the enforcement floor: a
@@ -187,8 +205,8 @@ rather than decided here.
    useful as a landing for tests. ‖
 2. **Project access.** `project-access.json`, owner and editors, route-family
    checks from the table, members UI, 404 scoping of lists and pages,
-   forced sandbox, bang-command refusal or confinement, provider lock at
-   create and message routes. ‖
+   forced sandbox, bang-command refusal or confinement, provider lock and
+   stale-session cutoff at create and message routes. ‖
 3. **Relay.** Compound `server-username` claims, per-user SRP verifiers,
    hosted-client login with a username, pairing flow update
    ([[mobile-server-pairing]]). ‖
