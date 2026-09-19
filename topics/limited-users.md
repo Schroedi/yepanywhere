@@ -1,8 +1,9 @@
 # Limited users
 
 > Proposal: a second class of YA principal — a named limited user beside the
-> single superuser — who logs in with their own credential (relay
-> `server-username` claim, or standard HTTP auth on direct access), sees and
+> single superuser — who logs in with their own credential (a username
+> carried as the SRP identity over the existing relay claim, or standard
+> HTTP auth on direct access), sees and
 > acts on only the projects they own or are listed on, creates new projects
 > only from templates, and whose sessions always run sandboxed; project
 > membership is a per-project list of editors (later viewers) managed by the
@@ -64,17 +65,42 @@ disk.
 - **Limited user** — `{ username, passwordHash, createdAt, disabled? }`
   in `auth.json`, created and reset only by the superuser. Usernames share
   the relay's label grammar (lowercase, 3–32 characters).
-- **Relay login.** Today the relay claim is one server name and it doubles
-  as the SRP identity. Proposed: the YA server additionally claims
-  `<server>-<username>` for each enabled limited user, using the same
-  `server_register` message and the same install id, so the relay needs no
-  new concept; a limited user logs in to the hosted client with that
-  compound name and their own SRP verifier. The alternative, free-form
-  reserved strings not derived from the server name, is rejected in v1
-  because the server-prefix form makes the owning install obvious, keeps the
-  reclaim rules unchanged, and cannot collide with an unrelated server's
-  name. The YA server knows which claim a connection arrived on and binds
-  the principal from it before any API call.
+- **Relay login.** What the public relay supports today, from
+  `relay-protocol.ts` and `packages/relay/src`: a name is 3–32 characters
+  of lowercase letters, digits, and hyphens, starting and ending
+  alphanumeric; hyphen is the only separator character and is legal inside
+  ordinary server names, so the relay cannot parse a `server-user` compound
+  and any install may claim `alice-bob` as its own name. One install may
+  own any number of names, each on its own server WebSocket; only
+  unauthenticated connections are capped per IP, and the slot is released
+  once a registration or client protocol is accepted, so many registered
+  sockets from one host are fine. The relay never sees SRP: the handshake
+  terminates at the YA server, where `srp_hello.identity` must currently
+  equal the single configured remote-access username and one verifier
+  exists.
+
+  Decision (2026-09-19): **a separate, optional username carried as the SRP
+  identity**, not a compound relay name. The hosted login form gets a
+  username field beside the server name; the client connects to the server
+  name exactly as today for routing, then sends `srp_hello` with the
+  limited user's username as identity, and the YA server selects that
+  user's salt and verifier. The relay needs no redeploy and learns nothing
+  new; there is no squatting or grammar ambiguity; and the principal is
+  bound before any API call, as with the superuser. Cost: relay-side
+  per-name limits (`muxOpenAttemptsPerMinutePerIpUsername` and the
+  five-session cap) are shared by everyone under one server name, so a
+  noisy guest can throttle the host; the server's own per-identity SRP
+  limiter already exists to contain that.
+
+  **Per-user server sockets** remain an option a new YA server can add
+  without relay changes: register `<server>-<username>` on an additional
+  socket per enabled user (an install may own many names), which gives
+  relay-side per-user visibility and separate limits at the price of one
+  relay socket per user and exposing usernames to the relay operator. It
+  is a later refinement for hosts that need relay-side isolation, not the
+  v1 login path, and it must still bind the principal from the SRP
+  identity rather than trusting the name alone, since names are
+  first-come claims.
 - **Direct login.** The login page gains a username field, blank meaning
   superuser. For non-browser clients and for the simplest possible remote
   path, standard HTTP Basic over HTTPS is accepted as an alternative to the
@@ -123,10 +149,10 @@ sessions, no files outside what the transcript shows.
 **Session guest.** A second, narrower grant shape for live sharing of one
 session with another person ("multiplayer"): the superuser, or a project
 owner, creates a username and password whose entire scope is **one named
-session**. Through the relay (the "reflector") it is reserved and tracked as
-its own compound name like any limited user, so the server always knows which
-guest a connection is; on direct access it uses the same login or HTTP Basic
-path. A guest sees that session's transcript, may send turns and approvals in
+session**. Through the relay (the "reflector") the guest logs in with the
+server name plus their own username as SRP identity, like any limited user,
+so the server always knows which guest a connection is; on direct access it
+uses the same login or HTTP Basic path. A guest sees that session's transcript, may send turns and approvals in
 it (or is read-only, chosen at creation), and sees nothing else: no project
 page, no file APIs beyond what the transcript shows, no session creation, no
 fork. Anticipating the grant, the host may launch the session sandboxed at
@@ -298,9 +324,9 @@ rather than decided here.
    checks from the table, members UI, 404 scoping of lists and pages,
    forced sandbox, bang-command refusal or confinement, provider lock and
    stale-session cutoff at create and message routes. ‖
-3. **Relay.** Compound `server-username` claims, per-user SRP verifiers,
-   hosted-client login with a username, pairing flow update
-   ([[mobile-server-pairing]]). ‖
+3. **Relay.** Per-user SRP verifiers selected by `srp_hello` identity,
+   hosted-client login with a username field, pairing flow update
+   ([[mobile-server-pairing]]); no relay redeploy. ‖
 4. **Viewers**, **session guests**, and the template-only New Project for
    limited users, plus the Settings → Limited Users grants recap, once
    [[project-templates]] phase 2 exists. Guests may land
@@ -309,10 +335,9 @@ rather than decided here.
 
 ## Open decisions
 
-- Whether the relay should instead learn a real second-level concept
-  (server plus user) so a compound name cannot be squatted by a different
-  server choosing `alice-bob` as its own name; the compound form is the v1
-  bet because it needs no relay change.
+- Whether relay-side per-user limits justify per-user server sockets, or a
+  later relay protocol field carrying the user beside the server name once
+  a redeploy is planned for other reasons.
 - Per-user settings partition: which browser-local preferences should become
   server-side per-user (theme, session defaults) and whether that is worth a
   fourth settings scope in [[settings-ui-placement]].
@@ -337,7 +362,7 @@ rather than decided here.
 - [[active-content-security]], [[relay-origin-and-share-gating]] — bearer
   authority for apps and shares.
 - [[mobile-server-pairing]], [[relay-client-mux]] — the relay claim and
-  login flow the compound name joins.
+  login flow the username field joins.
 - [[settings-ui-placement]], [[browser-profile-devices]] — existing settings
   and device scopes.
 - [[cross-host-delegation]] — the nearest existing permission-grant design.
