@@ -7,10 +7,15 @@ import {
   DISCOVERY_MIGRATIONS,
   migrateDiscoveryDatabase,
 } from "../../src/storage/discovery-sqlite.js";
-import { loadSqliteDriver } from "../../src/storage/sqlite.js";
+import {
+  loadSqliteDriver,
+  type SqliteDatabase,
+  type SqliteValue,
+} from "../../src/storage/sqlite.js";
 import { DEFAULT_JIRA_KEY_BLOCKLIST } from "@yep-anywhere/shared";
 import { IssueStore } from "../../src/services/issues/IssueStore.js";
 import {
+  EXTRACTOR_VERSION,
   extractIssueReferences,
   issueUrl,
 } from "../../src/services/issues/extract.js";
@@ -175,6 +180,49 @@ describe("durable issue evidence", () => {
     expect(store.list()).toEqual([]);
     store.decide(item.id, "one", "discovered");
     expect(store.evidence(item.id)).toHaveLength(4);
+  });
+  it("records the extraction rules version that produced each evidence row", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ya-issues-"));
+    dirs.push(dir);
+    const service = new DiscoverySqliteService({ dataDir: dir, mode: "auto" });
+    services.push(service);
+    const database = service.getDatabase()!;
+    // The column's schema default answers a stored-row query whether or not
+    // the insert supplies a version, so watch what the insert itself binds.
+    const bound: SqliteValue[][] = [];
+    const watched: SqliteDatabase = {
+      ...database,
+      prepare(sql: string) {
+        const statement = database.prepare(sql);
+        if (!/^\s*INSERT INTO session_issue_evidence/i.test(sql))
+          return statement;
+        return {
+          ...statement,
+          run: (...values: SqliteValue[]) => {
+            bound.push(values);
+            return statement.run(...values);
+          },
+        };
+      },
+    };
+    const store = new IssueStore(watched, () => ({
+      enabled: true,
+      scope: "viewed",
+      recentDays: 7,
+      aggressiveMatching: true,
+    }));
+    store.capture(
+      { sessionId: "s", projectId: "p" },
+      { id: "m", text: "ABC-123" },
+    );
+    expect(bound).toHaveLength(1);
+    expect(bound[0]?.at(-1)).toBe(EXTRACTOR_VERSION);
+    expect(
+      storedRows(
+        database,
+        "SELECT extractor_version FROM session_issue_evidence",
+      )[0]?.extractor_version,
+    ).toBe(EXTRACTOR_VERSION);
   });
   it("retains unresolved suppression on resolution and separates project contexts", () => {
     const { store } = fixture();

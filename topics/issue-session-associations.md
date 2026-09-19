@@ -263,7 +263,10 @@ Three domain tables in `{dataDir}/discovery.sqlite` own durable state:
 - `session_issue_evidence`: source/project, stable occurrence, reference, source
   locator, bounded excerpt, observed/source times and extractor version. Its
   link may be null until identity resolves. Evidence kinds distinguish URL,
-  ticket key, contextual number and manual correction.
+  ticket key, contextual number and manual correction. The extractor version
+  names the extraction rules that produced the row's reference and excerpt, so
+  rows written before a rules change stay distinguishable; redelivering the
+  same occurrence updates identity and project, not the text or its version.
 
 Distinct repeated mentions survive. Redelivering the same persisted occurrence
 does not duplicate it. Codex source locators use rollout ordinal/byte provenance

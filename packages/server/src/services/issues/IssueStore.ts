@@ -5,7 +5,12 @@ import type {
   SqliteValue,
 } from "../../storage/sqlite.js";
 import type { VisibleMessageText } from "../../sessions/message-text.js";
-import { extractIssueReferences, issueUrl, issueExcerpt } from "./extract.js";
+import {
+  EXTRACTOR_VERSION,
+  extractIssueReferences,
+  issueUrl,
+  issueExcerpt,
+} from "./extract.js";
 
 import {
   DEFAULT_ISSUE_SETTINGS,
@@ -562,9 +567,12 @@ export class IssueStore {
               ]),
             )
             .digest("hex");
+          // The stored version names the rules that produced this row's
+          // reference and excerpt, so a redelivery keeps the original: the
+          // conflict branch updates identity and location, not the text.
           this.run(
-            `INSERT INTO session_issue_evidence(session_id,project_id,occurrence,ref_key,provider,link_id,kind,observed_value,excerpt,message_id,observed_at,source_time)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,occurrence) DO UPDATE SET
+            `INSERT INTO session_issue_evidence(session_id,project_id,occurrence,ref_key,provider,link_id,kind,observed_value,excerpt,message_id,observed_at,source_time,extractor_version)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,occurrence) DO UPDATE SET
           link_id=COALESCE(session_issue_evidence.link_id,excluded.link_id), project_id=excluded.project_id`,
             source.sessionId,
             source.projectId,
@@ -593,6 +601,7 @@ export class IssueStore {
             message.id,
             Date.now(),
             message.timestamp ?? null,
+            EXTRACTOR_VERSION,
           );
           if (identity)
             this.run(

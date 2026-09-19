@@ -25,6 +25,12 @@ const CAPTURE_CHUNK = 32 * 1024;
  * starts in, so the overlap adds context without a second sighting.
  */
 const CAPTURE_OVERLAP = 4096;
+/**
+ * Queue rank a catalog sweep admits at. A window the user is looking at is
+ * recorded by `IssueStore` at a higher rank, so background sweeping never gets
+ * in front of it.
+ */
+const SWEEP_PRIORITY = 0;
 
 export interface IssueIndexerDeps {
   settings: () => IssueSettings;
@@ -33,7 +39,6 @@ export interface IssueIndexerDeps {
     row: SessionCatalogRow,
     options: IssueReadOptions,
   ) => Promise<IssueTextBatch | null>;
-  viewed?: (sessionId: string) => boolean;
   projectForSession?: (sessionId: string) => string | undefined;
   /** Called after captures land, so freshly seen references can be asked about. */
   confirm?: () => void;
@@ -117,8 +122,8 @@ export class IssueIndexer {
       // its own project, so one read up front replaces all of them.
       const owned = this.store.ownedProjects();
       // Read once, and only if something is actually admitted: a sweep in
-      // viewed scope with no open session must not pay for a queue it will
-      // not touch.
+      // viewed scope admits nothing and must not pay for a queue it will not
+      // touch.
       let queue: Map<string, AdmittedJob> | undefined;
       const admitted = () => (queue ??= this.store.admittedJobs());
       let count = 0;
@@ -134,17 +139,10 @@ export class IssueIndexer {
         if (stored && [...stored].some((held) => held !== projectId))
           this.store.updateProject(row.sessionId, projectId);
         if (
-          (this.settings().scope === "recent" &&
-            Date.parse(row.updatedAt) >= cutoff) ||
-          this.deps.viewed?.(row.sessionId)
-        ) {
-          this.enqueue(
-            row,
-            this.deps.viewed?.(row.sessionId) ? 1 : 0,
-            projectId,
-            admitted(),
-          );
-        }
+          this.settings().scope === "recent" &&
+          Date.parse(row.updatedAt) >= cutoff
+        )
+          this.enqueue(row, projectId, admitted());
         if (++count % 100 === 0) await yieldTurn();
       }
     })()
@@ -176,7 +174,7 @@ export class IssueIndexer {
    * rewritten with its own bytes — thousands of locks a minute in recent
    * scope, where every publication re-admits every recent session. A paused
    * job is the exception: the upsert's `CASE` is what returns it to the queue
-   * when a widened recent window or a reopened session admits it again.
+   * when a widened recent window admits it again.
    *
    * `queued` is this sweep's opening snapshot, so a job the running worker
    * pauses mid-sweep can be skipped here and stays paused until the next
@@ -186,7 +184,6 @@ export class IssueIndexer {
    */
   private enqueue(
     row: Readonly<SessionCatalogRow>,
-    priority: number,
     projectId: string,
     queued: ReadonlyMap<string, AdmittedJob>,
   ): void {
@@ -195,7 +192,7 @@ export class IssueIndexer {
     if (
       current &&
       current.state !== "paused" &&
-      current.priority === priority &&
+      current.priority === SWEEP_PRIORITY &&
       current.projectId === projectId &&
       current.source === source
     )
@@ -205,7 +202,7 @@ export class IssueIndexer {
       projectId,
       sourceVersion: row.sourceVersion,
       source,
-      priority,
+      priority: SWEEP_PRIORITY,
     });
   }
   /**
@@ -346,7 +343,7 @@ export class IssueIndexer {
           this.settings().scope === "recent" &&
           Date.parse(row.updatedAt) >=
             Date.now() - this.settings().recentDays * 86400_000;
-        if (!recent && !this.deps.viewed?.(row.sessionId)) {
+        if (!recent) {
           this.store.markJob(row.sessionId, "paused");
           processed = true;
           continue;

@@ -574,10 +574,10 @@ it("re-queues a paused job when the catalog admits it again", async () => {
   const settings: IssueSettings = {
     enabled: true,
     scope: "recent",
-    recentDays: 7,
+    recentDays: 60,
   };
   const store = new IssueStore(service.getDatabase()!, () => settings);
-  // Older than the recent window, so only an open view admits it.
+  // Thirty days old, so only the wide window admits it.
   const row = {
     sessionId: "s",
     projectId: "p",
@@ -585,17 +585,15 @@ it("re-queues a paused job when the catalog admits it again", async () => {
     updatedAt: new Date(Date.now() - 30 * 86400_000).toISOString(),
     location: { kind: "file", path: "unused" },
   } as SessionCatalogRow;
-  let viewing = true;
-  let closesAfterAdmission = true;
+  let narrowsAfterAdmission = true;
   const read: string[] = [];
   const indexer = new IssueIndexer(store, {
     settings: () => settings,
     candidates: async function* () {
       yield row;
-      // The view closes between admission and the worker reaching the job.
-      if (closesAfterAdmission) viewing = false;
+      // The window narrows between admission and the worker reaching the job.
+      if (narrowsAfterAdmission) settings.recentDays = 7;
     },
-    viewed: () => viewing,
     read: async (candidate) => {
       read.push(candidate.sessionId);
       return {
@@ -619,11 +617,11 @@ it("re-queues a paused job when the catalog admits it again", async () => {
     storedRows(store.database, "SELECT state FROM issue_index_jobs")[0]?.state,
   ).toBe("paused");
 
-  // Reopened, and nothing about the catalog row changed. Only the upsert
+  // Widened again, and nothing about the catalog row changed. Only the upsert
   // returns a paused job to the queue, so skipping it as unchanged would
   // leave this session indefinitely unindexed.
-  viewing = true;
-  closesAfterAdmission = false;
+  settings.recentDays = 60;
+  narrowsAfterAdmission = false;
   indexer.refresh();
   await indexer.settled();
   expect(read).toEqual(["s"]);

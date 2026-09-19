@@ -1,4 +1,13 @@
 /** Deterministic references; no tracker calls, registry prerequisite or Git access. */
+
+/**
+ * Version of the extraction rules in this file. Every evidence row records the
+ * version that produced it, so rows written before a rules change can be told
+ * apart from rows a later reader would produce from the same text. Bump it when
+ * a change here would give a different answer for text already captured.
+ */
+export const EXTRACTOR_VERSION = 1;
+
 export interface IssueReference {
   key: string;
   identity: string | null;
