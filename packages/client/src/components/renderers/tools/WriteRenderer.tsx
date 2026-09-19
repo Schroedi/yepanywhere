@@ -165,11 +165,9 @@ function WriteModalContent({
  */
 function WriteToolResult({
   result,
-  isError,
   input,
 }: {
   result: WriteResult;
-  isError: boolean;
   input?: WriteInputWithAugment;
 }) {
   const meta = useOptionalSessionMetadata();
@@ -195,26 +193,14 @@ function WriteToolResult({
   const showValidationWarning =
     enabled && validationErrors && !isToolIgnored("Write");
 
-  if (isError || !result?.file) {
-    // Extract error message - can be a string or object with content
-    let errorMessage = "Failed to write file";
-    if (typeof result === "string") {
-      errorMessage = result;
-    } else if (typeof result === "object" && result !== null) {
-      const errorResult =
-        result && typeof result === "object" && "content" in result
-          ? result
-          : undefined;
-      if (errorResult?.content) {
-        errorMessage = String(errorResult.content);
-      }
-    }
+  // An acknowledgement carries text instead of the written file.
+  if (!result?.file) {
     return (
       <div className="write-error">
         {showValidationWarning && validationErrors && (
           <SchemaWarning toolName="Write" errors={validationErrors} />
         )}
-        {errorMessage}
+        {result?.content || "Failed to write file"}
       </div>
     );
   }
@@ -377,25 +363,14 @@ function WriteCollapsedPreview({
   }, [input._highlightedContentHtml]);
 
   if (isError) {
-    // Extract error message from result - can be a string or object with content
-    let errorMessage = "Failed to write file";
-    if (typeof result === "string") {
-      errorMessage = result;
-    } else if (typeof result === "object" && result !== null) {
-      const errorResult =
-        result && typeof result === "object" && "content" in result
-          ? result
-          : undefined;
-      if (errorResult?.content) {
-        errorMessage = String(errorResult.content);
-      }
-    }
     return (
       <div className="write-collapsed-preview write-collapsed-error">
         {showValidationWarning && validationErrors && (
           <SchemaWarning toolName="Write" errors={validationErrors} />
         )}
-        <span className="write-preview-error">{errorMessage}</span>
+        <span className="write-preview-error">
+          {result?.content || "Failed to write file"}
+        </span>
       </div>
     );
   }
@@ -474,16 +449,27 @@ export const writeRenderer = defineTool(toolDisplayContracts.Write, {
     return <WriteToolUse input={input} />;
   },
 
-  renderToolResult(result, isError, _context, input) {
-    return <WriteToolResult result={result} isError={isError} input={input} />;
+  renderToolResult(result, _isError, _context, input) {
+    return <WriteToolResult result={result} input={input} />;
+  },
+
+  renderFailure(failure) {
+    return (
+      <div className="write-error">
+        {failure.content || "Failed to write file"}
+      </div>
+    );
+  },
+
+  getFailureSummary() {
+    return "Error";
   },
 
   getUseSummary(input) {
     return getFileName(input.file_path);
   },
 
-  getResultSummary(result, isError, input?) {
-    if (isError) return "Error";
+  getResultSummary(result, _isError, input?) {
     const r = result;
     if (r?.file) {
       return getFileName(r.file.filePath);

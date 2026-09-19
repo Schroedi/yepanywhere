@@ -47,11 +47,17 @@ export function effectiveInvocationError(
   });
 }
 
-export interface DisplayContract<I extends z.ZodType, R extends z.ZodType> {
+export interface DisplayContract<
+  I extends z.ZodType,
+  R extends z.ZodType,
+  F extends z.ZodType = R,
+> {
   input: I;
   result: R;
   partialResult?: z.ZodType<string>;
-  failure?: z.ZodType<z.output<R>>;
+  /** A rejection's own shape, which need not be the success shape. When it is
+   * not, the registration must render it through its own `renderFailure`. */
+  failure?: F;
   variants: readonly [string, ...string[]];
   standaloneResult: boolean;
   standaloneResultSchema?: z.ZodType<z.output<R>>;
@@ -61,10 +67,11 @@ export interface DisplayContract<I extends z.ZodType, R extends z.ZodType> {
  * A rejection has its own optional display contract, never the success schema.
  * There is no transcript scan, mutation, cache, or provider conversion here.
  */
-export function prepareDisplay<I extends z.ZodType, R extends z.ZodType>(
-  contract: DisplayContract<I, R>,
-  record: DisplayRecord,
-) {
+export function prepareDisplay<
+  I extends z.ZodType,
+  R extends z.ZodType,
+  F extends z.ZodType = R,
+>(contract: DisplayContract<I, R, F>, record: DisplayRecord) {
   const isError = effectiveToolError(record);
   const input = contract.input.safeParse(record.input);
   const resultSchema = isError

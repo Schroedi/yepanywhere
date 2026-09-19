@@ -57,12 +57,27 @@ export function defineTool<
   I extends z.ZodType,
   R extends z.ZodType,
   const T extends string,
+  F extends z.ZodType = R,
 >(
-  contract: DisplayContract<I, R>,
-  callbacks: ToolCallbacks<NoInfer<z.output<I>>, NoInfer<z.output<R>>> & {
-    tool: T;
-  },
+  contract: DisplayContract<I, R, F>,
+  callbacks: ToolCallbacks<NoInfer<z.output<I>>, NoInfer<z.output<R>>> &
+    FailureCallbacks<
+      NoInfer<z.output<I>>,
+      NoInfer<z.output<R>>,
+      NoInfer<z.output<F>>
+    > & {
+      tool: T;
+    },
 ): CheckedToolDefinition & { readonly tool: T } {
+  // The failure schema's output reaches the dispatch layer through the same
+  // parse slot as the result. `FailureCallbacks` makes `renderFailure`
+  // mandatory exactly when the two shapes differ, so the alternative below —
+  // handing failure data to the result callbacks — is only ever taken where
+  // the contract proved them interchangeable.
+  const { renderFailure, getFailureSummary } = callbacks as {
+    renderFailure?: FailureRenderer<z.output<I>, z.output<F>>;
+    getFailureSummary?: FailureSummary<z.output<I>, z.output<F>>;
+  };
   const operations = [
     "renderToolUse",
     "renderToolResult",
@@ -91,6 +106,14 @@ export function defineTool<
         reason,
         kind,
       } = prepareDisplay(contract, record);
+      const failure =
+        renderFailure && isError && contract.failure && result?.success
+          ? { data: result.data as z.output<F>, render: renderFailure }
+          : undefined;
+      const checked =
+        failure || !result?.success
+          ? undefined
+          : { data: result.data as z.output<R> };
       const name = (status = record.status) =>
         (status === "pending" ? callbacks.pendingDisplayName : undefined) ??
         callbacks.displayName ??
@@ -163,16 +186,25 @@ export function defineTool<
             ? safeSummary(() => callbacks.getUseSummary?.(input.data, context))
             : undefined,
         getResultSummary: (context) =>
-          result?.success && inputEligible
-            ? safeSummary(() =>
-                callbacks.getResultSummary?.(
-                  result.data,
-                  isError,
-                  input.success ? input.data : undefined,
-                  context,
-                ),
-              )
-            : undefined,
+          !inputEligible
+            ? undefined
+            : failure
+              ? safeSummary(() =>
+                  getFailureSummary?.(
+                    failure.data,
+                    input.success ? input.data : undefined,
+                  ),
+                )
+              : checked
+                ? safeSummary(() =>
+                    callbacks.getResultSummary?.(
+                      checked.data,
+                      isError,
+                      input.success ? input.data : undefined,
+                      context,
+                    ),
+                  )
+                : undefined,
         renderToolUse: (context) =>
           render(context, (context) =>
             input.success
@@ -188,9 +220,15 @@ export function defineTool<
                   : null}
                 {partial()}
               </>
-            ) : result?.success ? (
+            ) : failure ? (
+              failure.render(
+                failure.data,
+                context,
+                input.success ? input.data : undefined,
+              )
+            ) : checked ? (
               callbacks.renderToolResult(
-                result.data,
+                checked.data,
                 isError,
                 context,
                 input.success ? input.data : undefined,
@@ -216,7 +254,7 @@ export function defineTool<
             ) : input.success ? (
               (callbacks.renderCollapsedPreview?.(
                 input.data,
-                result?.success ? result.data : undefined,
+                checked?.data,
                 isError,
                 context,
               ) ?? null)
@@ -229,7 +267,7 @@ export function defineTool<
             input.success
               ? (callbacks.renderInteractiveSummary?.(
                   input.data,
-                  result?.success ? result.data : undefined,
+                  checked?.data,
                   isError,
                   context,
                 ) ?? null)
@@ -253,7 +291,7 @@ export function defineTool<
             ) : input.success ? (
               (callbacks.renderInline?.(
                 input.data,
-                result?.success ? result.data : undefined,
+                checked?.data,
                 isError,
                 record.status,
                 context,
@@ -266,6 +304,26 @@ export function defineTool<
     },
   });
 }
+
+type FailureRenderer<TInput, TFailure> = (
+  failure: TFailure,
+  context: ToolDisplayContext,
+  input?: TInput,
+) => ReactNode;
+type FailureSummary<TInput, TFailure> = (
+  failure: TFailure,
+  input?: TInput,
+) => string;
+
+/** Display of a rejection whose shape the contract's `failure` schema checks.
+ * Required when that shape is not the success shape, since the result
+ * callbacks could not then receive it.
+ */
+type FailureCallbacks<TInput, TResult, TFailure> = {
+  getFailureSummary?: FailureSummary<TInput, TFailure>;
+} & ([TFailure] extends [TResult]
+  ? { renderFailure?: FailureRenderer<TInput, TFailure> }
+  : { renderFailure: FailureRenderer<TInput, TFailure> });
 
 /**
  * Tool renderer interface

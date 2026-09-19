@@ -524,7 +524,13 @@ Preparation is data-only, bounded to the displayed record and shared across row
 operations after commentary transforms its input/output. There is no transcript
 scan or unbounded cache. The prepared record carries parsed values, execution
 status and rich/partial/raw classification. Rejections use an explicit failure
-schema or raw inspection, never a success parser. The effective error flag is
+schema or raw inspection, never a success parser. A failure schema whose shape
+is not the success shape reaches its own `renderFailure`, with an optional
+`getFailureSummary` for the collapsed row; the registration type requires that
+renderer, so failure data can never arrive at a result callback that cannot
+describe it. One `PlainFailureSchema` owns the shape most tools reject with —
+a bare message string or a `{content}` envelope — so no renderer re-derives
+that extraction. The effective error flag is
 `isError ?? status === "error"` for every operation; pending, incomplete and
 aborted remain distinct states. One exported pair decides it — `prepareDisplay`
 exports `effectiveToolError(record)` and, for a transcript invocation whose flag
@@ -613,8 +619,10 @@ Supported Edit and Task rejections retain their specialized failure views and
 original error detail. A declined Edit with a checked proposed patch still
 shows that patch. Edit acknowledgements remain visible text rather than an
 invented empty before/after diff. Goal failures retain string, content, and
-nested message/detail forms. Other failures without an explicit checked failure
-contract remain inspectable raw records. Failure eligibility is independent of
+nested message/detail forms. A tool that declares the shared plain-failure
+contract shows the provider's message in its own error styling instead of a raw
+record. A rejection matching neither the tool's failure contract nor any
+declared one remains an inspectable raw record. Failure eligibility is independent of
 success schemas; commentary must retain an absent error flag's status fallback,
 including when status changes without replacing the output object.
 

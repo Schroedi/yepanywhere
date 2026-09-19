@@ -79,6 +79,13 @@ const TextResultBlocksSchema = z
 const TextAcknowledgementSchema = TextResultBlocksSchema.transform((blocks) =>
   blocks.map((block) => block.text).join("\n"),
 );
+/** The text a rejected call carries when the tool has no failure shape of its
+ * own: providers send either the message itself or a `{content}` envelope. */
+export const PlainFailureSchema = z.union([
+  string.transform((content) => ({ content })),
+  z.object({ content: string }),
+]);
+export type PlainFailure = z.output<typeof PlainFailureSchema>;
 const highlight = {
   _highlightedContentHtml: optionalString,
   _highlightedLanguage: optionalString,
@@ -200,10 +207,6 @@ export const EditDisplayResultSchema = z.union([
   TextAcknowledgementSchema.transform((content) =>
     EditResultObjectSchema.parse({ content }),
   ),
-]);
-export const EditDisplayFailureSchema = z.union([
-  z.string().transform((content) => ({ content })),
-  z.object({ content: string }),
 ]);
 export const BashDisplayInputSchema = z
   .object({

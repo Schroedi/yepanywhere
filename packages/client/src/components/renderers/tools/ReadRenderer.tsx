@@ -671,11 +671,9 @@ function PdfFileResult({
 function ReadToolResult({
   input,
   result,
-  isError,
 }: {
   input?: ReadInput;
   result: ReadResultWithAugment;
-  isError: boolean;
 }) {
   const { enabled, reportValidationError, isToolIgnored } =
     useSchemaValidationContext();
@@ -698,19 +696,13 @@ function ReadToolResult({
   const showValidationWarning =
     enabled && validationErrors && !isToolIgnored("Read");
 
-  if (isError || !result?.file) {
-    const errorResult =
-      result && typeof result === "object" && "content" in result
-        ? result
-        : undefined;
+  if (!result?.file) {
     return (
       <div className="read-error">
         {showValidationWarning && validationErrors && (
           <SchemaWarning toolName="Read" errors={validationErrors} />
         )}
-        {typeof result === "object" && errorResult?.content
-          ? String(errorResult.content)
-          : "Failed to read file"}
+        Failed to read file
       </div>
     );
   }
@@ -905,17 +897,27 @@ export const readRenderer = defineTool(toolDisplayContracts.Read, {
     return <ReadToolUse input={input} />;
   },
 
-  renderToolResult(result, isError, _context, input) {
-    return <ReadToolResult input={input} result={result} isError={isError} />;
+  renderToolResult(result, _isError, _context, input) {
+    return <ReadToolResult input={input} result={result} />;
+  },
+
+  renderFailure(failure) {
+    return (
+      <div className="read-error">
+        {failure.content || "Failed to read file"}
+      </div>
+    );
+  },
+
+  getFailureSummary(_failure, input) {
+    return input ? getFileName(input.file_path) : "Error";
   },
 
   getUseSummary(input) {
     return getFileName(input.file_path);
   },
 
-  getResultSummary(result, isError, input?) {
-    if (isError && input) return getFileName(input.file_path);
-    if (isError) return "Error";
+  getResultSummary(result) {
     const r = result;
     if (!r?.file) return "Reading...";
     if (r.type === "pdf") return "PDF";
