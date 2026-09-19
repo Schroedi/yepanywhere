@@ -1,9 +1,17 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setImmediate as yieldToLoop } from "node:timers/promises";
 import type { VocabularyCaseForms } from "@yep-anywhere/shared";
 import { afterEach, expect, it } from "vitest";
+import { scratchSpaceDirectories } from "../../src/lib/scratchSpace.js";
 import type {
   VocabularyCheckpointRow,
   VocabularyCommit,
@@ -75,6 +83,35 @@ function fixture(failures = 0) {
   });
   return { store, table, dataDir };
 }
+
+it("moves a table out of the directory earlier versions reserved", () => {
+  const root = mkdtempSync(join(tmpdir(), "ya-vocabulary-reserved-"));
+  const dataDir = join(root, "data");
+  const env = { YEP_SCRATCH_DIR: join(root, "scratch") };
+  // Placed through the enumeration the store itself consults, so this pins
+  // that it looks where scratch space is, not a path spelled twice.
+  const reserved = scratchSpaceDirectories(
+    "speech-vocabulary",
+    dataDir,
+    env,
+  ).at(0) as string;
+  mkdirSync(reserved, { recursive: true });
+  writeFileSync(join(reserved, "speech-vocabulary.sqlite"), "table bytes");
+  const store = new VocabularyStore(dataDir, {
+    env,
+    seenBytes: 1 << 20,
+    openTable: () => new FailingTable(),
+  });
+  cleanup.push(async () => {
+    await store.close();
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  expect(existsSync(join(reserved, "speech-vocabulary.sqlite"))).toBe(false);
+  expect(readFileSync(join(dataDir, "speech-vocabulary.sqlite"), "utf8")).toBe(
+    "table bytes",
+  );
+});
 
 it("deletes the legacy files once the adopting write lands", async () => {
   const { store, table, dataDir } = fixture();

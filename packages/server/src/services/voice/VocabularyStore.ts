@@ -10,7 +10,6 @@ import {
   writeFileSync,
 } from "node:fs";
 import { rm } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { setImmediate as yieldToLoop } from "node:timers/promises";
 import {
@@ -25,7 +24,10 @@ import {
 } from "@yep-anywhere/shared";
 import { createCoalescingSaver } from "../../lib/coalescingSaver.js";
 import { statFilesystem } from "../../lib/filesystemKind.js";
-import { parseByteSize } from "../../lib/scratchSpace.js";
+import {
+  parseByteSize,
+  scratchSpaceDirectories,
+} from "../../lib/scratchSpace.js";
 import { getLogger } from "../../logging/logger.js";
 import { BlockedBloom, BloomFile, bloomLoadForRate } from "./blocked-bloom.js";
 import { DistinctiveTop, distinctiveScore } from "./distinctive-top.js";
@@ -112,29 +114,6 @@ const SCRATCH_PURPOSE = "speech-vocabulary";
  * the part of it worth keeping now that the placement search is gone.
  */
 const DISK_HEADROOM_BYTES = 1024 * 1024 * 1024;
-
-/**
- * Directories earlier versions could have reserved for the table and filter,
- * newest choice first. Probed read-only: unlike the reservation this replaces,
- * naming a candidate must not create it.
- */
-function reservedDirectories(
-  dataDir: string,
-  env: NodeJS.ProcessEnv,
-): string[] {
-  const leaf = `${SCRATCH_PURPOSE}-${createHash("sha256")
-    .update(dataDir)
-    .digest("hex")
-    .slice(0, 12)}`;
-  const override = env.YEP_SCRATCH_DIR?.trim();
-  const cacheHome = env.XDG_CACHE_HOME?.trim() || join(homedir(), ".cache");
-  return [
-    ...(override ? [join(override, leaf)] : []),
-    join(cacheHome, "yep-anywhere", leaf),
-    join(tmpdir(), "yep-anywhere", leaf),
-    join(dataDir, SCRATCH_PURPOSE),
-  ];
-}
 
 function affordable(dir: string, requested: number): number {
   try {
@@ -578,7 +557,11 @@ export class VocabularyStore {
    * than made fatal; the cost is relearning, and the table is the small one.
    */
   private adoptReservedFiles(): void {
-    for (const candidate of reservedDirectories(this.dataDir, this.env)) {
+    for (const candidate of scratchSpaceDirectories(
+      SCRATCH_PURPOSE,
+      this.dataDir,
+      this.env,
+    )) {
       const from = join(candidate, DATABASE_FILE);
       if (!existsSync(from) || existsSync(this.databasePath)) continue;
       try {
