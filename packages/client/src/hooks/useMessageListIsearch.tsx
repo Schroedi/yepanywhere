@@ -47,6 +47,9 @@ import styles from "./useMessageListIsearch.module.css";
 const SEARCH_ARROW_REPEAT_DELAY_MS = 150;
 const SEARCH_ARROW_REPEAT_INTERVAL_MS = 42;
 const HISTORY_SEARCH_RESULT_LIMIT = 512;
+// Focus plus one key: a field that disagrees about its own text hands over
+// rather than leaving the receiver in front of it forever.
+const EARLY_SEARCH_HANDOVER_ATTEMPTS = 2;
 
 interface UserTurnSearchSession {
   active: boolean;
@@ -167,6 +170,12 @@ export function useMessageListIsearch({
   >(null);
   const [boundaryPulse, setBoundaryPulse] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchInputWantsFocusRef = useRef(false);
+  const searchQueryRef = useRef("");
+  const earlySearchHandoverAttemptsRef = useRef(0);
+  const earlySearchKeyListenerRef = useRef<
+    ((event: KeyboardEvent) => void) | null
+  >(null);
   const searchRestoreFocusRef = useRef<HTMLElement | null>(null);
   const searchOriginalScrollTopRef = useRef<number | null>(null);
   const committedSearchTargetIdRef = useRef<string | null>(null);
@@ -211,6 +220,99 @@ export function useMessageListIsearch({
     setHydratingSearchId(null);
   }, []);
 
+  const stopEarlySearchKeys = useCallback(() => {
+    const listener = earlySearchKeyListenerRef.current;
+    if (!listener) return;
+    earlySearchKeyListenerRef.current = null;
+    window.removeEventListener("keydown", listener, true);
+  }, []);
+  // Retire only once the input both holds focus and already shows every
+  // character taken so far. While it shows less, a key typed into it would
+  // report a value missing those characters and overwrite them; keeping the
+  // receiver one key longer costs nothing and keeps what was typed first
+  // first. Nothing is in flight when this returns true, so there is no queue
+  // to drain and no second pass to make.
+  //
+  // A field that rewrites what it is given would never match, so focus alone
+  // retires the receiver after EARLY_SEARCH_HANDOVER_ATTEMPTS: a focused
+  // input that disagrees about its own text owns the keys anyway, and
+  // waiting forever would mean intercepting every keystroke for good.
+  const readyToRetireEarlySearchKeys = useCallback(() => {
+    const input = searchInputRef.current;
+    if (!input || document.activeElement !== input) return false;
+    if (input.value === searchQueryRef.current) return true;
+    earlySearchHandoverAttemptsRef.current += 1;
+    return (
+      earlySearchHandoverAttemptsRef.current >= EARLY_SEARCH_HANDOVER_ATTEMPTS
+    );
+  }, []);
+  const retireEarlySearchKeysWhenReady = useCallback(() => {
+    if (!readyToRetireEarlySearchKeys()) return;
+    stopEarlySearchKeys();
+    const input = searchInputRef.current;
+    if (!input || input.value === searchQueryRef.current) return;
+    // Handed over on the attempt bound rather than on agreement, so the last
+    // character may be out of order. Put the caret after whatever the field
+    // decided to show, so the next key appends instead of landing wherever
+    // the rewrite left it.
+    const caret = input.value.length;
+    input.setSelectionRange(caret, caret);
+  }, [readyToRetireEarlySearchKeys, stopEarlySearchKeys]);
+  // Typing is allowed from the keystroke that opens search, which is before
+  // the panel exists. This receiver holds those keys at the window and writes
+  // them straight into the query state the input will render, so nothing is
+  // lost and nothing reaches the transcript's single-key shortcuts.
+  const startEarlySearchKeys = useCallback(() => {
+    stopEarlySearchKeys();
+    earlySearchHandoverAttemptsRef.current = 0;
+    const listener = (event: KeyboardEvent) => {
+      // Handover, decided per key rather than on a timer or a mount. Once it
+      // happens this event already belongs to the input, so let it through;
+      // anything struck before it was still handled here, which is what keeps
+      // the switchover gapless without a queue to transfer.
+      retireEarlySearchKeysWhenReady();
+      if (!earlySearchKeyListenerRef.current) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const backspace = event.key === "Backspace";
+      if (!backspace && event.key.length !== 1) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setBoundary(null);
+      committedSearchTargetIdRef.current = null;
+      setUserTurnSearch((previous) =>
+        previous.active
+          ? {
+              ...previous,
+              query: backspace
+                ? previous.query.slice(0, -1)
+                : previous.query + event.key,
+              selectedId: null,
+            }
+          : previous,
+      );
+    };
+    earlySearchKeyListenerRef.current = listener;
+    window.addEventListener("keydown", listener, true);
+  }, [retireEarlySearchKeysWhenReady, stopEarlySearchKeys]);
+  // Focus lands in the commit that creates the input, not a frame later.
+  const attachSearchInput = useCallback(
+    (input: HTMLInputElement | null) => {
+      searchInputRef.current = input;
+      if (!input || !searchInputWantsFocusRef.current) return;
+      searchInputWantsFocusRef.current = false;
+      // The focus event fires inside focus() below, so the receiver retires
+      // in that same call rather than waiting for a key to prove focus
+      // arrived — otherwise it would still be intercepting after the user
+      // clicked somewhere else without typing. A focus this call cannot land
+      // leaves the listener armed, and the per-key check retires it later.
+      input.addEventListener("focus", retireEarlySearchKeysWhenReady);
+      input.focus({ preventScroll: true });
+      const caret = input.value.length;
+      input.setSelectionRange(caret, caret);
+    },
+    [stopEarlySearchKeys],
+  );
+
   const hasUserSearchableTurn = useMemo(
     () => hasSearchableUserTurn(displayRenderItems),
     [displayRenderItems],
@@ -219,6 +321,10 @@ export function useMessageListIsearch({
     (): UserTurnNavAnchor[] => getUserTurnNavAnchors(displayRenderItems),
     [displayRenderItems],
   );
+  // What the input is expected to show; the early-key receiver compares
+  // against it to know whether the input has caught up with what was typed
+  // before it existed.
+  searchQueryRef.current = userTurnSearch.query;
   const searchReady = getSearchReady({
     active: userTurnSearch.active,
     query: userTurnSearch.query,
@@ -787,8 +893,9 @@ export function useMessageListIsearch({
   useEffect(
     () => () => {
       stopSearchArrowRepeat();
+      stopEarlySearchKeys();
     },
-    [stopSearchArrowRepeat],
+    [stopEarlySearchKeys, stopSearchArrowRepeat],
   );
   const startSearchArrowRepeat = useCallback(
     (direction: "previous" | "next") => {
@@ -905,6 +1012,8 @@ export function useMessageListIsearch({
   );
   const closeSearch = useCallback(
     (restoreScroll: boolean) => {
+      searchInputWantsFocusRef.current = false;
+      stopEarlySearchKeys();
       setBoundary(null);
       const committedTargetId = committedSearchTargetIdRef.current;
       committedSearchTargetIdRef.current = null;
@@ -944,7 +1053,12 @@ export function useMessageListIsearch({
         };
       });
     },
-    [cancelSearchTargetPreparation, containerRef, disposeHistorySearchWorker],
+    [
+      cancelSearchTargetPreparation,
+      containerRef,
+      disposeHistorySearchWorker,
+      stopEarlySearchKeys,
+    ],
   );
   const openSearch = useCallback(
     (scope: SessionIsearchScope) => {
@@ -977,20 +1091,19 @@ export function useMessageListIsearch({
         selectedId: null,
         originalScrollTop: searchOriginalScrollTopRef.current,
       });
-      requestAnimationFrame(() => {
-        const input = searchInputRef.current;
-        // Characters typed between the panel mounting and this frame already
-        // landed in the input, so re-focusing (and the select() that used to
-        // follow) would discard them on the next keystroke.
-        if (!input || document.activeElement === input) return;
-        input.focus({ preventScroll: true });
-      });
+      // The panel mounts with focus (attachSearchInput), so no frame passes
+      // before the input can take keys. Until that mount happens the query
+      // still has nowhere to land, so collect keystrokes at the window and
+      // let the input render what was typed while it did not exist.
+      searchInputWantsFocusRef.current = true;
+      startEarlySearchKeys();
     },
     [
       containerRef,
       displayRenderItems.length,
       hasOlderMessages,
       hasUserSearchableTurn,
+      startEarlySearchKeys,
       userTurnSearch.active,
     ],
   );
@@ -1114,7 +1227,7 @@ export function useMessageListIsearch({
               {searchPanelProjection.scopeLabel}
             </span>
             <input
-              ref={searchInputRef}
+              ref={attachSearchInput}
               className={styles.input}
               value={userTurnSearch.query}
               onChange={(event) => handleQueryChange(event.target.value)}
