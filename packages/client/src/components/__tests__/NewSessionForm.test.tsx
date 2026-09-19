@@ -11,6 +11,7 @@ import {
 } from "@testing-library/react";
 import {
   PROJECT_QUEUE_CAPABILITY,
+  SERVER_CAPABILITIES,
   SESSION_SANDBOX_NETWORK_FIREWALL_CAPABILITY,
   SESSION_SANDBOXING_CAPABILITY,
   SESSION_SANDBOXING_STATUS_CAPABILITY,
@@ -470,8 +471,10 @@ vi.mock("../../lib/clientSummaryStore", async (importOriginal) => {
   };
 });
 
-vi.mock("../../contexts/SourceRuntimeContext", () => ({
-  useCurrentSourceRuntime: () => ({
+vi.mock("../../contexts/SourceRuntimeContext", () => {
+  // One runtime object for the whole file: a fresh transport identity on every
+  // render restarts effects that depend on it, which the real context does not.
+  const runtime = {
     sourceKey: "host:test",
     transport: {
       capabilities: { sameOriginUrls: true },
@@ -483,8 +486,9 @@ vi.mock("../../contexts/SourceRuntimeContext", () => ({
       reportProjectQueueCollectionSnapshot:
         mockReportProjectQueueCollectionSnapshot,
     },
-  }),
-}));
+  };
+  return { useCurrentSourceRuntime: () => runtime };
+});
 
 vi.mock("../../hooks/useProjectQueues", () => ({
   useProjectQueues: (projectIds: string[]) => {
@@ -1802,6 +1806,101 @@ describe("NewSessionForm", () => {
     });
     expect(mockStartSession.mock.calls[0]?.[2]).toEqual(
       expect.objectContaining({ sandboxLevel: "none" }),
+    );
+  });
+
+  it("offers computer control to an eligible Codex session and submits it", async () => {
+    versionState.version = {
+      capabilities: [
+        PROJECT_QUEUE_CAPABILITY,
+        SERVER_CAPABILITIES.computerControl.name,
+      ],
+    };
+    serverSettingsState.settings = {
+      newSessionDefaults: {
+        provider: "codex",
+        model: "gpt-5.4",
+        permissionMode: "default",
+      },
+    };
+    serverSettingsState.isLoading = false;
+    mockConnectionFetch.mockImplementation((path: string) =>
+      path === "/computer-control"
+        ? Promise.resolve({ enabled: true, available: true })
+        : Promise.resolve({}),
+    );
+
+    render(
+      <NewSessionForm
+        projectId="project-1"
+        selectedProject={chooserProjects[0]}
+        projects={[...chooserProjects]}
+      />,
+    );
+
+    const optIn = await screen.findByRole("checkbox", {
+      name: /computerSessionOptIn/,
+    });
+    fireEvent.click(optIn);
+    fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
+      target: { value: "drive the computer" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "newSessionStartAction" }),
+    );
+
+    await waitFor(() => {
+      expect(mockStartSession).toHaveBeenCalledTimes(1);
+    });
+    expect(mockStartSession.mock.calls[0]?.[2]).toEqual(
+      expect.objectContaining({ computerControl: true }),
+    );
+  });
+
+  it("neither offers nor requests computer control without the capability", async () => {
+    versionState.version = { capabilities: [PROJECT_QUEUE_CAPABILITY] };
+    serverSettingsState.settings = {
+      newSessionDefaults: {
+        provider: "codex",
+        model: "gpt-5.4",
+        permissionMode: "default",
+      },
+    };
+    serverSettingsState.isLoading = false;
+    mockConnectionFetch.mockImplementation((path: string) =>
+      path === "/computer-control"
+        ? Promise.resolve({ enabled: true, available: true })
+        : Promise.resolve({}),
+    );
+
+    render(
+      <NewSessionForm
+        projectId="project-1"
+        selectedProject={chooserProjects[0]}
+        projects={[...chooserProjects]}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
+      target: { value: "ordinary Codex session" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "newSessionStartAction" }),
+    );
+
+    await waitFor(() => {
+      expect(mockStartSession).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      screen.queryByRole("checkbox", { name: /computerSessionOptIn/ }),
+    ).toBeNull();
+    expect(mockConnectionFetch).not.toHaveBeenCalledWith(
+      "/computer-control",
+      expect.anything(),
+    );
+    expect(mockConnectionFetch).not.toHaveBeenCalledWith("/computer-control");
+    expect(mockStartSession.mock.calls[0]?.[2]).not.toHaveProperty(
+      "computerControl",
     );
   });
 

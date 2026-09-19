@@ -529,6 +529,15 @@ export function NewSessionForm({
     : "none";
   const effectiveSandboxNetworkFirewall =
     effectiveSandboxLevel === "project-write" && sandboxNetworkFirewall;
+  // Whether this form may offer computer control and send the launch field.
+  // The server's select() still decides; this only keeps the offer and the
+  // request from disagreeing.
+  const computerControlEligible =
+    selectedProvider === "codex" &&
+    !effectiveExecutor &&
+    effectiveSandboxLevel === "none" &&
+    !launch &&
+    serverHasCapability(versionInfo, SERVER_CAPABILITIES.computerControl.name);
   const supportsProjectQueue = serverSupportsProjectQueue(versionInfo);
   const projectQueueCtrlEnterEnabled =
     versionInfo?.clientDefaults?.projectQueueCtrlEnterEnabled ??
@@ -2199,14 +2208,7 @@ export function NewSessionForm({
         // server requests provider summaries independently.
         const showThinking = getShowThinkingSetting();
         const sessionOptions = {
-          ...(computerSelected &&
-          selectedProvider === "codex" &&
-          !effectiveExecutor &&
-          effectiveSandboxLevel === "none" &&
-          serverHasCapability(
-            versionInfo,
-            SERVER_CAPABILITIES.computerControl.name,
-          )
+          ...(computerSelected && computerControlEligible
             ? { computerControl: true }
             : {}),
           mode: sessionMode,
@@ -2475,6 +2477,7 @@ export function NewSessionForm({
     [
       basePath,
       draftControls,
+      computerControlEligible,
       computerSelected,
       effectiveEffortLevel,
       effectiveExecutor,
@@ -4046,12 +4049,7 @@ export function NewSessionForm({
           {promptSuggestionSection}
           {sandboxSection}
           <ComputerSessionSelection
-            eligible={
-              selectedProvider === "codex" &&
-              !effectiveExecutor &&
-              effectiveSandboxLevel === "none" &&
-              !launch
-            }
+            eligible={computerControlEligible}
             selected={computerSelected}
             onChange={setComputerSelected}
           />
