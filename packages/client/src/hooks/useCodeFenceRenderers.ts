@@ -8,6 +8,7 @@
  */
 
 import { type RefObject, useEffect } from "react";
+import { RENDER_MODE_GLYPH_MARKUP } from "../components/ui/RenderModeGlyph";
 import { resolveAppearance } from "../lib/codeFence/mermaidRenderer";
 import {
   type CodeFenceRenderer,
@@ -85,11 +86,7 @@ function makeToggle(doc: Document, renderer: CodeFenceRenderer): HTMLElement {
   const toggle = doc.createElement("button");
   toggle.type = "button";
   toggle.setAttribute(TOGGLE, "");
-  toggle.innerHTML =
-    '<svg class="render-mode-glyph" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
-    '<text x="8" y="8.1" text-anchor="middle" dominant-baseline="central" ' +
-    'font-family="KaTeX_Main, Times New Roman, serif" font-size="12.5" font-weight="500" ' +
-    'fill="currentColor">Σ</text></svg>';
+  toggle.innerHTML = RENDER_MODE_GLYPH_MARKUP;
   toggle.dataset.yaRenderedNoun = renderer.renderedNoun;
   return toggle;
 }

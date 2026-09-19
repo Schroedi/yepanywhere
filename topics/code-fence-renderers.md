@@ -165,7 +165,10 @@ The user-facing control for a rendered diagram is the ordinary source-or-
 rendered choice YA already offers everywhere else, not a security setting. A
 Mermaid block renders as a diagram by default and toggles back to its
 highlighted source on demand, reusing the Σ affordance and hover behavior of
-the fixed-font panels rather than introducing a per-language control.
+the fixed-font panels rather than introducing a per-language control. Reusing
+it is literal: this toggle is built in plain DOM rather than by React, and both
+surfaces draw the glyph from the one definition beside `RenderModeGlyph`, so
+the two controls cannot come to look different.
 Rendering by default is the deliberate choice here: showing diagram source
 where a diagram was requested is the defect this feature exists to fix, so it
 is not a case of disturbing a sound default.
