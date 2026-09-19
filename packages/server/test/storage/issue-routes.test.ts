@@ -5,10 +5,8 @@ import { expect, it } from "vitest";
 import { ServerSettingsService } from "../../src/services/ServerSettingsService.js";
 import { DiscoverySqliteService } from "../../src/storage/discovery-sqlite.js";
 import { IssueStore } from "../../src/services/issues/IssueStore.js";
-import {
-  IssueIndexer,
-  DEFAULT_ISSUE_SETTINGS,
-} from "../../src/services/issues/IssueIndexer.js";
+import { IssueIndexer } from "../../src/services/issues/IssueIndexer.js";
+import { DEFAULT_ISSUE_SETTINGS } from "@yep-anywhere/shared";
 import { createIssueRoutes } from "../../src/routes/issues.js";
 import { getServerCapabilities } from "../../src/routes/version.js";
 import type { SqliteDatabase, SqliteValue } from "../../src/storage/sqlite.js";

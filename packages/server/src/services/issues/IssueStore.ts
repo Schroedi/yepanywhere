@@ -8,6 +8,7 @@ import type { VisibleMessageText } from "../../sessions/message-text.js";
 import { extractIssueReferences, issueUrl, issueExcerpt } from "./extract.js";
 
 import {
+  DEFAULT_ISSUE_SETTINGS,
   DEFAULT_JIRA_KEY_BLOCKLIST,
   type IssueItem,
   type IssueSort,
@@ -60,11 +61,8 @@ export class IssueStore {
   constructor(
     readonly database: SqliteDatabase,
     /** Read per capture, so a settings change applies to the next message. */
-    private readonly settings: () => IssueSettings = () => ({
-      enabled: false,
-      scope: "viewed",
-      recentDays: 7,
-    }),
+    private readonly settings: () => IssueSettings = () =>
+      DEFAULT_ISSUE_SETTINGS,
   ) {}
   private rows(sql: string, ...values: SqliteValue[]): SqliteRow[] {
     const s = this.database.prepare(sql);

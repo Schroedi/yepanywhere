@@ -11,11 +11,6 @@ import type { AdmittedJob, IssueStore, IssueSource } from "./IssueStore.js";
 
 import type { IssueSettings } from "@yep-anywhere/shared";
 export type { IssueSettings } from "@yep-anywhere/shared";
-export const DEFAULT_ISSUE_SETTINGS: IssueSettings = {
-  enabled: false,
-  scope: "viewed",
-  recentDays: 7,
-};
 /** Identifies one published catalog generation, so a sweep can skip a repeat. */
 export interface CatalogMark {
   catalogEpoch: string;

@@ -5,10 +5,7 @@ import { createComputerControlReleaseRoutes } from "./routes/computer-control-re
 import { createConversationSource } from "./experimental/conversation-source.js";
 import { createExperimentalConversationRoutes } from "./routes/experimental-conversation.js";
 import { IssueStore } from "./services/issues/IssueStore.js";
-import {
-  IssueIndexer,
-  DEFAULT_ISSUE_SETTINGS,
-} from "./services/issues/IssueIndexer.js";
+import { IssueIndexer } from "./services/issues/IssueIndexer.js";
 import { createIssueRoutes } from "./routes/issues.js";
 import { IssueCredentials } from "./services/issues/credentials.js";
 import { IssueConfirmer } from "./services/issues/confirm.js";
@@ -50,6 +47,7 @@ import {
 } from "@yep-anywhere/shared";
 import {
   DEFAULT_HEARTBEAT_TURN_TEXT,
+  DEFAULT_ISSUE_SETTINGS,
   DEFAULT_HEARTBEAT_TURNS_AFTER_MINUTES,
   DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
   DEFAULT_PROMPT_CACHE_KEEPALIVE_INACTIVITY_MINUTES,

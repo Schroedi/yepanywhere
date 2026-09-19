@@ -1458,7 +1458,10 @@ export {
   VOCABULARY_FLUSH_COUNTS,
 } from "./speech-vocabulary.js";
 
-export { DEFAULT_JIRA_KEY_BLOCKLIST } from "./issues.js";
+export {
+  DEFAULT_ISSUE_SETTINGS,
+  DEFAULT_JIRA_KEY_BLOCKLIST,
+} from "./issues.js";
 export type {
   IssueSettings,
   IssueConfirmationSettings,
