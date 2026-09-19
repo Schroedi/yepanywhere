@@ -3,7 +3,7 @@
 > Proposal: a library of new-project templates — YA-shipped plus a user
 > git-controlled `~/ya-templates` — where a template is a prefab file tree
 > (with its own `AGENTS.md`), a one-time boot prompt, and declared shape
-> elements (batch, chat-turn, or canvas interactive; JS or wasm; with or
+> elements (batch, chat-turn, or canvas interactive; TypeScript or wasm; with or
 > without a loopback server) defined as shipped prompt documents that an
 > agent can also apply later on request; YA materializes a template into a fresh
 > git-initialized project, registers it, and opens the first session on the
@@ -12,8 +12,40 @@
 
 Topic: project-templates
 
-Status: **proposal, nothing implemented (2026-09-19).** Facts this proposal
-rests on, checked against the tree at `a34d5c7bb`:
+Status: **proposal, nothing implemented (2026-09-19).**
+
+## The idea in brief
+
+Today "new project" in YA means pointing it at a directory that already
+exists. Everything after that — layout, conventions, tooling, whether there is
+a web app and how to run it — is improvised by the agent in the first session
+and re-improvised in the next project. A **project template** fixes that
+first minute: a small, curated starting tree, a project `AGENTS.md` that
+explains the layout to whatever agent opens it, and a one-time **boot
+prompt** the agent acts on immediately. YA creates the directory, runs
+`git init`, registers the project, and opens the first session already
+holding that prompt plus whatever the user typed.
+
+Worked example: from the Projects page the user types
+`/start-project canvas-ts a breakout clone with a ball that speeds up`.
+YA creates `~/projects/breakout/` from the `canvas-ts` template (TypeScript
+over HTML5 canvas, no server), commits it, and opens a session whose first
+turn is the template's boot prompt followed by the user's request. The agent
+reads the project `AGENTS.md`, builds the game, and the result is reachable
+in YA's App pane on the name reserved for the project. Later the user says
+"add a server to keep high scores"; the project `AGENTS.md` already points
+the agent at the `server` element, so the project ends up shaped the same as
+if `server` had been picked at creation.
+
+Two libraries feed the chooser: a **shipped** set of defaults, kept in a
+separate contributable repository so YA's own source stays small, and a
+per-user `~/ya-templates` git repository for customized or private
+templates. The design is deliberately prompt-first: templates and their
+composable **elements** are markdown documents an agent applies, and scripts
+only accelerate the mechanical parts. There is no template configuration
+language.
+
+Facts this proposal rests on, checked against the tree at `a34d5c7bb`:
 
 - YA has no template concept. `POST /api/projects` (`routes/projects.ts`)
   only registers an *existing* directory; there is no mkdir and no `git init`
@@ -40,13 +72,15 @@ phase.
 
 ## Motivation
 
-Today a new project is "point YA at a directory that already exists". The
-agent then improvises layout, conventions, and any app scaffolding per
-session. A template makes the first minute reproducible: the tree, the
-project `AGENTS.md`, and the first prompt are curated once and reused, and
-the user can save a customized project shape back into a private library.
-The novice case from [[interactives]] (tap, describe the game, play it) needs
-exactly this: a known starting tree the agent already knows how to extend.
+Reproducibility is the first win: the tree, the project `AGENTS.md`, and the
+first prompt are curated once and reused, and a user can save a project shape
+they like back into a private library. The second win is the novice case
+from [[interactives]] (tap, describe the game, play it): that only works when
+the agent starts from a tree it already knows how to extend, rather than
+inventing a build setup under a child's first request. The third is
+contribution: because a template is a directory of markdown and starter
+files, anyone can propose a new default by pull request without reading YA's
+source.
 
 ## Vocabulary
 
@@ -145,8 +179,8 @@ has the template layout. Import lands in the user library only.
 - **Shipped:** a separate GitHub repository — favored (2026-09-19):
   `graehl/yep-project-templates`, not yet created — holding the default
   templates and element
-  documents, so the main project is not sullied with template detail and a
-  naive user can contribute a default template through an ordinary pull
+  documents, so YA's own repository carries no template content and a
+  newcomer can contribute a default template through an ordinary pull
   request there without touching YA source. YA takes a snapshot of that repo
   at a pinned ref into `{dataDir}/templates/shipped/` on first use or on an
   explicit "update shipped templates" action, and reads the list from there
@@ -250,12 +284,14 @@ and renders through WebGL from a small TypeScript glue file, so `ts` +
 `wasm` + `graphics` is still a static bundle (`index.html`, glue, `.wasm`);
 nanovg-js is the no-Zig form of the same element.
 
-**App name reservation.** A vhost row, with the operator's public root,
-already yields `name.graehl.org` through the operator's tunnel. Every
-templated project reserves a row at creation, whether or not its template
-declares an `app` (decided 2026-09-19): an interactive-less project does not
-need a subdomain, but owning one by default costs nothing and lets a later
-"add a server" land on a name that is already its own. The reserved name
+**App name reservation.** Settings → Apps already lets an operator map a
+name to a loopback port, reachable as `name.localhost` and, with a public
+root configured, as `name.example.com` through the operator's own tunnel.
+Every templated project reserves such a row at creation, whether or not its
+template declares an `app` (decided 2026-09-19): a project with no
+interactive does not need a subdomain, but owning one by default costs
+nothing and lets a later "add a server" land on a name that is already its
+own. The reserved name
 defaults to the project's short code name ([[project-code-names]]), which
 already differs from the directory path and is itself editable, and the
 reservation may be edited to differ from both; the row is written to
@@ -273,8 +309,9 @@ project-declared registry; that stronger form is phase 4 and must keep the
 [[interactives]] posture: loopback-only targets, app-scoped bearer by
 default, no YA API on that origin.
 
-**Chat-turn view without the provider.** A `chat-turn` template ships a small
-turn-view JS library, inline-copied into the project, that renders
+**Chat-turn view without the provider.** Some projects *are* a chat: a text
+adventure, a simulated support agent, a tutor. A `chat-turn` template ships
+a small turn-view TypeScript library, inline-copied into the project, that renders
 session-like user/assistant turns from the project's own code (client-only
 via browser storage, or from a loopback server over HTTP + SSE). It is
 project code served by the project, not a YA route, and is not a YA
