@@ -108,7 +108,7 @@ exactly this: a known starting tree the agent already knows how to extend.
 Elements live beside the shipped templates as prompt documents:
 
 ```text
-packages/server/templates/
+<library>/                   # shipped snapshot or ~/ya-templates
   elements/<element>.md      # what the element is, the layout it adds,
                              # conventions the project AGENTS.md must carry
   elements/<element>/accelerate.sh   # optional mechanical accelerator
@@ -142,20 +142,30 @@ has the template layout. Import lands in the user library only.
 
 ## Library locations
 
-- **Shipped:** `packages/server/templates/<name>/`, read by the server so
-  hosted and relay clients see the same list and nothing enters the client
-  bundle ([DEVELOPMENT.md](../DEVELOPMENT.md) § Minimalist Runtime). Shipped
-  templates are ordinary committed files reviewed like source.
-- **User:** `~/ya-templates`, overridable by `YEP_TEMPLATES_DIR`. Created
-  lazily on the first user action that needs it (save, import, or "open
-  templates dir"), as an empty git repository with an initial commit of a
-  `README.md` naming the layout. Listing never creates it. This is a YA write
-  outside the data dir and outside any project, so it is explicit-action
-  only and reported in the UI; it is not governed by
-  [[project-directory-storage]] because it is not inside a selected project,
-  but the same posture applies: YA writes there only on a named user action.
-- The data dir stays out of it. Templates are user-curated, git-tracked
-  content; the data dir is opaque app state and is never versioned.
+- **Shipped:** a separate GitHub repository (working name
+  `yepanywhere-templates`) holding the default templates and element
+  documents, so the main project is not sullied with template detail and a
+  naive user can contribute a default template through an ordinary pull
+  request there without touching YA source. YA takes a snapshot of that repo
+  at a pinned ref into `{dataDir}/templates/shipped/` on first use or on an
+  explicit "update shipped templates" action, and reads the list from there
+  so hosted and relay clients see the same set and nothing enters the client
+  bundle ([DEVELOPMENT.md](../DEVELOPMENT.md) § Minimalist Runtime). The
+  snapshot is opaque app data like the rest of the data dir: not a git
+  checkout, not rewindable, replaced wholesale on update. The pinned ref and
+  a minimal built-in fallback set (enough to work offline) live in YA source.
+- **User:** `~/ya-templates`, overridable by `YEP_TEMPLATES_DIR`, is the
+  only git-controlled part. Created lazily on the first user action that
+  needs it (save, import, or "open templates dir"), as an empty git
+  repository with an initial commit of a `README.md` naming the layout.
+  Listing never creates it. This is a YA write outside the data dir and
+  outside any project, so it is explicit-action only and reported in the UI;
+  it is not governed by [[project-directory-storage]] because it is not
+  inside a selected project, but the same posture applies: YA writes there
+  only on a named user action. A user edits or customizes a shipped template
+  by copying it into this library, where it shadows the shipped name.
+- The data dir stays non-versioned. Rewind and history belong to the user
+  library alone.
 
 Listing endpoint (proposed): `GET /api/project-templates` returning the union
 with `source: "shipped" | "user"` and `shadows` when a user template hides a
@@ -256,7 +266,8 @@ YA's client is a later refactor question, not a v1 dependency.
 
 ## Phases
 
-1. **Library and listing.** Shipped dir, `~/ya-templates` lazy git init,
+1. **Library and listing.** Shipped-templates repo with pinned snapshot
+   into the data dir and built-in fallback, `~/ya-templates` lazy git init,
    `template.json` + `BOOT.md` + `files/` layout, union listing endpoint and
    capability, read-only Project Templates page. No creation yet. ‖
 2. **Create from template.** mkdir + copy + `git init` + register + boot
@@ -283,6 +294,9 @@ YA's client is a later refactor question, not a v1 dependency.
 - Bundle format details: header syntax, size limits, binary files.
 - Whether the user library may also be a subdir of an existing user git repo
   rather than its own repository.
+- Shipped-repo mechanics: name and owner of the repository, snapshot
+  transport (tarball fetch versus `git archive`), how the pinned ref is
+  advanced with YA releases, and how small the built-in fallback set is.
 - Element conventions' exact text, which pairs compose (e.g. `canvas` +
   `chat-turn` overlay), and when an accelerator is worth shipping versus
   leaving the element prompt-only.
