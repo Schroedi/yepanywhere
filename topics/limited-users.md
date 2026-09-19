@@ -153,10 +153,11 @@ same project. The slider is an **offset against the believed cache-warm
 window of the session's provider and model**, not an absolute duration: the
 per-provider retention window that [[prompt-cache-keepalive]] already
 tracks is the zero point (currently configured as one hour for Claude and
-five minutes for Codex, which is fine for now), and the slider ranges from
-"as soon as the cache is believed cold" through a grace of minutes or hours
-to off. One user setting therefore behaves sensibly across providers without
-the user knowing either window. The new session's first turn is
+ten minutes for Codex, which is fine for now). The slider ranges from −5
+minutes (redirect slightly before the cache is believed cold) to +60 minutes
+of grace, with a separate off position; the default offset is 0. One user
+setting therefore behaves sensibly across providers without the user
+knowing either window. The new session's first turn is
 the user's text, prefixed with a short reference to the previous session
 (its YA id and title) and a hint that the agent should read it if the
 request refers to something not otherwise explained; the previous session is
