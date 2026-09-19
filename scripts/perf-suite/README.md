@@ -112,6 +112,14 @@ as independently mutation-marked correctness milestones. Browser-process
 launch is excluded. Separate server processes prevent the direct readiness
 probe from warming the client leg's YA caches.
 
+Every measured server runs at the console log level in
+`MEASURED_SERVER_LOG_LEVEL` (`process-fixture.mjs`), so one leg cannot pay
+logging cost the others and a production server do not. Set
+`YA_PERF_OWNED_PROVIDER_LOG_LEVEL` to a server log level for a diagnostic rerun
+whose owned-provider failure tail needs more than errors; the resolved level is
+recorded as `runtime.ownedProviderServerLogLevel`, and a raised level makes
+that result diagnostic rather than comparable.
+
 The `specialized` driver runs two fresh server legs. Its owned-session leg
 selects an out-of-process simulated provider-runtime worker while retaining
 YA's real provider host, proxy, supervisor, subscription, augmentation, and
