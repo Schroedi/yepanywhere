@@ -250,11 +250,22 @@ and renders through WebGL from a small TypeScript glue file, so `ts` +
 `wasm` + `graphics` is still a static bundle (`index.html`, glue, `.wasm`);
 nanovg-js is the no-Zig form of the same element.
 
-**Subdomain per project.** A vhost row named after the project, with the
-operator's public root, already yields `name.graehl.org` through the
-operator's tunnel. Rows are global settings, so in phase 1–2 the create flow
-can only *suggest* the row. A project-declared row is phase 4 and must keep
-the [[interactives]] posture: loopback-only targets, app-scoped bearer by
+**App name reservation.** A vhost row, with the operator's public root,
+already yields `name.graehl.org` through the operator's tunnel. When a
+template declares an `app`, the create flow reserves that row at creation
+(decided 2026-09-19): the app name defaults to the project name and may be
+edited to differ; the row is written to Settings → Apps like any other, with
+a `project` field naming the project it was reserved for, and the port left
+to be filled when the agent picks one (the boot prompt tells it the reserved
+name and to report the port). Reservations stay ordinary rows: the operator
+can delete one or reassign it to a different project from Apps settings, and
+no project-side file records it, so [[project-directory-storage]] is
+untouched. Names must be collision-free; on collision the chooser blocks
+until the user picks one of: choose another name, remove the old row, or
+auto-rename the old row (`<old>-1`, next free suffix), which also updates
+that row's project reference. Rows are still global operator config, not a
+project-declared registry; that stronger form is phase 4 and must keep the
+[[interactives]] posture: loopback-only targets, app-scoped bearer by
 default, no YA API on that origin.
 
 **Chat-turn view without the provider.** A `chat-turn` template ships a small
@@ -272,7 +283,8 @@ YA's client is a later refactor question, not a v1 dependency.
    `template.json` + `BOOT.md` + `files/` layout, union listing endpoint and
    capability, read-only Project Templates page. No creation yet. ‖
 2. **Create from template.** mkdir + copy + `git init` + register + boot
-   session; New Project chooser mode on the Projects page; `/start-project`;
+   session; app-name reservation as an Apps row with collision handling;
+   New Project chooser mode on the Projects page; `/start-project`;
    landing command field and Templates link. ‖
 3. **Element layer and shipped set.** Element prompt documents with
    optional accelerators, base `AGENTS.md` lazy-apply instructions; shipped
@@ -295,6 +307,9 @@ YA's client is a later refactor question, not a v1 dependency.
 - Bundle format details: header syntax, size limits, binary files.
 - Whether the user library may also be a subdir of an existing user git repo
   rather than its own repository.
+- Reservation rows: whether a portless reserved row is a new row state or
+  just a row with port `0`, and what Apps settings shows for the project
+  field when the project is later hidden or deleted.
 - Shipped-repo mechanics: whether `graehl/yep-project-templates` stays the
   home or moves under kzahel once upstream adopts the feature, snapshot
   transport (tarball fetch versus `git archive`), how the pinned ref is
