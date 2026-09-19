@@ -9,7 +9,10 @@ import {
   callComputerPipe,
   ComputerDeliveryError,
 } from "../src/computer-control/pipe.js";
-import { readComputerImage } from "../src/computer-control/native.js";
+import {
+  installedPreview,
+  readComputerImage,
+} from "../src/computer-control/native.js";
 import { ServerSettingsService } from "../src/services/ServerSettingsService.js";
 
 const generation = "a".repeat(32);
@@ -403,5 +406,45 @@ describe("native transport and artifact provenance", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
+  });
+});
+
+describe("installed package location", () => {
+  const preview = {
+    packageDirectory: "staged",
+    trustedPublisher: "Example Publisher",
+  };
+  const packageId = "b".repeat(64);
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("places a version under the local application data instance", () => {
+    vi.stubEnv("LOCALAPPDATA", path.join(path.sep, "local"));
+    expect(
+      installedPreview(preview, "workstation", packageId).packageDirectory,
+    ).toBe(
+      path.join(
+        path.sep,
+        "local",
+        "MachineControl",
+        "packages",
+        "workstation",
+        "versions",
+        packageId,
+      ),
+    );
+  });
+
+  it("refuses an identity it cannot place", () => {
+    vi.stubEnv("LOCALAPPDATA", path.join(path.sep, "local"));
+    for (const identity of [undefined, "", "../escape", "B".repeat(64)])
+      expect(() => installedPreview(preview, "workstation", identity)).toThrow(
+        "Invalid installed package identity",
+      );
+    vi.stubEnv("LOCALAPPDATA", "");
+    expect(() => installedPreview(preview, "workstation", packageId)).toThrow(
+      "Invalid installed package identity",
+    );
   });
 });
