@@ -6170,7 +6170,9 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     return { ok: true, sourceMessageId: id };
   };
 
-  deps.projectQueueScheduler?.setYaCommandRunner({
+  // Route tests supply a partial scheduler; the runner is optional like the
+  // other scheduler hooks this module calls.
+  deps.projectQueueScheduler?.setYaCommandRunner?.({
     run: async ({ sessionId, projectId, command, commandText }) => {
       const project = await deps.scanner.getOrCreateProject(projectId);
       if (!project) throw new Error("Project not found");
