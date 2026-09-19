@@ -2143,4 +2143,98 @@ describe("applyRewindToMessages", () => {
     const prefixOnly = rows.slice(0, 2);
     expect(applyRewindToMessages(prefixOnly, record)).toBe(prefixOnly);
   });
+
+  it("makes repeated rewinds to one live cut siblings, in order", () => {
+    const first = applyRewindToMessages(rows, record);
+    const looped = [
+      ...first,
+      { type: "user", uuid: "u3", message: { role: "user", content: "three" } },
+      {
+        type: "assistant",
+        uuid: "a3",
+        message: { role: "assistant", content: "t" },
+      },
+    ] as unknown as Message[];
+    const second = applyRewindToMessages(looped, {
+      ...record,
+      id: "rw-2",
+      at: "2026-09-18T21:00:00.000Z",
+    });
+    // The same order the server's projection produces for this shape; see
+    // "makes repeated rewinds to one live cut siblings" in
+    // packages/server/test/sessions/claude-messages.test.ts.
+    expect(second.map((m) => m.uuid)).toEqual([
+      "u1",
+      "a1",
+      "rewound-group-rw-1",
+      "u2",
+      "a2",
+      "rewound-group-rw-2",
+      "u3",
+      "a3",
+    ]);
+    // The first group kept a live cut, so the second does not enclose it.
+    expect(
+      second.some(
+        (m) => (m as { rewoundParentGroupId?: string }).rewoundParentGroupId,
+      ),
+    ).toBe(false);
+    expect(
+      second
+        .filter(
+          (m) => (m as { rewoundGroupId?: string }).rewoundGroupId === "rw-2",
+        )
+        .map((m) => m.uuid),
+    ).toEqual(["rewound-group-rw-2", "u3", "a3"]);
+  });
+
+  it("encloses an earlier group whose own cut this rewind dropped", () => {
+    const withEarlier = applyRewindToMessages(
+      [
+        ...rows,
+        {
+          type: "user",
+          uuid: "u3",
+          message: { role: "user", content: "three" },
+        },
+      ] as unknown as Message[],
+      { ...record, id: "rw-inner", cutMessageId: "a2" },
+    );
+    const outer = applyRewindToMessages(withEarlier, {
+      ...record,
+      id: "rw-outer",
+      at: "2026-09-18T21:00:00.000Z",
+    });
+    const inner = outer.filter(
+      (m) => (m as { rewoundGroupId?: string }).rewoundGroupId === "rw-inner",
+    );
+    expect(inner.length).toBeGreaterThan(0);
+    expect(
+      inner.every(
+        (m) =>
+          (m as { rewoundParentGroupId?: string }).rewoundParentGroupId ===
+          "rw-outer",
+      ),
+    ).toBe(true);
+  });
+
+  it("leaves rows written after the rewind on the live branch", () => {
+    const timestamped = [
+      { ...rows[0], timestamp: "2026-09-18T19:00:00.000Z" },
+      { ...rows[1], timestamp: "2026-09-18T19:00:05.000Z" },
+      { ...rows[2], timestamp: "2026-09-18T19:30:00.000Z" },
+      { ...rows[3], timestamp: "2026-09-18T20:30:00.000Z" },
+    ] as unknown as Message[];
+    const next = applyRewindToMessages(timestamped, record);
+    expect(next.map((m) => m.uuid)).toEqual([
+      "u1",
+      "a1",
+      "rewound-group-rw-1",
+      "u2",
+      "a2",
+    ]);
+    expect(
+      next.map((m) => (m as { rewoundGroupId?: string }).rewoundGroupId),
+    ).toEqual([undefined, undefined, "rw-1", "rw-1", undefined]);
+  });
 });

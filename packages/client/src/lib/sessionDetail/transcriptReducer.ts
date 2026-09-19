@@ -177,35 +177,78 @@ export function applyRewindToMessages(
   messages: Message[],
   record: SessionRewindRecord,
 ): Message[] {
-  const cutIndex = messages.findIndex(
-    (message) =>
-      getMessageId(message) === record.cutMessageId &&
-      !(message as { rewoundGroupId?: unknown }).rewoundGroupId,
-  );
-  if (cutIndex < 0) return messages;
   const headerId = `rewound-group-${record.id}`;
   if (messages.some((message) => getMessageId(message) === headerId)) {
     return messages;
   }
+  const cutIndex = messages.findIndex(
+    (message) => getMessageId(message) === record.cutMessageId,
+  );
+  if (cutIndex < 0) return messages;
+  // The new group nests only when its own cut was already dropped; repeated
+  // rewinds to one live cut are siblings, not an ever-deeper stack.
+  const cutRow = messages[cutIndex] as {
+    rewoundGroupId?: unknown;
+    timestamp?: unknown;
+  };
+  const parentGroupId =
+    typeof cutRow.rewoundGroupId === "string" && cutRow.rewoundGroupId
+      ? cutRow.rewoundGroupId
+      : undefined;
+  const nest = parentGroupId
+    ? { rewoundParentGroupId: parentGroupId }
+    : undefined;
+
+  // Positional membership, as the server computes it: every row after the cut
+  // that no earlier rewind claimed and that was written before this one. Rows
+  // written after it are the live branch and stay live.
   let rowCount = 0;
-  const tail = messages.slice(cutIndex + 1).map((message) => {
-    const grouped = message as {
+  let firstClaimedOffset = -1;
+  const claimedIds = new Set<string>();
+  const tail = messages.slice(cutIndex + 1).map((message, offset) => {
+    const row = message as { rewoundGroupId?: unknown; timestamp?: unknown };
+    if (row.rewoundGroupId) return message;
+    if (typeof row.timestamp === "string" && row.timestamp > record.at) {
+      return message;
+    }
+    rowCount += 1;
+    if (firstClaimedOffset < 0) firstClaimedOffset = offset;
+    const id = getMessageId(message);
+    if (id) claimedIds.add(id);
+    return { ...message, rewoundGroupId: record.id, ...nest } as Message;
+  });
+  if (rowCount === 0) return messages;
+  // An older group whose own cut this rewind just dropped is now enclosed by
+  // it; a group that kept a live cut is not.
+  const enclosed = new Set<string>();
+  for (const message of tail) {
+    const header = message as {
+      subtype?: unknown;
+      parentUuid?: unknown;
       rewoundGroupId?: unknown;
       rewoundParentGroupId?: unknown;
     };
-    if (grouped.rewoundGroupId) {
-      // An earlier group inside the new span nests under it (a row keeps its
-      // first claim); only a group without an enclosure gains one.
-      return grouped.rewoundParentGroupId
-        ? message
-        : ({ ...message, rewoundParentGroupId: record.id } as Message);
+    if (header.subtype !== "rewound_group") continue;
+    if (typeof header.rewoundGroupId !== "string") continue;
+    if (header.rewoundGroupId === record.id) continue;
+    if (header.rewoundParentGroupId) continue;
+    if (
+      typeof header.parentUuid === "string" &&
+      claimedIds.has(header.parentUuid)
+    ) {
+      enclosed.add(header.rewoundGroupId);
     }
-    rowCount += 1;
-    return { ...message, rewoundGroupId: record.id } as Message;
-  });
-  if (rowCount === 0) return messages;
-  const cutTimestamp = (messages[cutIndex] as { timestamp?: unknown })
-    .timestamp;
+  }
+  const nestedTail = enclosed.size
+    ? tail.map((message) => {
+        const groupId = (message as { rewoundGroupId?: unknown })
+          .rewoundGroupId;
+        return typeof groupId === "string" && enclosed.has(groupId)
+          ? ({ ...message, rewoundParentGroupId: record.id } as Message)
+          : message;
+      })
+    : tail;
+  const cutTimestamp = cutRow.timestamp;
   const header = {
     type: "system",
     subtype: "rewound_group",
@@ -218,6 +261,7 @@ export function applyRewindToMessages(
     content: "",
     isSynthetic: true,
     rewoundGroupId: record.id,
+    ...nest,
     rewoundGroup: {
       reason: record.reason,
       cutTurnIndex: record.cutTurnIndex,
@@ -235,7 +279,14 @@ export function applyRewindToMessages(
         : {}),
     },
   } as unknown as Message;
-  return [...messages.slice(0, cutIndex + 1), header, ...tail];
+  // The header sits immediately before the first row this rewind claimed, so
+  // earlier groups at the same cut keep their place ahead of it.
+  return [
+    ...messages.slice(0, cutIndex + 1),
+    ...nestedTail.slice(0, firstClaimedOffset),
+    header,
+    ...nestedTail.slice(firstClaimedOffset),
+  ];
 }
 
 function removeUnconfirmedSelfSend(

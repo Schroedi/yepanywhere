@@ -14,7 +14,11 @@ rewind is consumed at the supervisor's process-launch seam rather than by the
 `/resume` route, a drop-guard refusal deletes its record, forks and clones of
 a session with an armed rewind keep the cut, cached client transcripts
 reload across a rewind, an idle reap no longer ends a clearloop, and the tail
-window counts live turns. Known limits: the sidebar does not nest rewound
+window counts live turns. Corrected 2026-09-19 after a 69-iteration loop: a
+watching tab no longer folds every earlier group inside the newest one (only a
+dropped cut nests), and delivered queued messages and durable receipts inside a
+cleared span are grouped with it instead of rendering as live rows scattered
+through the collapsed history. Known limits: the sidebar does not nest rewound
 groups, `/clear 0` starts a new session rather than rewinding in place, and
 secondary readers (catalog previews, search, counts) still project without
 records until the next turn
@@ -171,7 +175,13 @@ server-side), then:
    the record (`rewindRecord`); every open view of the session applies it
    to its loaded transcript in place (rows after the cut join the group
    behind the synthetic header), and refetches only when the cut lies
-   outside its loaded window. The tab that issued the rewind applies it
+   outside its loaded window. **The in-place application must produce what a
+   reload produces**: it follows the same membership, nesting, and header
+   placement rules as the reader below, so a watching tab and a tab opened
+   afterwards show the same outline, and no reload is needed to correct one.
+   In particular the header goes immediately before the first row this
+   record claims, not immediately after the cut, so earlier groups at the
+   same cut keep their place ahead of it. The tab that issued the rewind applies it
    from the response before the event arrives. The detail response carries
    `rewindRecordIds`, the ids of the records its projection applied; a tab
    returning to the session with a cached transcript compares them and
@@ -213,11 +223,27 @@ input, the reader instead emits the dropped rows as a **rewound group**:
   until a new turn is written the displayed tail is the cut itself).
   Positional membership means a compaction inside a cleared span cannot
   split it and clock skew between transcript and server cannot move rows.
-- **Nesting.** A clear whose cut is earlier than an existing group's cut
-  encloses that group: the new block claims the unclaimed rows after its
-  cut, the older block sits inside it unchanged, and it renders nested,
-  collapsed under the outer header and expandable on its own once the outer
-  block is open (`rewoundParentGroupId` on the inner header and rows).
+- Membership is by position, not by whether the provider stamped the row with
+  a uuid. A queued message delivered into a cleared iteration is a transcript
+  row with no uuid, and it joins that iteration's group; leaving it live
+  would scatter delivered queued messages through the collapsed history as
+  though they were still in the conversation, and would count them as live
+  turns — for the tail window, and for the next rewind's `droppedTurnCount`
+  and `droppedFromMessageId`, which grow without bound across a long loop
+  when the previous iterations' queued messages never leave the live branch.
+  A durable receipt merged into the middle of a
+  cleared span — a `/goal` or clearloop notice whose timestamp lands there —
+  joins the group of the row before it, for the same reason.
+- **Nesting.** A group nests exactly when its own cut is a row that some
+  other rewind dropped. A clear whose cut is earlier than an existing group's
+  cut therefore encloses that group: the new block claims the unclaimed rows
+  after its cut, the older block's cut row among them, the older block sits
+  inside it unchanged, and it renders nested, collapsed under the outer
+  header and expandable on its own once the outer block is open
+  (`rewoundParentGroupId` on the inner header and rows). Repeated rewinds to
+  one still-live cut — every `/clearloop` iteration — are **siblings**: none
+  of them drops the shared cut, so each stays its own top-level collapsed
+  entry in iteration order rather than vanishing inside the newest one.
 - A tail window never starts inside a group: when the window boundary
   lands on a grouped row, it backs up to that group's header.
 - Placement: at the cut, in transcript order, before any later live rows.
@@ -550,3 +576,12 @@ Durable pointers by symbol and module; grep for the symbol.
   including when a record is deleted (`normalization.test.ts`).
 - The tail window and `totalUserTurns` count live turns only; grouped rows
   ride along with their cut (`pagination.test.ts`).
+- A queued message delivered inside a cleared span is grouped with it and
+  keeps its delivery stamp, while a queued message delivered on the live
+  branch stays live and in place (`claude-messages.test.ts`).
+- Two rewinds to the same live cut produce two sibling groups in order, with
+  no `rewoundParentGroupId` on either — on the server projection and on the
+  client's in-place application alike (`claude-messages.test.ts`,
+  `renderSelectors.test.ts`).
+- A durable receipt whose timestamp lands inside a cleared span joins that
+  group; one on the live branch does not (`goal-overlays.test.ts`).

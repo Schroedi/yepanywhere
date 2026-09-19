@@ -245,9 +245,35 @@ export function mergeLocalCommandMessages(
       });
       insertAt = later < 0 ? merged.length : later;
     }
-    merged.splice(insertAt, 0, command as Message);
+    merged.splice(insertAt, 0, {
+      ...command,
+      ...enclosingRewoundGroup(merged[insertAt - 1]),
+    } as Message);
   }
   return merged;
+}
+
+/**
+ * A receipt that lands after a row a rewind dropped was written inside that
+ * cleared span, so it belongs to the same group rather than rendering as a
+ * live row between collapsed groups (topics/session-rewind.md).
+ */
+function enclosingRewoundGroup(previous: Message | undefined): {
+  rewoundGroupId?: string;
+  rewoundParentGroupId?: string;
+} {
+  const row = previous as
+    | { rewoundGroupId?: unknown; rewoundParentGroupId?: unknown }
+    | undefined;
+  const groupId = row?.rewoundGroupId;
+  if (typeof groupId !== "string" || !groupId) return {};
+  const parentId = row?.rewoundParentGroupId;
+  return {
+    rewoundGroupId: groupId,
+    ...(typeof parentId === "string" && parentId
+      ? { rewoundParentGroupId: parentId }
+      : {}),
+  };
 }
 
 export function mergeSessionOverlayMessages(

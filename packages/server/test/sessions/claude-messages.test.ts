@@ -178,4 +178,135 @@ describe("collectVisibleClaudeEntries with rewind records", () => {
       "a2",
     ]);
   });
+
+  it("groups a queued message delivered inside the cleared span", () => {
+    const withQueued: RawSessionMessage[] = [
+      messages[0],
+      messages[1],
+      {
+        type: "queue-operation",
+        operation: "enqueue",
+        content: "keep going",
+        timestamp: "2026-09-18T10:00:30.000Z",
+      },
+      {
+        type: "queue-operation",
+        operation: "remove",
+        timestamp: "2026-09-18T10:00:40.000Z",
+      },
+      messages[2],
+      messages[3],
+    ];
+    const { entries } = collectVisibleClaudeEntries(withQueued, {
+      rewindRecords: [record],
+    });
+    const live = entries.filter(
+      (entry) => !(entry as { rewoundGroupId?: string }).rewoundGroupId,
+    );
+    expect(live.map((entry) => (entry as { uuid?: string }).uuid)).toEqual([
+      "u1",
+      "a1",
+    ]);
+    const queued = entries.find(
+      (entry) => (entry as { operation?: string }).operation === "enqueue",
+    ) as { rewoundGroupId?: string; queueDeliveredAt?: string } | undefined;
+    expect(queued?.rewoundGroupId).toBe("rw-1");
+    expect(queued?.queueDeliveredAt).toBe("2026-09-18T10:00:40.000Z");
+  });
+
+  it("keeps a live queued message live and in place", () => {
+    const withQueued: RawSessionMessage[] = [
+      messages[0],
+      messages[1],
+      messages[2],
+      messages[3],
+      {
+        type: "user",
+        uuid: "u3",
+        parentUuid: "a1",
+        timestamp: "2026-09-18T10:03:00.000Z",
+      },
+      {
+        type: "queue-operation",
+        operation: "enqueue",
+        content: "live one",
+        timestamp: "2026-09-18T10:03:10.000Z",
+      },
+      {
+        type: "queue-operation",
+        operation: "remove",
+        timestamp: "2026-09-18T10:03:20.000Z",
+      },
+      {
+        type: "assistant",
+        uuid: "a3",
+        parentUuid: "u3",
+        timestamp: "2026-09-18T10:03:30.000Z",
+      },
+    ];
+    const { entries } = collectVisibleClaudeEntries(withQueued, {
+      rewindRecords: [record],
+    });
+    const labels = entries.map((entry) => {
+      const row = entry as { uuid?: string; operation?: string };
+      return row.uuid ?? `queued:${row.operation}`;
+    });
+    expect(labels).toEqual([
+      "u1",
+      "a1",
+      "rewound-group-rw-1",
+      "u2",
+      "a2",
+      "u3",
+      "queued:enqueue",
+      "a3",
+    ]);
+  });
+
+  it("makes repeated rewinds to one live cut siblings, in order", () => {
+    const looped: RawSessionMessage[] = [
+      messages[0],
+      messages[1],
+      messages[2],
+      messages[3],
+      {
+        type: "user",
+        uuid: "u3",
+        parentUuid: "a1",
+        timestamp: "2026-09-18T10:03:00.000Z",
+      },
+      {
+        type: "assistant",
+        uuid: "a3",
+        parentUuid: "u3",
+        timestamp: "2026-09-18T10:03:05.000Z",
+      },
+    ];
+    const second = {
+      ...record,
+      id: "rw-2",
+      at: "2026-09-18T10:04:00.000Z",
+      droppedFromMessageId: "u3",
+    };
+    const { entries } = collectVisibleClaudeEntries(looped, {
+      rewindRecords: [record, second],
+    });
+    expect(entries.map((entry) => (entry as { uuid?: string }).uuid)).toEqual([
+      "u1",
+      "a1",
+      "rewound-group-rw-1",
+      "u2",
+      "a2",
+      "rewound-group-rw-2",
+      "u3",
+      "a3",
+    ]);
+    // Both cuts are the same live row, so neither group encloses the other.
+    expect(
+      entries.some(
+        (entry) =>
+          (entry as { rewoundParentGroupId?: string }).rewoundParentGroupId,
+      ),
+    ).toBe(false);
+  });
 });
