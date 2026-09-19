@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { pendingNonHumanUserTurn } from "../metadata/SessionMetadataService.js";
+import { nonHumanUserTurnField } from "../metadata/SessionMetadataService.js";
 import type { RetainedSessionCollections } from "../services/RetainedSessionCollections.js";
 import {
   getEffectiveProviderUpdatedAt,
@@ -118,7 +118,10 @@ export async function readRetainedSessionItems(
       isStarred: metadata?.isStarred ?? false,
       customTitle: metadata?.customTitle,
       initialPrompt: metadata?.initialPrompt,
-      nonHumanUserTurn: pendingNonHumanUserTurn(metadata) ?? null,
+      nonHumanUserTurn: nonHumanUserTurnField(
+        deps.sessionMetadataService,
+        row.sessionId,
+      ),
       autoResumeDisabled: metadata?.autoResumeDisabled === true,
       parentSessionId: metadata?.parentSessionId,
       parentSessionKind: metadata?.parentSessionKind,

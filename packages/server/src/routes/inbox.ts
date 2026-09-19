@@ -13,7 +13,7 @@
 
 import { getSessionDisplayTitle } from "@yep-anywhere/shared";
 import { Hono } from "hono";
-import { pendingNonHumanUserTurn } from "../metadata/SessionMetadataService.js";
+import { nonHumanUserTurnField } from "../metadata/SessionMetadataService.js";
 import type { RetainedSessionCollectionState } from "@yep-anywhere/shared";
 import type { RetainedSessionCollections } from "../services/RetainedSessionCollections.js";
 import { readRetainedSessionItems } from "./retained-session-collections.js";
@@ -343,11 +343,14 @@ export function createInboxRoutes(deps: InboxDeps): Hono {
     const assignedSessionIds = new Set<string>();
 
     // Helper to convert to InboxItem
-    const toInboxItem = (item: EnrichedInboxSession): InboxItem => ({
-      nonHumanUserTurn:
-        pendingNonHumanUserTurn(
-          deps.sessionMetadataService?.getMetadata(item.session.id),
-        ) ?? null,
+    const toInboxItem = (
+      item: EnrichedInboxSession,
+      nonHumanUserTurn = nonHumanUserTurnField(
+        deps.sessionMetadataService,
+        item.session.id,
+      ),
+    ): InboxItem => ({
+      nonHumanUserTurn,
       sessionId: item.session.id,
       projectId: item.session.projectId,
       projectName: item.projectName,
@@ -369,13 +372,12 @@ export function createInboxRoutes(deps: InboxDeps): Hono {
 
     // Tier 1: needsAttention - sessions with pending input
     for (const item of allSessions) {
-      if (
-        item.pendingInputType ||
-        pendingNonHumanUserTurn(
-          deps.sessionMetadataService?.getMetadata(item.session.id),
-        )
-      ) {
-        needsAttention.push(toInboxItem(item));
+      const nonHumanUserTurn = nonHumanUserTurnField(
+        deps.sessionMetadataService,
+        item.session.id,
+      );
+      if (item.pendingInputType || nonHumanUserTurn) {
+        needsAttention.push(toInboxItem(item, nonHumanUserTurn));
         assignedSessionIds.add(item.session.id);
       }
     }

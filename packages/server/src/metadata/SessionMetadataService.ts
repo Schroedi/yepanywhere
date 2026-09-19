@@ -186,7 +186,7 @@ export interface SessionMetadataServiceOptions {
 }
 
 /** Public projection omits the persisted acknowledgement tombstone. */
-export function pendingNonHumanUserTurn(
+function pendingNonHumanUserTurn(
   metadata: SessionMetadata | undefined,
 ): NonHumanUserTurn | undefined {
   const turn = metadata?.nonHumanUserTurn;
@@ -196,6 +196,18 @@ export function pendingNonHumanUserTurn(
     timestamp: turn.timestamp,
     sourceSessionId: turn.sourceSessionId,
   };
+}
+
+/**
+ * Session row and event field carrying the pending non-human user turn.
+ * Explicit null is the wire value for "no pending turn"; an omitted field
+ * means unknown, so a caller without metadata storage still reports null.
+ */
+export function nonHumanUserTurnField(
+  service: SessionMetadataService | undefined,
+  sessionId: string,
+): NonHumanUserTurn | null {
+  return pendingNonHumanUserTurn(service?.getMetadata(sessionId)) ?? null;
 }
 
 export class SessionMetadataService {

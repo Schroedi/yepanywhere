@@ -53,7 +53,7 @@ import type {
   SessionMetadataService,
 } from "../metadata/index.js";
 import type { ProjectMetadataService } from "../metadata/index.js";
-import { pendingNonHumanUserTurn } from "../metadata/SessionMetadataService.js";
+import { nonHumanUserTurnField } from "../metadata/SessionMetadataService.js";
 import type { NotificationService } from "../notifications/index.js";
 import type { CodexSessionScanner } from "../projects/codex-scanner.js";
 import type { GeminiSessionScanner } from "../projects/gemini-scanner.js";
@@ -2783,10 +2783,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         sandboxPolicy: sessionSummary?.sandboxPolicy,
         contextUsage: sessionSummary?.contextUsage,
         effectiveModelSettings: effectiveModelSettingsFromMetadata(metadata),
-        nonHumanUserTurn:
-          pendingNonHumanUserTurn(
-            deps.sessionMetadataService?.getMetadata(sessionId),
-          ) ?? null,
+        nonHumanUserTurn: nonHumanUserTurnField(
+          deps.sessionMetadataService,
+          sessionId,
+        ),
         customTitle: metadata?.customTitle,
         isArchived: metadata?.isArchived,
         isStarred: metadata?.isStarred,
@@ -3301,10 +3301,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             updatedAt: newSessionUpdatedAt,
             messageCount: processMessages.length,
             ownership,
-            nonHumanUserTurn:
-              pendingNonHumanUserTurn(
-                deps.sessionMetadataService?.getMetadata(sessionId),
-              ) ?? null,
+            nonHumanUserTurn: nonHumanUserTurnField(
+              deps.sessionMetadataService,
+              sessionId,
+            ),
             customTitle: metadata?.customTitle,
             isArchived: metadata?.isArchived,
             isStarred: metadata?.isStarred,
@@ -3726,10 +3726,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       session: {
         ...sessionMetadata,
         projectId: effectiveProjectId,
-        nonHumanUserTurn:
-          pendingNonHumanUserTurn(
-            deps.sessionMetadataService?.getMetadata(sessionId),
-          ) ?? null,
+        nonHumanUserTurn: nonHumanUserTurnField(
+          deps.sessionMetadataService,
+          sessionId,
+        ),
         ownership,
         contextUsage,
         customTitle: metadata?.customTitle,
@@ -8178,10 +8178,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       deps.eventBus?.emit({
         type: "session-metadata-changed",
         sessionId,
-        nonHumanUserTurn:
-          pendingNonHumanUserTurn(
-            deps.sessionMetadataService?.getMetadata(sessionId),
-          ) ?? null,
+        nonHumanUserTurn: nonHumanUserTurnField(
+          deps.sessionMetadataService,
+          sessionId,
+        ),
         timestamp: new Date().toISOString(),
       });
     }

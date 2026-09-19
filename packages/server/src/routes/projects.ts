@@ -12,7 +12,7 @@ import type {
   SessionMetadataService,
 } from "../metadata/index.js";
 import type { NotificationService } from "../notifications/index.js";
-import { pendingNonHumanUserTurn } from "../metadata/SessionMetadataService.js";
+import { nonHumanUserTurnField } from "../metadata/SessionMetadataService.js";
 import { warmGitAuthorPalette } from "../git/authorPalette.js";
 import type { CodexSessionScanner } from "../projects/codex-scanner.js";
 import type { GeminiSessionScanner } from "../projects/gemini-scanner.js";
@@ -394,10 +394,10 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
 
       return {
         ...overlaidSession,
-        nonHumanUserTurn:
-          pendingNonHumanUserTurn(
-            deps.sessionMetadataService?.getMetadata(session.id),
-          ) ?? null,
+        nonHumanUserTurn: nonHumanUserTurnField(
+          deps.sessionMetadataService,
+          session.id,
+        ),
         updatedAt: getEffectiveProviderUpdatedAt(
           overlaidSession.updatedAt,
           process,
