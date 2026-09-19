@@ -30,8 +30,7 @@ import {
   type GroupedConversation,
 } from "./conversation-groups.js";
 
-// Pure producer limits; acquisition and shared subscription ownership are the
-// next service layer. These do not authorize loading a full provider history.
+// These limits do not authorize loading a full provider history.
 export const MAX_PROJECTION_RECORDS = 10000;
 export const MAX_PROJECTION_INPUT_BYTES = 8 * 1024 * 1024;
 const MAX_PENDING_BYTES = 32 * 1024;

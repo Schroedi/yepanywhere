@@ -229,7 +229,7 @@ export interface GroupedConversation {
   byteLimitedMessageIds: ReadonlySet<string>;
 }
 
-/** A new data projection over existing semantic rows. No renderer or store. */
+/** A data projection over existing semantic rows. No renderer or store. */
 export function groupConversation(
   items: RenderItem[],
   sources: Message[],
