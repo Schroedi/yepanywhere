@@ -164,6 +164,15 @@ older installs may continue to work when YA does not need newer protocol fields,
 and version-sensitive behavior should be capability- or version-gated where
 possible.
 
+Subset extension, 2026-09-19 (still 0.154.0 source, 0.155.1 binary): the
+checked-in subset gained `ThreadRevertParams`, `ThreadRevertResponse`, and
+`ThreadRevertedNotification` for the in-place `thread/revert` rewind
+([session-rewind](session-rewind.md)). All three exist unchanged in the pinned
+`rust-v0.154.0` source (`app-server-protocol/src/protocol/v2/thread.rs`,
+`common.rs`) and in the installed 0.155.1 generator, so no other generated
+file moved and no version marker changes; `pnpm codex:protocol:check` is
+clean. Approved by graehl in the session-rewind follow-up request.
+
 Current compatibility audit, 2026-09-18 (0.155.1):
 
 - Installed Codex is `codex-cli 0.155.1`. The official `rust-v0.155.1` tag peels
