@@ -329,6 +329,12 @@ file identity, modification and a boundary hash. Appends resume; detected rewrit
 reset acquisition without erasing historical evidence. Batch limits yield and
 requeue automatically. Provider readers never fall back to full-transcript reads.
 
+Both text acquisition and the associated-session availability probe read a
+session with the reader belonging to the provider that recorded it. When that
+provider has no reader in the project, the session yields no text and reports
+unavailable; neither read substitutes another provider's reader, whose answer
+would be an empty or unsupported result with the real reason hidden.
+
 Viewed windows add no file read. Their retained text budget is 8 MiB across up to
 16 pending windows, inspecting at most 16,000 normalized records per admission;
 overflow reports partial coverage. Both viewed windows and background batches

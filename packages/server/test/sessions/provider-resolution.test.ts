@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   findSessionListSummaryAcrossProviders,
   findSessionSummaryAcrossProviders,
+  getSessionSourceForProvider,
+  getSessionSources,
   listSessionListSummariesAcrossProviders,
   listSessionsAcrossProviders,
 } from "../../src/sessions/provider-resolution.js";
@@ -392,6 +394,68 @@ describe("provider resolution", () => {
     expect(readerFactory).toHaveBeenCalledWith(
       expect.objectContaining({ provider: "opencode" }),
     );
+  });
+});
+
+describe("session source for one provider", () => {
+  const claudeProject: Project = {
+    id: "proj-one-provider" as UrlProjectId,
+    path: "/tmp/one-provider",
+    name: "one-provider",
+    sessionCount: 0,
+    sessionDir: "/tmp/one-provider/.claude-sessions",
+    activeOwnedCount: 0,
+    activeExternalCount: 0,
+    lastActivity: null,
+    provider: "claude",
+  };
+
+  function claudeOnlyDeps(reader: ISessionReader) {
+    // No Codex sessions dir or factory, so the Codex group has no reader here.
+    // Grok and pi are stubbed to keep the source list off the real home dir.
+    return {
+      readerFactory: vi.fn(() => reader),
+      grokReaderFactory: () => reader,
+      piReaderFactory: () => reader,
+    } as unknown as Parameters<typeof getSessionSourceForProvider>[1];
+  }
+
+  it("reads a Claude-family session with the project's own reader", () => {
+    const claudeReader = makeReader(null);
+
+    const source = getSessionSourceForProvider(
+      claudeProject,
+      claudeOnlyDeps(claudeReader),
+      "claude-gateway",
+    );
+
+    expect(source?.reader).toBe(claudeReader);
+  });
+
+  it("returns no source when the provider has no reader in this project", () => {
+    const claudeReader = makeReader(null);
+    const deps = claudeOnlyDeps(claudeReader);
+
+    expect(
+      getSessionSourceForProvider(claudeProject, deps, "codex"),
+    ).toBeNull();
+    // The ordered candidate list still answers with another provider's reader,
+    // which is why asking for one provider may not read from that list.
+    expect(getSessionSources(claudeProject, deps, "codex")[0]?.reader).toBe(
+      claudeReader,
+    );
+  });
+
+  it("returns no source for a name that belongs to no provider", () => {
+    const claudeReader = makeReader(null);
+
+    expect(
+      getSessionSourceForProvider(
+        claudeProject,
+        claudeOnlyDeps(claudeReader),
+        "not-a-provider",
+      ),
+    ).toBeNull();
   });
 });
 

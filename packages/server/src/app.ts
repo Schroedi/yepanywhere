@@ -298,6 +298,7 @@ import { PiSessionReader } from "./sessions/pi-reader.js";
 import {
   findSessionListSummaryAcrossProviders,
   findSessionSummaryAcrossProviders,
+  getSessionSourceForProvider,
 } from "./sessions/provider-resolution.js";
 import { applyRecapOverlayToSummary } from "./sessions/recap-overlays.js";
 import { normalizeSession } from "./sessions/normalization.js";
@@ -2204,16 +2205,12 @@ export function createApp(options: AppOptions): AppResult {
     ) => {
       const project = await scanner.getProject(projectId);
       if (!project) return null;
-      const sources = getSessionSources(
-        project,
-        heartbeatProviderResolutionDeps(),
-        provider,
-      );
-      return (
-        sources.find((source) => source.provider === provider)?.reader ??
-        sources[0]?.reader ??
-        null
-      );
+      const deps = heartbeatProviderResolutionDeps();
+      if (provider)
+        return (
+          getSessionSourceForProvider(project, deps, provider)?.reader ?? null
+        );
+      return getSessionSources(project, deps)[0]?.reader ?? null;
     };
     const issueCredentials = new IssueCredentials({
       dataDir: effectiveDataDir,
