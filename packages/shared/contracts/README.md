@@ -1,8 +1,13 @@
 # Experimental simple-client contract spike
 
-Status: TypeScript/Android decoding proof and offline server producer, 2026-09-12. This is a
-reviewable candidate for [plan 130](../../../docs/tactical/130-simple-client-api-and-three-client-demo.md),
-not an advertised capability, endpoint, transport adapter, or shipped client.
+Status: experimental live operation, 2026-09-12. This schema is the source for the
+mounted `/api/experimental/conversation` routes, the optional capability
+`experimental-simple-client-conversation` (permanent ID 69), and the web and Android
+Compose previews that consume them; see
+[plan 130](../../../docs/tactical/130-simple-client-api-and-three-client-demo.md) and
+the [owning topic](../../../topics/simple-client-api.md). The contract stays
+experimental and may change incompatibly: it is not a stable namespace, a supported
+public API, or a shipped mobile client.
 iOS is deferred; no Swift transport or decoding evidence is claimed.
 
 ## Source and generation decision
@@ -57,8 +62,9 @@ added to that list rather than retyped, and `TimestampSchema` is the only
 timestamp-format check.
 
 Generated files are checked in. They are not exported from the shared package's
-public barrel. The internal server producer imports the experimental subpath;
-no route or client screen consumes it yet. Use the generated
+public barrel; every consumer imports the `./experimental/*` subpath. The server
+producer, the experimental routes, the client preview controller and the
+`/-/preview` page all do. Use the generated
 `decodeSnapshot` entry point for the encoded-byte check as well as structure
 validation; individual type decoders only validate their structure.
 
@@ -209,8 +215,10 @@ or continuity reset. The server echoes it and starts `sequence` at zero, then
 increments within that binding. Accept only the current binding and strictly
 newer sequence numbers. Sequence gaps are safe for replacement snapshots; no
 patch is missing. Rebind before Int32 exhaustion. Query binding, atomic
-snapshot/live acquisition, cancellation, and stale completion suppression are
-still implementation tasks. The envelope alone does not prove them.
+snapshot/live acquisition, cancellation, and stale completion suppression are owned
+by the subscription service described in the
+[subscription-owner checkpoint](../../../topics/simple-client-api.md#subscription-owner-checkpoint-2026-09-12);
+the envelope alone does not prove them.
 
 Gate 2 must measure these **acceptance budgets**, not report them as achieved:
 
@@ -233,14 +241,17 @@ alone does not establish bounded server work.
 
 ## Next checkpoint
 
-The [shared compiler core](../src/transcript/README.md) and condensed producer
-are implemented. See the [owning checkpoint contract](../../../topics/simple-client-api.md#implemented-projection-checkpoint-2026-09-12)
-for input budgets, failure/media handling, prefix facts and evidence limits.
-Next, connect bounded normalized acquisition and one shared per-session owner;
-the pure prepare/select split enables reuse but does not implement ownership.
+The [shared compiler core](../src/transcript/README.md), the condensed producer,
+the shared per-session subscription owner and the experimental routes are
+implemented. See the
+[projection checkpoint](../../../topics/simple-client-api.md#implemented-projection-checkpoint-2026-09-12)
+for input budgets, failure/media handling, prefix facts and evidence limits, and the
+[live-operation checkpoint](../../../topics/simple-client-api.md#first-live-operation-checkpoint-2026-09-12)
+for the mounted routes, the capability and the native acquisition bounds. Plan 130's
+exact-operation and release-compatibility review was approved on 2026-09-12 and is
+recorded in that plan, so this contract's implementation needs no second review.
 
-Before implementing any `/api/experimental/` route or capability, finish plan
-130's exact operation and release-compatibility review. Then connect a minimal
-multi-source web consumer and the existing Android transport in the same small
-slice. A Swift transport port and Swift emitter/conformance proof can be scoped
-when iOS is scheduled; Android is the current native gate.
+What remains: the acceptance budgets above are still to be measured rather than
+claimed, and raw token assembly and provider-indexed tail acquisition are
+follow-ups. A Swift transport port and Swift emitter/conformance proof can be
+scoped when iOS is scheduled; Android is the current native gate.
