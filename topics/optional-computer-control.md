@@ -22,7 +22,10 @@ Node x64/ARM64 and an ordinary interactive desktop are required.
 YA pins Machine Control's minisign public key and authenticates `release.json`
 before trusting its publisher, names, sizes or SHA-256 hashes. Bounded downloads
 go into unique YA-data staging directories; archive names, entries, expanded
-size and complete bytes are checked before native installation. The signed
+size and complete bytes are checked before native installation. Size and hash
+are measured on the received stream, so the staged archive must receive every
+byte of every chunk; a write that stores less than it was handed fails the
+download rather than leaving a short archive to verify against the stream. The signed
 manager/catalog verification remains mandatory. Download failure, invalid
 signatures or incompatibility leave the existing installation unchanged.
 The installed version is persisted and older release-feed versions are refused.

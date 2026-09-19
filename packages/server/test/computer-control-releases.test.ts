@@ -156,6 +156,47 @@ describe("download and extraction boundaries", () => {
     expect(staged.preview.trustedPublisher).toBe(release.publisher);
     await staged.cleanup();
   });
+  it("assembles a streamed package whose chunks arrive separately", async () => {
+    directory = await mkdtemp(path.join(tmpdir(), "ya-release-download-"));
+    const chunks = [Buffer.alloc(4, 1), Buffer.alloc(3, 2), Buffer.alloc(3, 3)];
+    const data = Buffer.concat(chunks);
+    const candidate = {
+      ...release,
+      artifacts: release.artifacts.map((artifact) => ({
+        ...artifact,
+        sha256: createHash("sha256").update(data).digest("hex"),
+      })),
+    };
+    let staged: Buffer | undefined;
+    const extract = vi
+      .spyOn(native, "extractComputerPackage")
+      .mockImplementation(async (archive) => {
+        staged = await readFile(archive);
+      });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                for (const chunk of chunks) controller.enqueue(chunk);
+                controller.close();
+              },
+            }),
+          ),
+      ),
+    );
+    const result = await stageComputerRelease(
+      candidate,
+      directory,
+      new AbortController().signal,
+      () => {},
+    );
+    expect(extract).toHaveBeenCalledOnce();
+    expect(staged).toEqual(data);
+    await result.cleanup();
+  });
   it.runIf(process.platform === "win32")(
     "native extraction rejects traversal and handles a valid ZIP",
     async () => {
