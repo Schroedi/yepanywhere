@@ -8137,6 +8137,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       // Body is optional
     }
 
+    let acknowledged: boolean | undefined;
     if (body.nonHumanUserTurnMessageId !== undefined) {
       if (
         typeof body.nonHumanUserTurnMessageId !== "string" ||
@@ -8147,10 +8148,11 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       if (!deps.sessionMetadataService) {
         return c.json({ error: "Session metadata service not available" }, 503);
       }
-      await deps.sessionMetadataService.acknowledgeNonHumanUserTurn(
-        sessionId,
-        body.nonHumanUserTurnMessageId,
-      );
+      acknowledged =
+        await deps.sessionMetadataService.acknowledgeNonHumanUserTurn(
+          sessionId,
+          body.nonHumanUserTurnMessageId,
+        );
       deps.eventBus?.emit({
         type: "session-metadata-changed",
         sessionId,
@@ -8168,7 +8170,13 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       body.messageId,
     );
 
-    return c.json({ marked: true });
+    // A stale or unknown delivered-turn id leaves the receipt pending; the
+    // client needs that answer to report the failed acknowledgement.
+    return c.json(
+      acknowledged === undefined
+        ? { marked: true }
+        : { marked: true, acknowledged },
+    );
   });
 
   // DELETE /api/sessions/:sessionId/mark-seen - Mark session as unread

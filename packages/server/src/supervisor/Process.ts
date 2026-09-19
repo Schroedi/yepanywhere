@@ -3681,8 +3681,7 @@ export class Process {
     }
 
     // Legacy behavior for mock SDK
-    this.legacyQueue.push(providerMessage);
-    this.emitNonHumanUserTurn(messageWithUuid, uuid);
+    this.legacyQueue.push(messageWithUuid);
     if (this._state.type === "idle") {
       this.processNextInQueue();
     }
@@ -5617,6 +5616,11 @@ export class Process {
 
     const nextMessage = this.legacyQueue.shift();
     if (nextMessage) {
+      // The delivery receipt belongs to consumption, not to enqueue, so a
+      // cancelled entry leaves none.
+      if (nextMessage.uuid) {
+        this.emitNonHumanUserTurn(nextMessage, nextMessage.uuid);
+      }
       // In real implementation with MessageQueue, this happens automatically
       // For mock SDK, we just transition back to running
       this.transitionToInTurnForWake("user-message");
