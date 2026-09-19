@@ -54,7 +54,10 @@ import type {
   SessionMetadataService,
 } from "../metadata/index.js";
 import type { ProjectMetadataService } from "../metadata/index.js";
-import { nonHumanUserTurnField } from "../metadata/SessionMetadataService.js";
+import {
+  goalCommandOf,
+  nonHumanUserTurnField,
+} from "../metadata/SessionMetadataService.js";
 import type { NotificationService } from "../notifications/index.js";
 import type { CodexSessionScanner } from "../projects/codex-scanner.js";
 import type { GeminiSessionScanner } from "../projects/gemini-scanner.js";
@@ -241,7 +244,7 @@ async function getSessionSlashCommands(
   // A stopped session has no provider to ask, so the last observed goal stands
   // in for live state. A live inventory that already reports goal state wins;
   // unknown goal state is not evidence that the goal was cleared.
-  const savedGoal = metadata?.goalCommand ?? metadata?.codexGoalCommand;
+  const savedGoal = goalCommandOf(metadata);
   if (!savedGoal) return commands ?? null;
   const merged =
     commands?.map((command) =>

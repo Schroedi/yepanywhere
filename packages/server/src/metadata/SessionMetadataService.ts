@@ -210,6 +210,16 @@ export function nonHumanUserTurnField(
   return pendingNonHumanUserTurn(service?.getMetadata(sessionId)) ?? null;
 }
 
+/**
+ * Last observed goal command held by a session's metadata, reading the
+ * pre-Claude `codexGoalCommand` record when the current field is absent.
+ */
+export function goalCommandOf(
+  metadata: SessionMetadata | undefined,
+): SlashCommand | undefined {
+  return metadata?.goalCommand ?? metadata?.codexGoalCommand;
+}
+
 export class SessionMetadataService {
   private state: SessionMetadataState;
   private dataDir: string;
@@ -511,8 +521,7 @@ export class SessionMetadataService {
 
   /** Last observed goal command for a session, whichever provider reported it. */
   getGoalCommand(sessionId: string): SlashCommand | undefined {
-    const metadata = this.getMetadata(this.resolveSessionId(sessionId));
-    return metadata?.goalCommand ?? metadata?.codexGoalCommand;
+    return goalCommandOf(this.getMetadata(this.resolveSessionId(sessionId)));
   }
 
   async observeCommandInventory(
