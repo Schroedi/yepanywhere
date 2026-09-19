@@ -652,6 +652,20 @@ default `YEP_SQLITE=auto`). Explicit `YEP_SQLITE=off` remains authoritative.
 Ranking approximations are recorded in
 `gaps/sketches/speech-vocabulary-ranking-approximations.md`.
 
+### Design decisions
+
+- **Gate the vocabulary services and their two capabilities on discovery
+  SQLite being ready** (vs. building them whenever a SQLite driver loads):
+  readiness is the one place that already establishes all three facts this
+  feature needs. The runtime has a working SQLite driver, the owner did not
+  set `YEP_SQLITE=off`, and the data directory is local disk rather than a
+  network share. The learned table is its own database file rather than a
+  table inside `discovery.sqlite`, so dropping the gate would open SQLite for
+  an owner who turned it off and would put a written-per-scan table on exactly
+  the share the discovery refusal exists to avoid. The cost accepted is that
+  `YEP_SQLITE=off` disables a feature whose own storage would otherwise still
+  work, which is what the settings copy tells the owner.
+
 ### Where the learned table lives
 
 The learned table and its fingerprint filter live in the data directory,

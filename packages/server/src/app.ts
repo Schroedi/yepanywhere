@@ -2309,8 +2309,12 @@ export function createApp(options: AppOptions): AppResult {
     );
     indexer.configure();
   }
-  const vocabularyDatabase = discoverySqlite.getDatabase();
-  if (vocabularyDatabase) {
+  // The learned vocabulary keeps its own SQLite file beside discovery's, so it
+  // needs the three facts discovery readiness already establishes: this runtime
+  // has a SQLite driver, the owner did not set `YEP_SQLITE=off`, and the data
+  // directory is local disk rather than a share
+  // (topics/pluggable-speech-recognition.md § Keyterm Biasing).
+  if (discoverySqlite.getStatus().state === "ready") {
     const catalog = retainedCollections;
     const store = new VocabularyStore(effectiveDataDir);
     const keyterms = new VocabularyKeyterms(store, effectiveDataDir);
