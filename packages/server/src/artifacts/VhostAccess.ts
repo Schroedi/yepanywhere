@@ -4,15 +4,9 @@ import {
   randomUUID,
   timingSafeEqual,
 } from "node:crypto";
-import {
-  link,
-  mkdir,
-  readFile,
-  rename,
-  unlink,
-  writeFile,
-} from "node:fs/promises";
+import { link, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { writeFileAtomically } from "../utils/writeFileAtomically.js";
 import type { ArtifactVhost } from "./vhosts.js";
 
 const COOKIE = "ya_app_access";
@@ -85,16 +79,7 @@ export class VhostAccess {
       };
       if (this.directory) {
         const file = join(this.directory, "app-access.json");
-        // Unique per write: two instances over one directory would otherwise
-        // stage to the same name and the loser's rename fails with ENOENT.
-        const staging = `${file}.${process.pid}.${randomUUID()}`;
-        try {
-          await writeFile(staging, JSON.stringify(next), { mode: 0o600 });
-          await rename(staging, file);
-        } catch (error) {
-          await unlink(staging).catch(() => {});
-          throw error;
-        }
+        await writeFileAtomically(file, JSON.stringify(next));
       }
       this.generations = next;
     });

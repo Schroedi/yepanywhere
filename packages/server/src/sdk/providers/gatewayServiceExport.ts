@@ -14,15 +14,7 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
-import {
-  mkdir,
-  readdir,
-  readFile,
-  rename,
-  rm,
-  writeFile,
-} from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import {
   claudeSettingsPath,
   codexProfileName,
@@ -34,6 +26,7 @@ import {
   type GatewayServiceExportPaths,
 } from "@yep-anywhere/shared";
 import { getLogger } from "../../logging/logger.js";
+import { writeFileAtomically } from "../../utils/writeFileAtomically.js";
 import {
   ClaudeGatewayProvider,
   gatewayAutoCompactWindow,
@@ -122,18 +115,6 @@ function claudeSettingsContents(service: GatewayService): string {
 
 export { gatewayServiceCliInvocations } from "@yep-anywhere/shared";
 
-/** Write a file the user may also be reading: temporary file, then rename. */
-async function writeAtomic(path: string, contents: string): Promise<void> {
-  const temporary = `${path}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(temporary, contents, { mode: 0o600 });
-    await rename(temporary, path);
-  } catch (error) {
-    await rm(temporary, { force: true }).catch(() => undefined);
-    throw error;
-  }
-}
-
 /** Whether a file at this path is one YA generated. */
 async function isManagedFile(path: string): Promise<boolean> {
   try {
@@ -205,7 +186,7 @@ export async function syncGatewayServiceExports(options: {
     claudeKeep.add(claudePath);
     try {
       await mkdir(paths.claudeHome, { recursive: true });
-      await writeAtomic(claudePath, claudeSettingsContents(service));
+      await writeFileAtomically(claudePath, claudeSettingsContents(service));
       written.push(claudePath);
     } catch (error) {
       getLogger().warn(
@@ -219,7 +200,7 @@ export async function syncGatewayServiceExports(options: {
     codexKeep.add(codexPath);
     try {
       await mkdir(paths.codexHome, { recursive: true });
-      await writeAtomic(codexPath, codexProfileContents(service));
+      await writeFileAtomically(codexPath, codexProfileContents(service));
       written.push(codexPath);
     } catch (error) {
       getLogger().warn(

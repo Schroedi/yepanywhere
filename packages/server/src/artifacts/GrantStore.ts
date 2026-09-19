@@ -2,16 +2,14 @@ import {
   mkdir,
   readdir,
   readFile,
-  rename,
   rmdir,
   stat,
   unlink,
-  writeFile,
 } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { runGit } from "../git/gitExec.js";
+import { writeFileAtomically } from "../utils/writeFileAtomically.js";
 
 /**
  * Durable artifact grants and the deletions they owe.
@@ -205,20 +203,7 @@ export class GrantStore {
       .catch(() => {})
       .then(async () => {
         await mkdir(this.directory!, { recursive: true, mode: 0o700 });
-        // One process can hold several stores over one state directory, and
-        // their writes are serialized per store only. A staging name they
-        // share lets one rename steal another's file, so the loser's rename
-        // fails with ENOENT; the name is unique per write instead.
-        const staging = `${file}.${process.pid}.${randomUUID()}`;
-        try {
-          await writeFile(staging, `${snapshot}\n`, { mode: 0o600 });
-          await rename(staging, file);
-        } catch (error) {
-          // Leaving staging files behind would accumulate live tokens in a
-          // directory whose only expected member is the state file.
-          await unlink(staging).catch(() => {});
-          throw error;
-        }
+        await writeFileAtomically(file, `${snapshot}\n`);
       });
     return this.writing;
   }
