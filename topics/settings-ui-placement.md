@@ -99,11 +99,13 @@ UI should state directly.
 
 - **Settings search.** Matching rows render their real controls, so ordinary
   immediately-applied settings can be changed in place and take effect there.
-  Selecting a category clears the query before opening the normal pane. Search
-  results already provide an explicit jump link that centers and briefly
-  outlines the destination row; confirmation access for explicit-save controls
-  and a larger non-control row jump target remain tracked in
-  [`settings-search-confirmation-and-row-navigation`](../gaps/settings-search-confirmation-and-row-navigation.md).
+  Selecting a category clears the query before opening the normal pane. Each
+  result carries an explicit jump link that centers and briefly outlines the
+  destination row, and clicking that row's inactive text or background performs
+  the same jump. A setting that deliberately requires Save keeps that action in
+  its matched row or complete matched form section, and single-line fields
+  submit with Enter, so an explicit-save setting edited from search can be
+  committed there. [settings-search](settings-search.md) owns both contracts.
 - **Source Control → Review history and outcomes.** On by default for new
   installs. It stores exact source captures, review submission history, agent
   outcomes, and unread review responses; those records power the Source Control
