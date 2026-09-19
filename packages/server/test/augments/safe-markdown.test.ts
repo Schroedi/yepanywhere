@@ -838,6 +838,12 @@ describe("renderSafeMarkdown — URLs in fixed-font contexts", () => {
     );
   });
 
+  it("keeps a code anchor in the same document", () => {
+    const html = renderSafeMarkdown("try `https://example.test/x` first");
+    expect(html).not.toContain("target=");
+    expect(html).not.toContain("rel=");
+  });
+
   it("leaves a non-web scheme and ordinary code alone", () => {
     const html = renderSafeMarkdown(
       "```\njavascript:alert(1) and file:///etc/passwd and const x = 1;\n```",

@@ -1479,8 +1479,10 @@ export type {
 
 export {
   containsLinkifiableUrl,
+  linkifyToHtml,
   splitUrlSegments,
   type LinkifySegment,
+  type LinkifyToHtmlOptions,
   type SplitUrlSegmentsOptions,
 } from "./linkify.js";
 

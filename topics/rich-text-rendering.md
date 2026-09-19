@@ -82,6 +82,15 @@ These run unconditionally and are not user-configurable:
   every setting.
 - **ANSI escape stripping** — applied before all rendering so raw escape codes
   never appear as literal characters. (`stripAnsiEscapes` inside `renderFixedFontRichContent`)
+- **Bare URLs in fixed-font text are links** — terminal output, fenced and
+  indented blocks, and inline code render a bare `http(s)` URL with a dotted
+  host as an anchor around the unchanged text; other schemes stay plain. One
+  renderer answers this for every such surface (`linkifyToHtml` in
+  `packages/shared/src/linkify.ts`). Terminal output opens the link in a new
+  tab, since that markup reaches the page unsanitized. A Markdown anchor stays
+  in the same document like every other link the Markdown renderer emits: the
+  shared sanitizer allows neither `target` nor `rel` on an anchor, so asking
+  for a new tab there would only produce markup it drops.
 - **Shiki syntax highlighting** — server-side, keyed on file extension, stored as
   `_highlightedContentHtml` on `ReadResultWithAugment`. Applied only to files the
   server recognises as source code.
