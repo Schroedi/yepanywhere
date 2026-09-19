@@ -14,10 +14,11 @@ import {
   advertisedGatewayEffortLevels,
   gatewayModelEffort,
   parseGatewayModelId,
-  qualifiedGatewayModelId,
+  unionModelCatalogs,
   type EffortLevel,
   type GatewayEndpointEffortProbe,
   type GatewayService,
+  type ModelCatalogRoute,
   type ModelInfo,
   type PromptCacheKeepaliveProviderInfo,
 } from "@yep-anywhere/shared";
@@ -92,10 +93,7 @@ interface GatewayServiceCatalog {
 }
 
 /** Which service serves an exposed model id, and under what name it knows it. */
-interface GatewayModelRoute {
-  serviceId: string;
-  modelId: string;
-}
+type GatewayModelRoute = ModelCatalogRoute;
 
 interface GatewayCatalogSnapshot {
   configurationGeneration: number;
@@ -424,43 +422,6 @@ function gatewayServicesKey(services: readonly GatewayService[]): string {
       service.defaultEffortLevel ?? null,
     ]),
   );
-}
-
-/**
- * Merge per-service catalogs into one list.
- *
- * A model id stays exactly as its service advertises it while only one service
- * offers it. When two do, both sides gain a service prefix, because leaving one
- * of them bare would make the same id mean different things depending on which
- * service answered first.
- */
-function unionGatewayCatalogs(reads: readonly ServiceCatalogRead[]): {
-  models: ModelInfo[];
-  routes: Map<string, GatewayModelRoute>;
-} {
-  const providers = new Map<string, number>();
-  for (const read of reads) {
-    for (const model of read.models) {
-      providers.set(model.id, (providers.get(model.id) ?? 0) + 1);
-    }
-  }
-
-  const models: ModelInfo[] = [];
-  const routes = new Map<string, GatewayModelRoute>();
-  for (const read of reads) {
-    for (const model of read.models) {
-      const collides = (providers.get(model.id) ?? 0) > 1;
-      const exposedId = collides
-        ? qualifiedGatewayModelId(read.catalog.serviceId, model.id)
-        : model.id;
-      routes.set(exposedId, {
-        serviceId: read.catalog.serviceId,
-        modelId: model.id,
-      });
-      models.push(collides ? { ...model, id: exposedId } : model);
-    }
-  }
-  return { models, routes };
 }
 
 /**
@@ -894,7 +855,12 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
     const read = results.filter(
       (result): result is ServiceCatalogRead => result !== undefined,
     );
-    const { models, routes } = unionGatewayCatalogs(read);
+    const { models, routes } = unionModelCatalogs(
+      read.map((entry) => ({
+        serviceId: entry.catalog.serviceId,
+        models: entry.models,
+      })),
+    );
 
     // A service that could not be read this time keeps its last good catalog:
     // an unavailable endpoint must not strip the launch windows and routing of

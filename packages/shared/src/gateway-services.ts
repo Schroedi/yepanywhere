@@ -12,7 +12,7 @@
  */
 
 import { isEffortLevel } from "./gateway-model-effort.js";
-import type { EffortLevel } from "./types.js";
+import type { EffortLevel, ModelInfo } from "./types.js";
 
 export const MAX_GATEWAY_SERVICES = 16;
 export const MAX_GATEWAY_SERVICE_ID_LENGTH = 32;
@@ -321,6 +321,58 @@ export function qualifiedGatewayModelId(
   modelId: string,
 ): string {
   return `${serviceId}${GATEWAY_MODEL_ID_SEPARATOR}${modelId}`;
+}
+
+/**
+ * One source's advertised models. `serviceId` is undefined for a source that
+ * is not a configured service: CodexOSS reads the local provider that way.
+ */
+export interface ModelCatalogRead<S extends string | undefined = string> {
+  serviceId: S;
+  models: readonly ModelInfo[];
+}
+
+/** Which source serves an exposed model id, and the name that source uses. */
+export interface ModelCatalogRoute<S extends string | undefined = string> {
+  serviceId: S;
+  modelId: string;
+}
+
+/**
+ * Merge per-source catalogs into one list, with the routes back to the sources.
+ *
+ * A model id stays exactly as its source advertises it while only one source
+ * offers it. When two do, both sides gain their service prefix, because leaving
+ * one of them bare would make the same id mean different things depending on
+ * which source answered first. A colliding id from a source with no service id
+ * cannot be qualified and keeps the bare id, so the later source wins its
+ * route; only CodexOSS has such a source, and only when no service is
+ * configured at all.
+ */
+export function unionModelCatalogs<S extends string | undefined>(
+  reads: readonly ModelCatalogRead<S>[],
+): { models: ModelInfo[]; routes: Map<string, ModelCatalogRoute<S>> } {
+  const sources = new Map<string, number>();
+  for (const read of reads) {
+    for (const model of read.models) {
+      sources.set(model.id, (sources.get(model.id) ?? 0) + 1);
+    }
+  }
+
+  const models: ModelInfo[] = [];
+  const routes = new Map<string, ModelCatalogRoute<S>>();
+  for (const read of reads) {
+    for (const model of read.models) {
+      const collides = (sources.get(model.id) ?? 0) > 1;
+      const exposedId =
+        collides && read.serviceId !== undefined
+          ? qualifiedGatewayModelId(read.serviceId, model.id)
+          : model.id;
+      routes.set(exposedId, { serviceId: read.serviceId, modelId: model.id });
+      models.push(exposedId === model.id ? model : { ...model, id: exposedId });
+    }
+  }
+  return { models, routes };
 }
 
 /**

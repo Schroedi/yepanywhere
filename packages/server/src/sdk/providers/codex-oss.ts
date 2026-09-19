@@ -23,10 +23,12 @@ import {
   parseGatewayModelId,
   qualifiedGatewayModelId,
   tomlString,
+  unionModelCatalogs,
   type EffortLevel,
   type GatewayEndpointEffortProbe,
   type GatewayModelEffort,
   type GatewayService,
+  type ModelCatalogRoute,
   type ModelInfo,
 } from "@yep-anywhere/shared";
 import {
@@ -56,10 +58,7 @@ import { inactiveProviderSessionOptionsResult } from "./types.js";
 const log = getLogger().child({ component: "codex-oss-provider" });
 
 /** Where a chosen model lives: a configured endpoint, or Ollama when absent. */
-interface CodexModelRoute {
-  serviceId?: string;
-  modelId: string;
-}
+type CodexModelRoute = ModelCatalogRoute<string | undefined>;
 const execAsync = promisify(exec);
 
 /**
@@ -324,9 +323,8 @@ export class CodexOSSProvider implements AgentProvider {
   /**
    * Models from every configured endpoint, plus Ollama's when it is in use.
    *
-   * A model id stays exactly as its source advertises it unless two sources
-   * offer the same one, in which case both gain their service prefix — the
-   * same rule Claude Gateway follows, so a launch can always name its source.
+   * `unionModelCatalogs` owns how colliding ids are qualified, so a CodexOSS
+   * launch and a Claude Gateway launch name their source the same way.
    */
   async getAvailableModels(): Promise<ModelInfo[]> {
     const services = this.codexServices();
@@ -345,29 +343,7 @@ export class CodexOSSProvider implements AgentProvider {
         : []),
     ]);
 
-    const counts = new Map<string, number>();
-    for (const source of perSource) {
-      for (const model of source.models) {
-        counts.set(model.id, (counts.get(model.id) ?? 0) + 1);
-      }
-    }
-
-    const routes = new Map<string, CodexModelRoute>();
-    const models: ModelInfo[] = [];
-    for (const source of perSource) {
-      for (const model of source.models) {
-        const collides = (counts.get(model.id) ?? 0) > 1;
-        const exposedId =
-          collides && source.serviceId
-            ? qualifiedGatewayModelId(source.serviceId, model.id)
-            : model.id;
-        routes.set(exposedId, {
-          ...(source.serviceId ? { serviceId: source.serviceId } : {}),
-          modelId: model.id,
-        });
-        models.push(collides ? { ...model, id: exposedId } : model);
-      }
-    }
+    const { models, routes } = unionModelCatalogs(perSource);
     this.modelRoutes = routes;
     return models;
   }
@@ -483,13 +459,13 @@ export class CodexOSSProvider implements AgentProvider {
 
   /** Which configured endpoint serves a model, if any. */
   private resolveModelRoute(model: string | undefined): CodexModelRoute {
-    if (!model) return { modelId: model ?? "" };
+    if (!model) return { serviceId: undefined, modelId: model ?? "" };
     const known = this.modelRoutes.get(model);
     if (known) return known;
     const qualified = parseGatewayModelId(model, (serviceId) =>
       this.codexServices().some((service) => service.id === serviceId),
     );
-    return qualified ?? { modelId: model };
+    return qualified ?? { serviceId: undefined, modelId: model };
   }
 
   private serviceById(serviceId: string | undefined) {

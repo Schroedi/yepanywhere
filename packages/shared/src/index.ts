@@ -204,9 +204,12 @@ export {
   piProviderName,
   qualifiedGatewayModelId,
   tomlString,
+  unionModelCatalogs,
   type GatewayService,
   type GatewayServiceCodexWireApi,
   type GatewayServiceExportPaths,
+  type ModelCatalogRead,
+  type ModelCatalogRoute,
 } from "./gateway-services.js";
 
 export {
