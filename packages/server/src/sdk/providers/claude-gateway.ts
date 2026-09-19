@@ -313,11 +313,7 @@ function parseClaudeGatewayCatalog(
   }
 
   const isVllm = data.some(
-    (item) =>
-      item &&
-      typeof item === "object" &&
-      (item.owned_by === "vllm" ||
-        (typeof item.max_model_len === "number" && item.max_model_len > 0)),
+    (item) => item && typeof item === "object" && item.owned_by === "vllm",
   );
   const seen = new Set<string>();
   const models: ModelInfo[] = [];

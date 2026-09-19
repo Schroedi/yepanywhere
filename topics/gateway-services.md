@@ -122,8 +122,9 @@ model serving.
   reserves room inside the declared context window for the compaction window.
 - Backend identity is observed from the response, never configured: copilot-api
   through its explicit `X-Copilot-API` header, vLLM through `owned_by` on its
-  model rows. Model names, ports, vendors, and generic endpoint compatibility
-  never imply either. A launch publishes `AGENT_LAUNCH_BACKEND`, and copilot-api
+  model rows. Model names, ports, vendors, advertised windows, and generic
+  endpoint compatibility never imply either: `max_model_len` sizes a model,
+  and any server free to advertise it is free to be something other than vLLM. A launch publishes `AGENT_LAUNCH_BACKEND`, and copilot-api
   additionally keeps its legacy `YEP_COPILOT_API=1` marker for out-of-repo
   readers.
 
