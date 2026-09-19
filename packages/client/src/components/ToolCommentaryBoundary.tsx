@@ -1,5 +1,6 @@
 import {
   ACLI_COMMENTARY_RENDERING_CAPABILITY,
+  asRecord,
   initialAcliFormat,
   decodeCodeModeOutput,
   serverHasCapability,
@@ -172,7 +173,7 @@ function CodeModeBoundary(props: InvocationProps) {
     },
     [],
   );
-  const input = record(props.toolInput);
+  const input = asRecord(props.toolInput);
   const leafInput = useMemo(() => ({ cmd: input?.source }), [input?.source]);
   if (!decoded || props.supported === false)
     return props.children(props.toolInput, props.toolResult, props.workflow);
@@ -258,12 +259,6 @@ function CodeModeProjection({
   return null;
 }
 
-function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
 export function ToolCommentaryBoundary(props: Props) {
   const { acliCommentaryEnabled } = useAcliCommentarySetting();
   const metadata = useOptionalSessionMetadata();
@@ -318,7 +313,7 @@ function InvocationBoundary(props: InvocationProps) {
   if (mode === "raw")
     return props.children(props.toolInput, props.toolResult, props.workflow);
   // Do not publish an undecided record, then move its metadata after paint.
-  const input = record(props.toolInput);
+  const input = asRecord(props.toolInput);
   return props.children(
     input ? { ...input, _previewResult: undefined } : props.toolInput,
     undefined,
@@ -466,7 +461,7 @@ function CommentaryOutput(
     };
   }, [props.toolResult, props.output, projection, isError]);
   const projectedInput = useMemo(() => {
-    const input = record(props.toolInput);
+    const input = asRecord(props.toolInput);
     return input
       ? { ...input, _previewResult: projectedResult?.structured }
       : props.toolInput;

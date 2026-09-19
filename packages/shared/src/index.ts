@@ -1483,3 +1483,5 @@ export {
   type LinkifySegment,
   type SplitUrlSegmentsOptions,
 } from "./linkify.js";
+
+export { asRecord, isRecord } from "./plain-record.js";
