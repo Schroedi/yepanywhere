@@ -92,6 +92,19 @@ disk.
   noisy guest can throttle the host; the server's own per-identity SRP
   limiter already exists to contain that.
 
+  **Identity lookup and timing.** The server resolves the `srp_hello`
+  identity by a constant-time map lookup of username to salt and verifier
+  before the one modular exponentiation SRP needs per attempt, so cost does
+  not grow with the number of users. Response time must not reveal whether
+  a username exists (decided 2026-09-19): an unknown identity runs the
+  same challenge computation against a fixed dummy salt and verifier and
+  returns an indistinguishable error only at the proof step, and the
+  handler pads every hello response to a minimum elapsed time (sleep to a
+  floor such as the observed p95 of a real challenge) so a fast path cannot
+  be distinguished from a slow one. Today the single configured name
+  already leaks existence by answering "unknown identity" early; this
+  closes that too.
+
   **Per-user server sockets** remain an option a new YA server can add
   without relay changes: register `<server>-<username>` on an additional
   socket per enabled user (an install may own many names), which gives
