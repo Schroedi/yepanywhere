@@ -1185,9 +1185,9 @@ function ConversationThinkingPreview({
       : THINKING_PREVIEW_DEFAULT_WIDTH_PX;
 
   // Accurate max-content width once per block. Streaming tokens grow the
-  // estimate in the effect below; mutating live `display`/`width` on every
-  // thinking delta forced layout and could leak a 2px temporary height into
-  // the row's published cap.
+  // estimate in the effect below, because mutating live `display`/`width` on
+  // every thinking delta forces layout and can leak a 2px temporary height
+  // into the row's published cap.
   // biome-ignore lint/correctness/useExhaustiveDependencies: one measure per block identity; thinking text is the fallback only when that measure is 0
   useLayoutEffect(() => {
     if (collapsed) return;
