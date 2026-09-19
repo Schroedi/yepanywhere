@@ -350,8 +350,13 @@ eligible sessions after each batch so a long transcript cannot starve later
 matches. The server admits at most four concurrent
 requests; identical in-flight native reads join one computation. There is no
 persistent search job or transcript cache between requests. Legacy or manual
-requests for unsupported providers return an explicit unavailable result before
-project or native-reader access, never a complete empty transcript result.
+requests for unsupported providers return an explicit unavailable result rather
+than a complete empty transcript result. The server decides that from the
+reader it resolves for the session, so a session whose provider is absent from
+the advertised list is still searched when its resolved reader reads bounded
+turns; `supportsBoundedTurnSearch` stays the advertised hint clients pre-exclude
+with. Resolving the reader needs the session's project, so an unresolvable
+project answers 404 as it does for any other request on that session.
 A stopped client produces no further batches; a shared in-flight batch is
 bounded by its record/byte limits and timeout.
 
