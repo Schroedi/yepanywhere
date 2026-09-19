@@ -120,6 +120,26 @@ start sandboxed sessions and everything in the table above. Viewer, later:
 see sessions and transcripts, open the project's app, but no turns, no new
 sessions, no files outside what the transcript shows.
 
+**Session guest.** A second, narrower grant shape for live sharing of one
+session with another person ("multiplayer"): the superuser, or a project
+owner, creates a username and password whose entire scope is **one named
+session**. Through the relay (the "reflector") it is reserved and tracked as
+its own compound name like any limited user, so the server always knows which
+guest a connection is; on direct access it uses the same login or HTTP Basic
+path. A guest sees that session's transcript, may send turns and approvals in
+it (or is read-only, chosen at creation), and sees nothing else: no project
+page, no file APIs beyond what the transcript shows, no session creation, no
+fork. Anticipating the grant, the host may launch the session sandboxed at
+creation so the guest's turns are confined; a guest grant on an unsandboxed
+session is allowed but the members UI says so plainly. Guest records live in
+`project-access.json` beside memberships as
+`{ session: sessionId, guests: [{ username, mode: "turns" | "read" }] }`,
+and revoking one ends its relay claim and cookie sessions. A guest is exempt
+from the stale-session cutoff: the shared session is the whole point of the
+grant, and a redirect into a new session would fall outside it. That
+exemption stands until a session-continuation authority (which new session a
+guest may follow into) is defined; none is proposed here.
+
 **Provider lock.** The superuser may pin a limited user to a provider, a
 provider plus model, or provider plus model plus effort; any subset is
 representable, but those three are the expected shapes. Stored on the user
@@ -168,7 +188,7 @@ to keep ordinary resume behavior. The redirect is server-side at the message
 route, keyed by the session's last activity time, so a stale client cannot
 bypass it. The superuser may opt into the same setting for their own account
 (decided 2026-09-19); it is off for the superuser by default and required
-only for limited users.
+only for limited users. Session guests are exempt, as stated above.
 
 ## Execution boundary
 
@@ -218,8 +238,10 @@ rather than decided here.
 3. **Relay.** Compound `server-username` claims, per-user SRP verifiers,
    hosted-client login with a username, pairing flow update
    ([[mobile-server-pairing]]). ‖
-4. **Viewers** and the template-only New Project for limited users, once
-   [[project-templates]] phase 2 exists.
+4. **Viewers**, **session guests**, and the template-only New Project for
+   limited users, once [[project-templates]] phase 2 exists. Guests may land
+   earlier than viewers since their scope is one session and needs no
+   project-level filtering beyond a 404 for everything else.
 
 ## Open decisions
 
@@ -238,6 +260,9 @@ rather than decided here.
   for a hosted case).
 - Rate limits and session caps per limited user, extending the relay's
   five-session cap.
+- Session-continuation authority for guests: when a shared session is
+  forked, rewound into a new session, or redirected by the host's own stale
+  cutoff, which successor if any the guest may follow into.
 
 ## See also
 
