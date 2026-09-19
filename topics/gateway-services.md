@@ -191,7 +191,10 @@ model serving.
 - `POST /api/settings/gateway-services/effort` asks one endpoint on demand. It
   bypasses both the cache and the setting, and its URL must be loopback or
   already configured: unlike catalog discovery it sends a chat request, so it
-  stays pointed at endpoints the server already talks to. The answer is written
+  stays pointed at endpoints the server already talks to. The requested URL is
+  normalized the way a stored service URL is before that comparison, so the
+  configured endpoint is recognized however the address was typed — a trailing
+  slash or an explicitly spelled default port names the same service. The answer is written
   into the draft entry's level checkboxes for review rather than applied
   invisibly, along with the default level when the template named one.
 - The editor presents an entry's two states as a choice between asking the

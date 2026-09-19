@@ -30,6 +30,7 @@ import {
   isValidGatewayServiceId,
   type GatewayService,
   parseGatewayServices,
+  normalizeGatewayServiceUrl,
   normalizeYaClientBaseUrl,
   normalizeYaClientBaseUrlFromShareViewerUrl,
   normalizeIdleReapHours,
@@ -1282,7 +1283,13 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
    */
   app.post("/gateway-services/effort", async (c) => {
     const body = await c.req.json<{ url?: unknown }>();
-    const url = typeof body.url === "string" ? body.url.trim() : "";
+    // Normalized before the comparison below, because a stored service URL is
+    // normalized too: the same endpoint typed with a trailing slash or a
+    // default port is the configured one.
+    const url =
+      typeof body.url === "string"
+        ? normalizeGatewayServiceUrl(body.url)
+        : null;
     if (!url) {
       return c.json({ error: "url must be an http(s) URL" }, 400);
     }
