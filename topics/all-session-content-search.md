@@ -40,7 +40,13 @@ completed sessions require no new disk read until their source changes.
 When a third generation starts, it displaces the second unless that second
 has enough matching rows for the measured viewport, or is already complete;
 then the first is retired. Retired work cannot publish into the current source.
-Rows keep a stable order across updates. Initial streaming uses a shared
+Rows keep a stable order across updates: a result holds the rank it took when
+it first appeared under the current needle, so arriving matches, later catalog
+pages and live sessions append rather than reshuffle what is being read. That
+ranking belongs to one needle. Changing the needle starts it again from catalog
+order, so no session carries a position earned under an earlier search.
+Changing fields, filters or time criteria keeps the current ranking.
+Initial streaming uses a shared
 reservation within the preview limit; actual arrivals can grow the row. Once
 search completes, 500 ms without pointer, keyboard or scroll activity permits
 expansion to the requested preview count. Later live updates do not collapse
@@ -194,9 +200,11 @@ M can exceed N; there is no separate hidden count.
 Selection management appears after results, before the diagnostic log. At wide
 desktop widths they occupy adjacent columns and the management list uses page
 scrolling; narrower layouts bound its own scroll area. The list is labelled
-and identifies each provider. Providers without bounded turn search are hidden
-from this management list for now; this does not clear their selections or
-exclude their title hits from ordinary results. It explains each excluded session's applicable project,
+and identifies each provider. Unselected sessions of providers without bounded
+turn search are hidden from this management list for now; this does not clear
+their selections or exclude their title hits from ordinary results. A selected
+session is always listed, whatever its provider, because this list is the only
+place a selection taken from a title-search row can be removed. It explains each excluded session's applicable project,
 provider, executor, status, time, or selection restriction. For eligible
 sessions without text matches it distinguishes ongoing search, incomplete
 coverage, errors, and completed nonmatches. All fields unchecked produces an

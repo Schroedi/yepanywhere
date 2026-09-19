@@ -564,6 +564,58 @@ describe("GlobalSessionsPage", () => {
     expect(runtime.transport.fetch).not.toHaveBeenCalled();
   });
 
+  it("ranks results from catalog order again when the needle changes", async () => {
+    sessionCollectionState.records = [
+      makeSessionRecord("yankee"),
+      makeSessionRecord("xray"),
+    ];
+    renderPage("/sessions?q=xray");
+    expect(screen.queryByTestId("session-yankee")).toBeNull();
+    await act(async () => {
+      fireEvent.change(screen.getByRole("searchbox"), {
+        target: { value: "" },
+      });
+    });
+    const yankee = screen.getByTestId("session-yankee");
+    const xray = screen.getByTestId("session-xray");
+    expect(
+      yankee.compareDocumentPosition(xray) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("manages a selected session whose provider has no turn search", async () => {
+    versionState.version = {
+      capabilities: [SESSION_CONTENT_SEARCH_CAPABILITY],
+    };
+    sessionCollectionState.records = [
+      makeSessionRecord("supported"),
+      makeSessionRecord("unsupported", { provider: "grok" }),
+    ];
+    renderPage("/sessions");
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Keep just 2 matching sessions selected",
+        }),
+      );
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTitle(/Click to manage selection/));
+    });
+    const row = screen.getByRole("checkbox", { name: /Session unsupported/ });
+    expect((row as HTMLInputElement).checked).toBe(true);
+    await act(async () => {
+      fireEvent.click(row);
+    });
+    expect(
+      screen.queryByRole("checkbox", { name: /Session unsupported/ }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("checkbox", { name: /Session supported/ }),
+    ).toBeDefined();
+    expect(runtime.transport.fetch).not.toHaveBeenCalled();
+  });
+
   it("shows the project CTA when arriving from the projects list", () => {
     renderPage("/sessions?project=project-1&source=projects");
 

@@ -32,7 +32,7 @@ export function useSessionMessageNavigation(options: MessageNavigationOptions) {
   const handled = useRef<string | undefined>(undefined);
   const attemptedPage = useRef<string | undefined>(undefined);
   const inFlightPage = useRef<string | undefined>(undefined);
-  const [, setCompletedLoads] = useState(0);
+  const [completedLoads, setCompletedLoads] = useState(0);
 
   useEffect(() => {
     currentKey.current = key;
@@ -41,6 +41,10 @@ export function useSessionMessageNavigation(options: MessageNavigationOptions) {
     };
   }, [key]);
 
+  // Both callers pass a fresh options literal every render, so the trigger is
+  // each field this decision reads, not the object. An older page landing
+  // without changing the message array is what `completedLoads` reports.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the remaining options fields are read at decision time; their per-render identities would run this navigation on every render
   useEffect(() => {
     if (
       !target ||
@@ -95,5 +99,14 @@ export function useSessionMessageNavigation(options: MessageNavigationOptions) {
         if (currentKey.current === key) options.onError("completion");
       });
     });
-  });
+  }, [
+    key,
+    target,
+    options.enabled,
+    options.loading,
+    options.loadingOlder,
+    options.messages,
+    options.olderCursor,
+    completedLoads,
+  ]);
 }

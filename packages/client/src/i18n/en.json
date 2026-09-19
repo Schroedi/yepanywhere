@@ -3731,7 +3731,7 @@
   "sessionSearchAllMatches": "Show all retained matches in this session",
   "sessionSearchOpenTurn": "Open turn in session",
   "sessionSearchScope": "in {count} sessions",
-  "sessionSearchManage": "Selection — turn-searchable sessions",
+  "sessionSearchManage": "Selection — selected and turn-searchable sessions",
   "sessionSearchWatching": "Watching for changes in eligible sessions and newly discovered sessions.",
   "sessionSearchRetainedMatches": "{count} retained matches",
   "sessionSearchMatchesScanning": "Search in progress",
