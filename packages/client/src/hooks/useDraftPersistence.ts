@@ -2,11 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClientSummarySourceKey } from "../lib/clientSummaryStore";
 import {
   type DraftAttachmentState,
+  type DraftEnvelopeV1,
   draftStorageValueForAttachments,
   draftStorageValueForPendingSend,
   draftStorageValueForText,
   hasDraftContentValue,
+  hasDraftEnvelopeContent,
   readDraftAttachmentStateValue,
+  readDraftEnvelopeValue,
   readDraftPendingSendValue,
   readDraftTextValue,
 } from "../lib/draftEnvelope";
@@ -195,19 +198,20 @@ function readStoragePendingSend(key: string): boolean {
   }
 }
 
-function readStorageAttachmentState(key: string): DraftAttachmentState | null {
+/** One read and one parse for callers that need more than a single field. */
+function readStorageDraft(key: string): DraftEnvelopeV1 | null {
   try {
-    return readDraftAttachmentStateValue(localStorage.getItem(key));
+    return readDraftEnvelopeValue(localStorage.getItem(key)).envelope;
   } catch {
     return null;
   }
 }
 
-function hasStorageDraftContent(key: string): boolean {
+function readStorageAttachmentState(key: string): DraftAttachmentState | null {
   try {
-    return hasDraftContentValue(localStorage.getItem(key));
+    return readDraftAttachmentStateValue(localStorage.getItem(key));
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -261,6 +265,10 @@ export function useDraftPersistence(
   // `discardPendingSendDraft` refuses to touch anything the user has since
   // typed, recalled, or otherwise chosen to keep.
   const composerEditedSinceHydrationRef = useRef(false);
+  // Mirrors whether storage for the current key holds a post-submit recovery
+  // copy. The session reconciles against every transcript update, so that
+  // check runs once per streamed chunk and must not parse localStorage.
+  const pendingSendRef = useRef(false);
 
   useEffect(() => {
     valueRef.current = value;
@@ -292,24 +300,27 @@ export function useDraftPersistence(
     composerEditedSinceHydrationRef.current = false;
 
     try {
-      const hasStoredDraft = hasStorageDraftContent(key);
+      const stored = readStorageDraft(key);
       if (
         (keyChanged || sessionDraftChanged) &&
         preserveValueOnKeyChange &&
         previousValue &&
-        !hasStoredDraft
+        !hasDraftEnvelopeContent(stored)
       ) {
         saveToStorage(key, previousValue, sessionDraft);
         valueRef.current = previousValue;
         // Carried-over text is the user's, not a hydrated recovery copy.
         composerEditedSinceHydrationRef.current = true;
+        pendingSendRef.current = false;
         setValueInternal(previousValue);
         return;
       }
-      const storedText = readStorageText(key);
+      const storedText = stored?.text ?? "";
+      pendingSendRef.current = stored?.pendingSend === true;
       valueRef.current = storedText;
       setValueInternal(storedText);
     } catch {
+      pendingSendRef.current = false;
       valueRef.current = "";
       setValueInternal("");
     }
@@ -327,6 +338,8 @@ export function useDraftPersistence(
         pendingValueRef.current,
         sessionDraftRef.current,
       );
+      // A text write drops the recovery marker.
+      pendingSendRef.current = false;
       pendingValueRef.current = null;
     }
   }, []);
@@ -353,12 +366,33 @@ export function useDraftPersistence(
     };
   }, [flushPending]);
 
+  // A second tab on the same session writes the same storage key. Its submit
+  // is what marks the shared copy as a recovery copy, and a `storage` event is
+  // the only notice this document gets, so the cached verdict is refreshed
+  // here instead of being re-read on every reconcile. A null key is a whole
+  // storage clear.
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === null) {
+        pendingSendRef.current = false;
+        return;
+      }
+      if (event.key !== keyRef.current) return;
+      pendingSendRef.current = readDraftPendingSendValue(event.newValue);
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
   // Save each edit immediately. A debounce window can lose the newest typed
   // text during HMR/reload paths that do not reliably fire page lifecycle
   // events before React remounts and restores the previous storage value.
   const setValue = useCallback((newValue: string) => {
     valueRef.current = newValue;
     composerEditedSinceHydrationRef.current = true;
+    pendingSendRef.current = false;
     setValueInternal(newValue);
     pendingValueRef.current = null;
     if (timeoutRef.current) {
@@ -381,6 +415,7 @@ export function useDraftPersistence(
   const setDraft = useCallback((newValue: string) => {
     valueRef.current = newValue;
     composerEditedSinceHydrationRef.current = true;
+    pendingSendRef.current = false;
     setValueInternal(newValue);
     pendingValueRef.current = null;
     if (timeoutRef.current) {
@@ -423,6 +458,9 @@ export function useDraftPersistence(
     // to a reload or a sibling tab, but becomes eligible for discard once the
     // session proves the same text was actually sent.
     markPendingSendInStorage(keyRef.current, sessionDraftRef.current);
+    // An empty composer leaves nothing to mark, so ask storage rather than
+    // assuming the marker landed.
+    pendingSendRef.current = readStoragePendingSend(keyRef.current);
   }, []);
 
   /**
@@ -434,9 +472,14 @@ export function useDraftPersistence(
   const discardPendingSendDraft = useCallback(
     (isAccountedFor: (text: string) => boolean): boolean => {
       if (composerEditedSinceHydrationRef.current) return false;
+      if (!pendingSendRef.current) return false;
       const key = keyRef.current;
-      if (!readStoragePendingSend(key)) return false;
-      const storedText = readStorageText(key);
+      const stored = readStorageDraft(key);
+      if (stored?.pendingSend !== true) {
+        pendingSendRef.current = false;
+        return false;
+      }
+      const storedText = stored.text;
       if (!storedText.trim()) return false;
       if (valueRef.current !== "" && valueRef.current !== storedText) {
         return false;
@@ -451,6 +494,7 @@ export function useDraftPersistence(
         timeoutRef.current = null;
       }
       removeFromStorage(key, sessionDraftRef.current);
+      pendingSendRef.current = false;
       return true;
     },
     [],
@@ -463,11 +507,13 @@ export function useDraftPersistence(
   const confirmInputClear = useCallback(() => {
     if (valueRef.current !== "") return;
     removeFromStorage(keyRef.current, sessionDraftRef.current);
+    pendingSendRef.current = false;
   }, []);
 
   // Clear both state and localStorage (for confirmed successful send)
   const clearDraft = useCallback(() => {
     valueRef.current = "";
+    pendingSendRef.current = false;
     setValueInternal("");
     pendingValueRef.current = null;
     if (timeoutRef.current) {
