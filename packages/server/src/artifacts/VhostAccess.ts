@@ -7,7 +7,7 @@ import {
 import { link, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomically } from "../utils/writeFileAtomically.js";
-import type { ArtifactVhost } from "./vhosts.js";
+import { vhostExternalProtocol, type ArtifactVhost } from "./vhosts.js";
 
 const COOKIE = "ya_app_access";
 export const APP_ACCESS_QUERY = "ya_access";
@@ -108,10 +108,7 @@ export class VhostAccess {
         !timingSafeEqual(Buffer.from(supplied), Buffer.from(expected)))
     )
       return null;
-    // Public vhosts terminate HTTPS at the tunnel; the listener sees HTTP.
-    const browserOrigin = url.hostname.endsWith(".localhost")
-      ? url.origin
-      : `https://${url.host}`;
+    const browserOrigin = `${vhostExternalProtocol(url.hostname)}://${url.host}`;
     if (
       !row.public &&
       !bearer &&

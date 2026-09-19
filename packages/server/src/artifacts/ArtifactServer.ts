@@ -300,7 +300,10 @@ export class ArtifactServer {
     );
   }
 
-  async dispatchHost(request: Request): Promise<Response | null> {
+  async dispatchHost(
+    request: Request,
+    clientAddress?: string,
+  ): Promise<Response | null> {
     const host = request.headers.get("host") ?? new URL(request.url).host;
     const vhost = this.matchesVhost(host);
     if (vhost) {
@@ -314,7 +317,11 @@ export class ArtifactServer {
             "Referrer-Policy": "no-referrer",
           },
         });
-      const response = await proxyLoopbackVhost(authorized.request, vhost.port);
+      const response = await proxyLoopbackVhost(
+        authorized.request,
+        vhost.port,
+        clientAddress,
+      );
       response.headers.set("Cache-Control", "no-store");
       response.headers.set("Referrer-Policy", "no-referrer");
       if (authorized.cookie)
@@ -368,8 +375,13 @@ export class ArtifactServer {
     if (this.listener) throw new Error("Artifact server already started");
     await new Promise<void>((resolveReady, reject) => {
       const listener = createServer(
-        getRequestListener(async (request) => {
-          return (await this.dispatchHost(request)) ?? this.app.fetch(request);
+        getRequestListener(async (request, env) => {
+          return (
+            (await this.dispatchHost(
+              request,
+              env.incoming.socket.remoteAddress,
+            )) ?? this.app.fetch(request)
+          );
         }),
       );
       this.listener = listener;

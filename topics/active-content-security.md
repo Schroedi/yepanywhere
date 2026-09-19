@@ -369,6 +369,16 @@ its access query/cookie, YA session cookies, Authorization, desktop token and
 Referer before forwarding. Responses prohibit caching and referrer disclosure.
 Applications can see their own shared URL; it is intentionally transferable.
 
+A proxied request tells the app how it was actually reached.
+`x-forwarded-host` is the Host the visitor used, and `x-forwarded-proto` is
+`https` for a public-root host, whose HTTPS the operator's tunnel terminates,
+and `http` for a `name.localhost` visit. `x-forwarded-for` carries whatever
+chain arrived — the tunnel names the visitor — with the peer YA answered
+appended; YA claims no hop when that peer is unknown, so every address in the
+chain is one a proxy on the path really saw. An app may therefore distinguish
+a public visitor from a local one, subject to the usual caveat that the
+leftmost entry is only as trustworthy as the proxy that wrote it.
+
 **Copy app link** and **Revoke existing links** live beside each saved vhost.
 Revocation durably increments that app's generation and rejects old URLs and
 cookies on subsequent requests. It does not stop the app or erase already

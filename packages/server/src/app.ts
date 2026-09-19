@@ -658,7 +658,10 @@ export function createApp(options: AppOptions): AppResult {
   app.use("*", async (c, next) => {
     const host = c.req.header("Host") ?? new URL(c.req.url).host;
     const dispatched = artifactServer
-      ? await artifactServer.dispatchHost(c.req.raw)
+      ? await artifactServer.dispatchHost(
+          c.req.raw,
+          c.env?.incoming?.socket?.remoteAddress,
+        )
       : null;
     if (dispatched) return dispatched;
     if (
