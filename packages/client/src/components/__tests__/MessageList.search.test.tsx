@@ -716,8 +716,10 @@ describe("MessageList reverse search", () => {
     fireEvent.keyDown(window, { key: "r", ctrlKey: true });
 
     await waitFor(() => expect(readOlderPage).toHaveBeenCalledTimes(2));
-    expect(screen.getByText("0/0")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "More" })).toBeTruthy();
+    // The second read having started is not the same as its result having
+    // rendered; wait for the settled panel rather than the call count.
+    expect(await screen.findByText("0/0")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "More" })).toBeTruthy();
 
     fireEvent.keyDown(window, { key: "r", ctrlKey: true });
     expect(await screen.findByText("1/1")).toBeTruthy();
