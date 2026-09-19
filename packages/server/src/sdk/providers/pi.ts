@@ -27,7 +27,7 @@ import {
   type ModelInfo,
 } from "@yep-anywhere/shared";
 import { getLogger } from "../../logging/logger.js";
-import { whichCommand } from "../cli-detection.js";
+import { whichCommand } from "../which-command.js";
 import { MessageQueue } from "../messageQueue.js";
 import { forkPiSessionFile } from "../../sessions/pi-fork.js";
 import { PiSessionReader } from "../../sessions/pi-reader.js";
