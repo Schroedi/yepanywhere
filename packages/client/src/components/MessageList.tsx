@@ -1111,6 +1111,17 @@ function ClearloopCountdown({
   const quietSinceMs = progress.quietSince
     ? Date.parse(progress.quietSince)
     : Number.NaN;
+  // A patient loop has already waited out its window; what it is waiting for
+  // now is the rest of the project (topics/session-rewind.md § Patience).
+  if (progress.projectBlockers?.length) {
+    return (
+      <>
+        {t("clearloopWaitingForProject", {
+          blockers: progress.projectBlockers.join(", "),
+        })}
+      </>
+    );
+  }
   if (Number.isNaN(quietSinceMs) || progress.windowSeconds === undefined) {
     return <>{t("clearloopWorking")}</>;
   }

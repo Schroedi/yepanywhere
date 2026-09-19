@@ -91,6 +91,11 @@ export interface SessionClearloopJob {
   /** Iteration currently in flight (1-based), when running. */
   currentIteration?: number;
   state: SessionClearloopState;
+  /**
+   * Patient loops also wait for the project idle predicate before starting the
+   * next iteration, not only for this session's inactivity window.
+   */
+  patient?: boolean;
   startedAt: string;
   /** When the current iteration's prompt was sent. */
   iterationSentAt?: string;
@@ -112,10 +117,20 @@ export interface SessionClearloopBadge {
   prompt: string;
   /** Inactivity window in seconds, when the producer knows it. */
   windowSeconds?: number;
+  /** The loop waits for project idleness too; the badge reads purple. */
+  patient?: boolean;
 }
 
 /** Synthetic system subtype that heads a rewound group in the transcript. */
 export const REWOUND_GROUP_SUBTYPE = "rewound_group";
+
+/** Runtime controls on a running loop, beyond cancel. */
+export interface UpdateClearloopRequest {
+  /** Turn the project-idle wait on or off for the next boundary. */
+  patient?: boolean;
+  /** End the current iteration now, skipping the window and any wait. */
+  startNow?: boolean;
+}
 
 export interface ClearloopCommandArguments {
   /** Absent when the loop starts at the current position. */

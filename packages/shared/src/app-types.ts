@@ -693,6 +693,13 @@ export interface SessionQueuedClearloopProgress {
    */
   quietSince?: string;
   windowSeconds?: number;
+  /** The loop also waits for the project idle predicate at each boundary. */
+  patient?: boolean;
+  /**
+   * Raw project blocker strings from the last patient check, in the same form
+   * Project Queue publishes. Empty or absent means nothing held the loop.
+   */
+  projectBlockers?: string[];
 }
 
 export type SessionQueuedMessageKind = "deferred" | "patient" | "ya-command";

@@ -100,6 +100,123 @@ function aborted() {
   };
 }
 
+/**
+ * A loop whose iterations complete immediately and whose inactivity window is
+ * zero, so every boundary is reached at once and only the patience gate
+ * decides whether the loop advances.
+ */
+function startPatientLoop(options?: {
+  blockers?: () => string[];
+  patient?: boolean;
+  total?: number;
+}) {
+  const sessionMetadataService = fakeMetadataService();
+  const idleReads: number[] = [];
+  const service = new ClearloopService({
+    eventBus: new EventBus(),
+    sessionMetadataService,
+    getSupervisor: () =>
+      ({ getProcessForSession: () => undefined }) as unknown as Supervisor,
+    getInactivitySeconds: () => 0,
+    patientRecheckMs: 20,
+    ...(options?.blockers
+      ? {
+          getProjectIdleStatus: async () => {
+            idleReads.push(Date.now());
+            const blockers = options.blockers?.() ?? [];
+            return { idle: blockers.length === 0, blockers };
+          },
+        }
+      : {}),
+  });
+  const sent: string[] = [];
+  service.setRunner({
+    rewind: async () => "noop",
+    send: async ({ job }) => {
+      sent.push(job.prompt);
+    },
+  });
+  const started = service.start(sessionId, projectId, {
+    cutMessageId: "cut-1",
+    cutTurnIndex: 3,
+    prompt: "keep going",
+    total: options?.total ?? 2,
+    commandText: "/clearloop 3 2: keep going",
+    ...(options?.patient ? { patient: true } : {}),
+  });
+  return { service, sessionMetadataService, started, sent, idleReads };
+}
+
+describe("ClearloopService patience", () => {
+  it("refuses to become patient with no project idle predicate", async () => {
+    const { service, started } = startPatientLoop({ total: 1 });
+    await started;
+
+    await expect(service.setPatience(sessionId, true)).rejects.toThrow(
+      /cannot report project idleness/,
+    );
+    expect(service.getRunningJob(sessionId)?.patient).toBeUndefined();
+  });
+
+  it("holds a patient loop while the project reports blockers", async () => {
+    let blockers = ["other-session:in-turn"];
+    const { service, sent, started } = startPatientLoop({
+      patient: true,
+      blockers: () => blockers,
+    });
+    await started;
+
+    // The first iteration is sent before any boundary; the second one is what
+    // the project wait gates.
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    await vi.waitFor(() =>
+      expect(service.getProgress(sessionId)?.projectBlockers).toEqual([
+        "other-session:in-turn",
+      ]),
+    );
+    expect(sent).toHaveLength(1);
+
+    blockers = [];
+    await vi.waitFor(() => expect(sent).toHaveLength(2));
+    expect(service.getProgress(sessionId)?.projectBlockers).toBeUndefined();
+  });
+
+  it("ignores blockers naming the loop's own session", async () => {
+    const { sent, started } = startPatientLoop({
+      patient: true,
+      blockers: () => [`${sessionId}:liveness-unknown`],
+    });
+    await started;
+
+    await vi.waitFor(() => expect(sent).toHaveLength(2));
+  });
+
+  it("starts the next iteration now, skipping the project wait", async () => {
+    const { service, sent, started } = startPatientLoop({
+      patient: true,
+      blockers: () => ["other-session:in-turn"],
+    });
+    await started;
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+
+    await service.startNow(sessionId);
+    expect(sent).toHaveLength(2);
+  });
+
+  it("turns patience off and lets the loop advance again", async () => {
+    const { service, sent, started } = startPatientLoop({
+      patient: true,
+      blockers: () => ["other-session:in-turn"],
+    });
+    await started;
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+
+    await service.setPatience(sessionId, false);
+    await vi.waitFor(() => expect(sent).toHaveLength(2));
+    expect(service.getProgress(sessionId)?.patient).toBeUndefined();
+  });
+});
+
 describe("ClearloopService stop handling", () => {
   it("ends the loop when a turn stop is requested", async () => {
     const { service, eventBus, sessionMetadataService, started, release } =

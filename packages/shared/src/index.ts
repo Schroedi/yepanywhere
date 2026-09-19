@@ -652,6 +652,17 @@ export {
   clampProjectQueueQuietSeconds,
 } from "./project-queue.js";
 export {
+  COMPOSER_ONLY_YA_COMMANDS,
+  QUEUEABLE_YA_COMMANDS,
+  UNSUPPORTED_QUEUED_YA_COMMANDS,
+  type ComposerOnlyYaCommandName,
+  type UnsupportedQueuedYaCommandName,
+  type QueuedYaCommand,
+  type QueuedYaCommandClassification,
+  type QueuedYaCommandName,
+  classifyQueuedYaCommand,
+} from "./queued-ya-commands.js";
+export {
   type ClearloopCommandArguments,
   DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
   MAX_CLEARLOOP_INACTIVITY_SECONDS,
@@ -663,6 +674,7 @@ export {
   type SessionPendingRewind,
   type SessionRewindReason,
   type SessionRewindRecord,
+  type UpdateClearloopRequest,
   clampClearloopInactivitySeconds,
   formatDurationSeconds,
   parseClearloopArguments,

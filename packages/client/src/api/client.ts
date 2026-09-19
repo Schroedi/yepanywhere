@@ -66,6 +66,7 @@ import type {
   ShowThinking,
   ThinkingOption,
   TranscriptDisplayObject,
+  UpdateClearloopRequest,
   UpdateProjectQueueItemRequest,
   UpdateProjectSessionDefaultsRequest,
   EffortLevel,
@@ -1146,6 +1147,20 @@ export const api = {
     fetchJSON<{ job: SessionClearloopJob }>(
       `/projects/${projectId}/sessions/${sessionId}/clearloop`,
       { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  /**
+   * Runtime controls on a running /clearloop: whether it waits for project
+   * idleness at each boundary, and ending the current iteration now.
+   */
+  updateClearloop: (
+    projectId: string,
+    sessionId: string,
+    body: UpdateClearloopRequest,
+  ) =>
+    fetchJSON<{ job: SessionClearloopJob }>(
+      `/projects/${projectId}/sessions/${sessionId}/clearloop`,
+      { method: "PATCH", body: JSON.stringify(body) },
     ),
 
   /** Cancel a running /clearloop without stopping in-flight work. */

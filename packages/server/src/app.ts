@@ -1412,6 +1412,17 @@ export function createApp(options: AppOptions): AppResult {
               "clearloopInactivitySeconds",
             ),
           ) ?? DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
+        // The scheduler is constructed below; a loop reads this only once a
+        // user has started one, long after startup.
+        getProjectIdleStatus:
+          options.eventBus && options.projectQueueService
+            ? (projectId) =>
+                projectQueueScheduler?.getProjectWorkStatus(projectId) ??
+                Promise.resolve({
+                  idle: false,
+                  blockers: ["project-scheduler-unavailable"],
+                })
+            : undefined,
       })
     : undefined;
   // Session metadata is initialized before createApp; loops left running by

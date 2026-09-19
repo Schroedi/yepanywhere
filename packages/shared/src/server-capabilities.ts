@@ -528,19 +528,21 @@ export const SERVER_CAPABILITIES = {
     introducedIn: "0.8.2",
     advertisement: { kind: "version-implied" },
     description:
-      "Same-session rewind (/clear N), turn-menu Clear entries, rewound-group history, and /clearloop.",
+      "Same-session rewind (/clear N), turn-menu Clear entries, rewound-group history, /clearloop with its patience controls, and queued /clear and /clearloop Project Queue items.",
     clientFallback:
-      "Hide the Clear menu entries, mark /clear N, /fork N, and /clearloop unavailable, and make no rewind or clearloop request.",
+      "Hide the Clear menu entries, mark /clear N, /fork N, and /clearloop unavailable, make no rewind or clearloop request, and queue no YA-command Project Queue item.",
     serverContract: {
       routes: [
         "POST /api/projects/:projectId/sessions/:sessionId/rewind",
         "POST /api/projects/:projectId/sessions/:sessionId/clearloop",
+        "PATCH /api/projects/:projectId/sessions/:sessionId/clearloop",
         "DELETE /api/projects/:projectId/sessions/:sessionId/clearloop",
       ],
       responseFields: [
         "deferredMessages[].clearloop",
         "message.rewoundGroupId",
         "settings.clearloopInactivitySeconds",
+        "projectQueue.items[].message.yaCommand",
       ],
     },
     lifecycle: {

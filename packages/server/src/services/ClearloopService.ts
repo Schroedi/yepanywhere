@@ -45,6 +45,17 @@ export interface ClearloopServiceOptions {
   eventBus?: EventBus;
   /** Current server-wide inactivity window, read at every boundary. */
   getInactivitySeconds: () => number;
+  /**
+   * Project idle predicate for patient loops, without the Project Queue
+   * readiness check. Absent when this server has no Project Queue, which is
+   * what makes a loop refuse to become patient rather than silently run
+   * impatiently.
+   */
+  getProjectIdleStatus?: (
+    projectId: UrlProjectId,
+  ) => Promise<{ idle: boolean; blockers: string[] }>;
+  /** How often a held patient loop re-asks; defaults to five seconds. */
+  patientRecheckMs?: number;
 }
 
 export interface StartClearloopParams {
@@ -53,10 +64,15 @@ export interface StartClearloopParams {
   prompt: string;
   total: number;
   commandText: string;
+  /** Start waiting on project idleness too (a Project Queue-delivered loop). */
+  patient?: boolean;
 }
 
 /** While the provider is busy the due time is unknown; look again soon. */
 const BUSY_RECHECK_MS = 5_000;
+
+/** Default cadence for a held patient loop's project re-check. */
+const PATIENT_RECHECK_MS = 5_000;
 
 interface LoopContext {
   projectId: UrlProjectId;
@@ -65,6 +81,8 @@ interface LoopContext {
   working: boolean;
   /** True while the loop's own rewind may stop the live process. */
   rewinding: boolean;
+  /** Project blockers from the last patient check, for the chip's caption. */
+  projectBlockers?: string[];
 }
 
 function parseIsoMs(value: string | undefined): number | null {
@@ -91,6 +109,7 @@ export function clearloopBadgeFromJob(
     cutTurnIndex: job.cutTurnIndex,
     prompt: job.prompt,
     ...(windowSeconds !== undefined ? { windowSeconds } : {}),
+    ...(job.patient ? { patient: true } : {}),
   };
 }
 
@@ -183,6 +202,7 @@ export class ClearloopService {
       total: params.total,
       completed: 0,
       state: "running",
+      ...(params.patient ? { patient: true } : {}),
       startedAt: new Date().toISOString(),
       commandText: params.commandText,
     };
@@ -205,6 +225,57 @@ export class ClearloopService {
     const job = this.getRunningJob(sessionId);
     if (!job) return undefined;
     return this.finish(sessionId, job, "cancelled");
+  }
+
+  /**
+   * Turn the project-idle wait on or off for the next boundary. The current
+   * iteration is untouched: patience decides when the *next* rewind happens,
+   * so the change lands at the boundary the loop has not reached yet.
+   */
+  async setPatience(
+    sessionId: string,
+    patient: boolean,
+  ): Promise<SessionClearloopJob | undefined> {
+    const job = this.getRunningJob(sessionId);
+    if (!job) return undefined;
+    if (patient && !this.options.getProjectIdleStatus) {
+      throw new ClearloopConflictError(
+        "This server cannot report project idleness, so the loop cannot wait for it",
+      );
+    }
+    if ((job.patient ?? false) === patient) return job;
+    const updated: SessionClearloopJob = { ...job, patient };
+    if (!patient) {
+      const context = this.contexts.get(sessionId);
+      if (context) context.projectBlockers = undefined;
+    }
+    await this.persist(sessionId, updated);
+    // Either direction can change whether the boundary is already due.
+    this.scheduleCheck(sessionId, 0);
+    return updated;
+  }
+
+  /**
+   * End the current iteration now, skipping both the remaining inactivity
+   * window and any project wait. In-flight rewind/send work still wins: the
+   * loop refuses rather than overlapping itself.
+   */
+  async startNow(sessionId: string): Promise<SessionClearloopJob | undefined> {
+    const context = this.contexts.get(sessionId);
+    const job = this.getRunningJob(sessionId);
+    if (!context || !job) return undefined;
+    if (context.working) {
+      throw new ClearloopConflictError(
+        "The loop is already starting an iteration",
+      );
+    }
+    if (context.timer) {
+      clearTimeout(context.timer);
+      context.timer = null;
+    }
+    context.projectBlockers = undefined;
+    await this.advance(sessionId, job);
+    return this.getRunningJob(sessionId) ?? job;
   }
 
   async interrupt(
@@ -323,6 +394,7 @@ export class ClearloopService {
     const job = this.getRunningJob(sessionId);
     if (!job) return undefined;
     const quiet = this.readQuietAnchor(sessionId, job, Date.now());
+    const blockers = this.contexts.get(sessionId)?.projectBlockers;
     return {
       completed: job.completed,
       total: job.total,
@@ -333,6 +405,8 @@ export class ClearloopService {
             quietSince: new Date(quiet.anchorMs).toISOString(),
             windowSeconds: this.options.getInactivitySeconds(),
           }),
+      ...(job.patient ? { patient: true } : {}),
+      ...(blockers?.length ? { projectBlockers: blockers } : {}),
     };
   }
 
@@ -355,6 +429,24 @@ export class ClearloopService {
       this.scheduleCheck(sessionId, dueInMs);
       return;
     }
+    if (job.patient && !(await this.projectIsIdle(sessionId, context))) {
+      this.publishQueueEntry(sessionId);
+      this.scheduleCheck(
+        sessionId,
+        this.options.patientRecheckMs ?? PATIENT_RECHECK_MS,
+      );
+      return;
+    }
+    // Cancel, a stop, or Start now may have landed during the idle read.
+    if (this.getRunningJob(sessionId) !== job || context.working) return;
+    await this.advance(sessionId, job);
+  }
+
+  /** Close out the current iteration and begin the next, or complete. */
+  private async advance(
+    sessionId: string,
+    job: SessionClearloopJob,
+  ): Promise<void> {
     const advanced: SessionClearloopJob = {
       ...job,
       completed: job.completed + 1,
@@ -362,6 +454,29 @@ export class ClearloopService {
     };
     await this.persist(sessionId, advanced);
     await this.iterate(sessionId);
+  }
+
+  /**
+   * Whether the project is quiet enough for a patient loop's next iteration.
+   * Blockers naming this session are dropped: the loop's own quiescence is
+   * what the inactivity window already measured, and counting it here would
+   * hold the loop against itself.
+   */
+  private async projectIsIdle(
+    sessionId: string,
+    context: LoopContext,
+  ): Promise<boolean> {
+    const read = this.options.getProjectIdleStatus;
+    if (!read) {
+      context.projectBlockers = undefined;
+      return true;
+    }
+    const status = await read(context.projectId);
+    const blockers = status.blockers.filter(
+      (blocker) => !blocker.startsWith(`${sessionId}:`),
+    );
+    context.projectBlockers = blockers.length > 0 ? blockers : undefined;
+    return blockers.length === 0;
   }
 
   private async finish(

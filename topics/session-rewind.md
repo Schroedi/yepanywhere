@@ -282,6 +282,34 @@ contract: Stop or a server reload aborts the loop; otherwise the window of
 inactivity rewinds to `/clear N` and relaunches the prompt. The header
 title lays out as a flex row so the badge survives a long ellipsized title.
 
+**Patience.** A loop is *impatient* by default: the inactivity window alone
+decides when the next rewind happens. A *patient* loop additionally waits for
+the [project idle predicate](project-queue.md#project-idle-predicate) — the
+same predicate Project Queue uses, minus its readiness check, because that
+check is only refreshed while Project Queue has backlog. Blockers naming the
+loop's own session are dropped: that session's quiescence is what the
+inactivity window already measured, so counting it would hold the loop
+against itself. While a patient loop is held, the queue-rail entry reports the
+raw blockers in place of the countdown, and it re-asks every five seconds.
+A server with no Project Queue cannot report project idleness; it refuses to
+make a loop patient rather than silently running it impatiently.
+
+A loop starts patient when the command itself arrived through a patient lane —
+a `/clearloop` delivered by Project Queue (§ Queued YA commands in
+[project-queue](project-queue.md)) — and impatient otherwise. Patience is also
+a runtime control on the remaining-count badge; changing it lands at the next
+boundary and never disturbs the iteration already running.
+
+**Remaining-count badge menu.** Right-click, long-press, or the context-menu
+key on the session header's badge opens Stop, the patience toggle (Patient /
+Impatient), and Start now. Start now ends the current iteration immediately,
+skipping both the remaining inactivity window and any project wait; it refuses
+while the loop is already starting an iteration, rather than overlapping
+itself. A left click still cancels, as before. The badge is green while
+impatient and Project Queue purple while patient, so the wait the loop is in
+is legible without opening the menu. The sidebar and Agents chips stay
+passive and carry the same color.
+
 **Settings changes take effect on the next iteration.** Before a rewind
 stops the live process it persists that process's current effort, thinking,
 model, and permission mode as the session's launch settings, so the resume
@@ -313,8 +341,9 @@ it arrives.
   startup (with the durable notice); YA never resumes a loop on startup.
 - The remaining-count chip in the session header is also the cancel control:
   clicking it (after a confirmation) cancels like the queue entry's x, so the
-  current turn finishes and no further rewind happens. The sidebar and Agents
-  chips are passive. Every chip's tooltip states the contract.
+  current turn finishes and no further rewind happens. Its context menu's Stop
+  entry does the same. The sidebar and Agents chips are passive. Every chip's
+  tooltip states the contract.
 
 **Durable notice.** Every terminal state writes a durable notice into the
 session at the tail (a `local_command` display row, like goal receipts):
@@ -332,8 +361,11 @@ history, not a toast, and is never model context.
   originating request.
 - `session-rewind` is a permanent, version-implied server capability,
   **ID 78**, introduced after 0.8.2, gating the rewind route, the clearloop
-  routes, the `clearloop` queued-entry kind, and the rewind records in
-  metadata. The optional-feature horizon on 2026-09-18 is v0.8.0 and
+  routes (including the `PATCH` patience/Start-now route), the `clearloop`
+  queued-entry kind, the `yaCommand` field on Project Queue items, and the
+  rewind records in metadata. Those were all added before the capability
+  reached a stable release, so they extend ID 78 rather than allocating a new
+  one. The optional-feature horizon on 2026-09-18 is v0.8.0 and
   v0.8.1 (the latest two stable releases and all releases from the
   preceding 14 days); neither has any of these. Without the capability the
   client hides the menu entries, marks the commands unavailable, makes no

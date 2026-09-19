@@ -25,6 +25,7 @@ import {
   SYNTHETIC_ARCHIVE_COMMAND_CAPABILITY,
   SYNTHETIC_DONE_COMMAND_CAPABILITY,
   SYNTHETIC_TERMINATE_COMMAND_CAPABILITY,
+  classifyQueuedYaCommand,
   getCanonicalInvocationToken,
   isClaudeProviderName,
   readInventoryGoalDetails,
@@ -59,7 +60,10 @@ import {
 import sessionHeaderStyles from "../components/SessionHeader.module.css";
 import styles from "./SessionPage.module.css";
 import { GoalFlag } from "../components/GoalNotice";
-import { ClearloopRemainingBadge } from "../components/ClearloopRemainingBadge";
+import {
+  type ClearloopBadgeControls,
+  ClearloopRemainingBadge,
+} from "../components/ClearloopRemainingBadge";
 import { buildBangEchoText, collectBangHistory } from "../lib/bangCommands";
 import { serverSupportsBangCommands } from "../lib/bangCommandAvailability";
 import { BtwAsidePane } from "../components/BtwAsidePane";
@@ -3293,7 +3297,53 @@ function SessionPageContent({
     targetType: "existing-session" | "new-session",
     metadata?: MessageSubmissionMetadata,
   ) => {
-    const prepared = prepareComposerSubmission(text);
+    // Project Queue is a delayed lane, so a YA-emulated command must be
+    // carried to the scheduler rather than run now the way the composer's
+    // direct paths run it (topics/project-queue.md § Queued YA commands).
+    const classified = classifyQueuedYaCommand(text);
+    const refuseCommand = (message: string) => {
+      draftControlsRef.current?.setDraft(text);
+      showToast(message, "error");
+    };
+    if (classified.kind === "composer-only") {
+      refuseCommand(
+        t("projectQueueComposerOnlyCommand", { command: classified.name }),
+      );
+      return;
+    }
+    if (classified.kind === "unsupported") {
+      refuseCommand(
+        t("projectQueueUnsupportedCommand", { command: classified.name }),
+      );
+      return;
+    }
+    const yaCommand =
+      classified.kind === "queueable" ? classified.command : undefined;
+    if (yaCommand) {
+      if (targetType === "new-session") {
+        refuseCommand(
+          t("projectQueueCommandNeedsSession", { command: yaCommand.name }),
+        );
+        return;
+      }
+      if (!supportsRewind) {
+        refuseCommand(t("rewindUnavailable"));
+        return;
+      }
+      if (
+        attachmentsRef.current.length > 0 ||
+        pendingUploadsRef.current.size > 0
+      ) {
+        refuseCommand(
+          t("projectQueueCommandNoAttachments", { command: yaCommand.name }),
+        );
+        return;
+      }
+    }
+    const prepared: PreparedComposerSubmission | null =
+      classified.kind === "queueable"
+        ? { outgoingText: classified.commandText }
+        : prepareComposerSubmission(text);
     if (!prepared) {
       return;
     }
@@ -3365,6 +3415,7 @@ function SessionPageContent({
         message: {
           text: outgoingText,
           mode: permissionMode,
+          ...(yaCommand ? { yaCommand } : {}),
           ...(uploadedAttachments.length > 0
             ? { attachments: uploadedAttachments }
             : {}),
@@ -4338,6 +4389,46 @@ function SessionPageContent({
       );
     }
   }, [actualSessionId, projectId, showToast, t]);
+  const clearloopControls = useMemo<ClearloopBadgeControls>(
+    () => ({
+      onCancel: () => {
+        if (window.confirm(t("clearloopCancelConfirm"))) {
+          void handleCancelClearloop();
+        }
+      },
+      onSetPatient: (patient: boolean) => {
+        void (async () => {
+          try {
+            await api.updateClearloop(projectId, actualSessionId, { patient });
+          } catch (error) {
+            showToast(
+              t("clearloopPatienceFailed", {
+                message: error instanceof Error ? error.message : String(error),
+              }),
+              "error",
+            );
+          }
+        })();
+      },
+      onStartNow: () => {
+        void (async () => {
+          try {
+            await api.updateClearloop(projectId, actualSessionId, {
+              startNow: true,
+            });
+          } catch (error) {
+            showToast(
+              t("clearloopStartNowFailed", {
+                message: error instanceof Error ? error.message : String(error),
+              }),
+              "error",
+            );
+          }
+        })();
+      },
+    }),
+    [actualSessionId, handleCancelClearloop, projectId, showToast, t],
+  );
   const clearToNewSession = useCallback(() => {
     const params = new URLSearchParams({ projectId });
     if (effectiveProvider) params.set("provider", effectiveProvider);
@@ -5712,11 +5803,7 @@ function SessionPageContent({
                       {session?.clearloop !== undefined && (
                         <ClearloopRemainingBadge
                           badge={session.clearloop}
-                          onCancel={() => {
-                            if (window.confirm(t("clearloopCancelConfirm"))) {
-                              void handleCancelClearloop();
-                            }
-                          }}
+                          controls={clearloopControls}
                         />
                       )}
                     </button>

@@ -29,8 +29,11 @@ import {
   mainWorkstreamId,
   truncateSessionTitle,
   isPostCompactReplayText,
+  parseClearloopArguments,
+  parseTurnIndexArgument,
   type SessionRewindReason,
   type SessionRewindRecord,
+  type UpdateClearloopRequest,
 } from "@yep-anywhere/shared";
 import { randomUUID } from "node:crypto";
 import {
@@ -288,7 +291,7 @@ export interface SessionsDeps {
   projectMetadataService?: ProjectMetadataService;
   projectQueueScheduler?: Pick<
     ProjectQueueScheduler,
-    "reserveUserSessionStart" | "sessionProjectChanged"
+    "reserveUserSessionStart" | "sessionProjectChanged" | "setYaCommandRunner"
   >;
   eventBus?: EventBus;
   codexScanner?: CodexSessionScanner;
@@ -6115,6 +6118,145 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     },
   });
 
+  /**
+   * The user turn a queued rewind command names: turn `N`, or the session's
+   * last real turn when the command gave no number. Queued commands resolve
+   * this at dispatch, so `/clearloop 3: p` queued now loops over whatever the
+   * tail is when the project finally goes quiet.
+   */
+  const resolveQueuedTurnSource = async (input: {
+    project: Project;
+    projectId: UrlProjectId;
+    sessionId: string;
+    turnIndex?: number;
+  }): Promise<RewindFailure | { ok: true; sourceMessageId: string }> => {
+    const { providerName, process } = await resolveRewindProvider(
+      input.project,
+      input.projectId,
+      input.sessionId,
+    );
+    const session = await loadRestartSourceSession(
+      input.project,
+      input.sessionId,
+      input.projectId,
+      providerName,
+      process,
+    );
+    if (!session) {
+      return { ok: false, error: "Session not found", status: 404 };
+    }
+    const turns = session.messages.filter(
+      (message) =>
+        !message.rewoundGroupId && turnIndexOf(message) !== undefined,
+    );
+    const target =
+      input.turnIndex === undefined
+        ? turns[turns.length - 1]
+        : turns.find((message) => turnIndexOf(message) === input.turnIndex);
+    if (!target) {
+      return {
+        ok: false,
+        error:
+          input.turnIndex === undefined
+            ? "The session has no turns to rewind to"
+            : `Turn ${input.turnIndex} is not in the session`,
+        status: 409,
+      };
+    }
+    const id = messageId(target);
+    if (!id) {
+      return { ok: false, error: "That turn has no id", status: 409 };
+    }
+    return { ok: true, sourceMessageId: id };
+  };
+
+  deps.projectQueueScheduler?.setYaCommandRunner({
+    run: async ({ sessionId, projectId, command, commandText }) => {
+      const project = await deps.scanner.getOrCreateProject(projectId);
+      if (!project) throw new Error("Project not found");
+      // The interactive routes refuse these two cases; a queued command has
+      // the same session in the same states, so it refuses them identically
+      // and keeps its text for Retry.
+      const { providerName } = await resolveRewindProvider(
+        project,
+        projectId,
+        sessionId,
+      );
+      if (!isRewindProvider(providerName)) {
+        throw new Error(`${providerName} does not support same-session rewind`);
+      }
+      if (deps.clearloopService?.isRunning(sessionId)) {
+        throw new Error(
+          `Cancel the running /clearloop before ${commandText} runs`,
+        );
+      }
+      const parsed =
+        command.name === "clearloop"
+          ? parseClearloopArguments(command.argument)
+          : null;
+      if (command.name === "clearloop" && !parsed) {
+        throw new Error(`Cannot read the arguments of ${commandText}`);
+      }
+      const turnArgument =
+        command.name === "clearloop"
+          ? parsed?.turnIndex
+          : (parseTurnIndexArgument(command.argument, { allowEmpty: true }) ??
+            undefined);
+      if (command.name === "clear" && turnArgument === undefined) {
+        throw new Error(`Cannot read the turn number of ${commandText}`);
+      }
+      if (command.name === "clear" && turnArgument === 0) {
+        // `/clear 0` is the composer's "start a new session" navigation, not a
+        // session operation the scheduler can perform.
+        throw new Error("/clear 0 has no queued meaning; queue a new session");
+      }
+      const source = await resolveQueuedTurnSource({
+        project,
+        projectId,
+        sessionId,
+        ...(turnArgument === undefined ? {} : { turnIndex: turnArgument }),
+      });
+      if (!source.ok) throw new Error(source.error);
+      const resolved = await resolveRewindCut({
+        project,
+        projectId,
+        sessionId,
+        cut: {
+          kind: "after-user-turn",
+          sourceMessageId: source.sourceMessageId,
+        },
+      });
+      if (!resolved.ok) throw new Error(resolved.error);
+      if (command.name === "clear") {
+        const result = await rewindSessionToCut({
+          project,
+          projectId,
+          sessionId,
+          cutMessageId: resolved.cutMessageId,
+          cutTurnIndex: resolved.cutTurnIndex,
+          reason: "clear",
+        });
+        if (!result.ok) throw new Error(result.error);
+        return;
+      }
+      if (!deps.clearloopService) {
+        throw new Error("clearloop is not available");
+      }
+      if (!parsed)
+        throw new Error(`Cannot read the arguments of ${commandText}`);
+      await deps.clearloopService.start(sessionId, projectId, {
+        cutMessageId: resolved.cutMessageId,
+        cutTurnIndex: resolved.cutTurnIndex,
+        prompt: parsed.prompt,
+        total: parsed.total,
+        commandText,
+        // The user chose a lane that waits for the project; the loop it starts
+        // keeps waiting (topics/project-queue.md § Queued YA commands).
+        patient: true,
+      });
+    },
+  });
+
   // POST /api/projects/:projectId/sessions/:sessionId/rewind
   routes.post("/projects/:projectId/sessions/:sessionId/rewind", async (c) => {
     const projectId = c.req.param("projectId");
@@ -6199,6 +6341,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         prompt?: unknown;
         total?: unknown;
         commandText?: unknown;
+        patient?: unknown;
       };
       const prompt =
         typeof record.prompt === "string" ? record.prompt.trim() : "";
@@ -6243,8 +6386,56 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           prompt,
           total,
           commandText,
+          ...(record.patient === true ? { patient: true } : {}),
         });
         return c.json({ job }, 202);
+      } catch (error) {
+        if (error instanceof ClearloopConflictError) {
+          return c.json({ error: error.message }, 409);
+        }
+        throw error;
+      }
+    },
+  );
+
+  // PATCH /api/projects/:projectId/sessions/:sessionId/clearloop
+  // Runtime controls on a running loop: the project-idle wait, and Start now.
+  routes.patch(
+    "/projects/:projectId/sessions/:sessionId/clearloop",
+    async (c) => {
+      const sessionId = c.req.param("sessionId");
+      if (!deps.clearloopService) {
+        return c.json({ error: "clearloop is not available" }, 404);
+      }
+      let body: unknown;
+      try {
+        body = await c.req.json<unknown>();
+      } catch {
+        return c.json({ error: "Invalid JSON body" }, 400);
+      }
+      const request = (body ?? {}) as UpdateClearloopRequest;
+      if (
+        request.patient !== undefined &&
+        typeof request.patient !== "boolean"
+      ) {
+        return c.json({ error: "patient must be a boolean" }, 400);
+      }
+      if (request.patient === undefined && request.startNow !== true) {
+        return c.json({ error: "patient or startNow is required" }, 400);
+      }
+      try {
+        let job =
+          request.patient === undefined
+            ? deps.clearloopService.getRunningJob(sessionId)
+            : await deps.clearloopService.setPatience(
+                sessionId,
+                request.patient,
+              );
+        if (job && request.startNow === true) {
+          job = await deps.clearloopService.startNow(sessionId);
+        }
+        if (!job) return c.json({ error: "No running /clearloop" }, 404);
+        return c.json({ job });
       } catch (error) {
         if (error instanceof ClearloopConflictError) {
           return c.json({ error: error.message }, 409);

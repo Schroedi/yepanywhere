@@ -27,6 +27,11 @@ as the runtime skills directory.
   rewind-capable providers, which [session-rewind](session-rewind.md) owns as
   YA's same-session `/clear N`; that topic also owns `/fork N` and
   `/clearloop`, whose progress entry is a `ya-command` chip.
+- Project Queue is a delayed lane and therefore must not run an emulated
+  command at enqueue. [`project-queue`](project-queue.md#queued-ya-commands)
+  owns which commands it carries as a tagged `yaCommand` for server execution
+  at dispatch, and which it refuses visibly because they act on composer
+  state.
 - Codex user skills activate through `$skill`, not `/skill`. For Codex-backed
   sessions, YA preserves native/system slash commands such as a leading
   `/goal`, but translates an exact `/name` token to `$name` only when the
