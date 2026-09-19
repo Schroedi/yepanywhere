@@ -105,5 +105,14 @@ browser/runtime versions surface anything these local runs do not. The
 deadlock plausibly accounts for several of the recorded failures, but that is
 inference from the mechanism, not from a re-run of those CI jobs.
 
+2026-09-19 — unchanged at `489435583` in both
+[graehl](https://github.com/graehl/yepanywhere/actions/runs/35474627087) and
+[kzahel](https://github.com/kzahel/yepanywhere/actions/runs/35474629486): the
+`e2e-tests` job stops at its five-failure limit on this file, with
+appended-turn discovery, arriving-match layout and streaming/selection each
+failing through their retries at ~31s, the fixture-discovery shape described
+above. Android App CI, Server Runtime And SQLite, and Desktop CI passed on
+both remotes at that commit, so this file remains the only thing red.
+
 Found 2026-09-15 while reporting source CI after publishing the catch-up fix.
 Contributing-model: 6-Astra

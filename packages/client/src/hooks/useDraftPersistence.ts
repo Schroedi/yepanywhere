@@ -57,6 +57,8 @@ export interface DraftControls {
   restoreFromStorage: () => void;
   /** Focus the textarea that owns this draft, if it is mounted. */
   focus?: (options?: FocusOptions) => void;
+  /** True while that textarea holds the keyboard. */
+  isFocused?: () => boolean;
   /** Place the textarea caret/selection, if it is mounted. */
   setSelectionRange?: (start: number, end: number) => void;
 }

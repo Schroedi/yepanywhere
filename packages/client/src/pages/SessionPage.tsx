@@ -121,6 +121,11 @@ import {
 import { useDeveloperMode } from "../hooks/useDeveloperMode";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import type { DraftControls } from "../hooks/useDraftPersistence";
+import { applyEarlyComposerTyping } from "../lib/earlyComposerTyping";
+import {
+  type EarlyTypingHandoff,
+  startEarlyTypingHandoff,
+} from "../lib/earlyTypingHandoff";
 import { AsyncQuestionsProvider } from "../contexts/AsyncQuestionsContext";
 import { useEngagementTracking } from "../hooks/useEngagementTracking";
 import { useBtwAsides } from "../hooks/useBtwAsides";
@@ -892,6 +897,12 @@ function SessionPageContent({
     [],
   );
   const draftControlsRef = useRef<DraftControls | null>(null);
+  const earlyComposerTypingRef = useRef<EarlyTypingHandoff | null>(null);
+  const earlyComposerTypingKeyRef = useRef<string | null>(null);
+  // undefined: nothing waiting. null: focus only. string: prefill to apply.
+  const pendingEarlyComposerPrefillRef = useRef<string | null | undefined>(
+    undefined,
+  );
   const [quoteClearSignal, setQuoteClearSignal] = useState(0);
   const pendingMotherComposerTransferRef = useRef<string | null>(null);
   const lastComposerSubmissionRef = useRef<LastComposerSubmission | null>(null);
@@ -3030,6 +3041,25 @@ function SessionPageContent({
   const navFocusComposer = navState?.focusComposer;
   const navScrollToRenderId = navState?.scrollToRenderId;
   const navActionsConsumedKeyRef = useRef<string | null>(null);
+  // A navigation that asks for the composer means the user may type at once,
+  // but the composer only appears when the session has loaded. Start holding
+  // keys here — before and regardless of loading — so they land in the draft
+  // in the order they were struck rather than in the transcript's shortcuts.
+  useEffect(() => {
+    if (!navComposerPrefill && !navFocusComposer) return;
+    const navigationKey = location.key ?? "keyless";
+    if (earlyComposerTypingKeyRef.current === navigationKey) return;
+    earlyComposerTypingKeyRef.current = navigationKey;
+    earlyComposerTypingRef.current?.cancel();
+    earlyComposerTypingRef.current = startEarlyTypingHandoff();
+  }, [location.key, navComposerPrefill, navFocusComposer]);
+  useEffect(
+    () => () => {
+      earlyComposerTypingRef.current?.cancel();
+      earlyComposerTypingRef.current = null;
+    },
+    [],
+  );
   useEffect(() => {
     const navigationKey = location.key ?? "keyless";
     if (navActionsConsumedKeyRef.current === navigationKey || loading) {
@@ -3040,11 +3070,9 @@ function SessionPageContent({
     }
     navActionsConsumedKeyRef.current = navigationKey;
 
-    if (navComposerPrefill) {
-      draftControlsRef.current?.setDraft(navComposerPrefill);
-      draftControlsRef.current?.focus?.();
-    } else if (navFocusComposer) {
-      draftControlsRef.current?.focus?.();
+    if (navComposerPrefill || navFocusComposer) {
+      pendingEarlyComposerPrefillRef.current = navComposerPrefill ?? null;
+      flushEarlyComposerTyping();
     }
 
     if (navScrollToRenderId) {
@@ -4166,6 +4194,20 @@ function SessionPageContent({
     setQuoteClearSignal((current) => current + 1);
   }, []);
 
+  const flushEarlyComposerTyping = useCallback(
+    (controls = draftControlsRef.current) => {
+      if (!controls || pendingEarlyComposerPrefillRef.current === undefined) {
+        return;
+      }
+      const prefill = pendingEarlyComposerPrefillRef.current;
+      pendingEarlyComposerPrefillRef.current = undefined;
+      const handoff = earlyComposerTypingRef.current;
+      earlyComposerTypingRef.current = null;
+      applyEarlyComposerTyping({ controls, handoff, prefill });
+    },
+    [],
+  );
+
   const flushPendingMotherComposerTransfer = useCallback(
     (controls = draftControlsRef.current) => {
       if (mainComposerForAside || !controls) {
@@ -4261,12 +4303,17 @@ function SessionPageContent({
   const handleDraftControlsReady = useCallback(
     (controls: DraftControls) => {
       draftControlsRef.current = controls;
+      flushEarlyComposerTyping(controls);
       flushPendingMotherComposerTransfer(controls);
       void hydrateDraftAttachments(controls);
       // History may already have loaded before the composer mounted.
       reconcilePendingSendDraftRef.current();
     },
-    [flushPendingMotherComposerTransfer, hydrateDraftAttachments],
+    [
+      flushEarlyComposerTyping,
+      flushPendingMotherComposerTransfer,
+      hydrateDraftAttachments,
+    ],
   );
 
   useEffect(() => {

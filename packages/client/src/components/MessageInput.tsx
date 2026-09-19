@@ -1139,6 +1139,9 @@ export function MessageInput({
     () => ({
       ...controls,
       focus: (options) => textareaRef.current?.focus(options),
+      isFocused: () =>
+        textareaRef.current !== null &&
+        document.activeElement === textareaRef.current,
       setSelectionRange: (start, end) =>
         textareaRef.current?.setSelectionRange(start, end),
       replaceDraftRangeUndoably,
