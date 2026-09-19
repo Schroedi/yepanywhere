@@ -476,6 +476,37 @@ describe("speech routes", () => {
     });
   });
 
+  it("keeps session hint terms out of retained batch metadata", async () => {
+    const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "ya-speech-"));
+    tempDirs.push(dataDir);
+    const { app } = await createSpeechApp(dataDir);
+
+    const res = await app.request("/api/speech/transcribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        backendId: "ya-dummy",
+        mimeType: "audio/webm",
+        audioBase64: Buffer.from("audio").toString("base64"),
+        context: {
+          sessionId: "session-1",
+          sessionTerms: ["parakeet"],
+        },
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { transcriptionId: string };
+    const metadataPath = await findRetainedMetadata(
+      dataDir,
+      json.transcriptionId,
+    );
+    const metadata = JSON.parse(await fs.readFile(metadataPath, "utf8")) as {
+      context?: Record<string, unknown>;
+    };
+    expect(metadata.context).toEqual({ sessionId: "session-1" });
+  });
+
   it("transcribes buffered WebSocket audio through the dummy backend", async () => {
     const { app, wss } = await createSpeechApp();
     let serverPort = 0;

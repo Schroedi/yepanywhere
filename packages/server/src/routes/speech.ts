@@ -346,9 +346,18 @@ function cleanOptionalString(
   return trimmed ? trimmed.slice(0, maxLength) : undefined;
 }
 
+/**
+ * The speech transcription context as a client sends it. Session hint terms
+ * bias recognition and live only here: `splitSpeechContext` is what turns a
+ * request context into the retained/audit one.
+ */
+interface SpeechRequestContext extends SpeechTranscriptionContext {
+  sessionTerms?: string[];
+}
+
 function parseTranscriptionContext(
   value: unknown,
-): SpeechTranscriptionContext | undefined {
+): SpeechRequestContext | undefined {
   if (!isRecord(value)) return undefined;
   const context = {
     projectId: cleanContextString(value.projectId),
@@ -372,7 +381,7 @@ function parseTranscriptionContext(
   };
   const clean = Object.fromEntries(
     Object.entries(context).filter(([, entry]) => entry !== undefined),
-  ) as SpeechTranscriptionContext;
+  ) as SpeechRequestContext;
   return Object.keys(clean).length > 0 ? clean : undefined;
 }
 
@@ -382,7 +391,7 @@ function parseTranscriptionContext(
  * every caller that hands a parsed context onward splits it here. An audit
  * context left with no fields is reported as absent rather than empty.
  */
-function splitSpeechContext(context: SpeechTranscriptionContext | undefined): {
+function splitSpeechContext(context: SpeechRequestContext | undefined): {
   audit?: SpeechTranscriptionContext;
   sessionTerms?: string[];
 } {
@@ -408,10 +417,10 @@ async function transcribeWithAudit(
     backendId: string;
     audio: Buffer;
     options: TranscribeOptions;
-    context?: SpeechTranscriptionContext;
+    context?: SpeechRequestContext;
   },
 ): Promise<{ text: string; retention: SpeechAudioRetentionResult }> {
-  input.options = {
+  const options: TranscribeOptions = {
     ...input.options,
     keyterms: await deps.speechBackendRegistry.keyterms(
       input.backendId,
@@ -419,7 +428,7 @@ async function transcribeWithAudit(
       input.context,
     ),
   };
-  input.context = splitSpeechContext(input.context).audit;
+  const context = splitSpeechContext(input.context).audit;
   const requestId = randomUUID();
   const startedAtMs = Date.now();
   const startedAt = new Date(startedAtMs).toISOString();
@@ -428,13 +437,13 @@ async function transcribeWithAudit(
     requestId,
     source: input.source,
     backendId: input.backendId,
-    mimeType: input.options.mimeType ?? DEFAULT_MIME_TYPE,
-    model: input.options.model,
+    mimeType: options.mimeType ?? DEFAULT_MIME_TYPE,
+    model: options.model,
     audioBytes: input.audio.length,
-    hasPrompt: !!input.options.prompt,
-    keytermCount: input.options.keyterms?.length ?? 0,
-    keyterms: input.options.keyterms,
-    context: input.context,
+    hasPrompt: !!options.prompt,
+    keytermCount: options.keyterms?.length ?? 0,
+    keyterms: options.keyterms,
+    context,
   };
 
   logger.info(logContext, "Speech transcription started");
@@ -444,7 +453,7 @@ async function transcribeWithAudit(
       deps.speechBackendRegistry,
       input.backendId,
       input.audio,
-      input.options,
+      options,
     );
     const completedAtMs = Date.now();
     const completedAt = new Date(completedAtMs).toISOString();
@@ -454,15 +463,15 @@ async function transcribeWithAudit(
       requestId,
       source: input.source,
       backendId: input.backendId,
-      model: input.options.model,
-      mimeType: input.options.mimeType ?? DEFAULT_MIME_TYPE,
-      keyterms: input.options.keyterms,
+      model: options.model,
+      mimeType: options.mimeType ?? DEFAULT_MIME_TYPE,
+      keyterms: options.keyterms,
       audio: input.audio,
       transcript: text,
       startedAt,
       completedAt,
       durationMs: completedAtMs - startedAtMs,
-      context: input.context,
+      context,
     });
 
     logger.info(
@@ -572,7 +581,7 @@ function parseTranscribeBody(value: unknown):
       backendId: string;
       audio: Buffer;
       options: TranscribeOptions;
-      context?: SpeechTranscriptionContext;
+      context?: SpeechRequestContext;
     }
   | { ok: false; message: string } {
   if (!isRecord(value)) {
