@@ -45,6 +45,17 @@ configured:
 ./gradlew :app:testHostedLatestDebugUnitTest --tests 'com.yepanywhere.mobile.experimental.*'
 ```
 
+The emitter also exports the schema's own values, so that no source spells a
+wire constant a second time: `CONVERSATION_API_REVISION` in both targets, and
+the producer-facing bounds (`MAX_MESSAGE_CONTENT_ITEMS`, `MAX_TEXT_LENGTH`,
+`MAX_FAILURE_MESSAGE_LENGTH`, `MAX_TOOL_NAME_LENGTH`,
+`MAX_MEDIA_DESCRIPTION_LENGTH`, `MAX_ID_LENGTH`, `MAX_UNKNOWN_KIND_LENGTH`,
+`MIN_FAILURE_EXIT_CODE`, `MAX_FAILURE_EXIT_CODE`) in TypeScript, where the
+server producer clamps against them. Kotlin decodes rather than produces, so
+its bounds stay inside the generated decoders. A bound the producer needs is
+added to that list rather than retyped, and `TimestampSchema` is the only
+timestamp-format check.
+
 Generated files are checked in. They are not exported from the shared package's
 public barrel. The internal server producer imports the experimental subpath;
 no route or client screen consumes it yet. Use the generated

@@ -1,5 +1,6 @@
 import {
   ActivityStateSchema,
+  CONVERSATION_API_REVISION,
   ConversationQuerySchema,
   IdSchema,
   KnowledgeSchema,
@@ -230,7 +231,7 @@ export function selectConversation(
   binding: SnapshotBinding,
 ): ConversationSnapshot {
   const envelope = (view: Conversation | ApiError): ConversationSnapshot => ({
-    apiRevision: "simple-client-spike-1",
+    apiRevision: CONVERSATION_API_REVISION,
     ...binding,
     view,
   });

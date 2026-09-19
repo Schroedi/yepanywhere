@@ -10,7 +10,7 @@ import java.net.URLEncoder
 import java.util.UUID
 import org.json.JSONObject
 
-const val CONVERSATION_API_REVISION = "simple-client-spike-1"
+const val CONVERSATION_API_REVISION = SimpleClientContract.CONVERSATION_API_REVISION
 private const val CAPABILITY = "experimental-simple-client-conversation"
 
 enum class ConversationAvailability { AVAILABLE, UPDATE_REQUIRED, REVISION_MISMATCH }
