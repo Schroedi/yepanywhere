@@ -32,7 +32,10 @@ import { SessionCollectionGeneration } from "../sessions/sessionCollectionGenera
 import type { GrokSessionReader } from "../sessions/grok-reader.js";
 import type { PiSessionReader } from "../sessions/pi-reader.js";
 import type { ISessionReader, SessionListSummary } from "../sessions/types.js";
-import { getEffectiveProviderUpdatedAt } from "../sessions/recap-overlays.js";
+import {
+  getEffectiveProviderUpdatedAt,
+  sessionRowRuntimeOverlay,
+} from "../sessions/recap-overlays.js";
 import type { ProjectQueueService } from "../services/ProjectQueueService.js";
 import type { Supervisor } from "../supervisor/Supervisor.js";
 import type {
@@ -220,9 +223,6 @@ export function createInboxRoutes(deps: InboxDeps): Hono {
         const isArchived = metadata?.isArchived ?? session.isArchived ?? false;
         if (isArchived) continue;
 
-        let pendingInputType: PendingInputType | undefined;
-        let activity: AgentActivity | undefined;
-
         const process = deps.supervisor?.getProcessForSession(session.id);
         const effectiveUpdatedAt = getEffectiveProviderUpdatedAt(
           session.updatedAt,
@@ -232,28 +232,14 @@ export function createInboxRoutes(deps: InboxDeps): Hono {
           effectiveUpdatedAt === session.updatedAt
             ? session
             : { ...session, updatedAt: effectiveUpdatedAt };
-        if (process) {
-          const pendingRequest = process.getPendingInputRequest();
-          if (pendingRequest) {
-            pendingInputType =
-              pendingRequest.type === "tool-approval"
-                ? "tool-approval"
-                : "user-question";
-          }
-          const state = process.state.type;
-          if (state === "in-turn" || state === "waiting-input") {
-            activity = state;
-          } else if (state === "idle" && process.isRetainingProviderWork()) {
-            // Idle but the provider still has background tasks/crons running.
-            // Surface as active so the session lands in the "Active" tier
-            // instead of "Recent Activity", matching the session page.
-            activity = "in-turn";
-          }
-        }
-
-        const hasUnread = deps.notificationService
-          ? deps.notificationService.hasUnread(session.id, effectiveUpdatedAt)
-          : undefined;
+        // Retained background work reads as "in-turn" here too, so such a
+        // session lands in the Active tier rather than Recent Activity.
+        const { pendingInputType, activity, hasUnread } =
+          sessionRowRuntimeOverlay(process, {
+            sessionId: session.id,
+            providerUpdatedAt: effectiveUpdatedAt,
+            notificationService: deps.notificationService,
+          });
 
         allSessions.push({
           session: effectiveSession,

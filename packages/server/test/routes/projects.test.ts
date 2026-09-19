@@ -109,6 +109,32 @@ describe("Projects Routes", () => {
     });
   });
 
+  it("shows retained provider background work as session activity", async () => {
+    const project = createProject();
+    const summary = createSummary();
+    const process = createProcess(project.id, {
+      state: { type: "idle" },
+      retainingProviderWork: true,
+    });
+    const routes = createProjectsRoutes({
+      scanner: {
+        getOrCreateProject: async () => project,
+      } as unknown as ProjectScanner,
+      readerFactory: () =>
+        ({ listSessions: async () => [summary] }) as unknown as ISessionReader,
+      supervisor: {
+        getProcessForSession: () => process,
+        getAllProcesses: () => [],
+      } as unknown as Parameters<typeof createProjectsRoutes>[0]["supervisor"],
+    });
+
+    const response = await routes.request("/proj-1/sessions");
+    expect(response.status).toBe(200);
+    expect((await response.json()).sessions[0]).toMatchObject({
+      activity: "in-turn",
+    });
+  });
+
   it("enriches project list responses with Project Queue counts", async () => {
     const project = createProject();
     const routes = createProjectsRoutes({

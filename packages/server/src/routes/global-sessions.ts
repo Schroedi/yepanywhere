@@ -39,6 +39,7 @@ import {
   applyRecapOverlayToSummary,
   getEffectiveProviderUpdatedAt,
   hasUnreadProviderContent,
+  sessionRowRuntimeOverlay,
 } from "../sessions/recap-overlays.js";
 import type { ExternalSessionTracker } from "../supervisor/ExternalSessionTracker.js";
 import type { Supervisor } from "../supervisor/Supervisor.js";
@@ -643,47 +644,14 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
           overlaidSession.updatedAt,
           process,
         );
-        const hasUnread = hasUnreadProviderContent(
-          deps.notificationService,
-          session.id,
-          effectiveProviderUpdatedAt,
-        );
-        const isExternal =
-          deps.externalTracker?.isExternal(session.id) ?? false;
-
-        const ownership: SessionOwnership = process
-          ? {
-              owner: "self",
-              processId: process.id,
-              permissionMode: process.permissionMode,
-              appliedPermissionMode: process.appliedPermissionMode,
-              modeVersion: process.modeVersion,
-              recapAfterSeconds: process.recapAfterSeconds,
-            }
-          : isExternal
-            ? { owner: "external" }
-            : (session.ownership ?? { owner: "none" });
-
-        // Get agent activity
-        let pendingInputType: PendingInputType | undefined;
-        let activity: AgentActivity | undefined;
-        if (process) {
-          const pendingRequest = process.getPendingInputRequest();
-          if (pendingRequest) {
-            pendingInputType =
-              pendingRequest.type === "tool-approval"
-                ? "tool-approval"
-                : "user-question";
-          }
-          const state = process.state.type;
-          if (state === "in-turn" || state === "waiting-input") {
-            activity = state;
-          } else if (state === "idle" && process.isRetainingProviderWork()) {
-            // Idle but the provider still has background tasks/crons running —
-            // surface as active so the sidebar shows the activity indicator.
-            activity = "in-turn";
-          }
-        }
+        const { ownership, pendingInputType, activity, hasUnread } =
+          sessionRowRuntimeOverlay(process, {
+            sessionId: session.id,
+            providerUpdatedAt: effectiveProviderUpdatedAt,
+            notificationService: deps.notificationService,
+            externalTracker: deps.externalTracker,
+            fallbackOwnership: session.ownership,
+          });
 
         // Admission is decided on the finished row, by the same predicate the
         // retained read uses, so neither mode can match fields the other does

@@ -37,18 +37,14 @@ import type { ProjectQueueService } from "../services/ProjectQueueService.js";
 import type { EventBus } from "../watcher/index.js";
 import {
   applyRecapOverlayToSummary,
-  hasUnreadProviderContent,
   getEffectiveProviderUpdatedAt,
+  sessionOwnershipFromProcess,
+  sessionRowRuntimeOverlay,
 } from "../sessions/recap-overlays.js";
 import type { ExternalSessionTracker } from "../supervisor/ExternalSessionTracker.js";
 import type { Process } from "../supervisor/Process.js";
 import type { Supervisor } from "../supervisor/Supervisor.js";
-import type {
-  AgentActivity,
-  PendingInputType,
-  Project,
-  SessionSummary,
-} from "../supervisor/types.js";
+import type { Project, SessionSummary } from "../supervisor/types.js";
 import { buildProviderProjectCatalog } from "./provider-catalog.js";
 import { getActiveSessionIndexOptions } from "./session-list-options.js";
 
@@ -279,14 +275,7 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
           createdAt: process.startedAt.toISOString(),
           updatedAt: now,
           messageCount: 0,
-          ownership: {
-            owner: "self",
-            processId: process.id,
-            permissionMode: process.permissionMode,
-            appliedPermissionMode: process.appliedPermissionMode,
-            modeVersion: process.modeVersion,
-            recapAfterSeconds: process.recapAfterSeconds,
-          },
+          ownership: sessionOwnershipFromProcess(process),
           provider: process.provider,
         });
       }
@@ -325,39 +314,6 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
   function enrichSessions(sessions: SessionSummary[]): SessionSummary[] {
     return sessions.map((session) => {
       const process = deps.supervisor?.getProcessForSession(session.id);
-      const isExternal = deps.externalTracker?.isExternal(session.id) ?? false;
-
-      // Enrich with ownership
-      const ownership = process
-        ? {
-            owner: "self" as const,
-            processId: process.id,
-            permissionMode: process.permissionMode,
-            appliedPermissionMode: process.appliedPermissionMode,
-            modeVersion: process.modeVersion,
-            recapAfterSeconds: process.recapAfterSeconds,
-          }
-        : isExternal
-          ? { owner: "external" as const }
-          : session.ownership;
-
-      // Enrich with notification data and agent activity
-      let pendingInputType: PendingInputType | undefined;
-      let activity: AgentActivity | undefined;
-      if (process) {
-        const pendingRequest = process.getPendingInputRequest();
-        if (pendingRequest) {
-          pendingInputType =
-            pendingRequest.type === "tool-approval"
-              ? "tool-approval"
-              : "user-question";
-        }
-        // Get the current agent activity (in-turn/waiting-input/idle)
-        const state = process.state.type;
-        if (state === "in-turn" || state === "waiting-input") {
-          activity = state;
-        }
-      }
 
       // Get session metadata (custom title, archived, starred)
       const metadata = deps.sessionMetadataService?.getMetadata(session.id);
@@ -374,11 +330,14 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
 
       const lastSeenEntry = deps.notificationService?.getLastSeen(session.id);
       const lastSeenAt = lastSeenEntry?.timestamp;
-      const hasUnread = hasUnreadProviderContent(
-        deps.notificationService,
-        session.id,
-        providerUpdatedAt,
-      );
+      const { ownership, pendingInputType, activity, hasUnread } =
+        sessionRowRuntimeOverlay(process, {
+          sessionId: session.id,
+          providerUpdatedAt,
+          notificationService: deps.notificationService,
+          externalTracker: deps.externalTracker,
+          fallbackOwnership: session.ownership,
+        });
 
       const customTitle = metadata?.customTitle;
       const isArchived = metadata?.isArchived;

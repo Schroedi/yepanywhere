@@ -99,6 +99,7 @@ import {
   latestRecapMessage,
   mergeSessionOverlayMessages,
   mergeLocalCommandMessages,
+  sessionOwnershipFromProcess,
 } from "../sessions/recap-overlays.js";
 import { isAutomaticSessionResumeAllowed } from "../sessions/resume-exemption.js";
 import {
@@ -2424,14 +2425,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         messageCount: messages.length,
-        ownership: {
-          owner: "self",
-          processId: process.id,
-          permissionMode: process.permissionMode,
-          appliedPermissionMode: process.appliedPermissionMode,
-          modeVersion: process.modeVersion,
-          recapAfterSeconds: process.recapAfterSeconds,
-        },
+        ownership: sessionOwnershipFromProcess(process),
         provider: process.provider,
         model: process.resolvedModel ?? process.model,
         messages,
@@ -2661,18 +2655,9 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     const isExternal = deps.externalTracker?.isExternal(sessionId) ?? false;
 
     // Determine the session ownership
-    const ownership: SessionOwnership = process
-      ? {
-          owner: "self" as const,
-          processId: process.id,
-          permissionMode: process.permissionMode,
-          appliedPermissionMode: process.appliedPermissionMode,
-          modeVersion: process.modeVersion,
-          recapAfterSeconds: process.recapAfterSeconds,
-        }
-      : isExternal
-        ? { owner: "external" as const }
-        : { owner: "none" as const };
+    const ownership: SessionOwnership = sessionOwnershipFromProcess(process, {
+      isExternal,
+    });
 
     // Get session metadata (custom title, archived, starred)
     const metadata = deps.sessionMetadataService?.getMetadata(sessionId);
@@ -3165,18 +3150,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
 
     // Determine the session ownership
-    const ownership = process
-      ? {
-          owner: "self" as const,
-          processId: process.id,
-          permissionMode: process.permissionMode,
-          appliedPermissionMode: process.appliedPermissionMode,
-          modeVersion: process.modeVersion,
-          recapAfterSeconds: process.recapAfterSeconds,
-        }
-      : isExternal
-        ? { owner: "external" as const }
-        : (session?.ownership ?? { owner: "none" as const });
+    const ownership = sessionOwnershipFromProcess(process, {
+      isExternal,
+      fallback: session?.ownership,
+    });
 
     // Get pending input request from active process (for tool approval prompts)
     // This ensures clients get pending requests immediately without waiting for SSE

@@ -3,8 +3,8 @@ import { nonHumanUserTurnField } from "../metadata/SessionMetadataService.js";
 import type { RetainedSessionCollections } from "../services/RetainedSessionCollections.js";
 import {
   getEffectiveProviderUpdatedAt,
-  hasUnreadProviderContent,
   latestRecapMessage,
+  sessionRowRuntimeOverlay,
 } from "../sessions/recap-overlays.js";
 import type {
   GlobalSessionItem,
@@ -67,14 +67,15 @@ export async function readRetainedSessionItems(
       recap && Date.parse(recap.timestamp) > Date.parse(providerUpdatedAt)
         ? recap.timestamp
         : providerUpdatedAt;
-    const pendingRequest = process?.getPendingInputRequest();
     const isArchived =
       metadata?.isArchived ?? isSessionAutoArchived({ updatedAt }, cutoff);
-    const hasUnread = hasUnreadProviderContent(
-      deps.notificationService,
-      row.sessionId,
+    const runtime = sessionRowRuntimeOverlay(process, {
+      sessionId: row.sessionId,
       providerUpdatedAt,
-    );
+      notificationService: deps.notificationService,
+      externalTracker: deps.externalTracker,
+    });
+    const hasUnread = runtime.hasUnread;
     const provider = metadata?.provider ?? row.provider ?? row.catalogFamily;
     const item: GlobalSessionItem = {
       id: row.sessionId,
@@ -87,32 +88,9 @@ export async function readRetainedSessionItems(
         projects.get(projectId)?.name ??
         row.projectName ??
         basename(row.projectPath),
-      ownership: process
-        ? {
-            owner: "self",
-            processId: process.id,
-            permissionMode: process.permissionMode,
-            appliedPermissionMode: process.appliedPermissionMode,
-            modeVersion: process.modeVersion,
-            recapAfterSeconds: process.recapAfterSeconds,
-          }
-        : {
-            owner: deps.externalTracker?.isExternal(row.sessionId)
-              ? "external"
-              : "none",
-          },
-      pendingInputType: pendingRequest
-        ? pendingRequest.type === "tool-approval"
-          ? "tool-approval"
-          : "user-question"
-        : undefined,
-      activity:
-        process?.state.type === "in-turn" ||
-        process?.state.type === "waiting-input"
-          ? process.state.type
-          : process?.state.type === "idle" && process.isRetainingProviderWork()
-            ? "in-turn"
-            : undefined,
+      ownership: runtime.ownership,
+      pendingInputType: runtime.pendingInputType,
+      activity: runtime.activity,
       hasUnread,
       isArchived,
       isStarred: metadata?.isStarred ?? false,
