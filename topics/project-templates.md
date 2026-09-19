@@ -142,8 +142,9 @@ has the template layout. Import lands in the user library only.
 
 ## Library locations
 
-- **Shipped:** a separate GitHub repository (working name
-  `yepanywhere-templates`) holding the default templates and element
+- **Shipped:** a separate GitHub repository — favored (2026-09-19):
+  `graehl/yep-project-templates`, not yet created — holding the default
+  templates and element
   documents, so the main project is not sullied with template detail and a
   naive user can contribute a default template through an ordinary pull
   request there without touching YA source. YA takes a snapshot of that repo
@@ -294,7 +295,8 @@ YA's client is a later refactor question, not a v1 dependency.
 - Bundle format details: header syntax, size limits, binary files.
 - Whether the user library may also be a subdir of an existing user git repo
   rather than its own repository.
-- Shipped-repo mechanics: name and owner of the repository, snapshot
+- Shipped-repo mechanics: whether `graehl/yep-project-templates` stays the
+  home or moves under kzahel once upstream adopts the feature, snapshot
   transport (tarball fetch versus `git archive`), how the pinned ref is
   advanced with YA releases, and how small the built-in fallback set is.
 - Element conventions' exact text, which pairs compose (e.g. `canvas` +
