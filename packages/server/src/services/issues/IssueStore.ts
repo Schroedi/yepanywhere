@@ -263,14 +263,19 @@ export class IssueStore {
       "SELECT state,COUNT(*) AS count FROM issue_index_jobs GROUP BY state",
     ).map((row) => ({ state: String(row.state), count: Number(row.count) }));
   }
-  /** Queue one reference to be asked about again. */
+  /**
+   * Queue one reference to be asked about again. A reference first seen while
+   * confirmation was off holds no row, and the explicit request is what
+   * authorizes its first lookup, so this writes the row when none exists.
+   */
   requeueConfirmation(
     projectId: string,
     provider: string,
     refKey: string,
   ): void {
     this.run(
-      "UPDATE issue_confirmations SET state='pending' WHERE project_id=? AND provider=? AND ref_key=?",
+      `INSERT INTO issue_confirmations(project_id,provider,ref_key,state,checked_at) VALUES (?,?,?,'pending',0)
+        ON CONFLICT(project_id,provider,ref_key) DO UPDATE SET state='pending'`,
       projectId,
       provider,
       refKey,

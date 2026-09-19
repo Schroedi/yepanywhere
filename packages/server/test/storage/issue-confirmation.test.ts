@@ -203,6 +203,42 @@ describe("tracker confirmation", () => {
     h.db.close();
   });
 
+  it("answers an explicit recheck for a reference captured while it was off", async () => {
+    const h = harness({ confirmation: undefined });
+    const fetcher = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ fields: { summary: "A ticket" } }), {
+          status: 200,
+        }),
+    );
+    const confirmer = new IssueConfirmer(h.store, {
+      settings: h.settings,
+      credentials: h.credentials,
+      fetch: fetcher as unknown as typeof fetch,
+    });
+    h.capture("PROJ-7 is the ticket");
+    expect(h.pending()).toEqual([]);
+
+    // The reference holds no row at all, so the user's one way to ask must
+    // write one rather than silently updating nothing.
+    h.set({
+      confirmation: {
+        enabled: true,
+        jiraSite: "https://example.atlassian.net",
+        jiraEmail: "someone@example.com",
+      },
+    });
+    confirmer.recheck("p", "jira", "PROJ-7");
+    await confirmer.drain();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(h.pending()).toEqual([["PROJ-7", "confirmed"]]);
+    expect(
+      h.store.list().find((item) => item.key === "PROJ-7")?.confirmation,
+    ).toEqual({ state: "confirmed", title: "A ticket" });
+    await confirmer.close();
+    h.db.close();
+  });
+
   it("reports a missing credential or Jira site without contacting anything", async () => {
     const h = harness({
       confirmation: {
