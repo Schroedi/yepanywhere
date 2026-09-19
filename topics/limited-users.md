@@ -134,11 +134,15 @@ creation so the guest's turns are confined; a guest grant on an unsandboxed
 session is allowed but the members UI says so plainly. Guest records live in
 `project-access.json` beside memberships as
 `{ session: sessionId, guests: [{ username, mode: "turns" | "read" }] }`,
-and revoking one ends its relay claim and cookie sessions. A guest is exempt
-from the stale-session cutoff: the shared session is the whole point of the
-grant, and a redirect into a new session would fall outside it. That
-exemption stands until a session-continuation authority (which new session a
-guest may follow into) is defined; none is proposed here.
+and revoking one ends its relay claim and cookie sessions. The
+stale-session cutoff applies to guests too, but as **expiry rather than
+redirect**: a guest grant is temporary and ends when the shared session has
+been inactive for the configured cutoff, since a redirect into a new session
+would fall outside the grant and an exemption would let a cold session be
+resumed at full cost. The guest sees the remaining time and, once expired, a
+plain "this share has ended" page; the host may re-share. A
+session-continuation authority (which successor session a guest may follow
+into) is not proposed here.
 
 **Provider lock.** The superuser may pin a limited user to a provider, a
 provider plus model, or provider plus model plus effort; any subset is
@@ -188,7 +192,8 @@ to keep ordinary resume behavior. The redirect is server-side at the message
 route, keyed by the session's last activity time, so a stale client cannot
 bypass it. The superuser may opt into the same setting for their own account
 (decided 2026-09-19); it is off for the superuser by default and required
-only for limited users. Session guests are exempt, as stated above.
+only for limited users. For session guests the cutoff expires the grant
+instead of redirecting, as stated above.
 
 ## Execution boundary
 
