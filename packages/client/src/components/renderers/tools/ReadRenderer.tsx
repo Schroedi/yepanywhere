@@ -14,6 +14,7 @@ import { useCurrentSourceRuntime } from "../../../contexts/SourceRuntimeContext"
 import { useI18n } from "../../../i18n";
 import { useInlineMedia } from "../../../hooks/useInlineMedia";
 import { useQuoteableTextSource } from "../../../hooks/useQuoteableTextSource";
+import { useRemoteImage } from "../../../hooks/useRemoteImage";
 import { isMarkdownLikeFile } from "../../../lib/markdownFiles";
 import { useScrollPreservingToggle } from "../../../lib/scrollAnchor";
 import { compactShikiLineBreaks } from "../../../lib/shikiHtml";
@@ -471,37 +472,17 @@ function ImageFileResult({
         : undefined,
     [inlineBase64, loadBlob],
   );
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewFailed, setPreviewFailed] = useState(false);
-  useEffect(() => {
-    if (!expanded) {
-      setPreviewUrl(null);
-      setPreviewFailed(false);
-      return;
-    }
-    if (inlineBase64) {
-      setPreviewUrl(`data:${file.type};base64,${inlineBase64}`);
-      setPreviewFailed(false);
-      return;
-    }
-    let cancelled = false;
-    let objectUrl: string | null = null;
-    setPreviewUrl(null);
-    setPreviewFailed(false);
-    void loadBlob()
-      .then((blob) => {
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setPreviewUrl(objectUrl);
-      })
-      .catch(() => {
-        if (!cancelled) setPreviewFailed(true);
-      });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [expanded, file.type, inlineBase64, loadBlob]);
+  // Bytes already in hand render without a fetch; a materialized result reads
+  // its file back through the shared image loader.
+  const inlineDataUrl = inlineBase64
+    ? `data:${file.type};base64,${inlineBase64}`
+    : null;
+  const { url: fetchedPreviewUrl, error: previewError } = useRemoteImage(
+    filePath ?? null,
+    expanded && !inlineBase64,
+    loadBlob,
+  );
+  const previewUrl = inlineDataUrl ?? fetchedPreviewUrl;
   const openViewer = useCallback(() => setModalOpen(true), []);
   const fileName = filePath ? getFileName(filePath) : "image";
   const imageActions = useImageResourceActions({
@@ -570,7 +551,7 @@ function ImageFileResult({
           </button>
         ) : (
           <span className="file-line-count-inline">
-            {previewFailed
+            {previewError
               ? t("inlineImageUnavailable")
               : t("inlineImageLoading")}
           </span>
