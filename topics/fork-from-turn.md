@@ -110,6 +110,12 @@ window the trim dot controls).
   provider, model, thinking/effort, permission mode, and executor. Caret
   starts at the top of the prefill. See
   [conversation-view](conversation-view.md).
+- A new-tab handoff hands its text over through a one-shot token the opened
+  tab consumes. The text is stored only once that tab exists, so a browser
+  that blocks the popup carries the prefill into the current tab and leaves
+  nothing stored. A stash no tab ever claims stops being offered an hour
+  after it was written, and is deleted the next time any tab stashes or
+  consumes a handoff.
 - Older servers without `session-fork-turn-intents` expose none of this unified
   surface and receive no fork request. The server continues to parse legacy
   empty and `{ upToMessageId }` bodies for older clients.
