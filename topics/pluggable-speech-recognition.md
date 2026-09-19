@@ -266,8 +266,13 @@ streaming/confidence surface exists.
   model rather than a CTC/RNNT recognizer, so `granite_worker.py` builds the
   documented `<|audio|>` chat prompt and calls `generate()` instead of the
   Transformers ASR pipeline, sizing the token budget from the utterance
-  duration. The browser sends no per-request model id for this backend;
-  `GRANITE_MODEL` and `GRANITE_DEVICE` are authoritative.
+  duration. The browser sends no per-request model id for this backend, for
+  either transcription or prewarm, so `GRANITE_MODEL` chooses the model for
+  every YA-client dictation and `GRANITE_DEVICE` chooses the device. That is a
+  client contract, not a server refusal: `WarmPixiSttBackend` honors an
+  explicit request `model` for every family it runs, so a direct authenticated
+  `POST /api/speech/transcribe` naming a `model` loads that model for Granite
+  too. Device has no per-request form at all.
 - Parakeet, NeMo, and Granite share one warm-worker implementation,
   `WarmPixiSttBackend`: pixi environment probe with auto-bootstrap, deferred
   model load, single worker, and the one-JSON-object-per-line worker protocol.
