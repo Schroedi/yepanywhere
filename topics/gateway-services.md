@@ -35,7 +35,10 @@ model serving.
   entry mirrors those keys in both directions, so a client without the
   `claude-gateway-services` capability keeps editing the gateway actually in
   use. An installation that has never seen the list gets its configured gateway
-  migrated into a `default` entry.
+  migrated into a `default` entry. The older keys describe an endpoint and how
+  to start it and nothing else, so every remaining field of that entry takes
+  the same default a list entry gets for stating none — auto-stop off, at the
+  standard idle delay, with Codex opt-in off.
 - Only a non-empty legacy value overrides the entry it mirrors, except when the
   update explicitly writes the legacy key: clearing `claudeGatewayUrl` from an
   older client removes that one entry rather than resurrecting it. An absent

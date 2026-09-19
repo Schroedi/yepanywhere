@@ -198,6 +198,7 @@ export {
   isValidGatewayServiceLabel,
   isValidGatewayServiceShortName,
   isLoopbackGatewayUrl,
+  legacyGatewayServiceEntry,
   loopbackGatewayHostname,
   normalizeGatewayServiceUrl,
   parseGatewayModelId,

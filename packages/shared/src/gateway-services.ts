@@ -403,6 +403,34 @@ export function parseGatewayModelId(
 }
 
 /**
+ * The entry a legacy single-gateway configuration describes.
+ *
+ * `claudeGatewayUrl`/`claudeGatewayStartCommand` say where the endpoint is and
+ * how to start it, and nothing about the fields a services entry adds, so each
+ * of those takes the same default `parseGatewayServices` applies to an entry
+ * that states none. `identity` carries the naming of an entry this one
+ * replaces, since a legacy write changes the endpoint rather than renaming it.
+ */
+export function legacyGatewayServiceEntry(
+  url: string,
+  serviceCommand?: string,
+  identity?: Partial<Pick<GatewayService, "id" | "label" | "shortName">>,
+): GatewayService {
+  return {
+    id: identity?.id ?? DEFAULT_GATEWAY_SERVICE_ID,
+    label: identity?.label ?? "",
+    shortName: identity?.shortName ?? "",
+    url,
+    enabled: true,
+    ...(serviceCommand ? { serviceCommand } : {}),
+    autoStop: false,
+    autoStopAfterSeconds: DEFAULT_GATEWAY_AUTO_STOP_SECONDS,
+    codexEnabled: false,
+    codexWireApi: DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
+  };
+}
+
+/**
  * Parse the persisted/wire representation. Strict: one malformed entry
  * rejects the whole list rather than silently dropping a service the user
  * believes is configured.

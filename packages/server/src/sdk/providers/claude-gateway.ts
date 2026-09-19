@@ -8,11 +8,11 @@
 
 import type { Settings } from "@anthropic-ai/claude-agent-sdk";
 import {
-  DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
   DEFAULT_GATEWAY_SERVICE_ID,
   DEFAULT_GATEWAY_SERVICE_MODEL_LIMIT,
   advertisedGatewayEffortLevels,
   gatewayModelEffort,
+  legacyGatewayServiceEntry,
   parseGatewayModelId,
   unionModelCatalogs,
   type EffortLevel,
@@ -598,18 +598,7 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
       return;
     }
     ClaudeGatewayProvider.services = [
-      {
-        id: existing?.id ?? DEFAULT_GATEWAY_SERVICE_ID,
-        label: existing?.label ?? "",
-        shortName: existing?.shortName ?? "",
-        url,
-        enabled: true,
-        ...(startCommand ? { serviceCommand: startCommand } : {}),
-        autoStop: false,
-        autoStopAfterSeconds: 0,
-        codexEnabled: false,
-        codexWireApi: DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
-      },
+      legacyGatewayServiceEntry(url, startCommand, existing),
     ];
     ClaudeGatewayProvider.defaultServiceId =
       ClaudeGatewayProvider.services[0]!.id;
@@ -643,22 +632,7 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
   }): Promise<void> {
     await ClaudeGatewayProvider.configureGatewayServices({
       services: options.url
-        ? [
-            {
-              id: DEFAULT_GATEWAY_SERVICE_ID,
-              label: "",
-              shortName: "",
-              url: options.url,
-              enabled: true,
-              ...(options.startCommand
-                ? { serviceCommand: options.startCommand }
-                : {}),
-              autoStop: false,
-              autoStopAfterSeconds: 0,
-              codexEnabled: false,
-              codexWireApi: DEFAULT_GATEWAY_SERVICE_CODEX_WIRE_API,
-            },
-          ]
+        ? [legacyGatewayServiceEntry(options.url, options.startCommand)]
         : [],
       defaultServiceId: DEFAULT_GATEWAY_SERVICE_ID,
       ...(options.disableAgent === undefined
