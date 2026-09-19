@@ -19,6 +19,7 @@ import {
   projectVocabularyCase,
   speechVocabularyOccurrences,
   type VocabularyCaseForms,
+  vocabularyDistinctiveScore,
   vocabularyFrequency,
   VOCABULARY_FLUSH_COUNTS,
 } from "@yep-anywhere/shared";
@@ -30,7 +31,7 @@ import {
 } from "../../lib/scratchSpace.js";
 import { getLogger } from "../../logging/logger.js";
 import { BlockedBloom, BloomFile, bloomLoadForRate } from "./blocked-bloom.js";
-import { DistinctiveTop, distinctiveScore } from "./distinctive-top.js";
+import { DistinctiveTop } from "./distinctive-top.js";
 import {
   VocabularyDatabase,
   type VocabularyTable,
@@ -501,7 +502,7 @@ export class VocabularyStore {
 
   private considerWord(word: string): number {
     const counts = this.countsOf(word);
-    const score = distinctiveScore(
+    const score = vocabularyDistinctiveScore(
       counts.user + counts.assistant,
       this.tokenTotal(),
       this.frequency(word),
@@ -1044,8 +1045,11 @@ export class VocabularyStore {
       if (count <= 0) continue;
       ranked.set(
         term,
-        distinctiveScore(count, total, vocabularyFrequency(baseline, term)) *
-          this.state.sessionMultiplier,
+        vocabularyDistinctiveScore(
+          count,
+          total,
+          vocabularyFrequency(baseline, term),
+        ) * this.state.sessionMultiplier,
       );
       fromSession.add(term);
     }
