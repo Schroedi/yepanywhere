@@ -171,6 +171,27 @@ describe("MessageList reverse search", () => {
     ).toBe("true");
   });
 
+  it("keeps a character typed before the opening focus frame runs", async () => {
+    const rafQueue: FrameRequestCallback[] = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      rafQueue.push(callback);
+      return rafQueue.length;
+    });
+    render(<MessageList messages={[userMessage("first", "Horizon needle")]} />);
+    fireEvent.keyDown(window, { key: "r", ctrlKey: true });
+    const input = (await screen.findByRole("textbox", {
+      name: "Reverse search user turns",
+    })) as HTMLInputElement;
+    input.focus();
+    fireEvent.change(input, { target: { value: "h" } });
+    input.setSelectionRange(1, 1);
+    act(() => {
+      for (const callback of rafQueue.splice(0)) callback(0);
+    });
+    expect(input.value).toBe("h");
+    expect([input.selectionStart, input.selectionEnd]).toEqual([1, 1]);
+  });
+
   it("waits for an older page and advances to k of n+k with honest coverage", async () => {
     const pending = deferred<ReturnType<typeof historyPage>>();
     const read = vi.fn(() => pending.promise);

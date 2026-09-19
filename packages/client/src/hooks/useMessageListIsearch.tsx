@@ -978,8 +978,12 @@ export function useMessageListIsearch({
         originalScrollTop: searchOriginalScrollTopRef.current,
       });
       requestAnimationFrame(() => {
-        searchInputRef.current?.focus({ preventScroll: true });
-        searchInputRef.current?.select();
+        const input = searchInputRef.current;
+        // Characters typed between the panel mounting and this frame already
+        // landed in the input, so re-focusing (and the select() that used to
+        // follow) would discard them on the next keystroke.
+        if (!input || document.activeElement === input) return;
+        input.focus({ preventScroll: true });
       });
     },
     [
