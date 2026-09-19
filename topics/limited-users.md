@@ -146,10 +146,17 @@ creation with a clear message rather than silently falling back.
 
 **Stale-session cutoff.** A child or casual user does not know that
 resuming a session idle for a day misses its prompt cache and costs far more
-than a fresh one. A per-user setting, a time slider from off through minutes
-to days (`staleAfter`), makes YA redirect: when the user sends a turn to a
-session whose last activity is older than the cutoff, the message instead
-opens a **new session** in the same project. The new session's first turn is
+than a fresh one. A per-user setting, a time slider (`staleAfter`), makes YA
+redirect: when the user sends a turn to a session whose last activity is
+older than the cutoff, the message instead opens a **new session** in the
+same project. The slider is an **offset against the believed cache-warm
+window of the session's provider and model**, not an absolute duration: the
+per-provider retention window that [[prompt-cache-keepalive]] already
+tracks is the zero point (currently configured as one hour for Claude and
+five minutes for Codex, which is fine for now), and the slider ranges from
+"as soon as the cache is believed cold" through a grace of minutes or hours
+to off. One user setting therefore behaves sensibly across providers without
+the user knowing either window. The new session's first turn is
 the user's text, prefixed with a short reference to the previous session
 (its YA id and title) and a hint that the agent should read it if the
 request refers to something not otherwise explained; the previous session is
@@ -158,9 +165,9 @@ redirect plainly ("this will start a new session"), so the behavior is
 visible rather than surprising, and the superuser may set the slider to off
 to keep ordinary resume behavior. The redirect is server-side at the message
 route, keyed by the session's last activity time, so a stale client cannot
-bypass it. Whether the superuser's own account may opt into the same setting
-is an open decision; it is useful to anyone, but this proposal only requires
-it for limited users.
+bypass it. The superuser may opt into the same setting for their own account
+(decided 2026-09-19); it is off for the superuser by default and required
+only for limited users.
 
 ## Execution boundary
 
