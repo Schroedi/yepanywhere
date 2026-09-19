@@ -32,10 +32,15 @@ points normalize before rendering. So the Shiki grammar lookup, the `ansi` and
 the same form, and a fence written ```` ```JavaScript ```` behaves like
 ```` ```javascript ````.
 
-The fence-detection regexes previously required `(\w*)`, which rejected an info
-string containing a space or a punctuation attribute outright — such a line was
-not recognized as a fence at all and fell through to paragraph handling. They
-now accept `(.*)` and let normalization drop the tail.
+An info string may hold spaces and punctuation attributes; normalization drops
+that tail. The one exception is CommonMark's: a backtick fence's info string may
+not contain a backtick, so a line that is an inline code span — ```` ```code```
+followed by prose ```` — opens no code block and is a paragraph. A tilde fence
+has no such restriction and takes its info string whole. `codeFenceOpening` in
+`packages/server/src/augments/block-detector.ts` answers "does this line open a
+fence, and with what info string" for every one of the streaming detector's
+fence decisions, so block detection, the partial-line lookahead, and the
+language read cannot disagree.
 
 ## Every rendered block carries its language
 
