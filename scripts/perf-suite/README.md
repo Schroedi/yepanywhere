@@ -301,21 +301,12 @@ text availability, not a browser first-paint timestamp. Append milestones and
 built-client cold milestones use independent mutation-time marks; dev-client
 cold and warm navigation retain sequential Playwright observation semantics.
 
-Session-detail `ya-metadata` measures dynamic commands, queue summaries and fresh
-provider child-session reads independently of `ya-route` slicing and anchor
-lookup. Suite version 9 includes that phase in non-overlapping totals and keeps
-the fleet append 5 ms route ceiling alongside a 40 ms metadata ceiling. Older
-execution revisions retain their original combined route clock.
+Three measured-boundary contracts these drivers implement are stated once in
+[the coverage boundary](../../topics/performance-regression-suite.md#coverage-boundary):
 
-The simulated provider persists its deterministic user/assistant fixture rows
-before publishing each final assistant/result pair. Browser REST catch-up can
-therefore read the same stable message IDs even between live-process snapshots.
-This fixture writer is part of the simulated leg; the real provider SDK's writer
-remains outside the measured boundary. The no-browser-diagnostics assertion and
-verified-idle release assertion remain required.
-
-Semantic browser setup and replay run with idle reaping disabled. After Chromium
-closes, the specialized driver sets the one-second deadline through the public
-settings API, verifies the remaining raw subscriber retains the idle provider
-past that deadline, then measures release after its final unsubscribe. Failures
-include the owned-server diagnostic tail rather than discarding that evidence.
+- the session-detail `ya-metadata` phase, its suite-version-9 totals, and the
+  separate fleet append route and metadata ceilings;
+- the simulated provider's fixture-row persistence before each published final
+  pair, and the assertions that remain required alongside it; and
+- idle reaping disabled through semantic browser setup and replay, with the
+  post-Chromium release measurement and its retained diagnostic tail.
