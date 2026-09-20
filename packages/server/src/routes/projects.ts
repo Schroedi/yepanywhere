@@ -16,6 +16,10 @@ import type {
 import type { NotificationService } from "../notifications/index.js";
 import { nonHumanUserTurnField } from "../metadata/SessionMetadataService.js";
 import { warmGitAuthorPalette } from "../git/authorPalette.js";
+import {
+  decideProjectCreation,
+  ensureProjectDirectory,
+} from "./project-creation.js";
 import type { CodexSessionScanner } from "../projects/codex-scanner.js";
 import type { GeminiSessionScanner } from "../projects/gemini-scanner.js";
 import {
@@ -489,7 +493,7 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
   // POST /api/projects - Add a project by path
   // Validates the path exists on disk and returns project info
   routes.post("/", async (c) => {
-    let body: { path: string };
+    let body: { path: string; create?: boolean };
     try {
       body = await c.req.json();
     } catch {
@@ -516,6 +520,23 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
       return c.json({ error: "Path must be absolute" }, 400);
     }
 
+    // A limited user may only add projects under their configured directory;
+    // the superuser may add anything (topics/limited-users.md § Delivery v1).
+    const creation = decideProjectCreation(c, normalizedPath);
+    if (creation.kind === "denied") {
+      return c.json({ error: creation.error }, 403);
+    }
+
+    // `create` is the client's confirmed answer to "this does not exist yet".
+    // Without it a missing directory is refused exactly as it always was, so
+    // no caller creates a directory by accident.
+    const directory = await ensureProjectDirectory(normalizedPath, {
+      create: body.create === true,
+    });
+    if (directory.kind === "error") {
+      return c.json({ error: directory.error }, directory.status);
+    }
+
     // Create projectId and try to get/create the project
     const projectId = toUrlProjectId(normalizedPath);
     const project = await deps.scanner.getOrCreateProject(projectId);
@@ -530,7 +551,11 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
 
     // Persist the project so it appears in future listings
     if (deps.projectMetadataService) {
-      await deps.projectMetadataService.addProject(projectId, normalizedPath);
+      await deps.projectMetadataService.addProject(
+        projectId,
+        normalizedPath,
+        creation.ownerUsername,
+      );
       deps.scanner.invalidateCache();
     }
 
@@ -540,7 +565,11 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
         ...project,
         codeName: codeNameByProjectId.get(project.id),
         caption: await captionForProject(project),
+        ...(creation.ownerUsername
+          ? { ownerUsername: creation.ownerUsername }
+          : {}),
       },
+      created: directory.kind === "created",
     });
   });
 

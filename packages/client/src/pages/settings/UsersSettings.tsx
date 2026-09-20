@@ -40,6 +40,7 @@ interface DraftState {
   provider: string;
   model: string;
   effort: string;
+  projectRoot: string;
 }
 
 const EMPTY_DRAFT: DraftState = {
@@ -50,6 +51,7 @@ const EMPTY_DRAFT: DraftState = {
   provider: "",
   model: "",
   effort: "",
+  projectRoot: "",
 };
 
 function draftFromUser(user: LimitedUserSummary): DraftState {
@@ -65,6 +67,7 @@ function draftFromUser(user: LimitedUserSummary): DraftState {
     provider: user.lock.provider ?? "",
     model: user.lock.model ?? "",
     effort: user.lock.effort ?? "",
+    projectRoot: user.projectRoot ?? "",
   };
 }
 
@@ -87,6 +90,8 @@ function grantsFromDraft(draft: DraftState) {
       ...(draft.model ? { model: draft.model } : {}),
       ...(draft.effort ? { effort: draft.effort } : {}),
     },
+    // Always sent, so clearing the field revokes the grant.
+    projectRoot: draft.projectRoot.trim(),
   };
 }
 
@@ -549,6 +554,22 @@ function UserEditor({
           ))}
         </ul>
       )}
+
+      <p className={styles.subhead}>{t("usersProjectRootHeading")}</p>
+      <label className={styles.field}>
+        <span>{t("usersProjectRootLabel")}</span>
+        <input
+          className={styles.input}
+          value={draft.projectRoot}
+          placeholder={t("usersProjectRootPlaceholder")}
+          autoComplete="off"
+          spellCheck={false}
+          onChange={(event) =>
+            onDraftChange({ ...draft, projectRoot: event.target.value })
+          }
+        />
+      </label>
+      <p className="settings-hint">{t("usersProjectRootHint")}</p>
 
       <label className={styles.field}>
         <span>{t("usersJoinOffsetLabel")}</span>

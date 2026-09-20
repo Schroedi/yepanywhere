@@ -55,6 +55,8 @@ export interface Project {
   activeExternalCount: number; // sessions controlled by external processes
   lastActivity: string | null; // ISO timestamp of most recent session update
   provider: ProviderName; // which provider's sessions are in this project
+  /** Limited user who added it; absent means the superuser did. */
+  ownerUsername?: string;
 }
 
 // Session ownership - who controls the session

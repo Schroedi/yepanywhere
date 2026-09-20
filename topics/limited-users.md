@@ -77,7 +77,8 @@ outcome, enforced server-side at the operation, not by hiding a control.
 
 **v1 scope in one line.** A superuser-managed set of limited users, each with
 three per-project grants, an optional provider/model/effort lock, a
-join-freshness offset, and attributed usage; a **Settings → Users** page that creates them, edits
+join-freshness offset, an optional project-creation directory, and
+attributed usage; a **Settings → Users** page that creates them, edits
 them, switches into them for testing, and logs out; relay login as a limited
 user; and default-deny authorization for every API operation a limited user
 makes.
@@ -277,6 +278,41 @@ this install and how much.
   ledger actually covers. A user with a record of nothing is listed by the
   report but not shown in the table; the ledger starts empty on an existing
   install, so the page says what it covers rather than implying all time.
+
+### Project creation
+
+A limited user creates projects only where the superuser said they may.
+
+- **The grant.** `projectRoot` on the user record, a directory as the
+  superuser typed it (`~/archer` keeps that form and expands server-side).
+  **Absent means they may create no project at all**, which is the default:
+  creation is a grant, not something a limited user has by existing. A
+  relative root is no grant either — it would resolve against the server's
+  working directory, which is not a boundary anybody chose.
+- **The check** is at the route, not in the pure route policy, which cannot
+  see a path carried in the body: `POST /api/projects` reaches the route for
+  a limited user and is refused there unless the path is under their root.
+  The root itself is the parent directory, not a project, and `..` cannot
+  walk out of it. The superuser may still add anything.
+- **A directory that does not exist yet** is offered rather than refused.
+  The client asks, and only a request that explicitly says `create` makes
+  it: YA creates the directory, runs `git init`, and leaves one empty commit
+  so the first real change has a root revision to diff against. A host that
+  configures no Git identity — the fresh machine this is most for — still
+  gets that commit, from a fallback identity used for the scaffolding commit
+  alone. Without that
+  flag a missing path is still a 404, so nothing creates a directory by
+  accident. An existing directory is never touched — YA does not run
+  `git init` over somebody's tree. Only the leaf is created: a missing
+  parent is an error, because building a whole tree from one typed path
+  turns a typo into directories nobody meant to make.
+- **Ownership.** The project records `ownerUsername`, absent for the
+  superuser, and it survives the project being rediscovered by a
+  session-directory scan once it has sessions.
+- **Display.** A project a limited user owns reads as `owner/name` wherever
+  a project is named for a person to pick — the Projects page, the project
+  selector, the sidebar — because two people's `notes` are otherwise the
+  same row. A project code name still wins where one is set.
 
 ### Out of v1
 
@@ -592,8 +628,6 @@ not implement every credential source or grant type.
   server-side per-user (theme, session defaults) and whether that is worth a
   fourth settings scope in [[settings-ui-placement]].
 - Whether owners may add editors themselves or only the superuser may.
-- Per-user parent directory for created projects: one configured root per
-  user, or a per-user subdirectory under one root.
 - Whether limited users may use provider accounts of the host at all, or
   must bring their own ([[copilot-provider]] already notes per-user tokens
   for a hosted case).

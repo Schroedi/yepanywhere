@@ -73,6 +73,14 @@ export interface LimitedUserGrants {
   /** -5..+60 minutes against the provider cache-warm window. */
   joinStaleOffsetMinutes: number;
   lock: LimitedUserLock;
+  /**
+   * Directory the user may create projects under, as the superuser typed it
+   * (`~/archer` is kept in that form and expanded server-side). Absent means
+   * they may create no project at all, which is the default: project
+   * creation is a grant, not something a limited user has by existing.
+   * topics/limited-users.md § Delivery v1 — Project creation.
+   */
+  projectRoot?: string;
 }
 
 /** A limited user as any API returns it. Never carries credential material. */
@@ -209,4 +217,19 @@ export function accessibleProjectIds(
     ...grants.joinProjects,
     ...grants.viewProjects,
   ]);
+}
+
+/**
+ * How a project reads in lists: `owner/name` for one a limited user added,
+ * the bare name for the superuser's. Two people's `notes` are otherwise the
+ * same row, and whose it is matters more than the extra characters cost.
+ * topics/limited-users.md § Delivery v1 — Project creation.
+ */
+export function projectDisplayName(project: {
+  name: string;
+  ownerUsername?: string;
+}): string {
+  return project.ownerUsername
+    ? `${project.ownerUsername}/${project.name}`
+    : project.name;
 }

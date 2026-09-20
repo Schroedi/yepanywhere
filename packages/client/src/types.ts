@@ -126,6 +126,12 @@ export interface Project {
   codeName?: string;
   /** README/manifest-derived or user-overridden description; absent on older servers. */
   caption?: ProjectCaption;
+  /**
+   * Limited user who added this project; absent means the superuser did, or
+   * an older server that does not record it. Shown as `owner/name`.
+   * topics/limited-users.md § Delivery v1 — Project creation.
+   */
+  ownerUsername?: string;
   sessionCount: number;
   sessionCountsByProvider?: Partial<Record<ProviderName, number>>;
   activeOwnedCount: number;

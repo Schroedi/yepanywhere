@@ -246,9 +246,13 @@ export function decideLimitedRoute(
   }
 
   if (path === "/api/projects") {
-    return isRead
-      ? { kind: "allow-filtered", filter: "projects" }
-      : { kind: "deny" };
+    if (isRead) return { kind: "allow-filtered", filter: "projects" };
+    // POST adds a project. Whether this user may add one, and where, is a
+    // path question this pure decision cannot see: the route holds them to
+    // their configured directory and refuses when they have none
+    // (routes/project-creation.ts, topics/limited-users.md § Delivery v1).
+    if (method === "POST") return { kind: "allow" };
+    return { kind: "deny" };
   }
 
   if (path === "/api/sessions") {

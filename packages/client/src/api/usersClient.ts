@@ -15,6 +15,8 @@ export interface LimitedUserDraft {
   viewProjects?: string[];
   joinStaleOffsetMinutes?: number;
   lock?: LimitedUserLock;
+  /** Directory the user may create projects under; empty revokes the grant. */
+  projectRoot?: string;
   disabled?: boolean;
 }
 

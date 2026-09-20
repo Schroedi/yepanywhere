@@ -25,9 +25,7 @@ describe("UserUsageService", () => {
   it("reports nothing before anything happens", async () => {
     const report = await service.report();
     expect(report.since).toBeNull();
-    expect(report.users).toEqual([
-      expect.objectContaining({ username: null }),
-    ]);
+    expect(report.users).toEqual([expect.objectContaining({ username: null })]);
   });
 
   it("attributes an absent username to the superuser", async () => {

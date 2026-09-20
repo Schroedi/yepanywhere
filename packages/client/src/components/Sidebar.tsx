@@ -1,5 +1,6 @@
 import { useIssuesEnabled } from "../hooks/useIssuesEnabled";
 import {
+  projectDisplayName,
   DEVICE_BRIDGE_CAPABILITY,
   DEVICE_BRIDGE_DOWNLOAD_CAPABILITY,
   GIT_STATUS_ENHANCED_CAPABILITY,
@@ -668,7 +669,7 @@ export function Sidebar({
           projectCodeNamesEnabled &&
           project.codeName
             ? project.codeName
-            : project.name,
+            : projectDisplayName(project),
         ]),
       ),
     [projectCodeNamesEnabled, projects, supportsProjectCodeNames],

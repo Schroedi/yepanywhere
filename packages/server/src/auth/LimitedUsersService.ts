@@ -56,7 +56,25 @@ export interface LimitedUserInput {
   viewProjects?: string[];
   joinStaleOffsetMinutes?: number;
   lock?: LimitedUserLock;
+  projectRoot?: string;
   disabled?: boolean;
+}
+
+/**
+ * The directory a user may create projects under, as typed. An empty or
+ * relative value is no grant at all: a relative root would resolve against
+ * whatever the server's working directory happens to be, which is not a
+ * boundary anybody chose. `~` keeps its form here and expands where the
+ * check runs.
+ */
+function normalizeProjectRoot(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (trimmed === "") return undefined;
+  if (!trimmed.startsWith("/") && !trimmed.startsWith("~")) return undefined;
+  // A root is a prefix test; a trailing separator only complicates it.
+  const withoutTrailing = trimmed.replace(/\/+$/, "");
+  return withoutTrailing === "" ? "/" : withoutTrailing;
 }
 
 function normalizeProjectList(value: unknown): string[] {
@@ -94,6 +112,7 @@ export function toLimitedUserSummary(
     viewProjects: [...record.viewProjects],
     joinStaleOffsetMinutes: record.joinStaleOffsetMinutes,
     lock: { ...record.lock },
+    ...(record.projectRoot ? { projectRoot: record.projectRoot } : {}),
   };
 }
 
@@ -186,6 +205,7 @@ export class LimitedUsersService {
       viewProjects: [...record.viewProjects],
       joinStaleOffsetMinutes: record.joinStaleOffsetMinutes,
       lock: { ...record.lock },
+      ...(record.projectRoot ? { projectRoot: record.projectRoot } : {}),
     };
   }
 
@@ -232,6 +252,9 @@ export class LimitedUsersService {
         input.joinStaleOffsetMinutes ?? 0,
       ),
       lock: normalizeLock(input.lock),
+      ...(normalizeProjectRoot(input.projectRoot)
+        ? { projectRoot: normalizeProjectRoot(input.projectRoot) }
+        : {}),
       ...(input.disabled ? { disabled: true } : {}),
     };
     this.state.users[record.username] = record;
@@ -270,6 +293,9 @@ export class LimitedUsersService {
     }
     if (input.lock !== undefined) {
       record.lock = normalizeLock(input.lock);
+    }
+    if (input.projectRoot !== undefined) {
+      record.projectRoot = normalizeProjectRoot(input.projectRoot);
     }
     if (input.disabled !== undefined) {
       if (input.disabled) {

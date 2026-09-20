@@ -36,6 +36,12 @@ export interface ProjectMetadata {
   path: string;
   /** When the project was added */
   addedAt: string;
+  /**
+   * Limited user who added this project, when one did. Absent means the
+   * superuser added it, which is also what every project predating limited
+   * users means. topics/limited-users.md § Delivery v1 — Project creation.
+   */
+  ownerUsername?: string;
 }
 
 export interface HiddenProjectMetadata {
@@ -351,7 +357,11 @@ export class ProjectMetadataService {
   /**
    * Add a project. The projectId should be a UrlProjectId (base64url encoded path).
    */
-  async addProject(projectId: string, projectPath: string): Promise<void> {
+  async addProject(
+    projectId: string,
+    projectPath: string,
+    ownerUsername?: string,
+  ): Promise<void> {
     const canonicalPath = canonicalizeProjectPath(projectPath);
     const canonicalProjectId = encodeProjectId(canonicalPath);
     if (projectId !== canonicalProjectId) {
@@ -368,6 +378,7 @@ export class ProjectMetadataService {
     this.state.projects[canonicalProjectId] = {
       path: canonicalPath,
       addedAt: new Date().toISOString(),
+      ...(ownerUsername ? { ownerUsername } : {}),
     };
     await this.save();
   }

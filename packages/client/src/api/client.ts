@@ -469,10 +469,15 @@ export const api = {
    * Validates the path exists on disk and returns project info.
    * Supports ~ for home directory and normalizes trailing slashes.
    */
-  addProject: (path: string) =>
-    fetchJSON<{ project: Project }>("/projects", {
+  addProject: (path: string, options?: { create?: boolean }) =>
+    fetchJSON<{ project: Project; created?: boolean }>("/projects", {
       method: "POST",
-      body: JSON.stringify({ path }),
+      // `create` is the caller's confirmed answer to a path that does not
+      // exist yet; without it the server refuses a missing directory.
+      body: JSON.stringify({
+        path,
+        ...(options?.create ? { create: true } : {}),
+      }),
     }),
 
   getProject: (projectId: string) =>

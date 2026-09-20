@@ -980,6 +980,31 @@ export class ProjectScanner {
       });
     }
 
+    // One pass over the finished list rather than per discovery branch: a
+    // project a limited user added is also found by the session-directory
+    // scans once it has sessions, and its owner must survive that.
+    // topics/limited-users.md § Delivery v1 — Project creation.
+    if (this.projectMetadataService) {
+      const ownerByIdentity = new Map<string, string>();
+      for (const metadata of Object.values(
+        this.projectMetadataService.getAllProjects(),
+      )) {
+        if (!metadata.ownerUsername) continue;
+        ownerByIdentity.set(
+          getProjectIdentityKey(canonicalizeProjectPath(metadata.path)),
+          metadata.ownerUsername,
+        );
+      }
+      if (ownerByIdentity.size > 0) {
+        for (const project of projects) {
+          const owner = ownerByIdentity.get(
+            getProjectIdentityKey(project.path),
+          );
+          if (owner) project.ownerUsername = owner;
+        }
+      }
+    }
+
     return projects;
   }
 

@@ -188,6 +188,8 @@ describe("Settings → Users", () => {
         viewProjects: [],
         joinStaleOffsetMinutes: 0,
         lock: {},
+        // Always sent, so clearing the field revokes the creation grant.
+        projectRoot: "",
       });
     });
     // Creating the first user turns the feature on server-side.

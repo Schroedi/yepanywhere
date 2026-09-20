@@ -1,4 +1,5 @@
 import {
+  projectDisplayName,
   PROJECT_CAPTIONS_CAPABILITY,
   PROJECT_CODE_NAMES_CAPABILITY,
   PROJECT_QUEUE_ATTACHMENT_EDITING_CAPABILITY,
@@ -113,19 +114,45 @@ export function ProjectsPage() {
 
   const handleAddProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProjectPath.trim()) return;
+    const path = newProjectPath.trim();
+    if (!path) return;
 
     setAdding(true);
     setAddError(null);
 
-    try {
-      const { project } = await api.addProject(newProjectPath.trim());
-      await refetch();
+    const finish = (project: Project) => {
+      void refetch();
       setNewProjectPath("");
       setShowAddForm(false);
       // Navigate to sessions filtered by the new project
       navigate(`${basePath}/sessions?project=${project.id}`);
+    };
+
+    try {
+      const { project } = await api.addProject(path);
+      finish(project);
     } catch (err) {
+      // A path that does not exist yet is offered rather than refused: YA
+      // creates the directory as a Git repository with one empty commit,
+      // but only after the user says so.
+      if ((err as { status?: number }).status === 404) {
+        if (confirm(t("projectsCreateConfirm", { path }))) {
+          try {
+            const { project } = await api.addProject(path, { create: true });
+            finish(project);
+            return;
+          } catch (createErr) {
+            setAddError(
+              createErr instanceof Error
+                ? createErr.message
+                : t("projectsAddFailed"),
+            );
+            return;
+          } finally {
+            setAdding(false);
+          }
+        }
+      }
       setAddError(err instanceof Error ? err.message : t("projectsAddFailed"));
     } finally {
       setAdding(false);
@@ -133,7 +160,11 @@ export function ProjectsPage() {
   };
 
   const handleDeleteProject = async (project: Project) => {
-    if (!confirm(t("projectsDeleteConfirm", { name: project.name }))) {
+    if (
+      !confirm(
+        t("projectsDeleteConfirm", { name: projectDisplayName(project) }),
+      )
+    ) {
       return;
     }
 

@@ -41,6 +41,7 @@ interface UserBody {
   viewProjects?: string[];
   joinStaleOffsetMinutes?: number;
   lock?: { provider?: string; model?: string; effort?: string };
+  projectRoot?: string;
   disabled?: boolean;
 }
 
@@ -190,6 +191,7 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
         viewProjects: body.viewProjects,
         joinStaleOffsetMinutes: body.joinStaleOffsetMinutes,
         lock: body.lock,
+        projectRoot: body.projectRoot,
         disabled: body.disabled,
       });
       if (!isEnabled()) await deps.setEnabled?.(true);
@@ -218,6 +220,7 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
         viewProjects: body.viewProjects,
         joinStaleOffsetMinutes: body.joinStaleOffsetMinutes,
         lock: body.lock,
+        projectRoot: body.projectRoot,
         disabled: body.disabled,
       });
       return c.json({ user });
