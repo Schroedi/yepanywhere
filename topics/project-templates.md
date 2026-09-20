@@ -318,38 +318,47 @@ project code served by the project, not a YA route, and is not a YA
 transcript; YA's session UI is uninvolved. Extracting that library from
 YA's client is a later refactor question, not a v1 dependency.
 
-## Candidate stacks for the shipped set
+## Stack decision
 
-Suggestions collected 2026-09-20 for the envelope a kid-facing canvas/game
-template must cover: 2D/3D drawing, microphone input, iterate in a browser on
-a tablet over LAN, and package for iOS/Android at the end. None is chosen;
-the first two are the leading candidates.
+Decided 2026-09-20 for the kid-facing canvas template. The envelope: 2D/3D
+drawing, microphone input, the YA App pane ([[session-right-pane]]) as the
+primary testing surface from a tablet over relay, agent-primary editing
+(the kid points at the pane and describes the change; the agent edits), and
+iOS/Android packaging only at the very end. Two axes decide: how well an
+agent reads, writes, and verifies the project from text, and how well the
+result runs inside an iframe. Human-facing editors and toolchains count for
+nothing under agent-primary, and an emulator cannot render into the pane, so
+every candidate reduces to its web target.
 
-1. **Vite + TypeScript + Capacitor** — the default for that envelope. Plain
-   `npm create vite`, WebGL2/WebGPU through a canvas, `getUserMedia` plus
-   `AudioWorklet` for the mic. Capacitor wraps the same bundle for iOS and
-   Android; Xcode/Android Studio are needed only at the packaging step, so
-   kids iterate in a browser on the tablet over LAN. Standard `package.json`
-   affordances; a project `AGENTS.md` of about twenty lines suffices.
-   Caveat: iOS WebView audio input needs a user gesture and has had
-   permission quirks across Safari versions; verify on the actual iPad.
-2. **Vite + TypeScript, no Capacitor** — the same template minus the
-   packaging layer. This is the natural `canvas-ts` base; Capacitor becomes
-   an add-on element (`mobile-shell`) rather than part of the default tree.
-3. **Godot 4 (GDScript)** — most opinionated, best for kids, and covers the
-   envelope: scene editor, GL/Vulkan, exports to web (wasm), iOS, Android.
-   Mic is `AudioStreamMicrophone` with `AudioEffectCapture`, and
-   `audio/driver/enable_input` must be true. C#/.NET projects still cannot
-   export to web, so stay GDScript. Agent-friendliness is fine (text `.tscn`
-   and `.gd`, headless `godot --export-release`), but the editor is where
-   kids will live, and the project instruction file reads less like a Linux
-   project and more like engine conventions.
-4. **Expo (React Native)** and **Flutter** — mobile-first frameworks with
-   web targets. Both carry heavier toolchains and a less direct canvas story
-   than the Vite pair; listed for completeness, not favored.
-5. **p5.js** (`sketch.js`) — the smallest possible creative-coding start,
-   good for the youngest users, but plain JS by default, which the
-   no-untyped-JS rule above argues against unless paired with a TS setup.
+- **`canvas-ts` is Vite + TypeScript + Canvas2D**, built by plain
+  `npm create vite`, dev server on a loopback port behind a vhost row, hot
+  reload straight into the pane. `getUserMedia` plus `AudioWorklet` for the
+  mic, behind a "tap to start" screen, which the user-gesture requirement
+  forces and which is also good game design. The base tree also carries the
+  in-page console forwarder (next section) and a PWA manifest, which gives
+  "Add to Home Screen" on iPad without any packaging step. A project
+  `AGENTS.md` of about twenty lines suffices.
+- **Elements over that base:** `webgl` (WebGL2 through a thin library, or
+  three.js for 3D), `graphics` (nanovg over wasm/WebGL, optional and
+  expected to go unused), `mobile-shell` (Capacitor; needs a desktop with
+  Xcode/Android Studio and matters only at packaging), `server`.
+- **Godot 4** survives only as a possible later template on the vhost path
+  for an explicit engine-learning goal. Expo, Flutter, and standalone p5.js
+  are out. The reasoning for each set-aside option is in
+  [`project-templates.sketches.md`](project-templates.sketches.md).
+
+Two constraints that hold whatever the stack:
+
+- **iOS Safari is the real limit.** No WebGPU on older iPads, audio input
+  only after a gesture, and `AudioWorklet` inside a web view has broken
+  across versions. Test the mic on the actual device before promising it.
+- **The pane iframe must grant the permissions the app needs.** `getUserMedia`
+  inside an iframe fails unless the embedding frame sets
+  `allow="microphone"` (likewise `camera`, `gamepad`, and `fullscreen` if a
+  later full-screen toggle uses the Fullscreen API rather than a YA layout
+  change), and the page must be a secure context, which localhost and the
+  https hosted client both are. This is a requirement on
+  [[session-right-pane]], not on templates.
 
 ## Runtime observability: where the agent sees the app's console
 
@@ -387,10 +396,55 @@ Candidate mechanisms, per stack:
 
 The template's `AGENTS.md` should state which of these is wired, the exact
 command or file to watch, and an optional filter (a prefix or level) whose
-matching lines are worth pasting into a session. Whether YA itself should
-auto-forward such excerpts into the agent's context, rather than leaving the
-agent to tail a file, is an open decision below; if it does, the forwarder
-element is the natural attachment point.
+matching lines are worth pasting into a session.
+
+**Pane channel (decided 2026-09-20).** Because the app runs inside YA's own
+client, the forwarder needs no server of its own: the base tree ships a few
+lines that `postMessage` console and error events to the parent frame, and
+the App pane collects them. That gives the agent the console from whatever
+device the kid is holding, including an iPad with no dev tools, with no
+Playwright. The same channel carries the reverse direction for
+comment-on-asset: tap or click a spot in the pane, and YA asks the app what
+is at that point, attaches the answer with a screenshot crop and the recent
+console tail, and lands it as the next turn. Plannotator-style annotation is
+the prior art. The template ships the in-page half with a stable message
+shape; YA owns the pane half, including the origin check, and offers "send
+recent errors to session" or attaches them to the next turn. That pane half
+belongs to [[session-right-pane]] and [[interactives]] phase 4, not to the
+template repository. Direct-edit tooling stays out of scope: the agent
+already edits files, and a live-tweak surface for numbers is an element the
+agent adds when asked.
+
+## Reaching the pane from a tablet over relay
+
+The encrypted relay carries only YA protocol. Grant management rides it, but
+artifact documents and vhost apps travel directly from the browser to the
+artifact origin, which must be reachable on its own
+([[active-content-security]] § Configuration and delivery). Serving the
+hosted client over https therefore says nothing about whether the pane can
+load the app.
+
+**Chosen path: a public wildcard to the artifact listener.** This is what
+the design already assumes: the operator tunnels `*.<root>` to the artifact
+port with Host preserved. On this deployment the `*.graehl.org` wildcard DNS
+record already exists, so what remains is one catch-all ingress rule on the
+existing `cloudflared` tunnel to `127.0.0.1:4402`, ordered after the
+specific `relay` and `ya` hostnames, and `graehl.org` as the public root in
+Settings → Apps. After that `breakout.graehl.org` works from any device with
+no client software, vhosts stay behind the app-scoped bearer, and static
+bundles use the artifact origin the same way. Reserved app names must then
+also avoid the hostnames already in use on that root (`relay`, `ya`, `www`),
+which the reservation collision check should cover.
+
+The wildcard is per YA server deployment: each operator brings their own
+DNS record and tunnel, and the relay is uninvolved. Name reservation is
+likewise local to that server's Apps rows; there is no public or shared
+name registry. A deployment without a public root has no vhost reach from a
+remote tablet, so a template must still work when only artifact-grant static
+delivery is available, and the chooser should say which reach paths the
+current server offers. Tailscale,
+an SSH tunnel from the tablet, and emulators were weighed and set aside; see
+[`project-templates.sketches.md`](project-templates.sketches.md) § Reach paths.
 
 ## Phases
 
@@ -404,10 +458,12 @@ element is the natural attachment point.
    landing command field and Templates link. ‖
 3. **Element layer and shipped set.** Element prompt documents with
    optional accelerators, base `AGENTS.md` lazy-apply instructions; shipped
-   templates: `batch`, `chat-turn` (client state), `canvas-ts` (default
-   canvas), `canvas-wasm-zig`, `chat-turn-server` (HTTP + SSE); `graphics`
-   and `server` as add-on elements. Bundle export/import and URL import;
-   save-project-as-template. ‖
+   templates: `canvas-ts` (the one real template, per § Stack decision),
+   `batch`, and `chat-turn` (client state); `webgl`, `graphics`,
+   `mobile-shell`, and `server` as add-on elements (a `chat-turn` +
+   `server` project replaces the earlier `chat-turn-server` template, and
+   `canvas-ts` + `graphics` the earlier `canvas-wasm-zig`). Bundle
+   export/import and URL import; save-project-as-template. ‖
 4. **Project-linked reach.** Project-declared vhost row / subdomain and the
    turn-view library's relation to YA's client; any managed lifecycle. This
    phase is where [[interactives]] and its architectural review govern.
@@ -440,12 +496,16 @@ element is the natural attachment point.
 - Whether artifact-path CSP should gain `worker-src 'self'` and COOP/COEP for
   static bundles; that is an [[active-content-security]] decision, recorded
   here only as the template-side need.
-- Which stack from *Candidate stacks* becomes the default `canvas-ts`
-  template, and whether Capacitor and Godot are separate templates or
-  elements over a shared base.
-- Whether YA auto-forwards a filtered subset of the app's console/error
-  stream into the agent's context (a per-project setting naming the file or
-  endpoint), or the boot prompt only tells the agent where to tail it.
+- The pane channel's message shape and origin check, and whether the pane
+  attaches recent console/errors to the next turn automatically, on a
+  per-project setting, or only on an explicit "send to session" action.
+- Which `allow` permissions the App pane iframe grants by default
+  (microphone, camera, gamepad, fullscreen) and whether that is a per-app
+  row setting.
+- Unverified beliefs to check on the actual tablet before the SSH-tunnel
+  path in the sketches is offered to anyone: Android Chrome resolving
+  `*.localhost` without DNS, and exempting `localhost` origins from
+  mixed-content blocking inside the https hosted client.
 
 ## See also
 
@@ -454,7 +514,10 @@ element is the natural attachment point.
 - [[active-content-security]] — artifact grants, vhost rows, private app
   links, and the CSP that bounds static wasm/JS bundles.
 - [[session-right-pane]] — where a created project's app appears beside the
-  session.
+  session; owner of the iframe `allow` grants and the pane half of the
+  console/comment channel.
+- [`project-templates.sketches.md`](project-templates.sketches.md) — stacks
+  and reach paths weighed and set aside, with the reasoning.
 - [[project-directory-storage]] — what YA may write inside a project after
   creation.
 - [[emulated-slash-commands]], [[bang-commands]] — the composer command
