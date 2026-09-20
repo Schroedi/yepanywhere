@@ -18,6 +18,16 @@ Fresh visits select the non-archived filter, narrowing both title results and
 Ctrl+R/Ctrl+S turn acquisition. Explicit URL status filters remain authoritative;
 an empty `status=` preserves a deliberately cleared filter across navigation.
 
+The Projects filter lists every project the server currently lists, sorted by
+name, under an explicit first row, All projects, that clears the project
+filter; it is highlighted while no project is selected, so returning to every
+project is a visible choice rather than a second click on the current one.
+Removed projects are not listed: removal hides a project and its sessions from
+the server's lists. The list stays current because adding, removing, or
+renaming a project advances the session collection generation
+([project names](project-names.md)); before that, a removed project could
+linger and a new one go missing until an unrelated session event.
+
 User and Ass. currently search visible prose. Command strings and tool inputs,
 edit additions, removed/context lines, baseline/read file contents, tool output,
 reasoning and image/media payloads are excluded. This matches ordinary C-s's

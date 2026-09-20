@@ -627,10 +627,16 @@ function SessionSearchPage() {
               className={styles.dropdownContainer}
               placeholder={t("sessionSearchProjects")}
               triggerClassName={styles.dropdown}
-              options={feed.projects.map((p) => ({
-                value: p.id,
-                label: p.name,
-              }))}
+              options={[
+                // An explicit first row, so returning to every project is a
+                // visible choice rather than a re-click on the current one.
+                {
+                  value: "",
+                  label: t("globalSessionsFilterProjectPlaceholder"),
+                  clearSelection: true,
+                },
+                ...feed.projects.map((p) => ({ value: p.id, label: p.name })),
+              ]}
               selected={project ? [project] : []}
               onChange={(value) => changeParam("project", value[0] ?? "")}
               multiSelect={false}

@@ -9,6 +9,7 @@ import type {
   ProjectCaptionsChangedEvent,
   ProjectCodeNameChangedEvent,
   ProjectQueueChangedEvent,
+  ProjectsChangedEvent,
   ProviderName,
   ProviderRuntimeStatus,
   PromptSuggestionMode,
@@ -260,6 +261,7 @@ export interface ActivityEventMap {
   "project-queue-changed": ProjectQueueChangedEvent;
   "project-code-names-changed": ProjectCodeNameChangedEvent;
   "project-captions-changed": ProjectCaptionsChangedEvent;
+  "projects-changed": ProjectsChangedEvent;
   "workstreams-changed": WorkstreamsChangedEvent;
   "session-queue-persistence-changed": SessionQueuePersistenceChangedEvent;
   "session-metadata-changed": SessionMetadataChangedEvent;
@@ -671,6 +673,7 @@ class ActivityBus {
       "project-queue-changed",
       "project-code-names-changed",
       "project-captions-changed",
+      "projects-changed",
       "workstreams-changed",
       "session-queue-persistence-changed",
       "session-metadata-changed",

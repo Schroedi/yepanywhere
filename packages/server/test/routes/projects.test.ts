@@ -5,7 +5,7 @@ import { toUrlProjectId, type UrlProjectId } from "@yep-anywhere/shared";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectMetadataService } from "../../src/metadata/index.js";
 import { clearProjectCaptionCache } from "../../src/projects/projectCaption.js";
-import type { ProjectScanner } from "../../src/projects/scanner.js";
+import { ProjectScanner } from "../../src/projects/scanner.js";
 import { createProjectsRoutes } from "../../src/routes/projects.js";
 import type { CodexSessionReader } from "../../src/sessions/codex-reader.js";
 import type { ISessionReader } from "../../src/sessions/types.js";
@@ -275,6 +275,95 @@ describe("Projects Routes", () => {
       expect(tooLong.status).toBe(400);
     } finally {
       clearProjectCaptionCache();
+      await rm(dataDir, { recursive: true, force: true });
+      await rm(projectDir, { recursive: true, force: true });
+    }
+  });
+
+  it("adds a project under a chosen name and code, then announces the change", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "ya-named-route-"));
+    const projectDir = await mkdtemp(join(tmpdir(), "ya-named-project-"));
+    try {
+      const metadata = new ProjectMetadataService({ dataDir });
+      await metadata.initialize();
+      const scanner = new ProjectScanner({
+        projectsDir: join(dataDir, "claude-projects"),
+        projectMetadataService: metadata,
+        enableCodex: false,
+        enableGemini: false,
+      });
+      const emit = vi.fn();
+      const routes = createProjectsRoutes({
+        scanner,
+        readerFactory: vi.fn(),
+        projectMetadataService: metadata,
+        eventBus: { emit } as unknown as NonNullable<
+          Parameters<typeof createProjectsRoutes>[0]["eventBus"]
+        >,
+      });
+      const projectId = toUrlProjectId(projectDir);
+      const post = (body: unknown) =>
+        routes.request("/", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+      // A rejected name adds nothing.
+      const tooLong = await post({ path: projectDir, name: "x".repeat(81) });
+      expect(tooLong.status).toBe(400);
+      expect(metadata.isAddedProject(projectId)).toBe(false);
+
+      const added = await post({
+        path: projectDir,
+        name: "  Chosen   Name ",
+        codeName: "chs",
+      });
+      expect(added.status).toBe(200);
+      expect((await added.json()).project).toMatchObject({
+        id: projectId,
+        name: "Chosen Name",
+        codeName: "chs",
+      });
+      expect(emit).toHaveBeenCalledWith({
+        type: "projects-changed",
+        projectIds: [projectId],
+        timestamp: expect.any(String),
+      });
+
+      // Every later read carries the chosen name.
+      const listed = (await (await routes.request("/")).json()).projects;
+      expect(
+        listed.find((p: { id: string }) => p.id === projectId),
+      ).toMatchObject({ name: "Chosen Name", codeName: "chs" });
+
+      const patch = (name: string | null) =>
+        routes.request(`/${projectId}/name`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+      expect((await patch("x".repeat(81))).status).toBe(400);
+      const renamed = await patch("Renamed");
+      expect(renamed.status).toBe(200);
+      await expect(renamed.json()).resolves.toEqual({ name: "Renamed" });
+      const cleared = await patch(null);
+      expect(cleared.status).toBe(200);
+      await expect(cleared.json()).resolves.toEqual({
+        name: projectDir.slice(projectDir.lastIndexOf("/") + 1),
+      });
+
+      emit.mockClear();
+      const removed = await routes.request(`/${projectId}`, {
+        method: "DELETE",
+      });
+      expect(removed.status).toBe(200);
+      expect(emit).toHaveBeenCalledWith({
+        type: "projects-changed",
+        projectIds: [projectId],
+        timestamp: expect.any(String),
+      });
+    } finally {
       await rm(dataDir, { recursive: true, force: true });
       await rm(projectDir, { recursive: true, force: true });
     }

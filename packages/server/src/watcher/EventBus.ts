@@ -13,6 +13,7 @@ import type {
   ProjectCaptionsChangedEvent,
   ProjectCodeNameChangedEvent,
   ProjectQueueChangedEvent,
+  ProjectsChangedEvent,
   ProviderName,
   ProviderRuntimeStatus,
   PromptSuggestionMode,
@@ -378,6 +379,7 @@ export type BusEvent =
   | ProjectQueueChangedEvent
   | ProjectCodeNameChangedEvent
   | ProjectCaptionsChangedEvent
+  | ProjectsChangedEvent
   | SessionMetadataChangedEvent
   | SessionAbortedEvent
   | SessionStopRequestedEvent

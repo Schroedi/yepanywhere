@@ -104,8 +104,20 @@ vi.mock("../../components/BulkActionBar", () => ({
   BulkActionBar: () => null,
 }));
 
+const filterDropdowns = vi.hoisted(
+  () =>
+    [] as Array<{
+      label: string;
+      options: Array<{ value: string; label: string; clearSelection?: true }>;
+      onChange: (selected: string[]) => void;
+    }>,
+);
+
 vi.mock("../../components/FilterDropdown", () => ({
-  FilterDropdown: () => <div data-testid="filter-dropdown" />,
+  FilterDropdown: (props: (typeof filterDropdowns)[number]) => {
+    filterDropdowns.push(props);
+    return <div data-testid="filter-dropdown" />;
+  },
 }));
 
 vi.mock("../../components/PageHeader", () => ({
@@ -630,6 +642,29 @@ describe("GlobalSessionsPage", () => {
     expect(mockNavigate).toHaveBeenCalledWith(
       "/new-session?projectId=project-1",
     );
+  });
+
+  it("offers every project as the first choice in the project filter", () => {
+    filterDropdowns.length = 0;
+    renderPage("/sessions?project=project-1");
+    expect(screen.getByText("Open session for")).toBeDefined();
+
+    const projectFilter = filterDropdowns.find(
+      (dropdown) => dropdown.label === "Projects",
+    );
+    expect(projectFilter?.options[0]).toEqual({
+      value: "",
+      label: "All projects",
+      clearSelection: true,
+    });
+    expect(projectFilter?.options[1]).toEqual({
+      value: "project-1",
+      label: "Alpha",
+    });
+
+    // Choosing it clears the project filter, so the project CTA goes away.
+    act(() => projectFilter?.onChange([]));
+    expect(screen.queryByText("Open session for")).toBe(null);
   });
 
   it("shows the project CTA for project-filtered views without a source hint", () => {

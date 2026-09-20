@@ -2566,6 +2566,38 @@ export const SERVER_CAPABILITIES = {
         "Hosted clients can outpace installed servers, which neither derive captions nor accept caption overrides.",
     },
   },
+  projectNames: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectNames.id,
+    name: "project-names",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Server accepts a chosen project name and code name when a project is added, stores a name override in app data, applies it wherever the project is named, and announces project list changes.",
+    clientFallback:
+      "Add projects by path alone, show the path's last component as the name, and make no name request.",
+    serverContract: {
+      routes: [
+        "GET /api/projects",
+        "GET /api/projects/:projectId",
+        "POST /api/projects",
+        "PATCH /api/projects/:projectId/name",
+      ],
+      requestFields: [
+        "addProject.name",
+        "addProject.codeName",
+        "projectName.name",
+      ],
+      responseFields: ["projects[].name", "project.name"],
+      events: ["projects-changed"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Hosted clients can outpace installed servers, which ignore a chosen name and would silently add the project under its path name.",
+    },
+  },
   sidebarSessionResume: {
     id: CAPABILITY_ID_ALLOCATIONS.sidebarSessionResume.id,
     name: "sidebar-session-resume",
@@ -2900,6 +2932,7 @@ export const PROJECT_CODE_NAMES_CAPABILITY =
   SERVER_CAPABILITIES.projectCodeNames.name;
 export const PROJECT_CAPTIONS_CAPABILITY =
   SERVER_CAPABILITIES.projectCaptions.name;
+export const PROJECT_NAMES_CAPABILITY = SERVER_CAPABILITIES.projectNames.name;
 export const SIDEBAR_SESSION_RESUME_CAPABILITY =
   SERVER_CAPABILITIES.sidebarSessionResume.name;
 export const SYNTHETIC_DONE_COMMAND_CAPABILITY =

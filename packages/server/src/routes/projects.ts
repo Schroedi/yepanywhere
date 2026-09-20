@@ -2,6 +2,8 @@ import { homedir } from "node:os";
 import {
   isUrlProjectId,
   normalizeProjectCaption,
+  normalizeProjectCodeName,
+  normalizeProjectName,
   toUrlProjectId,
   type ProjectCaption,
   type ProjectQueueItemSummary,
@@ -26,6 +28,7 @@ import {
   canonicalizeProjectPath,
   decodeProjectId,
   getProjectIdentityKey,
+  getProjectName,
   isAbsolutePath,
   isDetachedProjectPath,
 } from "../projects/paths.js";
@@ -261,6 +264,31 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
     });
   }
 
+  /**
+   * A project was added, removed, or renamed. Besides refreshing project
+   * lists, this bumps the global session collection: the All Sessions
+   * project filter is served from a generation-gated cache that otherwise
+   * keeps offering removed projects and never learns of new ones.
+   */
+  function publishProjectsChanged(projectIds: readonly string[]): void {
+    deps.eventBus?.emit({
+      type: "projects-changed",
+      projectIds: [...projectIds],
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /** Every listed project plus `project` when it is not listed yet. */
+  async function codeNameScope(project: Project): Promise<Project[]> {
+    const visibleProjects = (await deps.scanner.listProjects()).filter(
+      (candidate) => !isDetachedProjectPath(candidate.path),
+    );
+    if (!visibleProjects.some((candidate) => candidate.id === project.id)) {
+      visibleProjects.push(project);
+    }
+    return visibleProjects;
+  }
+
   /** User override first, else the cached README/manifest derivation. */
   async function captionForProject(
     project: Project,
@@ -493,7 +521,12 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
   // POST /api/projects - Add a project by path
   // Validates the path exists on disk and returns project info
   routes.post("/", async (c) => {
-    let body: { path: string; create?: boolean };
+    let body: {
+      path: string;
+      create?: boolean;
+      name?: unknown;
+      codeName?: unknown;
+    };
     try {
       body = await c.req.json();
     } catch {
@@ -502,6 +535,34 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
 
     if (!body.path || typeof body.path !== "string") {
       return c.json({ error: "path is required" }, 400);
+    }
+
+    // The chosen name and code name are validated before anything is
+    // persisted, so a rejected request adds nothing. An omitted or blank
+    // name keeps the path's last component; an omitted code name is
+    // allocated by the server as before.
+    let chosenName: string | null = null;
+    let chosenCodeName: string | null = null;
+    try {
+      if (body.name !== undefined) {
+        if (typeof body.name !== "string") {
+          return c.json({ error: "name must be a string" }, 400);
+        }
+        chosenName = normalizeProjectName(body.name) || null;
+      }
+      if (body.codeName !== undefined) {
+        if (typeof body.codeName !== "string") {
+          return c.json({ error: "codeName must be a string" }, 400);
+        }
+        chosenCodeName = body.codeName.trim()
+          ? normalizeProjectCodeName(body.codeName)
+          : null;
+      }
+    } catch (error) {
+      if (error instanceof RangeError) {
+        return c.json({ error: error.message }, 400);
+      }
+      throw error;
     }
 
     // Normalize path (remove trailing slashes, expand ~)
@@ -539,7 +600,7 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
 
     // Create projectId and try to get/create the project
     const projectId = toUrlProjectId(normalizedPath);
-    const project = await deps.scanner.getOrCreateProject(projectId);
+    let project = await deps.scanner.getOrCreateProject(projectId);
 
     if (!project) {
       return c.json(
@@ -556,8 +617,30 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
         normalizedPath,
         creation.ownerUsername,
       );
+      // A name equal to the path's own is no override at all.
+      if (
+        chosenName !== null &&
+        chosenName !== getProjectName(normalizedPath)
+      ) {
+        await deps.projectMetadataService.setProjectNameOverride(
+          project.id,
+          chosenName,
+        );
+      }
       deps.scanner.invalidateCache();
+      // Re-read so the response, and the code-name allocation below, see
+      // the chosen name.
+      project = (await deps.scanner.getOrCreateProject(projectId)) ?? project;
+      if (chosenCodeName !== null) {
+        const update = await deps.projectMetadataService.setProjectCodeName(
+          project.id,
+          chosenCodeName,
+          await codeNameScope(project),
+        );
+        publishCodeNameChanges(update.changedProjectIds);
+      }
     }
+    publishProjectsChanged([project.id]);
 
     const codeNameByProjectId = await codeNamesForProjects([project]);
     return c.json({
@@ -622,6 +705,50 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
     return c.json({ caption: await captionForProject(project) });
   });
 
+  // PATCH /api/projects/:projectId/name - set or clear the chosen name
+  routes.patch("/:projectId/name", async (c) => {
+    const projectId = c.req.param("projectId");
+    if (!isUrlProjectId(projectId)) {
+      return c.json({ error: "Invalid project ID format" }, 400);
+    }
+    if (!deps.projectMetadataService) {
+      return c.json({ error: "Project renaming is unavailable" }, 501);
+    }
+
+    let body: { name?: unknown };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+    if (body.name !== null && typeof body.name !== "string") {
+      return c.json({ error: "name must be a string or null" }, 400);
+    }
+
+    const project = await deps.scanner.getOrCreateProject(projectId);
+    if (!project) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+
+    let name: string | null;
+    try {
+      name = body.name === null ? null : normalizeProjectName(body.name);
+      if (name === "" || name === getProjectName(project.path)) name = null;
+    } catch (error) {
+      if (error instanceof RangeError) {
+        return c.json({ error: error.message }, 400);
+      }
+      throw error;
+    }
+
+    await deps.projectMetadataService.setProjectNameOverride(project.id, name);
+    deps.scanner.invalidateCache();
+    publishProjectsChanged([project.id]);
+    const renamed =
+      (await deps.scanner.getOrCreateProject(projectId)) ?? project;
+    return c.json({ name: renamed.name });
+  });
+
   routes.patch("/:projectId/code-name", async (c) => {
     const projectId = c.req.param("projectId");
     if (!isUrlProjectId(projectId)) {
@@ -645,18 +772,12 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
     if (!project) {
       return c.json({ error: "Project not found" }, 404);
     }
-    const visibleProjects = (await deps.scanner.listProjects()).filter(
-      (candidate) => !isDetachedProjectPath(candidate.path),
-    );
-    if (!visibleProjects.some((candidate) => candidate.id === project.id)) {
-      visibleProjects.push(project);
-    }
 
     try {
       const update = await deps.projectMetadataService.setProjectCodeName(
         project.id,
         body.codeName,
-        visibleProjects,
+        await codeNameScope(project),
       );
       publishCodeNameChanges(update.changedProjectIds);
       return c.json({ assignments: update.assignments });
@@ -688,6 +809,7 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
 
     await deps.projectMetadataService.hideProject(project.id, project.path);
     deps.scanner.invalidateCache();
+    publishProjectsChanged([project.id]);
 
     return c.json({
       removed: true,

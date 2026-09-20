@@ -548,9 +548,18 @@ the same ledger:
 | 77 | server | 0.8.2 | `claude-gateway-services` |
 | 78 | server | 0.8.2 | `session-rewind` |
 | 79 | server | 0.8.2 | `project-captions` |
+| 80 | server | 0.8.2 | `project-names` |
 
 The code ledger is authoritative. The next client or server capability takes
-ID 80; retired rows stay in the ledger as reserved IDs.
+ID 81; retired rows stay in the ledger as reserved IDs.
+
+`project-names` (ID 80, permanent, version-implied from 0.8.2) owns the
+`name` and `codeName` request fields on `POST /api/projects`,
+`PATCH /api/projects/:projectId/name`, and the `projects-changed` event. The
+2026-09-20 optional-feature horizon is v0.8.0 and v0.8.1; neither has any of
+these. Without the capability the Projects add form is path-only and the
+client sends neither field, since an older server would silently add the
+project under its path name. See [project names](project-names.md).
 
 `project-captions` (ID 79, permanent, version-implied from 0.8.2) owns the
 additive `caption` field on project list, detail, and create responses,

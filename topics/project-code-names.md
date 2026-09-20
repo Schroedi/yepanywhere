@@ -83,6 +83,11 @@ the winner.
 
 ## Editing and conflicts
 
+A project may be given its code when it is added: with short code names
+enabled, the Projects add form shows the allocation the chosen name would get
+and accepts an edit before the project exists
+([project names](project-names.md)). A code chosen there is an explicit edit.
+
 Every syntactically valid explicit user edit wins. Manual values are not subject
 to the generated prefix/full-name collision rule. If another project already
 owns the exact code, that project is automatically assigned the first available

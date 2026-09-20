@@ -64,6 +64,12 @@ export interface ProjectCaptionMetadata {
   updatedAt: string;
 }
 
+export interface ProjectNameMetadata {
+  /** User-chosen name that replaces the path's last component. */
+  name: string;
+  updatedAt: string;
+}
+
 export interface ProjectMetadataState {
   /** Map of projectId -> metadata */
   projects: Record<string, ProjectMetadata>;
@@ -75,6 +81,8 @@ export interface ProjectMetadataState {
   projectCodeNames?: Record<string, ProjectCodeNameMetadata>;
   /** User caption overrides; absent entries fall back to derived captions. */
   projectCaptions?: Record<string, ProjectCaptionMetadata>;
+  /** User name overrides; absent entries use the path's last component. */
+  projectNames?: Record<string, ProjectNameMetadata>;
   /** Schema version for future migrations */
   version: number;
 }
@@ -137,6 +145,7 @@ export class ProjectMetadataService {
           projectSessionDefaults: parsed.projectSessionDefaults ?? {},
           projectCodeNames: parsed.projectCodeNames ?? {},
           projectCaptions: parsed.projectCaptions ?? {},
+          projectNames: parsed.projectNames ?? {},
           version: CURRENT_VERSION,
         });
         await this.save();
@@ -203,6 +212,32 @@ export class ProjectMetadataService {
   getProjectCaptionOverride(projectId: string): string | undefined {
     return this.state.projectCaptions?.[this.canonicalProjectId(projectId)]
       ?.caption;
+  }
+
+  getProjectNameOverride(projectId: string): string | undefined {
+    return this.state.projectNames?.[this.canonicalProjectId(projectId)]?.name;
+  }
+
+  /**
+   * Set or clear (with `null`) the user-chosen project name. The caller
+   * normalizes and validates the text.
+   */
+  async setProjectNameOverride(
+    projectId: string,
+    name: string | null,
+  ): Promise<void> {
+    const canonicalProjectId = this.canonicalProjectId(projectId);
+    this.state.projectNames ??= {};
+    if (name === null) {
+      if (!(canonicalProjectId in this.state.projectNames)) return;
+      delete this.state.projectNames[canonicalProjectId];
+    } else {
+      this.state.projectNames[canonicalProjectId] = {
+        name,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    await this.save();
   }
 
   /**
@@ -417,6 +452,8 @@ export class ProjectMetadataService {
     this.deleteHiddenProjectsByIdentity(canonicalPath);
     delete this.state.projectCodeNames?.[canonicalProjectId];
     delete this.state.projectCodeNames?.[projectId];
+    delete this.state.projectNames?.[canonicalProjectId];
+    delete this.state.projectNames?.[projectId];
     this.state.hiddenProjects ??= {};
     this.state.hiddenProjects[canonicalProjectId] = {
       path: canonicalPath,
@@ -482,6 +519,7 @@ export class ProjectMetadataService {
     >();
     const projectCodeNames = new Map<string, ProjectCodeNameMetadata>();
     const projectCaptions = new Map<string, ProjectCaptionMetadata>();
+    const projectNames = new Map<string, ProjectNameMetadata>();
 
     for (const [projectId, metadata] of Object.entries(state.projects ?? {})) {
       const canonicalPath = canonicalizeProjectPath(metadata.path);
@@ -601,6 +639,32 @@ export class ProjectMetadataService {
       }
     }
 
+    for (const [projectId, metadata] of Object.entries(
+      state.projectNames ?? {},
+    )) {
+      if (
+        !metadata ||
+        typeof metadata.name !== "string" ||
+        !metadata.name.trim()
+      ) {
+        continue;
+      }
+      const canonicalProjectId = this.canonicalProjectId(projectId);
+      const updatedAt = Number.isFinite(new Date(metadata.updatedAt).getTime())
+        ? metadata.updatedAt
+        : new Date(0).toISOString();
+      const existing = projectNames.get(canonicalProjectId);
+      if (
+        !existing ||
+        new Date(updatedAt).getTime() >= new Date(existing.updatedAt).getTime()
+      ) {
+        projectNames.set(canonicalProjectId, {
+          name: metadata.name,
+          updatedAt,
+        });
+      }
+    }
+
     const projects: Record<string, ProjectMetadata> = {};
     for (const { projectId, metadata } of projectsByIdentity.values()) {
       projects[projectId] = metadata;
@@ -617,6 +681,7 @@ export class ProjectMetadataService {
       projectSessionDefaults: Object.fromEntries(projectSessionDefaults),
       projectCodeNames: Object.fromEntries(projectCodeNames),
       projectCaptions: Object.fromEntries(projectCaptions),
+      projectNames: Object.fromEntries(projectNames),
       version: CURRENT_VERSION,
     };
   }
