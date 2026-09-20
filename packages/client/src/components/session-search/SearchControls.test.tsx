@@ -61,6 +61,58 @@ function renderControls() {
   return needle as HTMLInputElement;
 }
 
+function renderHeader(supported: boolean, supportKnown: boolean) {
+  const view = render(
+    <I18nProvider>
+      <SearchHeader
+        query=""
+        onQuery={onQuery}
+        fields={["title"]}
+        onFields={onFields}
+        supported={supported}
+        supportKnown={supportKnown}
+        sessionCount={2}
+        scanning={false}
+        acquiring={false}
+      />
+    </I18nProvider>,
+  );
+  return (nextSupported: boolean, nextSupportKnown: boolean) =>
+    view.rerender(
+      <I18nProvider>
+        <SearchHeader
+          query=""
+          onQuery={onQuery}
+          fields={["title"]}
+          onFields={onFields}
+          supported={nextSupported}
+          supportKnown={nextSupportKnown}
+          sessionCount={2}
+          scanning={false}
+          acquiring={false}
+        />
+      </I18nProvider>,
+    );
+}
+
+it("applies a field shortcut pressed before the capability read resolves", () => {
+  const rerender = renderHeader(false, false);
+  fireEvent.keyDown(document, { key: "r", ctrlKey: true });
+  expect(onFields).not.toHaveBeenCalled();
+  rerender(true, true);
+  expect(onFields).toHaveBeenCalledWith(["user"]);
+});
+
+it("discards a held field shortcut once the read reports no support", () => {
+  const rerender = renderHeader(false, false);
+  fireEvent.keyDown(document, { key: "s", ctrlKey: true });
+  rerender(false, true);
+  expect(onFields).not.toHaveBeenCalled();
+  // The answer consumed the press: later support does not replay it.
+  rerender(true, true);
+  expect(onFields).not.toHaveBeenCalled();
+});
+
 it("leaves Space to a focused control instead of typing it into the needle", () => {
   const needle = renderControls();
   for (const control of [

@@ -38,6 +38,7 @@ export function SearchHeader({
   fields,
   onFields,
   supported,
+  supportKnown = true,
   status,
   sessionCount,
   scanning,
@@ -48,6 +49,12 @@ export function SearchHeader({
   fields: SearchField[];
   onFields(value: SearchField[]): void;
   supported: boolean;
+  /**
+   * Whether the capability read behind `supported` has resolved. While it has
+   * not, `supported` is merely "not yet known", so a C-s/C-r press is held
+   * rather than dropped: see the pending-field effect below.
+   */
+  supportKnown?: boolean;
   status?: string;
   sessionCount: number;
   scanning: boolean;
@@ -56,6 +63,7 @@ export function SearchHeader({
   const { t } = useI18n();
   const input = useRef<HTMLInputElement>(null);
   const statusArea = useRef<HTMLDivElement>(null);
+  const pendingField = useRef<SearchField | null>(null);
   const [statusOpen, setStatusOpen] = useState(false);
   useEffect(() => {
     if (!status) setStatusOpen(false);
@@ -165,13 +173,26 @@ export function SearchHeader({
       )
         return;
       event.preventDefault();
-      if (supported)
-        onFields([event.key.toLowerCase() === "s" ? "assistant" : "user"]);
+      const field = event.key.toLowerCase() === "s" ? "assistant" : "user";
+      // The capability read that decides `supported` is a fetch, so a press
+      // landing in the first moments of the page would otherwise vanish: the
+      // field checkboxes are still disabled and this handler had nothing to
+      // apply. Hold it instead, and apply it when the answer arrives.
+      if (supported) onFields([field]);
+      else if (!supportKnown) pendingField.current = field;
       input.current?.focus();
     };
     document.addEventListener("keydown", keydown);
     return () => document.removeEventListener("keydown", keydown);
-  }, [onFields, supported]);
+  }, [onFields, supported, supportKnown]);
+  useEffect(() => {
+    const field = pendingField.current;
+    if (!field || !supportKnown) return;
+    pendingField.current = null;
+    // A read that resolved to "unsupported" answers the held press: there is
+    // no content search to turn on, so it is discarded rather than queued.
+    if (supported) onFields([field]);
+  }, [onFields, supported, supportKnown]);
   return (
     <div className={styles.header}>
       <div className={styles.fields}>

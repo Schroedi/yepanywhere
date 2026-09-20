@@ -114,5 +114,59 @@ failing through their retries at ~31s, the fixture-discovery shape described
 above. Android App CI, Server Runtime And SQLite, and Desktop CI passed on
 both remotes at that commit, so this file remains the only thing red.
 
+2026-09-20 — one cause found, reproduced locally, and fixed. It accounts for
+three of the five CI failures: the appended-turn discovery timeout and
+streaming-and-selection on both viewports.
+
+The C-s/C-r field shortcuts and the Ass./User checkboxes are gated on
+`SESSION_CONTENT_SEARCH_CAPABILITY`, read from `useVersion()` — a fetch. Until
+it answers, `supported` is false, so `SearchHeader`'s shortcut handler returned
+without doing anything and the press was gone. Nothing in these tests waits for
+that answer, because every assertion before the press (Title checked, Ass.
+unchecked) holds in both states. On a loaded CI runner the press lands first and
+is dropped:
+
+- "streams matches and preserves explicit selection" then reaches
+  `expect(title).not.toBeChecked()` with fields still `["title"]`, because the
+  C-r that should have selected the user field never happened and the following
+  `user.uncheck()` is a no-op. That is the ~6.3s deterministic failure with
+  "Received: checked" through all retries.
+- "follows appended turns" waits for a *content* match, which only the dropped
+  C-r would have enabled, so it times out at 30s with "element(s) not found".
+
+Reproduced by delaying `**/api/version*` in a local run: both failures appear
+with the exact CI error text and timings (31.0s "element(s) not found", 9.0s
+"Received: checked"). With the fix and a 1200ms delay both pass, and the
+failure snapshot confirms the held press is applied (User C-r checked).
+
+The fix is product-side, matching [early typing
+handoff](../topics/early-typing-handoff.md): a shortcut pressed while the
+capability answer is still outstanding is held and applied when it arrives, and
+discarded if the answer is "unsupported". A user loading /sessions and
+immediately pressing C-r was losing the press the same way.
+
+Still open: "reserves arriving matches and fits long titles" on both viewports,
+the remaining two failures. New evidence from the run-35474627087 artifacts,
+which corrects two earlier readings above:
+
+- The failure is not fixture-discovery latency. The snapshot reports "in 21
+  sessions" — which is `candidates.length` — and a local single-file run reports
+  the same 21, so the fixture is in the catalog and the count is not
+  CI-specific. The list says "No sessions found" with Title checked, so the
+  needle did not match the row the client holds.
+- All three attempts on both viewports show the identical snapshot, so this is
+  not a timer race like the reflow cause fixed on 2026-09-18.
+
+The needle sits at offset ~465 of a ~895-char first user message, past
+`SESSION_TITLE_MAX_LENGTH` (120), so `titleMatches` can only reach it through
+the `fullTitle`/`initialPrompt` candidate — and that candidate, unlike the
+display-title one, is gated on `inTimeRange(session.createdAt, …)`. That makes
+the row's `fullTitle`/`initialPrompt` and `createdAt` the fields to establish.
+Attempts to confirm this by rewriting the catalog response in a local run were
+discarded as untrustworthy: nulling `fullTitle` made the match *succeed*, which
+the code cannot explain, so the interception was not taking effect as intended.
+Instrument the actual CI row rather than simulating it.
+
 Found 2026-09-15 while reporting source CI after publishing the catch-up fix.
 Contributing-model: 6-Astra
+Contributing-model: Opus 5

@@ -583,6 +583,7 @@ function SessionSearchPage() {
             fields={effectiveFields}
             onFields={updateFields}
             supported={supported}
+            supportKnown={version !== null && version !== undefined}
             sessionCount={
               effectiveFields.includes("title")
                 ? candidates.length

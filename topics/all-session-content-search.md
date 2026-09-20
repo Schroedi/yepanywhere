@@ -76,7 +76,10 @@ reordering or revalidation does not dismiss it.
 
 Ctrl+S selects assistant search and Ctrl+R selects user search, focusing the
 search box. On a server without turn-search support they only focus title
-search. Desktop typing outside an actual text entry returns to the search's end
+search. Whether the server supports turn search is a fetched answer, so a press
+arriving before it is held rather than dropped: it applies when support is
+confirmed, and is discarded once the answer says unsupported. A reader who opens
+the page and immediately presses Ctrl+R gets user search, not silence. Desktop typing outside an actual text entry returns to the search's end
 and applies the typed character. A focused control keeps the keys it acts on:
 Space presses the focused button or toggles the focused checkbox instead of
 reaching the needle, while characters that control ignores still reach it, so
