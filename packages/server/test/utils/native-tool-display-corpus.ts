@@ -91,6 +91,7 @@ const claudeTools = [
   "BashOutput",
   "TaskOutput",
   "KillShell",
+  "Skill",
   "TaskCreate",
   "TaskUpdate",
 ] as const;

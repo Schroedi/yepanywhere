@@ -279,6 +279,7 @@ it("accounts for diagnostic schemas separately from display eligibility", () => 
     "Web",
     "UpdatePlan",
     "ViewImage",
+    "Skill",
     "spawn_agent",
     "TaskCreate",
     "TaskUpdate",

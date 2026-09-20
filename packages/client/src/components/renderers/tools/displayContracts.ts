@@ -473,6 +473,17 @@ export const KillShellDisplayResultSchema = z.object({
   message: string,
   shell_id: string,
 });
+// Claude's Skill tool loads a packaged instruction set into the turn. The
+// result reports which skill was launched, not the instructions themselves,
+// so `commandName` is the only content it carries.
+export const SkillDisplayInputSchema = z.object({
+  skill: string,
+  args: optionalString,
+});
+export const SkillDisplayResultSchema = z.object({
+  success: z.boolean(),
+  commandName: optionalString,
+});
 export const ViewImageDisplayInputSchema = z.object({ path: string });
 export const ViewImageDisplayResultSchema = z.union([
   string,

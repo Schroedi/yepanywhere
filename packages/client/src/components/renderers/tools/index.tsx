@@ -22,6 +22,7 @@ import {
 import { grepRenderer } from "./GrepRenderer";
 import { killShellRenderer } from "./KillShellRenderer";
 import { readRenderer } from "./ReadRenderer";
+import { skillRenderer } from "./SkillRenderer";
 import { spawnAgentRenderer } from "./SpawnAgentRenderer";
 import { taskOutputRenderer } from "./TaskOutputRenderer";
 import { taskCreateRenderer, taskUpdateRenderer } from "./TaskListRenderer";
@@ -63,6 +64,7 @@ const registeredTools = {
   BashOutput: bashOutputRenderer,
   TaskOutput: taskOutputRenderer,
   KillShell: killShellRenderer,
+  Skill: skillRenderer,
 } satisfies {
   [K in ToolDisplayName]: CheckedToolDefinition & { readonly tool: K };
 };
