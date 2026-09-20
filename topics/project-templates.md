@@ -139,7 +139,7 @@ source.
 
 #### Common build and run contract
 
-Every template, whatever its stack, leaves the project with the same two
+Every template, whatever its stack, leaves the project with the same
 affordances so that YA, the agent, and the reach paths below never need
 stack-specific knowledge (decided 2026-09-20):
 
@@ -156,8 +156,29 @@ stack-specific knowledge (decided 2026-09-20):
   and its own API. `dev` may additionally offer hot reload; `start` is the
   one YA and the boot prompt rely on.
 
+- **`publish`**, optional, present only when `start` is absent: copies the
+  built bundle to a GitHub Pages checkout and pushes it. The initial target
+  (decided 2026-09-20) is a project-named subdirectory of the existing
+  `ya.graehl.org` Pages repository, so `https://ya.graehl.org/<name>/`
+  serves the game with one existing credential and checkout, following the
+  same rules as the hosted-client publish in this checkout: `rsync` without
+  `--delete` so previous hashed assets survive the CDN's ten-minute HTML
+  cache, and a `404.html` copy of the entry only if the app needs it. A
+  per-project repository or custom domain is a later option.
+
+  Pages is static hosting without response headers, which the contract
+  already tolerates: no COOP/COEP (so no `SharedArrayBuffer` or wasm threads,
+  matching the artifact path; `coi-serviceworker` can fake it if ever
+  needed), no CSP or `Cache-Control` control, no server for an API, public
+  by default (private Pages needs GitHub Enterprise, so the boot prompt says
+  a publish is world-readable), and quotas of roughly 1 GB per repository,
+  100 MB per file, and ten builds an hour, which only large committed media
+  would strain. In return it is https with a valid certificate, so the mic
+  works and the App pane can iframe it, and there is nothing to run. The
+  bundle's relative asset URLs mean the subdirectory base path costs nothing.
+
 For the Node templates these are ordinary `package.json` scripts. A wasm or
-engine template maps the same two names onto its toolchain through a small
+engine template maps the same names onto its toolchain through a small
 `Makefile` or script so the names hold. The project `AGENTS.md` names both
 and nothing else about running the app; `template.json` `app` records the
 directory and whether `start` exists, which is what the create flow reads to
