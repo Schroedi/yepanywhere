@@ -9,6 +9,44 @@ test.afterEach(() => {
   for (const file of createdFiles.splice(0)) unlinkSync(file);
 });
 
+/** One line of what the All Sessions catalog holds for a fixture session:
+ * whether it is listed at all, and for each title candidate its length and
+ * whether the needle survived into it. Lengths rather than bodies — the
+ * fixture prompt is ~900 characters and the question is only which candidate
+ * can match. */
+async function describeCatalogRow(
+  page: import("@playwright/test").Page,
+  sessionId: string,
+): Promise<string> {
+  const held = await page.evaluate(async (id: string) => {
+    const response = await fetch("/api/sessions?limit=500", {
+      headers: { accept: "application/json" },
+    });
+    if (!response.ok) return { fetchStatus: response.status };
+    const body = (await response.json()) as {
+      sessions?: Array<Record<string, unknown>>;
+    };
+    const sessions = body.sessions ?? [];
+    const found = sessions.find((item) => item.id === id);
+    if (!found) return { listed: false, catalogSize: sessions.length };
+    const candidate = (value: unknown) =>
+      typeof value === "string"
+        ? { length: value.length, hasNeedle: value.includes("quasarneedle") }
+        : { absent: value === null ? "null" : typeof value };
+    return {
+      listed: true,
+      catalogSize: sessions.length,
+      title: candidate(found.title),
+      customTitle: candidate(found.customTitle),
+      fullTitle: candidate(found.fullTitle),
+      initialPrompt: candidate(found.initialPrompt),
+      createdAt: typeof found.createdAt === "string" ? found.createdAt : null,
+      messageCount: found.messageCount ?? null,
+    };
+  }, sessionId);
+  return JSON.stringify(held);
+}
+
 function saveSession(id: string, name: string, manyMatches = false) {
   const cwd = join(e2ePaths.tempDir, "mockproject");
   const dir = join(
@@ -698,7 +736,20 @@ for (const viewport of [
       });
       await search.fill("quasarneedle");
       const row = page.locator(".session-list-item--card");
-      await expect(row).toHaveCount(1, { timeout: 30000 });
+      try {
+        await expect(row).toHaveCount(1, { timeout: 30000 });
+      } catch (failure) {
+        // This assertion fails in CI and passes locally, and the page snapshot
+        // cannot say why: the needle sits past SESSION_TITLE_MAX_LENGTH, so
+        // only the row's fullTitle/initialPrompt candidate can reach it, and a
+        // listed row whose candidates arrived truncated or empty looks exactly
+        // like a search failure. Report what the catalog actually holds for
+        // this fixture. gaps/all-sessions-search-ci-failures.md.
+        console.log(
+          `no match for ${id}: ${await describeCatalogRow(page, id)}`,
+        );
+        throw failure;
+      }
       const title = row.locator("strong mark").locator("..");
       await expect(title).toHaveText(/^….*quasarneedle.*…$/);
       const narrowText = await title.textContent();
