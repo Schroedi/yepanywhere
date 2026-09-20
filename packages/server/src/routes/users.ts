@@ -72,6 +72,7 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
         switched: false,
         locked: false,
         enabled,
+        hasLimitedUsers: limitedUsers.list().length > 0,
         logoutRedirect: "stay",
       };
       return c.json(body);
@@ -83,6 +84,9 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
       locked: principal.locked,
       grants: principal.grants,
       enabled,
+      // Trivially true for a limited principal, and deliberately not a count:
+      // one limited user learns nothing about the others from this.
+      hasLimitedUsers: true,
       logoutRedirect: principal.switched
         ? "stay"
         : principal.via === "relay"

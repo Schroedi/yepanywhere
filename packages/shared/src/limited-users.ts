@@ -1,7 +1,7 @@
 /**
  * Limited users: a second class of YA principal beside the single superuser.
  *
- * Contract: topics/limited-users.md § Delivery v1 — Users in the sidebar.
+ * Contract: topics/limited-users.md § Delivery v1 — Settings → Users.
  * This module holds the shapes and the pure decisions both the server
  * (enforcement) and the client (presentation) need, so neither side invents
  * its own rule for what a grant means.
@@ -97,6 +97,13 @@ export interface ActingPrincipal {
   grants?: LimitedUserGrants;
   /** Whether the feature is enabled at all on this server. */
   enabled: boolean;
+  /**
+   * Whether this install has at least one limited user. The sidebar's Users
+   * shortcut appears only then, so turning the feature on does not by itself
+   * put an account control in front of a single-user install. It never
+   * discloses how many: a limited user sees only that they are one.
+   */
+  hasLimitedUsers: boolean;
   /** Where logout should send this client. */
   logoutRedirect: "relay-login" | "direct-login" | "stay";
 }

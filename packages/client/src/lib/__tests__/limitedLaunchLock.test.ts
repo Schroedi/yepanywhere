@@ -6,7 +6,7 @@ import {
   UNLOCKED_LAUNCH,
 } from "../limitedLaunchLock";
 
-/** Contract: topics/limited-users.md § Delivery v1 — Users in the sidebar. */
+/** Contract: topics/limited-users.md § Delivery v1 — Settings → Users. */
 
 const superuser: ActingPrincipal = {
   superuser: true,
@@ -14,6 +14,7 @@ const superuser: ActingPrincipal = {
   switched: false,
   locked: false,
   enabled: true,
+  hasLimitedUsers: false,
   logoutRedirect: "stay",
 };
 
@@ -24,6 +25,7 @@ function limited(lock: Record<string, string>): ActingPrincipal {
     switched: false,
     locked: true,
     enabled: true,
+    hasLimitedUsers: true,
     logoutRedirect: "direct-login",
     grants: {
       newSessionProjects: ["p1"],

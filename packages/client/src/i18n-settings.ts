@@ -167,6 +167,11 @@ export function getSettingsCategories(
       description: t("settingsLocalAccessDescription"),
     },
     {
+      id: "users",
+      label: t("settingsUsersTitle"),
+      description: t("settingsUsersDescription"),
+    },
+    {
       id: "apps",
       label: t("settingsAppsTitle"),
       description: t("settingsAppsDescription"),

@@ -12,7 +12,7 @@
 Topic: limited-users
 
 Status: **v1 delivered (2026-09-20); the rest remains proposal.** See
-§ Delivery v1 — Users in the sidebar for the committed contract.
+§ Delivery v1 — Settings → Users for the committed contract.
 
 Read as a local-credential and policy profile over the shared concepts
 sketched in [[principals-and-grants]], not a separate approved authorization
@@ -68,7 +68,7 @@ own template-born projects ([[project-templates]]) over the same relay,
 without handing them the operator credential that can reach every project on
 disk.
 
-## Delivery v1 — Users in the sidebar
+## Delivery v1 — Settings → Users
 
 **v1** is the named, committed subset of this proposal. It replaces the
 phase list below as the first thing actually built; the later phases remain
@@ -77,14 +77,16 @@ outcome, enforced server-side at the operation, not by hiding a control.
 
 **v1 scope in one line.** A superuser-managed set of limited users, each with
 three per-project grants, an optional provider/model/effort lock, and a
-join-freshness offset; a sticky **Users** sidebar section that creates them,
-switches into them for testing, and logs out; relay login as a limited user;
-and default-deny authorization for every API operation a limited user makes.
+join-freshness offset; a **Settings → Users** page that creates them, edits
+them, switches into them for testing, and logs out; relay login as a limited
+user; and default-deny authorization for every API operation a limited user
+makes.
 
 **Feature gate.** `limitedUsersEnabled` in server settings, default off
-([[vanilla-defaults]]). Off means no Users section, no `/api/users` surface,
-and no principal other than the superuser; turning it off while limited users
-exist keeps the records but refuses their logins.
+([[vanilla-defaults]]). Off means no principal other than the superuser and
+no limited-user login; turning it off while limited users exist keeps the
+records but refuses their logins. Settings → Users stays reachable either
+way, because it is where the switch and the first user both live.
 
 ### v1 user record
 
@@ -170,26 +172,37 @@ global activity channel is filtered to their accessible projects.
 - **A relay-authenticated limited user is locked to that user** for the life
   of the connection: no switch control, and `POST /api/users/switch` is
   refused.
-- **Switching (superuser only).** `POST /api/users/switch {username|null}`
+- **Switching (superuser only), from Settings → Users.**
+  `POST /api/users/switch {username|null}`
   sets a server-signed `acting user` cookie, accepted only when the request's
   underlying principal is the superuser. Everything after that is evaluated
   as that limited user, which is how the restrictions get tested from one
-  browser. The sidebar caption shows the acting username whenever it is not
-  the superuser.
-- **Logout.** In the Users section. For a switched superuser it clears the
+  browser.
+- **Logout.** In Settings → Users. For a switched superuser it clears the
   acting-user cookie and returns them to full access. For a limited user it
   invalidates their session and returns them to the login they arrived by:
   the relay login page for a relay session, the direct login page otherwise.
 
-### Users section in the sidebar
+### Settings → Users
 
-Sticky above the scrolling sidebar body so it does not scroll away.
+User management is an ordinary settings page, not a sidebar panel. A
+single-user install must never be shown an account control it has no use
+for, so nothing about limited users appears anywhere else until one exists.
 
-- **Superuser, feature on.** The acting identity (or "superuser"), a list of
-  users to switch into, a create form (username, password), and per-user
-  editing of the three project lists, the lock, and the offset. Model and
-  effort completions populate from the provider catalog once a provider is
-  chosen; leaving a field blank leaves it unlocked.
+- **The page.** Reachable whether or not the feature is on, and ordered so
+  the switch comes first: the `limitedUsersEnabled` toggle, then the list of
+  users, then an editor. Turning the toggle on is enough to add the first
+  user — creating one also turns the feature on server-side, so neither step
+  waits on the other. Each row carries the username, a grant summary, any
+  lock, and Act as / Edit / Delete. The editor takes username and password,
+  the three project lists as one per-project access level, the join-freshness
+  offset, and the lock; model and effort completions populate from the
+  provider catalog once a provider is chosen, and a blank field is unlocked.
+- **Sidebar.** Nothing. No panel, no shortcut, no switcher, and no logout
+  button: user management is reached through Settings like any other
+  administration. The acting principal still reports `hasLimitedUsers`, a
+  boolean and never a count, for surfaces that need to know an install has
+  more than one principal.
 
 - **New Session, acting as a limited user.** The form offers only what the
   user can actually affect. A locked provider, model, or effort loses its
@@ -215,8 +228,20 @@ Sticky above the scrolling sidebar body so it does not scroll away.
   effort each names: the same effort in either spelling is agreement, a
   request naming no effort takes the locked one, and a different effort is
   refused naming the locked value.
-- **Limited user.** Their own username, a read-only view of their grants,
-  lock, and offset, and Logout. They cannot edit their settings.
+- **Limited user.** The same page shows them their own username, a read-only
+  view of their grants and lock, and Log out. They cannot edit their own
+  settings, and the directory is never fetched for them.
+- **Their other settings categories are an allowlist.** Every server-settings
+  write is 403 for them and whole route families behind these panes are
+  denied, so a category they cannot operate is hidden rather than shipped
+  inert — Local Access otherwise waits forever on `/api/network-binding`,
+  which they may not call. They keep Appearance, Toolbar, Message delivery,
+  Notifications, Users, and About. Like the route policy, the list is
+  default-deny: a category added later is hidden from limited users until
+  someone lists it. A hidden category does not render from a typed URL
+  either.
+- **An older server** without `/api/users` makes the page say so rather than
+  report a failure; no other client behavior depends on the route existing.
 
 Nav entries a limited user cannot use are hidden, and the sidebar session
 list shows only sessions in their accessible projects plus sessions they

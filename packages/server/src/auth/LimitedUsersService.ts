@@ -2,7 +2,7 @@
  * LimitedUsersService owns the limited-user records: the second class of
  * principal beside the single superuser.
  *
- * Contract: topics/limited-users.md § Delivery v1 — Users in the sidebar.
+ * Contract: topics/limited-users.md § Delivery v1 — Settings → Users.
  *
  * Each record carries both credential forms for the one password: a bcrypt
  * hash for the direct cookie login and an SRP salt/verifier for the relay

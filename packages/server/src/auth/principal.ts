@@ -1,7 +1,7 @@
 /**
  * The acting principal for a request: the superuser, or one limited user.
  *
- * Contract: topics/limited-users.md § Delivery v1 — Users in the sidebar.
+ * Contract: topics/limited-users.md § Delivery v1 — Settings → Users.
  *
  * Two independent facts decide it:
  * - the *login* principal, from the SRP identity of a relay tunnel or from

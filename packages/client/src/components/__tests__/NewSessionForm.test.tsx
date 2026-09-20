@@ -720,6 +720,7 @@ describe("NewSessionForm", () => {
       switched: false,
       locked: false,
       enabled: false,
+      hasLimitedUsers: false,
       logoutRedirect: "stay",
     };
     installObjectUrlMock();
@@ -1591,7 +1592,7 @@ describe("NewSessionForm", () => {
   });
 
   describe("a limited user's locked launch fields", () => {
-    // Contract: topics/limited-users.md § Delivery v1 — Users in the sidebar.
+    // Contract: topics/limited-users.md § Delivery v1 — Settings → Users.
     const actAsLimited = (lock: Record<string, string>) => {
       actingPrincipalState.principal = {
         superuser: false,
@@ -1599,6 +1600,7 @@ describe("NewSessionForm", () => {
         switched: false,
         locked: true,
         enabled: true,
+        hasLimitedUsers: true,
         logoutRedirect: "direct-login",
         grants: {
           newSessionProjects: ["project-1"],
