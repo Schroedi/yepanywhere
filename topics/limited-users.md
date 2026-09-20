@@ -240,7 +240,10 @@ for, so nothing about limited users appears anywhere else until one exists.
   Notifications, Users, and About. Like the route policy, the list is
   default-deny: a category added later is hidden from limited users until
   someone lists it. A hidden category does not render from a typed URL
-  either.
+  either. That suppression is about the principal alone: a category the
+  server's capabilities dropped still renders its pane from a typed URL,
+  because that pane's unsupported-server message is the answer the reader
+  came for.
 - **An older server** without `/api/users` makes the page say so rather than
   report a failure; no other client behavior depends on the route existing.
 

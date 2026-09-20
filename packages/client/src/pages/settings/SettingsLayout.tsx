@@ -428,10 +428,16 @@ export function SettingsLayout() {
   const activeCategory = visibleCategories.find(
     (c) => c.id === effectiveCategory,
   );
-  // A category filtered out for this principal does not render even when its
-  // URL is typed directly: the pane behind it cannot load for them.
+  // A category withheld from this principal does not render even when its URL
+  // is typed directly: the pane behind it cannot load for them. A category the
+  // server's capabilities dropped still renders, because that pane's own
+  // unsupported-server message is the answer a typed URL deserves.
+  const withheldFromPrincipal =
+    actingAsLimitedUser &&
+    effectiveCategory !== undefined &&
+    !limitedUserMaySeeSettingsCategory(effectiveCategory);
   const CategoryComponent =
-    effectiveCategory && activeCategory
+    effectiveCategory && !withheldFromPrincipal
       ? CATEGORY_COMPONENTS[effectiveCategory]
       : null;
 
