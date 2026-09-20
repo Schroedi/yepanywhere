@@ -243,7 +243,7 @@ test("exports matching source states, a complete bundle, and a working direct YA
       expect(await child.evaluate(() => window.scrollY)).toBeGreaterThan(0);
       await child.evaluate(() => window.scrollTo(0, 0));
       await child
-        .getByRole("button", { name: "Project settings", exact: true })
+        .getByRole("button", { name: "More project actions", exact: true })
         .first()
         .click();
       await child.getByRole("menuitem", { name: "Project settings" }).click();

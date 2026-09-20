@@ -425,7 +425,7 @@ test("runs the generated YA mockup through the hosted relay viewer", async ({
   await page.setViewportSize(viewports[0]!);
   await checkMockup(child, "default");
   await child
-    .getByRole("button", { name: "Project settings", exact: true })
+    .getByRole("button", { name: "More project actions", exact: true })
     .first()
     .click();
   await child.getByRole("menuitem", { name: "Project settings" }).click();
