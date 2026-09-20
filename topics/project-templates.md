@@ -318,6 +318,80 @@ project code served by the project, not a YA route, and is not a YA
 transcript; YA's session UI is uninvolved. Extracting that library from
 YA's client is a later refactor question, not a v1 dependency.
 
+## Candidate stacks for the shipped set
+
+Suggestions collected 2026-09-20 for the envelope a kid-facing canvas/game
+template must cover: 2D/3D drawing, microphone input, iterate in a browser on
+a tablet over LAN, and package for iOS/Android at the end. None is chosen;
+the first two are the leading candidates.
+
+1. **Vite + TypeScript + Capacitor** — the default for that envelope. Plain
+   `npm create vite`, WebGL2/WebGPU through a canvas, `getUserMedia` plus
+   `AudioWorklet` for the mic. Capacitor wraps the same bundle for iOS and
+   Android; Xcode/Android Studio are needed only at the packaging step, so
+   kids iterate in a browser on the tablet over LAN. Standard `package.json`
+   affordances; a project `AGENTS.md` of about twenty lines suffices.
+   Caveat: iOS WebView audio input needs a user gesture and has had
+   permission quirks across Safari versions; verify on the actual iPad.
+2. **Vite + TypeScript, no Capacitor** — the same template minus the
+   packaging layer. This is the natural `canvas-ts` base; Capacitor becomes
+   an add-on element (`mobile-shell`) rather than part of the default tree.
+3. **Godot 4 (GDScript)** — most opinionated, best for kids, and covers the
+   envelope: scene editor, GL/Vulkan, exports to web (wasm), iOS, Android.
+   Mic is `AudioStreamMicrophone` with `AudioEffectCapture`, and
+   `audio/driver/enable_input` must be true. C#/.NET projects still cannot
+   export to web, so stay GDScript. Agent-friendliness is fine (text `.tscn`
+   and `.gd`, headless `godot --export-release`), but the editor is where
+   kids will live, and the project instruction file reads less like a Linux
+   project and more like engine conventions.
+4. **Expo (React Native)** and **Flutter** — mobile-first frameworks with
+   web targets. Both carry heavier toolchains and a less direct canvas story
+   than the Vite pair; listed for completeness, not favored.
+5. **p5.js** (`sketch.js`) — the smallest possible creative-coding start,
+   good for the youngest users, but plain JS by default, which the
+   no-untyped-JS rule above argues against unless paired with a TS setup.
+
+## Runtime observability: where the agent sees the app's console
+
+The earlier draft omitted a requirement every template with a UI must meet:
+the boot prompt and the project `AGENTS.md` must tell the agent **where to
+see the running app's `window.onerror`, unhandled rejections, and
+`console.log` output**, and how to get some subset of it into its own
+context without the user relaying screenshots. The agent can effectively
+`tail -f | grep` such a stream, drive the page under Playwright, or rely on
+a client-side forwarder that ships browser console and error events onward;
+the template must pick one and name it so the first session does not
+improvise it.
+
+Candidate mechanisms, per stack:
+
+- **vite-plugin-terminal** — a Vite plugin that forwards browser
+  `console.*` to the Vite dev-server terminal, so the agent reads the same
+  process output it started; the simplest fit for the Vite templates.
+- **chii** (remote DevTools) — a hosted DevTools frontend attached to the
+  page by a script tag; useful for a tablet whose own DevTools are
+  unreachable, but its output is a browser UI, not text the agent reads
+  directly.
+- **chrome-devtools-mcp** — exposes a Chrome DevTools session to the agent
+  over MCP (console, network, screenshots); works when the agent's harness
+  can load an MCP server and the page runs in a Chrome the agent controls,
+  which excludes the kid's iPad.
+- **Playwright** — the project can ship a tiny script that opens the dev URL
+  headless, subscribes to `console` and `pageerror`, and prints them; this
+  is the stack-independent fallback and doubles as a smoke test.
+- **A small in-page forwarder** — a few lines that `POST` console and error
+  events to the project's loopback server (or the Vite dev server via a
+  middleware), which appends them to a file the agent tails. This is the
+  only option that captures what happened on the *tablet*, since every
+  other mechanism observes a browser the agent itself launched.
+
+The template's `AGENTS.md` should state which of these is wired, the exact
+command or file to watch, and an optional filter (a prefix or level) whose
+matching lines are worth pasting into a session. Whether YA itself should
+auto-forward such excerpts into the agent's context, rather than leaving the
+agent to tail a file, is an open decision below; if it does, the forwarder
+element is the natural attachment point.
+
 ## Phases
 
 1. **Library and listing.** Shipped-templates repo with pinned snapshot
@@ -366,6 +440,12 @@ YA's client is a later refactor question, not a v1 dependency.
 - Whether artifact-path CSP should gain `worker-src 'self'` and COOP/COEP for
   static bundles; that is an [[active-content-security]] decision, recorded
   here only as the template-side need.
+- Which stack from *Candidate stacks* becomes the default `canvas-ts`
+  template, and whether Capacitor and Godot are separate templates or
+  elements over a shared base.
+- Whether YA auto-forwards a filtered subset of the app's console/error
+  stream into the agent's context (a per-project setting naming the file or
+  endpoint), or the boot prompt only tells the agent where to tail it.
 
 ## See also
 
