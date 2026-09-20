@@ -498,6 +498,7 @@ function SessionSearchPage() {
   const scanRunning = useRef(scan.running);
   scanRunning.current = scan.running;
   useEffect(() => {
+    scanRunning.current = scan.running;
     if (!hasTurnFields || compactedSearch === layoutKey) return;
     let timer: ReturnType<typeof setTimeout>;
     const settle = () => {

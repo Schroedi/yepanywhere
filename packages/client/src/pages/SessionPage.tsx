@@ -903,6 +903,19 @@ function SessionPageContent({
   const pendingEarlyComposerPrefillRef = useRef<string | null | undefined>(
     undefined,
   );
+  const flushEarlyComposerTyping = useCallback(
+    (controls = draftControlsRef.current) => {
+      if (!controls || pendingEarlyComposerPrefillRef.current === undefined) {
+        return;
+      }
+      const prefill = pendingEarlyComposerPrefillRef.current;
+      pendingEarlyComposerPrefillRef.current = undefined;
+      const handoff = earlyComposerTypingRef.current;
+      earlyComposerTypingRef.current = null;
+      applyEarlyComposerTyping({ controls, handoff, prefill });
+    },
+    [],
+  );
   const [quoteClearSignal, setQuoteClearSignal] = useState(0);
   const pendingMotherComposerTransferRef = useRef<string | null>(null);
   const lastComposerSubmissionRef = useRef<LastComposerSubmission | null>(null);
@@ -3106,6 +3119,7 @@ function SessionPageContent({
     initialTitle,
     initialModel,
     initialProvider,
+    flushEarlyComposerTyping,
   ]);
 
   const handleQueue = async (
@@ -4193,20 +4207,6 @@ function SessionPageContent({
   const clearQuoteAnchors = useCallback(() => {
     setQuoteClearSignal((current) => current + 1);
   }, []);
-
-  const flushEarlyComposerTyping = useCallback(
-    (controls = draftControlsRef.current) => {
-      if (!controls || pendingEarlyComposerPrefillRef.current === undefined) {
-        return;
-      }
-      const prefill = pendingEarlyComposerPrefillRef.current;
-      pendingEarlyComposerPrefillRef.current = undefined;
-      const handoff = earlyComposerTypingRef.current;
-      earlyComposerTypingRef.current = null;
-      applyEarlyComposerTyping({ controls, handoff, prefill });
-    },
-    [],
-  );
 
   const flushPendingMotherComposerTransfer = useCallback(
     (controls = draftControlsRef.current) => {

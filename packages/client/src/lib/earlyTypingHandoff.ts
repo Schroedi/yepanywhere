@@ -109,7 +109,7 @@ export function startEarlyTypingHandoff(
   };
 
   const ready = () => {
-    if (!owner || !owner.hasFocus()) return false;
+    if (!owner?.hasFocus()) return false;
     if (owner.shows() === owner.expects()) return true;
     attempted += 1;
     return attempted >= attempts;
