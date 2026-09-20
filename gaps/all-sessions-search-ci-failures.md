@@ -196,6 +196,41 @@ Also seen at `2b5e07f35`, separate and not this entry: `unit-tests` failed on
 two, and `persistence-native (windows-latest)` failed on kzahel only. Both are
 timing-shaped and unrelated to this file.
 
+2026-09-20 — "reserves arriving matches and fits long titles" failed again on
+both viewports through every retry at `fa4352ea2`, in both
+[graehl](https://github.com/graehl/yepanywhere/actions/runs/35532637392) and
+[kzahel](https://github.com/kzahel/yepanywhere/actions/runs/35532635493). That
+tree is six commits past `2b5e07f35` and none of them touch All Sessions
+search, so this is the same open remainder, not a new cause. `e2e-tests` is
+again the only red job on graehl (280 passed, 2 failed) and reached the end of
+the suite; `unit-tests` passed this time, so the `stall-recording` double
+`.cpuprofile` noted above did not repeat.
+
+This run's artifacts eliminate the time-range hypothesis recorded above. The
+failure snapshot shows both age fields empty, so `after` and `before` are
+undefined and `inTimeRange` returns `true` without reading `createdAt` at all —
+the `fullTitle`/`initialPrompt` candidate is in `candidates` either way. What
+remains is that the candidate strings the row holds do not contain the needle,
+which is the field question, not the gate question. The assertion that fails is
+`.session-list-item--card` count 0 held for the full 30s, while the preceding
+wait for the fixture's link succeeded: the session is listed, and its title
+candidates still do not match.
+
+Nothing here supports "load-dependent". Six attempts across two viewports
+produced the identical snapshot, which is what a deterministic content
+condition looks like, and the earlier cross-commit flip establishes only that
+no code difference explains it. The next step is unchanged and now sharper:
+make the spec dump the row it holds for the fixture when the count is 0, so one
+CI run says whether `fullTitle`/`initialPrompt` reached the client truncated,
+empty, or absent.
+
+Two adjacent observations that are not this entry. On kzahel the same run also
+failed `provider-host-native (windows-latest)` with `kill EPERM` during process
+teardown; graehl's identical tree passed that job, so it is host-shaped. And
+kzahel recorded "preserves copying and returns to the query end only when
+typing" as flaky — failed once, passed on retry #1 — where graehl passed it
+outright.
+
 Found 2026-09-15 while reporting source CI after publishing the catch-up fix.
 Contributing-model: 6-Astra
 Contributing-model: Opus 5
