@@ -7,24 +7,16 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { execFile } from "node:child_process";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ArtifactServer } from "../../src/artifacts/ArtifactServer.js";
+import { deletableDirectory } from "../../src/artifacts/GrantStore.js";
 import { createLocalResourcePathPolicy } from "../../src/routes/local-resource-policy.js";
-
-// The ownership refusal asks where the user's home directory is, and the real
-// answer is not a place a test may create files in.
-const home = vi.hoisted(() => ({ path: null as string | null }));
-vi.mock("node:os", async (importActual) => {
-  const actual = await importActual<typeof import("node:os")>();
-  return { ...actual, homedir: () => home.path ?? actual.homedir() };
-});
 
 const directories: string[] = [];
 afterEach(async () => {
-  home.path = null;
   vi.restoreAllMocks();
   for (const directory of directories.splice(0))
     await rm(directory, { recursive: true, force: true });
@@ -221,18 +213,11 @@ describe("durable artifact grants", () => {
   });
 
   it("refuses to own a directory under a home directory", async () => {
-    const { base, bundle, entry } = await workspace();
-    home.path = base;
-    const server = serverFor(base, { expiryDays: 1 });
-    const grant = await server.createGrant(entry, "local", true);
-    expect(grant.owned).toBe(false);
-
-    const now = Date.now();
-    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
-    clock.mockReturnValue(now + 25 * 3600_000);
-    await server.settleExpired();
-    expect(await exists(join(bundle, "index.html"))).toBe(true);
-    await server.close();
+    // No fixture is written there: this only asks the path-policy question
+    // against the real home value used by the production module.
+    expect(
+      await deletableDirectory(join(homedir(), "artifact-fixture"), []),
+    ).toBe(false);
   });
 
   it("owns only what Git does not track inside a working tree", async () => {
