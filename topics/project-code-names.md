@@ -16,9 +16,11 @@ Status: **implemented.**
   browser titles and sidebar rows use full project names with their released
   ellipsis behavior, and Projects hides the code-name editor. This is the
   vanilla presentation for fresh browser profiles.
-- Enabling **Short Project Code Names** displays the code in smaller text
-  directly below the full name on Projects. Clicking it opens an inline editor,
-  leaving the field commits, and the adjacent × cancels.
+- Enabling **Short Project Code Names** displays the code on Projects as a
+  small outlined chip beside the full name, on the same line. Clicking it opens
+  an inline editor, leaving the field commits, and the adjacent × cancels. The
+  name yields space before the chip does, so the code stays readable on a
+  narrow card.
 - Code names are unique across the projects visible to one YA server. A
   generated value remains stable across project ordering and visible-session
   changes, but is regenerated if another project's name introduces a generated

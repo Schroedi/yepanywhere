@@ -43,44 +43,50 @@ describe("ProjectCard", () => {
     cleanup();
   });
 
-  it("offers a project removal action", () => {
+  it("removes the project straight from the trash button", () => {
     const onDeleteProject = vi.fn();
     renderProjectCard(onDeleteProject);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "More project actions" }),
-    );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Remove project" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove project" }));
 
     expect(onDeleteProject).toHaveBeenCalledWith(project);
   });
 
-  it("opens project settings from the ellipsis and context menu", () => {
-    const onOpenSettings = vi.fn();
-    const { container } = render(
+  it("offers no removal control without a delete handler", () => {
+    render(
       <I18nProvider>
         <MemoryRouter>
           <ProjectCard
             project={project}
             needsAttentionCount={0}
             thinkingCount={0}
-            onOpenSettings={onOpenSettings}
           />
         </MemoryRouter>
       </I18nProvider>,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "More project actions" }),
-    );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Project settings" }));
-    expect(onOpenSettings).toHaveBeenCalledWith(project);
+    expect(screen.queryByRole("button", { name: "Remove project" })).toBeNull();
+  });
 
-    fireEvent.contextMenu(
-      container.querySelector("[data-project-card-link]") as Element,
+  it("keeps the removal control inert while a removal is in flight", () => {
+    const onDeleteProject = vi.fn();
+    render(
+      <I18nProvider>
+        <MemoryRouter>
+          <ProjectCard
+            project={project}
+            needsAttentionCount={0}
+            thinkingCount={0}
+            onDeleteProject={onDeleteProject}
+            isDeleting
+          />
+        </MemoryRouter>
+      </I18nProvider>,
     );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Project settings" }));
-    expect(onOpenSettings).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove project" }));
+
+    expect(onDeleteProject).not.toHaveBeenCalled();
   });
 
   it("commits a longer inline code name on blur", async () => {

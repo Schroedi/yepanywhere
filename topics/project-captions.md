@@ -11,9 +11,11 @@ Status: **implemented (2026-09-20).**
 
 ## User-visible contract
 
-- Every project may carry a caption. Projects shows it under the name and
-  code name; the session header's project breadcrumb shows it in the tooltip
-  after the full project name.
+- Every project may carry a caption. Projects shows it directly under the name
+  line — where the code-name chip also sits — and it is the only prose under
+  that line, since the path and session counts share one footer row; the
+  session header's project breadcrumb shows it in the tooltip after the full
+  project name.
 - With a capable server, clicking the caption on a project card (or the
   "Add a caption" placeholder when none is derived) opens an inline editor.
   Enter, blur, or ✓ saves; Escape or × cancels. Saving an empty field clears
@@ -21,8 +23,9 @@ Status: **implemented (2026-09-20).**
 - A caption reports its source. The tooltip names it: README, manifest, or
   custom. A custom caption wins over any derived text until cleared.
 - The project card also gains a gear button that opens Project Settings
-  directly. The three-dot menu remains for the remaining actions (settings
-  again, and removing the project), so no existing path is lost.
+  directly. Removal is a trash button beside it; the three-dot menu that once
+  held both actions is gone, since each remaining action now has its own
+  control. Removal still asks for confirmation before anything happens.
 
 ## Derivation
 
