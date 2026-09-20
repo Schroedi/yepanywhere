@@ -192,7 +192,11 @@ import {
   resumeRecoveredGroup,
 } from "./session-recovered-queue.js";
 import { buildThinkingOptions } from "./session-thinking-options.js";
-import { applyLimitedLaunchPolicy } from "./limited-session-launch.js";
+import {
+  actingUsername,
+  applyLimitedLaunchPolicy,
+} from "./limited-session-launch.js";
+import type { UserUsageService } from "../auth/UserUsageService.js";
 import type { EventBus } from "../watcher/index.js";
 import { resolveExistingSessionIdentity } from "./session-existing-identity.js";
 
@@ -310,6 +314,8 @@ export interface SessionsDeps {
   notificationService?: NotificationService;
   sessionIndexService?: ISessionIndexService;
   sessionMetadataService?: SessionMetadataService;
+  /** Records who started each session and who sent each turn. */
+  userUsageService?: UserUsageService;
   projectMetadataService?: ProjectMetadataService;
   projectQueueScheduler?: Pick<
     ProjectQueueScheduler,
@@ -3848,7 +3854,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       attachments: body.attachments,
       mode: body.mode,
       tempId: body.tempId,
-      metadata: buildUserMessageMetadata(body, serverTimestamp, "direct"),
+      metadata: buildUserMessageMetadata(
+        body,
+        serverTimestamp,
+        "direct",
+        actingUsername(c),
+      ),
     };
 
     const { thinking, effort } = buildThinkingOptions(body);
@@ -3922,6 +3933,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         limitedLaunch.username,
       );
     }
+    void deps.userUsageService?.recordSession(actingUsername(c));
+    void deps.userUsageService?.recordTurn(actingUsername(c), userMessage.text);
 
     await persistLaunchMetadata(
       result.sessionId,
@@ -4084,6 +4097,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         limitedLaunch.username,
       );
     }
+    void deps.userUsageService?.recordSession(actingUsername(c));
 
     await persistLaunchMetadata(
       result.sessionId,
@@ -4167,7 +4181,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       attachments: body.attachments,
       mode: body.mode,
       tempId: body.tempId,
-      metadata: buildUserMessageMetadata(body, serverTimestamp, "direct"),
+      metadata: buildUserMessageMetadata(
+        body,
+        serverTimestamp,
+        "direct",
+        actingUsername(c),
+      ),
     };
 
     const { thinking, effort } = buildThinkingOptions(body);
@@ -4459,7 +4478,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       attachments: body.attachments,
       mode: body.mode,
       tempId: body.tempId,
-      metadata: buildUserMessageMetadata(body, serverTimestamp, "direct"),
+      metadata: buildUserMessageMetadata(
+        body,
+        serverTimestamp,
+        "direct",
+        actingUsername(c),
+      ),
     };
 
     const { thinking, effort } = buildThinkingOptions(body);
@@ -4694,6 +4718,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
 
     // Check if request was queued
     if (isQueuedResponse(result)) {
+      void deps.userUsageService?.recordTurn(
+        actingUsername(c),
+        userMessage.text,
+      );
       return c.json(
         {
           ...result,
@@ -4703,6 +4731,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         202,
       ); // 202 Accepted - queued for processing
     }
+    void deps.userUsageService?.recordTurn(actingUsername(c), userMessage.text);
 
     return c.json({
       processId: result.id,
@@ -6069,6 +6098,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     const serverTimestamp = Date.now();
     const userMessage: UserMessage = {
       text: input.prompt,
+      // YA-injected, not a principal's turn: no sender and no usage record.
       metadata: buildUserMessageMetadata({}, serverTimestamp, "direct"),
     };
     const result = await deps.supervisor.resumeSession(
@@ -7611,6 +7641,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         body,
         serverTimestamp,
         body.deferred ? "deferred" : "direct",
+        actingUsername(c),
       ),
     };
 
@@ -7639,6 +7670,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     // Invalidate speculative idle work before any provider-native command or
     // delivery preparation can await.
     process.noteInputIntent();
+
+    // Past the request-shape guards this turn is delivered or queued, so it
+    // counts here rather than at each of the branches below.
+    void deps.userUsageService?.recordTurn(actingUsername(c), userMessage.text);
 
     // Provider-native slash commands (e.g. Codex `/compact`) are dispatched
     // through the provider's own protocol rather than delivered as turn text the

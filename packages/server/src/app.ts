@@ -63,6 +63,7 @@ import { compress } from "hono/compress";
 import { join } from "node:path";
 import type { AuthService } from "./auth/AuthService.js";
 import { createAuthRoutes } from "./auth/routes.js";
+import type { UserUsageService } from "./auth/UserUsageService.js";
 import type { LimitedUsersService } from "./auth/LimitedUsersService.js";
 import { SessionAccessResolver } from "./auth/sessionAccess.js";
 import type { SrpLimitedUserLookup } from "./routes/ws-srp-handlers.js";
@@ -399,6 +400,7 @@ export interface AppOptions {
   authService?: AuthService;
   /** Limited-user records; absent disables the second principal class. */
   limitedUsersService?: LimitedUsersService;
+  userUsageService?: UserUsageService;
   /** Whether auth is disabled by env var (--auth-disable). Bypasses all auth. */
   authDisabled?: boolean;
   /** Desktop auth token for Tauri app. Requests with matching X-Desktop-Token header bypass auth. */
@@ -834,6 +836,9 @@ export function createApp(options: AppOptions): AppResult {
             limitedUsersEnabled: enabled,
           });
         },
+        ...(options.userUsageService
+          ? { userUsage: options.userUsageService }
+          : {}),
       }),
     );
   }
@@ -2098,6 +2103,7 @@ export function createApp(options: AppOptions): AppResult {
       notificationService: options.notificationService,
       sessionIndexService: options.sessionIndexService,
       sessionMetadataService: options.sessionMetadataService,
+      userUsageService: options.userUsageService,
       projectMetadataService: options.projectMetadataService,
       projectQueueScheduler,
       eventBus: options.eventBus,

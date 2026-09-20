@@ -22,12 +22,15 @@ import {
 } from "../auth/principal.js";
 import { SESSION_COOKIE_NAME, shouldUseSecureCookie } from "../auth/routes.js";
 import type { AuthService } from "../auth/AuthService.js";
+import type { UserUsageService } from "../auth/UserUsageService.js";
 
 export interface UsersRoutesDeps {
   limitedUsers: LimitedUsersService;
   authService: AuthService;
   isEnabled: () => boolean;
   setEnabled?: (enabled: boolean) => Promise<void>;
+  /** Absent on a server built without the usage ledger; usage then 404s. */
+  userUsage?: UserUsageService;
 }
 
 interface UserBody {
@@ -227,12 +230,30 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
     }
   });
 
+  /**
+   * GET /api/users/usage — per-principal usage, superuser only.
+   *
+   * Listed before `/:username` so the literal path is not read as a username.
+   */
+  app.get("/usage", async (c) => {
+    const denied = requireSuperuser(c);
+    if (denied) return denied;
+    if (!deps.userUsage) {
+      return c.json({ error: "Usage is not recorded on this server" }, 404);
+    }
+    const knownUsernames = limitedUsers.list().map((user) => user.username);
+    return c.json(await deps.userUsage.report(knownUsernames));
+  });
+
   /** DELETE /api/users/:username */
   app.delete("/:username", async (c) => {
     const denied = requireSuperuser(c);
     if (denied) return denied;
-    const removed = await limitedUsers.remove(c.req.param("username"));
+    const username = c.req.param("username");
+    const removed = await limitedUsers.remove(username);
     if (!removed) return c.json({ error: "User not found" }, 404);
+    // Deleting a user takes their usage history with them.
+    await deps.userUsage?.forgetUser(username);
     return c.json({ success: true });
   });
 

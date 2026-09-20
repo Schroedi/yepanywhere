@@ -18,6 +18,7 @@ import {
 import { createApp } from "./app.js";
 import { markdownAugmentCacheDiagnostics } from "./augments/markdown-augments.js";
 import { AuthService } from "./auth/AuthService.js";
+import { UserUsageService } from "./auth/UserUsageService.js";
 import { LimitedUsersService } from "./auth/LimitedUsersService.js";
 import {
   closeCodexCorrelationDebugLogger,
@@ -619,6 +620,7 @@ const authService = new AuthService({
 const limitedUsersService = new LimitedUsersService({
   dataDir: config.dataDir,
 });
+const userUsageService = new UserUsageService({ dataDir: config.dataDir });
 const remoteAccessService = new RemoteAccessService({
   dataDir: config.dataDir,
 });
@@ -1105,6 +1107,7 @@ async function startServer() {
     recentsService,
     authService,
     limitedUsersService,
+    userUsageService,
     authDisabled: config.authDisabled,
     desktopAuthToken: config.desktopAuthToken,
     desktopBootstrapService,

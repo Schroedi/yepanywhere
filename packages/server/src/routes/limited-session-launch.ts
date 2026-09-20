@@ -40,6 +40,16 @@ export function principalFor(c: Context): Principal {
 }
 
 /**
+ * The acting limited username, or undefined for the superuser. This is the
+ * attribution every usage record and user turn carries: absent means the
+ * superuser, which is also what records predating limited users mean.
+ */
+export function actingUsername(c: Context): string | undefined {
+  const principal = principalFor(c);
+  return principal.kind === "limited" ? principal.username : undefined;
+}
+
+/**
  * Apply the limited user's launch policy to a session-create body in place.
  * Returns what happened so the caller can record session ownership.
  */

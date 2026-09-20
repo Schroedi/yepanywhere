@@ -165,3 +165,51 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Usage: one row per principal, one column per window. */
+.usage {
+  margin-top: var(--space-4, 1rem);
+}
+
+.usageTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.usageTable th,
+.usageTable td {
+  padding: var(--space-2) var(--space-2) var(--space-2) 0;
+  text-align: start;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.usageTable thead th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.usageUser {
+  overflow-wrap: anywhere;
+}
+
+/* Facts stack so a narrow column never reflows them into a paragraph. */
+.usageFacts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+/* The first fact is the interaction time, which is the headline number. */
+.usageFacts li:first-child {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.usageFacts li {
+  color: var(--text-muted);
+}

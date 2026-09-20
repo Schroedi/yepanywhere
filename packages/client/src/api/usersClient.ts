@@ -2,6 +2,7 @@ import type {
   ActingPrincipal,
   LimitedUserLock,
   LimitedUserSummary,
+  UsageReport,
 } from "@yep-anywhere/shared";
 import { fetchJSON } from "./sourceApiFetch";
 
@@ -24,6 +25,9 @@ export const usersApi = {
 
   listUsers: () =>
     fetchJSON<{ users: LimitedUserSummary[]; enabled: boolean }>("/users"),
+
+  /** Per-principal usage totals, superuser only. */
+  getUserUsage: () => fetchJSON<UsageReport>("/users/usage"),
 
   createUser: (draft: LimitedUserDraft) =>
     fetchJSON<{ user: LimitedUserSummary }>("/users", {

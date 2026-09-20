@@ -11,6 +11,7 @@ export type {
 
 export * from "./session-content-search.js";
 export * from "./limited-users.js";
+export * from "./user-usage.js";
 export {
   ACLI_COMMENTARY_MAX_TEXTS,
   ACLI_COMMENTARY_MAX_BODY_BYTES,

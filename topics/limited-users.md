@@ -76,8 +76,8 @@ proposal. Everything in this section is a contract: an externally testable
 outcome, enforced server-side at the operation, not by hiding a control.
 
 **v1 scope in one line.** A superuser-managed set of limited users, each with
-three per-project grants, an optional provider/model/effort lock, and a
-join-freshness offset; a **Settings → Users** page that creates them, edits
+three per-project grants, an optional provider/model/effort lock, a
+join-freshness offset, and attributed usage; a **Settings → Users** page that creates them, edits
 them, switches into them for testing, and logs out; relay login as a limited
 user; and default-deny authorization for every API operation a limited user
 makes.
@@ -246,6 +246,37 @@ for, so nothing about limited users appears anywhere else until one exists.
 Nav entries a limited user cannot use are hidden, and the sidebar session
 list shows only sessions in their accessible projects plus sessions they
 started. Hiding is cosmetic; the middleware above is the enforcement.
+
+### Usage
+
+Every principal's work is attributed, so Settings → Users can say who used
+this install and how much.
+
+- **Attribution.** A session records the principal who started it, and every
+  user turn carries `sentByUser` in its message metadata. Both are stamped
+  server-side from the acting principal and never read from the request body,
+  so a client cannot attribute its turn to somebody else. **Absent means the
+  superuser** — which is also what every session and turn predating this
+  means. A YA-injected prompt is nobody's turn and carries no sender.
+- **The ledger.** `user-usage.jsonl` in the data directory, one short
+  append-only record per session start and per user turn: timestamp,
+  username (absent for the superuser), and a turn's word count. Appending is
+  the only write on the turn path. A torn record from an interrupted append
+  costs itself and nothing else. The file is capped at 50,000 records,
+  trimmed oldest-first, so a report's reach shrinks rather than its recent
+  numbers going wrong. Deleting a user deletes their records.
+- **Interaction time** is the union of the five-minute windows each action
+  opens: one lone turn counts five minutes, two turns two minutes apart count
+  as one continuous stretch rather than two, and a gap longer than five
+  minutes starts a new stretch. This is the whole definition of "presumed
+  away after five minutes"; no other idle signal feeds it.
+- **The report.** `GET /api/users/usage`, superuser only, returns per-user
+  totals and the same totals restricted to the last seven days, plus the
+  timestamp of the earliest record. Settings → Users renders it as one row
+  per principal with the superuser included, headed by how many weeks the
+  ledger actually covers. A user with a record of nothing is listed by the
+  report but not shown in the table; the ledger starts empty on an existing
+  install, so the page says what it covers rather than implying all time.
 
 ### Out of v1
 

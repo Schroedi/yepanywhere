@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   LimitedUserSummary,
   ProjectAccessLevel,
+  UsageReport,
 } from "@yep-anywhere/shared";
 import {
   JOIN_STALE_OFFSET_MAX_MINUTES,
@@ -16,6 +17,7 @@ import { useI18n } from "../../i18n";
 import { SettingsItem } from "./SettingsItem";
 import { useSettingsPaneTitle } from "./SettingsPaneTitleContext";
 import { SettingsSection } from "./SettingsSection";
+import { UserUsageTable } from "./UserUsageTable";
 import styles from "./UsersSettings.module.css";
 
 /**
@@ -120,6 +122,7 @@ export function UsersSettings() {
   const [draft, setDraft] = useState<DraftState>(EMPTY_DRAFT);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [usage, setUsage] = useState<UsageReport | null>(null);
 
   // Acting as a limited user, every /api/users call but /me and /logout is
   // refused, which is the point: they manage nobody.
@@ -153,6 +156,21 @@ export function UsersSettings() {
   useEffect(() => {
     void loadUsers();
   }, [loadUsers]);
+
+  // Usage is its own read: a server without the ledger 404s here while the
+  // directory above still works, and the table simply does not appear.
+  const loadUsage = useCallback(async () => {
+    if (!principalResolved || !canManage) return;
+    try {
+      setUsage(await api.getUserUsage());
+    } catch {
+      setUsage(null);
+    }
+  }, [canManage, principalResolved]);
+
+  useEffect(() => {
+    void loadUsage();
+  }, [loadUsage]);
 
   const enabled = settings?.limitedUsersEnabled === true;
 
@@ -363,6 +381,8 @@ export function UsersSettings() {
       )}
 
       {error && editor === null && <p className="form-error">{error}</p>}
+
+      {usage && <UserUsageTable report={usage} />}
     </SettingsSection>
   );
 }

@@ -7,7 +7,11 @@ import { LimitedUsersService } from "../../src/auth/LimitedUsersService.js";
 import { decideLimitedRoute } from "../../src/auth/limitedUserPolicy.js";
 import { SessionAccessResolver } from "../../src/auth/sessionAccess.js";
 import { createLimitedUsersMiddleware } from "../../src/middleware/limited-users.js";
-import { applyLimitedLaunchPolicy } from "../../src/routes/limited-session-launch.js";
+import {
+  actingUsername,
+  applyLimitedLaunchPolicy,
+} from "../../src/routes/limited-session-launch.js";
+import { buildUserMessageMetadata } from "../../src/routes/session-request-helpers.js";
 import {
   PRINCIPAL_VARIABLE,
   signActingUser,
@@ -437,5 +441,47 @@ describe("limited-user middleware", () => {
       headers: { Cookie: "yep-anywhere-acting-user=alice.deadbeef" },
     });
     expect(forged.status).toBe(200);
+  });
+});
+
+describe("user turn attribution", () => {
+  /** topics/limited-users.md § Delivery v1 — Usage. */
+  const contextFor = (principal: unknown) =>
+    ({ get: () => principal }) as unknown as Parameters<
+      typeof actingUsername
+    >[0];
+
+  it("names the acting limited user, including a switched superuser", () => {
+    expect(
+      actingUsername(
+        contextFor({ kind: "limited", username: "archer", switched: false }),
+      ),
+    ).toBe("archer");
+    expect(
+      actingUsername(
+        contextFor({ kind: "limited", username: "archer", switched: true }),
+      ),
+    ).toBe("archer");
+  });
+
+  it("leaves the superuser unnamed, which is what absent means", () => {
+    expect(actingUsername(contextFor({ kind: "superuser" }))).toBe(undefined);
+    expect(actingUsername(contextFor(undefined))).toBe(undefined);
+  });
+
+  it("stamps the sender from the principal, never from the request body", () => {
+    const metadata = buildUserMessageMetadata(
+      // A client claiming to be somebody else.
+      { messageMetadata: { sentByUser: "lana" } } as never,
+      1000,
+      "direct",
+      "archer",
+    );
+    expect(metadata.sentByUser).toBe("archer");
+  });
+
+  it("omits the sender for the superuser rather than writing a name", () => {
+    const metadata = buildUserMessageMetadata({}, 1000, "direct");
+    expect(metadata.sentByUser).toBe(undefined);
   });
 });

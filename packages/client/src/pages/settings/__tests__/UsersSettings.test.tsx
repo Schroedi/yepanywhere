@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ActingPrincipal, LimitedUserSummary } from "@yep-anywhere/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UsersSettings } from "../UsersSettings";
@@ -151,7 +157,9 @@ describe("Settings → Users", () => {
     const toggle = screen.getByRole("checkbox") as HTMLInputElement;
     expect(toggle.checked).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "usersAddUser" }));
-    expect(screen.getByPlaceholderText("usersUsernamePlaceholder")).toBeTruthy();
+    expect(
+      screen.getByPlaceholderText("usersUsernamePlaceholder"),
+    ).toBeTruthy();
   });
 
   it("creates a user and re-reads the acting principal, which the server just enabled", async () => {
