@@ -11,7 +11,16 @@ The sidebar's All Sessions view owns these controls; in-session search keeps
 its existing bindings and behavior. Title is enabled by default. Ass. and User
 are opt-in, independent checkboxes whose matches form a union. Title searches
 the displayed title and the original opening prompt retained in hot metadata.
-A rename does not replace that retained prompt. Unchecking the last enabled
+A rename does not replace that retained prompt.
+
+Matching is against the session's whole opening text, never a display-length
+form of it. Truncation is a rendering decision made last, at the width the
+reader actually has, so every row a client matches in the browser must carry
+the untruncated text: a row reduced to its display title silently makes a
+needle past that title unfindable, and the reader cannot tell a search that
+found nothing from a search that could not look. This binds the retained
+collection as much as the unretained one — see `SESSION_CATALOG_TITLE_MAX_LENGTH`
+for the one bound the stored text does obey. Unchecking the last enabled
 User/Ass. role selects Title when no other field remains enabled.
 
 Fresh visits select the non-archived filter, narrowing both title results and

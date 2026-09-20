@@ -254,6 +254,75 @@ collection answered `unchanged` against a generation token that the fixture's
 arrival never advanced. That failure mode has precedent in this repo — the
 Projects filter had exactly it, fixed in `6ec6cd3b5`.
 
+2026-09-20, resolved to a cause — and the entry above asked the wrong
+question. The Playwright trace for the first failing run's retry was in the
+uploaded artifact all along, one directory over from the screenshot that had
+been read instead. It holds the request the page actually made:
+
+```
+GET /api/sessions?summaryMode=retained&limit=500&includeArchived=true
+```
+
+One request, and no `q`. The fixture's row in that response carries only
+`autoResumeDisabled, hasUnread, id, isArchived, isStarred, nonHumanUserTurn,
+ownership, projectId, projectName, provider, title, updatedAt` — a 120-character
+`title` without the needle, and **no `fullTitle`, no `initialPrompt`, no
+`createdAt`**. `titleMatches` therefore has no candidate that can contain a
+needle sitting at offset ~465, so it returns nothing, every time, on every
+attempt. Nothing about load, timers or discovery.
+
+The instrumentation added for this question fetched `/api/sessions?limit=500`
+— the unretained path — and so reported the 897-character `fullTitle` and
+`initialPrompt` both keeping the needle, in CI exactly as locally. That is a
+true answer to a question the page never asks, and the entry above drew the
+wrong conclusion from it ("the data arrived"). It arrived on the probed path,
+not on the rendered one.
+
+The product consequence is larger than the test. Whenever the list is answered
+from a retained collection, All Sessions can only match the first 120
+characters of a session's title, so a match living deeper in that session's
+first message is invisible to the reader too — intermittently, according to
+whether a retained collection exists for the query at that moment. That is the
+same local/CI split this note has been chasing: the retained path is taken in
+CI and not in the local runs. The contract to reconcile is
+[All-Session Content Search](../topics/all-session-content-search.md): either
+the retained projection carries the fields title matching needs, or matching
+must not be attempted against rows that lack them.
+
+The trace that answered this was already in the artifact, in the retry
+directory beside the screenshot that had been read instead; `on-first-retry`
+plus CI's two retries had produced it all along. Switching to
+`retain-on-failure` to also cover the first attempt was tried and reverted: it
+records every test, and its injected recorder script is blocked in a sandboxed
+`srcdoc` frame, which `mockup-export.spec.ts` counts as a console problem and
+fails on. A local failure still has no trace, since local runs do not retry —
+rerun the spec with `--trace on`.
+
+2026-09-20, fixed. Searches match the session's whole text; truncation is a
+display decision taken last. The retained path violated that:
+
+- the collection catalog adapter stored `summary.title`, already cut to 120
+  characters by its reader, so the retained row's only text was a display
+  form;
+- `readClaudeCatalogTitle` truncated its own result for the same row; and
+- the retained projection sent that one field on, with `initialPrompt` set
+  only from hot metadata — present for sessions YA has a metadata record for,
+  absent for a freshly written fixture, which is the whole local/CI split.
+
+Now the catalog stores the untruncated text (bounded by
+`SESSION_CATALOG_TITLE_MAX_LENGTH`, the limit it already validated against),
+and the retained projection sends `fullTitle` plus an `initialPrompt` that
+falls back to it, with a display-length `title` beside them — the same pair
+the unretained collection already sent. A client-side search now has the words
+to match without directing a server-side search.
+
+Covered by `test/routes/retained-session-collections.test.ts`: a retained row
+built with no metadata service keeps the whole title in `fullTitle` and
+`initialPrompt` while `title` is the truncated form. The test that asserted
+retained rows must *not* carry `initialPrompt` encoded the defect and now
+asserts the words come along; transcript detail such as `messageCount` still
+stays out.
+
 Two adjacent observations that are not this entry. On kzahel the same run also
 failed `provider-host-native (windows-latest)` with `kill EPERM` during process
 teardown; graehl's identical tree passed that job, so it is host-shaped. And

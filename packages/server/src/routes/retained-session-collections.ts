@@ -1,4 +1,5 @@
 import { basename } from "node:path";
+import { truncateSessionTitle } from "@yep-anywhere/shared";
 import { nonHumanUserTurnField } from "../metadata/SessionMetadataService.js";
 import type { RetainedSessionCollections } from "../services/RetainedSessionCollections.js";
 import {
@@ -77,9 +78,21 @@ export async function readRetainedSessionItems(
     });
     const hasUnread = runtime.hasUnread;
     const provider = metadata?.provider ?? row.provider ?? row.catalogFamily;
+    // All Sessions matches these rows in the browser, so the row carries the
+    // session's own words as `fullTitle`/`initialPrompt` and a display-length
+    // `title` beside them — the same pair the unretained collection sends.
+    // Without it a client-side search can only see the display title, and a
+    // match living deeper in the first message is unreachable without a
+    // server-side search the client would have to direct.
+    const fullTitle = row.title ?? undefined;
     const item: GlobalSessionItem = {
       id: row.sessionId,
-      ...(row.title !== undefined ? { title: row.title } : {}),
+      ...(row.title !== undefined
+        ? {
+            title: row.title === null ? null : truncateSessionTitle(row.title),
+            fullTitle,
+          }
+        : {}),
       updatedAt,
       ...(row.createdAt ? { createdAt: row.createdAt } : {}),
       provider,
@@ -95,7 +108,7 @@ export async function readRetainedSessionItems(
       isArchived,
       isStarred: metadata?.isStarred ?? false,
       customTitle: metadata?.customTitle,
-      initialPrompt: metadata?.initialPrompt,
+      initialPrompt: metadata?.initialPrompt ?? fullTitle,
       nonHumanUserTurn: nonHumanUserTurnField(
         deps.sessionMetadataService,
         row.sessionId,
