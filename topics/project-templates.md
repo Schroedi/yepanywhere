@@ -137,6 +137,32 @@ source.
 }
 ```
 
+#### Common build and run contract
+
+Every template, whatever its stack, leaves the project with the same two
+affordances so that YA, the agent, and the reach paths below never need
+stack-specific knowledge (decided 2026-09-20):
+
+- **`build`** produces a serveable client bundle in a fixed directory
+  (`dist/` by convention, named in `template.json` `app.dir`). The bundle
+  must be openable as plain static files: relative asset URLs, no
+  server-side routing assumed, so it works from an artifact grant, from a
+  vhost row in front of any static server, and from a `file://` URL for a
+  quick look. A template with no client (`batch`) still defines `build` and
+  leaves the directory empty or absent.
+- **`start`**, present only when the project has a `server` element, starts
+  the loopback server on the port given by the environment (the vhost row's
+  exported name, else a `PORT` default), serving the built bundle itself
+  and its own API. `dev` may additionally offer hot reload; `start` is the
+  one YA and the boot prompt rely on.
+
+For the Node templates these are ordinary `package.json` scripts. A wasm or
+engine template maps the same two names onto its toolchain through a small
+`Makefile` or script so the names hold. The project `AGENTS.md` names both
+and nothing else about running the app; `template.json` `app` records the
+directory and whether `start` exists, which is what the create flow reads to
+pick a reach path and what the App pane reads to know what to show.
+
 ### Prompt-based element layer
 
 Elements live beside the shipped templates as prompt documents:
@@ -448,6 +474,18 @@ an SSH tunnel from the tablet, and emulators were weighed and set aside; see
 
 ## Phases
 
+0. **Proving-out: one template, no library UI.** The first implementation
+   ships exactly one template, `canvas-ts`, compiled into YA source, and
+   one input: a project name. No chooser, no Project Templates page, no
+   user library, no import/export, no element selection. The create flow
+   (mkdir, copy, `git init`, register, boot session, app-name reservation)
+   and the build/run contract are exercised end to end, the App pane shows
+   the built bundle, and the console forwarder is proven against a real
+   tablet. Entry is `/start-project <name> [first-turn request]` from the
+   composer or the landing field, or the "from template" mode with the
+   template fixed. Everything in the phases below is conditional on this
+   phase demonstrating that the first session actually produces a playable
+   result from a description. ‖
 1. **Library and listing.** Shipped-templates repo with pinned snapshot
    into the data dir and built-in fallback, `~/ya-templates` lazy git init,
    `template.json` + `BOOT.md` + `files/` layout, union listing endpoint and
