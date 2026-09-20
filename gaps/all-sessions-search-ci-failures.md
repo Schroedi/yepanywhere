@@ -323,6 +323,27 @@ retained rows must *not* carry `initialPrompt` encoded the defect and now
 asserts the words come along; transcript detail such as `messageCount` still
 stays out.
 
+Confirmed green in CI at `6b58140ad`
+([graehl](https://github.com/graehl/yepanywhere/actions/runs/35540768245)):
+`e2e-tests` passed, so the whole browser suite including both viewports of the
+arriving-match test is green for the first time since this note opened. Unlike
+the false closure recorded above, this pass comes with a mechanism and a unit
+test, so it is evidence about a fix rather than about one run's luck — but the
+shape of this failure earned a second confirming run before the entry is
+retired.
+
+That second run landed on the same commit:
+[kzahel](https://github.com/kzahel/yepanywhere/actions/runs/35540766749) also
+reports `e2e-tests` success. Two runners, two independent passes, with a known
+cause and a unit test behind them. The arriving-match failure this file was
+opened for is closed.
+
+What keeps the file open is the smaller thread it also tracks: "preserves
+copying and returns to the query end only when typing", which failed once and
+passed on retry at `fa4352ea2` on kzahel while graehl passed it outright, and
+whose 2026-09-15 copy-selection assertion was never explained. Retire this file
+once that is either explained or seen to stay green.
+
 Two adjacent observations that are not this entry. On kzahel the same run also
 failed `provider-host-native (windows-latest)` with `kill EPERM` during process
 teardown; graehl's identical tree passed that job, so it is host-shaped. And
