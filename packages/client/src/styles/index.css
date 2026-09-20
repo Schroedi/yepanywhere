@@ -9649,13 +9649,13 @@ a.sidebar-nav-item {
   margin: 0 auto;
 }
 
+/* An index column: one sentence-long description once took 60% of 1000px. */
 .settings-category-nav {
-  width: max-content;
+  max-width: 18rem;
   overflow-y: auto;
 }
 
-.settings-two-column .settings-category-label,
-.settings-two-column .settings-category-description {
+.settings-two-column .settings-category-label {
   white-space: nowrap;
 }
 

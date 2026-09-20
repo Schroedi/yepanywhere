@@ -52,6 +52,15 @@ Client state that must not collide across hosted/remote sources → (2).
 Session/server config that seeds new sessions or must survive on the server →
 (3).
 
+### The category rail is an index, not a column to fill
+
+In the two-column layout the rail is capped (18rem) and its descriptions wrap;
+only the category label stays on one line. A category description is a phrase
+for scanning, and the rail must never be sized by the longest one: when it was,
+a single sentence-long description took 60% of a 1000px window and starved the
+pane behind it, collapsing Session Defaults to one column and overflowing the
+speech setup panel. Write short descriptions, and keep the cap.
+
 ### Explicit browser-settings transfer
 
 The Settings category navigation exposes **Transfer browser settings** beneath
