@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-09-12.
+Last updated: 2026-09-20.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in
@@ -168,6 +168,7 @@ documents before defining work.
 | Direction | Existing context / decision still needed |
 | --- | --- |
 | Multi-machine experience across the full web and desktop clients | The simple-client demo above now owns the first grouping experiment; broader adoption follows evidence from that work and [source runtimes](../../topics/client-source-runtime-topology.md). |
+| Authentication and delegated access | [Principals and grants](../../topics/principals-and-grants.md) is a coordination sketch, not an approved protocol or roadmap commitment. It relates the separate [limited-users](../../topics/limited-users.md), optional hosted-issuer, session-guest and peer-delegation proposals so the first implementation does not accidentally define an incompatible feature-local authority model. |
 | Related work across repositories | [Issues & PRs](../../topics/issue-session-associations.md) now has experimental, default-off automatic ticket/URL discovery from viewed sessions and a configurable recent-session window, durable evidence, search and correction controls. Conservative URL/known-prefix matching, durable Jira project learning, and session-grouped browsing are implemented and locally validated. SQLite migrations and compatibility gating are implemented. Multi-server issue grouping enters the simple-client demo above; workstream/branch inference and tracker synchronization remain deferred. |
 | Parallel work within one repository | Follow the [workstreams proposal](../../topics/workstreams.md), which uses ordinary lane clones; do not revive the old automatic-worktree sketch as an approved design. |
 | Scheduling | Follow [yacron](../../topics/yacron.md) and its [open gap](../../gaps/sketches/yacron-scheduler.md); the first management UI remains a design prerequisite. |

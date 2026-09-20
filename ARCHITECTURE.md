@@ -150,6 +150,10 @@ section below for what would have to change at higher fan-out.
   product direction for browser-known hosts, directed server-to-server grants,
   and separate native worker sessions as a useful step before session
   migration.
+- [`topics/principals-and-grants.md`](topics/principals-and-grants.md) — shared
+  proposal vocabulary for principals, credential sources, target-enforced
+  grants, local policy and execution boundaries across limited users, hosted
+  issuance and peer delegation; no protocol or implementation is approved.
 - [`topics/session-id-remap.md`](topics/session-id-remap.md) — problem
   statement for startup-time temporary session IDs that later canonicalize,
   including the activity event and client summary-store merge shape needed to

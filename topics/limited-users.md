@@ -11,8 +11,14 @@
 
 Topic: limited-users
 
-Status: **proposal, nothing implemented (2026-09-19).** What exists today,
-checked against `684687c69`:
+Status: **product proposal, nothing implemented (2026-09-19).** This is a
+possible local-credential and policy profile over the shared concepts sketched
+in [[principals-and-grants]], not a separate approved authorization
+architecture. That shared sketch is also only a proposal: it does not require a
+hosted service or select a protocol. Before implementing this topic, relate the
+chosen slice to that broader model and record any deliberately local seams.
+
+What exists today, checked against `684687c69`:
 
 - One account, no usernames. `AuthService` holds a single bcrypt password
   hash and cookie sessions keyed by verifier; `verifyPassword` takes only a
@@ -331,6 +337,12 @@ rather than decided here.
 
 ## Phases
 
+When choosing an implementation shape for these phases, note how it uses or
+defers the relevant shared seams from [[principals-and-grants]]: stable
+principal identity, authenticated request context, grant and local-policy
+enforcement, credential provenance, and revocation. An incremental phase need
+not implement every credential source or grant type.
+
 1. **Principals.** Limited-user records, superuser-managed creation and
    reset, username on the direct login page, HTTP Basic for limited users,
    principal attached by middleware. No authorization changes yet, so a
@@ -371,6 +383,8 @@ rather than decided here.
 
 ## See also
 
+- [[principals-and-grants]] — shared vocabulary and relationship to hosted and
+  peer-issued authority.
 - [[security]] — current single-user trust boundary this proposal extends.
 - [[session-sandboxing]], [[session-sandbox-network-boundary]] — the
   execution floor.
