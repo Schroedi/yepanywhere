@@ -197,8 +197,13 @@ describe("download and extraction boundaries", () => {
     expect(staged).toEqual(data);
     await result.cleanup();
   });
+  // Two PowerShell invocations, each loading System.IO.Compression: 3348ms and
+  // 4051ms on the Windows runs that passed, against a 5000ms default that left
+  // 1.2x of headroom and duly ran out. Budget is 4x the observed maximum,
+  // which is that 5000ms limit rather than the fastest run that beat it.
   it.runIf(process.platform === "win32")(
     "native extraction rejects traversal and handles a valid ZIP",
+    { timeout: 20_000 },
     async () => {
       directory = await mkdtemp(path.join(tmpdir(), "ya-release-zip-"));
       const fixtures = new URL("./fixtures/computer-release/", import.meta.url);

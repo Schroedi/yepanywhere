@@ -476,7 +476,13 @@ it("sweeps a catalog for moved projects without a write transaction per session"
   await indexer.settled();
   expect(transactions).toBe(0);
 });
-it("re-admits an unchanged recent catalog without a write per session", async () => {
+// Disk-bound: 200 sessions through three publish/settle sweeps. 34ms here,
+// 1295-2353ms across CI runs that passed, and past the 5000ms default on a
+// loaded runner. Budget is 4x the observed maximum, which is that 5000ms
+// limit rather than this host's time or the fastest run that beat it.
+it("re-admits an unchanged recent catalog without a write per session", {
+  timeout: 20_000,
+}, async () => {
   const service = new DiscoverySqliteService({
     dataDir: directory(),
     mode: "auto",
