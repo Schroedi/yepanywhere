@@ -312,10 +312,15 @@ describe("ProjectsPage", () => {
       </I18nProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Project settings" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "More project actions" }),
+    );
     expect(screen.queryByRole("menuitem", { name: "Project settings" })).toBe(
       null,
     );
+    expect(
+      screen.queryByRole("button", { name: "Open project settings" }),
+    ).toBe(null);
 
     state.version = {
       capabilities: [
@@ -332,6 +337,9 @@ describe("ProjectsPage", () => {
     );
     expect(
       screen.getByRole("menuitem", { name: "Project settings" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Open project settings" }),
     ).toBeTruthy();
   });
 

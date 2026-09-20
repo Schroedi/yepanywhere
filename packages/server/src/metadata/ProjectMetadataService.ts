@@ -52,6 +52,12 @@ export interface ProjectSessionDefaultsMetadata {
   updatedAt: string;
 }
 
+export interface ProjectCaptionMetadata {
+  /** User-entered caption that overrides the README/manifest derivation. */
+  caption: string;
+  updatedAt: string;
+}
+
 export interface ProjectMetadataState {
   /** Map of projectId -> metadata */
   projects: Record<string, ProjectMetadata>;
@@ -61,6 +67,8 @@ export interface ProjectMetadataState {
   projectSessionDefaults?: Record<string, ProjectSessionDefaultsMetadata>;
   /** Durable unique labels used in compact project identity surfaces. */
   projectCodeNames?: Record<string, ProjectCodeNameMetadata>;
+  /** User caption overrides; absent entries fall back to derived captions. */
+  projectCaptions?: Record<string, ProjectCaptionMetadata>;
   /** Schema version for future migrations */
   version: number;
 }
@@ -122,6 +130,7 @@ export class ProjectMetadataService {
           hiddenProjects: parsed.hiddenProjects ?? {},
           projectSessionDefaults: parsed.projectSessionDefaults ?? {},
           projectCodeNames: parsed.projectCodeNames ?? {},
+          projectCaptions: parsed.projectCaptions ?? {},
           version: CURRENT_VERSION,
         });
         await this.save();
@@ -183,6 +192,33 @@ export class ProjectMetadataService {
   getProjectCodeName(projectId: string): string | undefined {
     return this.state.projectCodeNames?.[this.canonicalProjectId(projectId)]
       ?.codeName;
+  }
+
+  getProjectCaptionOverride(projectId: string): string | undefined {
+    return this.state.projectCaptions?.[this.canonicalProjectId(projectId)]
+      ?.caption;
+  }
+
+  /**
+   * Set or clear (with `null`) the user caption override. The caller
+   * normalizes and validates the text.
+   */
+  async setProjectCaptionOverride(
+    projectId: string,
+    caption: string | null,
+  ): Promise<void> {
+    const canonicalProjectId = this.canonicalProjectId(projectId);
+    this.state.projectCaptions ??= {};
+    if (caption === null) {
+      if (!(canonicalProjectId in this.state.projectCaptions)) return;
+      delete this.state.projectCaptions[canonicalProjectId];
+    } else {
+      this.state.projectCaptions[canonicalProjectId] = {
+        caption,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    await this.save();
   }
 
   async ensureProjectCodeNames(
@@ -434,6 +470,7 @@ export class ProjectMetadataService {
       ProjectSessionDefaultsMetadata
     >();
     const projectCodeNames = new Map<string, ProjectCodeNameMetadata>();
+    const projectCaptions = new Map<string, ProjectCaptionMetadata>();
 
     for (const [projectId, metadata] of Object.entries(state.projects ?? {})) {
       const canonicalPath = canonicalizeProjectPath(metadata.path);
@@ -527,6 +564,32 @@ export class ProjectMetadataService {
       }
     }
 
+    for (const [projectId, metadata] of Object.entries(
+      state.projectCaptions ?? {},
+    )) {
+      if (
+        !metadata ||
+        typeof metadata.caption !== "string" ||
+        !metadata.caption.trim()
+      ) {
+        continue;
+      }
+      const canonicalProjectId = this.canonicalProjectId(projectId);
+      const updatedAt = Number.isFinite(new Date(metadata.updatedAt).getTime())
+        ? metadata.updatedAt
+        : new Date(0).toISOString();
+      const existing = projectCaptions.get(canonicalProjectId);
+      if (
+        !existing ||
+        new Date(updatedAt).getTime() >= new Date(existing.updatedAt).getTime()
+      ) {
+        projectCaptions.set(canonicalProjectId, {
+          caption: metadata.caption,
+          updatedAt,
+        });
+      }
+    }
+
     const projects: Record<string, ProjectMetadata> = {};
     for (const { projectId, metadata } of projectsByIdentity.values()) {
       projects[projectId] = metadata;
@@ -542,6 +605,7 @@ export class ProjectMetadataService {
       hiddenProjects,
       projectSessionDefaults: Object.fromEntries(projectSessionDefaults),
       projectCodeNames: Object.fromEntries(projectCodeNames),
+      projectCaptions: Object.fromEntries(projectCaptions),
       version: CURRENT_VERSION,
     };
   }

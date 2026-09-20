@@ -547,9 +547,18 @@ the same ledger:
 | 76 | server | 0.8.2 | `vhost-bearer-access` |
 | 77 | server | 0.8.2 | `claude-gateway-services` |
 | 78 | server | 0.8.2 | `session-rewind` |
+| 79 | server | 0.8.2 | `project-captions` |
 
 The code ledger is authoritative. The next client or server capability takes
-ID 79; retired rows stay in the ledger as reserved IDs.
+ID 80; retired rows stay in the ledger as reserved IDs.
+
+`project-captions` (ID 79, permanent, version-implied from 0.8.2) owns the
+additive `caption` field on project list, detail, and create responses,
+`PATCH /api/projects/:projectId/caption`, and the `project-captions-changed`
+event. The 2026-09-20 optional-feature horizon is v0.8.0 and v0.8.1; neither
+has any of these. Without the capability the client shows no caption on
+project cards or the session breadcrumb tooltip, hides the caption editor,
+and makes no caption request. See [project captions](project-captions.md).
 
 `session-rewind` (ID 78, permanent, version-implied from 0.8.2) gates the
 same-session rewind route, the `/clearloop` start and cancel routes, the

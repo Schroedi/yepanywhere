@@ -5690,7 +5690,11 @@ function SessionPageContent({
                     ref={projectBreadcrumbRef}
                     to={`${basePath}/sessions?project=${projectId}`}
                     className="project-breadcrumb"
-                    title={project.name}
+                    title={
+                      project.caption
+                        ? `${project.name}\n${project.caption.text}`
+                        : project.name
+                    }
                     aria-label={project.name}
                     onContextMenu={handleProjectBreadcrumbContextMenu}
                   >

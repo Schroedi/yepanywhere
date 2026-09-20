@@ -4,6 +4,7 @@ import { useI18n } from "../i18n";
 import { shortenPath } from "../lib/text";
 import type { Project } from "../types";
 import styles from "./ProjectCard.module.css";
+import { ProjectCaptionEditor } from "./ProjectCaptionEditor";
 import { ProjectCodeNameEditor } from "./ProjectCodeNameEditor";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 
@@ -25,6 +26,8 @@ interface ProjectCardProps {
   onOpenSettings?: (project: Project) => void;
   /** Persists an inline edit to this project's short code name. */
   onUpdateCodeName?: (project: Project, codeName: string) => Promise<void>;
+  /** Persists an inline caption override; `null` restores the derived caption. */
+  onUpdateCaption?: (project: Project, caption: string | null) => Promise<void>;
   /** Whether this project is currently being removed */
   isDeleting?: boolean;
 }
@@ -61,6 +64,7 @@ export function ProjectCard({
   onDeleteProject,
   onOpenSettings,
   onUpdateCodeName,
+  onUpdateCaption,
   isDeleting = false,
 }: ProjectCardProps) {
   const { t } = useI18n();
@@ -112,6 +116,30 @@ export function ProjectCard({
         }}
       >
         <div className={styles.header}>
+          {onOpenSettings && (
+            <button
+              type="button"
+              className={styles.settingsTrigger}
+              onClick={handleOpenSettings}
+              title={t("projectCardOpenSettings")}
+              aria-label={t("projectCardOpenSettings")}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+              </svg>
+            </button>
+          )}
           {(onOpenSettings || onDeleteProject) && (
             <div className={styles.menu} ref={menuRef}>
               <button
@@ -122,8 +150,8 @@ export function ProjectCard({
                   event.stopPropagation();
                   setMenuOpen((open) => !open);
                 }}
-                title={t("projectCardSettings")}
-                aria-label={t("projectCardSettings")}
+                title={t("projectCardMoreActions")}
+                aria-label={t("projectCardMoreActions")}
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
               >
@@ -198,6 +226,10 @@ export function ProjectCard({
                 onUpdateCodeName={onUpdateCodeName}
               />
             )}
+            <ProjectCaptionEditor
+              project={project}
+              onUpdateCaption={onUpdateCaption}
+            />
           </div>
           <button
             type="button"

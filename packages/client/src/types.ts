@@ -2,6 +2,7 @@
 import type {
   AgentStatus as AgentStatusType,
   AppContentBlock,
+  ProjectCaption,
   ProviderName,
 } from "@yep-anywhere/shared";
 
@@ -123,6 +124,8 @@ export interface Project {
   name: string;
   /** Server-owned unique shorthand; absent on older servers. */
   codeName?: string;
+  /** README/manifest-derived or user-overridden description; absent on older servers. */
+  caption?: ProjectCaption;
   sessionCount: number;
   sessionCountsByProvider?: Partial<Record<ProviderName, number>>;
   activeOwnedCount: number;

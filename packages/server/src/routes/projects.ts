@@ -1,7 +1,9 @@
 import { homedir } from "node:os";
 import {
   isUrlProjectId,
+  normalizeProjectCaption,
   toUrlProjectId,
+  type ProjectCaption,
   type ProjectQueueItemSummary,
   type UrlProjectId,
 } from "@yep-anywhere/shared";
@@ -23,6 +25,7 @@ import {
   isAbsolutePath,
   isDetachedProjectPath,
 } from "../projects/paths.js";
+import { getDerivedProjectCaption } from "../projects/projectCaption.js";
 import type { ProjectScanner } from "../projects/scanner.js";
 import type { ProjectStoragePolicy } from "../projects/projectStoragePolicy.js";
 import type { CodexSessionReader } from "../sessions/codex-reader.js";
@@ -254,6 +257,30 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
     });
   }
 
+  /** User override first, else the cached README/manifest derivation. */
+  async function captionForProject(
+    project: Project,
+  ): Promise<ProjectCaption | undefined> {
+    const override = deps.projectMetadataService?.getProjectCaptionOverride(
+      project.id,
+    );
+    if (override) return { text: override, source: "override" };
+    return getDerivedProjectCaption(project.path);
+  }
+
+  async function captionsForProjects(
+    projects: readonly Project[],
+  ): Promise<Map<string, ProjectCaption>> {
+    const captions = new Map<string, ProjectCaption>();
+    await Promise.all(
+      projects.map(async (project) => {
+        const caption = await captionForProject(project);
+        if (caption) captions.set(project.id, caption);
+      }),
+    );
+    return captions;
+  }
+
   /**
    * Get owned sessions for a project that might not be in the file list yet.
    * New sessions may not have user/assistant messages written to disk yet.
@@ -388,6 +415,7 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
       deps.externalTracker,
     );
     const codeNameByProjectId = await codeNamesForProjects(rawProjects);
+    const captionByProjectId = await captionsForProjects(rawProjects);
 
     // Enrich projects with active counts (all keyed by UrlProjectId now)
     const projects = rawProjects.map((project) => {
@@ -395,6 +423,7 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
       return {
         ...project,
         codeName: codeNameByProjectId.get(project.id),
+        caption: captionByProjectId.get(project.id),
         activeOwnedCount: counts.activeOwnedCount,
         activeExternalCount: counts.activeExternalCount,
         projectQueueBlockingCount: counts.projectQueueBlockingCount,
@@ -448,6 +477,7 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
       project: {
         ...project,
         codeName: codeNameByProjectId.get(project.id),
+        caption: await captionForProject(project),
         activeOwnedCount: counts.activeOwnedCount,
         activeExternalCount: counts.activeExternalCount,
         projectQueueBlockingCount: counts.projectQueueBlockingCount,
@@ -509,8 +539,58 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
       project: {
         ...project,
         codeName: codeNameByProjectId.get(project.id),
+        caption: await captionForProject(project),
       },
     });
+  });
+
+  // PATCH /api/projects/:projectId/caption - set or clear the caption override
+  routes.patch("/:projectId/caption", async (c) => {
+    const projectId = c.req.param("projectId");
+    if (!isUrlProjectId(projectId)) {
+      return c.json({ error: "Invalid project ID format" }, 400);
+    }
+    if (!deps.projectMetadataService) {
+      return c.json({ error: "Project caption editing is unavailable" }, 501);
+    }
+
+    let body: { caption?: unknown };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+    if (body.caption !== null && typeof body.caption !== "string") {
+      return c.json({ error: "caption must be a string or null" }, 400);
+    }
+
+    const project = await deps.scanner.getOrCreateProject(projectId);
+    if (!project) {
+      return c.json({ error: "Project not found" }, 404);
+    }
+
+    let caption: string | null;
+    try {
+      caption =
+        body.caption === null ? null : normalizeProjectCaption(body.caption);
+      if (caption === "") caption = null;
+    } catch (error) {
+      if (error instanceof RangeError) {
+        return c.json({ error: error.message }, 400);
+      }
+      throw error;
+    }
+
+    await deps.projectMetadataService.setProjectCaptionOverride(
+      project.id,
+      caption,
+    );
+    deps.eventBus?.emit({
+      type: "project-captions-changed",
+      projectIds: [project.id],
+      timestamp: new Date().toISOString(),
+    });
+    return c.json({ caption: await captionForProject(project) });
   });
 
   routes.patch("/:projectId/code-name", async (c) => {

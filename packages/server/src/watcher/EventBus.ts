@@ -10,6 +10,7 @@ import type {
   SessionRewindRecord,
   ContextUsage,
   PendingInputType,
+  ProjectCaptionsChangedEvent,
   ProjectCodeNameChangedEvent,
   ProjectQueueChangedEvent,
   ProviderName,
@@ -376,6 +377,7 @@ export type BusEvent =
   | SafeRestartChangedEvent
   | ProjectQueueChangedEvent
   | ProjectCodeNameChangedEvent
+  | ProjectCaptionsChangedEvent
   | SessionMetadataChangedEvent
   | SessionAbortedEvent
   | SessionStopRequestedEvent

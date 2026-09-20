@@ -6,6 +6,7 @@ import type {
   SessionRewindRecord,
   ContextUsage,
   PendingInputType,
+  ProjectCaptionsChangedEvent,
   ProjectCodeNameChangedEvent,
   ProjectQueueChangedEvent,
   ProviderName,
@@ -258,6 +259,7 @@ export interface ActivityEventMap {
   "provider-runtime-status-changed": ProviderRuntimeStatusChangedEvent;
   "project-queue-changed": ProjectQueueChangedEvent;
   "project-code-names-changed": ProjectCodeNameChangedEvent;
+  "project-captions-changed": ProjectCaptionsChangedEvent;
   "workstreams-changed": WorkstreamsChangedEvent;
   "session-queue-persistence-changed": SessionQueuePersistenceChangedEvent;
   "session-metadata-changed": SessionMetadataChangedEvent;
@@ -668,6 +670,7 @@ class ActivityBus {
       "provider-runtime-status-changed",
       "project-queue-changed",
       "project-code-names-changed",
+      "project-captions-changed",
       "workstreams-changed",
       "session-queue-persistence-changed",
       "session-metadata-changed",

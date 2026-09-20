@@ -90,6 +90,7 @@
 }
 
 .newSession,
+.settingsTrigger,
 .menuTrigger {
   display: flex;
   align-items: center;
@@ -111,6 +112,7 @@
 }
 
 .newSession:hover,
+.settingsTrigger:hover,
 .menuTrigger:hover {
   background: var(--bg-hover);
   color: var(--text-primary);

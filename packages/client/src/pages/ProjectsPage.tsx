@@ -1,4 +1,5 @@
 import {
+  PROJECT_CAPTIONS_CAPABILITY,
   PROJECT_CODE_NAMES_CAPABILITY,
   PROJECT_QUEUE_ATTACHMENT_EDITING_CAPABILITY,
   PROJECT_SESSION_DEFAULTS_CAPABILITY,
@@ -41,6 +42,10 @@ export function ProjectsPage() {
   const supportsProjectCodeNames = serverHasCapability(
     version,
     PROJECT_CODE_NAMES_CAPABILITY,
+  );
+  const supportsProjectCaptions = serverHasCapability(
+    version,
+    PROJECT_CAPTIONS_CAPABILITY,
   );
   const { projectCodeNamesEnabled } = useProjectCodeNamePreferences();
   const inboxCountsByProject = useInboxCountsByProject();
@@ -152,6 +157,14 @@ export function ProjectsPage() {
     codeName: string,
   ) => {
     await api.updateProjectCodeName(project.id, codeName);
+    await refetch();
+  };
+
+  const handleUpdateProjectCaption = async (
+    project: Project,
+    caption: string | null,
+  ) => {
+    await api.updateProjectCaption(project.id, caption);
     await refetch();
   };
 
@@ -395,6 +408,11 @@ export function ProjectsPage() {
                   onUpdateCodeName={
                     supportsProjectCodeNames && projectCodeNamesEnabled
                       ? handleUpdateProjectCodeName
+                      : undefined
+                  }
+                  onUpdateCaption={
+                    supportsProjectCaptions
+                      ? handleUpdateProjectCaption
                       : undefined
                   }
                   isDeleting={deletingProjectId === project.id}

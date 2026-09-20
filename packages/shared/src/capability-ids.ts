@@ -492,6 +492,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "session-rewind",
     introducedIn: "0.8.2",
   },
+  projectCaptions: {
+    id: 79,
+    direction: "server",
+    name: "project-captions",
+    introducedIn: "0.8.2",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

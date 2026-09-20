@@ -2534,6 +2534,38 @@ export const SERVER_CAPABILITIES = {
         "Hosted clients can outpace installed servers, which neither return durable code names nor support conflict-safe edits.",
     },
   },
+  projectCaptions: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectCaptions.id,
+    name: "project-captions",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Server derives a short project caption from README or manifest text, accepts a per-project override in app data, and reports the caption with its source on project responses.",
+    clientFallback:
+      "Show no caption on project cards or the session breadcrumb tooltip, hide caption editing, and make no caption request.",
+    serverContract: {
+      routes: [
+        "GET /api/projects",
+        "GET /api/projects/:projectId",
+        "POST /api/projects",
+        "PATCH /api/projects/:projectId/caption",
+      ],
+      requestFields: ["projectCaption.caption"],
+      responseFields: [
+        "projects[].caption",
+        "project.caption",
+        "projectCaption.caption",
+      ],
+      events: ["project-captions-changed"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Hosted clients can outpace installed servers, which neither derive captions nor accept caption overrides.",
+    },
+  },
   sidebarSessionResume: {
     id: CAPABILITY_ID_ALLOCATIONS.sidebarSessionResume.id,
     name: "sidebar-session-resume",
@@ -2866,6 +2898,8 @@ export const PROJECT_SESSION_DEFAULTS_CAPABILITY =
   SERVER_CAPABILITIES.projectSessionDefaults.name;
 export const PROJECT_CODE_NAMES_CAPABILITY =
   SERVER_CAPABILITIES.projectCodeNames.name;
+export const PROJECT_CAPTIONS_CAPABILITY =
+  SERVER_CAPABILITIES.projectCaptions.name;
 export const SIDEBAR_SESSION_RESUME_CAPABILITY =
   SERVER_CAPABILITIES.sidebarSessionResume.name;
 export const SYNTHETIC_DONE_COMMAND_CAPABILITY =

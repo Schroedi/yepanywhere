@@ -179,7 +179,14 @@ stack-specific knowledge (decided 2026-09-20):
 
 For the Node templates these are ordinary `package.json` scripts. A wasm or
 engine template maps the same names onto its toolchain through a small
-`Makefile` or script so the names hold. The project `AGENTS.md` names both
+`Makefile` or script so the names hold.
+
+Every template also ships `README.md` as `# <name>` followed by one HTML
+comment asking for one or two sentences about the project. YA's
+[[project-captions]] derivation skips comments and short headings, so a
+fresh project shows no placeholder caption; the boot prompt and project
+`AGENTS.md` tell the agent to replace the comment in its first turn, after
+which the caption appears on Projects without any YA-side registration. The project `AGENTS.md` names both
 and nothing else about running the app; `template.json` `app` records the
 directory and whether `start` exists, which is what the create flow reads to
 pick a reach path and what the App pane reads to know what to show.

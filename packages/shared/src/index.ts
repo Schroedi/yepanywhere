@@ -724,6 +724,13 @@ export {
   type ProjectCodeNameChangedEvent,
 } from "./project-code-names.js";
 export {
+  MAX_PROJECT_CAPTION_LENGTH,
+  normalizeProjectCaption,
+  type ProjectCaption,
+  type ProjectCaptionSource,
+  type ProjectCaptionsChangedEvent,
+} from "./project-captions.js";
+export {
   getApplicableSubscriptionUsageWindows,
   getMostUsedSubscriptionUsageWindow,
   type ProviderSubscriptionUsage,
@@ -792,6 +799,7 @@ export {
   PROJECT_QUEUE_READINESS_CHECK_CAPABILITY,
   ATTACHMENT_ONLY_SESSION_MESSAGES_CAPABILITY,
   PROJECT_QUEUE_NEW_SESSION_SHORTCUT_SETTING_CAPABILITY,
+  PROJECT_CAPTIONS_CAPABILITY,
   PROJECT_CODE_NAMES_CAPABILITY,
   PROJECT_SESSION_DEFAULTS_CAPABILITY,
   SIDEBAR_SESSION_RESUME_CAPABILITY,

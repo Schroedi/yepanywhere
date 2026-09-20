@@ -2,6 +2,7 @@ import type { SessionClearloopBadge } from "@yep-anywhere/shared";
 import type {
   AppSessionSummary,
   RetainedSessionCollectionState,
+  ProjectCaption,
   AgentActivity,
   AgentContextHints,
   CacheMissBillingRecord,
@@ -483,6 +484,15 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ codeName }),
     }),
+
+  updateProjectCaption: (projectId: string, caption: string | null) =>
+    fetchJSON<{ caption?: ProjectCaption }>(
+      `/projects/${encodeURIComponent(projectId)}/caption`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ caption }),
+      },
+    ),
 
   getProjectSessionDefaults: (projectId: string) =>
     fetchJSON<ProjectSessionDefaultsResponse>(

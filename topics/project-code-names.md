@@ -147,3 +147,5 @@ preference against such a server does not weaken that fallback.
   project identity metadata rather than session-default overrides.
 - [`sidebar-session-ordering.md`](sidebar-session-ordering.md) owns sidebar row
   stability; introducing shorter labels must not re-sort active sessions.
+- [`project-captions.md`](project-captions.md) — the longer, README-derived
+  and user-overridable description shown beside the code name on Projects.
