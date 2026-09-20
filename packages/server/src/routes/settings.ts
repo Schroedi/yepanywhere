@@ -280,6 +280,9 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps): Hono {
       if (typeof body.workstreamsEnabled === "boolean") {
         updates.workstreamsEnabled = body.workstreamsEnabled;
       }
+      if (typeof body.limitedUsersEnabled === "boolean") {
+        updates.limitedUsersEnabled = body.limitedUsersEnabled;
+      }
       if ("liveWorktreeMonitoringEnabled" in body) {
         if (typeof body.liveWorktreeMonitoringEnabled !== "boolean") {
           return c.json(

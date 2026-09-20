@@ -11,14 +11,18 @@
 
 Topic: limited-users
 
-Status: **product proposal, nothing implemented (2026-09-19).** This is a
-possible local-credential and policy profile over the shared concepts sketched
-in [[principals-and-grants]], not a separate approved authorization
-architecture. That shared sketch is also only a proposal: it does not require a
-hosted service or select a protocol. Before implementing this topic, relate the
-chosen slice to that broader model and record any deliberately local seams.
+Status: **v1 delivered (2026-09-20); the rest remains proposal.** See
+§ Delivery v1 — Users in the sidebar for the committed contract.
 
-What exists today, checked against `684687c69`:
+Read as a local-credential and policy profile over the shared concepts
+sketched in [[principals-and-grants]], not a separate approved authorization
+architecture. That shared sketch is itself a proposal: it does not require a
+hosted service or select a protocol. Relate any later slice to that broader
+model and record the deliberately local seams; v1's are its own SRP identity
+selection and its superuser-managed grant lists.
+
+The background below was written against `684687c69` and describes the
+pre-v1 state:
 
 - One account, no usernames. `AuthService` holds a single bcrypt password
   hash and cookie sessions keyed by verifier; `verifyPassword` takes only a
@@ -63,6 +67,148 @@ owner wants a child, a partner, or a collaborator to make and play with their
 own template-born projects ([[project-templates]]) over the same relay,
 without handing them the operator credential that can reach every project on
 disk.
+
+## Delivery v1 — Users in the sidebar
+
+**v1** is the named, committed subset of this proposal. It replaces the
+phase list below as the first thing actually built; the later phases remain
+proposal. Everything in this section is a contract: an externally testable
+outcome, enforced server-side at the operation, not by hiding a control.
+
+**v1 scope in one line.** A superuser-managed set of limited users, each with
+three per-project grants, an optional provider/model/effort lock, and a
+join-freshness offset; a sticky **Users** sidebar section that creates them,
+switches into them for testing, and logs out; relay login as a limited user;
+and default-deny authorization for every API operation a limited user makes.
+
+**Feature gate.** `limitedUsersEnabled` in server settings, default off
+([[vanilla-defaults]]). Off means no Users section, no `/api/users` surface,
+and no principal other than the superuser; turning it off while limited users
+exist keeps the records but refuses their logins.
+
+### v1 user record
+
+`limited-users.json` in the data directory, one record per username:
+
+- `username` — the relay label grammar, 3–32 characters of lowercase
+  letters, digits, and hyphens, first and last alphanumeric. Unique.
+- `passwordHash` — bcrypt, for the direct cookie login.
+- `srp` — `{ salt, verifier }` generated from the same password with the
+  username as SRP identity, so the relay path verifies without a second
+  credential. Changing the password rewrites both forms; neither form is
+  ever returned by an API.
+- `newSessionProjects: string[]` — projects where the user may start
+  sessions. Every session they start is forced to `sandboxLevel:
+  "project-write"`; the request cannot select `none`.
+- `joinProjects: string[]` — projects where the user may send turns to a
+  **fresh** existing session started by anyone.
+- `viewProjects: string[]` — projects whose sessions the user may read.
+- `joinStaleOffsetMinutes` — −5 to +60, default 0 (see freshness below).
+- `lock: { provider?, model?, effort? }` — any subset; an absent field is
+  not locked.
+- `disabled?`, `createdAt`, `lastLoginAt?`.
+
+Grants are a union, not a hierarchy: `newSessionProjects` and
+`joinProjects` each imply view on their own projects, so `viewProjects`
+only needs the read-only extras.
+
+### Freshness
+
+A session in a join project is joinable while
+`now − lastActivity ≤ providerCacheWarmMinutes + joinStaleOffsetMinutes`.
+`providerCacheWarmMinutes` is a believed prompt-cache-warm window per
+provider, shipped as **60 for Claude-family providers and 10 for everything
+else, Codex included** — the same zero point the stale-session cutoff above
+describes. Outside the window the session is visible but read-only for that
+user, with the reason stated; starting a new session stays available where
+`newSessionProjects` allows it. v1 does not implement the redirect-into-a-new-
+session behavior described above; it refuses the turn instead.
+
+### Authorization
+
+Enforcement is a single server-side middleware ahead of every API route, so
+a route added later is refused for limited users until it is listed. It is
+**default-deny**: a request path a limited principal is not explicitly
+allowed gets 403, and a project or session outside the user's grants gets
+404 (existence is not disclosed).
+
+| operation | limited user |
+|---|---|
+| any API path not on the v1 allowlist | 403 |
+| `GET` of a project-scoped path | allowed when the project is in any of the three lists, else 404 |
+| session create in a project | `newSessionProjects` only; sandbox forced; lock applied |
+| turn/approval/interrupt on a session | the session's project in `newSessionProjects` or `joinProjects`, **and** the session is fresh or started by this user |
+| any session the user started | always at least readable, including after its project grant is removed |
+| Issues & PRs (`/api/issues*`) | 403, and the nav entry is hidden: it spends the host's ticket-system credentials |
+| Inbox, Projects, Source Control, All Sessions | served, with every project and session outside the user's grants removed from the response |
+| settings | `GET` of the client-facing settings document; every write 403 |
+| user administration | 403 except `GET /api/users/me` and `POST /api/users/logout` |
+| public shares, app links, devices, bang commands, absolute-path file reads, uploads outside a session, server admin, relay/remote-access config | 403 |
+
+Session-to-project resolution for session-scoped paths uses the live process
+first and the session catalog second; a session that resolves to no project is
+refused. List filtering is by project only: a session the user started in a
+project whose grant was later removed stays directly readable but no longer
+appears in their lists. Sessions the user starts are recorded with `createdByUser` in
+session metadata at create time, which is what makes the "always readable"
+row above durable.
+
+The same principal check gates websocket subscriptions: a limited user may
+subscribe to a session channel only for sessions they may read, and the
+global activity channel is filtered to their accessible projects.
+
+### Login, switching, and logout
+
+- **Relay.** `srp_hello.identity` selects the verifier: the remote-access
+  record for the superuser, else the limited user of that name. An unknown
+  identity gets a challenge computed against a fixed dummy salt and verifier
+  and fails only at the proof step, and every hello response is padded to a
+  fixed floor, so response timing does not disclose which usernames exist.
+  This closes the existing early "unknown identity" leak as well.
+- **Direct.** The login page accepts an optional username; blank is the
+  superuser. The cookie session records which principal it authenticated.
+- **A relay-authenticated limited user is locked to that user** for the life
+  of the connection: no switch control, and `POST /api/users/switch` is
+  refused.
+- **Switching (superuser only).** `POST /api/users/switch {username|null}`
+  sets a server-signed `acting user` cookie, accepted only when the request's
+  underlying principal is the superuser. Everything after that is evaluated
+  as that limited user, which is how the restrictions get tested from one
+  browser. The sidebar caption shows the acting username whenever it is not
+  the superuser.
+- **Logout.** In the Users section. For a switched superuser it clears the
+  acting-user cookie and returns them to full access. For a limited user it
+  invalidates their session and returns them to the login they arrived by:
+  the relay login page for a relay session, the direct login page otherwise.
+
+### Users section in the sidebar
+
+Sticky above the scrolling sidebar body so it does not scroll away.
+
+- **Superuser, feature on.** The acting identity (or "superuser"), a list of
+  users to switch into, a create form (username, password), and per-user
+  editing of the three project lists, the lock, and the offset. Model and
+  effort completions populate from the provider catalog once a provider is
+  chosen; leaving a field blank leaves it unlocked.
+
+  The New Session form does **not** yet show a locked field as fixed; v1
+  enforces the lock and the forced sandbox at the create route, and a
+  conflicting request is refused naming the locked value
+  (`gaps/limited-user-lock-not-shown-in-new-session-form.md`).
+- **Limited user.** Their own username, a read-only view of their grants,
+  lock, and offset, and Logout. They cannot edit their settings.
+
+Nav entries a limited user cannot use are hidden, and the sidebar session
+list shows only sessions in their accessible projects plus sessions they
+started. Hiding is cosmetic; the middleware above is the enforcement.
+
+### Out of v1
+
+Viewers-versus-editors semantics beyond the three lists, session guests,
+template-only project creation, the Settings → Limited Users grants recap
+and summary line, HTTP Basic, per-user server sockets, the stale-session
+redirect (v1 refuses instead), and mid-session lock enforcement for model or
+effort changes made by the superuser.
 
 ## Principals and login
 

@@ -18,6 +18,7 @@ import {
 import { createApp } from "./app.js";
 import { markdownAugmentCacheDiagnostics } from "./augments/markdown-augments.js";
 import { AuthService } from "./auth/AuthService.js";
+import { LimitedUsersService } from "./auth/LimitedUsersService.js";
 import {
   closeCodexCorrelationDebugLogger,
   initCodexCorrelationDebugLogger,
@@ -615,6 +616,9 @@ const authService = new AuthService({
   sessionTtlMs: config.authSessionTtlMs,
   cookieSecret: config.authCookieSecret,
 });
+const limitedUsersService = new LimitedUsersService({
+  dataDir: config.dataDir,
+});
 const remoteAccessService = new RemoteAccessService({
   dataDir: config.dataDir,
 });
@@ -774,6 +778,8 @@ async function startServer() {
   markStartup("recentsService initialized");
   await authService.initialize();
   markStartup("authService initialized");
+  await limitedUsersService.initialize();
+  markStartup("limitedUsersService initialized");
   await remoteAccessService.initialize();
   markStartup("remoteAccessService initialized");
   await modelInfoService.initialize();
@@ -1059,6 +1065,9 @@ async function startServer() {
     glossaryIndexService,
     externalTracker,
     resolveAbsoluteFilePaths,
+    limitedUsers: limitedUsersSrpLookup,
+    authorizeSubscription,
+    isActivityEventVisible,
     artifactServer,
     conversationSubscriptions,
     focusedSessionWatchManager,
@@ -1095,6 +1104,7 @@ async function startServer() {
     pushService,
     recentsService,
     authService,
+    limitedUsersService,
     authDisabled: config.authDisabled,
     desktopAuthToken: config.desktopAuthToken,
     desktopBootstrapService,
@@ -1321,6 +1331,9 @@ async function startServer() {
     dataDir: config.dataDir,
     serverSettingsService,
     resolveAbsoluteFilePaths,
+    limitedUsers: limitedUsersSrpLookup,
+    authorizeSubscription,
+    isActivityEventVisible,
   });
   app.get("/api/ws", wsRelayHandler);
 
@@ -1348,6 +1361,9 @@ async function startServer() {
     dataDir: config.dataDir,
     serverSettingsService,
     resolveAbsoluteFilePaths,
+    limitedUsers: limitedUsersSrpLookup,
+    authorizeSubscription,
+    isActivityEventVisible,
   });
   markStartup("relay accept handler configured");
 

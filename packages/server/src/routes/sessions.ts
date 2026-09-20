@@ -192,6 +192,7 @@ import {
   resumeRecoveredGroup,
 } from "./session-recovered-queue.js";
 import { buildThinkingOptions } from "./session-thinking-options.js";
+import { applyLimitedLaunchPolicy } from "./limited-session-launch.js";
 import type { EventBus } from "../watcher/index.js";
 import { resolveExistingSessionIdentity } from "./session-existing-identity.js";
 
@@ -3807,6 +3808,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     if (executorError) {
       return c.json({ error: executorError }, 400);
     }
+    // A limited user's session is sandboxed and obeys their lock, decided
+    // here rather than in the form (topics/limited-users.md § Delivery v1).
+    const limitedLaunch = applyLimitedLaunchPolicy(c, body);
+    if (limitedLaunch.kind === "error") {
+      return c.json({ error: limitedLaunch.error }, 403);
+    }
     const sandboxSelection = parseSessionSandboxLevel(
       body.sandboxLevel,
       body.sandboxNetworkFirewall,
@@ -3907,6 +3914,15 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       return c.json({ ...result, serverTimestamp }, 202); // 202 Accepted - queued for processing
     }
 
+    if (limitedLaunch.kind === "applied") {
+      // Ownership survives a later grant change: a limited user can always
+      // read a session they started (topics/limited-users.md § Delivery v1).
+      await deps.sessionMetadataService?.recordSessionCreator(
+        result.sessionId,
+        limitedLaunch.username,
+      );
+    }
+
     await persistLaunchMetadata(
       result.sessionId,
       body.provider,
@@ -3971,6 +3987,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     );
     if (executorError) {
       return c.json({ error: executorError }, 400);
+    }
+    // A limited user's session is sandboxed and obeys their lock, decided
+    // here rather than in the form (topics/limited-users.md § Delivery v1).
+    const limitedLaunch = applyLimitedLaunchPolicy(c, body);
+    if (limitedLaunch.kind === "error") {
+      return c.json({ error: limitedLaunch.error }, 403);
     }
     const sandboxSelection = parseSessionSandboxLevel(
       body.sandboxLevel,
@@ -4053,6 +4075,15 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
 
     await initializeProjectHeartbeatDefaults(result.sessionId, project.id);
+
+    if (limitedLaunch.kind === "applied") {
+      // Ownership survives a later grant change: a limited user can always
+      // read a session they started (topics/limited-users.md § Delivery v1).
+      await deps.sessionMetadataService?.recordSessionCreator(
+        result.sessionId,
+        limitedLaunch.username,
+      );
+    }
 
     await persistLaunchMetadata(
       result.sessionId,

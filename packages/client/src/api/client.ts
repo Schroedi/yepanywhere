@@ -89,6 +89,7 @@ import type {
   SessionStatus,
 } from "../types";
 import { authApi } from "./authClient";
+import { usersApi } from "./usersClient";
 import { browserProfilesApi } from "./browserProfilesClient";
 import { fileApi } from "./fileClient";
 import { gitApi } from "./gitClient";
@@ -1429,6 +1430,7 @@ export const api = {
 
   // Auth API
   ...authApi,
+  ...usersApi,
 
   // Recents API
   ...recentsApi,
@@ -1771,6 +1773,8 @@ export interface ServerSettings {
   approvalAuditLogEnabled?: boolean;
   /** Whether users may create public read-only share links */
   publicSharesEnabled?: boolean;
+  /** Whether limited users exist beside the superuser (topics/limited-users.md) */
+  limitedUsersEnabled?: boolean;
   /** Whether experimental workstream surfaces and APIs are enabled */
   workstreamsEnabled?: boolean;
   /** Whether experimental live Source Control filesystem monitoring is enabled. */

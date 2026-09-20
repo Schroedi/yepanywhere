@@ -513,6 +513,24 @@ export function RemoteAccessSettings() {
         </label>
       </SettingsItem>
 
+      <SettingsItem
+        label={t("advancedLimitedUsersTitle")}
+        description={t("advancedLimitedUsersDescription")}
+        keywords={["limited users", "accounts", "guest", "sandbox", "grants"]}
+      >
+        <label className="toggle-switch">
+          <input
+            type="checkbox"
+            checked={settings?.limitedUsersEnabled ?? false}
+            disabled={isLoading}
+            onChange={(e) =>
+              void updateSetting("limitedUsersEnabled", e.target.checked)
+            }
+          />
+          <span className="toggle-slider" />
+        </label>
+      </SettingsItem>
+
       {publicShareManagementSupported && (
         <SettingsItem
           id="manage-public-shares"

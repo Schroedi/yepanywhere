@@ -1,0 +1,76 @@
+/**
+ * Launch policy a limited user's new session must obey.
+ *
+ * Contract: topics/limited-users.md § Delivery v1.
+ *
+ * Two things are settled here, at the route, not in the form: the session is
+ * sandboxed whether or not the request asked for it, and any locked
+ * provider, model, or effort is applied. A request that names a value
+ * conflicting with the lock is refused rather than quietly overridden, so a
+ * stale client cannot believe it launched what it asked for.
+ */
+
+import type { Context } from "hono";
+import { type Principal, PRINCIPAL_VARIABLE } from "../auth/principal.js";
+
+export interface LimitedLaunchBody {
+  provider?: string;
+  model?: string;
+  thinking?: string;
+  sandboxLevel?: string;
+  sandboxNetworkFirewall?: boolean;
+}
+
+export type LimitedLaunchOutcome =
+  | { kind: "superuser" }
+  | { kind: "applied"; username: string }
+  | { kind: "error"; error: string };
+
+/** The acting principal, defaulting to the superuser when unresolved. */
+export function principalFor(c: Context): Principal {
+  return (
+    (c.get(PRINCIPAL_VARIABLE) as Principal | undefined) ?? {
+      kind: "superuser",
+    }
+  );
+}
+
+/**
+ * Apply the limited user's launch policy to a session-create body in place.
+ * Returns what happened so the caller can record session ownership.
+ */
+export function applyLimitedLaunchPolicy(
+  c: Context,
+  body: LimitedLaunchBody,
+): LimitedLaunchOutcome {
+  const principal = principalFor(c);
+  if (principal.kind !== "limited") return { kind: "superuser" };
+
+  // Sandbox is not the user's to clear.
+  body.sandboxLevel = "project-write";
+
+  const { lock } = principal.grants;
+  const conflicts: Array<[keyof LimitedLaunchBody, string | undefined]> = [
+    ["provider", lock.provider],
+    ["model", lock.model],
+    ["thinking", lock.effort],
+  ];
+  for (const [field, locked] of conflicts) {
+    if (!locked) continue;
+    const requested = body[field];
+    if (
+      typeof requested === "string" &&
+      requested.length > 0 &&
+      requested !== "default" &&
+      requested !== locked
+    ) {
+      return {
+        kind: "error",
+        error: `This user is limited to ${String(field)} "${locked}"`,
+      };
+    }
+    (body as Record<string, unknown>)[field] = locked;
+  }
+
+  return { kind: "applied", username: principal.username };
+}

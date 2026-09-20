@@ -10,6 +10,7 @@ export type {
 } from "./retained-session-collections.js";
 
 export * from "./session-content-search.js";
+export * from "./limited-users.js";
 export {
   ACLI_COMMENTARY_MAX_TEXTS,
   ACLI_COMMENTARY_MAX_BODY_BYTES,

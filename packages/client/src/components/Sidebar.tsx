@@ -8,7 +8,15 @@ import {
   type ProjectQueueItemSummary,
   serverHasCapability,
 } from "@yep-anywhere/shared";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { GlobalSessionItem } from "../api/client";
 import { useOptionalRemoteConnection } from "../contexts/RemoteConnectionContext";
@@ -54,6 +62,13 @@ import {
 import { UI_KEYS } from "../lib/storageKeys";
 import { getSessionDisplayTitle } from "../utils";
 import { AgentsNavItem } from "./AgentsNavItem";
+import { useActingPrincipal } from "../hooks/useActingPrincipal";
+
+const SidebarUsersSection = lazy(() =>
+  import("./SidebarUsersSection").then((module) => ({
+    default: module.SidebarUsersSection,
+  })),
+);
 import { CompactResumeButton } from "./CompactResumeButton";
 import { SessionListItem } from "./SessionListItem";
 import type { SessionNavigationIntent } from "./SessionListItem";
@@ -343,6 +358,12 @@ export function Sidebar({
   const remoteConnection = useOptionalRemoteConnection();
   const { settings: serverSettings } = useServerSettings();
   const issuesEnabled = useIssuesEnabled();
+  // Limited users (topics/limited-users.md § Delivery v1): the acting
+  // principal decides which nav entries are worth showing. Hiding is
+  // cosmetic; the server refuses the same operations either way.
+  const { principal: actingPrincipal, refresh: refreshActingPrincipal } =
+    useActingPrincipal();
+  const isLimitedUser = actingPrincipal.username !== null;
   const publicSharesEnabled = serverSettings?.publicSharesEnabled ?? false;
   const { status: publicShareStatus } = usePublicShareStatus({
     poll: publicSharesEnabled,
@@ -1022,6 +1043,18 @@ export function Sidebar({
           )}
         </div>
 
+        {/* Limited users are off by default, so the section's code stays out
+            of the bundle every ordinary client loads. */}
+        {(actingPrincipal.enabled || actingPrincipal.username !== null) && (
+          <Suspense fallback={null}>
+            <SidebarUsersSection
+              principal={actingPrincipal}
+              onPrincipalChanged={() => void refreshActingPrincipal()}
+              isCollapsed={isCollapsed}
+            />
+          </Suspense>
+        )}
+
         <div className="sidebar-actions">
           {/* New Session: link to most recent project's new session page */}
           <SidebarNavItem
@@ -1062,7 +1095,7 @@ export function Sidebar({
               onClick={onNavigate}
               basePath={basePath}
             />
-            {issuesEnabled && (
+            {issuesEnabled && !isLimitedUser && (
               <SidebarNavItem
                 to="/issues"
                 icon={SidebarIcons.issues}
@@ -1071,7 +1104,7 @@ export function Sidebar({
                 basePath={basePath}
               />
             )}
-            {bangHistoryVisible && (
+            {bangHistoryVisible && !isLimitedUser && (
               <SidebarNavItem
                 to="/bang-commands"
                 icon={SidebarIcons.bang}
@@ -1101,7 +1134,7 @@ export function Sidebar({
                 basePath={basePath}
               />
             )}
-            {supportsDeviceBridgeNav && (
+            {supportsDeviceBridgeNav && !isLimitedUser && (
               <SidebarNavItem
                 to="/devices"
                 icon={SidebarIcons.emulator}
@@ -1110,7 +1143,9 @@ export function Sidebar({
                 basePath={basePath}
               />
             )}
-            <AgentsNavItem onClick={onNavigate} basePath={basePath} />
+            {!isLimitedUser && (
+              <AgentsNavItem onClick={onNavigate} basePath={basePath} />
+            )}
             <SidebarNavItem
               to="/settings"
               icon={SidebarIcons.settings}

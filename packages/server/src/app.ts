@@ -63,6 +63,14 @@ import { compress } from "hono/compress";
 import { join } from "node:path";
 import type { AuthService } from "./auth/AuthService.js";
 import { createAuthRoutes } from "./auth/routes.js";
+import type { LimitedUsersService } from "./auth/LimitedUsersService.js";
+import { SessionAccessResolver } from "./auth/sessionAccess.js";
+import type { SrpLimitedUserLookup } from "./routes/ws-srp-handlers.js";
+import { createLimitedUsersMiddleware } from "./middleware/limited-users.js";
+import { createUsersRoutes } from "./routes/users.js";
+import { SESSION_COOKIE_NAME } from "./auth/routes.js";
+import { getCookie as getRequestCookie } from "hono/cookie";
+import { levelFor } from "./auth/limitedUserPolicy.js";
 import type { DesktopBootstrapService } from "./desktop/DesktopBootstrapService.js";
 import type { DeviceBridgeService } from "./device/DeviceBridgeService.js";
 import type { FrontendProxy } from "./frontend/index.js";
@@ -389,6 +397,8 @@ export interface AppOptions {
   maxQueueSize?: number;
   /** AuthService for cookie-based auth (optional) */
   authService?: AuthService;
+  /** Limited-user records; absent disables the second principal class. */
+  limitedUsersService?: LimitedUsersService;
   /** Whether auth is disabled by env var (--auth-disable). Bypasses all auth. */
   authDisabled?: boolean;
   /** Desktop auth token for Tauri app. Requests with matching X-Desktop-Token header bypass auth. */
@@ -521,6 +531,23 @@ export interface AppResult {
   resolveAbsoluteFilePaths: (
     paths: readonly string[],
   ) => Promise<ReadonlySet<string>>;
+  /** Limited-user SRP verifier lookup for the relay handshake. */
+  limitedUsers?: SrpLimitedUserLookup;
+  /**
+   * Whether an authenticated websocket identity may open a subscription.
+   * See topics/limited-users.md § Delivery v1 — Authorization.
+   */
+  authorizeSubscription: (params: {
+    username: string | null;
+    channel: string;
+    sessionId?: string;
+    projectId?: string;
+  }) => Promise<boolean>;
+  /** Whether one activity event is visible to an authenticated identity. */
+  isActivityEventVisible: (
+    username: string | null,
+    event: { projectId?: string },
+  ) => boolean;
 }
 
 function getMessageContentBlocks(message: Message): AppContentBlock[] {
@@ -755,6 +782,62 @@ export function createApp(options: AppOptions): AppResult {
     );
   }
 
+  /*
+   * Limited users (topics/limited-users.md § Delivery v1). The middleware
+   * resolves the acting principal for every request and, when that is a
+   * limited user, refuses anything outside their grants — by default, so a
+   * route added later is unreachable for them until it is listed.
+   */
+  const limitedUsersService = options.limitedUsersService;
+  const isLimitedUsersEnabled = (): boolean =>
+    limitedUsersService !== undefined &&
+    options.serverSettingsService?.getSetting("limitedUsersEnabled") === true;
+  const sessionAccessResolver = new SessionAccessResolver({
+    getLiveSession: (sessionId) => {
+      const process = supervisor?.getProcessForSession(sessionId);
+      if (!process) return undefined;
+      return {
+        projectId: process.projectId,
+        provider: process.provider,
+        lastActivityMs: Date.now(),
+      };
+    },
+    readCatalogRows: async () => [],
+    getSessionMetadata: (sessionId) =>
+      options.sessionMetadataService?.getMetadata(sessionId),
+  });
+  if (limitedUsersService && options.authService) {
+    const authService = options.authService;
+    app.use(
+      "/api/*",
+      createLimitedUsersMiddleware({
+        limitedUsers: limitedUsersService,
+        sessionAccess: sessionAccessResolver,
+        isEnabled: isLimitedUsersEnabled,
+        getSuperuserIdentity: () =>
+          options.remoteAccessService?.getUsername() ?? null,
+        getCookieSessionUsername: async (c) =>
+          authService.getSessionUsername(
+            getRequestCookie(c, SESSION_COOKIE_NAME),
+          ),
+        getCookieSecret: () => authService.getCookieSecret(),
+      }),
+    );
+    app.route(
+      "/api/users",
+      createUsersRoutes({
+        limitedUsers: limitedUsersService,
+        authService,
+        isEnabled: isLimitedUsersEnabled,
+        setEnabled: async (enabled) => {
+          await options.serverSettingsService?.updateSettings({
+            limitedUsersEnabled: enabled,
+          });
+        },
+      }),
+    );
+  }
+
   // Auth routes (always mounted if authService is provided)
   // This allows checking auth status and enabling/disabling from settings
   if (options.authService) {
@@ -766,6 +849,8 @@ export function createApp(options: AppOptions): AppResult {
         desktopAuthToken: options.desktopAuthToken,
         desktopBootstrapService: options.desktopBootstrapService,
         isAuthenticationRelaxationBlocked,
+        limitedUsers: limitedUsersService,
+        isLimitedUsersEnabled,
       }),
     );
   }
@@ -3150,6 +3235,48 @@ export function createApp(options: AppOptions): AppResult {
     glossaryIndexService,
     externalTracker,
     resolveAbsoluteFilePaths: localResourcePathPolicy.findAllowedFilePaths,
+    limitedUsers: limitedUsersService
+      ? {
+          getSrpChallengeInputs: (username) =>
+            isLimitedUsersEnabled()
+              ? limitedUsersService.getSrpChallengeInputs(username)
+              : undefined,
+        }
+      : undefined,
+    isActivityEventVisible: (username, event) => {
+      if (!isLimitedUsersEnabled() || !username) return true;
+      if (username === options.remoteAccessService?.getUsername()) return true;
+      const grants = limitedUsersService?.getActiveGrants(username);
+      if (!grants) return false;
+      return (
+        typeof event.projectId !== "string" ||
+        levelFor(grants, event.projectId) !== "none"
+      );
+    },
+    authorizeSubscription: async ({
+      username,
+      channel,
+      sessionId,
+      projectId,
+    }) => {
+      // The superuser (no limited identity on the socket) subscribes freely.
+      if (!isLimitedUsersEnabled() || !username) return true;
+      if (username === options.remoteAccessService?.getUsername()) return true;
+      const grants = limitedUsersService?.getActiveGrants(username);
+      if (!grants) return false;
+      if (projectId) return levelFor(grants, projectId) !== "none";
+      if (sessionId) {
+        const facts = await sessionAccessResolver.resolve(sessionId);
+        if (!facts) return false;
+        return (
+          facts.createdByUser === username ||
+          levelFor(grants, facts.projectId) !== "none"
+        );
+      }
+      // Channels with no id of their own (activity) carry events for every
+      // project; their rows are filtered by the same grants downstream.
+      return channel === "activity";
+    },
   };
 }
 

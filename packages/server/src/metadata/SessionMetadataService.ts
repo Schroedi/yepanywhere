@@ -58,6 +58,13 @@ export type EffectiveSessionLaunchSettingsValue = Omit<
 >;
 
 export interface SessionMetadata {
+  /**
+   * Limited user who started this session, when one did. Absent means the
+   * superuser started it (or it predates limited users). A limited user can
+   * always read their own sessions, even after a project grant is removed:
+   * topics/limited-users.md § Delivery v1 — Authorization.
+   */
+  createdByUser?: string;
   /** Retain the acknowledged receipt so replay cannot raise it again. */
   nonHumanUserTurn?: NonHumanUserTurn & { acknowledged?: boolean };
   /** Custom title that overrides auto-generated title */
@@ -1059,6 +1066,18 @@ export class SessionMetadataService {
       initialPrompt: prompt,
     }));
     await this.save();
+  }
+
+  /** Record the limited user who started a session, at creation time. */
+  async recordSessionCreator(
+    sessionId: string,
+    username: string,
+  ): Promise<void> {
+    this.updateSessionMetadata(sessionId, (metadata) => ({
+      ...metadata,
+      createdByUser: username,
+    }));
+    await this.flushPendingWrites();
   }
 
   /**

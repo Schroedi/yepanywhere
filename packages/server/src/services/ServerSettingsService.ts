@@ -125,6 +125,11 @@ export interface ServerSettings {
   approvalAuditLogEnabled: boolean;
   /** Whether users may create public read-only share links */
   publicSharesEnabled: boolean;
+  /**
+   * Whether limited users exist as a second class of principal beside the
+   * superuser. Default off (topics/limited-users.md § Delivery v1).
+   */
+  limitedUsersEnabled?: boolean;
   /** Whether experimental workstream surfaces and APIs are enabled */
   workstreamsEnabled?: boolean;
   /** Whether experimental live Source Control filesystem monitoring is enabled. */
@@ -340,6 +345,7 @@ export const DEFAULT_SERVER_SETTINGS: ServerSettings = {
   clientLogCollectionRequested: false,
   approvalAuditLogEnabled: false,
   publicSharesEnabled: false,
+  limitedUsersEnabled: false,
   workstreamsEnabled: false,
   liveWorktreeMonitoringEnabled: defaultLiveWorktreeMonitoringEnabled(),
   sourceReviewSubmissionsEnabled: true,

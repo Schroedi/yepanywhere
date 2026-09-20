@@ -1,0 +1,176 @@
+/* Sidebar Users section: topics/limited-users.md § Delivery v1. Sticky above
+ * the scrolling sidebar body so the acting identity never scrolls away. */
+.section {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 4px);
+  padding: var(--space-2, 8px);
+  border-block-end: 1px solid var(--border-color, rgb(255 255 255 / 12%));
+  background: var(--bg-secondary, inherit);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2, 8px);
+  min-inline-size: 0;
+}
+
+.title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* The acting username, which is the whole point of the caption. */
+.caption {
+  overflow: hidden;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note,
+.hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-1, 4px);
+  align-items: center;
+}
+
+.select,
+.input {
+  flex: 1;
+  min-inline-size: 0;
+  /* Mobile-first: a sidebar control still has to be tappable. */
+  min-block-size: 32px;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color, rgb(255 255 255 / 20%));
+  border-radius: 4px;
+}
+
+.linkButton,
+.logout,
+.submit {
+  padding: 4px 8px;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--border-color, rgb(255 255 255 / 20%));
+  border-radius: 4px;
+  /* Mobile-first: still a real touch target in the sidebar overlay. */
+  min-block-size: 32px;
+}
+
+.submit {
+  background: var(--accent-color, rgb(255 255 255 / 10%));
+}
+
+.manage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 4px);
+  padding-block-start: var(--space-1, 4px);
+}
+
+.manageRow {
+  display: flex;
+  gap: var(--space-1, 4px);
+  align-items: center;
+}
+
+.subhead {
+  margin: var(--space-1, 4px) 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.projectList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-block-size: 40vh;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+/* One column for the name, one for the control, so every access select
+ * shares a left edge instead of stepping with the project name's width. */
+.projectRow {
+  display: grid;
+  grid-template-columns: 1fr 10rem;
+  gap: var(--space-1, 4px);
+  align-items: center;
+}
+
+.projectName {
+  overflow: hidden;
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Label above control: at sidebar width a side-by-side label wraps to four
+ * lines and drags the input off the row's baseline. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8125rem;
+}
+
+.grants {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px var(--space-2, 8px);
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.grants dd {
+  margin: 0;
+  text-align: end;
+}
+
+.error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--error-color, rgb(255 120 120));
+}
+
+/* Collapsed rail: initials only, optically centered in the icon column. */
+.railBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 24px;
+  block-size: 24px;
+  margin: var(--space-1, 4px) auto;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  border: 1px solid var(--border-color, rgb(255 255 255 / 20%));
+  border-radius: 50%;
+}
