@@ -224,6 +224,36 @@ make the spec dump the row it holds for the fixture when the count is 0, so one
 CI run says whether `fullTitle`/`initialPrompt` reached the client truncated,
 empty, or absent.
 
+2026-09-20, later — the row's contents are not the cause, and the catalog is
+not the place to look. At `ed0ed3151` the spec printed what it holds on all
+three desktop attempts
+([graehl](https://github.com/graehl/yepanywhere/actions/runs/35536404989)):
+
+```
+listed:true catalogSize:21 title:{length:120,hasNeedle:false}
+customTitle:absent fullTitle:{length:897,hasNeedle:true}
+initialPrompt:{length:897,hasNeedle:true} createdAt:<present> messageCount:262
+```
+
+That is identical to a local run, field for field. The server delivered the
+needle to the client in both candidates that can carry it, the session was
+listed among the same 21 sessions, and the client still rendered zero cards for
+30s. So every hypothesis about truncation, an empty-summary placeholder, a cold
+index, `createdAt`, or discovery latency is dead: the data arrived.
+
+Also new: the phone variant passed in this run (2.6s) while desktop failed all
+three attempts. Earlier runs failed both, so the failure is not viewport-wide
+and not fixed to one viewport either.
+
+What remains is client-side, between a catalog row that contains the needle and
+a rendered list that shows none. The list request the page makes carries `q`,
+and the server filters on `title`/`customTitle`/`projectName`/`initialPrompt`
+itself (`routes/global-sessions.ts`), so the next thing to establish is which
+response the rendering list actually held: a fresh filtered page, or a retained
+collection answered `unchanged` against a generation token that the fixture's
+arrival never advanced. That failure mode has precedent in this repo — the
+Projects filter had exactly it, fixed in `6ec6cd3b5`.
+
 Two adjacent observations that are not this entry. On kzahel the same run also
 failed `provider-host-native (windows-latest)` with `kill EPERM` during process
 teardown; graehl's identical tree passed that job, so it is host-shaped. And
