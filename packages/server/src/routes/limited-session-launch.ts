@@ -11,6 +11,10 @@
  */
 
 import type { Context } from "hono";
+import {
+  lockedThinkingOption,
+  thinkingOptionEffort,
+} from "@yep-anywhere/shared";
 import { type Principal, PRINCIPAL_VARIABLE } from "../auth/principal.js";
 
 export interface LimitedLaunchBody {
@@ -53,7 +57,6 @@ export function applyLimitedLaunchPolicy(
   const conflicts: Array<[keyof LimitedLaunchBody, string | undefined]> = [
     ["provider", lock.provider],
     ["model", lock.model],
-    ["thinking", lock.effort],
   ];
   for (const [field, locked] of conflicts) {
     if (!locked) continue;
@@ -70,6 +73,23 @@ export function applyLimitedLaunchPolicy(
       };
     }
     (body as Record<string, unknown>)[field] = locked;
+  }
+
+  // The lock names a bare effort; the request names a thinking option. Compare
+  // like with like, so "on:high" against a "high" lock is agreement, not a
+  // conflict, and a request that names no effort at all ("off", "auto") takes
+  // the locked one rather than escaping the budget the superuser set.
+  if (lock.effort) {
+    const requested = body.thinking;
+    const requestedEffort =
+      typeof requested === "string" ? thinkingOptionEffort(requested) : null;
+    if (requestedEffort !== null && requestedEffort !== lock.effort) {
+      return {
+        kind: "error",
+        error: `This user is limited to effort "${lock.effort}"`,
+      };
+    }
+    body.thinking = lockedThinkingOption(lock.effort);
   }
 
   return { kind: "applied", username: principal.username };

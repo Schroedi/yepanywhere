@@ -270,6 +270,28 @@ vi.mock("../../lib/deviceDetection", () => ({
   hasCoarsePointer: () => coarsePointerState.current,
 }));
 
+/** Who the server says this client acts as; superuser unless a test says otherwise. */
+const actingPrincipalState = vi.hoisted(() => ({
+  principal: {
+    superuser: true,
+    username: null as string | null,
+    switched: false,
+    locked: false,
+    enabled: false,
+    logoutRedirect: "stay",
+  } as import("@yep-anywhere/shared").ActingPrincipal,
+}));
+
+vi.mock("../../hooks/useActingPrincipal", () => ({
+  useActingPrincipal: () => ({
+    principal: actingPrincipalState.principal,
+    loading: false,
+    refresh: vi.fn(),
+  }),
+  isLimitedPrincipal: (principal: { username: string | null }) =>
+    principal.username !== null,
+}));
+
 vi.mock("react-router-dom", async () => {
   const actual =
     await vi.importActual<typeof import("react-router-dom")>(
@@ -565,6 +587,8 @@ vi.mock("../../i18n", () => ({
         composerFullPaneRestoreTitle: "Restore composer ({shortcut})",
         speechPrefixDeliveryLabel: "{action}. Prepends {prefix}.",
         speechPrefixDeliveryTooltip: "{tooltip} Prepends {prefix}.",
+        newSessionFixedTitle: "Set by your account",
+        newSessionFixedSandboxValue: "Always on",
       };
       let translated = text[key] ?? key;
       if (!vars) return translated;
@@ -690,6 +714,14 @@ function installObjectUrlMock() {
 describe("NewSessionForm", () => {
   beforeEach(() => {
     coarsePointerState.current = false;
+    actingPrincipalState.principal = {
+      superuser: true,
+      username: null,
+      switched: false,
+      locked: false,
+      enabled: false,
+      logoutRedirect: "stay",
+    };
     installObjectUrlMock();
     vi.stubGlobal(
       "matchMedia",
@@ -1556,6 +1588,128 @@ describe("NewSessionForm", () => {
         sandboxNetworkFirewall: true,
       }),
     );
+  });
+
+  describe("a limited user's locked launch fields", () => {
+    // Contract: topics/limited-users.md § Delivery v1 — Users in the sidebar.
+    const actAsLimited = (lock: Record<string, string>) => {
+      actingPrincipalState.principal = {
+        superuser: false,
+        username: "alice",
+        switched: false,
+        locked: true,
+        enabled: true,
+        logoutRedirect: "direct-login",
+        grants: {
+          newSessionProjects: ["project-1"],
+          joinProjects: [],
+          viewProjects: [],
+          joinStaleOffsetMinutes: 0,
+          lock,
+        },
+      };
+    };
+
+    const renderForm = () =>
+      render(
+        <NewSessionForm
+          projectId="project-1"
+          selectedProject={chooserProjects[0]}
+          projects={[...chooserProjects]}
+        />,
+      );
+
+    beforeEach(() => {
+      versionState.version = {
+        capabilities: [
+          PROJECT_QUEUE_CAPABILITY,
+          SESSION_SANDBOX_NETWORK_FIREWALL_CAPABILITY,
+          SESSION_SANDBOXING_CAPABILITY,
+          SESSION_SANDBOXING_STATUS_CAPABILITY,
+        ],
+        sessionSandboxing: {
+          state: "available",
+          platform: "linux",
+          backend: "bubblewrap",
+          version: "0.4.0",
+        },
+      };
+      // Saved defaults that disagree with the lock on every field.
+      serverSettingsState.settings = {
+        newSessionDefaults: {
+          provider: "claude",
+          model: "opus",
+          permissionMode: "default",
+          sandboxLevel: "none",
+        },
+      };
+      serverSettingsState.isLoading = false;
+    });
+
+    it("states the locked fields instead of offering them as choices", async () => {
+      actAsLimited({ provider: "codex", model: "gpt-5.4", effort: "medium" });
+      renderForm();
+
+      await waitFor(() => {
+        expect(screen.getByText("Set by your account")).toBeTruthy();
+      });
+      // No provider buttons, no model dropdown, no thinking panel, and no
+      // sandbox toggle: a limited user cannot change any of them.
+      expect(screen.queryByRole("button", { name: "Codex" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Claude" })).toBeNull();
+      expect(screen.queryAllByTestId("filter-selected")).toHaveLength(0);
+      expect(
+        screen.queryByRole("checkbox", { name: "newSessionSandboxLabel" }),
+      ).toBeNull();
+      expect(screen.getByText("Always on")).toBeTruthy();
+      // The firewall is still theirs — the launch route honors it.
+      expect(
+        screen.getByRole("checkbox", {
+          name: "newSessionSandboxNetworkFirewallLabel",
+        }),
+      ).toBeTruthy();
+    });
+
+    it("launches with the locked values and a forced sandbox", async () => {
+      actAsLimited({ provider: "codex", model: "gpt-5.4", effort: "medium" });
+      renderForm();
+
+      await waitFor(() => {
+        expect(screen.getByText("Set by your account")).toBeTruthy();
+      });
+      fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
+        target: { value: "locked launch" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "newSessionStartAction" }),
+      );
+
+      await waitFor(() => {
+        expect(mockStartSession).toHaveBeenCalledTimes(1);
+      });
+      expect(mockStartSession.mock.calls[0]?.[2]).toEqual(
+        expect.objectContaining({
+          provider: "codex",
+          model: "gpt-5.4",
+          thinking: "on:medium",
+          sandboxLevel: "project-write",
+        }),
+      );
+    });
+
+    it("keeps the pickers for fields the lock leaves free", async () => {
+      actAsLimited({ provider: "codex" });
+      renderForm();
+
+      await waitFor(() => {
+        expect(screen.getByText("Set by your account")).toBeTruthy();
+      });
+      expect(screen.queryByRole("button", { name: "Codex" })).toBeNull();
+      // Model stays choosable within the locked provider's catalog.
+      expect(screen.queryAllByTestId("filter-selected").length).toBeGreaterThan(
+        0,
+      );
+    });
   });
 
   it("turns off side-session recaps when sandboxing is enabled", async () => {

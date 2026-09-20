@@ -210,6 +210,41 @@ describe("limited-user launch policy", () => {
     });
     expect(outcome.kind).toBe("error");
   });
+
+  describe("a locked effort against the request's thinking option", () => {
+    const withEffort = {
+      ...alice,
+      grants: { ...alice.grants, lock: { effort: "medium" } },
+    };
+
+    it("accepts the same effort written as a thinking option", () => {
+      const body: { thinking?: string } = { thinking: "on:medium" };
+      expect(applyLimitedLaunchPolicy(contextFor(withEffort), body).kind).toBe(
+        "applied",
+      );
+      expect(body.thinking).toBe("on:medium");
+    });
+
+    it("fills in the locked effort when the request names none", () => {
+      for (const thinking of [undefined, "off", "auto"]) {
+        const body: { thinking?: string } = { thinking };
+        expect(
+          applyLimitedLaunchPolicy(contextFor(withEffort), body).kind,
+        ).toBe("applied");
+        expect(body.thinking).toBe("on:medium");
+      }
+    });
+
+    it("refuses a different effort", () => {
+      const outcome = applyLimitedLaunchPolicy(contextFor(withEffort), {
+        thinking: "on:max",
+      });
+      expect(outcome).toEqual({
+        kind: "error",
+        error: 'This user is limited to effort "medium"',
+      });
+    });
+  });
 });
 
 describe("limited-user middleware", () => {

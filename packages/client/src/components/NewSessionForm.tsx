@@ -70,11 +70,17 @@ import { useI18n } from "../i18n";
 import { formatFileSize } from "../lib/formatFileSize";
 import { parseComposerSlashCommand } from "../lib/slashCommands";
 import {
+  getEffortLevelLabel,
   getEffortLevelOptions,
   getThinkingModeOptions,
   resolveSupportedEffortLevel,
   resolveSupportedThinkingMode,
 } from "../lib/effortLevels";
+import {
+  launchLockFor,
+  launchLockOverrides,
+  type LaunchLock,
+} from "../lib/limitedLaunchLock";
 import {
   getPreferredProviderModelId,
   getProviderSessionDefaults,
@@ -207,6 +213,7 @@ import { useVersion } from "../hooks/useVersion";
 import { useSpeechCaptureSettings } from "../hooks/useSpeechCaptureSettings";
 import { useRecentSpeechAttribution } from "../hooks/useRecentSpeechAttribution";
 import { useProviderSubscriptionUsage } from "../hooks/useProviderSubscriptionUsage";
+import { useActingPrincipal } from "../hooks/useActingPrincipal";
 import { shortenPath } from "../lib/text";
 import { getPermissionModeOptions } from "../lib/permissionModes";
 import type { PermissionMode, Project } from "../types";
@@ -214,6 +221,7 @@ import { AttachmentChip } from "./AttachmentChip";
 import { DeliveryGlyph } from "./DeliveryGlyph";
 import { FilterDropdown, type FilterOption } from "./FilterDropdown";
 import { FullPaneComposerToggle } from "./FullPaneComposerToggle";
+import { NewSessionFixedLaunch } from "./NewSessionFixedLaunch";
 import { NewSessionProjectQueue } from "./NewSessionProjectQueue";
 import { SpeechPrefixActionCue } from "./SpeechPrefixActionCue";
 import { ProviderBadge } from "./ProviderBadge";
@@ -518,6 +526,15 @@ export function NewSessionForm({
 
   // Server version for voiceBackends advertisement
   const { version: versionInfo, loading: versionLoading } = useVersion();
+  // What this principal's account settles rather than offers. A limited user's
+  // locked fields and forced sandbox are enforced at the launch route; the
+  // form reads them so it stops presenting a choice that would be refused.
+  // See topics/limited-users.md § Delivery v1.
+  const { principal } = useActingPrincipal();
+  const launchLock = useMemo<LaunchLock>(
+    () => launchLockFor(principal),
+    [principal],
+  );
   const supportsSessionSandboxing =
     serverHasAvailableSessionSandbox(versionInfo);
   const supportsRemoteExecutors =
@@ -527,9 +544,11 @@ export function NewSessionForm({
     supportsSessionSandboxing &&
     effectiveExecutor === null &&
     providerSupportsLocalSessionSandbox(selectedProvider);
-  const effectiveSandboxLevel: SessionSandboxLevel = canConfigureSessionSandbox
-    ? sandboxLevel
-    : "none";
+  const effectiveSandboxLevel: SessionSandboxLevel = launchLock.limited
+    ? "project-write"
+    : canConfigureSessionSandbox
+      ? sandboxLevel
+      : "none";
   const effectiveSandboxNetworkFirewall =
     effectiveSandboxLevel === "project-write" && sandboxNetworkFirewall;
   // Whether this form may offer computer control and send the launch field.
@@ -554,6 +573,9 @@ export function NewSessionForm({
   const fixedProject = launch?.fixedProject ?? false;
   const composerMuted = launch?.composer === "muted";
   const showProviderAndModel = !(launch?.fixedProviderModel ?? false);
+  // A locked field is stated in the fixed-launch caption instead of offered.
+  const showProviderPicker = showProviderAndModel && !launchLock.provider;
+  const showModelPicker = showProviderAndModel && !launchLock.model;
 
   // What the composer held on the first render: a restored draft arrives
   // synchronously from storage, so anything beyond this was typed here.
@@ -1097,8 +1119,11 @@ export function NewSessionForm({
     selectedThinkingMode,
     thinkingModeOptions,
   );
+  // A locked effort also settles the thinking mode it implies, so the panel
+  // that would let either be changed is withheld rather than shown inert.
   const showThinkingControls =
     supportsThinkingToggle &&
+    !launchLock.effort &&
     thinkingModeOptions.some((option) => option !== "off");
   const permissionModeOptions = useMemo(
     () => getPermissionModeOptions({ model: selectedModelInfo }),
@@ -1397,6 +1422,30 @@ export function NewSessionForm({
     t,
   ]);
 
+  // A locked field is not a default anything may override, so every path that
+  // seeds provider, model, effort, or sandbox ends here. It deliberately does
+  // not mark the form customized: a lock the server imposed is not a
+  // preference worth saving as this client's default.
+  const applyLaunchLock = useCallback(() => {
+    if (!launchLock.limited) return;
+    if (launchLock.provider) setSelectedProvider(launchLock.provider);
+    if (launchLock.model) setSelectedModel(launchLock.model);
+    if (launchLock.effort) {
+      setSelectedEffortLevel(launchLock.effort);
+      setSelectedThinkingMode("on");
+    }
+    setSandboxLevel("project-write");
+    // Sandboxing implies the firewall here for the same reason the toggle
+    // turns it on: without it a sandboxed agent can reach YA and escape.
+    // The checkbox below stays theirs to clear afterwards.
+    setSandboxNetworkFirewall(true);
+    // A side-session recap cannot run beside a sandboxed session, the same
+    // reason the sandbox toggle clears it when a superuser turns it on.
+    setSelectedRecapMode((current) =>
+      current === "side-session" ? "off" : current,
+    );
+  }, [launchLock]);
+
   // Apply saved defaults against whatever provider rows are known so far.
   // `providerRows` may be empty (nothing probed yet) or a previous visit's
   // snapshot; the standing choice is settings state, so an unknown catalog
@@ -1501,8 +1550,11 @@ export function NewSessionForm({
         preferredPermissionMode ?? savedDefaults?.permissionMode ?? "default",
       );
       setSelectedExecutor(preferredExecutor ?? null);
+      // Last, so a saved default never outranks the acting principal's lock.
+      applyLaunchLock();
     },
     [
+      applyLaunchLock,
       settings,
       supportsSessionSandboxing,
       getLegacyProviderDefaultSeed,
@@ -1549,6 +1601,13 @@ export function NewSessionForm({
     settingsLoading,
     versionLoading,
   ]);
+
+  // Re-assert the lock for a principal that arrived after the first seed. The
+  // seeding paths call applyLaunchLock themselves, so this covers only the
+  // ordering where the acting-principal request settles last.
+  useEffect(() => {
+    applyLaunchLock();
+  }, [applyLaunchLock]);
 
   useEffect(() => {
     const nextProjectId = projectId ?? null;
@@ -2266,6 +2325,9 @@ export function NewSessionForm({
           promptSuggestionMode: effectivePromptSuggestionMode,
           helperSideModel,
           workstreamId: selectedCheckoutWorkstreamId,
+          // Last word, so a submit that raced the acting-principal request
+          // still launches inside the lock instead of being refused.
+          ...launchLockOverrides(launchLock),
         };
         logSessionUiTrace("new-session-submit", {
           projectId: resolvedProjectId ?? null,
@@ -2521,6 +2583,7 @@ export function NewSessionForm({
       hasSelectedProviderModel,
       isStarting,
       launch,
+      launchLock,
       composerMuted,
       consumeSpeechAttribution,
       deferSpeechDelivery,
@@ -2629,6 +2692,7 @@ export function NewSessionForm({
                   : {}),
               }
             : {}),
+          ...launchLockOverrides(launchLock),
           title: trimmedMessage,
         },
         message: {
@@ -3398,24 +3462,34 @@ export function NewSessionForm({
               />
             }
           />
-          {selectedProvider && modelOptions.length > 0 && (
-            <FilterDropdown
-              triggerVariant="chip"
-              panelVariant="model"
-              label={t("newSessionModelTitle")}
-              options={modelOptions}
-              selected={selectedModel ? [selectedModel] : []}
-              onChange={handleModelSelect}
-              multiSelect={false}
-              triggerContent={
-                <ProviderBadge
-                  provider={selectedProvider}
-                  model={selectedModel ?? undefined}
+          {/* A locked model keeps the chip's badge and loses its menu, so the
+              composer still says what will run without offering a switch. */}
+          {selectedProvider &&
+            (launchLock.model ? (
+              <ProviderBadge
+                provider={selectedProvider}
+                model={selectedModel ?? undefined}
+              />
+            ) : (
+              modelOptions.length > 0 && (
+                <FilterDropdown
+                  triggerVariant="chip"
+                  panelVariant="model"
+                  label={t("newSessionModelTitle")}
+                  options={modelOptions}
+                  selected={selectedModel ? [selectedModel] : []}
+                  onChange={handleModelSelect}
+                  multiSelect={false}
+                  triggerContent={
+                    <ProviderBadge
+                      provider={selectedProvider}
+                      model={selectedModel ?? undefined}
+                    />
+                  }
+                  triggerTitle={t("composerModelChipTitle")}
                 />
-              }
-              triggerTitle={t("composerModelChipTitle")}
-            />
-          )}
+              )
+            ))}
           {!compact && !composerMuted && (
             <FullPaneComposerToggle
               expanded={fullPane}
@@ -3930,36 +4004,43 @@ export function NewSessionForm({
       ].join(" ")}
       showCaption={showOptionCaptions}
     >
-      <label className="settings-item">
-        <div className="settings-item-info">
-          <strong>{t("newSessionSandboxLabel")}</strong>
-        </div>
-        <input
-          type="checkbox"
-          checked={sandboxLevel === "project-write"}
-          disabled={isStarting}
-          onChange={(event) => {
-            hasUserCustomizedDefaultsRef.current = true;
-            const enabled = event.currentTarget.checked;
-            setSandboxLevel(enabled ? "project-write" : "none");
-            if (enabled) {
-              setSandboxNetworkFirewall(true);
-            }
-            if (enabled && selectedRecapMode === "side-session") {
-              setSelectedRecapMode("off");
-            }
-          }}
-          aria-label={t("newSessionSandboxLabel")}
-        />
-      </label>
+      {/* A limited user cannot clear the sandbox, so the toggle is withheld;
+          the fixed-launch caption states that it is always on. The firewall
+          below stays theirs, because the launch route still honors it. */}
+      {!launchLock.limited && (
+        <label className="settings-item">
+          <div className="settings-item-info">
+            <strong>{t("newSessionSandboxLabel")}</strong>
+          </div>
+          <input
+            type="checkbox"
+            checked={sandboxLevel === "project-write"}
+            disabled={isStarting}
+            onChange={(event) => {
+              hasUserCustomizedDefaultsRef.current = true;
+              const enabled = event.currentTarget.checked;
+              setSandboxLevel(enabled ? "project-write" : "none");
+              if (enabled) {
+                setSandboxNetworkFirewall(true);
+              }
+              if (enabled && selectedRecapMode === "side-session") {
+                setSelectedRecapMode("off");
+              }
+            }}
+            aria-label={t("newSessionSandboxLabel")}
+          />
+        </label>
+      )}
       <label className="settings-item">
         <div className="settings-item-info">
           <strong>{sessionDefaultCopy.sandboxFirewall.title}</strong>
         </div>
         <input
           type="checkbox"
-          checked={sandboxLevel === "project-write" && sandboxNetworkFirewall}
-          disabled={isStarting || sandboxLevel !== "project-write"}
+          checked={
+            effectiveSandboxLevel === "project-write" && sandboxNetworkFirewall
+          }
+          disabled={isStarting || effectiveSandboxLevel !== "project-write"}
           onChange={(event) => {
             hasUserCustomizedDefaultsRef.current = true;
             setSandboxNetworkFirewall(event.currentTarget.checked);
@@ -3969,6 +4050,33 @@ export function NewSessionForm({
       </label>
     </NewSessionOptionSection>
   ) : null;
+  // What this account settles, stated where the withheld pickers would sit.
+  const fixedLaunchSection = launchLock.limited ? (
+    <NewSessionFixedLaunch
+      lock={launchLock}
+      modelLabel={
+        launchLock.model
+          ? (visibleModels.find((model) => model.id === launchLock.model)
+              ?.name ?? null)
+          : null
+      }
+      effortLabel={
+        launchLock.effort
+          ? getEffortLevelLabel(launchLock.effort, selectedProviderInfo, t)
+          : null
+      }
+      sandboxAvailable={supportsSessionSandboxing}
+    />
+  ) : null;
+  // Withholding every picker in this slot would otherwise leave its grid area
+  // empty rather than giving the width back, so the layout drops the area.
+  const providerSlotFilled = Boolean(
+    fixedLaunchSection ||
+      (showProviderPicker && providerSection) ||
+      (showModelPicker && modelSection) ||
+      thinkingSection ||
+      permissionSection,
+  );
 
   // Compact mode: just the input area, no header or mode selector
   if (compact) {
@@ -4009,7 +4117,7 @@ export function NewSessionForm({
       <div
         className={`new-session-top-layout ${styles.optionLayout}${
           fixedProject ? ` ${styles.optionLayoutWithoutProject}` : ""
-        }`}
+        }${providerSlotFilled ? "" : ` ${styles.optionLayoutWithoutProvider}`}`}
       >
         <div ref={mainStackRef} className="new-session-main-stack">
           <div
@@ -4041,13 +4149,11 @@ export function NewSessionForm({
             {workstreamChooser}
           </aside>
         )}
-        {(providerSection ||
-          modelSection ||
-          thinkingSection ||
-          permissionSection) && (
+        {providerSlotFilled && (
           <div className="new-session-provider-slot">
-            {showProviderAndModel && providerSection}
-            {showProviderAndModel && modelSection}
+            {fixedLaunchSection}
+            {showProviderPicker && providerSection}
+            {showModelPicker && modelSection}
             {thinkingSection}
             {permissionSection}
           </div>

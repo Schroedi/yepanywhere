@@ -146,6 +146,36 @@ export function clampJoinStaleOffsetMinutes(minutes: number): number {
   );
 }
 
+/**
+ * A session-create request names its reasoning budget as a thinking option
+ * (`off`, `auto`, or `on:<effort>`), while a lock names the bare effort. These
+ * two translate between the forms so neither the form nor the launch route
+ * compares an effort against a thinking option and sees a false conflict.
+ */
+
+/**
+ * The thinking option a locked effort forces; an effort implies thinking on.
+ * A stored lock holds whatever effort string the superuser chose, so this
+ * keeps the literal type it was given: a caller that already narrowed to an
+ * `EffortLevel` gets back a `ThinkingOption`.
+ */
+export function lockedThinkingOption<Effort extends string>(
+  effort: Effort,
+): `on:${Effort}` {
+  return `on:${effort}`;
+}
+
+/**
+ * The effort a thinking option names, or null when it names none. `off` and
+ * `auto` choose a mode without choosing a budget; the bare and `on:`-prefixed
+ * forms both name one.
+ */
+export function thinkingOptionEffort(thinking: string): string | null {
+  if (thinking === "off" || thinking === "auto") return null;
+  const effort = thinking.startsWith("on:") ? thinking.slice(3) : thinking;
+  return effort.length > 0 ? effort : null;
+}
+
 /** Access a limited user has to one project. */
 export type ProjectAccessLevel = "none" | "view" | "join" | "new-session";
 

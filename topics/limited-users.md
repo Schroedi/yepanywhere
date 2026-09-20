@@ -191,10 +191,30 @@ Sticky above the scrolling sidebar body so it does not scroll away.
   effort completions populate from the provider catalog once a provider is
   chosen; leaving a field blank leaves it unlocked.
 
-  The New Session form does **not** yet show a locked field as fixed; v1
-  enforces the lock and the forced sandbox at the create route, and a
-  conflicting request is refused naming the locked value
-  (`gaps/limited-user-lock-not-shown-in-new-session-form.md`).
+- **New Session, acting as a limited user.** The form offers only what the
+  user can actually affect. A locked provider, model, or effort loses its
+  picker — provider buttons, the model dropdown and its composer chip menu,
+  and the thinking/effort panel — and the sandbox loses its toggle. What was
+  withheld is stated instead, as a non-interactive "Set by your account"
+  caption carrying the same abbreviated indicators the rest of YA uses (the
+  provider badge for provider and model), plus the locked effort and
+  "Sandbox: always on". Nothing in it is focusable or clickable. When the
+  lock leaves a field free, that field keeps its ordinary picker; a lock that
+  empties the whole provider/model/thinking column gives the column's width
+  back rather than leaving a hole. The composer's model chip keeps its badge
+  and loses its menu.
+
+  The lock also outranks saved and per-project defaults in the form, and is
+  reapplied over the launch body at submit, so a submit racing the
+  acting-principal request still launches inside the lock. A side-session
+  recap is cleared, since it cannot run beside the forced sandbox. Hiding
+  remains cosmetic: the create route is the enforcement.
+
+  A request names its reasoning budget as a thinking option (`off`, `auto`,
+  or `on:<effort>`) while a lock names the bare effort. The route compares the
+  effort each names: the same effort in either spelling is agreement, a
+  request naming no effort takes the locked one, and a different effort is
+  refused naming the locked value.
 - **Limited user.** Their own username, a read-only view of their grants,
   lock, and offset, and Logout. They cannot edit their settings.
 
