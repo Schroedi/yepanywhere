@@ -973,21 +973,24 @@ function ConversationActivitySummary({
       ? "conversationActivitySingular"
       : "conversationActivityPlural",
   );
+  // Expanded, the activity is on screen right below this summary, so calling it
+  // hidden contradicts what the reader sees; the count alone still describes it.
+  const completeKey = item.expanded
+    ? "conversationActivityExpanded"
+    : "conversationActivityComplete";
+  const completeKeyWithoutTime = item.expanded
+    ? "conversationActivityExpandedWithoutTime"
+    : "conversationActivityCompleteWithoutTime";
   const label = duration
-    ? t(
-        item.active
-          ? "conversationActivityActive"
-          : "conversationActivityComplete",
-        {
-          duration,
-          count: item.activityCount,
-          activity,
-        },
-      )
+    ? t(item.active ? "conversationActivityActive" : completeKey, {
+        duration,
+        count: item.activityCount,
+        activity,
+      })
     : t(
         item.active
           ? "conversationActivityActiveWithoutTime"
-          : "conversationActivityCompleteWithoutTime",
+          : completeKeyWithoutTime,
         {
           count: item.activityCount,
           activity,
