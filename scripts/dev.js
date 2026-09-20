@@ -34,6 +34,7 @@ import {
 import {
   isOwnedProcessGroupAlive,
   providerHostCapability,
+  providerHostEnabled,
 } from "./provider-process-identity.mjs";
 import { exitIfUnsafeHome } from "./safe-home.js";
 
@@ -132,6 +133,7 @@ Options:
 // Use --watch to enable tsx watch mode
 const backendWatch = args.includes("--watch");
 const noFrontendReload = args.includes("--no-frontend-reload");
+const providerHostPolicyEnabled = providerHostEnabled();
 
 // Port configuration: PORT + 0 = server, PORT + 1 = maintenance, PORT + 2 = vite
 const basePort = process.env.PORT
@@ -168,6 +170,9 @@ if (backendWatch) console.log("  Backend auto-reload: ENABLED (--watch)");
 if (noFrontendReload) console.log("  Frontend HMR: DISABLED");
 if (!backendWatch && !noFrontendReload)
   console.log("  Frontend HMR: ENABLED, Backend: manual restart only");
+console.log(
+  `  Provider host: ${providerHostPolicyEnabled ? "ENABLED" : "DISABLED"}`,
+);
 
 // Build environment for child processes
 const env = {
@@ -176,11 +181,13 @@ const env = {
   // When not using --watch, enable manual reload mode (shows banner on file changes)
   NO_BACKEND_RELOAD: backendWatch ? "" : "true",
   NO_FRONTEND_RELOAD: noFrontendReload ? "true" : "",
+  YEP_PROVIDER_HOST_ENABLED: String(providerHostPolicyEnabled),
   // Pass vite port to both server and client for consistency
   VITE_PORT: String(vitePort),
 };
 
 const reloadSafeRuntimeHostsEnabled =
+  providerHostPolicyEnabled &&
   providerHostCapability().supported &&
   !backendWatch &&
   (env.USE_MOCK_SDK !== "true" ||

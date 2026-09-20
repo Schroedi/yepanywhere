@@ -10,8 +10,11 @@
 Topic: reload-safe-provider-runtimes
 
 Status: **implemented on Linux and macOS Node source checkouts for the non-watch
-development wrapper and foreground host.** macOS live Claude, Codex, and
-simultaneous Claude/Codex continuity are verified on canonical project paths.
+development wrapper and foreground host.** Linux development launches enable
+the shared host by default. macOS development launches require
+`YEP_PROVIDER_HOST_ENABLED=true` while the active-turn interruption gap remains
+open. macOS live Claude, Codex, and simultaneous Claude/Codex continuity are
+verified on canonical project paths.
 The dated run evidence for both macOS validations is recorded in
 [tactical 128](../docs/tactical/128-macos-provider-host.md#macos-verification-evidence);
 the commands that reproduce it are in [macOS Verification
@@ -905,8 +908,13 @@ The server continues to accept, store, and return
 render it, and the native-host availability capability is no longer
 advertised. Its capability ids remain reserved for their original meanings.
 
-The shared host is enabled on Linux and macOS Node source checkouts under the
-non-watch development wrapper or through `pnpm provider-host`. Host capability requires:
+The shared host is enabled by default on Linux Node source checkouts under the
+non-watch development wrapper. macOS source checkouts default to ordinary
+in-Hono provider ownership and opt into the shared host with
+`YEP_PROVIDER_HOST_ENABLED=true`. An explicit false disables automatic host
+discovery and launch on either platform. The explicit `pnpm provider-host`
+foreground command remains available, but a server attaches to it only when
+its provider-host policy is enabled. Host capability requires:
 
 - a supported platform/runtime and successful native process-identity probe;
 - launch through the recognized development wrapper or foreground host;
@@ -915,10 +923,11 @@ non-watch development wrapper or through `pnpm provider-host`. Host capability r
 - wrapper-generation registration for Hono control; and
 - bounded owner-loss cleanup owned by the host and its terminal owner.
 
-Windows, macOS Bun, compiled macOS servers and Desktop retain ordinary in-Hono
-provider ownership. Supported direct source launches attach or start the host
-instead of silently skipping it. Failed or ambiguous probes on supported
-launches continue in-process with the degraded banner. An
+Windows, macOS Bun, compiled macOS servers, Desktop, and intentionally disabled
+source launches retain ordinary in-Hono provider ownership. Enabled supported
+direct source launches attach or start the host instead of silently skipping
+it. Failed or ambiguous probes on enabled supported launches continue
+in-process with the degraded banner; intentional disablement does not. An
 ambiguous stable descriptor is not removed or replaced.
 
 Any later use of `systemd-run --user`, Linux abstract sockets, `/proc`, cgroup

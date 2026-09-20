@@ -185,6 +185,19 @@ export function supportsProviderHostRuntimeAsLaunched(): boolean {
   );
 }
 
+export function providerHostEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  const configured = env.YEP_PROVIDER_HOST_ENABLED?.trim().toLowerCase();
+  if (configured === "true") return true;
+  if (configured === "false") return false;
+  if (configured) {
+    throw new Error("YEP_PROVIDER_HOST_ENABLED must be true or false");
+  }
+  return platform === "linux";
+}
+
 function getEnvironment(): RuntimeHostEnvironment | null {
   if (!supportsProviderHostRuntimeAsLaunched()) return null;
   const runtimeEnv = getModuleEnv("provider-runtime");
@@ -238,12 +251,16 @@ function applyProviderHostConnection(connection: {
 }
 
 /**
- * Attach to a live provider host, or start one when absent.
+ * When enabled, attach to a live provider host or start one when absent.
  * Remote SSH executor sessions stay allowed either way: they still launch
  * from this YA server. A failed ensure continues in-process and sets the
  * provider-host degraded notice.
  */
 export async function ensureProviderRuntimeHost(): Promise<boolean> {
+  if (!providerHostEnabled()) {
+    setProviderHostDegraded(false);
+    return false;
+  }
   if (isProviderRuntimeHostAvailable()) {
     setProviderHostDegraded(false);
     return true;

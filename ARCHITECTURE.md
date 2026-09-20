@@ -67,16 +67,23 @@ alternatives rather than selecting a new runtime contract.
 
 ## Provider runtime ownership and reload
 
-On a capable Linux or macOS Node source-checkout non-watch development launch, `scripts/dev.js` owns a shared
-provider host outside the replaceable Hono process. One worker per session owns
-the real provider adapter, SDK/TUI transport, message queue, callbacks, and
-sequenced output; Hono's `Process` talks to it through an `AgentSession` proxy.
-When that host is unavailable, provider ownership remains inside Hono and the
-ordinary safe-restart behavior applies.
+On an enabled, capable Linux or macOS Node source-checkout non-watch development
+launch, `scripts/dev.js` owns a shared provider host outside the replaceable
+Hono process. One worker per session owns the real provider adapter, SDK/TUI
+transport, message queue, callbacks, and sequenced output; Hono's `Process`
+talks to it through an `AgentSession` proxy. When that host is disabled or
+unavailable, provider ownership remains inside Hono and the ordinary
+safe-restart behavior applies.
 
-Shared-host use is capability-driven and automatic, not a user toggle. The
-former Codex-native setting remains accepted and stored for compatibility, but
-is inert and hidden; Codex uses the shared host like every other provider.
+`YEP_PROVIDER_HOST_ENABLED` is the operator gate. Linux defaults enabled;
+macOS defaults disabled pending resolution of the observed active-turn
+interruptions tracked in
+[`gaps/macos-provider-host-turn-interruptions.md`](gaps/macos-provider-host-turn-interruptions.md).
+An explicit `true` or `false` wins. Intentional disablement is not host
+degradation and does not show the degraded-host warning. The former
+Codex-native setting remains accepted and stored for compatibility, but is
+inert and hidden; when enabled, Codex uses the shared host like every other
+provider.
 
 **Safe Reload replaces Hono and Vite, preserving the provider host.** Existing
 shared-host workers intentionally keep the provider code and launch facts they
