@@ -76,7 +76,7 @@ export function AddProjectForm({
       const chosenName = name.trim();
       if (chosenName && chosenName !== defaultName) request.name = chosenName;
     }
-    if (chooseCodeName && codeDraft !== null && codeDraft.trim()) {
+    if (chooseCodeName && codeDraft?.trim()) {
       try {
         request.codeName = normalizeProjectCodeName(codeDraft);
       } catch (caught) {
