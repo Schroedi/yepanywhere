@@ -1542,6 +1542,13 @@ export function createApp(options: AppOptions): AppResult {
     eventBus: options.eventBus,
     sessionMetadataService: options.sessionMetadataService,
     notificationService: options.notificationService,
+    ...(options.userUsageService
+      ? {
+          recordTokenUsage: (record) => {
+            void options.userUsageService?.recordTokens(record);
+          },
+        }
+      : {}),
     maxWorkers: options.maxWorkers,
     idlePreemptThresholdMs: options.idlePreemptThresholdMs,
     maxQueueSize: options.maxQueueSize,

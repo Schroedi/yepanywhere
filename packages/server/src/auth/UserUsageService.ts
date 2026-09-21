@@ -4,9 +4,10 @@
  *
  * Contract: topics/limited-users.md § Delivery v1 — Usage.
  *
- * The store is an append-only JSONL ledger, one short line per session start
- * and per user turn. Appending is the only write, so a turn costs one small
- * append and never a rewrite; reporting reads the file once. A record's
+ * The store is an append-only JSONL ledger, one short line per session start,
+ * per user turn, and per settled provider turn's token charge. Appending is
+ * the only write, so a turn costs one small append and never a rewrite;
+ * reporting reads the file once. A record's
  * absent username means the superuser, which is also what every action taken
  * before this existed means — so the ledger starts empty and the report says
  * how far back it actually reaches rather than implying it covers all time.
@@ -72,6 +73,52 @@ export class UserUsageService {
     });
   }
 
+  /**
+   * Record tokens a provider charged for one principal's work, by class and
+   * named by model short name, project, provider and context tier — the four
+   * things the price of those tokens depends on. Nothing is appended for a
+   * zero charge, so an idling session adds no lines.
+   */
+  recordTokens(record: {
+    username?: string;
+    /** Launch alias, e.g. `opus`; absent when the process never reported one. */
+    model?: string;
+    /** Resolved provider model id, which the price table is keyed by. */
+    modelId?: string;
+    project?: string;
+    /** Which price list the counts are read under. */
+    provider?: string;
+    /** Whether these requests were in the provider's long-context tier. */
+    longContext?: boolean;
+    freshInputTokens: number;
+    cachedInputTokens: number;
+    cacheWriteTokens: number;
+    outputTokens: number;
+  }): Promise<void> {
+    const count = (value: number) => Math.max(0, Math.floor(value));
+    const fresh = count(record.freshInputTokens);
+    const cached = count(record.cachedInputTokens);
+    const written = count(record.cacheWriteTokens);
+    const output = count(record.outputTokens);
+    if (fresh === 0 && cached === 0 && written === 0 && output === 0) {
+      return Promise.resolve();
+    }
+    return this.append({
+      t: this.now(),
+      k: "tokens",
+      ...(record.username ? { u: record.username } : {}),
+      ...(record.model ? { m: record.model } : {}),
+      ...(record.modelId ? { d: record.modelId } : {}),
+      ...(record.project ? { p: record.project } : {}),
+      ...(record.provider ? { v: record.provider } : {}),
+      ...(record.longContext ? { x: 1 as const } : {}),
+      ...(fresh > 0 ? { i: fresh } : {}),
+      ...(cached > 0 ? { r: cached } : {}),
+      ...(written > 0 ? { c: written } : {}),
+      ...(output > 0 ? { o: output } : {}),
+    });
+  }
+
   /** Usage per principal, seeded so a user who has done nothing still shows. */
   async report(knownUsernames: readonly string[] = []): Promise<UsageReport> {
     const events = await this.readEvents();
@@ -120,7 +167,13 @@ export class UserUsageService {
         const parsed = JSON.parse(line) as UsageEvent;
         // A truncated tail from an interrupted append is dropped, not fatal.
         if (typeof parsed?.t !== "number") continue;
-        if (parsed.k !== "session" && parsed.k !== "turn") continue;
+        if (
+          parsed.k !== "session" &&
+          parsed.k !== "turn" &&
+          parsed.k !== "tokens"
+        ) {
+          continue;
+        }
         events.push(parsed);
       } catch {
         // Same: an unparseable line costs its own record and nothing else.

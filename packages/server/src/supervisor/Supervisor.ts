@@ -44,6 +44,10 @@ import {
   type PrepareSessionSandboxOptions,
 } from "../session-sandbox.js";
 import { getProvider } from "../sdk/providers/index.js";
+import {
+  SessionTokenUsageRecorder,
+  type SessionTokenUsageRecord,
+} from "../auth/SessionTokenUsageRecorder.js";
 import { CacheMissBillingMonitor } from "../services/CacheMissBillingMonitor.js";
 import type { DirtyFileEditorService } from "../services/DirtyFileEditorService.js";
 import type { SessionQueuePersistenceService } from "../services/SessionQueuePersistenceService.js";
@@ -596,6 +600,11 @@ export interface SupervisorOptions {
   getPostCompactReplaySettings?: () => PostCompactReplaySettings | undefined;
   /** Callback to read live cache-miss billing monitor settings. */
   getCacheMissBillingSettings?: () => CacheMissBillingSettings | undefined;
+  /**
+   * Append a settled provider token charge to the per-user usage ledger.
+   * Absent on a server built without the ledger, which then records no tokens.
+   */
+  recordTokenUsage?: (record: SessionTokenUsageRecord) => void;
   /** Current install-wide Claude Bash re-foregrounding policy. */
   getClaudeSteerBackgroundBashSettings?: () =>
     | ClaudeSteerBackgroundBashSettings
@@ -682,6 +691,7 @@ export class Supervisor {
     | ClaudeSteerBackgroundBashSettings
     | undefined;
   private cacheMissBillingMonitor: CacheMissBillingMonitor;
+  private tokenUsageRecorder: SessionTokenUsageRecorder;
   private heartbeatScheduler: HeartbeatSweepScheduler;
   /**
    * Instant the unowned-candidate half of the sweep is next due, or null once
@@ -776,6 +786,11 @@ export class Supervisor {
       eventBus: options.eventBus,
       sessionMetadataService: options.sessionMetadataService,
       getSettings: options.getCacheMissBillingSettings,
+    });
+    this.tokenUsageRecorder = new SessionTokenUsageRecorder({
+      record: options.recordTokenUsage ?? (() => {}),
+      resolveUsername: (sessionId) =>
+        options.sessionMetadataService?.getMetadata(sessionId)?.createdByUser,
     });
     this.interruptTimeoutMs =
       options.interruptTimeoutMs ?? DEFAULT_INTERRUPT_TIMEOUT_MS;
@@ -5221,6 +5236,9 @@ export class Supervisor {
             );
           });
       } else if (event.type === "provider-turn-started") {
+        // A provider that never emits a `result` frame would otherwise let one
+        // turn's charge run into the next; the new turn's start closes it.
+        this.tokenUsageRecorder.flush(process);
         this.cacheMissBillingMonitor.observeProviderTurnStarted(
           process,
           event.turnKind,
@@ -5283,6 +5301,10 @@ export class Supervisor {
           }
         }
         this.cacheMissBillingMonitor.observeMessage(process, event.message);
+        this.tokenUsageRecorder.observeMessage(process, event.message);
+        if (event.message.type === "result") {
+          this.tokenUsageRecorder.flush(process);
+        }
         if (
           isAwaySummaryMessage(event.message) &&
           event.message.isSynthetic !== true
@@ -5641,6 +5663,7 @@ export class Supervisor {
     this.thresholdCompactionInFlight.delete(process.id);
     this.pendingPostCompactReplay.delete(process.id);
     this.cacheMissBillingMonitor.forgetProcess(process.id);
+    this.tokenUsageRecorder.forgetProcess(process);
     this.activationCoordinator.discardProcess(process);
     this.pendingForkedRecapRequests.delete(process.id);
     this.forkedRecapInFlight.get(process.id)?.abort();

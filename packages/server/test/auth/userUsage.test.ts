@@ -86,6 +86,102 @@ describe("UserUsageService", () => {
     ).toBe(1);
   });
 
+  it("records a token charge against the model and project that caused it", async () => {
+    await service.recordTurn("archer", "do the thing");
+    await service.recordTokens({
+      username: "archer",
+      model: "opus",
+      modelId: "claude-opus-4-5",
+      provider: "claude",
+      project: "yepanywhere",
+      freshInputTokens: 1000,
+      cachedInputTokens: 9000,
+      cacheWriteTokens: 500,
+      outputTokens: 2000,
+    });
+
+    const report = await service.report();
+    const archer = report.users.find((user) => user.username === "archer");
+    expect(archer?.total.turns).toBe(1);
+    expect(archer?.total.tokens).toEqual({
+      freshInputTokens: 1000,
+      cachedInputTokens: 9000,
+      cacheWriteTokens: 500,
+      outputTokens: 2000,
+    });
+    expect(archer?.total.byModel).toEqual([
+      expect.objectContaining({ name: "opus", equivalentOutputTokens: 2505 }),
+    ]);
+    expect(archer?.total.byProject).toEqual([
+      expect.objectContaining({ name: "yepanywhere" }),
+    ]);
+  });
+
+  it("appends nothing for a zero charge", async () => {
+    await service.recordTokens({
+      freshInputTokens: 0,
+      cachedInputTokens: 0,
+      cacheWriteTokens: 0,
+      outputTokens: 0,
+    });
+    const report = await service.report();
+    expect(report.since).toBeNull();
+  });
+
+  it("takes a deleted user's token charges with them", async () => {
+    await service.recordTokens({
+      username: "archer",
+      model: "opus",
+      modelId: "claude-opus-4-5",
+      provider: "claude",
+      freshInputTokens: 500,
+      cachedInputTokens: 0,
+      cacheWriteTokens: 0,
+      outputTokens: 5,
+    });
+    await service.recordTokens({
+      model: "opus",
+      modelId: "claude-opus-4-5",
+      provider: "claude",
+      freshInputTokens: 7,
+      cachedInputTokens: 0,
+      cacheWriteTokens: 0,
+      outputTokens: 1,
+    });
+
+    await service.forgetUser("archer");
+
+    const report = await service.report();
+    expect(report.users.find((user) => user.username === "archer")).toBe(
+      undefined,
+    );
+    expect(
+      report.users.find((user) => user.username === null)?.total.tokens
+        .freshInputTokens,
+    ).toBe(7);
+  });
+
+  it("keeps the two context tiers as separate records", async () => {
+    const charge = {
+      model: "sonnet[1m]",
+      modelId: "claude-sonnet-4-5",
+      provider: "claude" as const,
+      freshInputTokens: 300_000,
+      cachedInputTokens: 0,
+      cacheWriteTokens: 0,
+      outputTokens: 1000,
+    };
+    await service.recordTokens(charge);
+    await service.recordTokens({ ...charge, longContext: true });
+
+    const raw = await fs.readFile(path.join(dir, "user-usage.jsonl"), "utf-8");
+    const tiers = raw
+      .split("\n")
+      .filter((line) => line !== "")
+      .map((line) => JSON.parse(line).x);
+    expect(tiers).toEqual([undefined, 1]);
+  });
+
   it("reads back what an earlier process wrote", async () => {
     await service.recordTurn("archer", "before restart");
     const reopened = new UserUsageService({ dataDir: dir, now: () => clock });

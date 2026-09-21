@@ -213,3 +213,12 @@
 .usageFacts li {
   color: var(--text-muted);
 }
+
+/* A split may name several models or projects, so it wraps rather than clips. */
+.usageBreakdown {
+  overflow-wrap: anywhere;
+}
+
+.usageBreakdownLabel {
+  color: var(--text-subtle, var(--text-muted));
+}

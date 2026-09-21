@@ -319,8 +319,10 @@ this install and how much.
   superuser** — which is also what every session and turn predating this
   means. A YA-injected prompt is nobody's turn and carries no sender.
 - **The ledger.** `user-usage.jsonl` in the data directory, one short
-  append-only record per session start and per user turn: timestamp,
-  username (absent for the superuser), and a turn's word count. Appending is
+  append-only record per session start, per user turn, and per settled
+  provider turn's token charge: timestamp, username (absent for the
+  superuser), and then a turn's word count or a charge's model short name,
+  project name, and input/output token counts. Appending is
   the only write on the turn path. A torn record from an interrupted append
   costs itself and nothing else. The file is capped at 50,000 records,
   trimmed oldest-first, so a report's reach shrinks rather than its recent
@@ -330,11 +332,72 @@ this install and how much.
   as one continuous stretch rather than two, and a gap longer than five
   minutes starts a new stretch. This is the whole definition of "presumed
   away after five minutes"; no other idle signal feeds it.
+- **Tokens** are what the providers charged for that principal's work, over
+  every request their sessions made. Attribution is the session's recorded
+  creator, so a charge lands on the principal who started the session that
+  caused it. A token record is **nobody's action**: it moves no session count,
+  no turn count, and no interaction time.
+  - **Four classes, kept apart.** Prompt tokens the provider processed, prompt
+    tokens it served from cache, prompt tokens it wrote to cache, and tokens it
+    generated. They cost between a fiftieth and one times each other, so one
+    summed "tokens" number is a **volume, not a cost** — that is what the page
+    labels it, and every cost figure comes from the classes.
+  - **Binned by provider, model and context tier**, which is everything the
+    price of those counts depends on. The recorder accumulates per live process
+    and appends **once per settled provider turn and tier** — on the turn's
+    `result` frame, on the next turn starting, or when the process goes away.
+    One streaming Claude response repeats its usage on every completed content
+    block, so frames are deduped by the provider's response id; a provider that
+    names no response, such as Codex's out-of-band `token_usage`, has each
+    frame taken as its own request, since two real requests may legitimately
+    report equal counts.
+  - **The tier is decided at record time**, from the prompt one request
+    actually sent, because no later reader can recover a single request's
+    length from a sum. Above 200k prompt tokens Anthropic's 1M-context models —
+    YA's `sonnet[1m]` and `opus[1m]` aliases — charge double for the prompt and
+    half again for output. A record carries the tier only when it is the long
+    one, so an install that never uses those models pays nothing for the
+    distinction.
+- **Cost is reported two ways, from one calculation.** The headline is
+  **standard-tier output tokens of the model itself**: the charge's dollars
+  divided by the one constant that model charges per output token. It leads
+  because it keeps meaning the same thing when a price changes. Dollars are the
+  **supplement** — the same calculation before that division.
+  - Prices come from `packages/shared/src/vendor/pi-model-prices/`, a
+    mechanical extract of the `pi` project's per-model rates; its `VENDORED.md`
+    owns the upstream revision, and `scripts/generate-vendored-model-prices.mjs`
+    refreshes it from a local `pi` checkout when someone chooses to.
+  - **A model the table does not name still gets an output-token equivalent**,
+    from generic ratios midway between the two listed families — output at 5.5
+    fresh prompt tokens, a cache read at a tenth of one, a cache write at
+    0.625. **It gets no dollar figure**, which is simply not shown rather than
+    guessed. Those ratios track real compute asymmetry only roughly, which is
+    why they yield a relative unit and never money.
+  - **Dollars add across models; output-token equivalents do not.** So a
+    per-model bucket shows both, and a per-project or whole-user bucket shows
+    dollars alone — one model's output token is not another's, and summing them
+    would not be a quantity. A bucket with any unpriced model shows no dollars
+    at all, rather than a partial total that reads as the whole.
+  - **The long-context multipliers are the one uncrossed-checked input** here:
+    the vendored table models no context-length tier and carries no 1M-context
+    entry, so nothing there corroborates them. They are applied because
+    ignoring the tier understates such a session by roughly half, which is the
+    larger error.
+- **The split is by model and, separately, by project** — never by the two
+  together, which multiplies rows without answering a question anybody asked.
+  The model name is the launch alias (`opus`); the resolved provider id is
+  recorded separately, because that is what the price table is keyed by and the
+  alias is what a reader groups by. Either name may be absent, and an unnamed
+  charge collects in one bucket rather than being dropped. Buckets are ranked
+  costliest first, with unpriced ones after the priced ones by raw volume.
 - **The report.** `GET /api/users/usage`, superuser only, returns per-user
   totals and the same totals restricted to the last seven days, plus the
   timestamp of the earliest record. Settings → Users renders it as one row
-  per principal with the superuser included, headed by how many weeks the
-  ledger actually covers. A user with a record of nothing is listed by the
+  per principal with the superuser included. The all-recorded column names the
+  **calendar days** the ledger spans, counting both ends, because the reader's
+  question is which days are in here; the other column says "7 days" rather
+  than "last week", which a reader otherwise takes for the last whole calendar
+  week. A user with a record of nothing is listed by the
   report but not shown in the table; the ledger starts empty on an existing
   install, so the page says what it covers rather than implying all time.
 

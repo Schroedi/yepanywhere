@@ -137,6 +137,19 @@ function responseId(message: SDKMessage): string | undefined {
 }
 
 /**
+ * The id any other reader of these usage frames must dedupe on, so a second
+ * observation of one response is not counted twice. Undefined means the
+ * provider named no response — Codex's out-of-band `token_usage` frames — and
+ * a caller must then take each frame as its own request rather than guessing
+ * from equal counts, which two real requests can legitimately report.
+ */
+export function usageObservationResponseId(
+  message: SDKMessage,
+): string | undefined {
+  return responseId(message);
+}
+
+/**
  * A boundary that rewrites the prompt prefix, so the next request pays for a
  * prefix the provider never cached and no earlier observation predicts it.
  * Microcompaction drops older content from the same prefix, which invalidates
