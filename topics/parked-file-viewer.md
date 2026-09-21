@@ -129,15 +129,24 @@ was.
   path keeps a readable column of its own, uses at most two lines, and the
   metrics stay on one line. When the controls no longer fit beside that column
   they move to a compact second header row rather than squeezing the path into
-  a one-glyph stack. At 480px and below the actions use a two-row grid. These
-  header cutoffs use the viewer's allocated width, so a narrow right pane
-  receives the same compact controls. The back control is an arrow with no
+  a one-glyph stack. Those controls then wrap greedily across the width the
+  header actually has, so widening the viewer only ever removes a row: it never
+  reserves columns a narrower layout once needed. A fixed grid or a private
+  width breakpoint is specifically ruled out — the file viewer used to pin
+  480px and below to a seven-column two-row grid, which capped each button row
+  at about half the header's width and spilled the rest into a third row beside
+  empty space. The `− N +` zoom control and the window block are each atomic, so
+  a wrap moves a whole group and never splits one. These header cutoffs use the
+  viewer's allocated width, so a narrow right pane receives the same compact
+  controls. The back control is an arrow with no
   label, matching the standalone file page's own back control.
-  The four-column window block keeps
-  link, move to new tab, minimize, and close on top and the atomic `− N +` zoom
-  control across the same columns below. Those equal-width window cells are short
-  rectangles whose combined width aligns with the zoom group, with close at
-  top-right; remaining actions fill the cells to their left. The scrollable
+  The window block keeps link, move to new tab, minimize and close together and
+  trailing, so close stays at the header's trailing edge on whichever row the
+  block lands. `packages/client/src/components/ViewerHeader.module.css` owns
+  this layout for every viewer header with a title, an optional revision or
+  metrics caption under it, and a control row — the session right pane, the
+  artifact link viewer, the session detail panel and the source diff pane
+  toolbar reflow on exactly these terms. The scrollable
   document ends above the separate composer row, so its final line can always
   scroll completely clear of those controls without overlay-compensation
   padding.

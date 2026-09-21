@@ -4,6 +4,7 @@ import { useI18n } from "../i18n";
 import { createLocalStorageValue } from "../lib/localStorageValue";
 import { UI_KEYS } from "../lib/storageKeys";
 import styles from "./SessionRightPane.module.css";
+import headerStyles from "./ViewerHeader.module.css";
 import { ViewerWindowActions } from "./ViewerWindowActions";
 import { suppressTooltipsFor } from "../hooks/useTooltipAppearance";
 import { usePanelSlideAnimations } from "../hooks/usePanelSlideAnimations";
@@ -211,9 +212,14 @@ function SessionRightPaneContent({
         )}
         {pane.selected && (
           <>
-            <header className={styles.header}>
-              <span className={styles.title}>{pane.selected.label}</span>
+            <header className={`${headerStyles.header} ${styles.header}`}>
+              <span className={headerStyles.identity}>
+                <span className={styles.title} title={pane.selected.label}>
+                  {pane.selected.label}
+                </span>
+              </span>
               <ViewerWindowActions
+                className={headerStyles.actions}
                 url={pane.selected.url}
                 copyUrl={pane.copyUrl}
                 onMinimize={pane.hide}

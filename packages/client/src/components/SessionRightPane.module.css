@@ -24,16 +24,13 @@
     transform: translateX(100%);
   }
 }
+/* Layout comes from the shared `.viewer-header` classes in renderers.css; only
+   this pane's own padding, rule and title colour live here. */
 .header {
-  display: flex;
-  align-items: center;
-  gap: 4px;
   padding: 2px 6px;
   border-bottom: 1px solid var(--border-color);
 }
 .title {
-  flex: 1;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

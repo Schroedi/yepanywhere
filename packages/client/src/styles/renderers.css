@@ -3934,26 +3934,12 @@ details[open] .collapsible__icon {
   min-height: 0;
 }
 
+/* Header layout for this and every other viewer header lives in the shared
+   `ViewerHeader.module.css`; only the file viewer's own chrome is here. */
 .file-viewer-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.125rem 0.5rem;
   padding: 0.25rem 0.5rem;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
-}
-
-/* The path keeps a readable width: controls that no longer fit beside it drop
-   to a second header row instead of squeezing it into a one-glyph column. */
-.file-viewer-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  min-width: 0;
-  flex: 1 1 14rem;
 }
 
 .file-viewer-path {
@@ -3970,16 +3956,6 @@ details[open] .collapsible__icon {
 .file-viewer-meta {
   font-size: var(--font-size-sm);
   color: var(--text-muted);
-}
-
-.file-viewer-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem 0.125rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  flex: 0 1 auto;
-  margin-left: auto;
 }
 
 .file-viewer-action {
@@ -5009,17 +4985,16 @@ pre.code-highlighter-plain,
 }
 
 /* The source browser's pane toolbar owns file identity, hunk navigation,
-   view controls, and file actions in one row. It stays inside the scroll
-   frame so it can remain sticky without spending a second content row. */
+   view controls, and file actions. It stays inside the scroll frame so it can
+   remain sticky without spending a second content row. Its reflow is the
+   shared `.viewer-header` layout above, so it wraps on the same terms as the
+   file viewer's header. */
 .git-diff-pane-toolbar {
   position: sticky;
   top: 0;
   z-index: 2;
-  display: flex;
   min-height: 36px;
-  align-items: center;
-  gap: 5px;
-  padding: 0 var(--space-2, 8px);
+  padding: 2px var(--space-2, 8px);
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
 }
@@ -5028,10 +5003,11 @@ pre.code-highlighter-plain,
   container-type: inline-size;
 }
 
+/* Directory path and filename share the identity's first line; the revision
+   caption, when there is one, follows underneath it. */
 .git-diff-file-identity {
   display: flex;
   min-width: 0;
-  flex: 1 1 auto;
   align-items: baseline;
   gap: 3px;
 }
@@ -5040,6 +5016,7 @@ pre.code-highlighter-plain,
   flex: 0 1 auto;
   min-width: 2ch;
   max-width: 100%;
+  overflow-wrap: anywhere;
   font-size: 0.74rem;
 }
 
@@ -5063,8 +5040,10 @@ pre.code-highlighter-plain,
   font-size: 0.68rem;
 }
 
-.git-diff-pane-toolbar .diff-context-buttons {
-  flex-shrink: 0;
+.git-diff-pane-toolbar .diff-context-buttons,
+.git-diff-pane-toolbar .git-diff-preview-header-actions {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
   gap: 2px;
 }
 
@@ -5088,10 +5067,6 @@ pre.code-highlighter-plain,
   font-family: var(--font-mono, monospace);
   font-size: 0.78rem;
   letter-spacing: -0.08em;
-}
-
-.git-diff-pane-toolbar .git-diff-preview-header-actions {
-  margin-left: 0;
 }
 
 .git-diff-pane-toolbar

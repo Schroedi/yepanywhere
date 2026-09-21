@@ -102,6 +102,7 @@ import {
 } from "./FileResourceActions";
 import { useImageResourceActions } from "./ImageResourceActions";
 import viewerStyles from "./FileViewer.module.css";
+import headerStyles from "./ViewerHeader.module.css";
 import {
   combineDensityOffsets,
   FILE_MARKDOWN_PREVIEW_BASE_DENSITY,
@@ -1675,7 +1676,7 @@ export const FileViewer = memo(function FileViewer({
 
   // Header with file info and actions
   const header = (
-    <div className="file-viewer-header">
+    <div className={`file-viewer-header ${headerStyles.header}`}>
       {headerLeading}
       {onClose && (
         <button
@@ -1688,7 +1689,9 @@ export const FileViewer = memo(function FileViewer({
           <BackArrowIcon />
         </button>
       )}
-      <div className={`file-viewer-info ${viewerStyles.info}`}>
+      <div
+        className={`file-viewer-info ${headerStyles.identity} ${viewerStyles.info}`}
+      >
         {/* biome-ignore lint/a11y/noStaticElementInteractions: right-click opens the file action menu; left-click behavior stays on explicit toolbar buttons */}
         <span
           className="file-viewer-path"
@@ -1727,7 +1730,9 @@ export const FileViewer = memo(function FileViewer({
           </span>
         </div>
       </div>
-      <div className={`file-viewer-actions ${viewerStyles.actions}`}>
+      <div
+        className={`file-viewer-actions ${headerStyles.actions} ${viewerStyles.actions}`}
+      >
         {publicShareContext === null && (
           <FileDiffViewLinks
             activeView={activeView}

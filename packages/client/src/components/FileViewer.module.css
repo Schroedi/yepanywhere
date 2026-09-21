@@ -81,32 +81,11 @@
   }
 }
 
-@container file-viewer (max-width: 480px) {
-  .actions {
-    display: grid;
-    grid-template-columns: repeat(3, max-content) repeat(4, 32px);
-    grid-template-rows: 32px 26px;
-    grid-auto-flow: row;
-    align-items: center;
-    gap: 2px;
-  }
-
-  .windowActions {
-    grid-row: 1;
-    grid-column: 4 / 8;
-  }
-
-  .actions :global(.file-viewer-density-controls) {
-    grid-row: 2;
-    grid-column: 4 / 8;
-    justify-self: stretch;
-    height: 26px;
-    box-sizing: border-box;
-  }
-
-  .fullscreenButton,
-  .actions :global(.file-viewer-density-controls .file-viewer-action) {
-    width: 32px;
-    height: 26px;
-  }
+/* The narrow-width layout is `.viewer-header-actions` in renderers.css: the
+   buttons wrap greedily across the header's real width. Both groups below are
+   atomic, so a wrap never splits `− N +` or the window block across rows. */
+.windowActions,
+.fullscreenButton,
+.actions :global(.file-viewer-density-controls) {
+  flex: 0 0 auto;
 }

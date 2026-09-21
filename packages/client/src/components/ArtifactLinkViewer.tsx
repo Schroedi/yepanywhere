@@ -8,6 +8,7 @@ import {
   useModalLayer,
 } from "./ui/Modal";
 import styles from "./ArtifactLinkViewer.module.css";
+import headerStyles from "./ViewerHeader.module.css";
 import { ViewerWindowActions } from "./ViewerWindowActions";
 
 export function ArtifactLinkViewer({
@@ -54,9 +55,14 @@ export function ArtifactLinkViewer({
       aria-label={controller.label}
       hidden={hidden}
     >
-      <header className={styles.header}>
-        <span className={styles.title}>{controller.label}</span>
+      <header className={`${headerStyles.header} ${styles.header}`}>
+        <span className={headerStyles.identity}>
+          <span className={styles.title} title={controller.label}>
+            {controller.label}
+          </span>
+        </span>
         <ViewerWindowActions
+          className={headerStyles.actions}
           url={controller.url}
           onMinimize={controller.minimize}
           onClose={controller.close}

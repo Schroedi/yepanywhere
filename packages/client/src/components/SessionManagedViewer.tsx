@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import { useI18n } from "../i18n";
 import { QUOTE_SELECTION_ROOT_ATTRIBUTES } from "../lib/markdownSelectionCopy";
 import styles from "./SessionManagedViewer.module.css";
+import headerStyles from "./ViewerHeader.module.css";
 import { useSessionRightPaneSetting } from "../hooks/useSessionRightPaneSetting";
 import { usePanelSlideAnimations } from "../hooks/usePanelSlideAnimations";
 import { useClosingPaneContent } from "../hooks/useClosingPaneContent";
@@ -335,18 +336,11 @@ function SessionPanelPane({
       hidden={hidden}
       {...QUOTE_SELECTION_ROOT_ATTRIBUTES}
     >
-      <div className="modal-header">
-        <span className="modal-title">{panel.title}</span>
-        <span
-          className="modal-header-actions"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.375rem",
-            marginLeft: "auto",
-            flexShrink: 0,
-          }}
-        >
+      <div className={`modal-header ${headerStyles.header}`}>
+        <span className={headerStyles.identity}>
+          <span className="modal-title">{panel.title}</span>
+        </span>
+        <span className={`modal-header-actions ${headerStyles.actions}`}>
           {panel.actions}
           <button
             type="button"
