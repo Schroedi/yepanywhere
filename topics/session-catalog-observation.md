@@ -56,7 +56,10 @@ all callers. The first read loads durable state and queues reconciliation after
 facts, otherwise obtain bounded heads (Claude title prefixes stop at 256 KiB).
 Grok, pi, and OpenCode use their native catalog adapters. No list projection
 writes complete-summary cache freshness. Unknown titles, counts, models, full
-prompts, and other detail fields stay absent rather than becoming placeholders.
+prompts, creation times, and other detail fields stay absent rather than
+becoming placeholders. When a bounded provider head supplies its creation time,
+the retained row preserves it; a client never substitutes last activity for an
+unknown creation time.
 
 The base generation publishes before the optional Codex question pass. That
 pass skips archived sessions and obeys the existing bounded preview contract.

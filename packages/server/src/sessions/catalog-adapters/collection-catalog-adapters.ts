@@ -134,7 +134,7 @@ async function readFileRow(
       projectName: project.name,
       provider: summary?.provider ?? source.provider,
       updatedAt: contentUpdatedAt ?? storageUpdatedAt(),
-      ...(cached ? { createdAt: cached.createdAt } : {}),
+      ...(summary?.createdAt ? { createdAt: summary.createdAt } : {}),
       ...(title !== undefined
         ? { title: title?.slice(0, SESSION_CATALOG_TITLE_MAX_LENGTH) }
         : {}),

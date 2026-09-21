@@ -161,6 +161,7 @@ it("publishes native heads before questions and refreshes only a modified sessio
       `${[
         {
           type: "session_meta",
+          timestamp: "2026-09-08T00:00:00.000Z",
           payload: {
             id: ids[index],
             cwd: projectPath,
@@ -169,6 +170,7 @@ it("publishes native heads before questions and refreshes only a modified sessio
         },
         {
           type: "event_msg",
+          timestamp: "2026-09-08T00:01:00.000Z",
           payload: { type: "user_message", message: `Work ${index}` },
         },
       ]
@@ -220,6 +222,10 @@ it("publishes native heads before questions and refreshes only a modified sessio
   await collections.refresh();
   const base = await publications[0]!;
   expect(base.rows).toHaveLength(2);
+  expect(base.rows.map((row) => row.createdAt)).toEqual([
+    "2026-09-08T00:00:00.000Z",
+    "2026-09-08T00:00:00.000Z",
+  ]);
   expect(base.rows.every((row) => row.asyncQuestions === undefined)).toBe(true);
   const ready = await collections.read();
   expect(
@@ -236,6 +242,7 @@ it("publishes native heads before questions and refreshes only a modified sessio
     files[0]!,
     `${JSON.stringify({
       type: "event_msg",
+      timestamp: "2026-09-08T00:02:00.000Z",
       payload: { type: "user_message", message: "More work" },
     })}\n`,
   );

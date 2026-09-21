@@ -246,6 +246,67 @@ for (const viewport of [
   { name: "desktop", width: 1000, height: 600 },
   { name: "phone", width: 375, height: 812 },
 ]) {
+  test(`All Sessions does not invent a creation age from last activity on ${viewport.name}`, async ({
+    page,
+    baseURL,
+  }) => {
+    const unknownId = `unknown-creation-${viewport.name}`;
+    const updatedAt = new Date(Date.now() - 60 * 60_000).toISOString();
+    const common = {
+      updatedAt,
+      messageCount: 1,
+      provider: "claude",
+      projectId: "creation-age-fixture",
+      projectName: "Creation age fixture",
+      ownership: { owner: "none" },
+      isArchived: false,
+      isStarred: false,
+    };
+    await page.route(/\/api\/sessions(?:\?.*)?$/, async (route) => {
+      const response = await route.fetch();
+      const data = await response.json();
+      await route.fulfill({
+        response,
+        json: {
+          ...data,
+          hasMore: false,
+          sessions: [
+            {
+              ...common,
+              id: unknownId,
+              title: `Creation age ${viewport.name} unknown`,
+              fullTitle: `Creation age ${viewport.name} unknown`,
+              initialPrompt: `Creation age ${viewport.name} unknown`,
+            },
+            {
+              ...common,
+              id: `known-creation-${viewport.name}`,
+              title: `Creation age ${viewport.name} known`,
+              fullTitle: `Creation age ${viewport.name} known`,
+              initialPrompt: `Creation age ${viewport.name} known`,
+              createdAt: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+            },
+          ],
+        },
+      });
+    });
+    await page.setViewportSize(viewport);
+    await page.goto(`${baseURL}/sessions`);
+    const search = page.getByRole("searchbox", { name: "Search sessions..." });
+    await search.fill(`Creation age ${viewport.name}`);
+    const rows = page.locator(".session-list-item--card");
+    await expect(rows).toHaveCount(2);
+    const unknown = rows.filter({ hasText: `${viewport.name} unknown` });
+    const known = rows.filter({ hasText: `${viewport.name} known` });
+    await expect(unknown.locator(".session-list-item__age")).toHaveCount(0);
+    await expect(known.locator(".session-list-item__age")).toHaveCount(1);
+    await recordUiCapture(
+      page,
+      `all-sessions-creation-age-${viewport.name}`,
+      viewport,
+    );
+  });
+
   test(`All Sessions fans out, retains both roles, and refines cached turns on ${viewport.name}`, async ({
     page,
     baseURL,
