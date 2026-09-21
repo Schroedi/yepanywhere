@@ -69,6 +69,7 @@ import { SessionAccessResolver } from "./auth/sessionAccess.js";
 import type { SrpLimitedUserLookup } from "./routes/ws-srp-handlers.js";
 import { createLimitedUsersMiddleware } from "./middleware/limited-users.js";
 import { createUsersRoutes } from "./routes/users.js";
+import { createProjectTemplateSourceRoutes } from "./routes/project-template-source.js";
 import { SESSION_COOKIE_NAME } from "./auth/routes.js";
 import { getCookie as getRequestCookie } from "hono/cookie";
 import { levelFor } from "./auth/limitedUserPolicy.js";
@@ -843,6 +844,7 @@ export function createApp(options: AppOptions): AppResult {
     );
   }
 
+  app.route("/api", createProjectTemplateSourceRoutes(effectiveDataDir));
   // Auth routes (always mounted if authService is provided)
   // This allows checking auth status and enabling/disabling from settings
   if (options.authService) {

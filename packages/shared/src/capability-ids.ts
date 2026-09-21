@@ -504,6 +504,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "project-names",
     introducedIn: "0.8.2",
   },
+  projectTemplateSources: {
+    id: 81,
+    direction: "server",
+    name: "project-template-sources",
+    introducedIn: "0.8.2",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

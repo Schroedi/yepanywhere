@@ -119,6 +119,11 @@ const CATEGORY_COMPONENTS: Record<string, React.ComponentType> = {
   users: lazy(() =>
     import("./UsersSettings").then((m) => ({ default: m.UsersSettings })),
   ),
+  "project-templates": lazy(() =>
+    import("./ProjectTemplatesSettings").then((m) => ({
+      default: m.ProjectTemplatesSettings,
+    })),
+  ),
   apps: lazy(() =>
     import("./AppsSettings").then((m) => ({ default: m.AppsSettings })),
   ),
@@ -286,6 +291,17 @@ export function SettingsLayout() {
   const categories: SettingsCategory[] = [
     ...getSettingsCategories((key) => t(key as never)),
   ];
+  if (
+    !serverHasCapability(
+      versionInfo,
+      SERVER_CAPABILITIES.projectTemplateSources.name,
+    )
+  ) {
+    const index = categories.findIndex(
+      (item) => item.id === "project-templates",
+    );
+    if (index >= 0) categories.splice(index, 1);
+  }
   if (
     !serverHasCapability(versionInfo, SERVER_CAPABILITIES.computerControl.name)
   ) {

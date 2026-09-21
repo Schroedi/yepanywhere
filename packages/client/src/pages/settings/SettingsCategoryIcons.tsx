@@ -52,6 +52,7 @@ export const settingsCategoryEmojiIcons: Record<string, string> = {
   "computer-control": "🖱️",
   "local-access": "🔒",
   users: "👥",
+  "project-templates": "📑",
   apps: "▦",
   remote: "🌐",
   providers: "🔌",
@@ -64,6 +65,13 @@ export const settingsCategoryEmojiIcons: Record<string, string> = {
 };
 
 export const settingsCategoryIcons: Record<string, ReactNode> = {
+  "project-templates": (
+    <Icon>
+      <rect x="7" y="7" width="14" height="14" rx="2" />
+      <path d="M17 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2" />
+      <path d="M11 12h6m-6 4h4" />
+    </Icon>
+  ),
   apps: (
     <Icon>
       <rect x="3" y="3" width="7" height="7" rx="1" />

@@ -204,6 +204,30 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  projectTemplateSources: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectTemplateSources.id,
+    name: "project-template-sources",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.8.2",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Configure ordered GitHub and local template sources, retrieve pinned content, and inspect combined inventory without running setup.",
+    clientFallback:
+      "Hide Project templates settings and send no template-source requests.",
+    serverContract: {
+      routes: [
+        "GET /api/project-template-source",
+        "PUT /api/project-template-source",
+      ],
+      routeModules: ["packages/server/src/routes/project-template-source.ts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers have no template source retrieval or configuration surface.",
+    },
+  },
   speechBackendSetup: {
     id: CAPABILITY_ID_ALLOCATIONS.speechBackendSetup.id,
     name: "speech-backend-setup",

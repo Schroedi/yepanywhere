@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-09-20.
+Last updated: 2026-09-21.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in
@@ -153,6 +153,14 @@ Start from these existing plans and contracts:
   [client/server compatibility](../../topics/remote-hosted-compatibility.md)
 
 ## Later directions
+
+The separately authorized [project-template implementation](../tactical/132-project-template-implementation.md)
+now has a native library composer and opt-in settings for ordered GitHub/local
+sources, pinned retrieval and manual updates. Production template creation,
+ready-content admission, limited-user defaults and sandbox scope, App
+reservations, and project-local identity remain pending. The current agents
+library is the YA default; its three templates remain draft until review.
+This work does not displace release delivery above.
 
 The separately authorized [optional Windows Computer Control preview](../tactical/131-optional-windows-computer-control.md)
 is implemented and accepted for source-run Windows Node/Codex: signed local

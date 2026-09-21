@@ -380,6 +380,7 @@ export const RESUME_PROTOCOL_VERSION = 3;
 export const REMOTE_COMPATIBILITY_LEVEL = 10;
 
 const BASE_CAPABILITIES: string[] = [
+  SERVER_CAPABILITIES.projectTemplateSources.name,
   SERVER_CAPABILITIES.speechBackendSetup.name,
   SERVER_CAPABILITIES.localSpeechModelSelection.name,
   ACLI_COMMENTARY_RENDERING_CAPABILITY,

@@ -1,7 +1,7 @@
 # Usable projects from approved templates
 
 Status: implementation started, 2026-09-21. Native library loading/composition
-is implemented; production creation remains unimplemented.
+and source settings are implemented; production creation remains unimplemented.
 Contributing-model: 6-Astra.
 
 ## Implementation checkpoint — 2026-09-21
@@ -14,15 +14,49 @@ Apply this scope to the two-template acceptance cases below as well.
 - Complete: native inventory/manifest validation and ordered file composition,
   with 26 passing conformance cases. The actual current library composes to
   38, 55 and 51 files respectively, without Python or setup execution.
-- Verification: full workspace unit tests, formatting, typechecking and lint
+- Initial compiler verification: full workspace unit tests, formatting, typechecking and lint
   exited successfully on Linux; targeted Oxlint passed. The sole lint warning
   was removed by the behavior-preserving cleanup commit `c704a8d85` and targeted
   lint passed without warnings. Concurrent client work independently removed
   an initial renderer CSS size violation before the successful lint run.
   No macOS/Windows or actual provider/session verification is claimed.
-- Pending: source packaging/admission, fresh-target materialization, durable
-  setup/preparation, permissions/sandboxing, App access/reservations, UI and
-  project-local identity. No runtime feature is enabled by this first slice.
+- Complete: ordered GitHub source settings, private full-content retrieval,
+  revision stamping, manual up-to-date checks, repository-alias relocation and
+  combined-library validation. Later sources replace matching definitions;
+  community templates can extend YA-default bases. Empty subdirectories mean
+  repository root. Automatic update checks remain a sketch.
+- Complete: user-facing authoring guide in `topics/project-template-authoring.md`
+  (`799bcd2b3`), copied exactly into agents `project-templates/README.md`
+  (`77a2cf9`), with pinned provenance and YA's MIT notice. Original agents
+  material uses MIT-0 (`eb6b931`); imported content retains its own terms.
+- Verification: all ten source-service tests pass, including limited-user
+  denial, concurrent-request rejection, layered inheritance and dependency
+  relocation. A real UI fetch at agents SHA
+  `635f865044709f8262f3c6f9620ed75225989687` composes all three templates;
+  repeating the update reports Already up to date. Lint, formatting,
+  typechecking and the capability audit pass. The full workspace unit run
+  passes outside the existing client credential-fetch race documented in
+  `gaps/issue-settings-fetches-credentials-before-opt-in.md`; no claim of a
+  fully green unit suite. The full browser suite finished with 290 passing,
+  seven skipped and one unrelated effort-dialog failure, recorded in
+  `gaps/long-context-effort-fork-browser-race.md`. All five template browser
+  cases passed, including v0.8.0/v0.8.1 fallback checks.
+- Final local-overlay verification: all 5,662 server tests pass (27 skipped),
+  and the five template browser checks pass after covering punctuation in
+  local aliases and clearing a hidden revision when switching to a local path.
+  Lint, formatting, typechecking and capability audit pass. Final source-form
+  captures at 1200×600 and 375×812 were inspected under
+  `.artifacts/ui-testing/2026-09-21-template-sources-final-local/`.
+- User-directed UI polish: Project templates has both line and glyph icons.
+  Shortened category captions; all 25 visible English captions occupy one
+  line at 1200×600 and 375×812 in both icon styles, without clipping. Captures
+  under `.artifacts/ui-testing/2026-09-21-settings-captions/` were inspected.
+- Complete: one GitHub-or-local-directory field includes the GitHub content
+  path. Local overlays use their files directly, without copying or rewriting;
+  owning Git HEAD is informational and every update revalidates working files.
+- Pending: ready-content admission, fresh-target materialization, durable
+  setup/preparation, permissions/sandboxing, App access/reservations, creation
+  UI and project-local identity. Template retrieval remains opt-in/default-off.
 - Approved: the supported-release capability/fallback plan below. Existing
   limited users retain project-only scope and receive no template-creation
   grant; defaults apply only to new users. No migration has run yet.
@@ -112,15 +146,20 @@ Feature enablement is opt-in/default-off in Settings → Project templates.
 Provide usable basic source configuration here even though the richer authoring
 editor remains a follow-up. Accept the default graehl/agents content or an
 alternative local/GitHub source, a repository-relative content root, and
-supplementary sources. Initially the authoring location is `~/agents` with
-`project-templates`. Do not hard-code that workstation path as a runtime
-dependency. The intended shipped organization is a pinned submodule, eventually
-pointing at a standalone template repository; no such YA submodule exists yet.
-Package the complete selected content/dependency closure in installed YA.
+supplementary sources. The overridable default is GitHub repository
+`https://github.com/graehl/agents` with content root `project-templates` and a
+configurable revision. Fetch on enable and when the origin changes while
+enabled; save disabled changes without fetching, then validate on enable.
+Cache outside YA's source checkout; a full clone is acceptable initially so
+sibling topics and skills resolve. A standalone repository or YA submodule is
+not required. The [selective retrieval gap](../../gaps/project-template-selective-retrieval.md)
+tracks efficient path/dependency fetching after the agents layout refactor.
+Acquisition must retain the complete selected content/dependency closure.
 Do not create a new hosted repository or publish merely to satisfy this plan.
 
 Validate root existence, manifests, all references and composition at config
-save, without executing setup. Resolve GitHub refs to immutable revisions;
+save when enabled, or at enable after deferred retrieval, without executing
+setup. Resolve GitHub refs to immutable revisions;
 instantiate precisely the validated revision. Revalidate mutable local sources
 at creation. Source IDs stay stable across path/revision updates and qualify
 permission IDs; supplementary inventories cannot hijack existing selections.
@@ -132,7 +171,10 @@ Multiple bases obey dependency and explicit sibling ordering; shared ancestors
 appear once. Ordinary collisions require identical bytes and executable mode.
 Root AGENTS alone concatenates whole fragments after first-occurrence SHA-256
 deduplication. Explicit replace/omit can resolve conflicts; prepend/append cannot
-select a conflicting predecessor. No implicit last-writer overlays or deep merge.
+select a conflicting predecessor. No implicit project-file overlays or deep merge.
+Across sources, later definitions with matching IDs win; cross-source base
+references resolve against that combined inventory. A definition cannot change
+between base and template kind. This differs from project-file collision rules.
 Constrain `../` and source symlinks to their source repository and materialize
 normal files. Reject destination traversal, case/prefix collisions and Git
 metadata paths. Do not accept caller-provided script commands or arbitrary maps.

@@ -139,7 +139,7 @@ export function getSettingsCategories(
     {
       id: "computer-control",
       label: t("computerTitle"),
-      description: t("computerDescription"),
+      description: t("settingsComputerDescription"),
     },
     {
       id: "agent-context",
@@ -170,6 +170,11 @@ export function getSettingsCategories(
       id: "users",
       label: t("settingsUsersTitle"),
       description: t("settingsUsersDescription"),
+    },
+    {
+      id: "project-templates",
+      label: t("settingsProjectTemplatesTitle"),
+      description: t("settingsProjectTemplatesDescription"),
     },
     {
       id: "apps",

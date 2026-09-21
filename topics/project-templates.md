@@ -2,11 +2,11 @@
 
 > Config-driven project creation from composable capability bases, with
 > vendored instructions, deterministic setup, and an automatic preparation
-> session. App canvas is the first template; YA integration remains unbuilt.
+> session. Source retrieval is implemented; project creation remains pending.
 
 Topic: project-templates
 
-Status: **UI prototypes approved; YA integration pending (2026-09-21).**
+Status: **Source settings implemented; project creation pending (2026-09-21).**
 The implementation handoff is
 [usable template projects](../docs/tactical/132-project-template-implementation.md).
 The authoring library is `~/agents/project-templates`, committed
@@ -16,8 +16,10 @@ portable-instruction review is open. YA now has a native library loader and
 composer in `packages/server/src/projects/template-library.ts`, with no Python
 runtime dependency. It validates the complete inventory without executing setup,
 retains the loaded file bytes, and refuses drafts through its creation accessor.
-Source settings, materialization, creation routes and template permissions are
-still unimplemented. See the
+Settings now fetches ordered GitHub sources into private, revision-stamped
+snapshots, reads local overlays directly, and shows their combined inventory.
+Materialization, creation routes
+and template permissions remain unimplemented. See the
 [stand-up integration gap](../gaps/project-template-standup.md).
 
 ## Current contract — config-driven templates
@@ -26,25 +28,85 @@ This section supersedes conflicting statements in the historical design below.
 `~/agents/project-templates/FORMAT.md` is the authoring format authority;
 `composition.py` and its conformance tests implement the initial local format.
 This YA topic owns its product integration, not a second evolving schema.
+The user-facing [template-authoring guide](project-template-authoring.md)
+explains how to create and share a source; its synchronized copy is the
+agents library's `project-templates/README.md`. Keep cache and protocol details
+here rather than in that guide.
 
 ### Sources and inventory
 
 A configured source has a stable source identity, a local repository or GitHub
-repository/ref, and a repository-relative content directory. Initially use
-`~/agents` with `project-templates`. Reject a missing content directory when
-saving configuration, by checking the local filesystem or selected GitHub
-revision. Resolve remote refs to a fixed revision and validate and instantiate
+repository/ref, and a repository-relative content directory. The overridable
+default is `https://github.com/graehl/agents` with `project-templates`, not the
+host's `~/agents` checkout. Fetch on enable and on an origin change while
+enabled; repository, content root and revision identify that origin. Save
+disabled configuration changes without fetching, then validate on enable.
+Reject a missing content directory during admission. Resolve remote refs to a
+fixed revision and validate and instantiate
 that same revision. An unreachable source is an error, not an empty library.
 Validate inventory, manifests, dependency order and referenced files without
 executing scripts; revalidate a mutable local source before creation.
 
-The eventual shipped default is a pinned submodule pointing to a standalone
-template repository, with opt-in source configuration and one or more
-supplementary sources. No standalone repository or YA submodule is installed
-yet. A source-qualified template identity prevents a supplementary library
-from silently replacing a limited user's allowed template. Cross-source base
-inheritance is outside v1. Extracting the library later must bring its complete
-dependency closure inside the new repository.
+Use a private source cache outside YA's checkout; a full clone initially
+preserves references to sibling topics and skills. A standalone repository or
+YA submodule is not required. Efficient retrieval of the configured path plus
+its transitive dependencies is tracked in the
+[selective retrieval gap](../gaps/project-template-selective-retrieval.md).
+The settings use an ordered list of GitHub and local sources. Each row has
+one **GitHub or local dir** field; append a GitHub content path to the repository
+URL, or enter an absolute/`~/` local directory. GitHub revision is separate.
+The wire contract retains repository, relative content path (empty means root),
+revision and stable source ID. `graehl/agents/project-templates` is the default;
+vendoring it in YA later remains an option.
+
+Local directories are read directly, never copied or rewritten. A containing
+Git worktree supplies the repository boundary and informational HEAD; without
+Git, the selected directory supplies the boundary and the commit is null.
+Every update revalidates local working files, even at an unchanged HEAD.
+There is no local content-hash verification. Mixed local/GitHub overlays use
+the same definition ordering and composition rules. Creation must revalidate
+mutable local input rather than treating HEAD as an immutable content pin.
+
+**Layering:** later sources replace earlier base/template definitions with the
+same ID. A base cannot change into a template or vice versa. Validate the
+combined dependency graph, allowing community templates and bases to extend
+YA-default bases without copying them. Source-file references stay inside the
+repository owning that definition. Root file composition still requires exact
+bytes/modes or explicit overrides; source layering is not implicit overwriting
+of project files. The inventory reports each effective template's source ID.
+Future creation grants must match that origin plus template ID, so shadowing a
+template does not silently redirect a limited user's saved grant. An intentional
+base replacement changes templates depending on it and requires source review.
+
+**Retrieval and relocation:** `GET`/`PUT /api/project-template-source` are
+superuser-only source administration. The feature defaults off. Fetch resolves
+each configured GitHub ref to a commit before downloading, then validates the whole
+combined library without executing setup. Raw shallow Git checkouts remain
+unchanged under `dataDir/project-templates-source`; a separate translated
+snapshot rewrites explicit `~/repository-name` text references to the matching
+retrieved repository. Later sources supply duplicate repository-name aliases.
+Binary files and source symlinks are not rewritten. A dependency update rebuilds
+translation from raw content, including cached community dependents. Project
+export must subsequently relocate references to vendored project destinations;
+cache paths are not a generated project's runtime dependency.
+
+**Manual updates:** display each fetched SHA and the effective inventory.
+`HEAD` selects the remote default-branch tip at explicit fetch time. A named
+branch/tag or full SHA selects another revision. Update checks remote refs
+first; unchanged commits and source order reuse the admitted snapshots and
+report Already up to date without downloading repository content. Updating
+from the default branch sets that source's revision to `HEAD`. Poll only while
+a retrieval is active, and preserve in-progress field edits during status
+updates. Failed/interrupted retrieval is explicit and does not admit a partial
+library; the last successful snapshot may remain visible as prior content.
+Automatic chooser-triggered checks are only a
+[sketch](../gaps/sketches/project-template-automatic-updates.md).
+
+**Compatibility:** capability `project-template-sources` owns only retrieval,
+source configuration and inventory. Older servers show no source controls and
+receive no source requests. This does not advertise the still-unimplemented
+creation/workspace or identity contracts. Approved optional corpus:
+v0.8.0/v0.8.1, both without these routes.
 
 ```text
 project-templates/

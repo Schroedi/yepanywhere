@@ -20,14 +20,17 @@ The native loader/composer now exists in
 `packages/server/src/projects/template-library.ts`; its conformance tests cover
 inventory validation, ordering, collisions, text overrides, source containment
 and draft refusal. It composes all three current authoring templates but is not
-wired to runtime creation. Materialization and production admission remain open.
+wired to runtime creation. Settings now accepts an ordered GitHub/local source
+list, pins fetched revisions, relocates retrieved repository aliases and
+validates the combined inventory. Local overlays are read directly.
+Materialization and production admission remain open.
 
 ## Remaining integration
 
-- Admit local/GitHub sources with repository-relative content roots; validate
-  missing paths and all references at configuration time, pin remote revisions,
-  and keep supplementary source identities distinct. Package the eventual
-  default source without a runtime dependency on the operator's `~/agents`.
+- Revalidate direct local sources before creation. Bind future creation grants to
+  the effective source and template identity, including shadowing across the
+  ordered list. Efficient retrieval and cache retention have their own
+  [gap](project-template-selective-retrieval.md).
 - Connect the format consumer to materialization and scripted stand-up using the
   reference compiler's conformance cases: multiple bases, order constraints,
   exact-content/mode coalescing, root AGENTS hash deduplication, explicit

@@ -90,12 +90,64 @@ function joinText(left: Buffer, right: Buffer, lines: number): Buffer {
 
 /** Loads a template library without executing source code; retained bytes form a snapshot. */
 export class TemplateLibrary {
-  private constructor(private readonly nodes: Map<string, LoadedNode>) {}
+  private constructor(
+    private readonly nodes: Map<string, LoadedNode>,
+    private readonly origins = new Map<string, string>(),
+  ) {}
 
   static async load(
     repository: string,
     contentPath: string,
   ): Promise<TemplateLibrary> {
+    return TemplateLibrary.loadSources([
+      { id: "local", repository, contentPath },
+    ]);
+  }
+
+  static async loadSources(
+    sources: { id: string; repository: string; contentPath: string }[],
+  ): Promise<TemplateLibrary> {
+    const nodes = new Map<string, LoadedNode>();
+    const origins = new Map<string, string>();
+    for (const source of sources) {
+      for (const [id, node] of await TemplateLibrary.readNodes(
+        source.repository,
+        source.contentPath,
+      )) {
+        if (
+          nodes.has(id) &&
+          nodes.get(id)?.manifest.kind !== node.manifest.kind
+        )
+          throw new Error(`Source changes the kind of ${id}`);
+        nodes.set(id, node);
+        origins.set(id, source.id);
+      }
+    }
+    for (const { manifest: node } of nodes.values()) {
+      if (
+        new Set(node.extends).size !== node.extends.length ||
+        node.extends.some((id) => nodes.get(id)?.manifest.kind !== "base")
+      )
+        throw new Error(`Unknown or repeated base in ${node.id}`);
+    }
+    const library = new TemplateLibrary(nodes, origins);
+    for (const [id, node] of nodes) {
+      library.order(id);
+      if (node.manifest.kind === "template") library.compose(id);
+    }
+    return library;
+  }
+
+  sourceOf(id: string): string {
+    const source = this.origins.get(id);
+    if (!source) throw new Error(`Unknown template or base: ${id}`);
+    return source;
+  }
+
+  private static async readNodes(
+    repository: string,
+    contentPath: string,
+  ): Promise<Map<string, LoadedNode>> {
     const root = await realpath(repository);
     const sourcePath = async (directory: string, source: string) => {
       if (
@@ -124,7 +176,10 @@ export class TemplateLibrary {
       name: string,
     ): Promise<unknown> =>
       JSON.parse(await readFile(await sourcePath(directory, name), "utf8"));
-    const contentRoot = await sourcePath(root, destination.parse(contentPath));
+    const contentRoot =
+      contentPath === ""
+        ? root
+        : await sourcePath(root, destination.parse(contentPath));
     const list = inventory.parse(await readJson(contentRoot, "library.json"));
     const nodes = new Map<string, LoadedNode>();
     for (const [kind, ids] of [
@@ -171,20 +226,7 @@ export class TemplateLibrary {
         nodes.set(id, { manifest: node, files });
       }
     }
-    for (const { manifest: node } of nodes.values()) {
-      if (
-        new Set(node.extends).size !== node.extends.length ||
-        node.extends.some((id) => nodes.get(id)?.manifest.kind !== "base")
-      ) {
-        throw new Error(`Unknown or repeated base in ${node.id}`);
-      }
-    }
-    const library = new TemplateLibrary(nodes);
-    for (const [id, node] of nodes) {
-      library.order(id);
-      if (node.manifest.kind === "template") library.compose(id);
-    }
-    return library;
+    return nodes;
   }
 
   list(): TemplateManifest[] {
