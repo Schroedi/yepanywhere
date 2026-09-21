@@ -175,6 +175,16 @@ send a duplicate first turn. Setup failure reports the partial directory and
 logs without registering a successful project or deleting user content.
 Creation grants no authority to deploy or publish.
 
+The universal base vendors the **redoc** skill. It improves the documentation
+hierarchy for human and agent readers, checks truth against current contents,
+and creates/refreshes a project-specific `docs/brand.svg` leading the README.
+It is ordinary autodoc, not an authorship tracker or protected-prose system.
+Its built-in identity exception is the root `.project-identity.json`: later
+YA-UI human edits preserve exact name/description text, while the agent may
+revise a description coda. Initial creation values remain provisional and
+create no ownership marker. This exception applies to all YA projects; see
+the [identity contract](project-captions.md#approved-project-local-identity-extension-not-implemented).
+
 ### Limited-user permissions
 
 Settings → Users extends the existing local principal's grants, rather than

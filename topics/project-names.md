@@ -9,6 +9,15 @@ Topic: project-names
 
 Status: **implemented (2026-09-20).**
 
+**Approved extension, not implemented:** deliberate post-creation human naming
+must be recorded inside every affected project in `.project-identity.json`,
+so redoc and other agents preserve the exact name outside YA. Creation-time
+choices remain provisional and create no marker. See the
+[identity contract](project-captions.md#approved-project-local-identity-extension-not-implemented)
+and [implementation gap](../gaps/project-local-identity.md). This deliberately
+changes the storage posture for that specific later edit, not the current
+runtime described below or unrelated metadata families.
+
 ## User-visible contract
 
 - **Adding a project** takes a path, a name, and, when Short Project Code

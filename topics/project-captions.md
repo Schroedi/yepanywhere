@@ -9,6 +9,51 @@ Topic: project-captions
 
 Status: **implemented (2026-09-20).**
 
+## Approved project-local identity extension (not implemented)
+
+A deliberate post-creation edit to a project's name or caption must record
+the chosen text in `<project>/.project-identity.json`. This applies to every
+YA project, including imported directories, independently of template use.
+Initial creation-time name/intent remains provisional and does not create
+this marker. Most projects need no file. The user explicitly chose this
+project-local intrusion so agents and tools outside YA can respect the choice;
+private YA app data is not an alternative authority. The file may be excluded
+from Git at the user's discretion.
+
+Version 1 contains `formatVersion: 1` and optional `name` and `description`
+objects. Each present object has exact `humanText` and an `editedAt` timestamp.
+The description additionally has `agentCoda`, initially empty. Its effective
+text is `humanText + agentCoda`; the coda owns its leading separator. Names
+have no coda. Missing entries are unprotected. Only a subsequent explicit human
+edit/reset changes or removes the protected text. An agent may revise or remove
+the coda while retaining the exact human string and timestamp. No trimming,
+case folding, punctuation repair or prose reflow may rewrite the saved human
+text. Display truncation must never be saved back into it.
+
+The human editor edits its portion separately from the coda. YA must persist
+the marker for the action to succeed, with safe path handling and concurrent
+edit protection; a write failure cannot silently save only a private override.
+Existing app-data overrides need a deliberate migration that distinguishes
+creation-time choices from later edits. Invalid versions/content fail visibly;
+they must not be treated as absence and overwritten. Name/caption operations
+otherwise retain their normal authorization checks. Agent coda updates need
+an explicit supported write path and cache invalidation; the current caption
+route does not yet provide this separation.
+
+The template base's **redoc** skill reads this file before changing identity
+text, and uses the protected description as the README lede's exact prefix
+and in existing manifest description fields. It freely reorganizes and
+rewrites ordinary documentation for human/agent readability and truth against
+current contents. It does not track authorship, infer protected prose from Git,
+or create a marker merely because it encounters user-written documentation.
+More restrictive editorial procedures can be supplied ad hoc. A project SVG
+brand thumbnail leads the README as a separate Markdown image block.
+
+This is the user's approved direction from 2026-09-21, not the current runtime
+described below. The [identity gap](../gaps/project-local-identity.md) owns
+implementation for all projects; the portable skill/format live in
+`~/agents/project-templates/bases/base/redoc/`.
+
 ## User-visible contract
 
 - Every project may carry a caption. Projects shows it directly under the name
@@ -53,10 +98,10 @@ ellipsis. Whitespace is collapsed.
 Derived captions are cached in server memory per project path for 24 hours
 so listing projects never rescans directories. A README edit therefore shows
 up within a day or after a server restart; an override applies immediately
-because it lives outside the cache. Templates ([[project-templates]]) ship a
-README whose first paragraph is an HTML comment telling the agent to write
-the caption, which the heuristic skips, so a fresh project shows no
-placeholder text until the agent replaces it.
+because it lives outside the cache. The current template content prototype
+([[project-templates]]) seeds a readable summary during scripted setup and
+leads its README with a separate thumbnail image block, which the heuristic
+skips. Preparation then refines the initial summary through redoc.
 
 ## Wire contract
 
@@ -84,5 +129,5 @@ No existing capability changes meaning.
 - [[project-settings-overrides]] — app-data ownership for project-scoped
   state; the caption override is identity metadata rather than a session
   default, but lives in the same file.
-- [[project-templates]] — templates leave the README marker the derivation
-  is designed around.
+- [[project-templates]] — scripted setup seeds the README and preparation
+  refines its description.
