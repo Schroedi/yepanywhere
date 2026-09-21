@@ -36,6 +36,10 @@ verification, including the supported remote path. Follow
 [settings placement](../topics/settings-ui-placement.md) and
 [settings search](../topics/settings-search.md).
 
+The companion [user-documentation map and coverage gap](user-documentation-map-and-coverage.md)
+owns the README-discoverable index, canonical guide destinations and missing
+user material; this gap owns links from the settings caption surface.
+
 User requested a gap rather than implementation of this shared UI facility.
 Found 2026-09-21 while reviewing template-authoring guide discoverability.
 Contributing-model: 6-Astra.
