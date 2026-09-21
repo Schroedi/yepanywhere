@@ -271,6 +271,9 @@ content, and column allocation in the same update: no animation-frame or
 zero-delay timer is needed to finish opening or closing. With animations on,
 closing content stays mounted only through the exit transition; minimized
 content stays mounted for later restore. Splitter dragging remains immediate.
+On wide screens the session column and pane are explicitly assigned to the
+first and second grid tracks. A zero-duration update therefore cannot place the
+pane in the session track while the browser resolves the new column allocation.
 
 ## Non-goals
 
