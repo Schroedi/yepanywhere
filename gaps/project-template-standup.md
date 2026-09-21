@@ -9,8 +9,11 @@ selection. The local Python authoring CLI is not a shipped YA integration.
 
 The agreed format and product behavior live in
 [project templates](../topics/project-templates.md#current-contract--config-driven-templates).
-This gap is explicitly requested to track the unimplemented YA half while
-mockups are reviewed. The prototype manifests are draft pending the separate
+This gap tracks the unimplemented YA half. All existing UI prototypes were
+approved on 2026-09-21; the
+[implementation handoff](../docs/tactical/132-project-template-implementation.md)
+compiles the delivery sequence and acceptance boundary. The prototype manifests
+are draft pending the separate
 agents instruction-library review; production must not silently allow drafts.
 
 ## Remaining integration

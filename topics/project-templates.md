@@ -6,12 +6,14 @@
 
 Topic: project-templates
 
-Status: **content prototype committed; YA integration and UI approval pending
-(2026-09-21).** The authoring library is `~/agents/project-templates`, committed
+Status: **UI prototypes approved; YA integration pending (2026-09-21).**
+The implementation handoff is
+[usable template projects](../docs/tactical/132-project-template-implementation.md).
+The authoring library is `~/agents/project-templates`, committed
 in the agents repository at `d6a64e9` (App canvas/format) and `4baf1bf` (Web page,
 shared web tooling and explicit project-visible skills). Its manifests remain `draft` while the
 portable-instruction review is open. YA has not gained a template consumer,
-source settings, creation endpoint, or template permission fields. See the
+source settings, template creation endpoint, or template permission fields. See the
 [stand-up integration gap](../gaps/project-template-standup.md).
 
 ## Current contract — config-driven templates
@@ -252,13 +254,17 @@ path and does not require this wildcard.
 
 ### Next delivery boundary
 
-The source library and local stand-up prototype exist. Review the New project,
-preparing-project and Settings → Users mockups next. Implement YA only after
-that review, including capability gating for older servers and server-side
-authorization. The [gap](../gaps/project-template-standup.md) owns the remaining
+The source library and local stand-up prototype exist. The user approved all
+existing UI prototypes on 2026-09-21: New project, template choices, preparing
+project, Settings → Users and App names. Proceed from the
+[implementation handoff](../docs/tactical/132-project-template-implementation.md),
+including capability gating for older servers and server-side authorization.
+UI approval does not settle the separate supported-release contract review.
+The [gap](../gaps/project-template-standup.md) owns the remaining
 integration and acceptance checks. Import/export, save-as-template, extra
-templates, landing slash commands and a dedicated library-management screen
-remain later work, not prerequisites for the initial flow.
+templates, landing slash commands and advanced template authoring remain later
+work. Basic Settings → Project templates source configuration and explicit
+feature enablement are prerequisites for the initial usable flow.
 
 The superuser authoring follow-up lives in
 [project-template editor](../gaps/project-template-editor.md): Settings → Project
