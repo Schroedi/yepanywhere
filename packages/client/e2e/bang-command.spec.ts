@@ -64,6 +64,7 @@ test("a !! draft is routed locally and its run is recorded", async ({
   await page.unroute(`**${sessionPath}/bang-commands`);
   await page.reload();
   await expect(finished.getByText("exit 0")).toBeVisible();
+  await expect(composer).toHaveValue("");
 
   // Runs persist and the suite shares one server, so leave the history as
   // this test found it — the !! Commands view asserts elsewhere that it is
@@ -71,8 +72,6 @@ test("a !! draft is routed locally and its run is recorded", async ({
   await finished.getByRole("button", { name: "Delete" }).click();
   await expect(finished).toHaveCount(0);
 
-  // A separate draft-persistence defect can restore the prior submitted text.
-  await composer.fill("");
   await composer.pressSequentially(
     "!!printf 'bang stderr explanation\\n' >&2; exit 1",
     { delay: 15 },

@@ -1620,7 +1620,7 @@ export function MessageInput({
           try {
             await bangSupport.onRun(bangDraft.command);
             if (!preserveComposer) {
-              controls.clearInput();
+              controls.clearDraft();
               resetCompositionMetadata();
               setInterimTranscript("");
             }

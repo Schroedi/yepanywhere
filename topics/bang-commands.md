@@ -90,6 +90,10 @@ project directory:
   deliberately no further escape — a turn whose literal text must begin
   with space-then-`!!` cannot be sent, an accepted non-case. A bare `!!`
   with no command is a silent no-op (the chip already explains the mode).
+- **Successful submission clears the durable draft.** A completed bang-run
+  request removes its composer text from browser draft storage before reload.
+  A failed request keeps the submitted draft intact so the user can correct or
+  retry it.
 - **Execution.** Server-side `bash -lc` loads the user's login startup,
   including functions and aliases (pipes, globs, redirects work — the
   acli composition story assumes pipeable verbs), `cwd` = the session's
@@ -209,8 +213,7 @@ a bang draft the mobile-keyboard compact action row gains a temporary
 "Tab ⇥" button that triggers the same completion action.
 
 Completion responses are draft-versioned: a response for an older full bang
-line is discarded even when the trailing token is unchanged. A failed run
-keeps the submitted draft intact so the user can correct or retry it.
+line is discarded even when the trailing token is unchanged.
 
 - **Command position** — the first token, and the first token after `|`,
   `;`, or `&`: candidates are executable names from the server's PATH plus
