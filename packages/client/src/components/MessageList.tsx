@@ -2023,6 +2023,7 @@ export const MessageList = memo(function MessageList({
       markdownAugments,
       activeToolApproval,
       transcriptDisplayObjects,
+      recoverUnanchoredBangCommands: true,
       previousRenderItems: previousRenderItemsRef.current,
       recentProjectPathLinksEnabled,
       workflowTagsEnabled,

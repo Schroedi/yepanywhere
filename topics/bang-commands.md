@@ -90,11 +90,13 @@ project directory:
   deliberately no further escape — a turn whose literal text must begin
   with space-then-`!!` cannot be sent, an accepted non-case. A bare `!!`
   with no command is a silent no-op (the chip already explains the mode).
-- **Execution.** Server-side `bash -c` (pipes, globs, redirects work — the
+- **Execution.** Server-side `bash -lc` loads the user's login startup,
+  including functions and aliases (pipes, globs, redirects work — the
   acli composition story assumes pipeable verbs), `cwd` = the session's
   project directory, child in its own process group so kill reaches the
   whole pipeline. Command resolution: PATH first, then the project
-  directory as an implicit final PATH entry (a project-root executable
+  directory as an implicit final PATH entry, applied after login startup
+  along with the project working directory (a project-root executable
   `foo` runs as `./foo`; no subdirectory search).
 - **Trust boundary.** No new one: YA already executes arbitrary code as the
   server user via agent sessions. Bang exec is gated by the same
@@ -111,24 +113,34 @@ project directory:
   `BASH_ENV`** — an agent launcher's `BASH_ENV` bridge script would
   otherwise be re-sourced by the child bash and re-inject the identity vars
   just scrubbed (caught by test; a bang-run `agentctl` must never adopt an
-  agent session's identity).
+  agent session's identity). Clear these markers again after login startup.
 - **Result block.** Shows the command line, exit code, duration, and output;
-  stderr stays distinguishable (collapsed `details`, hidden when empty).
+  stderr stays distinguishable and expanded, hidden only when empty.
+  Newly noticed runs in an open session expand automatically: previews show
+  during execution and completed rendered output loads without a click.
+  Runs already present when revisiting the session start with bounded previews.
   Non-zero exit gets error styling. A running block shows a streaming
   preview with a cancel control; streamed updates are coalesced server-side
   (metadata-changed events at most every 750 ms) before reaching React —
   bursty command output is exactly the high-rate path the client
   performance rules cover.
+  A delayed start response cannot overwrite newer streamed output or terminal
+  status, or remove another concurrent run.
 - **Persistence.** Transcript display object kind `bang-command`, anchored
-  by `placementAfterMessageId` at the transcript tail when run (empty
-  anchor renders before the first item, for empty sessions). User-authored,
+  by `placementAfterMessageId` at the displayed transcript tail when run;
+  transient completion events are never anchors. The live window recovers
+  older bang records whose anchors disappeared by placing them at their saved
+  creation time, provided preceding timestamped content is loaded. Historical
+  search windows retain exact-anchor placement. An empty
+  anchor renders before the first item, for empty sessions. User-authored,
   so deletion is allowed once finished (409 while running). Output does not
   bloat `session-metadata.json`: the object stores the command line, exit
   metadata, and bounded preview tails (4 KiB stdout / 2 KiB stderr); full
   output lands in `{dataDir}/bang-commands/<sessionId>/<objectId>.stdout` /
   `.stderr` (8 MiB cap per stream, truncation flagged), fetched on demand
-  (2 MiB response cap per stream, 4 MiB combined). Full output is loaded only
-  after an explicit user action; the 500-entry history view retains at most one
+  (2 MiB response cap per stream, 4 MiB combined). Full output loads
+  automatically for newly noticed session runs, or after an explicit user
+  action for revisited runs; the 500-entry history view retains at most one
   expanded full-output response at a time. Per-session bang objects are pruned
   oldest-first past 100, but a running object is never pruned. Truncated
   display states that it was cut — the acli truncation principle applied to

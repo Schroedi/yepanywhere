@@ -61,17 +61,48 @@ function bangObjects(): BangCommandTranscriptDisplayObject[] {
 beforeEach(async () => {
   dataDir = await fs.mkdtemp(path.join(os.tmpdir(), "ya-bang-data-"));
   projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "ya-bang-proj-"));
+  vi.stubEnv("HOME", dataDir);
   metadata = new SessionMetadataService({ dataDir });
   await metadata.initialize();
   events = [];
 });
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await fs.rm(dataDir, { recursive: true, force: true });
   await fs.rm(projectDir, { recursive: true, force: true });
 });
 
 describe("BangCommandService", () => {
+  it("loads login functions and aliases while keeping the project cwd and PATH tail", async () => {
+    vi.stubEnv("HOME", dataDir);
+    await fs.writeFile(
+      path.join(dataDir, ".bash_profile"),
+      'bang_login_function() { printf "login-function\\n"; }\nalias bang_login_alias="bang_login_function"\nPATH=/usr/bin:/bin\ncd /\n',
+    );
+    await fs.writeFile(
+      path.join(projectDir, "local-tool"),
+      "#!/bin/sh\necho project-tool\n",
+      { mode: 0o755 },
+    );
+    try {
+      const { completion } = await createService().run({
+        sessionId: SESSION,
+        projectPath: projectDir,
+        command: 'bang_login_alias; local-tool; printf "%s\\n" "$PWD"',
+        placementAfterMessageId: "",
+      });
+      const final = await completion;
+      expect(final.exitCode).toBe(0);
+      expect(final.stderrPreview).toBeUndefined();
+      expect(final.stdoutPreview).toBe(
+        `login-function\nproject-tool\n${projectDir}\n`,
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("runs a command and records exit, previews, and full output", async () => {
     const service = createService();
     const { object, completion } = await service.run({

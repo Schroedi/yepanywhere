@@ -240,9 +240,6 @@ export class BangCommandService {
     for (const name of SCRUBBED_ENV_VARS) {
       delete env[name];
     }
-    env.PATH = env.PATH
-      ? `${env.PATH}${path.delimiter}${projectPath}`
-      : projectPath;
 
     let stdoutFile: Writable;
     let stderrFile: Writable;
@@ -262,12 +259,28 @@ export class BangCommandService {
       try {
         // detached: the child leads its own process group so kill() can signal
         // the whole pipeline, not just the bash wrapper.
-        child = spawn("bash", ["-c", command], {
-          cwd: projectPath,
-          env,
-          detached: true,
-          stdio: ["ignore", "pipe", "pipe"],
-        });
+        // Apply cwd and the project PATH tail after login startup, which may
+        // change both. Parse the command afterward so login aliases work too.
+        const shellCommand = [
+          `unset ${SCRUBBED_ENV_VARS.join(" ")}`,
+          'cd -- "$1" || exit',
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: Bash parameter expansion, not JavaScript interpolation.
+          'export PATH="${PATH:+$PATH:}$PWD"',
+          "shopt -s expand_aliases",
+          "_ya_bang_command=$2",
+          "shift 2",
+          'eval -- "$_ya_bang_command"',
+        ].join("\n");
+        child = spawn(
+          "bash",
+          ["-lc", shellCommand, "bash", projectPath, command],
+          {
+            cwd: projectPath,
+            env,
+            detached: true,
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
       } catch (error) {
         stdoutFile.destroy();
         stderrFile.destroy();

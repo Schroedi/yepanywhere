@@ -65,7 +65,12 @@ import {
   type ClearloopBadgeControls,
   ClearloopRemainingBadge,
 } from "../components/ClearloopRemainingBadge";
-import { buildBangEchoText, collectBangHistory } from "../lib/bangCommands";
+import {
+  applyBangCommandReceipt,
+  buildBangEchoText,
+  collectBangHistory,
+} from "../lib/bangCommands";
+import { getBangCommandAnchor } from "../lib/transcriptDisplayObjects";
 import { serverSupportsBangCommands } from "../lib/bangCommandAvailability";
 import { BtwAsidePane } from "../components/BtwAsidePane";
 import {
@@ -2812,11 +2817,7 @@ function SessionPageContent({
   messagesRef.current = messages;
   const runBangCommand = useCallback(
     async (command: string) => {
-      const currentMessages = messagesRef.current;
-      const lastMessage = currentMessages[currentMessages.length - 1];
-      const placementAfterMessageId = lastMessage
-        ? ((lastMessage.uuid ?? lastMessage.id) as string | undefined) || ""
-        : "";
+      const placementAfterMessageId = getBangCommandAnchor(messagesRef.current);
       try {
         const result = await api.runBangCommand(
           projectId,
@@ -2824,9 +2825,8 @@ function SessionPageContent({
           command,
           placementAfterMessageId,
         );
-        updateTranscriptDisplayObjectsForSession(
-          sessionId,
-          () => result.transcriptDisplayObjects,
+        updateTranscriptDisplayObjectsForSession(sessionId, (current) =>
+          applyBangCommandReceipt(current, result.displayObject),
         );
         setScrollTrigger((prev) => prev + 1);
       } catch (error) {
@@ -2859,8 +2859,25 @@ function SessionPageContent({
     [projectId, sessionId, showToast, t],
   );
 
+  const initialDisplayObjectsRef = useRef<{
+    sessionId: string;
+    ids: Set<string>;
+  } | null>(null);
+  if (
+    session?.id === sessionId &&
+    initialDisplayObjectsRef.current?.sessionId !== sessionId
+  ) {
+    initialDisplayObjectsRef.current = {
+      sessionId,
+      ids: new Set(
+        session.transcriptDisplayObjects?.map((object) => object.id),
+      ),
+    };
+  }
   const bangCommandHandlers = useMemo<BangCommandHandlers>(
     () => ({
+      shouldExpandOutput: (objectId) =>
+        !initialDisplayObjectsRef.current?.ids.has(objectId),
       onKill: (objectId) => {
         void api
           .killBangCommand(projectId, sessionId, objectId)
