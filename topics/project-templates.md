@@ -66,6 +66,13 @@ The README introduces their purpose and normal invocation so beginners,
 including limited users, can learn to use them. Verify harness discovery in
 addition to checking that files were copied.
 
+An optional composed `.project-template/preview.svg` supplies the chooser's
+template illustration without running setup. It follows ordinary file maps,
+collision rules and vendoring. Render the self-contained SVG as an image with
+the template title as accessible text; do not inject its markup into the page.
+App canvas supplies the drawing graphic from the reviewed mockup. This asset
+represents the template type, not the eventual app's screenshot.
+
 ### Composition and collisions
 
 Multiple bases are an ordered dependency graph. Apply each shared ancestor
@@ -228,7 +235,7 @@ Clearing does not delete project files. Namespace removal/reconfiguration must
 not silently release claims. This is a YA namespace contract, not a claim to
 control arbitrary DNS names outside its configured routing.
 
-The isolated mockup's **App names** view demonstrates this proposal. Persistent
+The isolated mockup's **App names** layout was approved on 2026-09-21. Persistent
 reservation storage, concurrency and authorization remain unimplemented and
 are included in the stand-up gap. Host-provided static publication is a separate
 path and does not require this wildcard.

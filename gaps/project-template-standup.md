@@ -29,6 +29,9 @@ agents instruction-library review; production must not silently allow drafts.
 - Vendor declared skills into normal project discovery directories with their
   complete resources. Verify discovery/invocation in supported harnesses and
   beginner-facing README onboarding, including under limited-user permissions.
+- Display the optional composed `.project-template/preview.svg` in the chooser
+  as an image, without setup execution or inline SVG injection. Keep a
+  title/description-only presentation for templates without an illustration.
 - Persist wildcard app-name reservations independently of running ports and
   project lifetime. First successful claim wins; only the superuser clears
   a reservation. Settings → Apps shows owners and retained orphaned entries.
