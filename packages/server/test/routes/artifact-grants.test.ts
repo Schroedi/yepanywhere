@@ -71,6 +71,9 @@ describe("durable artifact grants", () => {
 
     const second = serverFor(base);
     expect((await second.app.request(grant.url)).status).toBe(200);
+    const download = await second.app.request(`${grant.url}?download=true`);
+    expect(download.headers.get("Content-Disposition")).toBe("attachment");
+    expect(await download.text()).toBe("<h1>Artifact</h1>");
     // The state file holds the bearer token, so its directory is the guard.
     expect(
       (await stat(join(base, "state")).then((s) => s.mode & 0o777)) & 0o077,

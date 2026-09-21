@@ -225,6 +225,10 @@ vocabulary even though their authorization routes remain distinct:
   `/api/local-file` or project raw-file response is never presented as a
   viewer link. Relay and direct clients therefore use the same meaning rather
   than changing the label according to transport.
+- **Download** is a direct root-menu action for every local-file and
+  project-file link. It fetches the original bytes through the active source
+  transport and saves them under the path basename; opening a viewer is not a
+  prerequisite.
 - Public shares may expose their share-scoped viewer link and project-relative
   path, but the file action menu does not derive or copy the host's absolute
   project path.
@@ -236,6 +240,11 @@ project's owner, and broker relative preview assets across direct and relay
 transports. Until those contracts exist, an outside-project local file has no
 copyable Viewer link, and static preview assets are limited to data/blob
 resources admitted by the client preview CSP.
+
+Interactive artifact-domain links also expose **Download** beside **Open** in
+their transcript context menu. The action requests the linked artifact entry
+as an attachment from the isolated artifact origin, without first opening its
+managed viewer, a modal, or a new tab.
 
 Images use the same callback-driven resource menu without pretending that
 every byte source is a file:

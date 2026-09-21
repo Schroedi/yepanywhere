@@ -21,7 +21,9 @@ import { useOptionalSessionMetadata } from "../contexts/SessionMetadataContext";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
 import { useInlineMedia } from "../hooks/useInlineMedia";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
+import { useRetainedVersionInfo } from "../hooks/useVersion";
 import { useI18n } from "../i18n";
+import { isArtifactLink } from "../lib/artifactPreview";
 import {
   writeClipboardRichTextLater,
   writeClipboardText,
@@ -56,6 +58,7 @@ import {
 } from "../lib/vectorImageSizing";
 import {
   FilePathContextMenu,
+  ResourceContextMenu,
   type FileViewPresentation,
   supportsSourceAndPreview,
   useStartNewSessionFromFileAction,
@@ -223,10 +226,11 @@ function localMediaApiPath(path: string): string {
 function localResourceApiPath(
   resource: LocalResourceRef,
   renderMarkdown: boolean,
+  download = resource.download,
 ): string {
   if (resource.kind === "project-raw-file") {
     const params = new URLSearchParams({ path: resource.path });
-    if (resource.download) {
+    if (download) {
       params.set("download", "true");
     }
     return `/api/projects/${encodeURIComponent(
@@ -238,7 +242,7 @@ function localResourceApiPath(
   if (resource.renderMarkdown && renderMarkdown) {
     params.set("render", "1");
   }
-  if (resource.download) {
+  if (download) {
     params.set("download", "true");
   }
   if (resource.lineNumber !== undefined) {
@@ -949,6 +953,14 @@ function getCurrentHref(): string | undefined {
   return typeof window === "undefined" ? undefined : window.location.href;
 }
 
+function downloadArtifactUrl(rawUrl: string): void {
+  const url = new URL(rawUrl);
+  url.searchParams.set("download", "true");
+  const anchor = document.createElement("a");
+  anchor.href = url.href;
+  anchor.click();
+}
+
 function isLocalFileResource(resource: LocalResourceRef): boolean {
   return resource.kind === "local-file" || resource.kind === "project-raw-file";
 }
@@ -1071,7 +1083,22 @@ function LocalResourceContextMenu({
                 )
                 .catch(() => {});
             }
-          : undefined
+          : () => {
+              const { projectFileTarget, resource } = contextMenu;
+              const apiPath = projectFileTarget
+                ? `/api/projects/${encodeURIComponent(
+                    projectFileTarget.projectId,
+                  )}/files/raw?${new URLSearchParams({
+                    path: projectFileTarget.filePath,
+                    download: "true",
+                  })}`
+                : localResourceApiPath(resource, false, true);
+              void fetchLocalResourceBlob(apiPath, transport)
+                .then((blob) =>
+                  downloadBlob(blob, getFileName(contextMenu.resource.path)),
+                )
+                .catch(() => {});
+            }
       }
       onCopyImage={
         isMedia
@@ -1197,7 +1224,9 @@ export function useLocalResourceClick(
   const publicShare = usePublicShareContext();
   const openArtifact = useSessionArtifactLink();
   const sessionMetadata = useOptionalSessionMetadata();
-  const transport = useCurrentSourceRuntime().transport;
+  const runtime = useCurrentSourceRuntime();
+  const transport = runtime.transport;
+  const version = useRetainedVersionInfo(runtime.sourceKey);
   const sameOriginUrls = transport.capabilities.sameOriginUrls;
   const projectContext = options.projectContext ?? sessionMetadata;
   const [modal, setModal] = useState<{
@@ -1214,6 +1243,12 @@ export function useLocalResourceClick(
     resource: LocalResourceRef;
     projectFileTarget: ProjectFileModalTarget | null;
     url: string | null;
+  } | null>(null);
+  const [artifactContextMenu, setArtifactContextMenu] = useState<{
+    label: string;
+    url: string;
+    x: number;
+    y: number;
   } | null>(null);
 
   const openResource = (
@@ -1365,6 +1400,21 @@ export function useLocalResourceClick(
     const target = getClickedAnchor(e.target);
     if (!target) return;
 
+    if (
+      publicShare === null &&
+      isArtifactLink(target.href, version?.artifactViewer, window.location.href)
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      setArtifactContextMenu({
+        label: target.textContent?.trim() || target.hostname,
+        url: target.href,
+        x: e.clientX,
+        y: e.clientY,
+      });
+      return;
+    }
+
     const href = target.getAttribute("href");
     const resource = parseLocalResourceLink(
       {
@@ -1394,7 +1444,19 @@ export function useLocalResourceClick(
   const closeLocalFileModal = () => setLocalFileModal(null);
   const closeProjectFileModal = () => setProjectFileModal(null);
   const closeContextMenu = () => setContextMenu(null);
-  const contextMenuElement = contextMenu ? (
+  const closeArtifactContextMenu = () => setArtifactContextMenu(null);
+  const contextMenuElement = artifactContextMenu ? (
+    <ResourceContextMenu
+      x={artifactContextMenu.x}
+      y={artifactContextMenu.y}
+      canStartNewSession={false}
+      onClose={closeArtifactContextMenu}
+      onOpen={() =>
+        openArtifact?.(artifactContextMenu.url, artifactContextMenu.label)
+      }
+      onDownload={() => downloadArtifactUrl(artifactContextMenu.url)}
+    />
+  ) : contextMenu ? (
     <LocalResourceContextMenu
       contextMenu={contextMenu}
       projectContext={projectContext}

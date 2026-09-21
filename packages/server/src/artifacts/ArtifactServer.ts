@@ -167,6 +167,9 @@ export class ArtifactServer {
       grant.files.add(canonical);
       const mime = getMimeType(canonical) ?? "application/octet-stream";
       c.header("Content-Type", mime);
+      if (new URL(c.req.url).searchParams.get("download") === "true") {
+        c.header("Content-Disposition", "attachment");
+      }
       c.header("Accept-Ranges", "bytes");
       let start = 0;
       let end = stats.size - 1;

@@ -640,6 +640,45 @@ describe("FilePathLink", () => {
     expect(window.location.search).toBe("?projectId=project-id");
   });
 
+  it("downloads directly from the file-link context menu", async () => {
+    const fetchFile = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response("guide bytes", {
+          headers: { "Content-Type": "text/plain" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchFile);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn(() => "blob:guide-download"),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+
+    render(
+      <I18nProvider>
+        <FilePathLink
+          projectId="project-id"
+          filePath="docs/guide.md"
+          displayText="guide.md"
+        />
+      </I18nProvider>,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("link", { name: "guide.md" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Download" }));
+
+    await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+    expect(String(fetchFile.mock.calls[0]?.[0])).toContain(
+      "/api/projects/project-id/files/raw?path=docs%2Fguide.md&download=true",
+    );
+  });
+
   it("opens the selected HTML presentation from the context menu", async () => {
     vi.stubGlobal(
       "fetch",

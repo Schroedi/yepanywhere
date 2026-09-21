@@ -21,6 +21,7 @@ import {
   useQuoteReply,
 } from "../contexts/QuoteReplyContext";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
+import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
 import { useTextTooltipAttributes } from "../hooks/useTooltipAppearance";
 import { toBrowserAppHref } from "../lib/appHref";
 import {
@@ -30,6 +31,7 @@ import {
 } from "../lib/clipboard";
 import { QUOTE_SELECTION_ROOT_ATTRIBUTES } from "../lib/markdownSelectionCopy";
 import { requireRenderedFileClipboardPayload } from "../lib/renderedFileClipboard";
+import { downloadBlob } from "../lib/imageActions";
 import { useOptionalSessionMetadata } from "../contexts/SessionMetadataContext";
 import { useFileViewerController } from "../lib/fileViewerController";
 import {
@@ -181,6 +183,7 @@ export const FilePathLink = memo(function FilePathLink({
   const sessionViewerSessionId = useSessionViewerSessionId();
   const quoteReply = useQuoteReply();
   const basePath = useRemoteBasePath();
+  const transport = useCurrentSourceRuntime().transport;
   const managedViewerId = useId();
   const [showModal, setShowModal] = useState(false);
   const [modalPresentation, setModalPresentation] =
@@ -339,6 +342,33 @@ export const FilePathLink = memo(function FilePathLink({
       ),
     );
   }, [projectId, publicShareFileViewerSource, viewerFilePath]);
+  const handleDownloadFromMenu = useCallback(() => {
+    const fileName = getPathBasename(viewerFilePath);
+    if (publicShareFileViewerSource?.fetchRawFileBlob) {
+      void publicShareFileViewerSource
+        .loadFile(projectId, viewerFilePath, false)
+        .then((file) =>
+          publicShareFileViewerSource.fetchRawFileBlob?.(
+            file,
+            viewerFilePath,
+            true,
+          ),
+        )
+        .then((blob) => {
+          if (blob) downloadBlob(blob, fileName);
+        })
+        .catch(() => {});
+      return;
+    }
+    const params = new URLSearchParams({
+      path: viewerFilePath,
+      download: "true",
+    });
+    void transport
+      .fetchBlob(`/projects/${projectId}/files/raw?${params}`)
+      .then((blob) => downloadBlob(blob, fileName))
+      .catch(() => {});
+  }, [projectId, publicShareFileViewerSource, transport, viewerFilePath]);
 
   // Format the display text
   const fileName = showFullPath ? filePath : getPathBasename(filePath);
@@ -384,6 +414,7 @@ export const FilePathLink = memo(function FilePathLink({
           canStartNewSession={publicShareContext === null}
           onClose={closeContextMenu}
           onOpen={() => openFromMenu()}
+          onDownload={handleDownloadFromMenu}
           onOpenSource={
             hasPresentationChoice ? () => openFromMenu("source") : undefined
           }
