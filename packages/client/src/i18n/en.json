@@ -3790,6 +3790,7 @@
   "usersGrantView": "View only",
   "usersGrantLock": "Locked to",
   "usersDelete": "Delete",
+  "usersDeleteConfirm": "Delete user {username}? This removes their account, grants and usage history. Project directories and files are kept.",
   "usersUsernamePlaceholder": "Username",
   "usersPasswordPlaceholder": "Password",
   "usersNewPasswordPlaceholder": "New password (leave blank to keep)",

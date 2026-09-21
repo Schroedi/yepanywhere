@@ -210,6 +210,7 @@ export function UsersSettings() {
   };
 
   const remove = async (username: string) => {
+    if (!window.confirm(t("usersDeleteConfirm", { username }))) return;
     setBusy(true);
     setError(null);
     try {

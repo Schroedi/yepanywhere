@@ -23,10 +23,17 @@ Apply this scope to the two-template acceptance cases below as well.
 - Pending: source packaging/admission, fresh-target materialization, durable
   setup/preparation, permissions/sandboxing, App access/reservations, UI and
   project-local identity. No runtime feature is enabled by this first slice.
-- Awaiting explicit answers: supported-release capability/fallback approval
-  required by DEVELOPMENT.md, and whether existing limited users retain their
-  project-only scope with creation disabled. The recommended migration changes
-  defaults only for new users; no migration has run.
+- Approved: the supported-release capability/fallback plan below. Existing
+  limited users retain project-only scope and receive no template-creation
+  grant; defaults apply only to new users. No migration has run yet.
+- Complete: Delete user requires confirmation, naming the account and
+  explaining that grants/usage are removed but files remain. Cancel sends no
+  deletion request. Seven focused component tests and desktop/phone browser
+  checks pass; both rendered captures were inspected. Full lint, formatting,
+  typechecking and unit tests pass; browser suite: 284 passed, 7 skipped,
+  plus the two new confirmation checks. This does not implement
+  the pending personal-directory defaults: recreation must use the same default
+  path when those land, without claiming to restore deleted grants or usage.
 
 The compatibility proposal keeps older servers on existing-directory creation
 and legacy name/caption edits, hides new template/workspace/coda controls and
@@ -48,13 +55,13 @@ The implementation request now authorizes runtime implementation. All existing
 UI prototypes are approved. Their local fixture interactions are not evidence
 of production behavior. Do not reopen
 settled UI choices; inspect live code before choosing implementation details.
-The remaining compatibility review required by DEVELOPMENT.md is distinct
-from visual approval. This plan's numbered sections describe dependencies,
+The compatibility plan required by DEVELOPMENT.md is approved as recorded
+above. This plan's numbered sections describe dependencies,
 not additional user approval gates invented by this handoff.
 
 The best next action on implementation is to reconcile the source/library
-state, read the current contracts below, and prepare the supported-release
-capability/fallback review while checking the source packaging boundary.
+state, read the current contracts below, and implement the approved
+capability/fallback plan while checking the source packaging boundary.
 
 ## Authorities and current evidence
 
@@ -162,7 +169,7 @@ settings. Server-side None / Selected / Any grants are authoritative:
   not imply YA visibility, view/join/new-session API grants, or confidentiality.
   Limited users never choose sandbox granularity at session creation.
 
-Migration proposal awaiting the author's answer: preserve existing users'
+Approved migration: preserve existing users'
 project-only confinement and disable template creation until an administrator
 grants it; apply the new defaults only to newly created users. Do not silently
 broaden old accounts or already-running sessions. Record the eventual decision

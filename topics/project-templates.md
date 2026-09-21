@@ -211,7 +211,9 @@ silently falls back to another. Limited users cannot supply a source, script,
 arbitrary directory or permission grant: the superuser's configured project
 root is enforced at creation, and the new project belongs to that user.
 Missing project root prevents creation even when a template is allowed.
-Existing user records need an explicit migration decision before implementation.
+The approved migration preserves existing users' project-only confinement and
+disables template creation until explicitly granted; new defaults apply only
+to newly created users.
 
 The proposed chooser uses compact radio cards above the creation form: title,
 one-line purpose, and a visible selected state. The selection updates the
@@ -265,7 +267,8 @@ existing UI prototypes on 2026-09-21: New project, template choices, preparing
 project, Settings → Users and App names. Proceed from the
 [implementation handoff](../docs/tactical/132-project-template-implementation.md),
 including capability gating for older servers and server-side authorization.
-UI approval does not settle the separate supported-release contract review.
+The separate supported-release capability/fallback plan is approved in that
+handoff; implement its gates without broadening existing capability meanings.
 The [gap](../gaps/project-template-standup.md) owns the remaining
 integration and acceptance checks. Import/export, save-as-template, extra
 templates, landing slash commands and advanced template authoring remain later

@@ -41,8 +41,10 @@ Creation permission is independent: a user can be allowed to create projects
 while locked to Current project only. A view/join grant is not a new-session
 grant; entering an already-running session must not bypass its principal or
 write-scope enforcement. Limited users never select an unsandboxed state.
-Existing users need an explicit
-migration decision; do not silently broaden an existing session's sandbox.
+Approved migration (2026-09-21): existing users retain project-only confinement
+and have template creation disabled until explicitly granted. Apply personal
+directory and template-selection defaults only to newly created users; do not
+broaden an existing session's sandbox.
 
 Other host files remain readable under the existing filesystem sandbox
 contract. For the household use case, siblings can be consulted from an agent
@@ -253,6 +255,11 @@ for, so nothing about limited users appears anywhere else until one exists.
   administration. The acting principal still reports `hasLimitedUsers`, a
   boolean and never a count, for surfaces that need to know an install has
   more than one principal.
+
+- **Delete.** Confirmation names the user and explains that deletion removes
+  the account, its grants and usage history while keeping project directories
+  and files. Cancel sends no deletion request. Recreating a username creates a
+  new account; it does not restore the deleted grants or usage history.
 
 - **New Session, acting as a limited user.** The form offers only what the
   user can actually affect. A locked provider, model, or effort loses its

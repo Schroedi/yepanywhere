@@ -145,7 +145,27 @@ describe("Settings → Users", () => {
     mockDeleteUser.mockResolvedValue({ success: true });
   });
 
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("requires confirmation before deleting a user and keeps them on cancel", async () => {
+    mockListUsers.mockResolvedValue({ users: [user()], enabled: true });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<UsersSettings />);
+    fireEvent.click(await screen.findByRole("button", { name: "usersDelete" }));
+    expect(confirm).toHaveBeenCalledWith("usersDeleteConfirm");
+    expect(mockDeleteUser).not.toHaveBeenCalled();
+    expect(screen.getByText("alice")).toBeTruthy();
+
+    confirm.mockReturnValue(true);
+    mockListUsers.mockResolvedValue({ users: [], enabled: true });
+    fireEvent.click(screen.getByRole("button", { name: "usersDelete" }));
+    await waitFor(() => expect(mockDeleteUser).toHaveBeenCalledTimes(1));
+    expect(mockDeleteUser).toHaveBeenCalledWith("alice");
+    await waitFor(() => expect(screen.queryByText("alice")).toBeNull());
+  });
 
   it("offers the toggle and adding the first user while the feature is off", async () => {
     render(<UsersSettings />);

@@ -52,8 +52,9 @@ wired to runtime creation. Materialization and production admission remain open.
   preparation and readiness distinguishable; agent failure retains the starter.
 - Add server-enforced None / Selected / Any template grants to existing limited
   principals and Settings → Users. New users default to all three current
-  templates (App canvas, Storybook and Web page); settle
-  migration for existing users. Enforce configured project root, provider locks,
+  templates (App canvas, Storybook and Web page). Preserve existing users'
+  project-only confinement and disabled creation, as approved on 2026-09-21.
+  Enforce configured project root, provider locks,
   sandbox, ownership, and permission rechecks at the operation.
 - Default new users' Create in directory to `~/username`. Use it as the
   limited user's default writable sandbox, independent of session cwd; an
@@ -68,7 +69,8 @@ wired to runtime creation. Materialization and production admission remain open.
   live sessions silently. This workspace extension is user-directed and remains
   unimplemented, alongside the template integration.
 - Implement the approved New project UI and exact older-server capability gate.
-  Complete the required supported-release contract review before wire changes.
+  Apply the approved supported-release capability/fallback plan recorded in
+  tactical 132; existing capabilities retain their meanings.
 
 ## Closure evidence
 
