@@ -1,6 +1,6 @@
-import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { e2ePaths, expect, test } from "./fixtures.js";
+import { recordUiCapture } from "./support/ui-capture.js";
 
 const mockProjectPath = join(e2ePaths.tempDir, "mockproject");
 const projectId = Buffer.from(mockProjectPath).toString("base64url");
@@ -33,7 +33,12 @@ test.beforeEach(async ({ request, baseURL }) => {
       {
         headers: requestHeaders,
         data: {
-          target: { type: "new-session", provider: "claude", title },
+          target: {
+            type: "new-session",
+            provider: "claude",
+            model: "claude-opus-4-6",
+            title,
+          },
           message: { text: title },
           createdFrom: { client: "new-session" },
         },
@@ -83,6 +88,9 @@ async function assertQueueFollowsSelector(
   await expect(queue).toContainText("2 queued");
   await expect(queue).toContainText("Review the responsive queue placement");
   await expect(queue).toContainText("Verify durable queued-session feedback");
+  await expect(queue.getByRole("img", { name: "claude-opus-4-6" })).toHaveCount(
+    2,
+  );
 
   const selectorBox = await selector.boundingBox();
   const queueBox = await queue.boundingBox();
@@ -103,31 +111,41 @@ async function assertQueueFollowsSelector(
   }
 }
 
+async function assertProjectsQueueBadges(
+  page: import("@playwright/test").Page,
+) {
+  const queue = page.getByRole("region", { name: "Project Queue" });
+  await expect(queue).toBeVisible();
+  await expect(queue.getByRole("img", { name: "claude-opus-4-6" })).toHaveCount(
+    2,
+  );
+}
+
 test("keeps the selected project queue beneath the selector", async ({
   page,
   baseURL,
 }) => {
-  const captureDir =
-    process.env.YEP_NEW_SESSION_QUEUE_CAPTURE_DIR ??
-    join(e2ePaths.tempDir, "new-session-project-queue-captures");
-  mkdirSync(captureDir, { recursive: true });
-
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto(`${baseURL}/new-session?projectId=${projectId}`);
   await assertQueueFollowsSelector(page, "wide");
-  await page.screenshot({
-    path: join(captureDir, "desktop-1920x1080.png"),
-  });
 
   await page.setViewportSize({ width: 1024, height: 768 });
   await assertQueueFollowsSelector(page, "wide");
-  await page.screenshot({
-    path: join(captureDir, "wide-1024x768.png"),
-  });
+
+  await page.setViewportSize({ width: 1000, height: 600 });
+  await assertQueueFollowsSelector(page, "wide");
+  await recordUiCapture(page, "project-queue-model-badge-desktop");
 
   await page.setViewportSize({ width: 375, height: 812 });
   await assertQueueFollowsSelector(page, "narrow");
-  await page.screenshot({
-    path: join(captureDir, "mobile-375x812.png"),
-  });
+  await recordUiCapture(page, "project-queue-model-badge-phone");
+
+  await page.setViewportSize({ width: 1000, height: 600 });
+  await page.goto(`${baseURL}/projects?queueItem=${createdItemIds[0]}`);
+  await assertProjectsQueueBadges(page);
+  await recordUiCapture(page, "projects-queue-model-badge-desktop");
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await assertProjectsQueueBadges(page);
+  await recordUiCapture(page, "projects-queue-model-badge-phone");
 });

@@ -216,6 +216,20 @@ describe("ProjectQueueSection", () => {
     expect(screen.queryByRole("link", { name: "Session session-" })).toBeNull();
   });
 
+  it("shows the queued provider and model before dispatch", () => {
+    renderSection([
+      makeItem("1", "queued", {
+        target: {
+          type: "new-session",
+          provider: "codex",
+          model: "gpt-5.6-sol",
+        },
+      }),
+    ]);
+
+    expect(screen.getByRole("img", { name: "gpt-5.6-sol" })).toBeTruthy();
+  });
+
   it("groups queued items by project name while preserving project order", () => {
     renderSection([
       makeItem("beta-1", "queued", {

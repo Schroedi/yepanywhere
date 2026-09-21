@@ -10,6 +10,7 @@ import { Link } from "react-router-dom";
 import { useI18n } from "../i18n";
 import type { Project } from "../types";
 import { ProjectQueueAttachmentEditor } from "./ProjectQueueAttachmentEditor";
+import { ProviderBadge } from "./ProviderBadge";
 import styles from "./ProjectQueueSection.module.css";
 
 type Translate = ReturnType<typeof useI18n>["t"];
@@ -642,6 +643,13 @@ export function ProjectQueueSection({
                               targetLabel(item, t)
                             )}
                           </span>
+                          {item.target.provider && (
+                            <ProviderBadge
+                              provider={item.target.provider}
+                              model={item.target.model}
+                              className={styles.itemProvider}
+                            />
+                          )}
                           <span className={styles.itemAge}>
                             {formatRelativeTime(item.createdAt, t)}
                           </span>
