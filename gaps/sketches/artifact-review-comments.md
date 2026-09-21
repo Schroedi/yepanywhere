@@ -351,6 +351,13 @@ explicitly if that path is unavailable.
 
 ### Dynamic state and reproduction history
 
+Optional checkpoint accelerators, large replay payloads passed by file/reference,
+approximate input recipes, and framework-level interception now have their own
+[replay checkpoint sketch](artifact-replay-checkpoints.md). A verified state
+checkpoint may replace a long causal prefix with a short suffix; detailed
+metaprotocol and library choices remain TBD. This is an optional enrichment,
+not a prerequisite for the generic reproduction recipe below.
+
 **User-directed extension, 2026-09-21:** a fully dynamic App needs more than
 source mapping. Comments may describe a state reached through interaction,
 such as an open menu, and need a growing reproduction history that includes
