@@ -14,6 +14,54 @@ Topic: limited-users
 Status: **v1 delivered (2026-09-20); the rest remains proposal.** See
 § Delivery v1 — Settings → Users for the committed contract.
 
+The next template-creation extension is specified in
+[project templates](project-templates.md#limited-user-permissions): server-enforced
+None / Selected / Any permissions, with App canvas selected for new limited
+users. It is not delivered in v1; the
+[stand-up gap](../gaps/project-template-standup.md) tracks its implementation.
+
+### Approved workspace direction (2026-09-21; not implemented)
+
+New limited users default their **Create in** directory to `~/username`,
+editable by the superuser. This same directory is their default writable
+session sandbox, allowing an agent to work across that user's own projects.
+The superuser locks one of two modes in Settings → Users; a limited user does
+not choose sandbox granularity in New Session:
+
+- **Personal directory:** sessions can write within Create in, allowing work
+  across that user's projects; paths outside it remain read-only.
+- **Current project only:** sessions can write only to their active project,
+  preventing cross-project writes even among their own projects. An explicit
+  new-session grant also permits a session confined to a project outside Create
+  in. In this mode the active project's writable root is not intersected with
+  the personal directory. Other projects remain read-only.
+
+Creation permission is independent: a user can be allowed to create projects
+while locked to Current project only. A view/join grant is not a new-session
+grant; entering an already-running session must not bypass its principal or
+write-scope enforcement. Limited users never select an unsandboxed state.
+Existing users need an explicit
+migration decision; do not silently broaden an existing session's sandbox.
+
+Other host files remain readable under the existing filesystem sandbox
+contract. For the household use case, siblings can be consulted from an agent
+session; writes require the applicable mode and explicit new-session grant.
+This is write confinement,
+not a new confidentiality claim. YA project visibility and view/join/new-session
+grants remain separate: a personal directory is not an API grant to every
+project. Only the Current project only mode uses an explicitly granted external
+project as its writable boundary.
+
+Settings → Users keeps account/password, provider/model/effort locks, join
+freshness and project grants together with the new Workspace & sandbox and
+New projects sections. The template allowlist can deny creation without
+removing the personal sandbox. The default write scope is Personal directory;
+Current project only is a superuser-managed alternative, not a child-facing
+per-session choice. Missing or invalid
+workspace roots must not fall back to an unsandboxed launch or all of home.
+See the [integration gap](../gaps/project-template-standup.md) for launch,
+join/resume and filesystem enforcement checks before this becomes runtime.
+
 Read as a local-credential and policy profile over the shared concepts
 sketched in [[principals-and-grants]], not a separate approved authorization
 architecture. That shared sketch is itself a proposal: it does not require a

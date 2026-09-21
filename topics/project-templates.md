@@ -1,18 +1,263 @@
 # Project templates
 
-> Proposal: a library of new-project templates — YA-shipped plus a user
-> git-controlled `~/ya-templates` — where a template is a prefab file tree
-> (with its own `AGENTS.md`), a one-time boot prompt, and declared shape
-> elements (batch, chat-turn, or canvas interactive; TypeScript or wasm; with or
-> without a loopback server) defined as shipped prompt documents that an
-> agent can also apply later on request; YA materializes a template into a fresh
-> git-initialized project, registers it, and opens the first session on the
-> boot prompt plus an optional first-turn request, from a New Project chooser,
-> a `/start-project` command, or a command field on the Projects landing page.
+> Config-driven project creation from composable capability bases, with
+> vendored instructions, deterministic setup, and an automatic preparation
+> session. App canvas is the first template; YA integration remains unbuilt.
 
 Topic: project-templates
 
-Status: **proposal, nothing implemented (2026-09-19).**
+Status: **content prototype committed; YA integration and UI approval pending
+(2026-09-21).** The authoring library is `~/agents/project-templates`, committed
+in the agents repository at `d6a64e9` (App canvas/format) and `4baf1bf` (Web page,
+shared web tooling and explicit project-visible skills). Its manifests remain `draft` while the
+portable-instruction review is open. YA has not gained a template consumer,
+source settings, creation endpoint, or template permission fields. See the
+[stand-up integration gap](../gaps/project-template-standup.md).
+
+## Current contract — config-driven templates
+
+This section supersedes conflicting statements in the historical design below.
+`~/agents/project-templates/FORMAT.md` is the authoring format authority;
+`composition.py` and its conformance tests implement the initial local format.
+This YA topic owns its product integration, not a second evolving schema.
+
+### Sources and inventory
+
+A configured source has a stable source identity, a local repository or GitHub
+repository/ref, and a repository-relative content directory. Initially use
+`~/agents` with `project-templates`. Reject a missing content directory when
+saving configuration, by checking the local filesystem or selected GitHub
+revision. Resolve remote refs to a fixed revision and validate and instantiate
+that same revision. An unreachable source is an error, not an empty library.
+Validate inventory, manifests, dependency order and referenced files without
+executing scripts; revalidate a mutable local source before creation.
+
+The eventual shipped default is a pinned submodule pointing to a standalone
+template repository, with opt-in source configuration and one or more
+supplementary sources. No standalone repository or YA submodule is installed
+yet. A source-qualified template identity prevents a supplementary library
+from silently replacing a limited user's allowed template. Cross-source base
+inheritance is outside v1. Extracting the library later must bring its complete
+dependency closure inside the new repository.
+
+```text
+project-templates/
+  PROGRAM.md, FORMAT.md, library.json
+  bases/<id>/template.json       # reusable capability + explicit file list
+  templates/app-canvas/template.json
+  templates/web-page/template.json
+  composition.py                # local reference implementation
+  project-template.py            # authoring CLI, not a YA runtime dependency
+```
+
+`library.json` has `formatVersion: 1` and finite `bases` and `templates` ID
+lists. Each manifest declares `formatVersion`, `kind`, `status`, `id`, `title`,
+`description`, ordered `extends`, `files`, and `overrides`. A file maps `from`
+to `to`, with optional `executable` (default false). Source paths are relative
+to their manifest. `../` and source symlinks are permitted only within the
+source repository; output contains ordinary copied files. Broken links,
+repository escapes, Git metadata, invalid destinations and case-folded or
+file/directory destination collisions fail before materialization.
+
+Templates can also vendor project-visible skills in conventional harness
+discovery directories, with their complete scripts/resources. They use the
+same explicit file maps and collision rules, not a separate YA skill registry.
+The README introduces their purpose and normal invocation so beginners,
+including limited users, can learn to use them. Verify harness discovery in
+addition to checking that files were copied.
+
+### Composition and collisions
+
+Multiple bases are an ordered dependency graph. Apply each shared ancestor
+once, before its dependents, while respecting each `extends` order. Stable
+topological sorting uses first encounter in a left-to-right depth-first walk
+to break unconstrained ties. Cycles and incompatible ordering constraints are
+errors; the selected template contributes last.
+
+- Ordinary files at the same destination coalesce only when their bytes and
+  executable mode are identical. Different paths remain separate even if
+  their contents match. Differing bytes or modes are conflicts, never an
+  implicit last-writer-wins overlay.
+- Exact root `AGENTS.md` is special: hash each complete fragment's original
+  bytes with SHA-256, retain the first occurrence of each hash, then concatenate
+  in resolved order with blank-line boundaries. Do not normalize or deduplicate
+  paragraphs. Nested `AGENTS.md` files are ordinary files.
+- The selected template applies explicit ordered overrides after composition:
+  `replace`, `prepend`, `append`, or `omit`. Replacement and omission can
+  resolve a conflicting destination; appending/prepending cannot choose a
+  predecessor from conflicting content. Text operations require an existing
+  UTF-8 destination. There is no JSON deep merge or implicit glob expansion.
+
+The reserved `base` contains only universal instructions. The populated
+capability bases are `software-engineering`, `testing`, `typescript`, `web-ui`,
+`web-app`, `canvas`, and `server`; their dependencies select the relevant union.
+`legacy-boot` is a separate draft authoring reference to the global boot,
+excluded from App canvas. Full global research/run/session-management policy
+is not part of an instantiated app's instructions. Systematic editorial and
+experimental tightening remains the agents repository's
+`project-templates/gaps/portable-capability-bases.md` work.
+
+### First template: App canvas
+
+The stable ID is `app-canvas`, display name **App canvas**. It creates a static
+Vite + TypeScript Canvas2D app, with run/test/build tooling and vendored
+instructions. It has no application server initially. The server base supplies
+an inactive add-on: `npm run server:add` later installs the supplied Node
+server and health endpoint, updates runtime configuration, and refuses to
+overwrite an existing server. Instantiated projects stand alone; neither
+their instruction routes nor build/test/run/add-on commands require `~/agents`.
+
+`.project-template/app.json` describes `kind`, static bundle `dir`, argv arrays
+for `setup`, `build`, `test`, `preview`, a vendored `prepare` prompt, and
+`addons.server`. Activating the server adds `start`. Commands run in the
+project directory without shell interpolation. `.project-template/project.json`
+records entered name/description and composition provenance. The initial CLI
+consumes setup; YA orchestration remains to be implemented.
+
+The build has relative asset URLs and works over static HTTP(S), including
+artifact grants. ES modules do not promise `file://` execution. The portable
+template includes deployment guidance but no personal publishing destination
+or automatic publish. The existing static server binds loopback. Live tablet
+console forwarding, PWA packaging, and pane annotation are future integration,
+not capabilities of the current template. Browser verification uses Playwright.
+
+### Web page and shared tooling
+
+The second content prototype is **Web page** (`web-page`), a content-led DOM
+starter for prose, documents, stories and collections. Its working sample has
+searchable/filterable cards. Interactivity and multimedia remain available;
+its instructions emphasize reader purpose and content structure. Both starters
+inherit `web-app` for deterministic Vite setup, run/test/build, preparation and
+the inactive server add-on. Web page does not inherit canvas instructions.
+
+The agents gap `project-templates/gaps/content-authoring-capabilities.md` owns
+optional writing skills and guidance (plot, characters, worldbuilding,
+continuity), plus shared static-publication onboarding. Publication defaults
+to a host-provided URL such as GitHub Pages; account/domain onboarding is
+future work, and buying/configuring a custom domain is optional.
+
+### Creation and preparation
+
+Projects gains a **New project** surface with **From template** and **Existing
+directory** modes for the superuser. Template creation asks for name, intent,
+and parent directory; a single available template is applied automatically.
+Existing-directory registration keeps its present behavior. The current
+proposal fixture lives in `packages/client/mockups/project-templates/` and
+reuses the real existing-directory form and settings section component.
+
+**Create & prepare** explicitly authorizes the following sequence:
+
+1. Validate permission, source revision, prerequisites, fresh target and app
+   name reservation before executing source-controlled setup. Resolve and
+   vendor the complete selected content into the new directory.
+2. Run deterministic setup, initialize Git and register the project with its
+   ownership. Make the starter visible in the App pane as soon as its build
+   is usable; do not wait for the agent's preparation turn.
+3. Open a project-context session and automatically send the vendored prepare
+   prompt with the entered intent as user data. Use the user's provider/model
+   settings and enforce limited-user locks and sandboxing. The turn customizes
+   project instructions, refines the README lede, verifies run/test/build,
+   and reports readiness to build the requested app.
+
+Setup seeds a reasonable README summary immediately, so the project description
+does not remain blank while preparation runs. The shipped base instruction
+keeps documentation current, including revising that lede when the project's
+purpose changes. Preparation failure leaves the usable starter and session
+visible with a failure state; it must not silently recreate the project or
+send a duplicate first turn. Setup failure reports the partial directory and
+logs without registering a successful project or deleting user content.
+Creation grants no authority to deploy or publish.
+
+### Limited-user permissions
+
+Settings → Users extends the existing local principal's grants, rather than
+introducing a second user system. The server enforces a per-user choice:
+
+| Choice | Creation permission |
+|---|---|
+| None | No new projects. Existing project access is unaffected. |
+| Selected templates | Only saved source-qualified template IDs. Empty means none. |
+| Any configured template | Every enabled, ready template, including future additions. |
+
+New limited users default to Selected templates with the shipped App canvas
+identity. Exactly one permitted available template is applied without a picker;
+multiple templates offer a chooser. A removed/unavailable/draft template never
+silently falls back to another. Limited users cannot supply a source, script,
+arbitrary directory or permission grant: the superuser's configured project
+root is enforced at creation, and the new project belongs to that user.
+Missing project root prevents creation even when a template is allowed.
+Existing user records need an explicit migration decision before implementation.
+
+The proposed chooser uses compact radio cards above the creation form: title,
+one-line purpose, and a visible selected state. The selection updates the
+template details and preserves the entered project name/intent. Both superuser
+and limited-user flows use it when more than one permitted template is available;
+limited users still supply only name and intent. Both content prototypes exist
+in the authoring library; neither draft is production-admitted yet.
+
+Project lists show ownership as `alex / Sketch garden`, separately from the
+project's name, following the existing owner display convention (a configured
+code name still takes precedence). New limited users default their parent to
+`~/username`, editable by the superuser. That **Create in** directory also
+becomes their default writable sandbox. Alternatively the superuser locks
+Current project only: each session writes only its active project, including
+an outside project with an explicit new-session grant. The limited user does
+not choose this mode at session creation. Other directories remain read-only
+under the existing sandbox's read policy. The directory and display name need
+not encode the creator.
+[Limited users](limited-users.md#approved-workspace-direction-2026-09-21-not-implemented)
+owns this approved, unimplemented extension. Creation fields use muted examples
+as placeholders, not prefilled app specifications.
+
+### Persistent app-name reservations
+
+Settings → Apps owns the superuser's wildcard-domain configuration and reserved
+names, alongside existing app routing. For a configured wildcard such as
+`*.graehl.org`, the first successful reservation wins. Claim names atomically
+on the server, normalized within the configured namespace; a conflict asks
+for another name rather than renaming silently. Service-owned names are
+unavailable. A name reservation is separate from a running port or process.
+
+Reservations persist across restarts, stopped apps and project deletion, until
+explicitly cleared by the superuser. Preserve enough project/owner information
+to explain orphaned entries. Limited users can claim available names for their
+authorized projects but cannot release or take over reservations. The superuser
+view shows hostname, project/owner, serving-or-reserved status, and a Clear
+action that confirms release and the resulting loss of that app address.
+Clearing does not delete project files. Namespace removal/reconfiguration must
+not silently release claims. This is a YA namespace contract, not a claim to
+control arbitrary DNS names outside its configured routing.
+
+The isolated mockup's **App names** view demonstrates this proposal. Persistent
+reservation storage, concurrency and authorization remain unimplemented and
+are included in the stand-up gap. Host-provided static publication is a separate
+path and does not require this wildcard.
+
+### Next delivery boundary
+
+The source library and local stand-up prototype exist. Review the New project,
+preparing-project and Settings → Users mockups next. Implement YA only after
+that review, including capability gating for older servers and server-side
+authorization. The [gap](../gaps/project-template-standup.md) owns the remaining
+integration and acceptance checks. Import/export, save-as-template, extra
+templates, landing slash commands and a dedicated library-management screen
+remain later work, not prerequisites for the initial flow.
+
+The superuser authoring follow-up lives in
+[project-template editor](../gaps/project-template-editor.md): Settings → Project
+templates enables the feature, accepts the default `graehl/agents` bundle or an
+alternative local/GitHub/submodule source, edits the source location in place,
+and composes ordered bases plus extra AGENTS text. An explicit Update action
+validates upstream HEAD and advances the selected revision; it does not silently
+update instantiated projects. This editor has not been mocked up or implemented.
+
+## Historical prompt-first design
+
+The remainder records the September 19–20 proposal and its broader reach
+requirements. Its template anatomy, source locations, `canvas-ts` name,
+prompt-first assembly, staged first turn, fixed personal publish target and
+phase order are superseded by the current contract above. Runtime/pane ideas
+below remain proposals and do not describe delivered template functionality.
 
 ## The idea in brief
 
