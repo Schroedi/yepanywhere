@@ -6,7 +6,6 @@ import { useOptionalSessionMetadata } from "../../../contexts/SessionMetadataCon
 import { useSchemaValidationContext } from "../../../contexts/SchemaValidationContext";
 import { useVisibilityAwareTextTooltip } from "../../../hooks/useTooltipAppearance";
 import { isMarkdownLikeFile } from "../../../lib/markdownFiles";
-import { compactShikiLineBreaks } from "../../../lib/shikiHtml";
 import { getPathBasename, makeDisplayPath } from "../../../lib/text";
 import { validateToolResult } from "../../../lib/validateToolResult";
 import { ActivityDetailModal } from "../../ActivityDetailModal";
@@ -15,6 +14,7 @@ import {
   MarkdownPreview,
 } from "../../MarkdownPreview";
 import { SchemaWarning } from "../../SchemaWarning";
+import { ShikiHtml } from "../../ShikiHtml";
 import { SessionFilePathLink } from "../../SessionFilePathLink";
 import { FilePathDisplay } from "../../ui/FilePathDisplay";
 import { getOutputTailTooltip } from "./outputPreview";
@@ -123,14 +123,7 @@ function WriteModalContent({
       <div className="file-content-modal">
         {toggleButton}
         <div className="file-viewer-code file-viewer-code-highlighted">
-          <div
-            className="shiki-container"
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered HTML
-            dangerouslySetInnerHTML={{
-              __html:
-                compactShikiLineBreaks(input._highlightedContentHtml) ?? "",
-            }}
-          />
+          <ShikiHtml html={input._highlightedContentHtml} />
           {input._highlightedTruncated && (
             <div className="file-viewer-truncated">
               Content truncated for highlighting (showing first 2000 lines)
@@ -228,14 +221,7 @@ function WriteToolResult({
           )}
         </div>
         <div className="file-viewer-code file-viewer-code-highlighted">
-          <div
-            className="shiki-container"
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered HTML
-            dangerouslySetInnerHTML={{
-              __html:
-                compactShikiLineBreaks(input._highlightedContentHtml) ?? "",
-            }}
-          />
+          <ShikiHtml html={input._highlightedContentHtml} />
           {input._highlightedTruncated && (
             <div className="file-viewer-truncated">
               Content truncated for highlighting (showing first 2000 lines)
@@ -395,13 +381,7 @@ function WriteCollapsedPreview({
           {...tooltipAttributes}
         >
           {previewHtml ? (
-            <div
-              className="shiki-container"
-              // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered HTML
-              dangerouslySetInnerHTML={{
-                __html: compactShikiLineBreaks(previewHtml) ?? "",
-              }}
-            />
+            <ShikiHtml html={previewHtml} />
           ) : (
             <pre>
               <code>{lines.slice(0, PREVIEW_LINES).join("\n")}</code>

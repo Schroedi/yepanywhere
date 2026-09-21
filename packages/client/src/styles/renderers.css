@@ -4103,21 +4103,7 @@ details[open] .collapsible__icon {
   box-shadow: none !important;
 }
 
-/* Server-rendered Shiki highlighting container.
-   `compactShikiLineBreaks` strips the newline between line spans, so every
-   container that renders that HTML must make each `.line` its own block or
-   the last word of a line runs into the first word of the next. These base
-   rules hold wherever the compacted markup lands; the file-viewer rules
-   below add its gutter/wrap treatment on top. */
-.shiki-container pre.shiki {
-  white-space: pre-wrap;
-}
-
-.shiki-container code .line {
-  display: block;
-  white-space: pre-wrap;
-}
-
+/* Server-rendered Shiki highlighting container */
 .file-viewer-code-highlighted .shiki-container {
   padding: 0.375rem var(--file-viewer-code-x-padding, 0.625rem);
 }

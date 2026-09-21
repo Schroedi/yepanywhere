@@ -17,7 +17,6 @@ import { useQuoteableTextSource } from "../../../hooks/useQuoteableTextSource";
 import { useRemoteImage } from "../../../hooks/useRemoteImage";
 import { isMarkdownLikeFile } from "../../../lib/markdownFiles";
 import { useScrollPreservingToggle } from "../../../lib/scrollAnchor";
-import { compactShikiLineBreaks } from "../../../lib/shikiHtml";
 import { getPathBasename, makeDisplayPath } from "../../../lib/text";
 import { validateToolResult } from "../../../lib/validateToolResult";
 import {
@@ -31,6 +30,7 @@ import {
   type LocalMediaSource,
 } from "../../LocalMediaModal";
 import { SchemaWarning } from "../../SchemaWarning";
+import { ShikiHtml } from "../../ShikiHtml";
 import { SessionFilePathLink } from "../../SessionFilePathLink";
 import {
   FixedFontMathToggle,
@@ -262,13 +262,7 @@ function FileModalContent({
       <div className="file-viewer-empty-content">No content read</div>
     ) : highlightedHtml ? (
       <div className="file-viewer-code file-viewer-code-highlighted">
-        <div
-          className="shiki-container"
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered HTML
-          dangerouslySetInnerHTML={{
-            __html: compactShikiLineBreaks(highlightedHtml) ?? "",
-          }}
-        />
+        <ShikiHtml html={highlightedHtml} />
         {highlightedTruncated && (
           <div className="file-viewer-truncated">
             Content truncated for highlighting (showing first 2000 lines)
