@@ -2091,18 +2091,13 @@ function SessionPageContent({
     ],
   );
 
-  // Record session visit for recents tracking
+  // Record session visit for recents tracking. Opening a session is not a
+  // sidebar interaction: only composer submissions move a row, so reading a
+  // session leaves its chronology alone.
   useEffect(() => {
     if (isDomLingerParked) return;
     recordSessionVisit(sessionId, projectId);
-    recordSessionInteraction(sourceRuntime.sourceKey, actualSessionId);
-  }, [
-    sessionId,
-    projectId,
-    actualSessionId,
-    sourceRuntime.sourceKey,
-    isDomLingerParked,
-  ]);
+  }, [sessionId, projectId, isDomLingerParked]);
 
   // Navigate to new session ID when temp ID is replaced with real SDK session ID
   // This ensures the URL stays in sync with the actual session
