@@ -128,7 +128,7 @@ or use a narrowly maintained fork. Reuse designs or selected components where
 helpful; copied source follows the pinned-vendoring and license requirements.
 
 **User-directed dependency decision, 2026-09-21:** a Plannotator dependency is
-acceptable for this opt-in feature. Do not reopen that decision or build a
+acceptable for this explicitly invoked feature. Do not reopen that decision or build a
 replacement solely to avoid the dependency. The trial establishes technical
 fit: package availability, license, dependencies, lazy-load cost, asset
 resolution and browser behavior. Keep loading and activation scoped to the
@@ -143,7 +143,7 @@ should not be a prerequisite. Recommended order:
 - For the library adapter, pin exact package versions and lockfile integrity,
   package its matching bridge assets with YA, and lazy-load the feature. Normal
   YA installation/build supplies it; no browser-time fetch from a moving CDN.
-- If a separate runtime is necessary, enabling the feature provisions a
+- If a separate runtime is necessary, first invocation provisions a
   versioned YA app-data installation from a fixed release artifact. Record
   platform/architecture and a reviewed checksum in YA's manifest, verify before
   activation, and atomically place the complete installation. Reuse a valid
@@ -165,7 +165,78 @@ expects its proxy to inject the bridge and declares an unsandboxed frame; it
 is not a drop-in wrapper around YA's granted artifact URL. Its raw-HTML mode
 has different asset/CSP requirements. `annotateModeActive=false` also leaves
 text-selection commenting live, so it alone does not implement YA's opt-in
-default. The trial must preserve the ordinary viewer until explicitly armed.
+behavior. The trial must preserve the ordinary viewer until explicitly armed.
+
+## Invocation is the opt-in; YA owns setup and delivery
+
+**User-directed UI clarification, 2026-09-21:** an annotation accelerator is
+available by default on arbitrary YA document/artifact views. Pressing it is
+the opt-in: no separate enable setting and no harness Plannotator skill install
+is required. YA retrieves the pinned Plannotator or YA-shipped alternative
+code on first use, opens review for the current view, and orchestrates any
+needed prompt/context injection, callback and response delivery. This replaces
+the earlier default-off feature-setting proposal. It does not turn annotation
+capture on merely because a document opens.
+Contributing-model: 6-Astra
+
+Ship only the small activation path eagerly. First invocation lazy-loads
+bundled annotation code or provisions the pinned runtime through the managed
+path above, with immediate loading/progress, cancellation and actionable error
+feedback. Repeated activation shares one acquisition; later use reuses the
+verified installation. No background download, agent launch, prompt injection
+or annotation capture occurs just from viewing content. An equivalent visible
+viewer action supplies discoverability, touch access and keyboard fallback.
+
+YA owns the feature lifecycle across providers. Host callbacks bind the viewed
+artifact/round to the canonical session, route context through existing send
+and queue mechanisms, and prevent duplicate CLI-plus-YA delivery. Installing
+provider skills/hooks or modifying global harness configuration is not part
+of activation. Optional producer prelabelling skills remain an enrichment;
+they are never required to annotate an existing arbitrary document. Invoking
+review prepares the context; sending comments or requesting agent work remains
+an explicit action within it, not an automatic provider turn on every open.
+
+Arbitrary views get the best available mode: source-aware selection, rendered
+element selection, or document/visual context with an honest limitation.
+Exact source mapping and semantic replay remain producer capabilities. A
+standalone view without a bound session can collect drafts, then asks for a
+destination before delivery; a public view does not gain send authority.
+
+### Shortcut audit — 2026-09-21
+
+Static YA source audit found no annotation binding for Ctrl+Alt+A or
+Ctrl+Shift+A. `ViewerSelectAllButton.tsx` accepts Ctrl/Cmd+A but explicitly
+rejects Alt and Shift; `useSelectionActionPresentation.tsx` and
+`earlyTypingHandoff.ts` reject Ctrl/Meta/Alt for typing capture. Relevant
+viewer, pane, modal and session handlers do not supply this activation.
+The user's report that Ctrl+Alt+A produced no visible action is consistent
+with this absence, not evidence that a hidden integration already exists.
+
+Plannotator's pinned
+[HTML shortcut registry](https://github.com/backnotprop/plannotator/blob/8f2a8a81a384f1cd39c5f083d3c6fcd35a956422/packages/ui/shortcuts/plan-review/htmlAnnotate.shortcuts.ts)
+uses `Mod+Shift+A` for annotate mode: Ctrl+Shift+A on Windows/Linux,
+Cmd+Shift+A on macOS. It is a toggle inside an already loaded review, not an
+installer or a global YA accelerator. Ctrl+Alt+A is not that binding.
+
+Do not adopt Ctrl+Shift+A as YA's default without resolving browser conflicts:
+[Chromium's accelerator table](https://chromium.googlesource.com/chromium/src/+/f57d8c09853a5ef39afa6cedf1d5ce683a142303/chrome/browser/ui/views/accelerator_table.cc)
+assigns it to tab search on non-Mac platforms, and
+[Firefox documents it for Add-ons](https://support.mozilla.org/en-US/kb/keyboard-shortcuts-perform-firefox-tasks-quickly).
+Ctrl+Alt+A is a candidate, not yet the chosen cross-platform default; account
+for AltGr/international text entry and OS/user shortcuts. Preserve IME and
+editable controls, provide a remapping/disable route, and test real browser
+delivery on Windows and Linux before naming the default. Documentation and
+source inspection here are not a live keyboard-routing test.
+
+Keyboard events inside a cross-origin iframe do not bubble to YA's document.
+For YA-controlled artifacts, a minimal activation bridge may forward the
+gesture before the annotation package is loaded; it must remain inert except
+for invocation. Uncooperative frames need the YA viewer-header action or
+focus returned to host chrome. Do not promise a parent key handler can capture
+every embedded App's keys. After activation, one owner handles the gesture;
+avoid double toggles between YA and Plannotator's frame listeners.
+
+### Existing CLI sessions and alternative adapters
 
 The CLI is a second candidate when already running a Plannotator review:
 present its UI through the existing app path and let that invocation receive
@@ -260,12 +331,11 @@ complexity on one fixture; do not pursue parity as an end in itself.
 
 ## Intended interaction and submission
 
-1. Default-off artifact commenting exposes a visible **Comment** action,
-   including on touch. Opening ordinary artifacts keeps native interaction.
-   Start with a viewer-scoped accelerator to arm/disarm comment mode, then
-   click to target; prefer Plannotator's existing Mod+Shift+A candidate only
-   after auditing YA, browser and OS conflicts. Do not claim it is reserved
-   yet. A modifier-click is optional convenience after that audit, never the
+1. A default-available accelerator or visible **Comment** action invokes review,
+   including first-use acquisition, with no settings prerequisite. Opening
+   ordinary artifacts keeps native interaction. Use the shortcut audit above
+   to select a browser-compatible binding; then click to target. A modifier-click
+   is optional convenience after that audit, never the
    only entry; avoid stealing Ctrl/Cmd-click new-tab and Shift-selection.
 2. A text selection anchors exactly that passage; a collapsed caret anchors
    its enclosing source/rendered block. Pointer targets can be elements or
@@ -495,7 +565,7 @@ explicitly deferred. Mere artifact possession is never submission authority.
    DOM convention. Then run the project-template App trial above; a static
    fixture alone is insufficient. Prefer Plannotator plus small upstreamable
    seams, choosing a fork or direct adapter only from demonstrated blockers.
-2. **Connect the session review set.** Add the opt-in action at the managed
+2. **Connect the session review set.** Add the default-available invocation at the managed
    viewer boundary, a captured-target adapter, and explicit draft/set state.
    Reuse `ReviewCommentEditor`, snapshot-clearing logic and
    `SessionViewerCommentContext` where their contracts fit. Do not reuse the
@@ -509,7 +579,14 @@ explicitly deferred. Mere artifact possession is never submission authority.
    SVG part and useful context for an imported artifact with no mapping. Add
    the bounded runtime trace and per-comment state checkpoints; exercise the
    menu/submenu reproduction case before calling dynamic App review complete.
-4. **Verify delivery and lifecycle.** Real browser tests over direct and
+4. **Verify delivery and lifecycle.** On a clean profile without harness skills
+   or a global Plannotator install, invoke once and verify loading/provisioning,
+   review startup and YA-owned callbacks. Reinvoke during loading, cancel,
+   retry a failed acquisition and reuse the cache. Verify no acquisition or
+   provider work before invocation. Check actual Windows/Linux keyboard events
+   with focus in host chrome, editable fields and cooperating/uncooperative
+   frames, including AltGr and browser shortcut conflicts.
+   Real browser tests over direct and
    hosted-relay paths, covering two sessions viewing the same artifact,
    navigation/minimize/restore, draft recovery, failed/uncertain sends, in-flight
    edits, hostile frame messages, bridge failure and revoked artifact access.
