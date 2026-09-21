@@ -51,9 +51,40 @@ This is source evidence, not proof that YA's installed binary has these APIs.
 **Recommendation:** first prove the library adapter on one HTML/SVG artifact.
 If it meets the acceptance checks below, use Plannotator exclusively for this
 new rendered-artifact comment UI. Keep YA's existing text-file quote/comment
-workflow. Do not install a dependency or replace the production viewer merely
-on this source inspection; first check package availability, license,
-dependencies, lazy-load cost, asset resolution and browser behavior.
+workflow.
+
+**User-directed dependency decision, 2026-09-21:** a Plannotator dependency is
+acceptable for this opt-in feature. Do not reopen that decision or build a
+replacement solely to avoid the dependency. The trial establishes technical
+fit: package availability, license, dependencies, lazy-load cost, asset
+resolution and browser behavior. Keep loading and activation scoped to the
+opt-in surface. This clarification approves the dependency direction; the
+implementation sequence below remains planned work.
+Contributing-model: 6-Astra
+
+**User-directed packaging preference, 2026-09-21:** provision a pinned or
+vendored Plannotator automatically; a separately maintained global install
+should not be a prerequisite. Recommended order:
+
+- For the library adapter, pin exact package versions and lockfile integrity,
+  package its matching bridge assets with YA, and lazy-load the feature. Normal
+  YA installation/build supplies it; no browser-time fetch from a moving CDN.
+- If a separate runtime is necessary, enabling the feature provisions a
+  versioned YA app-data installation from a fixed release artifact. Record
+  platform/architecture and a reviewed checksum in YA's manifest, verify before
+  activation, and atomically place the complete installation. Reuse a valid
+  cached copy offline; show download progress and a retryable failure when no
+  usable copy exists. Do not invoke a latest-version installer, overwrite a
+  user's global binary, or run an unverified/partially downloaded executable.
+- If packages or release artifacts cannot provide the needed integration,
+  vendor the required source at an exact upstream commit with licenses,
+  file hashes and every local divergence recorded in `VENDORED.md`.
+
+Update pins deliberately with YA changes and test host/bridge compatibility;
+do not auto-upgrade upstream independently. The first trial must choose and
+verify one of these delivery paths, including packaged YA and hosted-client
+use, rather than relying on this machine's existing Plannotator install.
+Contributing-model: 6-Astra
 
 There are material integration questions. Plannotator's `src` live-app mode
 expects its proxy to inject the bridge and declares an unsandboxed frame; it
