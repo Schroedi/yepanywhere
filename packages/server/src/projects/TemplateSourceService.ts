@@ -28,27 +28,25 @@ const githubRepository =
   /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?$/;
 const sourceEntry = z.strictObject({
   id: z.string().regex(/^[a-z][a-z0-9-]*$/),
-  repository: z
-    .string()
-    .refine(
-      (value) =>
-        githubRepository.test(value) ||
-        (!/[\x00-\x1f]/.test(value) &&
-          (isAbsolute(value) || value.startsWith("~/"))),
-      "Expected a GitHub repository or an absolute local directory",
-    ),
-  contentPath: z
-    .string()
-    .refine(
-      (value) =>
-        value === "" ||
-        (!/[\\:\x00-\x1f]/.test(value) &&
-          value
-            .split("/")
-            .every(
-              (part) => !["", ".", "..", ".git"].includes(part.toLowerCase()),
-            )),
-    ),
+  repository: z.string().refine(
+    (value) =>
+      githubRepository.test(value) ||
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: Local paths must reject ASCII control bytes.
+      (!/[\x00-\x1f]/.test(value) &&
+        (isAbsolute(value) || value.startsWith("~/"))),
+    "Expected a GitHub repository or an absolute local directory",
+  ),
+  contentPath: z.string().refine(
+    (value) =>
+      value === "" ||
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: Content paths must reject ASCII control bytes.
+      (!/[\\:\x00-\x1f]/.test(value) &&
+        value
+          .split("/")
+          .every(
+            (part) => !["", ".", "..", ".git"].includes(part.toLowerCase()),
+          )),
+  ),
   revision: z
     .string()
     .min(1)
@@ -317,7 +315,8 @@ export class TemplateSourceService {
   }
 
   async current(): Promise<ProjectTemplateSourceState> {
-    await (this.initialized ??= this.load());
+    this.initialized ??= this.load();
+    await this.initialized;
     return structuredClone(this.state);
   }
 
@@ -332,7 +331,8 @@ export class TemplateSourceService {
 
   async configure(input: unknown): Promise<ProjectTemplateSourceState> {
     const config = templateSourceConfig.parse(input);
-    await (this.initialized ??= this.load());
+    this.initialized ??= this.load();
+    await this.initialized;
     if (this.saving || this.retrieving) throw new TemplateSourceBusyError();
     this.saving = true;
     const previous = this.state;

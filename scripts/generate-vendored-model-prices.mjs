@@ -44,9 +44,8 @@ for (const provider of providers) {
   const source = fs.readFileSync(file, "utf-8");
   const entry =
     /id: "([^"]+)",[\s\S]*?cost: \{\s*input: ([\d.]+),\s*output: ([\d.]+),\s*cacheRead: ([\d.]+),\s*cacheWrite: ([\d.]+),\s*\}/g;
-  let match;
   let count = 0;
-  while ((match = entry.exec(source)) !== null) {
+  for (const match of source.matchAll(entry)) {
     const [, id, input, output, cacheRead, cacheWrite] = match;
     rows.push({ provider, id, input, output, cacheRead, cacheWrite });
     count += 1;
