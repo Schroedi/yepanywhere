@@ -7,6 +7,7 @@ import {
   presentSessionViewer,
   restoreSessionViewer,
 } from "../../lib/sessionViewerController";
+import { sessionRightPaneSetting } from "../../lib/sessionViewerPlacement";
 import { MessageList } from "../MessageList";
 import {
   SessionViewerProvider,
@@ -136,5 +137,68 @@ describe("SessionViewerTranscriptGate", () => {
       vi.advanceTimersByTime(33);
     });
     expect(renderWeight()).toBeGreaterThan(coveredWeight);
+  });
+});
+
+describe("managed panel placement", () => {
+  afterEach(() => {
+    act(() => {
+      sessionRightPaneSetting.set(false);
+      clearCurrentSessionViewer();
+    });
+  });
+
+  function PanelSession({ target }: { target: HTMLElement | null }) {
+    return (
+      <I18nProvider>
+        <SessionViewerProvider sessionId="session-1" rightPaneTarget={target}>
+          <span />
+        </SessionViewerProvider>
+      </I18nProvider>
+    );
+  }
+
+  function presentPanel() {
+    act(() => {
+      presentSessionViewer({
+        id: "panel-1",
+        kind: "panel",
+        sessionId: "session-1",
+        label: "Edit",
+        title: "Edit detail",
+        content: <div data-testid="panel-content">diff</div>,
+        onClose: () => {},
+      });
+    });
+  }
+
+  it("covers the transcript with a modal while the right pane is off", () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    render(<PanelSession target={target} />);
+    presentPanel();
+
+    expect(
+      screen.getByTestId("panel-content").closest(".modal"),
+    ).not.toBeNull();
+    expect(target.querySelector("[data-testid='panel-content']")).toBeNull();
+    target.remove();
+  });
+
+  it("shows the same panel in the right pane once that setting is on", () => {
+    sessionRightPaneSetting.set(true);
+    const target = document.createElement("div");
+    document.body.append(target);
+    render(<PanelSession target={target} />);
+    presentPanel();
+
+    expect(
+      target.querySelector("[data-testid='panel-content']"),
+    ).not.toBeNull();
+    expect(screen.getByTestId("panel-content").closest(".modal")).toBeNull();
+    expect(
+      screen.getByRole("dialog", { name: "Edit" }).hasAttribute("hidden"),
+    ).toBe(false);
+    target.remove();
   });
 });

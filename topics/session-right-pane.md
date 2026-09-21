@@ -7,8 +7,9 @@
 
 Topic: session-right-pane
 
-Status: implemented for static-vhost tool URLs, artifact links, and session
-file viewers. Multiple viewer tabs remain a sketch.
+Status: implemented for static-vhost tool URLs, artifact links, session file
+viewers, and the session's tool-detail panels. Multiple viewer tabs remain a
+sketch.
 
 See also:
 
@@ -36,8 +37,10 @@ column (messages, composer, status) stays mounted and remains the
 primary conversation surface.
 
 Consumers include loopback HTTP apps discovered from tool output (Plannotator
-is the worked case), artifact links, and session file viewers. File viewers
-reuse the pane instead of covering the transcript when the setting is on.
+is the worked case), artifact links, session file viewers, and the detail
+panels tool rows publish — the long-edit diff, full bash output, write and
+grep details. All of them reuse the pane instead of covering the transcript
+when the setting is on.
 
 ## Enablement
 
@@ -51,11 +54,13 @@ Two independent gates:
    An empty table means YA has no Host to proxy, so loopback tool-output URLs
    are not rewritten. Configured artifact grant links remain eligible.
 
-File viewers use this pane whenever the Appearance setting is enabled,
-including when the vhost table is empty. They use the existing project file
-API and React viewer, with no vhost hostname or proxy. Standalone file pages,
-public shares, tool-detail panels, and the separate media lightbox retain their
-presentations.
+File viewers and tool-detail panels use this pane whenever the Appearance
+setting is enabled, including when the vhost table is empty. File viewers use
+the existing project file API and React viewer, with no vhost hostname or
+proxy. Placement is one decision for every session-owned viewer
+(`sessionViewerUsesRightPane`), so a panel written for the covering modal needs
+no knowledge of where it is shown. Standalone file pages, public shares, and
+the separate media lightbox retain their presentations.
 
 ## Layout
 
@@ -230,7 +235,7 @@ the parent, so an Open-in-window action is always present.
   model: minimize goes to the bottom and Close unloads, as with modal viewers.
   Multiple viewer windows are a later, separately selectable display option.
 
-## File viewers
+## File viewers and detail panels
 
 When the Appearance setting is on, file links in the session open in the
 right pane. The stable session host owns the document independently of the
@@ -247,6 +252,11 @@ Close returns to the still-mounted parent document.
 The file viewer retains its file-specific header controls and shares the final
 link, move-out, minimize, and close group with App viewers. Its header adapts
 to the allocated viewer width, including a narrow pane on a wide screen.
+
+A tool-detail panel takes the same pane on the same terms, keeping the modal's
+header — its own actions, select-all, minimize, close — and the modal content
+chrome, so the panel body renders identically in either placement. Escape
+dismisses it as it does in the covering modal.
 
 ## Slide animations
 

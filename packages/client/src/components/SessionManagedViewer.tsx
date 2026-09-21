@@ -10,6 +10,9 @@ import {
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
+import { useI18n } from "../i18n";
+import { QUOTE_SELECTION_ROOT_ATTRIBUTES } from "../lib/markdownSelectionCopy";
+import styles from "./SessionManagedViewer.module.css";
 import { useSessionRightPaneSetting } from "../hooks/useSessionRightPaneSetting";
 import { usePanelSlideAnimations } from "../hooks/usePanelSlideAnimations";
 import { useClosingPaneContent } from "../hooks/useClosingPaneContent";
@@ -26,9 +29,10 @@ import {
   clearSessionViewer,
   presentSessionViewer,
   restoreSessionViewer,
+  type SessionViewerControllerState,
   useSessionViewerController,
 } from "../lib/sessionViewerController";
-import { Modal } from "./ui/Modal";
+import { Modal, useModalLayer } from "./ui/Modal";
 import { SessionAppLinkContext } from "./SessionAppLinks";
 import type { SessionAppConfig } from "../lib/sessionVhostApps";
 
@@ -216,10 +220,16 @@ export function SessionManagedViewerHost({
   const controllerRef = useRef(controller);
   const lifecycleGenerationRef = useRef(0);
   controllerRef.current = controller;
-  const panel =
+  const activePanel =
     controller?.kind === "panel" && controller.sessionId === sessionId
       ? controller
       : null;
+  const panel = useClosingPaneContent(
+    activePanel,
+    sessionRightPaneEnabled && (!controller || activePanel)
+      ? panelSlideDurationMs
+      : 0,
+  );
   const activeFile =
     controller?.kind === "file" &&
     controller.sessionId === sessionId &&
@@ -280,6 +290,13 @@ export function SessionManagedViewerHost({
       />
     );
   if (!panel) return null;
+  if (sessionViewerUsesRightPane(panel)) {
+    if (!rightPaneTarget) return null;
+    return createPortal(
+      <SessionPanelPane panel={panel} inactive={inactive} />,
+      rightPaneTarget,
+    );
+  }
   return (
     <Modal
       title={panel.title}
@@ -291,5 +308,67 @@ export function SessionManagedViewerHost({
     >
       {panel.content}
     </Modal>
+  );
+}
+
+/**
+ * The session's detail panel as a right-pane column.
+ *
+ * Chrome reuses the modal header/content classes so a panel written for the
+ * covering modal needs no knowledge of where it is shown.
+ */
+function SessionPanelPane({
+  panel,
+  inactive,
+}: {
+  panel: Extract<SessionViewerControllerState, { kind: "panel" }>;
+  inactive: boolean;
+}) {
+  const { t } = useI18n();
+  const hidden = panel.minimized || inactive;
+  useModalLayer(panel.close, !hidden);
+  return (
+    <section
+      className={styles.panePanel}
+      role="dialog"
+      aria-label={panel.label}
+      hidden={hidden}
+      {...QUOTE_SELECTION_ROOT_ATTRIBUTES}
+    >
+      <div className="modal-header">
+        <span className="modal-title">{panel.title}</span>
+        <span
+          className="modal-header-actions"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.375rem",
+            marginLeft: "auto",
+            flexShrink: 0,
+          }}
+        >
+          {panel.actions}
+          <button
+            type="button"
+            className="modal-close"
+            onClick={panel.minimize}
+            aria-label={t("modalMinimize")}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="modal-close"
+            onClick={panel.close}
+            aria-label={t("modalClose")}
+          >
+            ×
+          </button>
+        </span>
+      </div>
+      <div className="modal-content" ref={panel.contentRef}>
+        {panel.content}
+      </div>
+    </section>
   );
 }

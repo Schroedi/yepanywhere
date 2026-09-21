@@ -8,7 +8,6 @@ import {
 } from "../lib/sessionVhostApps";
 import { useSessionRightPaneSetting } from "./useSessionRightPaneSetting";
 import { sessionViewerUsesRightPane } from "../lib/sessionViewerPlacement";
-import type { FileViewerControllerState } from "../lib/fileViewerController";
 import { useSessionApps } from "../lib/sessionApps";
 import { useVhostAccess } from "./useVhostAccess";
 import { useVhostListener } from "./useVhostListener";
@@ -19,9 +18,16 @@ import {
   clearSessionViewer,
   presentSessionViewer,
   restoreSessionViewer,
+  type SessionViewerControllerState,
   useSessionViewerController,
   setSessionViewerCloseAction,
 } from "../lib/sessionViewerController";
+
+/** The pane shows one content viewer: a file, or a tool-detail panel. */
+type PaneViewerState = Extract<
+  SessionViewerControllerState,
+  { kind: "file" | "panel" }
+>;
 
 function emptyPane(key: string) {
   return {
@@ -145,8 +151,9 @@ export function useSessionRightPane(
     sessionRightPaneEnabled && owned
       ? apps.find((app) => app.url === owned.url)
       : undefined;
-  const fileViewer: FileViewerControllerState | undefined =
-    controller?.kind === "file" &&
+  // A file viewer and a tool-detail panel occupy the pane on the same terms.
+  const paneViewer: PaneViewerState | undefined =
+    (controller?.kind === "file" || controller?.kind === "panel") &&
     controller.sessionId === sessionId &&
     sessionViewerUsesRightPane(controller)
       ? controller
@@ -251,7 +258,7 @@ export function useSessionRightPane(
     config,
     apps,
     selected,
-    fileViewer,
+    paneViewer,
     copyUrl:
       selected && !selected.artifactToken
         ? (sessionVhostApp(
@@ -274,11 +281,11 @@ export function useSessionRightPane(
               : "unavailable"
         : undefined,
     appError: listener?.viewerId === owned?.id ? listener?.error : undefined,
-    expanded: !!(selected || fileViewer) && !controller?.minimized,
+    expanded: !!(selected || paneViewer) && !controller?.minimized,
     enabled: sessionRightPaneEnabled,
     select,
-    hide: () => (fileViewer ?? owned)?.minimize(),
-    close: () => (fileViewer ?? owned)?.close(),
+    hide: () => (paneViewer ?? owned)?.minimize(),
+    close: () => (paneViewer ?? owned)?.close(),
     canKill,
     killing,
     killError,

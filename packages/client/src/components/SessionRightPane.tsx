@@ -64,7 +64,7 @@ export function SessionRightPane({
 }) {
   const { panelSlideDurationMs } = usePanelSlideAnimations();
   const content = useClosingPaneContent(
-    pane.selected || pane.fileViewer ? pane : null,
+    pane.selected || pane.paneViewer ? pane : null,
     panelSlideDurationMs,
   );
   return (
@@ -97,7 +97,7 @@ function SessionRightPaneContent({
   const [dragging, setDragging] = useState(false);
   const [blockedUrl, setBlockedUrl] = useState<string | null>(null);
   const url = pane.selected?.url;
-  const viewerIdentity = url ?? pane.fileViewer?.id;
+  const viewerIdentity = url ?? pane.paneViewer?.id;
   useLayoutEffect(() => {
     if (!viewerIdentity) return;
     const parent = root.current?.parentElement;
@@ -134,13 +134,13 @@ function SessionRightPaneContent({
       document.removeEventListener("securitypolicyviolation", blocked);
   }, [url]);
   useEffect(() => {
-    if (wide || !expanded || pane.fileViewer) return;
+    if (wide || !expanded || pane.paneViewer) return;
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") pane.hide();
     };
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [wide, expanded, pane.hide, pane.fileViewer]);
+  }, [wide, expanded, pane.hide, pane.paneViewer]);
   function resize(value: number) {
     const next = Math.max(280, Math.min(maxWidth, value));
     setWidth(next);
@@ -262,7 +262,7 @@ function SessionRightPaneContent({
           ref={fileContentRef}
           className={styles.fileContent}
           data-session-right-pane-layer
-          hidden={!pane.fileViewer}
+          hidden={!pane.paneViewer}
         />
         {dragging && <div className={styles.dragShield} />}
       </aside>
