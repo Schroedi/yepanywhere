@@ -9,8 +9,7 @@ especially SVG. The session can also send a revision-round proposal already
 annotated with questions, comments, suggestions, advance justifications and
 highlights for the user. The user answers those prompts and adds their own
 spatial comments within the same round. A separate browser tab may return to
-that session if cheap;
-right-pane-only is an acceptable first release. This is new capability, so it
+that session if cheap; right-pane-only is an acceptable first release. This is new capability, so it
 lives under sketches rather than asserting an existing contract is broken.
 
 ## Existing owners and the missing seam
@@ -52,11 +51,50 @@ This is source evidence, not proof that YA's installed binary has these APIs.
 | [`parser.ts`](https://github.com/backnotprop/plannotator/blob/8f2a8a81a384f1cd39c5f083d3c6fcd35a956422/packages/ui/utils/parser.ts) exports element context with feedback. | Preserve that context through YA submission; do not reduce comments to prose alone. |
 | [`@plannotator/ui` host documentation](https://github.com/backnotprop/plannotator/blob/8f2a8a81a384f1cd39c5f083d3c6fcd35a956422/packages/ui/README.md#raw-html-annotation-viewer-htmlviewer) describes reusable components and host seams. | A library adapter is a supported candidate, distinct from launching a CLI process per artifact. |
 
-**Recommendation:** keep the artifact target/round interchange independent of
-the annotation UI. Trial the Plannotator library adapter against the complete
-two-way workflow below, not just user commenting. Exclusive use is conditional
-on that fit. A direct artifact-DOM implementation, a pinned fork, or selective
-design borrowing is also acceptable. Keep YA's existing text-file workflow.
+**Recommendation:** try Plannotator first, using a live-ish App produced by a
+project-template session as the deciding integration case. Keep the artifact
+target/round interchange independent of the annotation UI. Prefer small,
+general-purpose Plannotator extensions that can be contributed upstream when
+needed; exclusive use is conditional on the complete two-way workflow fitting
+smoothly. Direct artifact DOM, a pinned fork, and selective design borrowing
+remain alternatives. Keep YA's existing text-file workflow.
+
+**User-directed trial preference, 2026-09-21:** Plannotator is welcome if a
+project-template session's live-ish App artifacts flow into it smoothly, and
+contributing extensions is a possible outcome. This records design direction,
+not an instruction to contact upstream or publish a contribution now.
+Contributing-model: 6-Astra
+
+### Deciding trial: project-template App to review to revision
+
+Use the [project-template App](../../topics/project-templates.md#first-template-app-canvas)
+workflow, not only a standalone static HTML sample. Here **live-ish** means
+the App remains interactive and the producing session can publish revisions;
+it does not require a long-running backend. Exercise the actual selected
+delivery path: an artifact grant for a generated bundle, or a proxied live App
+when that template needs one. A localhost-only demo does not prove hosted use.
+
+The user opens the session's App, enters review without manually exporting,
+copying URLs, installing Plannotator, or starting a review CLI, interacts with
+the App, then answers its prelabelled questions and sends comments back to the
+same session. Preserve the viewed route/state where feasible; if entering
+review requires a reload or snapshot, make that transition explicit and test
+its effect. Keep relative assets, modules, SVG and source metadata working.
+Do not substitute a flattened Markdown rendering or screenshot for the App.
+
+When the producer publishes another revision, announce its availability and
+let the reviewer advance deliberately. Pin open drafts to their viewed
+revision; do not reload underneath an active editor or mix locations from
+different builds. Test one full proposal → responses → revised App round over
+direct and hosted-relay access, including a disconnect and restored drafts.
+
+Likely extension candidates are lossless authored target ids/source metadata,
+external HTML prelabels with reply identities, agent/user styling hooks, and
+host-managed completion and revision changes. Verify each missing seam before
+proposing it. Keep upstream-facing APIs host-neutral; YA retains session
+routing and authorization. If local patches are needed for the trial, keep
+them pinned and documented so a later upstream release can replace them.
+Choose a bypass only after recording the concrete integration cost or blocker.
 
 ### Verified support and limits for session-authored prelabelling
 
@@ -259,7 +297,8 @@ complexity on one fixture; do not pursue parity as an end in itself.
 One captured target record accompanies each comment. Proposed fields: stable
 artifact identity/path, capture-time content hash or revision, resource/page
 within the artifact, anchor kind, quote if any, rendered element context,
-optional exact source span, normalized geometry, and user text. Keep source
+optional exact source span, normalized geometry, runtime-state/trace checkpoint,
+and user text. Keep source
 identity and session routing in trusted YA state. Omit bearer grant URLs from
 provider text; those are credentials, not durable source citations.
 
@@ -275,8 +314,8 @@ Plannotator's own HTML-to-source inference.
 Contributing-model: 6-Astra
 
 For generated artifacts, emit stable target ids on HTML/SVG elements or
-semantic groups and versioned inline or sidecar metadata mapping each id to the original
-source path, content hash, offsets or line/column range, and optional semantic
+semantic groups and versioned inline or sidecar metadata mapping each id to
+the original source path, content hash, offsets or line/column range, and optional semantic
 label. Keep generated-output spans distinct from original authoring spans.
 Record repeated-instance identity separately from the shared template span.
 The annotation adapter must preserve the target id through selection and
@@ -309,6 +348,63 @@ Bound excerpt, context and screenshot sizes. For a visual-only comment the
 agent must receive the image/crop through a supported attachment path, not
 just a client-local blob URL. Initial text/element support may defer crops
 explicitly if that path is unavailable.
+
+### Dynamic state and reproduction history
+
+**User-directed extension, 2026-09-21:** a fully dynamic App needs more than
+source mapping. Comments may describe a state reached through interaction,
+such as an open menu, and need a growing reproduction history that includes
+the source-map facts applicable at each step. A location in code alone does
+not identify the displayed state being reviewed.
+Contributing-model: 6-Astra
+
+Use a shared, bounded trace per review round, growing as the user exercises
+the App. An annotation freezes a trace checkpoint plus its selected target
+and visible context, so later actions do not change what that comment means.
+Multiple comments can reference one trace prefix rather than copying the
+whole history. Preserve checkpoints needed by unsent comments when compacting;
+if a limit prevents further capture, show that limitation rather than silently
+dropping the setup required to reproduce an existing comment.
+
+Example: load revision R → choose item A → open Actions → open Export submenu
+→ comment on the disabled SVG option. Capture the option's stable target and
+source span, the menu/selected-item state, and the actions reaching it. Closing
+the menu afterwards must not orphan the comment or rewrite its description.
+Returning to the comment can show its captured state, or deliberately restore
+that state when safe; scrolling to a now-absent selector is insufficient.
+
+The proposed trace records a starting route/checkpoint, ordered semantic
+actions and outcomes, target/instance ids, relevant state transitions, and
+revision/source-map identity. Producer-provided hooks can expose menu state,
+selected records, component state or hit regions without guessing from DOM
+events. Pointer/keyboard events and a screenshot/DOM summary are a fallback,
+not a guarantee of replay. Async responses, timers, randomness, changing data
+and server state may require fixture inputs or explicit state serialization.
+Distinguish a human-readable reproduction recipe, a visual/state snapshot,
+and tested deterministic replay; claim only the level actually supported.
+
+Start capture when the user enters review, or use a separately enabled bounded
+pre-review buffer. If the user already opened a menu, capture the current
+state as the starting checkpoint and mark earlier setup unknown. Keep state
+hooks optional so an ordinary producer can start with target/source metadata
+and later add semantic action/state capture. A build change starts a new
+trace segment with its own mapping facts; never resolve historical steps using
+only the newest source map. Submitted comments preserve the referenced segment
+or an immutable retained record the agent can access.
+
+Record only the inputs/state needed for review, with producer allowlists and
+limits; exclude credentials and sensitive form values. Replay is opt-in and
+isolated or demonstrably side-effect-free: opening a menu can be replayable,
+but arbitrary clicks may submit forms or mutate external services. A failed
+restore leaves the snapshot and reproduction recipe available. No background
+session recording or browser automation authority follows from viewing an App.
+
+Extend the deciding trial with a menu/submenu target created only after
+interaction, two comments at different states, an asynchronous state change,
+and a new build. Verify both comments reach the session with their own frozen
+state, trace and source facts after the menu closes. Test a producer without
+state hooks too: it must report limited reproduction fidelity, not claim that
+the source span alone reproduces the state.
 
 ## Bridge and optional new-tab return
 
@@ -347,11 +443,13 @@ explicitly deferred. Mere artifact possession is never submission authority.
    sidecar span, proving that a Plannotator selection resolves back to the
    original source independently of its own source inference. Check actual
    installed/published APIs and preserve a small feedback specimen without
-   private content. Preload an
-   agent question, suggestion, justification and highlight; answer and add a
+   private content. Preload an agent question, suggestion, justification and
+   highlight; answer and add a
    user comment. Verify role styling on both targets and cards, reply ids and
    lossless source mapping. Compare the library path with the minimal authored
-   DOM convention; choose library, narrow fork or direct adapter from evidence.
+   DOM convention. Then run the project-template App trial above; a static
+   fixture alone is insufficient. Prefer Plannotator plus small upstreamable
+   seams, choosing a fork or direct adapter only from demonstrated blockers.
 2. **Connect the session review set.** Add the opt-in action at the managed
    viewer boundary, a captured-target adapter, and explicit draft/set state.
    Reuse `ReviewCommentEditor`, snapshot-clearing logic and
@@ -363,7 +461,9 @@ explicitly deferred. Mere artifact possession is never submission authority.
    versus generated spans, repeated instances, build-map chaining, stale hashes,
    duplicate text, dynamic nodes, image SVG, transformed geometry and reload.
    Preserve frozen context on source edits. Prove exact mapping for a generated
-   SVG part and useful context for an imported artifact with no mapping.
+   SVG part and useful context for an imported artifact with no mapping. Add
+   the bounded runtime trace and per-comment state checkpoints; exercise the
+   menu/submenu reproduction case before calling dynamic App review complete.
 4. **Verify delivery and lifecycle.** Real browser tests over direct and
    hosted-relay paths, covering two sessions viewing the same artifact,
    navigation/minimize/restore, draft recovery, failed/uncertain sends, in-flight
@@ -386,6 +486,8 @@ questions, suggestions and commentary; agent and user marks are distinguishable.
 The user answers a question, comments on a textless SVG part and a text passage,
 and completes the round in one turn to that session while preserving composer
 text. Focus changes never send. A new revision cannot misattribute old answers.
+Comments on transient menu states retain their captured state, reproduction
+steps and matching source facts after that UI disappears.
 An exact source citation is required only when demonstrably mapped; otherwise
 the received context explicitly names the rendered element or visual region.
 
