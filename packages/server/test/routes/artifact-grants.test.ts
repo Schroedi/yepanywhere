@@ -181,6 +181,15 @@ describe("durable artifact grants", () => {
     await stateHolder.close();
   });
 
+  it("ignores a malformed repository marker above a disposable bundle", async () => {
+    const { base, entry } = await workspace();
+    await mkdir(join(base, ".git"));
+    const server = serverFor(base);
+    const grant = await server.createGrant(entry, "local", true);
+    expect(grant.owned).toBe(true);
+    await server.close();
+  });
+
   it("removes only the fileset it froze, and keeps a directory someone reused", async () => {
     const { base, bundle, entry } = await workspace();
     await mkdir(join(bundle, "assets"), { recursive: true });

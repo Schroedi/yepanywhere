@@ -97,17 +97,28 @@ const has = (path: string) =>
     () => false,
   );
 
+async function hasWorkingTreeMarker(directory: string): Promise<boolean> {
+  const marker = join(directory, ".git");
+  const kind = await stat(marker).catch(() => null);
+  if (kind?.isDirectory()) return has(join(marker, "HEAD"));
+  if (!kind?.isFile()) return false;
+  const pointer = await readFile(marker, "utf8").catch(() => "");
+  return pointer.startsWith("gitdir:") && pointer.slice(7).trim().length > 0;
+}
+
 /**
  * The working tree `path` sits in, or null.
  *
  * `.git` is a directory in an ordinary clone and a file in a linked worktree
- * or a submodule, so its kind says nothing; that it is there at all does.
+ * or a submodule. A directory needs Git's mandatory HEAD file, while a file
+ * needs a nonempty `gitdir:` pointer; an unrelated empty marker is not enough
+ * to make every descendant part of a working tree.
  */
 export async function enclosingWorkingTree(
   path: string,
 ): Promise<string | null> {
   for (let directory = resolve(path); ; directory = dirname(directory)) {
-    if (await has(join(directory, ".git"))) return directory;
+    if (await hasWorkingTreeMarker(directory)) return directory;
     if (directory === dirname(directory)) return null;
   }
 }

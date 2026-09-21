@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { exitIfUnsafeHome } from "./safe-home.js";
@@ -33,14 +33,22 @@ if (!command) {
 
 exitIfUnsafeHome({ entrypoint: command });
 
-const temporaryHome = temporaryHomeRequested
-  ? mkdtempSync(join(tmpdir(), "yep-anywhere-test-home-"))
+const temporaryRoot = temporaryHomeRequested
+  ? mkdtempSync(join(tmpdir(), "yep-anywhere-test-"))
   : undefined;
+const temporaryHome = temporaryRoot ? join(temporaryRoot, "home") : undefined;
+const temporaryDirectory = temporaryRoot
+  ? join(temporaryRoot, "tmp")
+  : undefined;
+if (temporaryHome && temporaryDirectory) {
+  mkdirSync(temporaryHome);
+  mkdirSync(temporaryDirectory);
+}
 let cleaned = false;
 function cleanupTemporaryHome() {
-  if (!temporaryHome || cleaned) return;
+  if (!temporaryRoot || cleaned) return;
   cleaned = true;
-  rmSync(temporaryHome, { recursive: true, maxRetries: 3, retryDelay: 100 });
+  rmSync(temporaryRoot, { recursive: true, maxRetries: 3, retryDelay: 100 });
 }
 
 // Node 24+ on Windows requires shell:true to spawn .cmd files (CVE-2024-27980).
@@ -50,7 +58,14 @@ const isWindows = process.platform === "win32";
 const child = spawn(command, args, {
   stdio: [stdinNull ? "ignore" : "inherit", "inherit", "inherit"],
   env: temporaryHome
-    ? { ...process.env, HOME: temporaryHome, USERPROFILE: temporaryHome }
+    ? {
+        ...process.env,
+        HOME: temporaryHome,
+        USERPROFILE: temporaryHome,
+        TMPDIR: temporaryDirectory,
+        TEMP: temporaryDirectory,
+        TMP: temporaryDirectory,
+      }
     : process.env,
   ...(isWindows ? { shell: true } : {}),
 });
