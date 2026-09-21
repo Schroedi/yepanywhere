@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  USAGE_LONG_CONTEXT_MULTIPLIERS,
   equivalentOutputTokens,
   findModelPrices,
+  longContextThresholdTokens,
+  providerContextTier,
   tokenCostUsd,
   unlistedEquivalentOutputTokens,
 } from "../model-prices.js";
@@ -47,6 +48,57 @@ describe("findModelPrices", () => {
     });
   });
 
+  it("reads the models only the published table names", () => {
+    // From the providers' own pricing pages, 2026-09-21.
+    expect(findModelPrices("claude", "claude-opus-5")).toMatchObject({
+      input: 5,
+      output: 25,
+    });
+    expect(findModelPrices("claude", "claude-sonnet-5")).toMatchObject({
+      input: 2,
+      output: 10,
+    });
+    expect(findModelPrices("codex", "gpt-5.6-sol")).toMatchObject({
+      input: 4,
+      output: 20,
+      cacheRead: 0.4,
+      cacheWrite: 5,
+    });
+    expect(findModelPrices("codex", "gpt-5.6-terra")).toMatchObject({
+      input: 2,
+      output: 12,
+    });
+    expect(findModelPrices("codex", "gpt-6-astra")).toMatchObject({
+      input: 10,
+      output: 50,
+    });
+  });
+
+  it("prices the Daybreak alias as Sol, which is what it is", () => {
+    expect(findModelPrices("codex", "gpt-daybreak-blue-latest")).toEqual(
+      findModelPrices("codex", "gpt-5.6-sol"),
+    );
+  });
+
+  it("keeps Fable 5.1's cheaper cache read, which breaks the family ratio", () => {
+    // 0.025x base input, where every other Claude model is 0.1x. A per-provider
+    // ratio table would price this model's cache reads four times too high.
+    expect(findModelPrices("claude", "claude-fable-5-1")).toMatchObject({
+      input: 10,
+      cacheRead: 0.25,
+    });
+    expect(findModelPrices("claude", "claude-fable-5")).toMatchObject({
+      input: 10,
+      cacheRead: 1,
+    });
+  });
+
+  it("prices a 1m alias as the plain model, Anthropic charging flat", () => {
+    expect(findModelPrices("claude", "claude-fable-5[1m]")).toEqual(
+      findModelPrices("claude", "claude-fable-5"),
+    );
+  });
+
   it("has no price for an unlisted or unnamed model", () => {
     expect(findModelPrices("claude", "qwen3-coder-local")).toBe(undefined);
     expect(findModelPrices("claude", undefined)).toBe(undefined);
@@ -71,20 +123,60 @@ describe("tokenCostUsd", () => {
     expect(usd).toBeCloseTo(5 + 0.5 + 6.25 + 25, 9);
   });
 
-  it("applies the long-context premium to prompt and output separately", () => {
+  it("does not charge a Claude prompt more for being long", () => {
+    // Anthropic removed the over-200k premium on 2026-03-13: Claude 4.6 and
+    // later price the whole 1M window flat.
     const classes = {
       ...noTokens,
       freshInputTokens: 1_000_000,
       outputTokens: 1_000_000,
     };
-    const standard = tokenCostUsd(classes, prices);
-    const long = tokenCostUsd(classes, prices, { longContext: true });
-    expect(long).toBeCloseTo(
-      5 * USAGE_LONG_CONTEXT_MULTIPLIERS.prompt +
-        25 * USAGE_LONG_CONTEXT_MULTIPLIERS.output,
-      9,
-    );
-    expect(long).toBeGreaterThan(standard);
+    expect(
+      tokenCostUsd(classes, prices, { provider: "claude", longContext: true }),
+    ).toBe(tokenCostUsd(classes, prices, { provider: "claude" }));
+  });
+
+  it("doubles an OpenAI prompt and charges output half again past the tier", () => {
+    const sol = { input: 4, output: 20, cacheRead: 0.4, cacheWrite: 5 };
+    const classes = {
+      freshInputTokens: 1_000_000,
+      cachedInputTokens: 1_000_000,
+      cacheWriteTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    };
+    // The published long-context rates for Sol are exactly these multiples of
+    // its standard ones: $8 / $0.80 / $10 input side, $30 output.
+    expect(
+      tokenCostUsd(classes, sol, { provider: "codex", longContext: true }),
+    ).toBeCloseTo(8 + 0.8 + 10 + 30, 9);
+  });
+
+  it("ignores a long-context flag for a provider with no tier", () => {
+    const classes = { ...noTokens, freshInputTokens: 1_000_000 };
+    expect(
+      tokenCostUsd(classes, prices, { provider: "gemini", longContext: true }),
+    ).toBe(tokenCostUsd(classes, prices, { provider: "gemini" }));
+  });
+});
+
+describe("providerContextTier", () => {
+  it("has no tier for Anthropic, which prices its 1M window flat", () => {
+    expect(providerContextTier("claude")).toBeNull();
+    expect(longContextThresholdTokens("claude")).toBeNull();
+  });
+
+  it("puts OpenAI's tier at 272k, not Anthropic's old 200k", () => {
+    expect(longContextThresholdTokens("codex")).toBe(272_000);
+    expect(providerContextTier("codex")?.multipliers).toEqual({
+      input: 2,
+      cachedInput: 2,
+      cacheWrite: 2,
+      output: 1.5,
+    });
+  });
+
+  it("invents no tier for a provider it does not know", () => {
+    expect(longContextThresholdTokens("some-local-thing")).toBeNull();
   });
 });
 
@@ -133,7 +225,7 @@ describe("equivalentOutputTokens", () => {
 
 describe("unlistedEquivalentOutputTokens", () => {
   it("prices a fresh prompt token midway between the listed families", () => {
-    // Anthropic's output is 5x a fresh prompt token and OpenAI's 6x, so 5.5.
+    // Output runs 5x a fresh prompt token on Anthropic and 5-6x on OpenAI.
     expect(
       unlistedEquivalentOutputTokens({ ...noTokens, freshInputTokens: 5500 }),
     ).toBe(1000);

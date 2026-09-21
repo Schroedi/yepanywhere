@@ -187,15 +187,13 @@ describe("SessionTokenUsageRecorder", () => {
 
   it("bins a long-context request apart from a short one", () => {
     const { recorder, records } = recorderWithLog();
-    const process = fakeProcess();
+    // OpenAI's tier starts above 272k; Anthropic has none at all.
+    const process = fakeProcess({ provider: "codex" } as Partial<Process>);
 
+    recorder.observeMessage(process, codexFrame({ input: 1000, output: 50 }));
     recorder.observeMessage(
       process,
-      claudeFrame({ responseId: "r1", input: 1000, output: 50 }),
-    );
-    recorder.observeMessage(
-      process,
-      claudeFrame({ responseId: "r2", input: 300_000, output: 60 }),
+      codexFrame({ input: 300_000, output: 60 }),
     );
     recorder.flush(process);
 
@@ -204,6 +202,33 @@ describe("SessionTokenUsageRecorder", () => {
     expect(records.map((record) => record.longContext)).toEqual([false, true]);
     expect(records[0]).toMatchObject({ freshInputTokens: 1000 });
     expect(records[1]).toMatchObject({ freshInputTokens: 300_000 });
+  });
+
+  it("never flags a Claude request long, its 1M window being priced flat", () => {
+    const { recorder, records } = recorderWithLog();
+    const process = fakeProcess();
+
+    recorder.observeMessage(
+      process,
+      claudeFrame({ responseId: "r1", input: 900_000, output: 60 }),
+    );
+    recorder.flush(process);
+
+    expect(records).toHaveLength(1);
+    expect(records[0]?.longContext).toBe(false);
+  });
+
+  it("does not flag an OpenAI request at exactly the threshold", () => {
+    const { recorder, records } = recorderWithLog();
+    const process = fakeProcess({ provider: "codex" } as Partial<Process>);
+
+    recorder.observeMessage(
+      process,
+      codexFrame({ input: 272_000, output: 10 }),
+    );
+    recorder.flush(process);
+
+    expect(records[0]?.longContext).toBe(false);
   });
 
   it("leaves the username absent for the superuser", () => {

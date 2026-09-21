@@ -49,8 +49,14 @@ YA provider can reach.
   neither of which YA records. YA's own weighting lives in
   `packages/shared/src/model-prices.ts`.
 - **No long-context tier upstream.** pi models no context-length-dependent
-  rate and carries no 1M-context Claude entry, so YA's long-context premium is
-  not from here and is marked unverified where it is defined.
+  rate. YA's per-provider tiers are therefore its own, read from the providers'
+  pricing pages: OpenAI reprices above 272k prompt tokens, and Anthropic has no
+  tier at all since it removed its over-200k premium on 2026-03-13.
+- **Missing current models.** The extract predates Claude Opus 5, Sonnet 5 and
+  Fable/Mythos 5.1, and the whole GPT-5.6 family, GPT-6 Astra and the Daybreak
+  alias. `PUBLISHED_MODEL_PRICES` in `packages/shared/src/model-prices.ts`
+  covers those and is read first; regenerating this extract does not remove the
+  need for it until upstream catches up.
 
 ## Regenerating
 

@@ -248,13 +248,13 @@ describe("summarizeUsage", () => {
       expect(bucket?.costUsd).toBeNull();
     });
 
-    it("charges the long-context tier its premium", () => {
+    it("charges an OpenAI long-context turn its premium", () => {
       const record = {
         t: daysAgo(3),
         k: "tokens" as const,
-        m: "sonnet[1m]",
-        d: "claude-sonnet-4-5",
-        v: "claude",
+        m: "gpt-5.6-sol",
+        d: "gpt-5.6-sol",
+        v: "codex",
         i: 300_000,
         o: 1000,
       };
@@ -262,10 +262,29 @@ describe("summarizeUsage", () => {
         .byModel[0];
       const long = summarizeUsage([{ ...record, x: 1 as const }], { now })
         .users[0]?.total.byModel[0];
-      // Prompt doubles and output is half again, so the premium lands above
-      // the standard charge but below twice it.
+      // Prompt doubles and output is half again, so the premium lands above the
+      // standard charge but below twice it.
       expect(long?.costUsd ?? 0).toBeGreaterThan(standard?.costUsd ?? 0);
       expect(long?.costUsd ?? 0).toBeLessThan(2 * (standard?.costUsd ?? 0));
+    });
+
+    it("charges a long Claude turn nothing extra, its 1M window being flat", () => {
+      const record = {
+        t: daysAgo(3),
+        k: "tokens" as const,
+        m: "fable[1m]",
+        d: "claude-fable-5",
+        v: "claude",
+        i: 300_000,
+        o: 1000,
+      };
+      const standard = summarizeUsage([record], { now }).users[0]?.total
+        .byModel[0];
+      // A long-context flag on a provider with no tier changes nothing, so a
+      // stale record written under the old premium still prices correctly.
+      const flagged = summarizeUsage([{ ...record, x: 1 as const }], { now })
+        .users[0]?.total.byModel[0];
+      expect(flagged?.costUsd).toBe(standard?.costUsd);
     });
 
     it("is nobody's action, so it moves no count and no interaction time", () => {

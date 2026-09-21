@@ -163,9 +163,9 @@ describe("UserUsageService", () => {
 
   it("keeps the two context tiers as separate records", async () => {
     const charge = {
-      model: "sonnet[1m]",
-      modelId: "claude-sonnet-4-5",
-      provider: "claude" as const,
+      model: "gpt-5.6-sol",
+      modelId: "gpt-5.6-sol",
+      provider: "codex" as const,
       freshInputTokens: 300_000,
       cachedInputTokens: 0,
       cacheWriteTokens: 0,

@@ -4,16 +4,22 @@
  *
  * Contract: topics/limited-users.md § Delivery v1 — Usage.
  *
- * The two numbers are one calculation. Dollars come from the vendored
- * per-model price table; the output-token equivalent is those dollars divided
- * by the one constant that model charges per output token. So the equivalent
- * is exactly "what this would have cost as plain generation on this model",
- * and the dollar figure is a supplement to it rather than a separate estimate
- * that could disagree.
+ * The two numbers are one calculation. Dollars come from a per-model price
+ * table; the output-token equivalent is those dollars divided by the one
+ * constant that model charges per output token. So the equivalent is exactly
+ * "what this would have cost as plain generation on this model", and the dollar
+ * figure is a supplement to it rather than a separate estimate that could
+ * disagree.
  *
- * Why the equivalent leads: a model's prices change, and a report that reads
- * in output tokens keeps meaning the same thing when they do. Dollars are what
- * the table happened to say when the report was drawn.
+ * Why the equivalent leads: a model's prices change, and a report that reads in
+ * output tokens keeps meaning the same thing when they do. Dollars are what the
+ * table happened to say when the report was drawn.
+ *
+ * Two price sources, in order. `PUBLISHED_MODEL_PRICES` below is read from the
+ * providers' own pricing pages on a stated date, and covers the models YA
+ * launches that the vendored table does not name. The vendored extract of pi's
+ * table backs it up for everything else. Neither is authoritative for long: see
+ * gaps/usage-cost-price-table.md.
  */
 
 import type { UsageTokenClasses } from "./user-usage.js";
@@ -40,8 +46,144 @@ const UPSTREAM_PROVIDER_BY_YA_PROVIDER: Readonly<Record<string, string>> = {
 };
 
 /**
- * Strip what YA adds to a model name that the price table never has: the
- * `[1m]` context-window marker and a `provider/` prefix.
+ * Rates YA read from the providers' own pricing pages on **2026-09-21**,
+ * because the vendored table does not name these models:
+ *
+ * - `platform.claude.com/docs/en/about-claude/pricing` — Claude Opus 5,
+ *   Sonnet 5, Fable 5.1 and Mythos 5/5.1. **Fable 5.1 and Mythos 5.1 break the
+ *   family's usual 0.1x cache-read ratio at 0.025x**, which is exactly why this
+ *   is a per-model table and not a set of per-provider ratios.
+ * - `developers.openai.com/api/docs/pricing` — the GPT-5.6 family, GPT-6 Astra
+ *   and the Daybreak alias. `gpt-daybreak-blue` is an alias of `gpt-5.6-sol`
+ *   and carries its rates.
+ *
+ * Read before the vendored table, so a model both name resolves to whichever
+ * of the two is newer — which is this one until the extract is regenerated.
+ */
+const PUBLISHED_MODEL_PRICES: Readonly<
+  Record<string, Readonly<Record<string, VendoredModelPrices>>>
+> = {
+  anthropic: {
+    "claude-opus-5": { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+    "claude-sonnet-5": {
+      input: 2,
+      output: 10,
+      cacheRead: 0.2,
+      cacheWrite: 2.5,
+    },
+    "claude-fable-5-1": {
+      input: 10,
+      output: 50,
+      cacheRead: 0.25,
+      cacheWrite: 12.5,
+    },
+    "claude-mythos-5-1": {
+      input: 10,
+      output: 50,
+      cacheRead: 0.25,
+      cacheWrite: 12.5,
+    },
+    "claude-mythos-5": {
+      input: 10,
+      output: 50,
+      cacheRead: 1,
+      cacheWrite: 12.5,
+    },
+  },
+  "openai-codex": {
+    "gpt-6-astra": { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5 },
+    "gpt-5.6-sol": { input: 4, output: 20, cacheRead: 0.4, cacheWrite: 5 },
+    "gpt-5.6-terra": { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 2.5 },
+    "gpt-5.6-luna": {
+      input: 0.2,
+      output: 1.2,
+      cacheRead: 0.02,
+      cacheWrite: 0.25,
+    },
+    "gpt-daybreak-blue": {
+      input: 4,
+      output: 20,
+      cacheRead: 0.4,
+      cacheWrite: 5,
+    },
+  },
+};
+
+/**
+ * A provider's long-context tier: above `thresholdTokens` prompt tokens, the
+ * **whole request** is repriced by these multipliers, not just the tokens above
+ * the threshold. Null means the provider charges one rate at every context
+ * length, and a request of any size is priced normally.
+ */
+export interface ProviderContextTier {
+  thresholdTokens: number;
+  multipliers: {
+    input: number;
+    cachedInput: number;
+    cacheWrite: number;
+    output: number;
+  };
+}
+
+/**
+ * OpenAI's long-context tier, from its pricing page (read 2026-09-21): above
+ * 272k prompt tokens every prompt class doubles and output is half again. The
+ * listed long-context rates are exactly those multiples of the standard ones —
+ * Sol at $4/$20 becomes $8/$30 — so the multipliers are derived, not guessed.
+ * GPT-5.4 and GPT-5.5 cap at 272k, so the tier never fires for them.
+ */
+const OPENAI_CONTEXT_TIER: ProviderContextTier = {
+  thresholdTokens: 272_000,
+  multipliers: { input: 2, cachedInput: 2, cacheWrite: 2, output: 1.5 },
+};
+
+/**
+ * Whether a provider charges more for a long prompt, by upstream price list.
+ *
+ * **Anthropic is deliberately null.** It used to double input and charge half
+ * again for output above 200k, but removed that on 2026-03-13: Claude 4.6 and
+ * later "include the full 1M token context window at standard pricing". So a
+ * `sonnet[1m]` or `fable[1m]` session is priced exactly like a short one, and
+ * the premium that used to apply is not modelled for any current model.
+ */
+const CONTEXT_TIER_BY_UPSTREAM_PROVIDER: Readonly<
+  Record<string, ProviderContextTier | null>
+> = {
+  anthropic: null,
+  "openai-codex": OPENAI_CONTEXT_TIER,
+  openai: OPENAI_CONTEXT_TIER,
+  opencode: null,
+  xai: null,
+  google: null,
+};
+
+/**
+ * The long-context tier a YA provider's requests are priced under, or null when
+ * prompt length does not change its rates. An unknown provider gets null rather
+ * than an invented premium.
+ */
+export function providerContextTier(
+  provider: string,
+): ProviderContextTier | null {
+  const upstream = UPSTREAM_PROVIDER_BY_YA_PROVIDER[provider];
+  if (!upstream) return null;
+  return CONTEXT_TIER_BY_UPSTREAM_PROVIDER[upstream] ?? null;
+}
+
+/**
+ * The prompt length above which a request enters its provider's long-context
+ * tier, or null when that provider has none. The recorder asks this per
+ * request, because no later reader can recover one request's prompt length
+ * from a sum — and the threshold is not the same for every provider.
+ */
+export function longContextThresholdTokens(provider: string): number | null {
+  return providerContextTier(provider)?.thresholdTokens ?? null;
+}
+
+/**
+ * Strip what YA adds to a model name that a price table never has: the `[1m]`
+ * context-window marker and a `provider/` prefix. `fable[1m]` is Fable at
+ * Fable's rates — Anthropic prices its 1M window flat.
  */
 function normalizeModelId(model: string): string {
   return model
@@ -69,10 +211,13 @@ function longestPrefixMatch(
 }
 
 /**
- * Prices for one model, or undefined when the table does not name it — a
- * launch alias such as `opus` with no resolved provider id behind it, a
- * self-hosted model, or a model newer than the vendored table. Undefined is
- * reported as "no price" rather than guessed at.
+ * Prices for one model, or undefined when no table names it — a launch alias
+ * such as `opus` with no resolved provider id behind it, a self-hosted model,
+ * or a model newer than both tables. Undefined is reported as "no price"
+ * rather than guessed at.
+ *
+ * Exact ids win over prefixes, and the published table wins over the vendored
+ * one, so a dated variant never outranks its own model's newer rates.
  */
 export function findModelPrices(
   provider: string,
@@ -81,61 +226,40 @@ export function findModelPrices(
   if (!model) return undefined;
   const normalized = normalizeModelId(model);
   const upstream = UPSTREAM_PROVIDER_BY_YA_PROVIDER[provider];
-  const lists = upstream
-    ? [VENDORED_MODEL_PRICES[upstream]]
-    : Object.values(VENDORED_MODEL_PRICES);
-  for (const prices of lists) {
-    if (!prices) continue;
-    const exact = prices[normalized];
-    if (exact) return exact;
+  const tables = [PUBLISHED_MODEL_PRICES, VENDORED_MODEL_PRICES];
+  const listsOf = (table: (typeof tables)[number]) =>
+    upstream ? [table[upstream]] : Object.values(table);
+  for (const table of tables) {
+    for (const prices of listsOf(table)) {
+      const exact = prices?.[normalized];
+      if (exact) return exact;
+    }
   }
-  for (const prices of lists) {
-    if (!prices) continue;
-    const prefixed = longestPrefixMatch(prices, normalized);
-    if (prefixed) return prefixed;
+  for (const table of tables) {
+    for (const prices of listsOf(table)) {
+      const prefixed = prices && longestPrefixMatch(prices, normalized);
+      if (prefixed) return prefixed;
+    }
   }
   return undefined;
 }
 
 /**
- * Above this prompt length a request is in the long-context tier. YA's
- * `sonnet[1m]` and `opus[1m]` aliases reach it. The recorder decides a
- * request's tier from the prompt it actually sent, because nothing downstream
- * can recover one request's length from a sum.
- */
-export const USAGE_LONG_CONTEXT_THRESHOLD_TOKENS = 200_000;
-
-/**
- * Anthropic's published premium above the threshold for its 1M-context models.
- *
- * **Not from the vendored table**, which models no context-length-dependent
- * rate and carries no 1M-context entry, so nothing there corroborates these
- * two numbers. They are applied because ignoring the tier would report a
- * long-context session at roughly half what it cost, which is the larger
- * error — but they are the one part of this calculation that is not
- * cross-checked, and a session that never crosses 200k tokens never uses them.
- */
-export const USAGE_LONG_CONTEXT_MULTIPLIERS = {
-  prompt: 2,
-  output: 1.5,
-} as const;
-
-/**
  * What one token of each class costs in output tokens of the same model, for a
- * model the price table does not name — a local or self-hosted one, or one
- * newer than the vendored table.
+ * model no table names — a local or self-hosted one, or one newer than both.
  *
- * Midway between the two listed families: Anthropic prices output at five
- * times a fresh prompt token and OpenAI's Codex models at six, so 5.5; both
- * price a cache read at a tenth of a fresh token; Anthropic bills a cache
- * write at 1.25 fresh tokens and OpenAI at nothing, so 0.625.
+ * Midway between the two listed families, checked against both published
+ * tables: output runs 5x a fresh prompt token across Anthropic's range and 5–6x
+ * across OpenAI's, so 5.5; both price a cache read at a tenth of a fresh token;
+ * Anthropic bills a cache write at 1.25 fresh tokens and OpenAI at 1.25 for
+ * GPT-5.6 and later but nothing before, so 0.625.
  *
  * These are list-price ratios, which track the real compute asymmetry only
  * roughly — generation is serial while prompt processing batches, and the true
  * ratio moves with how much of the cost is attention over the whole context
  * versus per-token work. For a usage estimate on an unlisted model that is the
- * right precision; it is why this yields an output-token equivalent and never
- * a dollar figure.
+ * right precision; it is why this yields an output-token equivalent and never a
+ * dollar figure.
  */
 const UNLISTED_MODEL_OUTPUT_EQUIVALENTS = {
   freshInput: 1 / 5.5,
@@ -145,49 +269,61 @@ const UNLISTED_MODEL_OUTPUT_EQUIVALENTS = {
 
 /**
  * An unlisted model's counts in its own output tokens, from the ratios above.
- * No dollars: nothing here knows what that model's output token costs.
+ * No dollars: nothing here knows what that model's output token costs. No
+ * long-context premium either — which provider's tier would it be?
  */
 export function unlistedEquivalentOutputTokens(
   classes: UsageTokenClasses,
-  options: { longContext?: boolean } = {},
 ): number {
-  const tier = options.longContext
-    ? USAGE_LONG_CONTEXT_MULTIPLIERS
-    : { prompt: 1, output: 1 };
-  const prompt =
+  return Math.round(
     classes.freshInputTokens * UNLISTED_MODEL_OUTPUT_EQUIVALENTS.freshInput +
-    classes.cachedInputTokens * UNLISTED_MODEL_OUTPUT_EQUIVALENTS.cachedInput +
-    classes.cacheWriteTokens * UNLISTED_MODEL_OUTPUT_EQUIVALENTS.cacheWrite;
-  return Math.round(prompt * tier.prompt + classes.outputTokens * tier.output);
+      classes.cachedInputTokens *
+        UNLISTED_MODEL_OUTPUT_EQUIVALENTS.cachedInput +
+      classes.cacheWriteTokens * UNLISTED_MODEL_OUTPUT_EQUIVALENTS.cacheWrite +
+      classes.outputTokens,
+  );
+}
+
+export interface TokenCostOptions {
+  /** YA provider name, which selects the long-context tier. */
+  provider?: string;
+  /** Whether these counts were in that provider's long-context tier. */
+  longContext?: boolean;
+}
+
+/** The multipliers to apply, which are all 1 unless a tier actually applies. */
+function tierMultipliers(options: TokenCostOptions) {
+  const flat = { input: 1, cachedInput: 1, cacheWrite: 1, output: 1 };
+  if (!options.longContext || !options.provider) return flat;
+  return providerContextTier(options.provider)?.multipliers ?? flat;
 }
 
 /** What one set of counts cost in US dollars, at one model's prices. */
 export function tokenCostUsd(
   classes: UsageTokenClasses,
   prices: VendoredModelPrices,
-  options: { longContext?: boolean } = {},
+  options: TokenCostOptions = {},
 ): number {
-  const tier = options.longContext
-    ? USAGE_LONG_CONTEXT_MULTIPLIERS
-    : { prompt: 1, output: 1 };
-  const prompt =
-    classes.freshInputTokens * prices.input +
-    classes.cachedInputTokens * prices.cacheRead +
-    classes.cacheWriteTokens * prices.cacheWrite;
-  const output = classes.outputTokens * prices.output;
-  return (prompt * tier.prompt + output * tier.output) / 1_000_000;
+  const tier = tierMultipliers(options);
+  return (
+    (classes.freshInputTokens * prices.input * tier.input +
+      classes.cachedInputTokens * prices.cacheRead * tier.cachedInput +
+      classes.cacheWriteTokens * prices.cacheWrite * tier.cacheWrite +
+      classes.outputTokens * prices.output * tier.output) /
+    1_000_000
+  );
 }
 
 /**
  * The same cost as a count of that model's standard-tier output tokens: the
- * dollars divided by the model's one dollars-per-output-token constant. A
- * model whose output price is zero — a free or self-hosted entry — has no such
- * unit, so this reports null rather than dividing by zero.
+ * dollars divided by the model's one dollars-per-output-token constant. A model
+ * whose output is free has no such unit, so this reports null rather than
+ * dividing by zero.
  */
 export function equivalentOutputTokens(
   classes: UsageTokenClasses,
   prices: VendoredModelPrices,
-  options: { longContext?: boolean } = {},
+  options: TokenCostOptions = {},
 ): number | null {
   if (prices.output <= 0) return null;
   const usd = tokenCostUsd(classes, prices, options);

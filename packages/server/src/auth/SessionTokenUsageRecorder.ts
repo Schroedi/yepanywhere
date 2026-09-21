@@ -12,14 +12,15 @@
  * granularity.
  *
  * The four token classes stay apart, and requests are binned by context tier,
- * because a cache read is a tenth of a fresh prompt token and a long-context
- * request is priced above a short one. Only this recorder sees a single
- * request's prompt length, so the tier has to be decided here — a sum cannot
- * be un-summed later.
+ * because a cache read is a tenth of a fresh prompt token and, on a provider
+ * that has such a tier, a long request reprices the whole request. Only this
+ * recorder sees a single request's prompt length, so the tier has to be decided
+ * here — a sum cannot be un-summed later. The threshold is per provider, and
+ * for a provider with no tier every request is standard.
  */
 
 import {
-  USAGE_LONG_CONTEXT_THRESHOLD_TOKENS,
+  longContextThresholdTokens,
   type UsageTokenClasses,
 } from "@yep-anywhere/shared";
 import { getProjectName } from "../projects/paths.js";
@@ -99,9 +100,12 @@ export class SessionTokenUsageRecorder {
       0,
       usage.totalContextTokens - cachedInputTokens - cacheWriteTokens,
     );
-    // The tier is the prompt this one request sent, not the turn's running sum.
+    // The tier is the prompt this one request sent, not the turn's running sum,
+    // and the threshold is the provider's own — 272k on OpenAI, none at all on
+    // Anthropic, which prices its 1M window flat.
+    const threshold = longContextThresholdTokens(process.provider);
     const longContext =
-      usage.totalContextTokens > USAGE_LONG_CONTEXT_THRESHOLD_TOKENS;
+      threshold !== null && usage.totalContextTokens > threshold;
     const tier = pending.tiers.get(longContext) ?? emptyClasses();
     tier.freshInputTokens += freshInputTokens;
     tier.cachedInputTokens += cachedInputTokens;

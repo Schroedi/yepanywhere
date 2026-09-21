@@ -211,11 +211,11 @@ export function binCost(bin: UsageTokenBin): {
    */
   unit: string;
 } {
-  const options = { longContext: bin.longContext };
+  const options = { provider: bin.provider, longContext: bin.longContext };
   const prices = findModelPrices(bin.provider, bin.modelId);
   if (!prices) {
     return {
-      equivalentOutputTokens: unlistedEquivalentOutputTokens(bin, options),
+      equivalentOutputTokens: unlistedEquivalentOutputTokens(bin),
       costUsd: null,
       unit: `model:${bin.provider}/${bin.modelId}`,
     };

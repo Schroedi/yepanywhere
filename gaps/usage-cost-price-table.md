@@ -1,36 +1,48 @@
-# Usage cost prices go stale silently, and the long-context premium is unverified
+# Usage cost prices go stale silently, and a fast-mode turn is priced at half
 
-Settings → Users prices recorded token usage from
-`packages/shared/src/vendor/pi-model-prices/prices.generated.ts`, a mechanical
-extract of the `pi` project's per-model rates (see that directory's
-`VENDORED.md`). Three things are left open, none of them blocking the report:
+Settings → Users prices recorded token usage from two tables read in order:
+`PUBLISHED_MODEL_PRICES` in `packages/shared/src/model-prices.ts`, read from the
+providers' own pricing pages on 2026-09-21, and behind it the vendored extract of
+pi's rates in `packages/shared/src/vendor/pi-model-prices/`. Four things are left
+open, none of them blocking the report:
 
-- **Nothing notices the table aging.** It is refreshed only when someone runs
-  `scripts/generate-vendored-model-prices.mjs` against a local `pi` checkout, and
-  a report drawn from a year-old table reads exactly like a current one. The
-  output-token equivalent is deliberately the headline partly for this reason —
-  it survives a price change — but the dollar figure does not, and says nothing
-  about how old it is. Cheap fix: record the extract's upstream date in the
-  generated module and have the page show it beside the dollar figures.
-- **The long-context multipliers are not cross-checked.**
-  `USAGE_LONG_CONTEXT_MULTIPLIERS` in `packages/shared/src/model-prices.ts`
-  (prompt ×2, output ×1.5 above 200k prompt tokens) is Anthropic's published
-  premium for its 1M-context models, but the vendored table models no
-  context-length tier and carries no 1M-context entry, so nothing in this repo
-  corroborates it. A `sonnet[1m]` or `opus[1m]` session above 200k tokens is
-  therefore the one case whose cost rests on an unverified constant. They are
-  applied because ignoring the tier understates such a session by about half.
+- **Nothing notices either table aging.** The vendored extract is refreshed only
+  when someone runs `scripts/generate-vendored-model-prices.mjs` against a local
+  `pi` checkout, and the published table only when someone rereads the pricing
+  pages. A report drawn from a year-old table reads exactly like a current one.
+  The output-token equivalent is deliberately the headline partly for this
+  reason — it survives a price change — but the dollar figure does not, and says
+  nothing about how old it is. Cheap fix: carry each table's read date and show
+  the older of the two beside the dollar figures.
+- **A fast-mode Claude turn is priced at half.** Anthropic's fast mode bills
+  Opus 5 and Opus 4.8 at $10/$50 per million instead of $5/$25, across the whole
+  context window. YA has a fast-mode concept, but the ledger records only model
+  and provider, so such a turn is indistinguishable from a standard one and
+  costs out at half. Fixing it means recording the request speed alongside the
+  context tier — the same shape as the tier bin, so the seam already exists.
+- **Prices with modifiers YA does not record.** Beyond fast mode: Anthropic's
+  1-hour cache writes cost 2x base input rather than 1.25x and are reported
+  separately by the API, `inference_geo: "us"` adds 1.1x, and the Batch API
+  halves everything. None are recorded, so a turn using them is priced at the
+  standard rate. All three are unlikely in YA's interactive path, which is why
+  this is a note rather than a defect.
 - **Unlisted models get no dollar figure at all**, by design — they fall back to
   generic ratios for the output-token equivalent only
   (`unlistedEquivalentOutputTokens`). A per-project or whole-user bucket that
-  contains even one unlisted model therefore shows no dollars. That is the
-  honest reading, but it means a mixed install can see its project-level cost
-  figures disappear entirely. Whether to show a partial total with an explicit
-  "plus unpriced usage" marker is a product call nobody has made.
+  contains even one unlisted model therefore shows no dollars. That is the honest
+  reading, but it means a mixed install can see its project-level cost figures
+  disappear entirely. Whether to show a partial total with an explicit "plus
+  unpriced usage" marker is a product call nobody has made.
 
-Not fixed in place because each needs a decision rather than code: how fresh
-the table must be to quote dollars, whether to carry a hand-maintained premium
-the upstream table does not model, and how to present a partial cost.
+Not fixed in place because each needs a decision rather than code: how fresh a
+table must be to quote dollars, whether the ledger should carry request speed,
+and how to present a partial cost.
+
+Two things that *were* verified rather than left open, recorded so nobody
+re-derives them: Anthropic removed its over-200k long-context premium on
+2026-03-13 and now prices the full 1M window flat, so no Claude model has a
+context tier; and OpenAI's tier starts above 272k, not 200k. Both are encoded in
+`CONTEXT_TIER_BY_UPSTREAM_PROVIDER`.
 
 Found 2026-09-21 while adding per-model and per-project token cost to
 Settings → Users usage.

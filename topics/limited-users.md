@@ -353,20 +353,34 @@ this install and how much.
     report equal counts.
   - **The tier is decided at record time**, from the prompt one request
     actually sent, because no later reader can recover a single request's
-    length from a sum. Above 200k prompt tokens Anthropic's 1M-context models —
-    YA's `sonnet[1m]` and `opus[1m]` aliases — charge double for the prompt and
-    half again for output. A record carries the tier only when it is the long
-    one, so an install that never uses those models pays nothing for the
-    distinction.
+    length from a sum. **The threshold is the provider's own, and most
+    providers have none**: OpenAI reprices the whole request above 272k prompt
+    tokens (prompt classes ×2, output ×1.5), while **Anthropic prices its full
+    1M window flat** — it removed its own over-200k premium on 2026-03-13, so
+    `sonnet[1m]`, `opus[1m]` and `fable[1m]` cost exactly what their short
+    requests cost. A record carries the tier only when it is the long one, so an
+    install on a provider without one pays nothing for the distinction, and a
+    long-context flag on such a provider changes no price.
 - **Cost is reported two ways, from one calculation.** The headline is
   **standard-tier output tokens of the model itself**: the charge's dollars
   divided by the one constant that model charges per output token. It leads
   because it keeps meaning the same thing when a price changes. Dollars are the
   **supplement** — the same calculation before that division.
-  - Prices come from `packages/shared/src/vendor/pi-model-prices/`, a
-    mechanical extract of the `pi` project's per-model rates; its `VENDORED.md`
-    owns the upstream revision, and `scripts/generate-vendored-model-prices.mjs`
-    refreshes it from a local `pi` checkout when someone chooses to.
+  - Prices come from two tables, in order. `PUBLISHED_MODEL_PRICES` in
+    `packages/shared/src/model-prices.ts` holds rates read from the providers'
+    own pricing pages on a stated date, covering the models YA launches that the
+    extract does not name — Opus 5, Sonnet 5, Fable/Mythos 5.1, the GPT-5.6
+    family, GPT-6 Astra, and the Daybreak alias, which **is** GPT-5.6 Sol and
+    carries its rates. Behind it, `packages/shared/src/vendor/pi-model-prices/`
+    is a mechanical extract of the `pi` project's per-model rates; its
+    `VENDORED.md` owns the upstream revision, and
+    `scripts/generate-vendored-model-prices.mjs` refreshes it from a local `pi`
+    checkout when someone chooses to.
+  - **Per model, not per provider ratio.** Claude Fable 5.1 and Mythos 5.1
+    price a cache read at 0.025x base input where every other Claude model is at
+    0.1x, and OpenAI bills cache writes on GPT-5.6 and later but not on GPT-5.4
+    or 5.5. A per-provider ratio table would price those models wrong by a
+    factor of four.
   - **A model the table does not name still gets an output-token equivalent**,
     from generic ratios midway between the two listed families — output at 5.5
     fresh prompt tokens, a cache read at a tenth of one, a cache write at
@@ -378,11 +392,10 @@ this install and how much.
     dollars alone — one model's output token is not another's, and summing them
     would not be a quantity. A bucket with any unpriced model shows no dollars
     at all, rather than a partial total that reads as the whole.
-  - **The long-context multipliers are the one uncrossed-checked input** here:
-    the vendored table models no context-length tier and carries no 1M-context
-    entry, so nothing there corroborates them. They are applied because
-    ignoring the tier understates such a session by roughly half, which is the
-    larger error.
+  - **A fast-mode Claude turn is under-reported.** Anthropic charges Opus 5
+    and Opus 4.8 at $10/$50 rather than $5/$25 with `speed: "fast"`, and the
+    ledger records no speed, so such a turn is priced at half. Noted in
+    gaps/usage-cost-price-table.md.
 - **The split is by model and, separately, by project** — never by the two
   together, which multiplies rows without answering a question anybody asked.
   The model name is the launch alias (`opus`); the resolved provider id is
