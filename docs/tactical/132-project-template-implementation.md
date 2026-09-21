@@ -1,20 +1,52 @@
 # Usable projects from approved templates
 
-Status: implementation handoff, 2026-09-21. UI prototypes approved; production
-template integration remains unimplemented. Contributing-model: 6-Astra.
+Status: implementation started, 2026-09-21. Native library loading/composition
+is implemented; production creation remains unimplemented.
+Contributing-model: 6-Astra.
+
+## Implementation checkpoint — 2026-09-21
+
+The user authorized implementation and expanded the default limited-user
+selection to every template at agents HEAD `947fc67`: App canvas, Storybook,
+and Web page. All three remain draft until their content review/admission.
+Apply this scope to the two-template acceptance cases below as well.
+
+- Complete: native inventory/manifest validation and ordered file composition,
+  with 26 passing conformance cases. The actual current library composes to
+  38, 55 and 51 files respectively, without Python or setup execution.
+- Verification: full workspace unit tests, formatting, typechecking and lint
+  exited successfully on Linux; targeted Oxlint passed. The sole lint warning
+  was removed by the behavior-preserving cleanup commit `c704a8d85` and targeted
+  lint passed without warnings. Concurrent client work independently removed
+  an initial renderer CSS size violation before the successful lint run.
+  No macOS/Windows or actual provider/session verification is claimed.
+- Pending: source packaging/admission, fresh-target materialization, durable
+  setup/preparation, permissions/sandboxing, App access/reservations, UI and
+  project-local identity. No runtime feature is enabled by this first slice.
+- Awaiting explicit answers: supported-release capability/fallback approval
+  required by DEVELOPMENT.md, and whether existing limited users retain their
+  project-only scope with creation disabled. The recommended migration changes
+  defaults only for new users; no migration has run.
+
+The compatibility proposal keeps older servers on existing-directory creation
+and legacy name/caption edits, hides new template/workspace/coda controls and
+sends no new requests/fields when the corresponding new capability is absent.
+Use separate template/workspace and identity capabilities; preserve existing
+capability meanings. Optional corpus: v0.8.0/v0.8.1; existing identity-edit
+fallbacks also require inspecting the 60-day core corpus before wire edits.
 
 ## Outcome and authorization
 
-Deliver working App canvas and Web page projects through YA for both limited
-users and regular superusers. A user enables templates, selects an allowed
+Deliver working App canvas, Storybook and Web page projects through YA for
+both limited users and regular superusers. A user enables templates, selects an allowed
 starter, enters a name and intent, and receives an immediately usable App pane
 plus one automatic project preparation session. They can subsequently ask the
 agent to build their app, run/test it, revisit it after restart, and add the
 vendored server capability without access to the template source repository.
 
-The latest request authorizes this handoff, not runtime implementation in the
-handoff-writing turn. All existing UI prototypes are approved. Their local
-fixture interactions are not evidence of production behavior. Do not reopen
+The implementation request now authorizes runtime implementation. All existing
+UI prototypes are approved. Their local fixture interactions are not evidence
+of production behavior. Do not reopen
 settled UI choices; inspect live code before choosing implementation details.
 The remaining compatibility review required by DEVELOPMENT.md is distinct
 from visual approval. This plan's numbered sections describe dependencies,
@@ -115,7 +147,8 @@ settings. Server-side None / Selected / Any grants are authoritative:
 
 - None and an empty Selected set prevent creation without changing existing
   project access. Any includes future enabled ready templates.
-- Selected uses source-qualified IDs. New limited users default to App canvas.
+- Selected uses source-qualified IDs. New limited users default to all three
+  current templates: App canvas, Storybook and Web page.
   Missing/draft/unavailable selections do not fall back to another template.
 - One permitted available choice is automatic; multiple choices show cards.
   No arbitrary source, script, grant or parent-directory fields for limited users.

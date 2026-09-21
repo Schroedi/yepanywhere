@@ -16,13 +16,19 @@ compiles the delivery sequence and acceptance boundary. The prototype manifests
 are draft pending the separate
 agents instruction-library review; production must not silently allow drafts.
 
+The native loader/composer now exists in
+`packages/server/src/projects/template-library.ts`; its conformance tests cover
+inventory validation, ordering, collisions, text overrides, source containment
+and draft refusal. It composes all three current authoring templates but is not
+wired to runtime creation. Materialization and production admission remain open.
+
 ## Remaining integration
 
 - Admit local/GitHub sources with repository-relative content roots; validate
   missing paths and all references at configuration time, pin remote revisions,
   and keep supplementary source identities distinct. Package the eventual
   default source without a runtime dependency on the operator's `~/agents`.
-- Implement the format consumer and scripted stand-up boundary using the
+- Connect the format consumer to materialization and scripted stand-up using the
   reference compiler's conformance cases: multiple bases, order constraints,
   exact-content/mode coalescing, root AGENTS hash deduplication, explicit
   overrides, source symlink confinement, portable destinations and fresh target.
@@ -45,7 +51,8 @@ agents instruction-library review; production must not silently allow drafts.
   auto-send the project-context prepare turn with intent. Keep setup, agent
   preparation and readiness distinguishable; agent failure retains the starter.
 - Add server-enforced None / Selected / Any template grants to existing limited
-  principals and Settings → Users. New users default to App canvas; settle
+  principals and Settings → Users. New users default to all three current
+  templates (App canvas, Storybook and Web page); settle
   migration for existing users. Enforce configured project root, provider locks,
   sandbox, ownership, and permission rechecks at the operation.
 - Default new users' Create in directory to `~/username`. Use it as the

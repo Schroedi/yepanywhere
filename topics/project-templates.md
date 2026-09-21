@@ -12,8 +12,12 @@ The implementation handoff is
 The authoring library is `~/agents/project-templates`, committed
 in the agents repository at `d6a64e9` (App canvas/format) and `4baf1bf` (Web page,
 shared web tooling and explicit project-visible skills). Its manifests remain `draft` while the
-portable-instruction review is open. YA has not gained a template consumer,
-source settings, template creation endpoint, or template permission fields. See the
+portable-instruction review is open. YA now has a native library loader and
+composer in `packages/server/src/projects/template-library.ts`, with no Python
+runtime dependency. It validates the complete inventory without executing setup,
+retains the loaded file bytes, and refuses drafts through its creation accessor.
+Source settings, materialization, creation routes and template permissions are
+still unimplemented. See the
 [stand-up integration gap](../gaps/project-template-standup.md).
 
 ## Current contract — config-driven templates
@@ -198,8 +202,10 @@ introducing a second user system. The server enforces a per-user choice:
 | Selected templates | Only saved source-qualified template IDs. Empty means none. |
 | Any configured template | Every enabled, ready template, including future additions. |
 
-New limited users default to Selected templates with the shipped App canvas
-identity. Exactly one permitted available template is applied without a picker;
+New limited users default to Selected templates with all three templates at
+agents HEAD `947fc67`: App canvas, Storybook and Web page (user-directed
+2026-09-21). These are source-qualified selections, not an Any grant to future
+templates. Exactly one permitted available template is applied without a picker;
 multiple templates offer a chooser. A removed/unavailable/draft template never
 silently falls back to another. Limited users cannot supply a source, script,
 arbitrary directory or permission grant: the superuser's configured project

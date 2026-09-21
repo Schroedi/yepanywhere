@@ -16,8 +16,9 @@ Status: **v1 delivered (2026-09-20); the rest remains proposal.** See
 
 The next template-creation extension is specified in
 [project templates](project-templates.md#limited-user-permissions): server-enforced
-None / Selected / Any permissions, with App canvas selected for new limited
-users. It is not delivered in v1; the
+None / Selected / Any permissions, with App canvas, Storybook and Web page
+selected for new limited users (user-directed 2026-09-21). It is not delivered
+in v1; the
 [stand-up gap](../gaps/project-template-standup.md) tracks its implementation.
 
 ### Approved workspace direction (2026-09-21; not implemented)
