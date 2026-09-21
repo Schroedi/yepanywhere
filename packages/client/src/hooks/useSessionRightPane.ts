@@ -207,7 +207,8 @@ export function useSessionRightPane(
     if (!canKill || !selected || killing) return;
     setKilling(true);
     setKillError(undefined);
-    dismissApps(current.apps.map((app) => app.announcementId));
+    if (!selected.artifactToken)
+      dismissApps(current.apps.map((app) => app.announcementId));
     // Dismiss immediately; a pending stop request must not hold the pane open.
     owned?.close();
     try {

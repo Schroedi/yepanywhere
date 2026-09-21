@@ -121,9 +121,12 @@ host support is Linux with `/usr/bin/lsof` and `/proc`. Other hosts and older
 servers retain App/minimize but show no Kill and make no control requests.
 
 Artifact links use the same pane but have no process to kill. Their × clears
-the session app entry; the existing grant expiry/ownership/deletion lifecycle
-remains authoritative. The URL token is not the grant's management id, so
-closing a discovered artifact URL does not send a guessed revocation request.
+only the selected pane controller; it does not dismiss the artifact from the
+session's discovered links. The same artifact can therefore be reopened from a
+previous turn or remain open in other browser tabs. The existing grant expiry
+and explicit revocation lifecycle remains authoritative. The URL token is not
+the grant's management id, so closing a discovered artifact URL does not send a
+guessed revocation request.
 
 ### Narrow (<1100px)
 

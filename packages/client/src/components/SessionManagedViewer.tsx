@@ -30,6 +30,7 @@ import {
   clearSessionViewer,
   presentSessionViewer,
   restoreSessionViewer,
+  sessionViewerFreezesTranscript,
   type SessionViewerControllerState,
   useSessionViewerController,
 } from "../lib/sessionViewerController";
@@ -185,7 +186,7 @@ export function SessionViewerProvider({
   );
 }
 
-/** Keeps covered transcript props stable while its managed viewer is open. */
+/** Keeps covered transcript props stable behind an expensive covering modal. */
 export function SessionViewerTranscriptGate({
   children,
 }: {
@@ -196,8 +197,7 @@ export function SessionViewerTranscriptGate({
   useSessionRightPaneSetting();
   const viewerOpen = Boolean(
     controller?.sessionId === sessionId &&
-      !sessionViewerUsesRightPane(controller) &&
-      !controller.minimized,
+      sessionViewerFreezesTranscript(controller),
   );
   const renderedChildrenRef = useRef(children);
   if (!viewerOpen) {

@@ -59,15 +59,17 @@ describe("session right pane lifecycle", () => {
   it("auto-opens a fresh artifact without vhosts and does not open older history", async () => {
     localStorage.setItem(UI_KEYS.sessionRightPane, "true");
     invalidateLocalStorageValues();
-    const artifact: Message = {
-      uuid: "artifact",
+    const artifact = (id: string): Message => ({
+      uuid: id,
       content: [
         {
           type: "tool_result",
-          content: "http://artifacts.localhost/a/token/review.html",
+          content: `http://artifacts.localhost/a/${id}/review.html`,
         },
       ],
-    };
+    });
+    const previous = artifact("previous-token");
+    const latest = artifact("latest-token");
     const { result, rerender } = renderHook(
       ({ messages }) =>
         useSessionRightPane(
@@ -77,17 +79,18 @@ describe("session right pane lifecycle", () => {
           true,
           "artifact",
         ),
-      { initialProps: { messages: [] as Message[] } },
+      { initialProps: { messages: [previous] } },
     );
-    rerender({ messages: [artifact] });
-    expect(result.current.selected?.artifactToken).toBe("token");
-    act(() => result.current.close());
-    rerender({ messages: [output("older"), artifact] });
     expect(result.current.selected).toBeUndefined();
+    rerender({ messages: [previous, latest] });
+    expect(result.current.selected?.artifactToken).toBe("latest-token");
+    act(() => result.current.close());
     act(() => result.current.select(result.current.apps[0]!.url));
     await act(() => result.current.kill());
-    expect(result.current.apps).toHaveLength(0);
+    expect(result.current.apps).toHaveLength(2);
     expect(result.current.selected).toBeUndefined();
+    act(() => result.current.select(result.current.apps[0]!.url));
+    expect(result.current.selected?.artifactToken).toBe("previous-token");
   });
   it("defaults off, retains selectable links, isolates sessions and honors close", () => {
     const messages = [output("one")];

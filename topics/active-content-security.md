@@ -421,9 +421,11 @@ HTTPS-page/HTTP-frame configuration.
 
 In the full file viewer, the existing top-row source/preview toggle starts
 interactive HTML directly when clicked from source; no second Run button is
-needed. Switching back to source unmounts the preview and revokes its grant.
-The context menu's explicit Preview action uses the same path. Merely opening
-a file, restoring a source view, or receiving a link does not request a grant.
+needed. Switching back to source unmounts the preview but leaves its borrowed
+grant valid until expiry, so another pane or browser tab using that URL remains
+available. The context menu's explicit Preview action uses the same path.
+Merely opening a file, restoring a source view, or receiving a link does not
+request a grant.
 An initially requested scriptless presentation retains its explicit Run action.
 Older/disabled servers retain scriptless viewing without unsupported requests.
 
@@ -436,7 +438,8 @@ previewed with or without a project ID; expansion grants no extra file access.
 A browser-enforced parent `frame-src` violation replaces the broken frame with
 an explanation and an **Open interactive preview in a new tab** link to the
 same grant. The new tab has no opener or referrer; stopping/closing the owning
-viewer still revokes that grant. The viewer never relaxes the browser policy.
+viewer does not revoke that transferable grant. The viewer never relaxes the
+browser policy.
 A stale frontend policy requires an operator-owned restart and page reload
 for embedding to work; the separate artifact tab can be used independently.
 
@@ -472,9 +475,10 @@ path components, and symlinks escaping that directory are rejected. A random
 or delivery reconfiguration;
 the application can disclose that URL, so it is not a secret from the artifact.
 Limits are 256 live grants, 1,024 distinct files per grant, and 64 MiB per file.
-Responses are streamed, range-capable, and marked `no-store`. Closing/stopping
-the preview revokes its grant; offline revocation falls back to expiry. This
-does not erase files already read or artifact-origin local storage.
+Responses are streamed, range-capable, and marked `no-store`. Borrowed preview
+grants remain valid across viewer close, pane replacement, and browser-tab
+handoff, then expire on the server's fixed deadline or explicit revocation.
+This does not erase files already read or artifact-origin local storage.
 
 The saved **Link expiry (days)** slider and paired numeric field accept whole
 days from 1 through 30, defaulting to 7. The lifetime is fixed when each grant

@@ -70,8 +70,7 @@ export function ArtifactPreview(props: Props) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2500);
     setBusy(true);
-    const revoke = (id: string) => {
-      // Grants also expire server-side if closing while offline prevents revocation.
+    const revokeUnpublished = (id: string) => {
       void runtime.transport
         .fetch(`/artifacts/${encodeURIComponent(id)}`, { method: "DELETE" })
         .catch(() => {});
@@ -92,15 +91,16 @@ export function ArtifactPreview(props: Props) {
             }),
           },
         );
-        if (new URL(admitted.url).origin !== origin)
+        if (new URL(admitted.url).origin !== origin) {
+          revokeUnpublished(admitted.id);
           throw new Error("Unexpected artifact origin");
+        }
         if (cancelled) {
-          revoke(admitted.id);
+          revokeUnpublished(admitted.id);
           return;
         }
         setGrant(admitted);
       } catch {
-        if (admitted) revoke(admitted.id);
         if (!cancelled) setFailed(true);
       } finally {
         clearTimeout(timer);
@@ -111,7 +111,6 @@ export function ArtifactPreview(props: Props) {
       cancelled = true;
       controller.abort();
       clearTimeout(timer);
-      if (admitted) revoke(admitted.id);
       document.removeEventListener(
         "securitypolicyviolation",
         onPolicyViolation,

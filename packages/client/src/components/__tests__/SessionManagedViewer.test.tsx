@@ -33,11 +33,13 @@ function TranscriptProbe({ version }: { version: number }) {
 
 function TestSession({ version }: { version: number }) {
   return (
-    <SessionViewerProvider sessionId="session-1">
-      <SessionViewerTranscriptGate>
-        <TranscriptProbe version={version} />
-      </SessionViewerTranscriptGate>
-    </SessionViewerProvider>
+    <I18nProvider>
+      <SessionViewerProvider sessionId="session-1">
+        <SessionViewerTranscriptGate>
+          <TranscriptProbe version={version} />
+        </SessionViewerTranscriptGate>
+      </SessionViewerProvider>
+    </I18nProvider>
   );
 }
 
@@ -47,7 +49,7 @@ describe("SessionViewerTranscriptGate", () => {
     vi.useRealTimers();
   });
 
-  it("freezes the covered transcript until the managed viewer is parked", () => {
+  it("freezes the covered transcript until the file modal is parked", () => {
     const view = render(<TestSession version={1} />);
 
     act(() => {
@@ -86,6 +88,25 @@ describe("SessionViewerTranscriptGate", () => {
     act(() => clearCurrentSessionViewer());
     expect(screen.getByTestId("transcript-probe").textContent).toBe(
       "session-1:3",
+    );
+  });
+
+  it("keeps the transcript live while an artifact app is open", () => {
+    const view = render(<TestSession version={1} />);
+
+    act(() => {
+      presentSessionViewer({
+        id: "artifact-1",
+        kind: "artifact",
+        sessionId: "session-1",
+        label: "Report app",
+        url: "http://artifacts.localhost/a/token/report.html",
+      });
+    });
+
+    view.rerender(<TestSession version={2} />);
+    expect(screen.getByTestId("transcript-probe").textContent).toBe(
+      "session-1:2",
     );
   });
 
@@ -137,6 +158,48 @@ describe("SessionViewerTranscriptGate", () => {
       vi.advanceTimersByTime(33);
     });
     expect(renderWeight()).toBeGreaterThan(coveredWeight);
+  });
+
+  it("continues progressive transcript batches while an artifact app is open", async () => {
+    vi.useFakeTimers();
+    const messages = Array.from({ length: 160 }, (_, index) => [
+      userMessage(`user-${index}`, `request ${index}`),
+      assistantMessage(`assistant-${index}`, `response ${index}`),
+    ]).flat();
+    const { container } = render(
+      <I18nProvider>
+        <SessionViewerProvider sessionId="session-1">
+          <SessionViewerTranscriptGate>
+            <MessageList
+              messages={messages}
+              progressiveRenderEnabled
+              progressiveRenderKey="artifact-app-session"
+            />
+          </SessionViewerTranscriptGate>
+        </SessionViewerProvider>
+      </I18nProvider>,
+    );
+    const renderWeight = () =>
+      Number(
+        container
+          .querySelector(".message-list")
+          ?.getAttribute("data-transcript-render-weight") ?? 0,
+      );
+    const initialWeight = renderWeight();
+
+    act(() => {
+      presentSessionViewer({
+        id: "artifact-1",
+        kind: "artifact",
+        sessionId: "session-1",
+        label: "Report app",
+        url: "http://artifacts.localhost/a/token/report.html",
+      });
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(renderWeight()).toBeGreaterThan(initialWeight);
   });
 });
 

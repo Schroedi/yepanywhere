@@ -45,11 +45,12 @@ message or tool row that opened it.
 - **Open with Session right pane disabled (default)** — the viewer owns the
   session's transcript row. The live session
   remains mounted behind it, while the composer remains visible and operable
-  directly below it. The covered transcript keeps its last committed render
-  frame and pauses progressive hydration instead of reconciling hidden session
-  updates. Session data, status, composer controls, and managed-viewer sources
-  remain live; parking or closing the viewer reveals the latest buffered
-  transcript snapshot and resumes hydration.
+  directly below it. A covering file or detail modal keeps the transcript's
+  last committed render frame and pauses progressive hydration instead of
+  reconciling hidden session updates. Session data, status, composer controls,
+  and managed-viewer sources remain live; parking or closing the modal reveals
+  the latest buffered transcript snapshot and resumes hydration. An artifact
+  App iframe does not freeze the transcript.
 - **Parked** — the viewer remains mounted but is not interactive or visible;
   the live session and composer are visible and operable.
 - **Closed** — the viewer is destroyed and its controller disappears.
@@ -302,8 +303,13 @@ the originating rich-text row does not own or end the preview's lifetime.
 The empty viewer layer is already present in session layouts. It contains no
 iframe and performs no artifact requests, probes, polling, or grant creation
 until a user opens an artifact. Opening an existing grant URL consumes that URL
-directly; closing it does not revoke someone else's shared grant. A file viewer
-that creates its own grant retains its existing close-and-revoke contract.
+directly; closing it does not revoke the grant. File-viewer interactive previews
+also leave their borrowed grants valid until expiry so a copied URL or separate
+browser tab keeps working after the originating viewer closes.
+
+Artifact App iframes never freeze transcript projection or progressive
+hydration. The iframe may cover the transcript visually, but opening, parking,
+or closing it does not own session reconciliation.
 
 Only grant paths on the current source's configured, isolated artifact origins
 are handled. Other external links, public-share links, downloads, and modified

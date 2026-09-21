@@ -86,7 +86,7 @@ import {
 } from "../lib/sessionScrollCursor";
 import type { SessionRouteScrollSnapshot } from "../lib/sessionRouteSnapshots";
 import {
-  isSessionViewerOpen,
+  isSessionViewerTranscriptFrozen,
   useSessionViewerResumeRevision,
 } from "../lib/sessionViewerController";
 import {
@@ -2658,7 +2658,7 @@ export const MessageList = memo(function MessageList({
   const progressiveRenderPaused =
     inert ||
     progressiveRenderPauseSignal?.current === true ||
-    isSessionViewerOpen(sessionViewerSessionId);
+    isSessionViewerTranscriptFrozen(sessionViewerSessionId);
   const progressiveRenderCompactionActive =
     progressiveRenderPaused &&
     progressiveRenderPauseSignal?.supportsCompaction === true;
@@ -2888,7 +2888,7 @@ export const MessageList = memo(function MessageList({
     const timer = setTimeout(() => {
       if (
         progressiveRenderPauseSignal?.current ||
-        isSessionViewerOpen(sessionViewerSessionId)
+        isSessionViewerTranscriptFrozen(sessionViewerSessionId)
       ) {
         return;
       }
@@ -2900,7 +2900,7 @@ export const MessageList = memo(function MessageList({
         setProgressiveEntryCount((current) => {
           if (
             progressiveRenderPauseSignal?.current ||
-            isSessionViewerOpen(sessionViewerSessionId)
+            isSessionViewerTranscriptFrozen(sessionViewerSessionId)
           ) {
             return current;
           }
@@ -2939,7 +2939,7 @@ export const MessageList = memo(function MessageList({
     const timer = setTimeout(() => {
       if (
         progressiveRenderPauseSignal?.current ||
-        isSessionViewerOpen(sessionViewerSessionId)
+        isSessionViewerTranscriptFrozen(sessionViewerSessionId)
       ) {
         return;
       }

@@ -93,7 +93,7 @@ it("keeps a static preview when resolution fails and retries only on request", a
   await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
 });
 
-it("admits only after a successful probe and revokes on close", async () => {
+it("admits only after a successful probe and keeps the grant reusable", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
@@ -122,9 +122,7 @@ it("admits only after a successful probe and revokes on close", async () => {
     `${origin}/a/token/index.html`,
   );
   unmount();
-  expect(state.fetch).toHaveBeenLastCalledWith("/artifacts/grant", {
-    method: "DELETE",
-  });
+  expect(state.fetch).toHaveBeenCalledTimes(1);
 });
 
 it("never offers private grants in a public share", () => {

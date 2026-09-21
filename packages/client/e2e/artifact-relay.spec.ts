@@ -349,7 +349,7 @@ test("opens original interactive files through relay grants and a separate HTTPS
     .poll(
       async () => (await instance.artifactServer.app.request(grantUrl)).status,
     )
-    .toBe(404);
+    .toBe(200);
   expect(directGrantRequests).toEqual([]);
   expect(artifactRequests[0]?.path).toBe("/health");
   expect(
@@ -472,7 +472,7 @@ test("runs the generated YA mockup through the hosted relay viewer", async ({
     .poll(
       async () => (await instance.artifactServer.app.request(grantUrl)).status,
     )
-    .toBe(404);
+    .toBe(200);
   // Reproduce the stale localhost document policy, then exercise the real
   // top-level fallback without changing or weakening either origin's CSP.
   await page.evaluate(() => {
@@ -506,7 +506,7 @@ test("runs the generated YA mockup through the hosted relay viewer", async ({
       async () =>
         (await instance.artifactServer.app.request(fallbackUrl)).status,
     )
-    .toBe(404);
+    .toBe(200);
 });
 
 test("keeps the mobile session mounted through artifact open, park, and Back", async ({
