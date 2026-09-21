@@ -366,14 +366,50 @@ whole history. Preserve checkpoints needed by unsent comments when compacting;
 if a limit prevents further capture, show that limitation rather than silently
 dropping the setup required to reproduce an existing comment.
 
+**User-directed fidelity clarification, 2026-09-21:** generic artifacts need
+useful, fixed-pixel-dimension reproduction instructions. Exact source-level
+attribution and elegant semantic traces are optional capabilities of
+intentionally structured artifacts that prelabel generated objects in-band
+or out-of-band. Do not make arbitrary-artifact review depend on recovering
+source maps, application state or semantic object identities from pixels.
+Contributing-model: 6-Astra
+
+Use two additive levels:
+
+- **Generic reproduction recipe:** capture the exact artifact revision/entry,
+  starting route, inner content viewport width/height in CSS pixels, device
+  pixel ratio and resulting screenshot dimensions, browser zoom and artifact
+  zoom, scroll offsets, and available browser/environment facts. Record ordered
+  pointer coordinates relative to that viewport, key actions and observable
+  checkpoints, together with a screenshot of the commented state. Instructions
+  recreate the same content viewport, not merely the outer browser window or
+  right-pane width. Include explicit reset/setup and waits where known, plus
+  missing setup or nondeterministic inputs where not known. This is the
+  baseline even when no object/source metadata exists.
+- **Structured artifact enrichment:** stable generated-object/instance labels,
+  source spans/maps, semantic actions and state checkpoints replace brittle
+  coordinate steps where available. Accept inline DOM/SVG attributes, an
+  embedded object registry, or sidecar maps; canvas objects can expose hit
+  regions through the same convention. Labels alone improve target naming;
+  exact source and restorable state require their respective extra metadata.
+  Producers can adopt these capabilities incrementally.
+
+Aim for deterministic reproduction by fixing controllable dimensions and
+setup, but equal pixel dimensions alone cannot guarantee equal runtime state
+or pixels. Mark a recipe replay-verified only after testing it against the
+pinned build with its necessary inputs. If generic event capture is unavailable
+across the frame boundary, accept reviewer-supplied steps and identify that
+coverage; do not fabricate a trace. This does not block commenting.
+
 Example: load revision R → choose item A → open Actions → open Export submenu
-→ comment on the disabled SVG option. Capture the option's stable target and
-source span, the menu/selected-item state, and the actions reaching it. Closing
+→ comment on the disabled SVG option. Capture its screenshot/coordinates and
+the actions reaching it; add its stable target, source span and semantic
+menu/selected-item state when the artifact supplies them. Closing
 the menu afterwards must not orphan the comment or rewrite its description.
 Returning to the comment can show its captured state, or deliberately restore
 that state when safe; scrolling to a now-absent selector is insufficient.
 
-The proposed trace records a starting route/checkpoint, ordered semantic
+The enriched trace records a starting route/checkpoint, ordered semantic
 actions and outcomes, target/instance ids, relevant state transitions, and
 revision/source-map identity. Producer-provided hooks can expose menu state,
 selected records, component state or hit regions without guessing from DOM
@@ -402,9 +438,11 @@ session recording or browser automation authority follows from viewing an App.
 Extend the deciding trial with a menu/submenu target created only after
 interaction, two comments at different states, an asynchronous state change,
 and a new build. Verify both comments reach the session with their own frozen
-state, trace and source facts after the menu closes. Test a producer without
-state hooks too: it must report limited reproduction fidelity, not claim that
-the source span alone reproduces the state.
+state, recipe and available source facts after the menu closes. Test an
+unstructured artifact with fixed-dimension coordinate instructions and a
+structured artifact with object-labelled semantic steps against the same
+interaction. The generic case must remain useful without source metadata;
+the structured case must demonstrate its stronger attribution/reproduction.
 
 ## Bridge and optional new-tab return
 
@@ -487,7 +525,9 @@ The user answers a question, comments on a textless SVG part and a text passage,
 and completes the round in one turn to that session while preserving composer
 text. Focus changes never send. A new revision cannot misattribute old answers.
 Comments on transient menu states retain their captured state, reproduction
-steps and matching source facts after that UI disappears.
+steps at the recorded pixel dimensions and any available matching source facts
+after that UI disappears. Unstructured artifacts remain reviewable without
+semantic or source-map support.
 An exact source citation is required only when demonstrably mapped; otherwise
 the received context explicitly names the rendered element or visual region.
 
