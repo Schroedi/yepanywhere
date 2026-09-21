@@ -1,11 +1,15 @@
-# Quote and batch-comment on rendered session artifacts
+# Two-way, source-aware review rounds on session artifacts
 
 Status: actionable proposal, not implemented. Requested 2026-09-21.
 
 Let a user point at a session right-pane artifact, quote-reply or open a
 comment editor at that location, collect several comments, and explicitly
 submit the set to the originating session. Cover text and non-text targets,
-especially SVG. A separate browser tab may return to that session if cheap;
+especially SVG. The session can also send a revision-round proposal already
+annotated with questions, comments, suggestions, advance justifications and
+highlights for the user. The user answers those prompts and adds their own
+spatial comments within the same round. A separate browser tab may return to
+that session if cheap;
 right-pane-only is an acceptable first release. This is new capability, so it
 lives under sketches rather than asserting an existing contract is broken.
 
@@ -35,7 +39,7 @@ lives under sketches rather than asserting an existing contract is broken.
 YA inspection: 2026-09-21 working tree; relevant symbols above were checked
 against implementation. No runtime or browser acceptance trial was performed.
 
-## Plannotator suitability: trial before building another annotator
+## Plannotator suitability and alternative implementations
 
 Upstream inspected at
 [`8f2a8a81a384f1cd39c5f083d3c6fcd35a956422`](https://github.com/backnotprop/plannotator/tree/8f2a8a81a384f1cd39c5f083d3c6fcd35a956422).
@@ -48,10 +52,42 @@ This is source evidence, not proof that YA's installed binary has these APIs.
 | [`parser.ts`](https://github.com/backnotprop/plannotator/blob/8f2a8a81a384f1cd39c5f083d3c6fcd35a956422/packages/ui/utils/parser.ts) exports element context with feedback. | Preserve that context through YA submission; do not reduce comments to prose alone. |
 | [`@plannotator/ui` host documentation](https://github.com/backnotprop/plannotator/blob/8f2a8a81a384f1cd39c5f083d3c6fcd35a956422/packages/ui/README.md#raw-html-annotation-viewer-htmlviewer) describes reusable components and host seams. | A library adapter is a supported candidate, distinct from launching a CLI process per artifact. |
 
-**Recommendation:** first prove the library adapter on one HTML/SVG artifact.
-If it meets the acceptance checks below, use Plannotator exclusively for this
-new rendered-artifact comment UI. Keep YA's existing text-file quote/comment
-workflow.
+**Recommendation:** keep the artifact target/round interchange independent of
+the annotation UI. Trial the Plannotator library adapter against the complete
+two-way workflow below, not just user commenting. Exclusive use is conditional
+on that fit. A direct artifact-DOM implementation, a pinned fork, or selective
+design borrowing is also acceptable. Keep YA's existing text-file workflow.
+
+### Verified support and limits for session-authored prelabelling
+
+At the pinned revision above:
+
+- The [external annotations API](https://github.com/backnotprop/plannotator/blob/8f2a8a81a384f1cd39c5f083d3c6fcd35a956422/apps/marketing/src/content/docs/integrations/external-annotations-api.md)
+  accepts single or batched external annotations, including from AI tools,
+  alongside user annotations. It documents source badges and inclusion of
+  external annotations in submitted feedback. Thus incoming agent commentary
+  is supported; Plannotator is not limited to user-authored comments.
+- [Annotation types](https://github.com/backnotprop/plannotator/blob/8f2a8a81a384f1cd39c5f083d3c6fcd35a956422/packages/ui/types.ts)
+  carry `author`, `source`, `inReplyTo`, HTML anchors and element context.
+  [AnnotationPanel](https://github.com/backnotprop/plannotator/blob/8f2a8a81a384f1cd39c5f083d3c6fcd35a956422/packages/ui/components/AnnotationPanel.tsx)
+  groups replies and displays authors. These are useful building blocks for
+  a question and its answer, not proof of a complete revision-round protocol.
+- Distinct agent-versus-user border/background/highlight styling is **not
+  established** by this inspection. The inspected panel styles selection and
+  annotation type; author text alone does not meet the requested distinction.
+  Verify both cards and spatial marks in the adapter trial.
+- The pinned [plan-input transformer](https://github.com/backnotprop/plannotator/blob/8f2a8a81a384f1cd39c5f083d3c6fcd35a956422/packages/core/external-annotation.ts)
+  does not copy HTML anchors or `inReplyTo` into its constructed POST records,
+  although the UI types and patch validators expose richer fields. Do not
+  assume an external-API POST round-trips the library's annotation shape.
+  Direct library props are a separate path; recheck any newer pin explicitly.
+
+Conclusion: **partial support, worth testing**, not a reason to constrain the
+artifact protocol. No verified end-to-end support yet for the requested
+authorship styling, question completion semantics and YA session delivery.
+If these require awkward adaptation, bypass Plannotator for authored artifacts
+or use a narrowly maintained fork. Reuse designs or selected components where
+helpful; copied source follows the pinned-vendoring and license requirements.
 
 **User-directed dependency decision, 2026-09-21:** a Plannotator dependency is
 acceptable for this opt-in feature. Do not reopen that decision or build a
@@ -100,9 +136,89 @@ API, and return to the launching tool is not the same as a new session turn.
 Do not both deliver CLI feedback and inject a duplicate YA message. Generic
 viewed artifacts should not require an agent to start a blocking review tool.
 
-If the library trial fails, record the concrete failed criterion. Reuse YA's
-editor/draft primitives with a small artifact target adapter; do not reproduce
-Plannotator's full UI or broadly rewrite HTML with regexes.
+If the library trial fails, record the concrete failed criterion and choose
+between the direct DOM route below, a narrow fork, and selective component or
+design reuse. Reuse YA's editor/draft primitives where appropriate. Avoid a
+full parity rewrite without a demonstrated need or regex HTML rewriting.
+
+## Session-authored proposal rounds and user responses
+
+**User-directed scope clarification, 2026-09-21:** these are questions,
+comments and suggestions directed **by the originating session to the user**
+as it presents a revision-round proposal. They include advance justifications
+and highlights, not only spatially located user feedback. An optional producer
+skill generates the prelabelling. It is not a required step for ordinary
+artifact viewing, and this plan does not create or install that skill yet.
+Contributing-model: 6-Astra
+
+Proposed interchange adds a round id, artifact revision, optional previous
+round id, and ordered annotations with stable ids, target ids, author role
+(`agent` or `user`), kind (`question`, `suggestion`, `justification`, `comment`,
+`highlight`), body, and optional reply-to id. Display-name provenance is
+separate from role. The trusted host associates the round with its originating
+session; an artifact cannot grant itself a destination or impersonate a user.
+
+The producer skill supplies meaningful target ids and source mappings, asks
+specific questions, and labels rationale or emphasis as such. It declares
+which questions expect answers; commentary and highlights require no answer.
+Empty prelabelling is valid. The viewer neither invents questions nor runs an
+agent to populate the surface. This is a concrete artifact-review use case;
+it does not unbank the broader [rich interviews](../../topics/rich-interviews.md)
+proposal or require its general form/interview engine.
+
+Agent annotations and user annotations differ visibly in border/background
+and spatial highlight style, with text/icon role labels so color is not the
+only signal. Preserve the distinction in dark/light themes and touch layouts.
+A user answer is a new user record linked to the agent question; it does not
+overwrite the question or silently convert an agent suggestion into user
+approval. Allow free comments, explicit answers, and explicit accept/reject
+responses where the producer offers suggestions. Unanswered, skipped and
+answered questions remain distinguishable; skip is not acceptance.
+
+Round completion submits the user's responses with enough frozen question,
+target and revision context for the session to understand them. Do not export
+all prelabels as if they were new user instructions. Preserve role attribution
+when including rationale or agent text as context. New proposal rounds have
+new identities: keep previous responses associated with their original
+revision, and offer explicit carry-forward rather than reattaching silently.
+
+Default delivery remains **Send responses/comments** for the entire round.
+Also support a declared **send-on-complete** mode, visibly chosen by the user:
+the explicit Done/Complete action sends once to the bound session. Completion
+is not blur, typing the last character, closing the viewer, or a producer-fired
+DOM event. A producer may request the mode but cannot send unapproved drafts.
+For intentional per-comment immediate delivery, label the editor action
+**Send comment** and mark that item delivered so later batch completion cannot
+send it twice. Draft hooks and completion hooks share the same YA delivery
+owner and snapshot/failure semantics as the batch workflow.
+
+## Direct artifact DOM convention and gradual producer support
+
+Authored HTML/SVG can carry the mapping and annotation attachment points
+directly, rather than relying on reverse inference. Candidate convention:
+an element has a stable target id, a bounded inline source span or reference
+to a source-map entry, and annotation ids that resolve to declarative records
+in embedded JSON or a sidecar. A shared review runtime decorates those targets
+and connects user drafts, replies and completion actions to the host bridge.
+The names/schema need a prototype; this is not yet a published wire format.
+Prefer data records and a small shared adapter over custom executable handlers
+on every element. Hooks request actions; they contain no session credentials.
+
+Gradual onramp, each useful independently:
+
+1. Ordinary artifact: existing view and whole-document comment context.
+2. Target ids/source spans: precise quoting and click-to-comment, including SVG.
+3. Agent annotation records: prelabelled questions, suggestions and rationale
+   with role-distinct markers and user replies.
+4. Round metadata/completion hooks: retained drafts, response batching and
+   explicit send-on-complete to the originating session.
+5. Optional richer hit regions, source-map chaining and revision carry-forward.
+
+Producer effort can be small because each level is declarative and the shared
+runtime supplies interaction. Plannotator-level behavior is not free: anchor
+restoration, accessible editors, rendering isolation, delivery correctness and
+revision handling still need implementation and tests. Compare actual adapter
+complexity on one fixture; do not pursue parity as an end in itself.
 
 ## Intended interaction and submission
 
@@ -159,7 +275,7 @@ Plannotator's own HTML-to-source inference.
 Contributing-model: 6-Astra
 
 For generated artifacts, emit stable target ids on HTML/SVG elements or
-semantic groups and a versioned sidecar mapping each id to the original
+semantic groups and versioned inline or sidecar metadata mapping each id to the original
 source path, content hash, offsets or line/column range, and optional semantic
 label. Keep generated-output spans distinct from original authoring spans.
 Record repeated-instance identity separately from the shared template span.
@@ -230,9 +346,12 @@ explicitly deferred. Mere artifact possession is never submission authority.
    native interactions while disabled. Include a generated target id and
    sidecar span, proving that a Plannotator selection resolves back to the
    original source independently of its own source inference. Check actual
-   installed/published APIs;
-   preserve a small feedback specimen without private content. Decide library
-   versus YA adapter from evidence before integrating production code.
+   installed/published APIs and preserve a small feedback specimen without
+   private content. Preload an
+   agent question, suggestion, justification and highlight; answer and add a
+   user comment. Verify role styling on both targets and cards, reply ids and
+   lossless source mapping. Compare the library path with the minimal authored
+   DOM convention; choose library, narrow fork or direct adapter from evidence.
 2. **Connect the session review set.** Add the opt-in action at the managed
    viewer boundary, a captured-target adapter, and explicit draft/set state.
    Reuse `ReviewCommentEditor`, snapshot-clearing logic and
@@ -253,14 +372,20 @@ explicitly deferred. Mere artifact possession is never submission authority.
    current behavior. Inspect 1200×600 and 375×812 captures through the artifact
    capture facility. Sequential typing in both comment editor and main composer
    during a 240-message live session must lose no keystrokes and acknowledge
-   each within 100 ms. Run normal client/server checks for the changed paths.
+   each within 100 ms. Verify agent prelabels are never submitted as user
+   approval, skipped questions remain skipped, and old-round replies never
+   migrate silently. Exercise both batch submission and user-chosen explicit
+   send-on-complete, including immediate-item deduplication. Run normal
+   client/server checks for the changed paths.
 5. **Try the tab wrapper only if cheap.** Prove reload and Back to session on
    the same authenticated YA source, plus opener-closed behavior. Otherwise
    record it as deferred; it does not block right-pane acceptance.
 
-Done means a user can point to a textless SVG part and a text passage, add
-two comments without sending on focus changes, then submit one turn containing
-both useful anchors to the originating session while preserving composer text.
+Done means the originating session presents a revision with spatially attached
+questions, suggestions and commentary; agent and user marks are distinguishable.
+The user answers a question, comments on a textless SVG part and a text passage,
+and completes the round in one turn to that session while preserving composer
+text. Focus changes never send. A new revision cannot misattribute old answers.
 An exact source citation is required only when demonstrably mapped; otherwise
 the received context explicitly names the rendered element or visual region.
 
