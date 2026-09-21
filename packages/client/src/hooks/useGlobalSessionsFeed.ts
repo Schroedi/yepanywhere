@@ -27,6 +27,7 @@ import { acquireClientQueryBootstrapSlot } from "../lib/clientQueryBootstrap";
 import {
   createClientQueryKey,
   ensureClientQuery,
+  getClientQueryState,
   invalidateClientQuery,
   retainClientQuery,
 } from "../lib/clientQueryController";
@@ -55,13 +56,15 @@ import { useRetainedVersionInfo } from "./useVersion";
 
 const REFETCH_DEBOUNCE_MS = 500;
 /**
- * Reconnect is the only event the owner reacts to on its own. The rest arrive
- * through `useFileActivity` because this feed patches its collection from the
- * event before deciding whether a refetch is even needed, and that patch is
- * per-query bookkeeping rather than a revalidation.
+ * Reconnect and visibility restoration can both follow a window in which this
+ * client missed session events. The rest arrive through `useFileActivity`
+ * because this feed patches its collection from the event before deciding
+ * whether a refetch is even needed, and that patch is per-query bookkeeping
+ * rather than a revalidation.
  */
 const GLOBAL_SESSIONS_REVALIDATE_EVENTS = [
   "reconnect",
+  "refresh",
   "session-catalog-updated",
 ] as const;
 const GLOBAL_SESSIONS_DEFAULT_LIMIT = 100;
@@ -773,13 +776,22 @@ export function useGlobalSessionsFeed(
         slot.settle();
         return;
       }
-      void fetch().finally(() => slot.settle());
+      // A query with no other retainer may have been inactive while another
+      // device created sessions. Its time-based freshness only describes the
+      // last local request, not whether events were observed while inactive,
+      // so validate against the server's collection generation on activation.
+      // Later consumers of an already-retained query reuse its live coverage.
+      const firstRetainer =
+        getClientQueryState(sourceKey, queryKey)?.retainedCount === 1;
+      void fetch(firstRetainer ? { force: true } : undefined).finally(() =>
+        slot.settle(),
+      );
     });
     return () => {
       cancelled = true;
       slot.settle();
     };
-  }, [fetch, ready, sourceKey]);
+  }, [fetch, queryKey, ready, sourceKey]);
 
   const catalogState = catalogLoadState(
     queryState?.catalog,

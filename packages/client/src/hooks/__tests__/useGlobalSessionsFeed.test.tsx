@@ -475,8 +475,9 @@ describe("useGlobalSessionsFeed", () => {
 
     const metrics = getQueryRevalidationMetrics();
     expect(metrics.subscribers).toBe(3);
-    // One listener per event (reconnect and catalog publication), shared by all mounts.
-    expect(metrics.eventSubscriptions).toBe(2);
+    // One listener per event (reconnect, visibility restore, and catalog
+    // publication), shared by all mounts.
+    expect(metrics.eventSubscriptions).toBe(3);
 
     const requestsBefore = mocks.getGlobalSessions.mock.calls.length;
     vi.useFakeTimers();
@@ -520,6 +521,63 @@ describe("useGlobalSessionsFeed", () => {
     );
     expect(states.length).toBeGreaterThan(0);
     expect(states.filter((state) => state.stale)).toEqual([]);
+  });
+
+  it("revalidates cached rows when the feed becomes active again", async () => {
+    mocks.versionInfo.mockReturnValue({
+      capabilities: [PROGRESSIVE_SESSION_CATALOG_CAPABILITY],
+    });
+    mocks.getGlobalSessions
+      .mockResolvedValueOnce(
+        globalSessionsResponse(["session-a"], { generation: 7 }),
+      )
+      .mockResolvedValueOnce(
+        globalSessionsResponse(["session-b", "session-a"], { generation: 8 }),
+      );
+
+    const feed = renderHook(
+      ({ enabled }) => useFeedWithRecords({ enabled, limit: 50 }),
+      { initialProps: { enabled: true } },
+    );
+    await waitFor(() => expect(feed.result.current.records).toHaveLength(1));
+
+    feed.rerender({ enabled: false });
+    feed.rerender({ enabled: true });
+
+    await waitFor(() =>
+      expect(feed.result.current.records.map((record) => record.id)).toEqual([
+        "session-b",
+        "session-a",
+      ]),
+    );
+    expect(mocks.getGlobalSessions).toHaveBeenCalledTimes(2);
+    expect(mocks.getGlobalSessions.mock.calls[1]?.[0]).toMatchObject({
+      knownGeneration: 7,
+    });
+  });
+
+  it("revalidates cached rows when a backgrounded client becomes visible", async () => {
+    mocks.getGlobalSessions
+      .mockResolvedValueOnce(globalSessionsResponse(["session-a"]))
+      .mockResolvedValueOnce(
+        globalSessionsResponse(["session-b", "session-a"]),
+      );
+
+    const feed = renderHook(() => useFeedWithRecords({ limit: 50 }));
+    await waitFor(() => expect(feed.result.current.records).toHaveLength(1));
+
+    vi.useFakeTimers();
+    await act(async () => {
+      activityBus.emitLocal("refresh", undefined as never);
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    vi.useRealTimers();
+
+    expect(feed.result.current.records.map((record) => record.id)).toEqual([
+      "session-b",
+      "session-a",
+    ]);
+    expect(mocks.getGlobalSessions).toHaveBeenCalledTimes(2);
   });
 });
 

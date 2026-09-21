@@ -130,6 +130,10 @@ test("sidebar follows user sends while visits and background work stay put", asy
       { name: "desktop", width: 1000, height: 600 },
       { name: "phone", width: 375, height: 812 },
     ]) {
+      const resetRow = rows.find((row) => row.id === "sidebar-c");
+      if (!resetRow) throw new Error("Missing sidebar-c fixture row");
+      resetRow.title = "Session C";
+      resetRow.fullTitle = "Session C";
       await page.setViewportSize(viewport);
       activityListeners.length = 0;
       await page.goto(`${origin}/projects/${projectId}/sessions/sidebar-a`);
@@ -163,6 +167,10 @@ test("sidebar follows user sends while visits and background work stay put", asy
         localStorage.getItem("yep-sidebar-interactions:local"),
       );
       await expect.poll(() => activityListeners.length).toBeGreaterThan(0);
+      const updatedRow = rows.find((row) => row.id === "sidebar-c");
+      if (!updatedRow) throw new Error("Missing sidebar-c fixture row");
+      updatedRow.title = "Session C updated";
+      updatedRow.fullTitle = "Session C updated";
       for (const emit of activityListeners) {
         emit("process-state-changed", {
           type: "process-state-changed",
@@ -247,7 +255,11 @@ test("sidebar follows user sends while visits and background work stay put", asy
       await page
         .getByRole("button", { name: "Open sidebar", exact: true })
         .click();
-      await expect(titles).toHaveText(["Session B", "Session A", "Session C"]);
+      await expect(titles).toHaveText([
+        "Session B",
+        "Session A",
+        "Session C updated",
+      ]);
     }
     expect(errors).toEqual([]);
   } finally {

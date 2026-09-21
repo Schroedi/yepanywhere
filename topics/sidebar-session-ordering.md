@@ -74,8 +74,11 @@ under the existing duplicate-hiding contract. `useHeldSidebarLists` holds layout
 identities independently of fresh row data.
 
 A minimized desktop sidebar or closed mobile sidebar still releases its feed
-interest under the existing sidebar-feed contract. Interaction tracking adds
-no server demand.
+interest under the existing sidebar-feed contract. When that feed becomes
+active again, it validates its cached membership against the server collection
+generation so sessions created while hidden appear without a project/search
+detour. Returning a connected tab from the background performs the same
+validation. Interaction tracking itself adds no server demand.
 
 ## Design decisions
 
