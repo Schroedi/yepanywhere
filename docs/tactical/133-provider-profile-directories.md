@@ -219,6 +219,29 @@ login flow. Update `docs/development/local-development.md`, whose
   session's profile root.
 - [`gaps/sandbox-harness-instruction-read-access.md`](../../gaps/sandbox-harness-instruction-read-access.md)
   concerns the same sandbox seed copy that step 2 reroutes.
+- [`topics/session-sandboxing.md`](../../topics/session-sandboxing.md) owns
+  the private per-session `CLAUDE_CONFIG_DIR` and `CODEX_HOME` the sandbox
+  already bootstraps, including symlink anchoring. Step 2 changes only the
+  seed source of that bootstrap; the contract for the private tree stays.
+- [`gaps/sketches/virgin-new-session-option.md`](../../gaps/sketches/virgin-new-session-option.md)
+  sketches a YA-owned `CODEX_HOME` replica and a second Codex scanner root.
+  Step 3's settings-derived root list should absorb that need rather than
+  adding a special-cased root, and the sketch's symlink-sessions-back
+  alternative is rejected here for the same reasons as the shadow home.
+- [`topics/gateway-services.md`](../../topics/gateway-services.md) exports
+  `ya-<id>.settings.json` and `ya-<id>.config.toml` into the Claude config
+  dir and Codex home. Decide in step 1 whether the export targets every
+  enabled profile or documents itself as default-profile only; the plan
+  leans to every enabled profile so a work-profile session can use the same
+  gateway services.
+- [`topics/ya-env-vars.md`](../../topics/ya-env-vars.md) documents
+  `CLAUDE_CONFIG_DIR`; its row becomes the description of the default
+  profile in step 6.
+- [`docs/tactical/119-managed-ssh-executor-baseline.md`](119-managed-ssh-executor-baseline.md)
+  keeps a workspace-owned `CODEX_HOME` authoritative on remote targets,
+  which is why the selector is hidden for SSH executors in the first version.
+- `docs/competitive/bb.md` records bb's experimental account pooler with
+  rotation on limits. That automatic behavior is what this plan rejects.
 - Prior art: t3code "provider instances" (`docs/competitive/t3code.md`).
   Adopted from it: per-instance display name and accent color, account
   identity from the SDK init message, scanner deduplication by directory
