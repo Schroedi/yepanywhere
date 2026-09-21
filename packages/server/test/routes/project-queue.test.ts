@@ -277,12 +277,22 @@ describe("Project Queue Routes", () => {
       ),
     };
 
-    const routes = createGlobalRoutes({ projectQueueScheduler });
+    const routes = createGlobalRoutes({
+      projectQueueScheduler,
+      sessionMetadataService: {
+        getMetadata: vi.fn((sessionId: string) =>
+          sessionId === "session-1"
+            ? { customTitle: "Active repair session" }
+            : undefined,
+        ),
+      } as unknown as SessionMetadataService,
+    });
     const listResponse = await routes.request("/");
     const listBody = await listResponse.json();
     expect(listBody.projectStatuses[projectId]).toMatchObject({
       state: "blocked",
       blockers: ["session-1:in-turn"],
+      blockerSessionTitles: { "session-1": "Active repair session" },
       nextItemId: item.id,
     });
 

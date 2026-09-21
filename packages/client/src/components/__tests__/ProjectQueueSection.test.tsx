@@ -492,12 +492,46 @@ describe("ProjectQueueSection", () => {
       { [PROJECT_ID]: makeProjectStatus("blocked") },
     );
 
-    expect(screen.getByText(/Waiting because: session- in turn/)).toBeTruthy();
+    expect(
+      document.querySelector(`.${styles.itemReadiness}`)?.textContent,
+    ).toBe("Waiting because: session- in turn");
     fireEvent.click(screen.getByRole("button", { name: "Force start" }));
 
     expect(handlers.onPromoteNow).toHaveBeenCalledWith("project-1", "1", {
       force: true,
     });
+  });
+
+  it("groups same-session blockers and links the session title", () => {
+    renderSection(
+      [makeItem("1")],
+      undefined,
+      undefined,
+      { status: "running" },
+      [],
+      {
+        [PROJECT_ID]: makeProjectStatus("blocked", {
+          blockers: [
+            "readiness:Waiting for readiness check",
+            "01a0c5c3-full-session-id:in-turn",
+            "01a0c5c3-full-session-id:liveness-verified-progressing",
+          ],
+          blockerSessionTitles: {
+            "01a0c5c3-full-session-id": "Repair publish verification",
+          },
+        }),
+      },
+    );
+
+    const readiness = document.querySelector(`.${styles.itemReadiness}`)!;
+    expect(readiness.textContent).toBe(
+      "Waiting because: Waiting for readiness check; 01a0c5c3 in turn; liveness verified-progressing; Repair publish verification",
+    );
+    expect(
+      screen
+        .getByRole("link", { name: "Repair publish verification" })
+        .getAttribute("href"),
+    ).toBe(`/projects/${PROJECT_ID}/sessions/01a0c5c3-full-session-id`);
   });
 
   it("shows the external readiness caption without interpreting its colons", () => {
@@ -514,8 +548,8 @@ describe("ProjectQueueSection", () => {
       },
     );
     expect(
-      screen.getByText("Waiting because: Editing parser: updating tests"),
-    ).toBeTruthy();
+      document.querySelector(`.${styles.itemReadiness}`)?.textContent,
+    ).toBe("Waiting because: Editing parser: updating tests");
   });
 
   it("highlights a linked queue item", () => {

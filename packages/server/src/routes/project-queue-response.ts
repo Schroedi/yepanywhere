@@ -238,6 +238,22 @@ async function resolveProjectForQueueItem(
   return projectPromise;
 }
 
+async function resolveProjectById(
+  projectId: string,
+  deps: ProjectQueueTitleDeps,
+  projectCache: Map<string, Promise<Project | null>>,
+): Promise<Project | null> {
+  if (!deps.scanner) return null;
+  let projectPromise = projectCache.get(projectId);
+  if (!projectPromise) {
+    projectPromise = isUrlProjectId(projectId)
+      ? deps.scanner.getOrCreateProject(projectId).catch(() => null)
+      : Promise.resolve(null);
+    projectCache.set(projectId, projectPromise);
+  }
+  return projectPromise;
+}
+
 async function enrichGlobalProjectQueueItems(
   items: ProjectQueueItemSummary[],
   deps: GlobalProjectQueueRoutesDeps,
@@ -259,17 +275,76 @@ async function enrichGlobalProjectQueueItems(
 
 async function projectStatusesForIds(
   projectIds: Iterable<string>,
-  deps: Pick<
-    GlobalProjectQueueRoutesDeps | ProjectQueueRoutesDeps,
-    "projectQueueScheduler"
-  >,
+  deps: GlobalProjectQueueRoutesDeps | ProjectQueueRoutesDeps,
 ): Promise<Record<string, ProjectQueueProjectStatus> | undefined> {
   const scheduler = deps.projectQueueScheduler;
   if (!scheduler) return undefined;
   const statuses: Record<string, ProjectQueueProjectStatus> = {};
+  const projectCache = new Map<string, Promise<Project | null>>();
   for (const projectId of new Set(projectIds)) {
     if (!isUrlProjectId(projectId)) continue;
-    statuses[projectId] = await scheduler.getProjectStatus(projectId);
+    const status = await scheduler.getProjectStatus(projectId);
+    const sessionIds = new Set(
+      status.blockers.flatMap((blocker) => {
+        const separator = blocker.indexOf(":");
+        if (separator <= 0) return [];
+        const reason = blocker.slice(separator + 1);
+        return reason === "in-turn" ||
+          reason === "waiting-input" ||
+          reason === "provider-retained" ||
+          reason === "direct-queue" ||
+          reason === "deferred-queue" ||
+          reason === "pending-input" ||
+          reason === "user-starting" ||
+          reason === "automation-paused" ||
+          reason === "external" ||
+          reason.startsWith("liveness-")
+          ? [blocker.slice(0, separator)]
+          : [];
+      }),
+    );
+    if (sessionIds.size > 0 && hasDisplayMetadataDeps(deps)) {
+      const project =
+        deps.scanner && hasTitleResolutionDeps(deps)
+          ? await resolveProjectById(projectId, deps, projectCache)
+          : null;
+      const blockerSessionTitles: Record<string, string> = {};
+      await Promise.all(
+        [...sessionIds].map(async (sessionId) => {
+          let summary: {
+            title?: string | null;
+            fullTitle?: string | null;
+          } | null = null;
+          if (project && hasTitleResolutionDeps(deps)) {
+            try {
+              summary =
+                (
+                  await findSessionListSummaryAcrossProviders(
+                    project,
+                    sessionId,
+                    project.id,
+                    buildProviderResolutionDeps(deps),
+                  )
+                )?.summary ?? null;
+            } catch {
+              // Persisted custom titles still provide a useful fallback.
+            }
+          }
+          const title = resolveTargetTitles(
+            sessionId,
+            summary,
+            deps,
+          ).targetTitle;
+          if (title) {
+            blockerSessionTitles[sessionId] = title;
+          }
+        }),
+      );
+      if (Object.keys(blockerSessionTitles).length > 0) {
+        status.blockerSessionTitles = blockerSessionTitles;
+      }
+    }
+    statuses[projectId] = status;
   }
   return statuses;
 }

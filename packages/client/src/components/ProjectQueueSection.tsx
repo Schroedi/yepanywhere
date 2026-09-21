@@ -5,7 +5,13 @@ import type {
   ProjectQueueProjectStatus,
   ProjectQueueRecoveredSessionQueueSummary,
 } from "@yep-anywhere/shared";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Link } from "react-router-dom";
 import { useI18n } from "../i18n";
 import type { Project } from "../types";
@@ -171,19 +177,106 @@ function summarizeBlockers(blockers: readonly string[], t: Translate): string {
   return formatted.join("; ");
 }
 
+function sessionBlockerReason(reason: string, t: Translate): string {
+  switch (reason) {
+    case "in-turn":
+      return t("projectQueueBlockerReasonInTurn");
+    case "waiting-input":
+      return t("projectQueueBlockerReasonWaitingInput");
+    case "provider-retained":
+      return t("projectQueueBlockerReasonProviderRetained");
+    case "direct-queue":
+      return t("projectQueueBlockerReasonDirectQueue");
+    case "deferred-queue":
+      return t("projectQueueBlockerReasonDeferredQueue");
+    case "pending-input":
+      return t("projectQueueBlockerReasonPendingInput");
+    case "user-starting":
+      return t("projectQueueBlockerReasonUserStarting");
+    case "external":
+      return t("projectQueueBlockerReasonExternal");
+    default:
+      return reason.startsWith("liveness-")
+        ? t("projectQueueBlockerReasonLiveness", {
+            status: reason.slice("liveness-".length),
+          })
+        : reason;
+  }
+}
+
+function blockerNodes(
+  status: ProjectQueueProjectStatus,
+  basePath: string,
+  t: Translate,
+): ReactNode[] {
+  const result: ReactNode[] = [];
+  const sessions = new Map<string, string[]>();
+  for (const blocker of status.blockers.slice(0, 3)) {
+    const separator = blocker.indexOf(":");
+    const sessionId = separator > 0 ? blocker.slice(0, separator) : "";
+    const reason = separator > 0 ? blocker.slice(separator + 1) : "";
+    if (
+      sessionId &&
+      (status.blockerSessionTitles?.[sessionId] ||
+        reason === "in-turn" ||
+        reason === "waiting-input" ||
+        reason.startsWith("liveness-"))
+    ) {
+      const reasons = sessions.get(sessionId) ?? [];
+      reasons.push(sessionBlockerReason(reason, t));
+      sessions.set(sessionId, reasons);
+    } else {
+      result.push(formatProjectQueueBlocker(blocker, t));
+    }
+  }
+  for (const [sessionId, reasons] of sessions) {
+    const title = status.blockerSessionTitles?.[sessionId];
+    result.push(
+      <span key={sessionId}>
+        {shortSessionId(sessionId)} {reasons.join("; ")}
+        {title && (
+          <>
+            {"; "}
+            <Link
+              to={`${basePath}/projects/${status.projectId}/sessions/${sessionId}`}
+            >
+              {title}
+            </Link>
+          </>
+        )}
+      </span>,
+    );
+  }
+  if (status.blockers.length > 3) {
+    result.push(
+      t("projectQueueBlockerMore", { count: status.blockers.length - 3 }),
+    );
+  }
+  return result;
+}
+
 function readinessLabel(
   status: ProjectQueueProjectStatus | undefined,
   nowMs: number,
+  basePath: string,
   t: Translate,
-): string | null {
+): ReactNode {
   if (!status) return null;
   switch (status.state) {
     case "paused":
       return t("projectQueueReadinessPaused");
     case "blocked":
-      return t("projectQueueReadinessBlocked", {
-        blockers: summarizeBlockers(status.blockers, t),
-      });
+      return (
+        <>
+          {t("projectQueueReadinessBlockedPrefix")}{" "}
+          {blockerNodes(status, basePath, t).map((blocker, index) => (
+            <span key={typeof blocker === "string" ? blocker : index}>
+              {index > 0 && "; "}
+              {blocker}
+            </span>
+          ))}
+        </>
+      );
     case "waiting-quiet": {
       const eligibleAt = status.quietEligibleAt
         ? new Date(status.quietEligibleAt).getTime()
@@ -583,7 +676,12 @@ export function ProjectQueueSection({
                     item.status === "queued" || item.status === "failed";
                   const projectStatus =
                     projectStatusesByProject[item.projectId];
-                  const readiness = readinessLabel(projectStatus, nowMs, t);
+                  const readiness = readinessLabel(
+                    projectStatus,
+                    nowMs,
+                    basePath,
+                    t,
+                  );
                   const blockerSummary = projectStatus
                     ? summarizeBlockers(projectStatus.blockers, t)
                     : "";

@@ -101,9 +101,9 @@ before one Project Queue item may promote.
 Queue status must be server-computed. Project Queue responses expose each
 project's scheduler state (`blocked`, `waiting-quiet`, `ready`, `dispatching`,
 `paused`, or `empty`), the configured quiet window, the next eligible timestamp,
-and raw blocker strings. The client may format that state as "waiting for quiet"
-or "blocked by ..." copy, but it must not infer idleness from stale local
-session rows.
+raw blocker strings, and resolved display titles for blocker sessions when
+available. The client may format that state as "waiting for quiet" or "blocked
+by ..." copy, but it must not infer idleness from stale local session rows.
 
 Blocked automatic attempts must stay live. If a quiet-window timer fires while
 absolute blockers remain, the scheduler keeps a bounded retry armed while
@@ -255,6 +255,11 @@ Hosted remote clients must additionally require the current remote
 compatibility generation, because early Project Queue-capable source checkouts
 predate the compatibility marker and can expose partial Project Queue behavior
 to newer hosted clients.
+
+Blocked status groups reasons that name the same session so its short id is
+shown once. The group ends with the session's display title as a link to that
+session when the server supplied one; older servers retain the short-id-only
+fallback.
 
 After restart-paused dispatch, each queued new-session row in the sidebar's
 Pending Sessions section exposes a compact Resume control. It atomically

@@ -49,6 +49,8 @@ export interface ProjectQueueProjectStatus {
   state: ProjectQueueProjectState;
   idle: boolean;
   blockers: string[];
+  /** Display titles for session ids named by blockers, when resolvable. */
+  blockerSessionTitles?: Record<string, string>;
   dispatchPaused: boolean;
   inFlight: boolean;
   quietWindowMs: number;
