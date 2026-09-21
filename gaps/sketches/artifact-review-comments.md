@@ -150,11 +150,37 @@ provider text; those are credentials, not durable source citations.
 Distinguish **exact source**, **rendered element**, and **visual region** in
 the review UI and submitted context. A DOM selector is not a source map.
 
+**User-directed mapping direction, 2026-09-21:** prefer source mappings emitted
+when generating artifacts under our control over reconstructing source from
+rendered HTML. Plannotator can own target selection and comment editing while
+YA resolves the selected target through artifact-authored metadata. Source
+maps are allowed in either integration; exact mapping need not depend on
+Plannotator's own HTML-to-source inference.
+Contributing-model: 6-Astra
+
+For generated artifacts, emit stable target ids on HTML/SVG elements or
+semantic groups and a versioned sidecar mapping each id to the original
+source path, content hash, offsets or line/column range, and optional semantic
+label. Keep generated-output spans distinct from original authoring spans.
+Record repeated-instance identity separately from the shared template span.
+The annotation adapter must preserve the target id through selection and
+submission; prove this seam rather than assuming Plannotator exports arbitrary
+attributes. The resolver may follow build source maps where a generated-code
+location is available, but still needs the element-to-code association.
+
+The mapping belongs to the artifact-generation/export step, travels with the
+artifact and describes that exact build. Treat paths as references subject to
+existing file-access checks, never new authority to read files. Keep metadata
+bounded, and do not ship private source contents merely to supply locations.
+For imported artifacts without metadata, use parser alignment when reliable,
+then rendered-element or visual-region context. This fallback does not reduce
+the fidelity available for artifacts we generate.
+
 | Content | Capture and mapping plan |
 | --- | --- |
 | Text/Markdown/source | Reuse aligned source offsets, quote and nearby lines from the current selection machinery. Preserve repeated-text disambiguation. |
-| Static HTML or inline SVG | Hit-test inside the cooperating frame; prefer semantic element/id, enclosing group, label and a bounded element outline. A parser with source offsets can associate nodes of the original immutable document with exact HTML/SVG spans. Instrument only the review copy or use a sidecar map; never edit the author's file. |
-| Script-generated DOM/SVG | Capture rendered context first. Use explicit author/build metadata for source locations only when resolvable and validated against the loaded revision. A runtime node or React component name alone does not identify its authoring line. |
+| Static HTML or inline SVG | Hit-test inside the cooperating frame and resolve emitted target ids through the generation-time map first. Otherwise use semantic element/id, enclosing group, label and a bounded outline; a source-offset parser may map the original immutable document. Instrument only generated artifacts or the review copy; never rewrite an imported author's file. |
+| Script-generated DOM/SVG | Prefer emitted author/build metadata, validated against the loaded revision, with target ids preserved across runtime creation. Otherwise capture rendered context. A runtime node or React component name alone does not identify its authoring line. |
 | SVG loaded through an image element | The outer page sees the image, not its internal paths. Annotate a normalized region initially; exact SVG targets need a dedicated isolated SVG document view or an author-supplied mapping. Handle transforms, viewBox, nested groups and use/instance ambiguity. |
 | Raster image, canvas or WebGL | Store region coordinates in intrinsic content space plus dimensions and a retained crop/snapshot when supported. Canvas pixels have no generic mapping back to drawing-source code; require explicit hit-region metadata for exact source attribution. |
 | Uncooperative external app or inaccessible nested frame | Offer whole-artifact context or an explicit screenshot-region workflow. Do not pretend parent listeners can inspect its DOM. |
@@ -201,7 +227,10 @@ explicitly deferred. Mere artifact possession is never submission authority.
 1. **Prove the annotation adapter.** Isolated fixture with selectable text,
    textless inline SVG, a relative asset/module and a dynamic target. Exercise
    Plannotator callbacks, returned context, loaded-version compatibility and
-   native interactions while disabled. Check actual installed/published APIs;
+   native interactions while disabled. Include a generated target id and
+   sidecar span, proving that a Plannotator selection resolves back to the
+   original source independently of its own source inference. Check actual
+   installed/published APIs;
    preserve a small feedback specimen without private content. Decide library
    versus YA adapter from evidence before integrating production code.
 2. **Connect the session review set.** Add the opt-in action at the managed
@@ -210,10 +239,12 @@ explicitly deferred. Mere artifact possession is never submission authority.
    `SessionViewerCommentContext` where their contracts fit. Do not reuse the
    existing auto-flush lifecycle. Prove text quote reply and one batch of mixed
    text/element comments to the correct session before adding exact SVG maps.
-3. **Add source mapping and honest degradation.** Test static SVG source spans,
-   duplicate text, dynamic nodes, image SVG, transformed geometry, reload and
-   unresolved anchors. Preserve frozen context on source edits. Prove a useful
-   comment still reaches the agent when exact source mapping is impossible.
+3. **Add generation-time mapping and imported-artifact fallback.** Wire the
+   proven target-id mapping into the owning artifact exporter. Test original
+   versus generated spans, repeated instances, build-map chaining, stale hashes,
+   duplicate text, dynamic nodes, image SVG, transformed geometry and reload.
+   Preserve frozen context on source edits. Prove exact mapping for a generated
+   SVG part and useful context for an imported artifact with no mapping.
 4. **Verify delivery and lifecycle.** Real browser tests over direct and
    hosted-relay paths, covering two sessions viewing the same artifact,
    navigation/minimize/restore, draft recovery, failed/uncertain sends, in-flight
