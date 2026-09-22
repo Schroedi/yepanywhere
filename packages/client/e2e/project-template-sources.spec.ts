@@ -140,7 +140,14 @@ for (const release of ["0.8.0", "0.8.1"])
       ])
         delete version[field];
       await route.fulfill({
-        json: { ...version, current: release, capabilities: [] },
+        json: {
+          ...version,
+          current: release,
+          capabilities: [],
+          // The banner proves this response reached the shared version store;
+          // absent controls alone also pass before version discovery completes.
+          providerHostDegraded: true,
+        },
       });
     });
     let requests = 0;
@@ -151,6 +158,9 @@ for (const release of ["0.8.0", "0.8.1"])
     await page.goto(`${baseURL}/settings/project-templates`);
     await expect(
       page.getByRole("searchbox", { name: "Search settings" }),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-provider-host-degraded="true"]'),
     ).toBeVisible();
     await expect(page.getByLabel("Enable project templates")).toHaveCount(0);
     expect(requests).toBe(0);
