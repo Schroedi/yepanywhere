@@ -30,6 +30,7 @@ import {
   PROJECT_SESSION_DEFAULTS_CAPABILITY,
   PUBLIC_FILE_SHARES_CAPABILITY,
   PROVIDER_HOST_CONTROL_CAPABILITY,
+  PROVIDER_SUBSCRIPTION_USAGE_CAPABILITY,
   RELOAD_SAFE_CODEX_RUNTIME_SETTINGS_CAPABILITY,
   SESSION_SANDBOXING_CAPABILITY,
   SESSION_SANDBOX_NETWORK_FIREWALL_CAPABILITY,
@@ -83,10 +84,17 @@ describe("Version Routes", () => {
       .filter(
         (definition) =>
           definition.advertisement.kind === "version-implied" &&
+          definition.name !== PROVIDER_SUBSCRIPTION_USAGE_CAPABILITY &&
           !advertised.has(definition.name),
       )
       .map((definition) => definition.name);
     expect(missing).toEqual([]);
+  });
+
+  it("always denies provider subscription usage", () => {
+    expect(getServerCapabilities()).not.toContain(
+      PROVIDER_SUBSCRIPTION_USAGE_CAPABILITY,
+    );
   });
 
   it("advertises recent local speech model selection", () => {
