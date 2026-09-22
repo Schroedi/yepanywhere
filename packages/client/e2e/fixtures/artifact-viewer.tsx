@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { ArtifactPreview } from "../../src/components/ArtifactPreview";
+import { ResourceContextMenu } from "../../src/components/FileResourceActions";
 import { ArtifactSettings } from "../../src/pages/settings/ArtifactSettings";
 import { useVersion } from "../../src/hooks/useVersion";
 import { I18nProvider } from "../../src/i18n";
@@ -8,7 +9,17 @@ import "../../src/styles/index.css";
 function Fixture() {
   useVersion();
   const query = new URLSearchParams(location.search);
-  return query.has("settings") ? (
+  return query.has("menu") ? (
+    <ResourceContextMenu
+      x={20}
+      y={20}
+      canStartNewSession={false}
+      onClose={() => {}}
+      onCopyPublicUrl={() => {}}
+      onDownload={() => {}}
+      onOpen={() => {}}
+    />
+  ) : query.has("settings") ? (
     <div style={{ padding: 20, maxWidth: 700 }}>
       <ArtifactSettings />
     </div>

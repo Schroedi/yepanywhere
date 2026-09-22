@@ -79,6 +79,7 @@ import {
   useSessionViewerSessionId,
 } from "./SessionManagedViewer";
 import { Modal } from "./ui/Modal";
+import { useSessionAppPublicHref } from "./SessionAppLinks";
 
 export interface LocalMediaSource {
   buildApiPath?: (path: string) => string | null;
@@ -1223,6 +1224,7 @@ export function useLocalResourceClick(
 ): UseLocalResourceClickResult {
   const publicShare = usePublicShareContext();
   const openArtifact = useSessionArtifactLink();
+  const publicAppHref = useSessionAppPublicHref();
   const sessionMetadata = useOptionalSessionMetadata();
   const runtime = useCurrentSourceRuntime();
   const transport = runtime.transport;
@@ -1246,6 +1248,7 @@ export function useLocalResourceClick(
   } | null>(null);
   const [artifactContextMenu, setArtifactContextMenu] = useState<{
     label: string;
+    publicUrl?: string;
     url: string;
     x: number;
     y: number;
@@ -1408,6 +1411,7 @@ export function useLocalResourceClick(
       e.stopPropagation();
       setArtifactContextMenu({
         label: target.textContent?.trim() || target.hostname,
+        publicUrl: publicAppHref(target.href),
         url: target.href,
         x: e.clientX,
         y: e.clientY,
@@ -1455,6 +1459,11 @@ export function useLocalResourceClick(
         openArtifact?.(artifactContextMenu.url, artifactContextMenu.label)
       }
       onDownload={() => downloadArtifactUrl(artifactContextMenu.url)}
+      onCopyPublicUrl={
+        artifactContextMenu.publicUrl
+          ? () => void writeClipboardText(artifactContextMenu.publicUrl ?? "")
+          : undefined
+      }
     />
   ) : contextMenu ? (
     <LocalResourceContextMenu

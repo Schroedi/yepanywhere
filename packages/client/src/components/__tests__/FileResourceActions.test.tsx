@@ -133,6 +133,28 @@ describe("FilePathContextMenu", () => {
     expect(onCopyImage).toHaveBeenCalledTimes(1);
   });
 
+  it("offers a public URL copy action when the caller resolves one", () => {
+    const onCopyPublicUrl = vi.fn();
+    render(
+      <I18nProvider>
+        <ResourceContextMenu
+          x={10}
+          y={10}
+          canStartNewSession={false}
+          onClose={vi.fn()}
+          onCopyPublicUrl={onCopyPublicUrl}
+          onOpen={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    expect(
+      screen.getAllByRole("menuitem").map((item) => item.textContent),
+    ).toEqual(["Open", "Copy public URL"]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy public URL" }));
+    expect(onCopyPublicUrl).toHaveBeenCalledTimes(1);
+  });
+
   it("opens adjacent submenus on hover-capable pointers", () => {
     vi.stubGlobal(
       "matchMedia",

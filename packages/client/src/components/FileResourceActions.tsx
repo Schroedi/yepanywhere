@@ -39,6 +39,7 @@ export interface ResourceContextMenuProps {
   onCopyFilePath?: () => void;
   onCopyImage?: () => void;
   onCopyProjectRelativePath?: () => void;
+  onCopyPublicUrl?: () => void;
   onCopyViewerLink?: () => void;
   onDownload?: () => void;
   onOpen: () => void;
@@ -224,6 +225,7 @@ export function ResourceContextMenu({
   onCopyFilePath,
   onCopyImage,
   onCopyProjectRelativePath,
+  onCopyPublicUrl,
   onCopyViewerLink,
   onDownload,
   onOpen,
@@ -236,6 +238,7 @@ export function ResourceContextMenu({
   const hasPresentationChoice = Boolean(onOpenSource && onOpenPreview);
   const hasCopyActions = Boolean(
     onCopyProjectRelativePath ||
+      onCopyPublicUrl ||
       onCopyAbsolutePath ||
       onCopyFilePath ||
       onCopyImage ||
@@ -253,6 +256,7 @@ export function ResourceContextMenu({
     Number(Boolean(canStartNewSession && onStartNewSession)) +
     Number(Boolean(onCopyImage)) +
     Number(Boolean(onCopyProjectRelativePath)) +
+    Number(Boolean(onCopyPublicUrl)) +
     Number(Boolean(onCopyAbsolutePath)) +
     Number(Boolean(onCopyFilePath)) +
     Number(Boolean(onCopyViewerLink)) +
@@ -374,6 +378,16 @@ export function ResourceContextMenu({
             >
               <CopyActionLabel>
                 {t("fileLinkMenuCopyProjectRelativePath" as never)}
+              </CopyActionLabel>
+            </FilePathContextMenuItem>
+          ) : null}
+          {onCopyPublicUrl ? (
+            <FilePathContextMenuItem
+              onHover={usesHoverFlyout ? () => setPanel("root") : undefined}
+              onSelect={() => select(onCopyPublicUrl)}
+            >
+              <CopyActionLabel>
+                {t("fileLinkMenuCopyPublicUrl" as never)}
               </CopyActionLabel>
             </FilePathContextMenuItem>
           ) : null}

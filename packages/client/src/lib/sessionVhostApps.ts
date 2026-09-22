@@ -15,6 +15,12 @@ export interface SessionVhostApp {
   artifactToken?: string;
 }
 
+export interface SessionVhostLinkContext {
+  clientUrl: string;
+  relayed: boolean;
+  force?: boolean;
+}
+
 const toolUrls = new WeakMap<Message, string[]>();
 
 /** Discover local app URLs only in tool result text, without rescanning immutable history. */
@@ -116,4 +122,43 @@ export function sessionVhostApp(
     url: target.href,
     label: `${row.name}${source.pathname === "/" ? "" : source.pathname}`,
   };
+}
+
+/** Rewrite a name.localhost URL through the configured public wildcard root. */
+export function rewriteSessionLocalhostHref(
+  raw: string,
+  config: SessionAppConfig | undefined,
+  context: SessionVhostLinkContext,
+): string {
+  if (!config?.vhostPublicRoot) return raw;
+  let source: URL;
+  let client: URL;
+  try {
+    client = new URL(context.clientUrl);
+    source = new URL(raw, client);
+  } catch {
+    return raw;
+  }
+  const automatic =
+    context.relayed && artifactAudience(client.hostname) === "public";
+  if (!automatic && !config.alwaysRewriteVhostLinks && !context.force)
+    return raw;
+  if (
+    !["http:", "https:"].includes(source.protocol) ||
+    source.username ||
+    source.password ||
+    !source.hostname.endsWith(".localhost")
+  )
+    return raw;
+  const name = source.hostname.slice(0, -".localhost".length);
+  if (!name) return raw;
+  const configuredVhost = config.vhosts?.some((row) => row.name === name);
+  const token = configuredVhost ? config.accessTokens?.[name] : undefined;
+  if (configuredVhost && config.accessTokens && token === undefined) return raw;
+  const target = new URL(`https://${name}.${config.vhostPublicRoot}`);
+  target.pathname = source.pathname;
+  target.search = source.search;
+  if (token) target.searchParams.set("ya_access", token);
+  target.hash = source.hash;
+  return target.href;
 }

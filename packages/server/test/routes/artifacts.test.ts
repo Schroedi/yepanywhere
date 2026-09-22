@@ -361,6 +361,23 @@ it("keeps launch overrides explicit and rejects shared-loopback origins", () => 
   ).toThrow();
 });
 
+it("validates and preserves the unconditional vhost link rewrite setting", () => {
+  expect(
+    validateArtifactConfig({ port: 4402, alwaysRewriteVhostLinks: true }),
+  ).toMatchObject({ alwaysRewriteVhostLinks: true });
+  expect(
+    validateArtifactConfig({ port: 4402 }, 7, {
+      alwaysRewriteVhostLinks: true,
+    }),
+  ).toMatchObject({ alwaysRewriteVhostLinks: true });
+  expect(() =>
+    validateArtifactConfig({
+      port: 4402,
+      alwaysRewriteVhostLinks: "yes",
+    }),
+  ).toThrow("alwaysRewriteVhostLinks must be a boolean");
+});
+
 it("proxies a static vhost Host to loopback before YA APIs", async () => {
   directory = await mkdtemp(join(tmpdir(), "ya-vhost-"));
   initFileAccess({

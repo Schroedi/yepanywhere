@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
 import type { SessionAppConfig } from "../lib/sessionVhostApps";
 import type { Message } from "../types";
 import { sessionToolUrls, sessionVhostApp } from "../lib/sessionVhostApps";
@@ -7,7 +7,53 @@ import styles from "./SessionAppLinks.module.css";
 export const SessionAppLinkContext = createContext<{
   config?: SessionAppConfig;
   open?: (url: string) => boolean;
+  rewriteHref?: (url: string) => string;
+  publicHref?: (url: string) => string | undefined;
 } | null>(null);
+
+const preserveHref = (url: string) => url;
+const noPublicHref = () => undefined;
+
+/** Rewrite a transcript link through the current session's app-link policy. */
+export function useSessionAppLinkRewriter(): (url: string) => string {
+  return useContext(SessionAppLinkContext)?.rewriteHref ?? preserveHref;
+}
+
+/** Resolve a public URL for an explicit copy action, independent of auto-rewrite. */
+export function useSessionAppPublicHref(): (url: string) => string | undefined {
+  return useContext(SessionAppLinkContext)?.publicHref ?? noPublicHref;
+}
+
+/** Rewrite only anchor destinations in trusted rendered transcript HTML. */
+export function rewriteSessionAppLinksHtml(
+  html: string,
+  rewriteHref: (url: string) => string,
+): string {
+  if (typeof document === "undefined" || !/href/i.test(html)) return html;
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  let changed = false;
+  for (const anchor of template.content.querySelectorAll<HTMLAnchorElement>(
+    "a[href]",
+  )) {
+    const href = anchor.getAttribute("href");
+    if (!href) continue;
+    const rewritten = rewriteHref(href);
+    if (rewritten === href) continue;
+    anchor.setAttribute("href", rewritten);
+    changed = true;
+  }
+  return changed ? template.innerHTML : html;
+}
+
+/** Apply the current session's link policy to rendered transcript HTML. */
+export function useSessionAppLinksHtml(html: string): string {
+  const rewriteHref = useSessionAppLinkRewriter();
+  return useMemo(
+    () => rewriteSessionAppLinksHtml(html, rewriteHref),
+    [html, rewriteHref],
+  );
+}
 
 /** Display-only links: provider transcript bytes remain unchanged. */
 export function SessionAppLinks({

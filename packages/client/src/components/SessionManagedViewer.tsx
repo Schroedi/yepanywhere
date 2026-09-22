@@ -36,7 +36,11 @@ import {
 } from "../lib/sessionViewerController";
 import { Modal, useModalLayer } from "./ui/Modal";
 import { SessionAppLinkContext } from "./SessionAppLinks";
-import type { SessionAppConfig } from "../lib/sessionVhostApps";
+import {
+  rewriteSessionLocalhostHref,
+  type SessionAppConfig,
+} from "../lib/sessionVhostApps";
+import { useRelayUsername } from "../hooks/useRemoteBasePath";
 
 interface SessionManagedPanelProps {
   viewerId?: string;
@@ -144,10 +148,39 @@ export function SessionViewerProvider({
 }) {
   const runtime = useCurrentSourceRuntime();
   const version = useRetainedVersionInfo(runtime.sourceKey);
+  const relayUsername = useRelayUsername();
   const viewerId = useId();
   const appLinks = useMemo(
-    () => (inactive ? null : { config: appConfig, open: onOpenApp }),
-    [inactive, appConfig, onOpenApp],
+    () =>
+      inactive
+        ? null
+        : {
+            config: appConfig,
+            open: onOpenApp,
+            rewriteHref: (url: string) =>
+              rewriteSessionLocalhostHref(url, appConfig, {
+                clientUrl: window.location.href,
+                relayed: relayUsername !== undefined,
+              }),
+            publicHref: (url: string) => {
+              if (!appConfig?.vhostPublicRoot) return undefined;
+              const rewritten = rewriteSessionLocalhostHref(url, appConfig, {
+                clientUrl: window.location.href,
+                relayed: relayUsername !== undefined,
+                force: true,
+              });
+              if (rewritten !== url) return rewritten;
+              try {
+                const target = new URL(url);
+                if (target.hostname.endsWith(`.${appConfig.vhostPublicRoot}`))
+                  return target.href;
+              } catch {
+                return undefined;
+              }
+              return undefined;
+            },
+          },
+    [inactive, appConfig, onOpenApp, relayUsername],
   );
   const openArtifact = useCallback(
     (url: string, label: string) => {

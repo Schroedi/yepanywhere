@@ -324,9 +324,14 @@ to new local provider sessions as that port. The computed child environment
 names these exports explicitly in `AGENT_VHOST_ENV_NAMES`; the provider-host
 boundary carries only those configured names and YA's fixed static markers.
 Unrelated environment variables and per-session wake credentials are excluded.
-Dynamic `ya-vhost` PATH helpers
-remain unimplemented. The operator must arrange
-client-side resolution if their browser/OS does not resolve `*.localhost`.
+Dynamic `ya-vhost` PATH helpers remain unimplemented. In a session opened
+through a public relay page, the client rewrites rendered anchor destinations
+from `name.localhost` to `https://name.<public root>`. It does not rewrite
+visible prose, code, or link labels, and a direct/local YA page keeps the
+localhost destination. **Always rewrite `*.localhost` app links** in Settings
+→ Apps deliberately extends that rewrite to direct/local pages for testing or
+operator preference; it still requires a configured public root. Browsers
+outside these YA transcript links still need ordinary hostname resolution.
 The local address's port is the browser's forwarded port, which can differ
 from YA's actual listening port.
 
@@ -368,6 +373,14 @@ again; cookie-only mutations require the same app Origin. The proxy removes
 its access query/cookie, YA session cookies, Authorization, desktop token and
 Referer before forwarding. Responses prohibit caching and referrer disclosure.
 Applications can see their own shared URL; it is intentionally transferable.
+Transcript rewriting maps any `name.localhost` anchor through the configured
+public root. When the name is a configured vhost, it waits for the access
+decision: private rows receive their app-scoped `ya_access` token, public rows
+rewrite without one, and a configured row with unavailable authorization stays
+local. Artifact-grant URLs preserve their bearer path while changing host.
+Their custom link menu includes **Copy public URL**, which forces this host
+mapping regardless of the automatic/always-rewrite choice; it appears only when
+the configured public root can produce a public destination.
 
 A proxied request tells the app how it was actually reached.
 `x-forwarded-host` is the Host the visitor used, and `x-forwarded-proto` is

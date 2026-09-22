@@ -222,9 +222,6 @@ test("saves artifact expiry without revoking links, alongside addresses and port
   const twelveDays = 12 * 24 * 3600_000;
   expect(shorter.expiresAt).toBeGreaterThanOrEqual(start + twelveDays);
   expect(shorter.expiresAt).toBeLessThanOrEqual(Date.now() + twelveDays);
-  await recordUiCapture(page, `${testInfo.project.name}-settings-desktop`);
-  await page.setViewportSize({ width: 375, height: 812 });
-  await recordUiCapture(page, `${testInfo.project.name}-settings-phone`);
   await page
     .getByLabel("Public artifact address (optional)")
     .fill("https://artifacts.example.test");
@@ -257,9 +254,45 @@ test("saves artifact expiry without revoking links, alongside addresses and port
     },
   );
   expect(health).toEqual({ status: 200, body: '{"artifactViewer":1}' });
+  await page
+    .getByLabel("Public vhost root (optional)")
+    .fill("apps.example.test");
+  await page.getByLabel("Public vhost root (optional)").press("Tab");
+  await page.getByLabel("Always rewrite *.localhost app links").check();
+  await expect
+    .poll(() => instance.artifactServer.config)
+    .toMatchObject({
+      vhostPublicRoot: "apps.example.test",
+      alwaysRewriteVhostLinks: true,
+    });
+  await page
+    .getByLabel("Always rewrite *.localhost app links")
+    .scrollIntoViewIfNeeded();
+  await recordUiCapture(page, `${testInfo.project.name}-settings-desktop`);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page
+    .getByLabel("Always rewrite *.localhost app links")
+    .scrollIntoViewIfNeeded();
+  await recordUiCapture(page, `${testInfo.project.name}-settings-phone`);
   await page.getByLabel("Public artifact address (optional)").fill("");
   await page.getByLabel("Enable local artifact access").uncheck();
   await expect.poll(() => instance.artifactServer.available).toBe(false);
+});
+
+test("shows the public-copy action in the artifact link menu", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1000, height: 600 });
+  await page.goto(`${base}/e2e/fixtures/artifact-viewer.html?menu`);
+  await expect(page.getByRole("menuitem")).toHaveText([
+    "Open",
+    "Download",
+    "Copy public URL",
+  ]);
+  await recordUiCapture(page, `${testInfo.project.name}-public-menu-desktop`);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.reload();
+  await recordUiCapture(page, `${testInfo.project.name}-public-menu-phone`);
 });
 
 test("omits expiry controls and writes when older metadata lacks the field", async ({

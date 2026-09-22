@@ -17,6 +17,8 @@ export interface ArtifactViewerConfig {
   vhosts?: ArtifactVhost[];
   /** Optional apex such as graehl.org; empty means name.localhost only. */
   vhostPublicRoot?: string;
+  /** Rewrite name.localhost links even outside a public relay session. */
+  alwaysRewriteVhostLinks?: boolean;
 }
 
 export interface ArtifactViewerStatus extends ArtifactViewerConfig {
