@@ -50,6 +50,11 @@ Materialization and production admission remain open.
   Verify concurrent claims have exactly one winner, and stop/delete/restart or
   namespace reconfiguration cannot silently release a name. Test attempted
   release/takeover by limited users and recovery after partial setup failure.
+  Store the reservation's public/private state. Template creation offers an
+  unchecked Public app option only when a public root exists; enforce each
+  limited user's default-on Private apps only ceiling server-side against
+  forged creation and row-update requests. Private reservations use the
+  existing app-scoped bearer.
 - Show the usable starter as soon as deterministic setup has built it, then
   auto-send the project-context prepare turn with intent. Keep setup, agent
   preparation and readiness distinguishable; agent failure retains the starter.
@@ -58,7 +63,8 @@ Materialization and production admission remain open.
   templates (App canvas, Storybook and Web page). Preserve existing users'
   project-only confinement and disabled creation, as approved on 2026-09-21.
   Enforce configured project root, provider locks,
-  sandbox, ownership, and permission rechecks at the operation.
+  sandbox, ownership, app-exposure ceiling, and permission rechecks at the
+  operation.
 - Default new users' Create in directory to `~/username`. Use it as the
   limited user's default writable sandbox, independent of session cwd; an
   administrator-selected project-only mode instead confines each session to

@@ -21,6 +21,14 @@ selected for new limited users (user-directed 2026-09-21). It is not delivered
 in v1; the
 [stand-up gap](../gaps/project-template-standup.md) tracks its implementation.
 
+The same extension adds a superuser-managed **Private apps only** ceiling,
+default-on for new and migrated limited users. It is a negative authority cap:
+when enabled, project-template creation and later app-row mutations for that
+user's projects must remain bearer-protected. When disabled, the user may opt a
+new template app into Public access; private remains the default. The server
+checks the ceiling at reservation creation/update, independently of the client
+control.
+
 ### Approved workspace direction (2026-09-21; not implemented)
 
 New limited users default their **Create in** directory to `~/username`,
@@ -543,7 +551,7 @@ user may do:
 | Sessions elsewhere | 404 |
 | Files, source control, git status | within member projects only; the same sandbox roots the session sees |
 | Server-wide settings | read where harmless, write refused |
-| Apps settings | only rows reserved for their projects ([[project-templates]] § App name reservation); no `public` toggle |
+| Apps settings | only rows reserved for their projects ([[project-templates]] § App name reservation); Public is available only when the superuser has disabled Private apps only, and remains explicit opt-in |
 | Public shares, app links | within member projects only |
 | Devices, push, browser profile | their own |
 | Agents/process view, Inbox, All Sessions | filtered to member projects |

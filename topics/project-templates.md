@@ -277,12 +277,26 @@ The approved migration preserves existing users' project-only confinement and
 disables template creation until explicitly granted; new defaults apply only
 to newly created users.
 
+Each limited user also has a server-enforced **Private apps only** permission
+ceiling. It defaults on for new users and on migration. While enabled, every
+app-name reservation owned by that user remains bearer-protected; a forged
+creation request cannot set the vhost row `public`. Turning the ceiling off
+permits, but does not require, public exposure.
+
 The proposed chooser uses compact radio cards above the creation form: title,
 one-line purpose, and a visible selected state. The selection updates the
 template details and preserves the entered project name/intent. Both superuser
 and limited-user flows use it when more than one permitted template is available;
 limited users still supply only name and intent. Both content prototypes exist
 in the authoring library; neither draft is production-admitted yet.
+
+When a public vhost root is configured, the template creation form also offers
+**Public app — no link required**, unchecked by default. It is available to the
+superuser and to a limited user whose Private apps only ceiling is off. The
+choice is part of the server creation request and atomically sets the reserved
+row's `public` state; hiding or disabling the control is presentation, not
+authorization. With the ceiling on, the disabled control explains that the
+administrator requires private app links.
 
 Project lists show ownership as `alex / Sketch garden`, separately from the
 project's name, following the existing owner display convention (a configured
@@ -316,6 +330,11 @@ action that confirms release and the resulting loss of that app address.
 Clearing does not delete project files. Namespace removal/reconfiguration must
 not silently release claims. This is a YA namespace contract, not a claim to
 control arbitrary DNS names outside its configured routing.
+
+The reservation stores the creation-time public/private choice. A private row
+uses the existing app-scoped bearer; selecting Public is an explicit opt-in to
+hostname-only access and is refused for an owner whose Private apps only
+ceiling is enabled.
 
 The isolated mockup's **App names** layout was approved on 2026-09-21. Persistent
 reservation storage, concurrency and authorization remain unimplemented and
