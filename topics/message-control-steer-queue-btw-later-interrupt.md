@@ -111,9 +111,17 @@ in the recent transcript tail, or a message the server reports as queued.
 Comparison is exact after trimming and queued-turn-marker removal, so anything
 YA appended on the way out simply fails to match and the draft stays.
 
-A draft the user typed, recalled into the composer, or saw restored after a
-failed send carries no marker and is never discarded automatically. This
-matters because the marker's own tab may never run its confirm: it can be
+A draft the user typed or recalled carries no marker and is never discarded
+automatically. Restoring an untouched recovery copy after a request failure
+keeps it eligible: a late response failure does not prove non-delivery, and
+subsequent durable history may establish that the message was sent. Actual
+user edits remain protected. If delivery is already observed when the request
+fails, Send confirms its optimistic clear without retrying, restoring the
+draft, or resetting session activity to idle.
+
+Recovery scans count recent user prompts, rather than raw transcript records;
+a tool-heavy response must not push its own prompt outside the search window.
+The marker's own tab may never run its confirm: it can be
 closed, reloaded, or lose the acknowledgement, which is exactly how a sibling
 tab used to inherit the last sent prompt as an unsent draft. The reconciliation
 runs on the receiving tab from its own session history

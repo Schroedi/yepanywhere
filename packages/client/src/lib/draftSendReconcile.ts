@@ -19,7 +19,7 @@ import { turnContentText } from "./sessionMessageText";
  * carries no `pendingSend` marker and is never considered here at all.
  */
 
-/** Bounded tail scan; a recovery copy only ever matches a very recent turn. */
+/** Bound by user prompts; tool results must not age a sent prompt out. */
 const SENT_TURN_SCAN_LIMIT = 50;
 
 export interface QueuedSubmissionLike {
@@ -64,12 +64,13 @@ export function draftTextIsAccountedFor(options: {
   }
 
   const { messages } = options;
-  const start = Math.max(0, messages.length - SENT_TURN_SCAN_LIMIT);
-  for (let index = messages.length - 1; index >= start; index -= 1) {
+  let prompts = 0;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message && confirmedUserTurnText(message) === draftText) {
-      return true;
-    }
+    const text = message ? confirmedUserTurnText(message) : null;
+    if (text === null) continue;
+    if (text === draftText) return true;
+    if (++prompts >= SENT_TURN_SCAN_LIMIT) break;
   }
 
   return false;

@@ -696,6 +696,7 @@ function SessionPageContent({
     pendingMessages,
     addPendingMessage,
     removePendingMessage,
+    isMessageDelivered,
     updatePendingMessage,
     deferredMessages,
     setDeferredMessages,
@@ -2570,6 +2571,17 @@ function SessionPageContent({
       : [...attachmentsRef.current];
     let uploadedAttachments: UploadedFile[] = [];
 
+    const confirmSubmission = () => {
+      if (!preserveComposer) {
+        rememberSentSubmission(text, tempId);
+        draftControlsRef.current?.confirmInputClear();
+        revokeAttachmentPreviewUrls(currentAttachments);
+        setCorrectionDraft(null);
+        clearQuoteAnchors();
+      }
+      return true;
+    };
+
     try {
       if (!preserveComposer) {
         currentAttachments = await collectComposerAttachmentsForSubmission({
@@ -2686,16 +2698,19 @@ function SessionPageContent({
           reconnectStream();
         }
       }
-      // Success - clear the draft from localStorage
-      if (!preserveComposer) {
-        rememberSentSubmission(text, tempId);
-        draftControlsRef.current?.confirmInputClear();
-        revokeAttachmentPreviewUrls(currentAttachments);
-        setCorrectionDraft(null);
-        clearQuoteAnchors();
-      }
-      return true;
+      return confirmSubmission();
     } catch (err) {
+      // An aborted HTTP response does not undo delivery already observed on
+      // the session stream or in durable history. Never restore or retry it.
+      if (
+        isMessageDelivered({
+          tempId,
+          content: outgoingText,
+          timestamp: clientTimestampIso,
+        })
+      ) {
+        return confirmSubmission();
+      }
       console.error("Failed to send:", err);
       let finalError: unknown = err;
       logSessionUiTrace("composer-send-error", {
@@ -2757,14 +2772,7 @@ function SessionPageContent({
             modeVersion: result.modeVersion,
             recapAfterSeconds: result.recapAfterSeconds,
           });
-          if (!preserveComposer) {
-            rememberSentSubmission(text, tempId);
-            draftControlsRef.current?.confirmInputClear();
-            revokeAttachmentPreviewUrls(currentAttachments);
-            setCorrectionDraft(null);
-            clearQuoteAnchors();
-          }
-          return true;
+          return confirmSubmission();
         } catch (retryErr) {
           console.error("Failed to resume session:", retryErr);
           finalError = retryErr;

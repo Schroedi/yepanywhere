@@ -529,12 +529,9 @@ function removeDeliveredPendingMessages(
     return pendingMessages;
   }
 
-  const recentMessages = messages.slice(-30);
   const filtered = pendingMessages.filter(
     (pending) =>
-      !recentMessages.some((message) =>
-        userTurnMatchesPending(message, pending),
-      ),
+      !messages.some((message) => userTurnMatchesPending(message, pending)),
   );
   return filtered.length === pendingMessages.length
     ? pendingMessages
@@ -1382,6 +1379,14 @@ export function useSession(
       return { tempId, clientOrder };
     },
     [sessionId],
+  );
+
+  const isMessageDelivered = useCallback(
+    (pending: PendingMessage) =>
+      messagesRef.current.some((message) =>
+        userTurnMatchesPending(message, pending),
+      ),
+    [],
   );
 
   // Remove a pending message by tempId (used when server confirms or send fails)
@@ -2690,6 +2695,7 @@ export function useSession(
     pendingMessages, // Messages waiting for server confirmation
     addPendingMessage, // Add to pending queue, returns tempId
     removePendingMessage, // Remove from pending by tempId
+    isMessageDelivered, // Live delivery evidence, including after a late request failure
     updatePendingMessage, // Update pending message fields (e.g. status)
     deferredMessages, // Server-authoritative queued-message mirror
     setDeferredMessages, // Replace the mirror from a server queue/cancel response

@@ -105,7 +105,34 @@ describe("draftTextIsAccountedFor", () => {
     ).toBe(false);
   });
 
-  it("only scans a bounded tail", () => {
+  it("finds the sent prompt behind a long tool-heavy reply", () => {
+    const messages: Message[] = [
+      durableUserTurn("run the tests"),
+      ...Array.from(
+        { length: 80 },
+        (_, index): Message => ({
+          uuid: `result-${index}`,
+          type: "user",
+          _source: "jsonl",
+          message: {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: `tool-${index}`,
+                content: "ok",
+              },
+            ],
+          },
+        }),
+      ),
+    ];
+    expect(
+      draftTextIsAccountedFor({ draftText: "run the tests", messages }),
+    ).toBe(true);
+  });
+
+  it("only scans a bounded number of user prompts", () => {
     const messages = [
       durableUserTurn("run the tests"),
       ...Array.from({ length: 80 }, (_, index) =>

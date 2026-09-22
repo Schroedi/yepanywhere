@@ -261,7 +261,7 @@ describe("useDraftPersistence", () => {
     expect(result.current[0]).toBe("submitted turn");
   });
 
-  it("never discards text restored after a failed send", () => {
+  it("reconciles an untouched recovery copy when delivery is proven after failure", () => {
     const { result } = renderHook(() => useDraftPersistence("draft-test"));
 
     act(() => {
@@ -277,8 +277,8 @@ describe("useDraftPersistence", () => {
       discarded = result.current[2].discardPendingSendDraft(() => true);
     });
 
-    expect(discarded).toBe(false);
-    expect(result.current[0]).toBe("submitted turn");
+    expect(discarded).toBe(true);
+    expect(result.current[0]).toBe("");
   });
 
   it("reads legacy raw-string drafts and rewrites them as envelopes", () => {

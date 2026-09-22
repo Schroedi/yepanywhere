@@ -530,9 +530,9 @@ export function useDraftPersistence(
     try {
       const storedText = readStorageText(keyRef.current);
       valueRef.current = storedText;
-      // The user has been told the send failed and is looking at their text
-      // again; never discard it out from under them.
-      composerEditedSinceHydrationRef.current = true;
+      // A failed response can precede proof of delivery. Restoring the
+      // recovery copy is not a user edit; keep it eligible for reconciliation.
+      // Actual edits since the optimistic clear keep their protection.
       setValueInternal(storedText);
     } catch {
       // Ignore errors
