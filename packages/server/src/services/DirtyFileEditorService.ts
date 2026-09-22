@@ -381,7 +381,7 @@ export class DirtyFileEditorService {
   }
 
   async idle(): Promise<void> {
-    await Promise.allSettled([...this.shellTasks]);
+    await Promise.allSettled(this.shellTasks);
     await this.saver.idle();
   }
 
