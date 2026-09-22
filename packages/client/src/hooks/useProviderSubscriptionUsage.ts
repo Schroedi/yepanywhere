@@ -98,10 +98,10 @@ export function useProviderSubscriptionUsage(
 ) {
   const sourceKey = useClientSummarySourceKey();
   const { version } = useVersion();
-  const supported = serverHasCapability(
-    version,
-    PROVIDER_SUBSCRIPTION_USAGE_CAPABILITY,
-  );
+  const disableChecks = true;
+  const supported =
+    !disableChecks &&
+    serverHasCapability(version, PROVIDER_SUBSCRIPTION_USAGE_CAPABILITY);
   const routed = useContext(RoutedSessionContext);
   const normalizedProvider = routed ? null : (provider ?? null);
   const [state, setState] = useState<UsageState>({
