@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-22
+
 ### Fixed
 - Windows releases and automatic updates now use only the per-user NSIS installer; the elevated MSI is no longer published.
 
