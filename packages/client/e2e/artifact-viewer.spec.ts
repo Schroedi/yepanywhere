@@ -169,9 +169,14 @@ test("loads the bundle through the same port, preserves scripts, and denies YA a
   expect(problems).toEqual([]);
   const url = child.url();
   await page.getByRole("button", { name: "Stop interactive preview" }).click();
-  await expect
-    .poll(async () => (await instance.artifactServer.app.request(url)).status)
-    .toBe(404);
+  await expect(
+    page.getByRole("button", { name: "Run interactive preview" }),
+  ).toBeVisible();
+  await expect(
+    frame.getByRole("heading", { name: "Static preview" }),
+  ).toBeVisible();
+  // Stopping this view preserves a borrowed URL already opened in another tab.
+  expect((await instance.artifactServer.app.request(url)).status).toBe(200);
 });
 
 test("saves artifact expiry without revoking links, alongside addresses and port", async ({
