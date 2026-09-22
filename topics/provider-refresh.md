@@ -928,7 +928,47 @@ Previous-model registry review:
 6. Use read-only catalog and lifecycle checks routinely. Do not spend tokens
    on live model turns without explicit approval.
 
-Current compatibility audit, 2026-09-18 (Claude Code 2.1.276):
+Current source refresh, 2026-09-22 (Claude Code 2.1.280 / SDK 0.3.280):
+
+- `@anthropic-ai/claude-agent-sdk` advances from `0.3.273` to `0.3.280`;
+  its native executable reports Claude Code `2.1.280`, matching the
+  independently installed binary. Root compatibility and SDK markers advance
+  together.
+- The declared SDK diff is additive for YA. The `SDKMessage` union and the
+  `query()`, `supportedModels()`, `supportedCommands()`, `setModel()`,
+  `setMaxThinkingTokens()`, `interrupt()`, `mcpServerStatus()`, and usage
+  controls YA consumes are not removed or renamed. New unused surfaces include
+  MCP provenance and tool `_meta`, `projectConfigRoot`, `verbatimPrompts`,
+  `readMcpResource()`, startup-failure reasons, and additional session/prompt
+  metadata.
+- An authenticated no-turn handshake returns five model rows and 61 commands.
+  Both `default` and `opus` resolve to `claude-opus-5-5`; the Opus row supports
+  adaptive thinking, fast and auto modes, and low through max effort. `/goal`
+  and `/loop` are native commands, so YA continues to omit its `/goal` alias.
+- The new live catalog can spell the stable Opus row as plain `opus`, rather
+  than supplying only an extended-context row. `mergeClaudeModels()` now keeps
+  fallback-only metadata while preferring every live field, so the visible row
+  retains its default high effort and describes Opus 5.5 without losing live
+  capabilities. The static context resolver recognizes minor-version Claude 5
+  ids such as `claude-opus-5-5` as native 1M models.
+- A real turn through an isolated YA API server requested `opus` at low effort,
+  resolved to `claude-opus-5-5`, returned the exact expected text, and reported
+  a 1,000,000-token context window with 128,000 maximum output tokens. The
+  post-refresh provider endpoint reports the same 1M default and Opus rows.
+  The no-turn subscription-usage endpoint also normalized the account's
+  five-hour and seven-day windows successfully.
+- Claude Code 2.1.280 writes two provider-metadata rows absent from the prior
+  transcript union: `atis-latch` and `cost-state`. YA now validates both without
+  treating either as a conversation/DAG row. The exact 28-line smoke transcript
+  validates completely. A whole-home baseline still has 170 older failures in
+  4,569,433 lines (`model_context_window: null` and 33 legacy unknown rows);
+  those pre-existing records are not caused by this refresh.
+
+Status: Claude Code 2.1.280 / SDK 0.3.280, model discovery, commands, usage,
+real-turn execution, context accounting, and the newly observed transcript
+metadata are refreshed. Publishing remains gated on maintainer confirmation.
+
+Previous compatibility audit, 2026-09-18 (Claude Code 2.1.276):
 
 - The independently installed `claude` is `2.1.276`; the SDK-native executable
   YA resolves first is still Claude Code `2.1.273` from
@@ -1515,7 +1555,7 @@ The server package currently pins provider-adjacent packages as follows:
 
 | package | current/wanted | latest observed | role |
 |---|---:|---:|---|
-| `@anthropic-ai/claude-agent-sdk` | `0.3.273` | `0.3.273` | Active Claude provider dependency |
+| `@anthropic-ai/claude-agent-sdk` | `0.3.280` | `0.3.280` | Active Claude provider dependency |
 | `@agentclientprotocol/sdk` | `0.12.0` | `0.24.0` | Active ACP client dependency for Grok/Gemini |
 
 Treat both rows as provider-refresh inputs.

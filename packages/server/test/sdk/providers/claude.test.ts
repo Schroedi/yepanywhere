@@ -394,7 +394,36 @@ describe("ClaudeProvider model list", () => {
     });
     expect(models.find((model) => model.id === "opus")).toMatchObject({
       name: "Opus",
-      description: "Opus 5 with the full 1M-token context window",
+      description: "Opus 5.5 with the full 1M-token context window",
+      contextWindow: 1_000_000,
+      supportsAdaptiveThinking: true,
+      supportsAutoMode: true,
+      supportsEffort: true,
+      supportsFastMode: true,
+      supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"],
+      defaultEffortLevel: "high",
+    });
+  });
+
+  it("keeps the live Opus 5.5 row on the stable opus alias", () => {
+    const models = mergeClaudeModels([
+      {
+        id: "opus",
+        name: "Opus",
+        description:
+          "Opus 5.5 · Best for everyday, complex tasks · ~2× usage vs Sonnet",
+        contextWindow: 1_000_000,
+        supportsAdaptiveThinking: true,
+        supportsAutoMode: true,
+        supportsEffort: true,
+        supportsFastMode: true,
+        supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"],
+      },
+    ]);
+
+    expect(models.find((model) => model.id === "opus")).toMatchObject({
+      name: "Opus",
+      description: "Opus 5.5 with the full 1M-token context window",
       contextWindow: 1_000_000,
       supportsAdaptiveThinking: true,
       supportsAutoMode: true,

@@ -69,10 +69,16 @@ describe("getModelContextWindow", () => {
     expect(getModelContextWindow("claude-opus-5")).toBe(
       CLAUDE_EXTENDED_CONTEXT_WINDOW,
     );
+    expect(getModelContextWindow("claude-opus-5-5")).toBe(
+      CLAUDE_EXTENDED_CONTEXT_WINDOW,
+    );
     expect(getModelContextWindow("claude-sonnet-5")).toBe(
       CLAUDE_EXTENDED_CONTEXT_WINDOW,
     );
     expect(getModelContextWindow("anthropic.claude-opus-5")).toBe(
+      CLAUDE_EXTENDED_CONTEXT_WINDOW,
+    );
+    expect(getModelContextWindow("anthropic.claude-opus-5-5")).toBe(
       CLAUDE_EXTENDED_CONTEXT_WINDOW,
     );
     expect(getModelContextWindow("claude-opus-4-8")).toBe(200_000);
@@ -136,6 +142,29 @@ describe("isAppMessage", () => {
         type: "summary",
         summary: "Earlier work",
         leafUuid: "00000000-0000-4000-8000-000000000001",
+      }),
+    ).toBe(true);
+    expect(
+      isAppMessage({
+        type: "atis-latch",
+        atis: "",
+        sessionId: "00000000-0000-4000-8000-000000000001",
+      }),
+    ).toBe(true);
+    expect(
+      isAppMessage({
+        type: "cost-state",
+        sessionId: "00000000-0000-4000-8000-000000000001",
+        totalCostUSD: 0.1,
+        totalAPIDuration: 100,
+        totalAPIDurationWithoutRetries: 90,
+        totalToolDuration: 10,
+        totalLinesAdded: 2,
+        totalLinesRemoved: 1,
+        totalDuration: 200,
+        startTime: 1_790_102_688_745,
+        modelUsage: {},
+        hasUnknownModelCost: false,
       }),
     ).toBe(true);
   });

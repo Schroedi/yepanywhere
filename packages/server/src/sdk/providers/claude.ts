@@ -665,17 +665,17 @@ async function* withCleanup<T>(
  * SDK, because older `supportedModels()` responses reported the `sonnet` alias
  * as "Sonnet 4.6" even when it routed to Sonnet 5 at runtime.
  *
- * Opus deliberately stays bare. SDK 0.3.220 resolves both `opus` and
- * `opus[1m]` to Opus 5 with the same 1M context window, so rewriting the
- * stable alias adds no capability and couples launch behavior to a historical
- * spelling. See topics/claude-1m-context.md.
+ * Opus deliberately stays bare. SDK 0.3.280 resolves bare `opus` to Opus 5.5
+ * with a 1M context window, so rewriting the stable alias adds no capability
+ * and couples launch behavior to a historical spelling. See
+ * topics/claude-1m-context.md.
  */
 const CLAUDE_LAUNCH_MODEL_ALIASES: Record<string, string> = {
   sonnet: "sonnet[1m]",
 };
 
 const ALWAYS_EXTENDED_DESCRIPTIONS: Record<string, string> = {
-  opus: "Opus 5 with the full 1M-token context window",
+  opus: "Opus 5.5 with the full 1M-token context window",
   sonnet:
     "Sonnet 5 with the full 1M-token context window · newer tokenizer bills ~30% more tokens",
 };
@@ -895,7 +895,13 @@ export function mergeClaudeModels(models: ModelInfo[]): ModelInfo[] {
       );
       continue;
     }
-    byId.set(model.id, enrichClaudeModel(model));
+    byId.set(
+      model.id,
+      enrichClaudeModel({
+        ...byId.get(model.id),
+        ...model,
+      }),
+    );
   }
 
   const orderedIds = [
@@ -909,8 +915,8 @@ export function mergeClaudeModels(models: ModelInfo[]): ModelInfo[] {
 
   // Drop the redundant "opus[1m]"/"sonnet[1m]" rows and surface their live
   // capability metadata on the stable family aliases. This catalog projection
-  // is independent of launch spelling: bare `opus` already launches Opus 5
-  // with the same 1M window.
+  // is independent of launch spelling: bare `opus` already launches the
+  // current Opus generation with the same 1M window.
   return merged
     .filter((model) => model.id !== "opus[1m]" && model.id !== "sonnet[1m]")
     .map((model) => {

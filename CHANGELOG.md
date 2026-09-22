@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-22
+
 ### Added
 - Add `ya-granite`, a local speech-to-text backend running IBM Granite Speech
   4.1 2B through the existing pixi `stt` environment. Enable it with
@@ -25,8 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   standard or Daybreak programs on each turn for an enrolled account.
 
 ### Changed
-- Refresh the bundled Claude runtime to Claude Code 2.1.273 and Agent SDK
-  0.3.273.
+- Refresh the bundled Claude runtime to Claude Code 2.1.280 and Agent SDK
+  0.3.280, including Opus 5.5 model discovery, native 1M-context accounting,
+  and the new persisted cost-state metadata.
 - Refresh Codex compatibility through CLI 0.154.0, including the regenerated
   app-server protocol subset, the new durable reasoning-effort history item,
   and the migrated approval path fields.
