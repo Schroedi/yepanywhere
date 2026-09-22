@@ -1,5 +1,9 @@
 # Edit viewed text directly instead of only commenting to the agent
 
+Related: [source-map aware artifact editing](source-mapped-artifact-editing.md)
+extends this editor direction to generated HTML, character-level click
+positioning, a full-workspace editing view, and optional registered regeneration.
+
 A viewed `.md` or text file — in the session file viewer, the parked viewer,
 or a Source Control dirty file — can only be read or annotated with a comment
 that asks an agent to change it (`topics/source-review-to-session.md`,
