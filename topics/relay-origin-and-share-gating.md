@@ -231,7 +231,12 @@ The File Viewer creation action is visible only for the ordinary live working
 file when Public Read-Only Share can currently create links and the server has
 the permanent `public-file-shares` capability. It is absent from diffs,
 historical projections, and public views. A client without the capability makes
-no file-share management request. File links reuse the established public-share
+no file-share management request. Under the same two conditions, the
+authenticated project-file link context menu offers **Copy public URL** beside
+**Copy viewer link**: it copies the file's existing live grant URL, or mints
+one first when none exists. It is a separate entry because the bearer link is
+read-only and never reaches Edit; it is not offered for external absolute-path
+links, which have no project-relative grant target. File links reuse the established public-share
 relay registration and secret-only `/public-api/shares/:secret/files` reads;
 they do not add a relay protocol or registration mode.
 
