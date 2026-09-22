@@ -57,7 +57,10 @@ exists to surface after the fact. This topic surfaces it before.
   option and navigates to it, leaving the source session untouched at its old
   effort; **Cancel** applies nothing. The fork choice is hidden when the
   session cannot be forked now (provider without fork support, session owned
-  elsewhere, or a turn in flight). Dismissing the dialog is Cancel.
+  elsewhere, or a turn in flight). Fork eligibility remains live while the
+  dialog is open and is checked again on selection, including when initial
+  metadata reconciliation establishes that the session is idle. Dismissing
+  the dialog is Cancel.
 - **Fork launch settings.** The fork route accepts an optional `thinking`
   option and, when present, records it as the fork's effective launch
   settings with the inherited model and the source's permission mode and

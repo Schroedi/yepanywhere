@@ -48,9 +48,10 @@ export interface LongContextEffortWarningState {
  * Contract: topics/mid-session-effort-change.md.
  */
 export function useLongContextEffortGuard(input: LongContextEffortGuardInput) {
-  const [warning, setWarning] = useState<LongContextEffortWarningState | null>(
-    null,
-  );
+  const [warning, setWarning] = useState<Omit<
+    LongContextEffortWarningState,
+    "canFork"
+  > | null>(null);
   const pendingRef = useRef<{
     resolve: (verdict: LongContextEffortGuardVerdict) => void;
     nextThinking: ThinkingOption;
@@ -101,7 +102,6 @@ export function useLongContextEffortGuard(input: LongContextEffortGuardInput) {
           contextTokens: current.contextTokens ?? 0,
           currentEffortLabel: effortLabel(currentThinking),
           nextEffortLabel: effortLabel(nextThinking),
-          canFork: current.canFork,
           busy: false,
         });
       });
@@ -127,6 +127,8 @@ export function useLongContextEffortGuard(input: LongContextEffortGuardInput) {
       pending.resolve("skip");
       return;
     }
+    // Eligibility can change after the dialog opens or between render and click.
+    if (!inputRef.current.canFork) return;
     setWarning((prev) => (prev ? { ...prev, busy: true } : prev));
     try {
       await inputRef.current.forkWithThinking(pending.nextThinking);
@@ -137,7 +139,11 @@ export function useLongContextEffortGuard(input: LongContextEffortGuardInput) {
     }
   }, []);
 
-  return { guardEffortChange, warning, choose };
+  return {
+    guardEffortChange,
+    warning: warning ? { ...warning, canFork: input.canFork } : null,
+    choose,
+  };
 }
 
 /** The fork request the guard's fork choice sends. */
