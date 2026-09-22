@@ -5016,6 +5016,7 @@ pre.code-highlighter-plain,
   flex: 0 1 auto;
   min-width: 2ch;
   max-width: 100%;
+  white-space: normal;
   overflow-wrap: anywhere;
   font-size: 0.74rem;
 }
