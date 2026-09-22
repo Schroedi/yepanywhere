@@ -102,6 +102,12 @@ left by an earlier release. Every reader shares one store over that key family,
 so sidebar cost does not grow with the session count and one session's
 discovery does not re-render unrelated rows.
 
+Discovery publishes only when this tab's discovered latest app changes.
+Receiving another tab's saved App entry must not publish this tab's older
+entry back: tabs can hold different transcript windows. Dismissals are merged
+from the current store when publishing, without making storage notifications
+an input to the publication effect.
+
 Minimize parks the pane at the existing bottom viewer controller, returning
 its width to the transcript. The iframe stays mounted so restore does not
 reload it. App toggle dismissal destroys the pane content and removes the

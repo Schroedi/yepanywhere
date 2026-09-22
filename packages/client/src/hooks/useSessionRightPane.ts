@@ -56,7 +56,7 @@ export function useSessionRightPane(
   );
   const {
     value: savedApps,
-    save: saveApps,
+    saveLatest,
     dismiss: dismissApps,
   } = useSessionApps(key);
   const [killError, setKillError] = useState<string>();
@@ -125,8 +125,10 @@ export function useSessionRightPane(
   const latestId = latest ? `vhost:${key}:${latest.announcementId}` : undefined;
   useEffect(() => {
     if (!active) return;
-    saveApps({ ...savedApps, latest });
-  }, [active, latest, savedApps, saveApps]);
+    // Publish local discovery changes, never echo another tab's storage write.
+    // Different transcript windows can legitimately have different latest apps.
+    saveLatest(latest);
+  }, [active, latest, saveLatest]);
   useEffect(() => {
     if (!active || !latest || !latestId || announced.current.has(latestId))
       return;

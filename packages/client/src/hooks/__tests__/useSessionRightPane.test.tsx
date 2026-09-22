@@ -167,6 +167,26 @@ describe("session right pane app persistence", () => {
     expect(localStorage.getItem(storageKey)).toBeNull();
   });
 
+  it("does not write its older App back when another tab publishes a newer one", () => {
+    const messages = [output("older")];
+    renderHook(() =>
+      useSessionRightPane(sessionKey, messages, config, true, "session-1"),
+    );
+    const newer = JSON.stringify({
+      latest: {
+        sourceUrl: "http://localhost:19432/newer",
+        url: "http://plan.localhost/newer",
+        label: "plan/newer",
+      },
+      dismissed: [],
+    });
+    act(() => {
+      localStorage.setItem(storageKey, newer);
+      window.dispatchEvent(new StorageEvent("storage", { key: storageKey }));
+    });
+    expect(localStorage.getItem(storageKey)).toBe(newer);
+  });
+
   it("removes a stored entry that has decayed to the default", () => {
     localStorage.setItem(storageKey, '{"dismissed":[]}');
 

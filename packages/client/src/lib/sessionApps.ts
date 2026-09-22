@@ -173,13 +173,14 @@ export function dismissSessionApps(
 
 export function useSessionApps(key: string): {
   value: SessionApps;
-  save: (apps: SessionApps) => void;
+  saveLatest: (latest: SessionVhostApp | undefined) => void;
   dismiss: (announcementIds: readonly string[]) => void;
 } {
   const read = useCallback(() => readSessionApps(key), [key]);
   const value = useSyncExternalStore(subscribe, read, read);
-  const save = useCallback(
-    (apps: SessionApps) => writeSessionApps(key, apps),
+  const saveLatest = useCallback(
+    (latest: SessionVhostApp | undefined) =>
+      writeSessionApps(key, { ...readSessionApps(key), latest }),
     [key],
   );
   const dismiss = useCallback(
@@ -187,7 +188,7 @@ export function useSessionApps(key: string): {
       dismissSessionApps(key, announcementIds),
     [key],
   );
-  return { value, save, dismiss };
+  return { value, saveLatest, dismiss };
 }
 
 /**
