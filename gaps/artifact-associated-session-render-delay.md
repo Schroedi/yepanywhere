@@ -29,5 +29,28 @@ artifact views open and closed. Preserve the distinction between time fetching
 history and time rendering it. Relevant owners are `MessageList` progressive
 hydration, `sessionScrollMemoryStorage`, and `useSessionRightPane`.
 
+Further observations: live responses become visible only after reload, and the
+Bug toolbar control itself can stop responding. Reloading briefly restores
+progress before another freeze. The current source excludes artifacts and
+right-pane viewers from `sessionViewerFreezesTranscript`; that controller is
+tab-local and checks the owning session ID. Retained-route pause signals are
+also session-specific. No "artifact open anywhere" freeze was found. The live
+localhost Vite endpoint serves the fixed App persistence effect, but that does
+not establish that every already-open tab has applied it. Two older YA tabs
+could continue the storage loop despite reloading the affected tab.
+
+Minimizing a pane deliberately retains its iframe and cannot be assumed to
+stop its JavaScript. A fresh-browser probe of the exact session, including
+opening and minimizing its App, did not reproduce the minute-long stall.
+These were diagnostic observations during concurrent browser-suite execution,
+not calibrated performance measurements. No affected-tab debug grant was
+available because the user's Bug control was itself unresponsive.
+
+An apparent cross-session App opening during investigation had a different
+explanation: a diagnostic tool result printed the artifact URL, which current
+discovery treats as a new App announcement in the investigation session.
+Avoid emitting the artifact URL in diagnostic output; that changes the UI
+being investigated. This observation does not prove cross-tab viewer events.
+
 Found 2026-09-22 while fixing session stalls and delivered-draft recovery.
 Contributing-model: 6-Astra
