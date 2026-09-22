@@ -22,6 +22,9 @@ import {
 } from "../services/ProviderLoginService.js";
 
 const PROVIDER_USAGE_CACHE_TTL_MS = 60_000;
+// Probing subscription usage hits the account's rate-limited usage endpoint and
+// starves other usage trackers on the same machine.
+const SUBSCRIPTION_USAGE_DISABLED = true;
 
 interface ProviderRouteDeps {
   modelInfoService?: Pick<ModelInfoService, "ingestModels">;
@@ -258,7 +261,7 @@ export function createProvidersRoutes(deps: ProviderRouteDeps = {}): Hono {
     forceRefresh: boolean,
   ): Promise<ProviderSubscriptionUsage | null> => {
     const readSubscriptionUsage = provider.getSubscriptionUsage;
-    if (!readSubscriptionUsage) return null;
+    if (!readSubscriptionUsage || SUBSCRIPTION_USAGE_DISABLED) return null;
     const providerName = provider.name as ProviderName;
     const cached = usageCache.get(providerName);
     if (!forceRefresh && cached && cached.expiresAt > Date.now()) {

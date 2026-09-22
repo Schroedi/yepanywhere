@@ -804,11 +804,21 @@ export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   capabilities.push(
     ...getCapabilitiesForDeviceBridgeState(deviceBridgeState, enabled),
   );
-  const denied = new Set([
+  const denied = new Set(getDeniedCapabilities(options));
+  return capabilities.filter((capability) => !denied.has(capability));
+}
+
+/**
+ * Subscription usage is always denied: its probe hits the account's
+ * rate-limited usage endpoint and starves other usage trackers on the same
+ * machine. The route still answers `{ usage: null }` for older clients.
+ */
+function getDeniedCapabilities(options?: VersionRouteOptions): string[] {
+  return [
     SERVER_CAPABILITIES.projectSessionDefaults.name,
     ...(options?.deniedCapabilities ?? []),
-  ]);
-  return capabilities.filter((capability) => !denied.has(capability));
+    PROVIDER_SUBSCRIPTION_USAGE_CAPABILITY,
+  ];
 }
 
 export function getEnabledVoiceBackends(
@@ -927,10 +937,7 @@ export function createVersionRoutes(options?: VersionRouteOptions): Hono {
       getDeviceBridgeState: () => deviceBridgeStatus.state,
       sessionSandboxAvailability,
     });
-    const deniedCapabilities = [
-      SERVER_CAPABILITIES.projectSessionDefaults.name,
-      ...(options?.deniedCapabilities ?? []),
-    ];
+    const deniedCapabilities = getDeniedCapabilities(options);
     const voiceBackends = getEnabledVoiceBackends(options);
     const voiceBackendStatuses = options?.getVoiceBackendStatuses?.() ?? [];
     const voiceBackendCapabilities = getVoiceBackendCapabilities(options);

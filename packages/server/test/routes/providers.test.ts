@@ -700,7 +700,7 @@ describe("Providers Routes", () => {
     ]);
   });
 
-  it("caches normalized subscription usage and refreshes on demand", async () => {
+  it("never probes provider subscription usage", async () => {
     const getSubscriptionUsage = vi.fn(async () => ({
       provider: "claude" as const,
       fetchedAt: "2026-07-29T00:00:00.000Z",
@@ -728,13 +728,9 @@ describe("Providers Routes", () => {
     expect(first.status).toBe(200);
     expect(cached.status).toBe(200);
     expect(refreshed.status).toBe(200);
-    expect(getSubscriptionUsage).toHaveBeenCalledTimes(2);
-    expect(await refreshed.json()).toEqual({
-      usage: expect.objectContaining({
-        provider: "claude",
-        windows: [expect.objectContaining({ usedPercent: 72 })],
-      }),
-    });
+    expect(getSubscriptionUsage).not.toHaveBeenCalled();
+    expect(provider.getAuthStatus).not.toHaveBeenCalled();
+    expect(await refreshed.json()).toEqual({ usage: null });
   });
 
   it("returns null usage when a provider has no supported read path", async () => {
