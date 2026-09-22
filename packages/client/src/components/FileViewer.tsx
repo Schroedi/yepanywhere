@@ -116,6 +116,7 @@ import {
 import { FileViewerModal } from "./FilePathLink";
 import { ViewerSelectAllButton } from "./ViewerSelectAllButton";
 import { ParagraphQuoteRail } from "./ParagraphQuoteRail";
+import { shouldStackFileViewerActions } from "./fileViewerHeaderLayout";
 
 export interface FileViewerSource {
   loadFile: (
@@ -628,6 +629,11 @@ export const FileViewer = memo(function FileViewer({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const fileHeaderRef = useRef<HTMLDivElement>(null);
+  const fileHeaderContextRef = useRef<HTMLDivElement>(null);
+  const fileHeaderProvenanceRef = useRef<HTMLDivElement>(null);
+  const fileHeaderActionsRef = useRef<HTMLDivElement>(null);
+  const [stackHeaderActions, setStackHeaderActions] = useState(false);
   const [fileShareAnchor, setFileShareAnchor] = useState<DOMRect | null>(null);
   const loadedSourceRef = useRef<{
     identity: string;
@@ -691,6 +697,59 @@ export const FileViewer = memo(function FileViewer({
     sendComment: sendSessionViewerComment,
   });
   const fileViewerBodyRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const header = fileHeaderRef.current;
+    const context = fileHeaderContextRef.current;
+    const provenance = fileHeaderProvenanceRef.current;
+    const actions = fileHeaderActionsRef.current;
+    if (!header || !context || !provenance || !actions) return;
+
+    const measure = () => {
+      const headerStyle = getComputedStyle(header);
+      const actionsStyle = getComputedStyle(actions);
+      const horizontalPadding =
+        Number.parseFloat(headerStyle.paddingLeft) +
+        Number.parseFloat(headerStyle.paddingRight);
+      const actionWidths = Array.from(
+        actions.children,
+        (child) => child.getBoundingClientRect().width,
+      ).filter((width) => width > 0);
+      const next = shouldStackFileViewerActions({
+        actionGap: Number.parseFloat(actionsStyle.columnGap) || 0,
+        actionWidths,
+        availableWidth: header.clientWidth - horizontalPadding,
+        contextWidth: context.getBoundingClientRect().width,
+        headerGap: Number.parseFloat(headerStyle.columnGap) || 0,
+        provenanceWidth: provenance.getBoundingClientRect().width,
+      });
+      setStackHeaderActions((current) => (current === next ? current : next));
+    };
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(measure);
+    const observeActionChildren = () => {
+      resizeObserver?.disconnect();
+      resizeObserver?.observe(header);
+      resizeObserver?.observe(context);
+      resizeObserver?.observe(provenance);
+      resizeObserver?.observe(actions);
+      for (const child of actions.children) resizeObserver?.observe(child);
+    };
+    const mutationObserver = new MutationObserver(() => {
+      observeActionChildren();
+      measure();
+    });
+    mutationObserver.observe(actions, { childList: true, subtree: true });
+    observeActionChildren();
+    measure();
+
+    return () => {
+      mutationObserver.disconnect();
+      resizeObserver?.disconnect();
+    };
+  }, []);
   useRegisterQuoteableTextSource(
     fileViewerBodyRef,
     diffActive ? undefined : fileData?.content,
@@ -1679,19 +1738,25 @@ export const FileViewer = memo(function FileViewer({
 
   // Header with file info and actions
   const header = (
-    <div className={`file-viewer-header ${headerStyles.header}`}>
-      {headerLeading}
-      {onClose && (
-        <button
-          type="button"
-          className={`file-viewer-action ${viewerStyles.backButton}`}
-          onClick={handleClose}
-          title={t("actionBack")}
-          aria-label={t("actionBack")}
-        >
-          <BackArrowIcon />
-        </button>
-      )}
+    <div
+      ref={fileHeaderRef}
+      className={`file-viewer-header ${headerStyles.header} ${viewerStyles.header}`}
+      data-actions-below={stackHeaderActions || undefined}
+    >
+      <div ref={fileHeaderContextRef} className={viewerStyles.context}>
+        {headerLeading}
+        {onClose && (
+          <button
+            type="button"
+            className={`file-viewer-action ${viewerStyles.backButton}`}
+            onClick={handleClose}
+            title={t("actionBack")}
+            aria-label={t("actionBack")}
+          >
+            <BackArrowIcon />
+          </button>
+        )}
+      </div>
       <div
         className={`file-viewer-info ${headerStyles.identity} ${viewerStyles.info}`}
       >
@@ -1703,7 +1768,10 @@ export const FileViewer = memo(function FileViewer({
         >
           {displayPath}
         </span>
-        <div className={viewerStyles.provenanceRow}>
+        <div
+          ref={fileHeaderProvenanceRef}
+          className={viewerStyles.provenanceRow}
+        >
           {publicShareContext === null && fileVersionControl.relativePath && (
             <FileRevisionLink
               projectId={projectId}
@@ -1734,6 +1802,7 @@ export const FileViewer = memo(function FileViewer({
         </div>
       </div>
       <div
+        ref={fileHeaderActionsRef}
         className={`file-viewer-actions ${headerStyles.actions} ${viewerStyles.actions}`}
       >
         {publicShareContext === null && (

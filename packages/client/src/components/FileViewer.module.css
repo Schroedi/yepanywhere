@@ -3,6 +3,10 @@
   container-name: file-viewer;
 }
 
+.context {
+  display: contents;
+}
+
 .body {
   position: relative;
 }
@@ -71,19 +75,65 @@
   pointer-events: auto;
 }
 
-@container file-viewer (max-width: 800px) {
-  .info :global(.file-viewer-path) {
-    word-break: break-word;
+@container file-viewer (max-width: 960px) {
+  .header {
+    display: grid;
+    grid-template-areas:
+      "path path path"
+      "context provenance actions";
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: start;
   }
 
-  .info :global(.file-viewer-meta) {
+  .context {
+    grid-area: context;
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+    min-height: 32px;
+  }
+
+  .info {
+    display: contents;
+  }
+
+  .info :global(.file-viewer-path) {
+    display: block;
+    grid-area: path;
+    min-width: 0;
+    overflow: visible;
+    word-break: break-word;
+    -webkit-line-clamp: unset;
+  }
+
+  .provenanceRow {
+    grid-area: provenance;
+    align-items: center;
+    justify-self: start;
+    min-height: 32px;
+  }
+
+  .provenanceRow :global(.file-viewer-meta) {
     white-space: nowrap;
+  }
+
+  .actions {
+    grid-area: actions;
+    min-width: 0;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .header[data-actions-below="true"] {
+    grid-template-areas:
+      "path path path"
+      "context provenance provenance"
+      "actions actions actions";
   }
 }
 
-/* The narrow-width layout is `.viewer-header-actions` in renderers.css: the
-   buttons wrap greedily across the header's real width. Both groups below are
-   atomic, so a wrap never splits `− N +` or the window block across rows. */
+/* These compound controls stay atomic within the measured action rows, so a
+   wrap never splits `− N +` or the window block across rows. */
 .windowActions,
 .fullscreenButton,
 .actions :global(.file-viewer-density-controls) {

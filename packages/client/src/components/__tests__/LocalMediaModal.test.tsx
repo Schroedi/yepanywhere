@@ -455,6 +455,34 @@ describe("LocalFileModal project paths", () => {
     expect(document.body.dataset.pwned).toBeUndefined();
   });
 
+  it("loads project-relative HTML through the project raw-file route", async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response("<h1>Project preview</h1>", {
+          headers: { "Content-Type": "text/html" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(
+      <I18nProvider>
+        <LocalFileModal
+          resource={{
+            kind: "project-file",
+            path: "research/paper.html",
+            projectId: "project-id",
+          }}
+          onClose={() => {}}
+        />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => expect(document.querySelector("iframe")).toBeTruthy());
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      "/api/projects/project-id/files/raw?path=research%2Fpaper.html",
+    );
+  });
+
   it("requests Markdown source or rendered preview from the existing route", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

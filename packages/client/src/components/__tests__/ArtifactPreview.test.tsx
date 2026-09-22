@@ -73,7 +73,9 @@ it("keeps a static preview when resolution fails and retries only on request", a
   vi.stubGlobal("fetch", fetch);
   mount();
   fireEvent.click(
-    screen.getByRole("button", { name: "Run interactive preview" }),
+    screen.getByRole("button", {
+      name: "Run full HTML/CSS/JavaScript preview (current view is sanitized)",
+    }),
   );
   await screen.findByRole("status");
   expect(state.fetch).not.toHaveBeenCalled();
@@ -112,7 +114,9 @@ it("admits only after a successful probe and keeps the grant reusable", async ()
   });
   const { unmount } = mount();
   fireEvent.click(
-    screen.getByRole("button", { name: "Run interactive preview" }),
+    screen.getByRole("button", {
+      name: "Run full HTML/CSS/JavaScript preview (current view is sanitized)",
+    }),
   );
   await screen.findByRole("button", { name: "Stop interactive preview" });
   expect(screen.getByTitle("Mockup").getAttribute("sandbox")).toBe(

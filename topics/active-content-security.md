@@ -424,16 +424,17 @@ authorization durability does not restart an exited Plannotator process.
 
 ### Preview and authority
 
-HTML continues to open as source or scriptless preview. An explicit **Run
-interactive preview** first performs one credential-free `/health` request to
-the selected origin, with redirects rejected and a 2.5-second deadline.
+HTML continues to open as source or scriptless preview. An explicit **Run full
+HTML/CSS/JavaScript preview (current view is sanitized)** action first performs
+one credential-free `/health` request to the selected origin, with redirects
+rejected and a 2.5-second deadline.
 Loopback browser access selects the local origin; other browser access selects
 the public origin. Failure leaves the static preview with an explicit Retry
 action; there is no polling, grant request, or interactive frame on failure.
 The client rejects a selected origin sharing YA's hostname and refuses mixed
 HTTPS-page/HTTP-frame configuration.
 
-In the full file viewer, the existing top-row source/preview toggle starts
+In the full file viewer, the existing toolbar source/preview toggle starts
 interactive HTML directly when clicked from source; no second Run button is
 needed. Switching back to source unmounts the preview but leaves its borrowed
 grant valid until expiry, so another pane or browser tab using that URL remains

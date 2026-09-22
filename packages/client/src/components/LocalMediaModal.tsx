@@ -231,7 +231,10 @@ function localResourceApiPath(
   renderMarkdown: boolean,
   download = resource.download,
 ): string {
-  if (resource.kind === "project-raw-file") {
+  if (
+    resource.kind === "project-raw-file" ||
+    (resource.kind === "project-file" && resource.projectId)
+  ) {
     const params = new URLSearchParams({ path: resource.path });
     if (download) {
       params.set("download", "true");
