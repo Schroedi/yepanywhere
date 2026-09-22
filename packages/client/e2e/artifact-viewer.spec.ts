@@ -198,6 +198,87 @@ test("edits mapped source from default sanitized HTML and preserves a stale prev
   expect(await readFile(sourcePath, "utf8")).toBe("External writer\n");
 });
 
+test("viewer icon modes toggle locally and open through Shift and middle clicks", async ({
+  page,
+  context,
+}) => {
+  const htmlPath = join(directory, "bundle", "mode-controls.html");
+  await writeFile(htmlPath, "<!doctype html><h1>Viewer mode controls</h1>");
+  await page.goto(
+    `${base}/e2e/fixtures/artifact-viewer.html?editor&path=${encodeURIComponent(htmlPath)}`,
+  );
+  const edit = page.getByRole("button", { name: "Edit mode", exact: true });
+  const run = page.getByRole("button", {
+    name: "Run interactive preview",
+    exact: true,
+  });
+  await expect(edit).toHaveAttribute("aria-pressed", "false");
+  await expect(run).toHaveAttribute("aria-pressed", "false");
+  for (const control of [edit, run]) {
+    const box = await control.boundingBox();
+    expect(box?.width).toBe(36);
+    expect(box?.height).toBe(36);
+    expect(await control.locator("svg").count()).toBe(1);
+    for (const gesture of ["shift", "middle"]) {
+      const opened = context.waitForEvent("page");
+      await control.click(
+        gesture === "shift" ? { modifiers: ["Shift"] } : { button: "middle" },
+      );
+      const tab = await opened;
+      await tab.waitForURL("**/file-view?**");
+      if (control === edit) {
+        await expect(
+          tab.getByRole("dialog", { name: "Edit source", exact: true }),
+        ).toBeVisible();
+        await expect(
+          tab.getByRole("button", { name: "Exit edit mode" }),
+        ).toHaveAttribute("aria-pressed", "true");
+      } else {
+        await expect(
+          tab.getByRole("button", { name: "Stop interactive preview" }),
+        ).toHaveAttribute("aria-pressed", "true");
+      }
+      await expect(control).toHaveAttribute("aria-pressed", "false");
+      await tab.close();
+    }
+  }
+  await run.click();
+  const stop = page.getByRole("button", { name: "Stop interactive preview" });
+  await expect(stop).toHaveAttribute("aria-pressed", "true");
+  await stop.click();
+  await expect(run).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    page.locator('iframe[title="mode-controls.html"]'),
+  ).toHaveAttribute("sandbox", "");
+});
+
+test("artifact Edit links open an authenticated editor tab and preserve the original view", async ({
+  page,
+  context,
+}) => {
+  const grant = await instance.artifactServer.createGrant(entry, "local");
+  await page.goto(
+    `${base}/file-view?mode=edit&artifactUrl=${encodeURIComponent(grant.url)}`,
+  );
+  await page.getByRole("button", { name: "Exit edit mode" }).click();
+  const edit = page.getByRole("button", { name: "Edit mode", exact: true });
+  for (const gesture of ["shift", "middle"]) {
+    const opened = context.waitForEvent("page");
+    await edit.click(
+      gesture === "shift" ? { modifiers: ["Shift"] } : { button: "middle" },
+    );
+    const tab = await opened;
+    await expect(
+      tab.getByRole("dialog", { name: "Edit source", exact: true }),
+    ).toBeVisible();
+    await expect(
+      tab.getByRole("textbox", { name: "Source", exact: true }),
+    ).toHaveValue(/<!doctype html>/i);
+    await expect(edit).toHaveAttribute("aria-pressed", "false");
+    await tab.close();
+  }
+});
+
 test("edits ordinary HTML without source maps and hides Edit on older servers", async ({
   page,
 }) => {

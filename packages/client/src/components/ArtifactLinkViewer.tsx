@@ -15,17 +15,27 @@ import { SourceEditAction } from "./SourceEditor";
 export function ArtifactLinkViewer({
   controller,
   inactive,
+  initiallyEditing = false,
+  portalTarget,
+  standalone = false,
 }: {
   controller: Extract<SessionViewerControllerState, { kind: "artifact" }>;
   inactive: boolean;
+  initiallyEditing?: boolean;
+  portalTarget?: HTMLElement;
+  standalone?: boolean;
 }) {
   const { t } = useI18n();
   const hidden = inactive || controller.minimized;
   const closeRef = useRef<HTMLButtonElement>(null);
   const [blocked, setBlocked] = useState(false);
-  useModalBackGesture(controller.close, !hidden, "__artifactViewer");
-  useModalBackspace(controller.close, !hidden);
-  useModalLayer(controller.close, !hidden);
+  useModalBackGesture(
+    controller.close,
+    !hidden && !standalone,
+    "__artifactViewer",
+  );
+  useModalBackspace(controller.close, !hidden && !standalone);
+  useModalLayer(controller.close, !hidden && !standalone);
   useEffect(() => {
     if (!hidden) closeRef.current?.focus();
   }, [hidden]);
@@ -45,9 +55,11 @@ export function ArtifactLinkViewer({
       document.removeEventListener("securitypolicyviolation", onViolation);
   }, [controller.url]);
   const layer =
+    portalTarget ??
     document.querySelector<HTMLElement>(
       ".navigation-route-layer.is-active [data-session-viewer-layer]",
-    ) ?? document.querySelector<HTMLElement>("[data-session-viewer-layer]");
+    ) ??
+    document.querySelector<HTMLElement>("[data-session-viewer-layer]");
   if (!layer) return null;
   return createPortal(
     <section
@@ -62,7 +74,11 @@ export function ArtifactLinkViewer({
             {controller.label}
           </span>
         </span>
-        <SourceEditAction source={{ artifactUrl: controller.url }} artifact />
+        <SourceEditAction
+          source={{ artifactUrl: controller.url }}
+          artifact
+          initiallyOpen={initiallyEditing}
+        />
         <ViewerWindowActions
           className={headerStyles.actions}
           url={controller.url}

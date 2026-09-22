@@ -4,6 +4,8 @@ import {
   type ArtifactViewerGrant,
 } from "@yep-anywhere/shared";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { ViewerModeToggle } from "./ViewerModeToggle";
 import { usePublicShareContext } from "../contexts/PublicShareContext";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
 import { useRetainedVersionInfo } from "../hooks/useVersion";
@@ -26,6 +28,7 @@ interface Props {
   autoStart?: boolean;
   /** The owning viewer may supply the source/preview toggle in its header. */
   showControls?: boolean;
+  toolbarHost?: HTMLElement | null;
 }
 
 export function ArtifactPreview(props: Props) {
@@ -118,30 +121,33 @@ export function ArtifactPreview(props: Props) {
     };
   }, [attempt, origin, audience, props.path, props.projectId, runtime]);
 
+  const controls = origin && (props.showControls !== false || failed) && (
+    <div className={styles.toolbar}>
+      <ViewerModeToggle
+        mode="interactive"
+        source={{ path: props.path, projectId: props.projectId }}
+        artifact
+        active={Boolean(grant)}
+        disabled={busy}
+        onToggle={() =>
+          grant ? setAttempt(0) : setAttempt((value) => value + 1)
+        }
+        label={t(
+          grant
+            ? "artifactStop"
+            : busy
+              ? "artifactChecking"
+              : failed
+                ? "artifactRetry"
+                : "artifactRun",
+        )}
+      />
+      {failed && <span role="status">{t("artifactUnavailable")}</span>}
+    </div>
+  );
   return (
     <div className={`${styles.preview} ${props.className ?? ""}`}>
-      {origin && (props.showControls !== false || failed) && (
-        <div className={styles.toolbar}>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              grant ? setAttempt(0) : setAttempt((value) => value + 1)
-            }
-          >
-            {t(
-              grant
-                ? "artifactStop"
-                : busy
-                  ? "artifactChecking"
-                  : failed
-                    ? "artifactRetry"
-                    : "artifactRun",
-            )}
-          </button>
-          {failed && <span role="status">{t("artifactUnavailable")}</span>}
-        </div>
-      )}
+      {props.toolbarHost ? createPortal(controls, props.toolbarHost) : controls}
       {props.showControls === false && busy && (
         <div className={styles.notice} role="status">
           {t("artifactChecking")}

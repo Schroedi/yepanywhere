@@ -13,6 +13,7 @@ import {
 } from "../lib/artifactSourceTargets";
 import { useModalBackGesture, useModalLayer } from "./ui/Modal";
 import styles from "./SourceEditor.module.css";
+import { ViewerModeToggle } from "./ViewerModeToggle";
 
 interface SourceReference {
   path?: string;
@@ -42,11 +43,12 @@ export function SourceEditAction({
   column,
   artifact,
   onSaved,
-}: Omit<Props, "onClose">) {
+  initiallyOpen = false,
+}: Omit<Props, "onClose"> & { initiallyOpen?: boolean }) {
   const { t } = useI18n();
   const share = usePublicShareContext();
   const { version } = useVersion();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   const saved = useRef(false);
   if (
     share !== null ||
@@ -55,17 +57,19 @@ export function SourceEditAction({
     return null;
   return (
     <>
-      <button
-        type="button"
-        className={styles.editButton}
-        aria-pressed={open}
-        onClick={() => {
+      <ViewerModeToggle
+        mode="edit"
+        source={source}
+        artifact={artifact}
+        line={line}
+        column={column}
+        active={open}
+        label={t(artifact ? "sourceEditorEditMode" : "sourceEditorEdit")}
+        onToggle={() => {
           saved.current = false;
           setOpen(true);
         }}
-      >
-        {t(artifact ? "sourceEditorEditMode" : "sourceEditorEdit")}
-      </button>
+      />
       {open && (
         <SourceEditor
           source={source}
@@ -346,7 +350,7 @@ export function SourceEditor({
         if (event.key === "Tab") {
           const controls = [
             ...event.currentTarget.querySelectorAll<HTMLElement>(
-              "button:not(:disabled), textarea, select, iframe",
+              'button:not(:disabled), a[role="button"]:not([aria-disabled="true"]), textarea, select, iframe',
             ),
           ].filter((element) => element.getClientRects().length);
           const first = controls[0];
@@ -375,14 +379,17 @@ export function SourceEditor({
         >
           {t("sourceEditorSave")}
         </button>
-        <button
-          type="button"
+        <ViewerModeToggle
+          mode="edit"
+          source={source}
+          artifact={artifact}
+          line={line}
+          column={column}
           disabled={busy}
-          aria-pressed={artifact ? true : undefined}
-          onClick={close}
-        >
-          {t(artifact ? "sourceEditorExitMode" : "sourceEditorClose")}
-        </button>
+          active
+          label={t(artifact ? "sourceEditorExitMode" : "sourceEditorClose")}
+          onToggle={close}
+        />
       </header>
       <div className={styles.status} role="status">
         {busy

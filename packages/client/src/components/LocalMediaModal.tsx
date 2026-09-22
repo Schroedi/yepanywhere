@@ -117,6 +117,7 @@ interface DisplayedLocalMedia {
 
 interface LocalFileModalProps {
   resource: LocalResourceRef;
+  initialMode?: "edit" | "interactive";
   initialPresentation?: FileViewPresentation;
   dismissOnBack?: boolean;
   onClose: () => void;
@@ -784,6 +785,7 @@ function LocalMediaModalView({
 
 export function LocalFileModal({
   resource,
+  initialMode,
   initialPresentation,
   dismissOnBack,
   onClose,
@@ -808,6 +810,8 @@ export function LocalFileModal({
     status: "loading",
   });
   const [sourceRevision, setSourceRevision] = useState(0);
+  const [modeControlsHost, setModeControlsHost] =
+    useState<HTMLSpanElement | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: a successful explicit save invalidates the viewed source even when its URL is unchanged.
   useEffect(() => {
@@ -869,23 +873,27 @@ export function LocalFileModal({
       closeOnBackspace={dismissOnBack}
       actions={
         state.status === "text" || state.status === "html" ? (
-          <SourceEditAction
-            source={{
-              path: resource.path,
-              projectId:
-                resource.kind === "project-file"
-                  ? resource.projectId
-                  : undefined,
-            }}
-            line={resource.lineNumber}
-            column={resource.columnNumber}
-            artifact={/\.html?$/i.test(resource.path)}
-            onSaved={
-              /\.html?$/i.test(resource.path)
-                ? undefined
-                : () => setSourceRevision((value) => value + 1)
-            }
-          />
+          <>
+            <SourceEditAction
+              initiallyOpen={initialMode === "edit"}
+              source={{
+                path: resource.path,
+                projectId:
+                  resource.kind === "project-file"
+                    ? resource.projectId
+                    : undefined,
+              }}
+              line={resource.lineNumber}
+              column={resource.columnNumber}
+              artifact={/\.html?$/i.test(resource.path)}
+              onSaved={
+                /\.html?$/i.test(resource.path)
+                  ? undefined
+                  : () => setSourceRevision((value) => value + 1)
+              }
+            />
+            <span ref={setModeControlsHost} />
+          </>
         ) : undefined
       }
     >
@@ -913,6 +921,8 @@ export function LocalFileModal({
         )}
         {state.status === "html" && (
           <ArtifactPreview
+            autoStart={initialMode === "interactive"}
+            toolbarHost={modeControlsHost}
             html={state.html}
             path={resource.path}
             projectId={

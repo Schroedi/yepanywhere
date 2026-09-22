@@ -222,7 +222,10 @@ vocabulary even though their authorization routes remain distinct:
   temporarily covers the session and sidebar, and saving leaves HTML at its
   pre-rebuild revision.
 - When isolated artifact serving is enabled, the HTML preview offers an
-  explicit **Run interactive preview** action. Both static and interactive
+  explicit square play toggle, **Run interactive preview**, beside the square
+  Edit pencil in the viewer header. Both expose pressed state and real mode
+  links: Shift-click or middle-click opens a new tab without changing the
+  original viewer. Both static and interactive
   frames fill the file viewer's available document area beneath its controls;
   longer documents scroll inside the frame. The preview owns its internal
   toolbar/frame layout, so host placement styles must preserve that layout.

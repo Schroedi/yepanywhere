@@ -582,6 +582,8 @@ export const FileViewer = memo(function FileViewer({
   const publicShareContext = usePublicShareContext();
   const viewIdentity = `${projectId}\0${filePath}\0${diffMode ?? "source"}`;
   const [showPreview, setShowPreview] = useState(false);
+  const [modeControlsHost, setModeControlsHost] =
+    useState<HTMLSpanElement | null>(null);
   const [interactivePreviewIdentity, setInteractivePreviewIdentity] = useState<
     string | null
   >(null);
@@ -1506,7 +1508,7 @@ export const FileViewer = memo(function FileViewer({
             className={viewerStyles.htmlPreviewFrame}
             title={fileName}
             autoStart={interactivePreviewIdentity === viewIdentity}
-            showControls={interactivePreviewIdentity !== viewIdentity}
+            toolbarHost={modeControlsHost}
           />
         );
       }
@@ -1801,6 +1803,7 @@ export const FileViewer = memo(function FileViewer({
               }
             />
           )}
+        <span ref={setModeControlsHost} />
         {!diffActive && metadata?.isText && content !== undefined && (
           <FileViewerDensityControls
             zoom={viewerDensity.zoom}

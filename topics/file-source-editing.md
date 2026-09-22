@@ -18,6 +18,21 @@ location is explicitly approximate; character-level click mapping is deferred.
 Without supported targets, edit the HTML itself. Malformed targets show an error
 and leave the original HTML available for direct editing.
 
+File and artifact viewers share a square pencil toggle for Edit mode. The same
+pencil is highlighted while editing and exits through the dirty-close flow.
+HTML files also have a matching play toggle for interactive preview, beside
+Edit in the viewer header; its highlighted state means scripts are running on
+the isolated artifact origin. Tooltips and accessible names describe each
+action. Ordinary clicks toggle in place. Shift-click opens the requested mode
+in a new tab; middle-click and the browser's Open link in new tab use the same
+real link. These gestures leave the original pane and draft unchanged.
+
+Mode links use authenticated `/file-view` (beneath the current relay prefix
+when applicable), carrying the original file or artifact reference and mode.
+They do not grant permission. Artifact URLs must match the current source's
+configured isolated origins before embedding. New edit tabs retain the
+`file-source-editing` gate; interactive tabs use the existing artifact gate.
+
 Text and Markdown viewers expose **Edit**, using the supplied file/line location.
 The editor saves only on explicit Save or Save and close. Leaving a dirty editor
 offers Save, Discard, or Keep editing. Save errors retain the draft. Ordinary

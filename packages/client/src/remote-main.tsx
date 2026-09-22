@@ -172,6 +172,11 @@ const EmulatorPage = lazy(() =>
 const FilePage = lazy(() =>
   loadFilePageModule().then(({ FilePage }) => ({ default: FilePage })),
 );
+const ViewerModePage = lazy(() =>
+  import("./pages/ViewerModePage").then(({ ViewerModePage }) => ({
+    default: ViewerModePage,
+  })),
+);
 const GitStatusPage = lazy(() =>
   loadGitStatusPageModule().then(({ GitStatusPage }) => ({
     default: GitStatusPage,
@@ -385,6 +390,7 @@ const APP_ROUTES = (
         path="projects/:projectId/file"
         element={routeModule(<FilePage />)}
       />
+      <Route path="file-view" element={routeModule(<ViewerModePage />)} />
       <Route
         path="projects/:projectId/sessions/:sessionId"
         element={routeModule(<SessionDomLingerRouteMarker />)}
