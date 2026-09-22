@@ -82,6 +82,69 @@ does not identify which rendered node came from which data/template instance.
 Canvas and other non-text content can open a mapped item range only when the
 producer supplies a corresponding hit region.
 
+## Paper producer choice: original section file and line
+
+Decision (2026-09-22, user-requested; Contributing-model: 6-Astra): use
+the paired `ya-source-target:v1` HTML comments above and a sibling
+`paper-canvas.html.map`, rather than introduce a separate paper-only marker.
+This is a selected design, not an implemented build feature.
+
+The concrete producer is the draft repository's `scripts/pii_paper_canvas.py`.
+It renders `research/pii/frontier/papers/multilingual-pii-redaction/index.qmd`
+with Quarto 1.9.38, whose manuscript includes live in `sections/*.qmd`, then
+produces `_build/paper-canvas.html`, its PDF, and a hash receipt. The map must
+identify those original section files, not an expanded temporary manuscript,
+the include line in `index.qmd`, or the generated HTML line alone.
+
+For the first producer increment, bracket each authored paragraph, heading,
+list item, table and figure with a target. A proposed record is:
+
+```html
+<!-- ya-source-target:v1 {"id":"abstract:p1","source":"../sections/_00-abstract.qmd","sourceRange":[[2,0],[7,0]],"precision":"item"} -->
+<p>…rendered paragraph…</p>
+<!-- /ya-source-target:v1 abstract:p1 -->
+```
+
+The example range is illustrative, not a claim about current manuscript
+lines. `source` resolves relative to the map; `sourceRange` follows the
+zero-based, half-open convention above. A viewer displays its start as
+`sections/_00-abstract.qmd:3`, selects the source range, and explicitly reports
+item-level precision. This useful file/line increment does **not** satisfy
+the later click-to-character acceptance requirement.
+
+Implementation direction:
+
+- Capture file identity and block ranges while reading the original section
+  sources, before include expansion and Markdown transformations. Carry that
+  provenance through parsing/rendering. First verify the pinned Quarto/Pandoc
+  extension seam preserves it; do not assume its default AST supplies original
+  include coordinates. Do not recover provenance with a global rendered-text
+  search, paragraph-count alignment, or a blank-line splitter.
+- Preserve target identity using explicit authoring anchors where present;
+  establish persistent block identifiers for unanchored material. A line number
+  or paragraph ordinal alone is not stable identity across edits. Repeated
+  inclusions need distinct instance identifiers.
+- Serialize the paired comments without changing the visible document. After
+  final HTML serialization, derive generated ranges and the version-3 map,
+  with a versioned YA target-table extension for original ranges and precision.
+  Initially map only known boundaries; leave interiors unmapped rather than
+  suggesting character accuracy. Excluded author-only sections have no targets.
+- Hash the final HTML and original source bytes in the sidecar, and hash the
+  sidecar in the existing build receipt. Keep the map URL in HTML but its digest
+  outside HTML to avoid a circular HTML/map hash dependency. Publish the HTML,
+  map and receipt together; do not embed source contents or absolute host paths.
+- Cover moved footnotes and bibliography entries with their own source targets
+  where provenance is known; synthetic navigation and generated decorations
+  remain explicitly unmapped. Later text-run mappings refine the same targets.
+
+Producer acceptance: build a fixture with two included section files, repeated
+phrases, inline markup, a footnote and an excluded block. Every mapped visible
+block resolves to its original file/range; a source edit makes the old mapping
+stale; generated ranges address the final serialized HTML; comments do not
+change screen or print output. Test the actual embedded HTML review path for
+marker survival before claiming a review consumer can use them. Existing
+Plannotator integration is not presumed to interpret this proposed YA format.
+
 ## Click precision: more than the right line
 
 Resolve the click to a rendered text caret offset, then through its mapped
