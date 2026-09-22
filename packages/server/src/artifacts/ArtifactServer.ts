@@ -482,6 +482,35 @@ export class ArtifactServer {
     };
   }
 
+  /** Resolve an artifact URL for the authenticated source editor only. */
+  async resolveSourceUrl(rawUrl: string): Promise<string> {
+    await this.ready;
+    const url = new URL(rawUrl);
+    if (
+      ![this.config.localOrigin, this.config.publicOrigin].includes(url.origin)
+    )
+      throw new HTTPException(403, { message: "Not an artifact origin" });
+    const match = /^\/a\/([^/]+)\/(.+)$/.exec(url.pathname);
+    const grant = match && this.grants.get(match[1]!);
+    if (!match || !grant || grant.expiresAt <= Date.now())
+      throw new HTTPException(404, {
+        message: "Artifact grant expired or unavailable",
+      });
+    const relative = decodeURIComponent(match[2]!);
+    if (
+      relative.includes("\\") ||
+      relative.includes("\0") ||
+      relative.split("/").some((part) => part.startsWith("."))
+    )
+      throw new HTTPException(400, { message: "Invalid artifact path" });
+    const path = await realpath(resolve(grant.root, relative));
+    if (!isPathInsideDirectory(path, grant.root))
+      throw new HTTPException(403, {
+        message: "Artifact source outside granted directory",
+      });
+    return path;
+  }
+
   /** Revoking an owning grant pays its deletion now, not at its old deadline. */
   async revoke(id: string): Promise<void> {
     await this.ready;

@@ -1,0 +1,137 @@
+.workspace {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.workspace button,
+.editButton {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  cursor: pointer;
+}
+.header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+.identity {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+.identity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.status,
+.notice,
+.error,
+.confirm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.status {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.notice {
+  background: var(--bg-secondary);
+}
+.error {
+  color: var(--error-color, #e66);
+}
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.panes {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.sourcePane,
+.previewPane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sourcePane textarea {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  border: 0;
+  padding: 12px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  font: 14px / 24px monospace;
+  tab-size: 2;
+}
+.previewPane {
+  border-left: 1px solid var(--border-color);
+}
+.previewPane iframe {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: white;
+}
+.targetPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  font-size: 13px;
+}
+.targetPicker select {
+  width: 100%;
+  min-height: 36px;
+}
+.tabs {
+  display: none;
+}
+@media (max-width: 650px) {
+  .header {
+    flex-wrap: wrap;
+  }
+  .identity {
+    flex-basis: 100%;
+  }
+  .tabs {
+    display: flex;
+    gap: 8px;
+    padding: 6px 12px;
+  }
+  .tabs button[aria-pressed="true"] {
+    border-color: var(--text-primary);
+  }
+  .panes[data-preview="true"] .sourcePane {
+    display: none;
+  }
+  .panes[data-preview="false"] .previewPane {
+    display: none;
+  }
+}

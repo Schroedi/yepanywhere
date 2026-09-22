@@ -31,6 +31,7 @@ import {
 } from "../lib/clipboard";
 import { downloadBlob, writeClipboardImageLater } from "../lib/imageActions";
 import { ArtifactPreview } from "./ArtifactPreview";
+import { SourceEditAction } from "./SourceEditor";
 import {
   requireRenderedFileClipboardPayload,
   requireRenderedHtmlClipboardPayload,
@@ -790,7 +791,10 @@ export function LocalFileModal({
   const sessionMetadata = useOptionalSessionMetadata();
   const transport = useCurrentSourceRuntime().transport;
   const presentation =
-    initialPresentation ?? (resource.renderMarkdown ? "preview" : "source");
+    initialPresentation ??
+    (resource.renderMarkdown || /\.html?$/i.test(resource.path)
+      ? "preview"
+      : "source");
   const apiPath = localResourceApiPath(resource, presentation === "preview");
   const fileName = getFileName(resource.path);
   const locationSuffix = `${resource.lineNumber !== undefined ? `:${resource.lineNumber}` : ""}${
@@ -803,7 +807,9 @@ export function LocalFileModal({
   const [state, setState] = useState<LocalFileViewState>({
     status: "loading",
   });
+  const [sourceRevision, setSourceRevision] = useState(0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a successful explicit save invalidates the viewed source even when its URL is unchanged.
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
@@ -853,7 +859,7 @@ export function LocalFileModal({
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [apiPath, presentation, transport]);
+  }, [apiPath, presentation, transport, sourceRevision]);
 
   return (
     <Modal
@@ -861,6 +867,27 @@ export function LocalFileModal({
       onClose={onClose}
       closeOnBackGesture={dismissOnBack}
       closeOnBackspace={dismissOnBack}
+      actions={
+        state.status === "text" || state.status === "html" ? (
+          <SourceEditAction
+            source={{
+              path: resource.path,
+              projectId:
+                resource.kind === "project-file"
+                  ? resource.projectId
+                  : undefined,
+            }}
+            line={resource.lineNumber}
+            column={resource.columnNumber}
+            artifact={/\.html?$/i.test(resource.path)}
+            onSaved={
+              /\.html?$/i.test(resource.path)
+                ? undefined
+                : () => setSourceRevision((value) => value + 1)
+            }
+          />
+        ) : undefined
+      }
     >
       <div className={styles.fileModalContent}>
         <div

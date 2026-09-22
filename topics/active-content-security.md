@@ -1,8 +1,8 @@
 # Active Content Serving and Origin Isolation
 
 > Agent- or project-authored active content must never execute with YA's
-> authenticated server origin or hosted-client origin. File viewing is
-> source-first and scriptless; applications that intentionally execute need a
+> authenticated server origin or hosted-client origin. Ordinary HTML viewing is
+> rendered and scriptless; applications that intentionally execute need a
 > separate untrusted-content origin with no YA credentials or ambient API
 > authority.
 
@@ -57,7 +57,7 @@ viewer, preview, and isolated-application work lives in
 
 The shared file context menu now distinguishes Source from Preview without
 navigating either selection to a raw active response. Ordinary HTML opens as
-source; an explicit preview in either current client viewer uses the same
+a rendered preview; an explicit Source choice remains available. Either viewer uses the same
 client-owned `srcdoc` wrapper with an empty iframe sandbox, no-referrer policy,
 and a restrictive meta CSP that denies scripts, connections, frames, objects,
 workers, forms, base URLs, and ambient image/media loads. Markdown keeps its
@@ -154,8 +154,9 @@ relay, and public-share contexts.
 1. An ordinary click, modified click, context-menu open, viewer toolbar action,
    copied viewer URL, browser restore, or redirect must never turn an untrusted
    active file into a top-level document on a YA application origin.
-2. The normal action for an active file opens the unified viewer in source
-   mode. An explicit static preview may use a sandbox with scripts disabled.
+2. The normal action for HTML opens the unified viewer's static preview with
+   scripts disabled; an explicit Source choice shows its bytes. Other active
+   formats retain their source or confined-media presentation.
 3. "Open in new tab" means the standalone YA viewer route, not the raw-file
    endpoint. "Download" is the action that returns original active bytes.
 4. Raw active responses use attachment disposition, `nosniff`, and the inert
@@ -472,6 +473,12 @@ artifacts, not mutually hostile tenants. They never receive YA storage or a
 host bridge. YA's parent-document CSP permits HTTP(S) frames so configuration
 can change without reloading an already open document; only the validated
 artifact URL is used by the interactive viewer.
+
+The explicit [source editor](file-source-editing.md) uses a separate static
+selection snapshot, not the interactive application's frame. Its opaque sandbox
+permits only YA's nonce-authorized selection script and a validated target-id
+message to the parent. That message can open source; it cannot write or invoke
+a script. Producer scripts and event handlers are removed.
 
 The artifact handler exposes only GET/HEAD health and granted files. `/api`,
 `/public-api`, desktop bootstrap, and WebSocket upgrades are unavailable.

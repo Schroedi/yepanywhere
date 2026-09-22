@@ -165,6 +165,21 @@ File-viewer modals own one same-URL browser-history entry: Back dismisses the
 viewer without leaving the underlying session, while opening or React effect
 replay must never traverse pre-modal history.
 
+The project file metadata/content endpoint includes complete HTML documents
+(`.html` and `.htm`) up to 200 MiB, including embedded assets. The ordinary
+source/preview viewer can display them without enabling an artifact service;
+the existing scriptless sandbox still governs Preview. Source highlighting
+uses at most the first 1 MiB and reports truncation independently of the complete
+preview content. Other text files retain their 1 MiB inline limit and bounded
+line-target windows. Above the HTML limit, metadata and the download remain
+available. The document limit does not enlarge transport message limits;
+particularly large relay responses remain subject to transport reassembly.
+
+**Separate document and highlighting limits** (vs. applying the source-preview
+limit to embedded assets): a self-contained paper must arrive intact for HTML
+layout, while tokenizing its full asset payload adds work without helping source
+inspection.
+
 The visible file-viewer body is the document's normal scroll owner at every
 supported width. When an input, textarea, select, or editable region does not
 own focus, wheel/trackpad input and ordinary keyboard navigation scroll that
@@ -194,13 +209,18 @@ vocabulary even though their authorization routes remain distinct:
   and highlights that branch. Click opens the same flyout. Coarse pointers and
   narrow viewports use the compact replacement panel with an explicit **Back**
   action, so hover is never the only route to the presentation choice.
-- HTML is source-first. Its explicit Preview is a client-owned `srcdoc`
+- HTML defaults to a rendered Preview, a client-owned `srcdoc`
   document under an empty iframe sandbox, no-referrer policy, and restrictive
   meta CSP. Markdown remains preview-first and may be opened as source. Both
   representations remain toggleable inside the project `FileViewer` through
   one **Raw source** icon button whose pressed state means the source is
   showing; the local-file modal takes its initial representation from the
   context menu in this first convergence step.
+- Authenticated ordinary file and artifact viewers offer
+  [source editing](file-source-editing.md). HTML Edit mode selects producer-mapped
+  original file locations; without mappings it edits HTML directly. Editing
+  temporarily covers the session and sidebar, and saving leaves HTML at its
+  pre-rebuild revision.
 - When isolated artifact serving is enabled, the HTML preview offers an
   explicit **Run interactive preview** action. Both static and interactive
   frames fill the file viewer's available document area beneath its controls;

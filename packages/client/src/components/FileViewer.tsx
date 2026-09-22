@@ -52,6 +52,7 @@ import { isMarkdownLikeFile } from "../lib/markdownFiles";
 import { extractMarkdownSnippetsFromSelection } from "../lib/markdownSelectionCopy";
 import { getRenderedFileClipboardPayload } from "../lib/renderedFileClipboard";
 import { ArtifactPreview } from "./ArtifactPreview";
+import { SourceEditAction } from "./SourceEditor";
 import { ViewerWindowActions } from "./ViewerWindowActions";
 import {
   annotateShikiSourceOffsets,
@@ -1084,7 +1085,7 @@ export const FileViewer = memo(function FileViewer({
               : initialPresentation
                 ? initialPresentation === "preview" &&
                   (markdownPreviewAvailable || htmlPreviewAvailable)
-                : markdownPreviewAvailable,
+                : markdownPreviewAvailable || htmlPreviewAvailable,
           );
           setLoading(false);
         }
@@ -1772,6 +1773,34 @@ export const FileViewer = memo(function FileViewer({
             <CommentIcon />
           </button>
         )}
+        {publicShareContext === null &&
+          source === DEFAULT_FILE_VIEWER_SOURCE &&
+          !diffActive &&
+          metadata?.isText &&
+          content !== undefined && (
+            <SourceEditAction
+              source={{ path: filePath, projectId }}
+              line={effectiveLineNumber}
+              artifact={hasHtmlPreview}
+              onSaved={
+                hasHtmlPreview
+                  ? undefined
+                  : () => {
+                      void source
+                        .loadFile(
+                          projectId,
+                          filePath,
+                          true,
+                          effectiveLineNumber,
+                          effectiveLineEnd,
+                          effectiveViewMode,
+                        )
+                        .then(setFileData)
+                        .catch((error) => setError(String(error)));
+                    }
+              }
+            />
+          )}
         {!diffActive && metadata?.isText && content !== undefined && (
           <FileViewerDensityControls
             zoom={viewerDensity.zoom}

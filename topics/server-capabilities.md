@@ -10,6 +10,14 @@ Topic: server-capabilities
 
 ## Source Of Truth
 
+`file-source-editing` (permanent ID 82, version-implied from 0.9.1) owns
+authenticated GET/PUT `/api/file-edit`, source revisions and conditional saves,
+and artifact source-target resolution. The maintainer approved this additive
+contract on 2026-09-22 after checking stable v0.8.1 and v0.9.0. Both lack it;
+clients hide Edit and make no new requests while preserving read/comment
+behavior. No existing capability changes meaning. See
+[file source editing](file-source-editing.md).
+
 `speech-backend-setup` (permanent ID 74, version-implied from 0.8.2) owns
 the Speech settings local-backend table: `speechVoiceBackends` on
 `GET`/`PUT /api/settings`, `GET /api/speech/backends`,

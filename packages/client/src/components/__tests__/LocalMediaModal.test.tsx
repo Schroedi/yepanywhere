@@ -426,7 +426,7 @@ describe("LocalFileModal project paths", () => {
     );
   });
 
-  it("opens ordinary HTML as source and confines an explicit preview", async () => {
+  it("opens ordinary HTML in a confined preview by default", async () => {
     const fetchMock = vi.fn(
       async () =>
         new Response(
@@ -437,22 +437,9 @@ describe("LocalFileModal project paths", () => {
     vi.stubGlobal("fetch", fetchMock);
     const resource = { kind: "local-file" as const, path: "/tmp/demo.html" };
 
-    const { rerender } = render(
+    render(
       <I18nProvider>
         <LocalFileModal resource={resource} onClose={() => {}} />
-      </I18nProvider>,
-    );
-
-    expect(await screen.findByText(/Local preview/)).toBeTruthy();
-    expect(document.querySelector("iframe")).toBeNull();
-
-    rerender(
-      <I18nProvider>
-        <LocalFileModal
-          resource={resource}
-          initialPresentation="preview"
-          onClose={() => {}}
-        />
       </I18nProvider>,
     );
 
@@ -513,7 +500,9 @@ describe("LocalFileModal project paths", () => {
     );
 
     await waitFor(() => expect(document.querySelector("iframe")).toBeTruthy());
-    expect(String(fetchMock.mock.calls.at(-1)?.[0])).toContain("render=1");
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes("render=1")),
+    ).toBe(true);
   });
 });
 

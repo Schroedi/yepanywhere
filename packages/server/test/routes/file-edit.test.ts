@@ -1,0 +1,139 @@
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  writeFile,
+  symlink,
+  rm,
+  chmod,
+  stat,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createFileEditRoutes } from "../../src/routes/file-edit.js";
+import { createLocalResourcePathPolicy } from "../../src/routes/local-resource-policy.js";
+
+describe("source editing routes", () => {
+  let root: string;
+  let file: string;
+  let pending = false;
+  const create = () =>
+    createFileEditRoutes({
+      policy: createLocalResourcePathPolicy({
+        allowedPaths: [join(root, "project")],
+      }),
+      scanner: { getProject: async () => undefined },
+      resolveArtifactUrl: async () => file,
+      isWritePending: () => pending,
+    });
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "source-edit-"));
+    await mkdir(join(root, "project"));
+    file = join(root, "project", "section.qmd");
+    await writeFile(file, "# Heading\nOriginal text\n");
+    pending = false;
+  });
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+  const save = (
+    app: ReturnType<typeof create>,
+    revision: string,
+    content: string,
+  ) =>
+    app.request("/file-edit", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: file, revision, content }),
+    });
+
+  it("reads the real source, conditionally saves it, and rejects a second stale save", async () => {
+    const app = create();
+    const snapshot = await (
+      await app.request(`/file-edit?path=${encodeURIComponent(file)}`)
+    ).json();
+    expect(snapshot.content).toBe("# Heading\nOriginal text\n");
+    expect(
+      (await save(app, snapshot.revision, "# Changed\nOriginal text\n")).status,
+    ).toBe(200);
+    expect(await readFile(file, "utf8")).toBe("# Changed\nOriginal text\n");
+    expect((await save(app, snapshot.revision, "lost update")).status).toBe(
+      409,
+    );
+    expect(await readFile(file, "utf8")).toContain("Changed");
+  });
+  it("resolves original source relative to the artifact and checks the allow-set", async () => {
+    const app = create();
+    const response = await app.request(
+      `/file-edit?path=section.qmd&relativeTo=${encodeURIComponent(file)}`,
+    );
+    expect(response.status).toBe(200);
+    await writeFile(join(root, "outside.txt"), "private");
+    expect(
+      (
+        await app.request(
+          `/file-edit?path=../outside.txt&relativeTo=${encodeURIComponent(file)}`,
+        )
+      ).status,
+    ).toBe(403);
+    await symlink(
+      join(root, "outside.txt"),
+      join(root, "project", "escape.txt"),
+    );
+    expect(
+      (
+        await app.request(
+          `/file-edit?path=${encodeURIComponent(join(root, "project", "escape.txt"))}`,
+        )
+      ).status,
+    ).toBe(403);
+  });
+  it("refuses active tool writes and preserves file mode", async () => {
+    const app = create();
+    await chmod(file, 0o640);
+    const snapshot = await (
+      await app.request(`/file-edit?path=${encodeURIComponent(file)}`)
+    ).json();
+    pending = true;
+    expect((await save(app, snapshot.revision, "new")).status).toBe(409);
+    pending = false;
+    expect((await save(app, snapshot.revision, "new")).status).toBe(200);
+    if (process.platform !== "win32")
+      expect((await stat(file)).mode & 0o777).toBe(0o640);
+  });
+  it("rejects binary, invalid UTF-8 and oversized sources", async () => {
+    const app = create();
+    for (const bytes of [
+      Buffer.from([0, 1]),
+      Buffer.from([0xff]),
+      Buffer.alloc(1024 * 1024 + 1, 65),
+    ]) {
+      await writeFile(file, bytes);
+      expect(
+        (await app.request(`/file-edit?path=${encodeURIComponent(file)}`))
+          .status,
+      ).toBe(bytes.length > 1024 * 1024 ? 413 : 415);
+    }
+  });
+  it("reads large HTML for target selection without making it editable", async () => {
+    const app = create();
+    const html = join(root, "project", "large.html");
+    await writeFile(html, `<p>Mapped report</p>${" ".repeat(2 * 1024 * 1024)}`);
+    const response = await app.request(
+      `/file-edit?path=${encodeURIComponent(html)}&preview=1`,
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).editable).toBe(false);
+    expect(
+      (await app.request(`/file-edit?path=${encodeURIComponent(html)}`)).status,
+    ).toBe(413);
+  });
+  it("does not apply source edit middleware to unrelated API routes", async () => {
+    const app = create();
+    app.get("/other", (c) => c.text("ok"));
+    expect(
+      (await app.request("/other")).headers.get("Cache-Control"),
+    ).toBeNull();
+  });
+});

@@ -1,6 +1,14 @@
 import { createRequire } from "node:module";
 import { createServer as createHttpServer, request } from "node:http";
-import { cp, copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import {
+  cp,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  rm,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
@@ -11,6 +19,7 @@ import { MockClaudeSDK } from "../../server/src/sdk/mock";
 import { ServerSettingsService } from "../../server/src/services/ServerSettingsService";
 import { initFileAccess } from "../../server/src/middleware/file-access";
 import { recordUiCapture } from "./support/ui-capture";
+import { presentUiCaptures } from "./support/ui-capture";
 
 const clientRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const serverRequire = createRequire(join(clientRoot, "../server/package.json"));
@@ -95,6 +104,7 @@ test.afterEach(async ({ page }) => {
 });
 
 test.afterAll(async () => {
+  await presentUiCaptures();
   if (listener) {
     listener.closeAllConnections();
     await new Promise<void>((resolve, reject) =>
@@ -104,6 +114,125 @@ test.afterAll(async () => {
   if (instance) await instance.disposeSessionReaders();
   if (vite) await vite.close();
   if (directory) await rm(directory, { recursive: true });
+});
+
+test("edits mapped source from default sanitized HTML and preserves a stale preview", async ({
+  page,
+}) => {
+  const sourcePath = join(directory, "bundle", "section.qmd");
+  const htmlPath = join(directory, "bundle", "editable.html");
+  const original = `# Title\n\nThe original paragraph.\n${"Context line\n".repeat(3000)}`;
+  await writeFile(sourcePath, original);
+  await writeFile(
+    htmlPath,
+    `<!doctype html><html><head><style>body{font:20px Georgia;padding:32px;line-height:1.5}</style></head><body><h1>Field notes</h1><!-- ya-source-target:v1 {"id":"intro","source":"section.qmd","sourceRange":[[2,0],[3,0]]} --><p>The original paragraph.</p><!-- /ya-source-target:v1 intro --></body></html>`,
+  );
+  await page.setViewportSize({ width: 1200, height: 600 });
+  let unsupportedRequests = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/artifacts")
+      unsupportedRequests++;
+  });
+  await page.goto(
+    `${base}/e2e/fixtures/artifact-viewer.html?editor&path=${encodeURIComponent(htmlPath)}`,
+  );
+  await expect(
+    page
+      .frameLocator(`iframe[title="editable.html"]`)
+      .getByRole("heading", { name: "Field notes" }),
+  ).toBeVisible();
+  expect(unsupportedRequests).toBe(0);
+  await page.getByRole("button", { name: "Edit mode", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Edit source" });
+  await expect(dialog).toBeVisible();
+  const preview = page.frameLocator('iframe[title="Preview"]');
+  await preview.getByText("The original paragraph.").click();
+  const textarea = dialog.getByRole("textbox", { name: "Source", exact: true });
+  await expect(textarea).toHaveValue(original);
+  expect(
+    await textarea.evaluate(
+      (input: HTMLTextAreaElement) => input.selectionStart,
+    ),
+  ).toBe(9);
+  let typed = "";
+  const updatesBefore = Number(
+    await page.getByTestId("background-updates").getAttribute("data-updates"),
+  );
+  for (const character of "New text. ") {
+    typed += character;
+    await textarea.pressSequentially(character);
+    await expect(textarea).toHaveValue(
+      original.slice(0, 9) + typed + original.slice(9),
+      { timeout: 100 },
+    );
+  }
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(dialog.getByRole("status")).toContainText("Source saved");
+  expect(
+    Number(
+      await page.getByTestId("background-updates").getAttribute("data-updates"),
+    ),
+  ).toBeGreaterThan(updatesBefore);
+  expect(await readFile(sourcePath, "utf8")).toBe(
+    original.replace("The original", "New text. The original"),
+  );
+  await expect(preview.getByText("The original paragraph.")).toBeVisible();
+  await expect(
+    dialog.getByText(/line references may now be stale/),
+  ).toBeVisible();
+  await recordUiCapture(page, "source-editor-desktop", {
+    width: 1200,
+    height: 600,
+  });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await expect(textarea).toBeVisible();
+  await recordUiCapture(page, "source-editor-phone", {
+    width: 375,
+    height: 812,
+  });
+  await textarea.pressSequentially("Keep draft");
+  await writeFile(sourcePath, "External writer\n");
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("file changed");
+  await expect(textarea).toHaveValue(/Keep draft/);
+  expect(await readFile(sourcePath, "utf8")).toBe("External writer\n");
+});
+
+test("edits ordinary HTML without source maps and hides Edit on older servers", async ({
+  page,
+}) => {
+  const htmlPath = join(directory, "bundle", "plain.html");
+  await writeFile(htmlPath, "<!doctype html><p>Plain HTML</p>");
+  const url = `${base}/e2e/fixtures/artifact-viewer.html?editor&path=${encodeURIComponent(htmlPath)}`;
+  await page.goto(url);
+  await page.getByRole("button", { name: "Edit mode", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Edit source" });
+  const text = dialog.getByRole("textbox", { name: "Source", exact: true });
+  await expect(text).toHaveValue("<!doctype html><p>Plain HTML</p>");
+  await text.press("End");
+  await text.pressSequentially("<!-- saved -->");
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await expect
+    .poll(() => readFile(htmlPath, "utf8"))
+    .toContain("<!-- saved -->");
+  await dialog.getByRole("button", { name: "Exit edit mode" }).click();
+  await page.route("**/api/version*", (route) =>
+    route.fulfill({
+      json: { current: "0.9.0", capabilityEncoding: 1, capabilityBits: [] },
+    }),
+  );
+  let newRequests = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/file-edit") newRequests++;
+  });
+  await page.goto(url);
+  await expect(
+    page.frameLocator('iframe[title="plain.html"]').getByText("Plain HTML"),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Edit mode", exact: true }),
+  ).toHaveCount(0);
+  expect(newRequests).toBe(0);
 });
 
 test("loads the bundle through the same port, preserves scripts, and denies YA access", async ({

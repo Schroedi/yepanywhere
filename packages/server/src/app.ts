@@ -227,6 +227,7 @@ import { ClaudeOllamaProvider } from "./sdk/providers/claude-ollama.js";
 import { grokACPProvider } from "./sdk/providers/grok-acp.js";
 
 import { createLocalFileRoutes } from "./routes/local-file.js";
+import { createFileEditRoutes } from "./routes/file-edit.js";
 import { createLocalImageRoutes } from "./routes/local-image.js";
 import { createLocalResourcePathPolicy } from "./routes/local-resource-policy.js";
 import { type UploadDeps, createUploadRoutes } from "./routes/upload.js";
@@ -950,6 +951,16 @@ export function createApp(options: AppOptions): AppResult {
       scanner,
       settings: options.serverSettingsService,
       locked: options.artifacts !== undefined,
+    }),
+  );
+  app.route(
+    "/api",
+    createFileEditRoutes({
+      policy: localResourcePathPolicy,
+      scanner,
+      resolveArtifactUrl: (url) => artifactServer.resolveSourceUrl(url),
+      isWritePending: (path) =>
+        options.dirtyFileEditorService?.isWritePending(path) ?? false,
     }),
   );
   const vhostAppControl = new VhostAppControl(

@@ -1,5 +1,7 @@
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { e2ePaths, expect, test } from "./fixtures.js";
+import { recordUiCapture } from "./support/ui-capture.js";
 
 let projectId: string;
 let projectPath: string;
@@ -10,6 +12,41 @@ test.beforeAll(() => {
 });
 
 test.describe("Files API", () => {
+  test("previews large HTML without an artifact service", async ({ page }) => {
+    const filename = "large-paper.html";
+    await writeFile(
+      join(projectPath, filename),
+      `<!doctype html><html><body><h1>Large paper</h1><!--${"x".repeat(3 * 1024 * 1024)}--><p>End of complete document</p></body></html>`,
+    );
+    let artifactRequests = 0;
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/artifacts") {
+        artifactRequests += 1;
+      }
+    });
+    await page.goto(`/projects/${projectId}/file?path=${filename}`);
+    const frame = page.frameLocator(`iframe[aria-label="${filename}"]`);
+    await expect(
+      frame.getByRole("heading", { name: "Large paper" }),
+    ).toBeVisible();
+    await expect(frame.getByText("End of complete document")).toBeVisible();
+    await expect(
+      page.locator(`iframe[aria-label="${filename}"]`),
+    ).toHaveAttribute("sandbox", "");
+    expect(artifactRequests).toBe(0);
+    await expect(
+      page.getByRole("button", { name: "Edit mode", exact: true }),
+    ).toBeVisible();
+    for (const viewport of [
+      { width: 1200, height: 600 },
+      { width: 375, height: 812 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect(frame.getByText("End of complete document")).toBeVisible();
+      await recordUiCapture(page, `large-html-${viewport.width}`, viewport);
+    }
+  });
+
   test("returns file content for text files", async ({ request }) => {
     const response = await request.get(
       `/api/projects/${projectId}/files?path=test.txt`,

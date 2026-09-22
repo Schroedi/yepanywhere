@@ -1091,7 +1091,7 @@ describe("FileViewer", () => {
     ]);
   });
 
-  it("keeps HTML source-first and confines an explicit static preview", async () => {
+  it("defaults HTML to a confined static preview and offers raw source", async () => {
     const fileResponse: FileContentResponse = {
       metadata: {
         path: "reports/demo.html",
@@ -1120,11 +1120,6 @@ describe("FileViewer", () => {
     const rawSource = await screen.findByRole("button", {
       name: "Raw source",
     });
-    expect(rawSource.getAttribute("aria-pressed")).toBe("true");
-    expect(container.querySelector("iframe")).toBeNull();
-    expect(screen.getByText(/Preview heading/)).toBeTruthy();
-
-    fireEvent.click(rawSource);
     const frame = container.querySelector<HTMLIFrameElement>("iframe");
     expect(frame).toBeTruthy();
     expect(rawSource.getAttribute("aria-pressed")).toBe("false");

@@ -10,6 +10,7 @@ import {
 import styles from "./ArtifactLinkViewer.module.css";
 import headerStyles from "./ViewerHeader.module.css";
 import { ViewerWindowActions } from "./ViewerWindowActions";
+import { SourceEditAction } from "./SourceEditor";
 
 export function ArtifactLinkViewer({
   controller,
@@ -61,6 +62,7 @@ export function ArtifactLinkViewer({
             {controller.label}
           </span>
         </span>
+        <SourceEditAction source={{ artifactUrl: controller.url }} artifact />
         <ViewerWindowActions
           className={headerStyles.actions}
           url={controller.url}

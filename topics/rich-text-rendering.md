@@ -189,8 +189,9 @@ hydration, and public-share capability scoping.
 When both source and preview exist, the file viewer toolbar uses one **Raw
 source** icon toggle instead of a two-label Source/Preview switch. Pressed
 means raw source is visible; unpressed means the rendered preview is visible.
-The initial source-first HTML and preview-first Markdown defaults remain
-unchanged.
+HTML and Markdown initially show their rendered previews; an explicit Source
+choice overrides that default. Authenticated ordinary files also offer
+[source editing](file-source-editing.md), with mapped target selection for HTML.
 
 Textual file viewers and expanded Edit/Read/Run-style detail viewers expose a
 **Select all** control in their top toolbar. `Ctrl/Cmd+A` invokes the same

@@ -204,6 +204,26 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  fileSourceEditing: {
+    id: CAPABILITY_ID_ALLOCATIONS.fileSourceEditing.id,
+    name: "file-source-editing",
+    kind: "permanent",
+    area: "localAccess",
+    introducedIn: "0.9.1",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Read bounded original sources and save explicit revision-checked edits, including artifact source references.",
+    clientFallback:
+      "Hide Edit and make no file-edit requests; retain read and comment views.",
+    serverContract: {
+      routes: ["GET /api/file-edit", "PUT /api/file-edit"],
+      routeModules: ["packages/server/src/routes/file-edit.ts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers do not provide conditional source writes.",
+    },
+  },
   projectTemplateSources: {
     id: CAPABILITY_ID_ALLOCATIONS.projectTemplateSources.id,
     name: "project-template-sources",

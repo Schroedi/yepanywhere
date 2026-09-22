@@ -20,6 +20,7 @@ export interface DirtyFileSnapshot {
 }
 
 interface PendingFileMutation {
+  projectPath: string;
   directPaths?: string[];
   beforeShell?: Promise<DirtyFileSnapshot | null>;
 }
@@ -324,6 +325,32 @@ export class DirtyFileEditorService {
     this.pendingByProcess.delete(processId);
   }
 
+  /** Detect active file writes before admitting a user source edit. */
+  isWritePending(absolutePath: string): boolean {
+    for (const pending of this.pendingByProcess.values()) {
+      for (const mutation of pending.values()) {
+        if (
+          mutation.directPaths?.some(
+            (candidate) =>
+              path.resolve(mutation.projectPath, candidate) === absolutePath,
+          )
+        )
+          return true;
+        if (mutation.beforeShell) {
+          const relative = path.relative(mutation.projectPath, absolutePath);
+          if (
+            relative &&
+            !relative.startsWith(`..${path.sep}`) &&
+            relative !== ".." &&
+            !path.isAbsolute(relative)
+          )
+            return true;
+        }
+      }
+    }
+    return false;
+  }
+
   reconcileGitStatus(
     projectPath: string,
     status: GitStatusInfo,
@@ -410,6 +437,7 @@ export class DirtyFileEditorService {
     }
 
     pending.set(toolUseId, {
+      projectPath: process.projectPath,
       ...(directPaths.length > 0 ? { directPaths } : {}),
       ...(shellCandidate
         ? {

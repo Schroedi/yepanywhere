@@ -1,6 +1,13 @@
 # Source-map aware editing of rendered HTML artifacts
 
-Status: user-requested sketch; no implementation is authorized by this file.
+Status: initial file/line editor implemented; remaining precision and regeneration
+design below is future work. The maintainer accepted approximate original-source
+locations and no reliable rebuild trigger for initial delivery. Current behavior
+and the supported comment format live in [file source editing](../../topics/file-source-editing.md).
+Known defects: [stale line references](../artifact-source-map-staleness.md) and
+[no rebuild trigger](../artifact-source-edit-rebuild.md), including the unresolved
+Plannotator wrapper lifecycle. Regular sanitized HTML defaults to rendered
+content and offers Edit mode; without mappings it edits the HTML itself.
 
 Keep this separate from [direct text editing](direct-text-edit-in-viewer.md):
 editing a generated artifact needs a reliable path back to its authoring
