@@ -116,7 +116,53 @@ messages select a source but never save or execute commands. Ordinary file
 selection previews deny external assets; artifact selection previews may load
 assets from their configured artifact origin. Authenticated YA owns reads/writes.
 
-## Known limitations
+## Planned rebuild after source save
+
+This is a producer contract and consumer design; YA does not yet execute it.
+The PII paper builder emits the existing `ya-artifact:v1` discovery convention:
+
+```html
+<!-- ya-artifact:v1 {"regenerate":{"hook":"pii-paper-canvas","registrationVersion":1,"proposedRegistration":{"cwd":"/absolute/project","argv":["/absolute/python3","/absolute/project/scripts/pii_paper_canvas.py","--quarto","/absolute/quarto"],"outputs":["/absolute/paper/_build/paper-canvas.html","/absolute/paper/_build/paper-canvas.pdf","/absolute/paper/_build/paper-canvas.receipt.json","/absolute/paper/_build/paper-canvas.html.map"],"timeoutSeconds":180}}} -->
+```
+
+Paths are host-specific. `argv` is an argument vector, never shell code; `cwd`
+anchors relative dependencies. `proposedRegistration` supplies a candidate for
+the approved project-scoped hook registration described in the
+[round-trip sketch](../gaps/sketches/source-mapped-artifact-editing.md#optional-round-trip-through-a-registered-regeneration-hook).
+Discovery alone does not authorize execution. The paper's `--no-source-map`
+mode retains this descriptor, includes the flag in `argv`, omits the map output,
+and removes its previous sidecar. The default build includes mapping.
+
+After a successful source save, offer **Rebuild** for a registered hook and an
+opt-in automatic rebuild after subsequent saves. A failed/conflicting save
+must not launch a build. Run without a provider turn, coalesce repeated saves,
+serialize per artifact and bind each result to the saved input revision.
+Keep the previous preview visible while building; replace HTML and mapping
+together after success. On failure keep the saved source and label the old
+preview stale, with access to build logs. The paper builder currently writes
+outputs directly; a consumer must snapshot the last successful revision before
+execution rather than assuming this producer publishes atomically.
+
+Capture reading position before replacing the old preview. A first delivery
+may restore the normalized scroll fraction `scrollTop / (scrollHeight -
+clientHeight)` (zero for a non-scrollable page), clamped to the new extent.
+Restore after fonts and images settle, and cancel pending restoration if the
+reader scrolls or navigates meanwhile.
+
+For better stability, retain the old verified map, the source target nearest
+the viewport top, its viewport pixel offset, heading id, and an unchanged text
+prefix. Use the save's actual replaced source range to translate that anchor:
+positions before the edit stay unchanged; positions after it shift with the
+edit; an overlapping anchor uses the edited item's start or nearest unchanged
+preceding target. Match the new map by source path and translated range, then
+restore the pixel offset. Do not rely only on target ids: the paper's paragraph
+ids include line numbers and can change after earlier insertions. Prefer a
+surviving heading or unchanged prefix when exact matching fails, then fall
+back to scroll fraction. For figure edits retain the enclosing manuscript
+anchor too. No-map builds use heading/fraction fallback. Reject stale map
+hashes and older build completions instead of guessing a source location.
+
+## Open implementation work
 
 - [No artifact rebuild trigger](../gaps/artifact-source-edit-rebuild.md).
 - [Source-map positions become stale](../gaps/artifact-source-map-staleness.md).

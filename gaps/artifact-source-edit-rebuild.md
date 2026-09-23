@@ -7,6 +7,11 @@ initial delivery, by explicit user acceptance. The editor labels the stale view.
 
 Proposed artifact discovery convention:
 
+The paper producer now supplies an anchored command proposal; its descriptor
+and save/scroll-restoration design are specified in
+[Planned rebuild after source save](../topics/file-source-editing.md#planned-rebuild-after-source-save).
+The YA consumer remains unimplemented.
+
 ```html
 <!-- ya-artifact:v1 {"regenerate":{"hook":"report-build","registrationVersion":1}} -->
 ```
