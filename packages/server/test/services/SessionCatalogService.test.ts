@@ -104,6 +104,35 @@ describe("SessionCatalogService", () => {
     );
   });
 
+  it("keeps a generation on disk while a whole-catalog read still walks it", async () => {
+    // Retention of one plus many buckets: two publications during one read
+    // would otherwise remove the directory the read started from.
+    const service = createService({ retainedGenerations: 1, bucketCount: 64 });
+    await service.initialize();
+    const rows = Array.from({ length: 200 }, (_, index) =>
+      row({ sessionId: `s${index}`, project: `p${index % 50}` }),
+    );
+    await service.reconcile([adapter(rows, { sourceVersion: "v1" })]);
+    const generationsDir = join(dataDir, "session-catalog", "generations");
+    const [firstDirectory] = await readdir(generationsDir);
+
+    // A reader's pin outlives retention; release lets the next cleanup act.
+    const release = service.pinGeneration(firstDirectory!);
+    await service.reconcile([adapter(rows, { sourceVersion: "v2" })]);
+    await service.reconcile([adapter(rows, { sourceVersion: "v3" })]);
+    expect(await readdir(generationsDir)).toContain(firstDirectory);
+    release();
+    await service.reconcile([adapter(rows, { sourceVersion: "v4" })]);
+    expect(await readdir(generationsDir)).not.toContain(firstDirectory);
+
+    // A whole-catalog read overlapping two publications still completes.
+    const reading = service.readRows();
+    await service.reconcile([adapter(rows, { sourceVersion: "v5" })]);
+    await service.reconcile([adapter(rows, { sourceVersion: "v6" })]);
+    expect((await reading).rows).toHaveLength(200);
+    expect((await service.readRows()).rows).toHaveLength(200);
+  });
+
   it("answers twenty simultaneous project readers with one shard read", async () => {
     const service = createService();
     await service.initialize();

@@ -341,6 +341,8 @@ export class SessionCatalogService {
   private readonly maxRecentBytes: number;
   private readonly maxRowBytes: number;
   private readonly retainedGenerations: number;
+  /** Generation directories with in-flight readers, by reader count. */
+  private readonly pinnedGenerations = new Map<string, number>();
   private readonly now: () => number;
   private readonly createEpoch: () => string;
   private readonly projectRowsOwner: SourceVersionedSingleFlight<
@@ -456,6 +458,30 @@ export class SessionCatalogService {
   }
 
   /** Read one coherent compact generation without consulting provider storage. */
+  /**
+   * Hold a generation directory against cleanup while a reader walks it.
+   *
+   * Retention counts directories, not readers: with two generations
+   * published back to back, the directory a whole-catalog read started from
+   * is the one cleanup removes, and the read then failed mid-walk with
+   * ENOENT on a later bucket. A pinned directory outlives retention until
+   * its last reader releases it; the next publication's cleanup removes it.
+   */
+  pinGeneration(directory: string): () => void {
+    this.pinnedGenerations.set(
+      directory,
+      (this.pinnedGenerations.get(directory) ?? 0) + 1,
+    );
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const remaining = (this.pinnedGenerations.get(directory) ?? 1) - 1;
+      if (remaining > 0) this.pinnedGenerations.set(directory, remaining);
+      else this.pinnedGenerations.delete(directory);
+    };
+  }
+
   async readRows(): Promise<{
     snapshot: SessionCatalogSnapshot;
     rows: ReadonlyArray<Readonly<SessionCatalogRow>>;
@@ -463,24 +489,38 @@ export class SessionCatalogService {
     for (let attempt = 0; attempt < MAX_PROJECT_READ_RETARGETS; attempt += 1) {
       this.ensureRunning();
       const manifest = this.requireManifest();
-      const result = await this.projectRowsOwner.run({
-        key: `${manifest.catalogEpoch}:all`,
-        sourceVersion: String(manifest.catalogGeneration),
-        compute: async () => {
-          const rows: SessionCatalogRow[] = [];
-          if (manifest.generationDirectory) {
-            for (const shard of manifest.shards) {
-              const path = this.shardPath(
-                manifest.generationDirectory,
-                shard.file,
-              );
-              for await (const { row } of readShardRows(path)) rows.push(row);
+      let result: Awaited<ReturnType<typeof this.projectRowsOwner.run>>;
+      try {
+        result = await this.projectRowsOwner.run({
+          key: `${manifest.catalogEpoch}:all`,
+          sourceVersion: String(manifest.catalogGeneration),
+          compute: async () => {
+            const rows: SessionCatalogRow[] = [];
+            if (manifest.generationDirectory) {
+              const release = this.pinGeneration(manifest.generationDirectory);
+              try {
+                for (const shard of manifest.shards) {
+                  const path = this.shardPath(
+                    manifest.generationDirectory,
+                    shard.file,
+                  );
+                  for await (const { row } of readShardRows(path))
+                    rows.push(row);
+                }
+              } finally {
+                release();
+              }
             }
-          }
-          return { rows: Object.freeze(rows), bytes: manifest.rowsBytes };
-        },
-        isCurrent: () => this.manifest === manifest && !this.stopped,
-      });
+            return { rows: Object.freeze(rows), bytes: manifest.rowsBytes };
+          },
+          isCurrent: () => this.manifest === manifest && !this.stopped,
+        });
+      } catch (error) {
+        // A shard that vanished under a superseded manifest is a retarget,
+        // not a failure; under the current manifest it is real corruption.
+        if (isMissingFile(error) && this.manifest !== manifest) continue;
+        throw error;
+      }
       if (result.status !== "stale") {
         return {
           snapshot: this.snapshotFrom(manifest),
@@ -589,16 +629,28 @@ export class SessionCatalogService {
     // Keyed by shard content, not by generation: a new generation that leaves
     // this bucket byte-identical reuses the retained rows instead of re-reading.
     const key = `${manifest.catalogEpoch}:${projectIdentityKey}`;
-    const result = await this.projectRowsOwner.run({
-      key,
-      sourceVersion: shard.contentHash,
-      compute: async () => {
-        this.projectDiskReads += 1;
-        return readProjectRowsFromShard(filePath, projectIdentityKey);
-      },
-      isCurrent: (candidate) =>
-        this.currentShardContentHash(token.bucket) === candidate,
-    });
+    let result: Awaited<ReturnType<typeof this.projectRowsOwner.run>>;
+    try {
+      result = await this.projectRowsOwner.run({
+        key,
+        sourceVersion: shard.contentHash,
+        compute: async () => {
+          this.projectDiskReads += 1;
+          const release = this.pinGeneration(manifest.generationDirectory!);
+          try {
+            return await readProjectRowsFromShard(filePath, projectIdentityKey);
+          } finally {
+            release();
+          }
+        },
+        isCurrent: (candidate) =>
+          this.currentShardContentHash(token.bucket) === candidate,
+      });
+    } catch (error) {
+      if (isMissingFile(error) && this.requireManifest() !== manifest)
+        return null;
+      throw error;
+    }
     if (result.status === "stale") {
       if (this.requireManifest() !== manifest) return null;
       throw new Error(`Session catalog shard disappeared: ${filePath}`);
@@ -924,7 +976,9 @@ export class SessionCatalogService {
     for (const entry of entries) {
       const removable =
         entry.startsWith(".staging-") ||
-        (/^gen-\d+-[0-9a-f-]+$/.test(entry) && !retained.has(entry));
+        (/^gen-\d+-[0-9a-f-]+$/.test(entry) &&
+          !retained.has(entry) &&
+          !this.pinnedGenerations.has(entry));
       if (!removable) continue;
       try {
         await rm(join(this.generationsDir, entry), {
@@ -1279,6 +1333,10 @@ function projectBucket(
 ): number {
   const digest = createHash("sha256").update(projectIdentityKey).digest();
   return digest.readUInt32BE(0) % bucketCount;
+}
+
+function isMissingFile(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException)?.code === "ENOENT";
 }
 
 function shardFileName(bucket: number): string {
