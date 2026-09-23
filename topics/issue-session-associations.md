@@ -213,7 +213,9 @@ Credentials resolve from a key stored in Settings, then environment variables
 (`YEP_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`; `YEP_JIRA_API_TOKEN`,
 `JIRA_API_TOKEN`, `ATLASSIAN_API_TOKEN`), then, for GitHub, the signed-in `gh`
 CLI. The settings pane names every source and says whether it is present; no
-route returns a key to a client. Stored keys are written to
+route returns a key to a client. The pane requests that inventory only while
+confirmation is on, the only state in which it is shown, so a reader who never
+opts in never causes the sources to be probed. Stored keys are written to
 `{dataDir}/issue-credentials.json` with owner-only permissions rather than into
 server settings, which the settings route hands to any authenticated client.
 Both credential routes stay reachable while discovery is off, so an

@@ -237,9 +237,12 @@ function ConfirmationControls({ settings, busy, save }: ControlProps) {
   const confirmation = settings.confirmation ?? NO_CONFIRMATION;
   const update = (next: Partial<typeof confirmation>) =>
     void save({ ...settings, confirmation: { ...confirmation, ...next } });
+  // The inventory probes environment variables and the gh CLI; ask only once
+  // the reader has opted in, the only state in which it is shown.
   useEffect(() => {
     let disposed = false;
     setCredentials(undefined);
+    if (!confirmation.enabled) return;
     transport
       .fetch<IssueCredentialsResult>("/issues/credentials")
       .then((result) => {
@@ -251,7 +254,7 @@ function ConfirmationControls({ settings, busy, save }: ControlProps) {
     return () => {
       disposed = true;
     };
-  }, [transport]);
+  }, [transport, confirmation.enabled]);
   const storeKey = async (provider: string, key: string) => {
     setSaving(provider);
     try {
