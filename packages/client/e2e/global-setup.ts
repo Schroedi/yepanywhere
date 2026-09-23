@@ -1006,6 +1006,39 @@ export default async function globalSetup() {
     `[E2E] Created absolute-path viewer session at ${absoluteViewerSessionFile}`,
   );
 
+  // An HTML report inside the project, linked from a session, for the right
+  // pane's interactive preview: play, then minimize, must leave a chip.
+  writeFileSync(
+    join(mockProjectPath, "report.html"),
+    '<!doctype html><html><body><h1>Play report</h1><p id="status" role="status">ready</p></body></html>',
+  );
+  const playReportSessionFile = join(mockSessionDir, "play-report-001.jsonl");
+  writeFileSync(
+    playReportSessionFile,
+    [
+      {
+        type: "user",
+        cwd: mockProjectPath,
+        message: { role: "user", content: "Open the report" },
+        timestamp: "2026-01-02T00:00:00.000Z",
+        uuid: "play-user-1",
+      },
+      {
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: "The build wrote report.html for review.",
+        },
+        timestamp: "2026-01-02T00:00:01.000Z",
+        uuid: "play-assistant-1",
+        parentUuid: "play-user-1",
+      },
+    ]
+      .map((message) => JSON.stringify(message))
+      .join("\n"),
+  );
+  console.log(`[E2E] Created play report session at ${playReportSessionFile}`);
+
   const sourceSelectionSessionFile = join(
     mockSessionDir,
     "source-selection-001.jsonl",
