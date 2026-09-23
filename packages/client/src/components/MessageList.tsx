@@ -349,6 +349,12 @@ function getSessionIsearchShortcutScope(
   if (isCtrlKeyShortcut(event, "r", "KeyR", { allowAlt: true })) {
     return "user";
   }
+  if (
+    isCtrlKeyShortcut(event, "k", "KeyK", { allowAlt: true }) &&
+    event.altKey
+  ) {
+    return "links";
+  }
   return null;
 }
 

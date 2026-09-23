@@ -174,6 +174,9 @@ function priorityToTierClass(priority: ToolbarNarrowingPriority): string {
 }
 
 function getIsearchPreviousKeys(scope: SessionIsearchScope): string[] {
+  if (scope === "links") {
+    return ["Ctrl", "Alt", "K"];
+  }
   if (scope === "full") {
     return ["Ctrl", "Alt", "S"];
   }
@@ -217,6 +220,15 @@ function getIsearchAlternateRows(
             scope: "full" as const,
             keys: ["Ctrl", "Alt", "S"],
             label: t("toolbarShortcutFullSession"),
+          },
+        ]),
+    ...(scope === "links"
+      ? []
+      : [
+          {
+            scope: "links" as const,
+            keys: ["Ctrl", "Alt", "K"],
+            label: t("toolbarShortcutLinks"),
           },
         ]),
   ];
@@ -2684,6 +2696,14 @@ export function MessageInputToolbarView({
                       <span>
                         {t("toolbarShortcutFullSessionReverseSearch")}
                       </span>
+                    </div>
+                    <div className="session-shortcuts-row">
+                      <span className="session-shortcuts-keys">
+                        <kbd>Ctrl</kbd>
+                        <kbd>Alt</kbd>
+                        <kbd>K</kbd>
+                      </span>
+                      <span>{t("toolbarShortcutLinkReverseSearch")}</span>
                     </div>
                     <div className="session-shortcuts-row">
                       <span className="session-shortcuts-keys">

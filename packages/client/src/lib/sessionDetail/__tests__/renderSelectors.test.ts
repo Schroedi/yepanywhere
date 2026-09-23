@@ -16,6 +16,7 @@ import {
   getComposerTailLanePositions,
   getDisplayRenderItems,
   getFullSessionSearchAnchors,
+  getLinkSearchAnchors,
   getLastTimestampedRenderItem,
   getLatestThinkingItemId,
   getLatestVisibleTimestampMs,
@@ -1842,6 +1843,7 @@ describe("session detail render selectors", () => {
       getActiveSearchAnchors({
         allAnchors: allTurnAnchors,
         fullAnchors: fullSessionAnchors,
+        linkAnchors: [],
         scope: "user",
         userAnchors: userOnlyAnchors,
       }),
@@ -1850,6 +1852,7 @@ describe("session detail render selectors", () => {
       getActiveSearchAnchors({
         allAnchors: allTurnAnchors,
         fullAnchors: fullSessionAnchors,
+        linkAnchors: [],
         scope: "all",
         userAnchors: userOnlyAnchors,
       }),
@@ -1858,6 +1861,7 @@ describe("session detail render selectors", () => {
       getActiveSearchAnchors({
         allAnchors: allTurnAnchors,
         fullAnchors: fullSessionAnchors,
+        linkAnchors: [],
         scope: "full",
         userAnchors: userOnlyAnchors,
       }),
@@ -2236,5 +2240,56 @@ describe("applyRewindToMessages", () => {
     expect(
       next.map((m) => (m as { rewoundGroupId?: string }).rewoundGroupId),
     ).toEqual([undefined, undefined, "rw-1", "rw-1", undefined]);
+  });
+});
+
+describe("getLinkSearchAnchors", () => {
+  const at = sourceMessage("m", "2026-07-02T12:00:00.000Z");
+
+  it("searches link labels, not surrounding prose or glossary terms", () => {
+    const anchors = getLinkSearchAnchors([
+      {
+        isUserPrompt: true,
+        items: [
+          {
+            type: "user_prompt",
+            id: "user-1",
+            content: "see https://example.com/x and src/app/main.ts please",
+            sourceMessages: [at],
+          },
+        ],
+      },
+      {
+        isUserPrompt: false,
+        items: [
+          {
+            type: "text",
+            id: "rendered",
+            text: "[Design notes](topics/design.md) about the relay",
+            augmentHtml:
+              '<p><a href="/api/f" data-ya-resource="project-file">Design &amp; notes</a> about <span data-glossary-term="relay">relay</span></p>',
+            sourceMessages: [at],
+          },
+          {
+            type: "text",
+            id: "streaming",
+            text: "Read [the spec](https://example.com/spec) now",
+            sourceMessages: [at],
+          },
+          {
+            type: "text",
+            id: "plain",
+            text: "no links here",
+            sourceMessages: [at],
+          },
+        ],
+      },
+    ]);
+
+    expect(anchors.map((anchor) => [anchor.id, anchor.searchText])).toEqual([
+      ["user-1", "https://example.com/x\nsrc/app/main.ts"],
+      ["rendered", "Design & notes"],
+      ["streaming", "the spec"],
+    ]);
   });
 });

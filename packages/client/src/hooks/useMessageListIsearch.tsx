@@ -23,6 +23,7 @@ import {
   getActiveSearchAnchors,
   getAllTurnSearchAnchors,
   getFullSessionSearchAnchors,
+  getLinkSearchAnchors,
   getSearchMatchProjection,
   getSearchNavigatorStateProjection,
   getSearchPanelProjection,
@@ -461,9 +462,18 @@ export function useMessageListIsearch({
     }
     return getFullSessionSearchAnchors(turnGroups);
   }, [includeFullSessionSearchAnchors, turnGroups]);
+  const includeLinkSearchAnchors =
+    searchReady && userTurnSearch.scope === "links";
+  const linkSearchAnchors = useMemo<UserTurnNavAnchor[]>(() => {
+    if (!includeLinkSearchAnchors) {
+      return [];
+    }
+    return getLinkSearchAnchors(turnGroups);
+  }, [includeLinkSearchAnchors, turnGroups]);
   const loadedSearchAnchors = getActiveSearchAnchors({
     allAnchors: sessionTurnNavAnchors,
     fullAnchors: fullSessionSearchAnchors,
+    linkAnchors: linkSearchAnchors,
     scope: userTurnSearch.scope,
     userAnchors: userTurnSearchAnchors,
   });
