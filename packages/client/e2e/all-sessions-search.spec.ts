@@ -149,6 +149,13 @@ test("All Sessions preserves copying and returns to the query end only when typi
   const search = page.getByRole("searchbox", { name: "Search sessions..." });
   const query = "Search fixture soft focus";
   await search.fill(query);
+  // A triple-click selection ends at the boundary of the following block, so
+  // rows still arriving move it. Select only once the list has settled: the
+  // fixture listed and no scan running.
+  await expect(
+    page.getByRole("checkbox", { name: "Select Search fixture soft focus" }),
+  ).toBeVisible();
+  await expect(page.locator('[data-search-scanning="true"]')).toHaveCount(0);
   await search.evaluate((node: HTMLInputElement) =>
     node.setSelectionRange(0, 0),
   );
@@ -166,7 +173,7 @@ test("All Sessions preserves copying and returns to the query end only when typi
     selection,
   );
   await page.keyboard.press("Escape");
-  await page.keyboard.press("Control+c");
+  await page.keyboard.press("ControlOrMeta+c");
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
     selection,
   );
