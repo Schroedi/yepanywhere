@@ -629,7 +629,10 @@ export const FileViewer = memo(function FileViewer({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const fileHeaderRef = useRef<HTMLDivElement>(null);
+  // A state-backed ref: the header mounts only after loading, so a one-shot
+  // effect over a plain ref would find nothing and never measure it.
+  const [fileHeaderElement, setFileHeaderElement] =
+    useState<HTMLDivElement | null>(null);
   const fileHeaderContextRef = useRef<HTMLDivElement>(null);
   const fileHeaderProvenanceRef = useRef<HTMLDivElement>(null);
   const fileHeaderActionsRef = useRef<HTMLDivElement>(null);
@@ -698,7 +701,7 @@ export const FileViewer = memo(function FileViewer({
   });
   const fileViewerBodyRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    const header = fileHeaderRef.current;
+    const header = fileHeaderElement;
     const context = fileHeaderContextRef.current;
     const provenance = fileHeaderProvenanceRef.current;
     const actions = fileHeaderActionsRef.current;
@@ -749,7 +752,7 @@ export const FileViewer = memo(function FileViewer({
       mutationObserver.disconnect();
       resizeObserver?.disconnect();
     };
-  }, []);
+  }, [fileHeaderElement]);
   useRegisterQuoteableTextSource(
     fileViewerBodyRef,
     diffActive ? undefined : fileData?.content,
@@ -1739,7 +1742,7 @@ export const FileViewer = memo(function FileViewer({
   // Header with file info and actions
   const header = (
     <div
-      ref={fileHeaderRef}
+      ref={setFileHeaderElement}
       className={`file-viewer-header ${headerStyles.header} ${viewerStyles.header}`}
       data-actions-below={stackHeaderActions || undefined}
     >

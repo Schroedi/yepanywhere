@@ -62,6 +62,14 @@ test.describe("Files API", () => {
       }
       if (viewport.width > 375) {
         await expect(header).not.toHaveAttribute("data-actions-below");
+      } else {
+        // The header mounts after the loading state; measurement must still
+        // attach and move the actions below the context row on a phone.
+        await expect(header).toHaveAttribute("data-actions-below", "true");
+        const controlsBox = await header
+          .locator(".file-viewer-actions")
+          .boundingBox();
+        expect(controlsBox!.height).toBeLessThan(100);
       }
       await recordUiCapture(page, `large-html-${viewport.width}`, viewport);
     }

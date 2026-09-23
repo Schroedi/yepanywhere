@@ -209,7 +209,7 @@ test("viewer icon modes toggle locally and open through Shift and middle clicks"
   );
   const edit = page.getByRole("button", { name: "Edit mode", exact: true });
   const run = page.getByRole("button", {
-    name: "Run interactive preview",
+    name: "Run full HTML/CSS/JavaScript preview (current view is sanitized)",
     exact: true,
   });
   await expect(edit).toHaveAttribute("aria-pressed", "false");
@@ -325,7 +325,9 @@ test("loads the bundle through the same port, preserves scripts, and denies YA a
   await page.goto(
     `${base}/e2e/fixtures/artifact-viewer.html?path=${encodeURIComponent(entry)}`,
   );
-  await page.getByRole("button", { name: "Run interactive preview" }).click();
+  await page
+    .getByRole("button", { name: "Run full HTML/CSS/JavaScript preview" })
+    .click();
   const frame = page.frameLocator("iframe");
   await expect(frame.getByRole("status")).toHaveText("3 sample notes");
   await frame.getByRole("button", { name: "Menu", exact: true }).click();
@@ -380,7 +382,7 @@ test("loads the bundle through the same port, preserves scripts, and denies YA a
   const url = child.url();
   await page.getByRole("button", { name: "Stop interactive preview" }).click();
   await expect(
-    page.getByRole("button", { name: "Run interactive preview" }),
+    page.getByRole("button", { name: "Run full HTML/CSS/JavaScript preview" }),
   ).toBeVisible();
   await expect(
     frame.getByRole("heading", { name: "Static preview" }),
