@@ -3123,6 +3123,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         // 2. No active process (tools aren't potentially in progress)
         // When we own the session, tools without results might be pending approval
         includeOrphans: wasEverOwned && !process,
+        ...(process?.state.type === "in-turn" ||
+        process?.state.type === "waiting-input"
+          ? { ownedTurnInProgress: true }
+          : {}),
         ...(!fullHistory &&
         ((!afterMessageId && effectiveTailCompactions !== undefined) ||
           primaryReaderAfterMessageId)
