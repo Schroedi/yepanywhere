@@ -396,7 +396,6 @@ const APP_ROUTES = (
         element={routeModule(<FilePage />)}
       />
       <Route path="file-view" element={routeModule(<ViewerModePage />)} />
-      <Route path="play" element={routeModule(<PublicSharePlayPage />)} />
       <Route
         path="projects/:projectId/sessions/:sessionId"
         element={routeModule(<SessionDomLingerRouteMarker />)}
@@ -441,6 +440,12 @@ createRoot(rootElement).render(
           <Route
             path="/remote/share/:secret"
             element={routeModule(<PublicSharePage />)}
+          />
+          {/* Public: a share viewer's play tab must not meet the login gate. */}
+          <Route path="/play" element={routeModule(<PublicSharePlayPage />)} />
+          <Route
+            path="/remote/play"
+            element={routeModule(<PublicSharePlayPage />)}
           />
           <Route
             path="/-/preview"
