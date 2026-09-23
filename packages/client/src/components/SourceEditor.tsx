@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePublicShareContext } from "../contexts/PublicShareContext";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
+import { useArtifactGrant } from "../hooks/useArtifactGrant";
 import { useVersion } from "../hooks/useVersion";
 import { useI18n } from "../i18n";
 import {
@@ -199,16 +200,25 @@ export function SourceEditor({
       };
     }
   }, [preview]);
+  // Styled preview: an artifact grant lets the scriptless snapshot load the
+  // page's own stylesheets, images, and fonts. Scripts stay stripped, so plain
+  // click still selects a mapped item. Artifact-origin sources already have it.
+  const [styledAttempt, setStyledAttempt] = useState(0);
+  const styled = useArtifactGrant(
+    preview?.path ?? "",
+    undefined,
+    styledAttempt,
+  );
+  const styledAvailable = Boolean(
+    preview && !source.artifactUrl && styled.origin,
+  );
+  const assetBase = source.artifactUrl ?? styled.grant?.url;
   const previewDocument = useMemo(
     () =>
       mapping?.value
-        ? createArtifactEditDocument(
-            mapping.value.document,
-            nonce,
-            source.artifactUrl,
-          )
+        ? createArtifactEditDocument(mapping.value.document, nonce, assetBase)
         : undefined,
-    [mapping, nonce, source.artifactUrl],
+    [mapping, nonce, assetBase],
   );
   useEffect(() => {
     if (mapping && (!mapping.value || mapping.value.targets.length === 0))
@@ -413,7 +423,13 @@ export function SourceEditor({
       )}
       {preview && (
         <div className={styles.notice}>
-          {t(stale ? "sourceEditorStale" : "sourceEditorSnapshot")}
+          {t(
+            stale
+              ? "sourceEditorStale"
+              : styled.grant
+                ? "sourceEditorStyled"
+                : "sourceEditorSnapshot",
+          )}
         </div>
       )}
       {closing && (
@@ -468,6 +484,34 @@ export function SourceEditor({
             {mapping?.error && <p role="alert">{mapping.error}</p>}
             {mapping?.value && (
               <>
+                {styledAvailable && preview && (
+                  <div className={styles.previewTools}>
+                    <ViewerModeToggle
+                      mode="interactive"
+                      source={{ path: preview.path }}
+                      artifact
+                      active={Boolean(styled.grant)}
+                      disabled={styled.busy}
+                      label={t(
+                        styled.grant
+                          ? "sourceEditorStyledStop"
+                          : styled.busy
+                            ? "artifactChecking"
+                            : styled.failed
+                              ? "sourceEditorStyledRetry"
+                              : "sourceEditorStyledRun",
+                      )}
+                      onToggle={() =>
+                        styled.grant
+                          ? setStyledAttempt(0)
+                          : setStyledAttempt((value) => value + 1)
+                      }
+                    />
+                    {styled.failed && (
+                      <span role="status">{t("artifactUnavailable")}</span>
+                    )}
+                  </div>
+                )}
                 <label className={styles.targetPicker}>
                   {t("sourceEditorChooseTarget")}
                   <select

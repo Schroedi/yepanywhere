@@ -1,20 +1,8 @@
-import {
-  serverHasCapability,
-  SERVER_CAPABILITIES,
-  type ArtifactViewerGrant,
-} from "@yep-anywhere/shared";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { ViewerModeToggle } from "./ViewerModeToggle";
-import { usePublicShareContext } from "../contexts/PublicShareContext";
-import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
-import { useRetainedVersionInfo } from "../hooks/useVersion";
+import { useArtifactGrant } from "../hooks/useArtifactGrant";
 import { useI18n } from "../i18n";
-import {
-  artifactAudience,
-  artifactOrigin,
-  probeArtifactOrigin,
-} from "../lib/artifactPreview";
 import { createScriptlessHtmlPreviewDocument } from "../lib/scriptlessHtmlPreview";
 import styles from "./ArtifactPreview.module.css";
 
@@ -33,93 +21,12 @@ interface Props {
 
 export function ArtifactPreview(props: Props) {
   const { t } = useI18n();
-  const runtime = useCurrentSourceRuntime();
-  const version = useRetainedVersionInfo(runtime.sourceKey);
-  const share = usePublicShareContext();
-  const config = version?.artifactViewer;
-  const audience = artifactAudience(window.location.hostname);
-  const origin =
-    config &&
-    share === null &&
-    serverHasCapability(version, SERVER_CAPABILITIES.artifactViewer.name)
-      ? artifactOrigin(config, audience, window.location.href)
-      : undefined;
   const [attempt, setAttempt] = useState(props.autoStart ? 1 : 0);
-  const [grant, setGrant] = useState<ArtifactViewerGrant | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [frameBlocked, setFrameBlocked] = useState(false);
-
-  useEffect(() => {
-    setGrant(null);
-    setFailed(false);
-    setBusy(false);
-    setFrameBlocked(false);
-    if (!attempt || !origin) return;
-    let cancelled = false;
-    let admitted: ArtifactViewerGrant | undefined;
-    const onPolicyViolation = (event: SecurityPolicyViolationEvent) => {
-      if (
-        admitted &&
-        event.disposition === "enforce" &&
-        event.effectiveDirective === "frame-src" &&
-        (event.blockedURI === origin ||
-          event.blockedURI.startsWith(`${origin}/`))
-      ) {
-        setFrameBlocked(true);
-      }
-    };
-    document.addEventListener("securitypolicyviolation", onPolicyViolation);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2500);
-    setBusy(true);
-    const revokeUnpublished = (id: string) => {
-      void runtime.transport
-        .fetch(`/artifacts/${encodeURIComponent(id)}`, { method: "DELETE" })
-        .catch(() => {});
-    };
-    void (async () => {
-      try {
-        await probeArtifactOrigin(origin, controller.signal);
-        clearTimeout(timer);
-        if (cancelled) return;
-        admitted = await runtime.transport.fetch<ArtifactViewerGrant>(
-          "/artifacts",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              path: props.path,
-              projectId: props.projectId,
-              audience,
-            }),
-          },
-        );
-        if (new URL(admitted.url).origin !== origin) {
-          revokeUnpublished(admitted.id);
-          throw new Error("Unexpected artifact origin");
-        }
-        if (cancelled) {
-          revokeUnpublished(admitted.id);
-          return;
-        }
-        setGrant(admitted);
-      } catch {
-        if (!cancelled) setFailed(true);
-      } finally {
-        clearTimeout(timer);
-        if (!cancelled) setBusy(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-      controller.abort();
-      clearTimeout(timer);
-      document.removeEventListener(
-        "securitypolicyviolation",
-        onPolicyViolation,
-      );
-    };
-  }, [attempt, origin, audience, props.path, props.projectId, runtime]);
+  const { origin, grant, busy, failed, frameBlocked } = useArtifactGrant(
+    props.path,
+    props.projectId,
+    attempt,
+  );
 
   const controls = origin && (props.showControls !== false || failed) && (
     <div className={styles.toolbar}>

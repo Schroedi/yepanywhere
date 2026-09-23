@@ -18,6 +18,21 @@ location is explicitly approximate; character-level click mapping is deferred.
 Without supported targets, edit the HTML itself. Malformed targets show an error
 and leave the original HTML available for direct editing.
 
+The selection snapshot of an ordinary project HTML file loads no external
+assets, so it renders unstyled. A play toggle above the target picker turns on
+the **styled preview**: it obtains an artifact grant for the file, exactly as
+the viewer's interactive mode does, and rebuilds the same scriptless snapshot
+with that grant URL as its base, so the page's stylesheets, images, and fonts
+load from the artifact origin under the snapshot's existing policy. Scripts,
+forms, and frames stay stripped, and plain click still selects a mapped item;
+no modifier is needed. The notice above the panes says which preview is
+showing. The toggle is absent when the source already lives on the artifact
+origin, whose snapshot has that base from the start, and when the artifact
+viewer is unavailable. Shift-click on the toggle opens the fully interactive
+viewer in a new tab as elsewhere. A live interactive pane inside the editor,
+with a click bridge injected into the served artifact, is sketched in
+[live-editor-preview-select](../gaps/sketches/live-editor-preview-select.md).
+
 File and artifact viewers share a square pencil toggle for Edit mode. The same
 pencil is highlighted while editing and exits through the dirty-close flow.
 HTML files also have a matching play toggle for interactive preview, beside
