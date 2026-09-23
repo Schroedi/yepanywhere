@@ -53,7 +53,10 @@ import { extractMarkdownSnippetsFromSelection } from "../lib/markdownSelectionCo
 import { getRenderedFileClipboardPayload } from "../lib/renderedFileClipboard";
 import { ArtifactPreview } from "./ArtifactPreview";
 import { ViewerModeToggle } from "./ViewerModeToggle";
-import { buildPlayableHtml, openPublicSharePlay } from "../lib/publicSharePlay";
+import {
+  buildPublicSharePlayUrl,
+  publicSharePlayUrlFromFileShareUrl,
+} from "../lib/publicSharePlay";
 import { SourceEditAction } from "./SourceEditor";
 import { ViewerWindowActions } from "./ViewerWindowActions";
 import {
@@ -632,6 +635,16 @@ export const FileViewer = memo(function FileViewer({
         : null;
   const sameOriginUrls = transport.capabilities.sameOriginUrls;
   const basePath = useRemoteBasePath();
+  const publicSharePlayHref =
+    publicShareContext && publicShareContext.projectId !== null
+      ? buildPublicSharePlayUrl(basePath, {
+          relayUsername: publicShareContext.relayUsername,
+          relayUrl: publicShareContext.relayUrl,
+          secret: publicShareContext.secret,
+          projectId: publicShareContext.projectId,
+          path: filePath,
+        })
+      : null;
   const [fileData, setFileData] = useState<FileContentResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1974,26 +1987,20 @@ export const FileViewer = memo(function FileViewer({
           source === DEFAULT_FILE_VIEWER_SOURCE &&
           !diffActive && <PublicFileShareButton onOpen={setFileShareAnchor} />}
         {publicShareContext !== null &&
+          publicShareContext.projectId !== null &&
           !diffActive &&
           hasHtmlPreview &&
-          content !== undefined &&
-          source.fetchRawFileBlob && (
+          content !== undefined && (
             <ViewerModeToggle
               mode="interactive"
               source={{}}
               artifact
-              linkless
+              href={publicSharePlayHref!}
               active={false}
               label={t("publicSharePlay" as never)}
-              onToggle={() => {
-                const fetchRawFileBlob = source.fetchRawFileBlob!;
-                const currentFile = fileData!;
-                openPublicSharePlay(`${basePath}/play.html`, fileName, () =>
-                  buildPlayableHtml(content, filePath, (assetPath) =>
-                    fetchRawFileBlob(currentFile, assetPath, false),
-                  ),
-                );
-              }}
+              onToggle={() =>
+                window.open(publicSharePlayHref!, "_blank", "noopener")
+              }
             />
           )}
         {publicShareContext === null && (
@@ -2059,6 +2066,12 @@ export const FileViewer = memo(function FileViewer({
           filePath={filePath}
           projectId={projectId}
           title={fileName}
+          // While the interactive preview runs, copied links open play mode.
+          transformUrl={
+            interactivePreviewIdentity === viewIdentity
+              ? (url) => publicSharePlayUrlFromFileShareUrl(url) ?? url
+              : undefined
+          }
           onClose={() => setFileShareAnchor(null)}
         />
       )}

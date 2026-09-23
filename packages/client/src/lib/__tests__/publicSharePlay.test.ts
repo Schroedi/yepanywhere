@@ -1,9 +1,55 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildPlayableHtml,
+  buildPublicSharePlayUrl,
   isInlinableReference,
+  parsePublicSharePlayUrl,
+  publicSharePlayUrlFromFileShareUrl,
   resolveShareReference,
 } from "../publicSharePlay";
+
+describe("public share play links", () => {
+  it("round-trips the grant with the secret in the fragment", () => {
+    const href = buildPublicSharePlayUrl("/remote", {
+      relayUsername: "host",
+      relayUrl: "wss://relay.example/ws",
+      secret: "s3cr3t",
+      projectId: "cHJvag",
+      path: "_build/paper.html",
+    });
+    expect(href).toBe(
+      "/remote/play.html?h=host&projectId=cHJvag&path=_build%2Fpaper.html&r=wss%3A%2F%2Frelay.example%2Fws#share=s3cr3t",
+    );
+    expect(parsePublicSharePlayUrl(`https://ya.example${href}`)).toEqual({
+      relayUsername: "host",
+      relayUrl: "wss://relay.example/ws",
+      secret: "s3cr3t",
+      projectId: "cHJvag",
+      path: "_build/paper.html",
+    });
+    expect(parsePublicSharePlayUrl("https://ya.example/play.html")).toBeNull();
+  });
+
+  it("derives the play link from a file share link and keeps its prefix", () => {
+    expect(
+      publicSharePlayUrlFromFileShareUrl(
+        "https://ya.example/share/abc_123/file?h=host&projectId=cHJvag&path=a%2Fb.html&standalone=1&r=wss%3A%2F%2Frelay.example%2Fws#v=2&target=file",
+      ),
+    ).toBe(
+      "https://ya.example/play.html?h=host&projectId=cHJvag&path=a%2Fb.html&r=wss%3A%2F%2Frelay.example%2Fws#share=abc_123",
+    );
+    expect(
+      publicSharePlayUrlFromFileShareUrl(
+        "https://ya.example/remote/share/abc/file?h=host&projectId=p&path=x.html",
+      ),
+    ).toBe(
+      "https://ya.example/remote/play.html?h=host&projectId=p&path=x.html#share=abc",
+    );
+    expect(
+      publicSharePlayUrlFromFileShareUrl("https://ya.example/share/abc"),
+    ).toBeNull();
+  });
+});
 
 describe("public share play", () => {
   it("resolves references against the root's directory", () => {

@@ -22,6 +22,11 @@ interface PublicFileShareModalProps {
   filePath: string;
   projectId: string;
   title?: string | null;
+  /**
+   * Rewrites a grant URL before it is copied or shown, for a viewer whose
+   * current mode has its own link form. The grant itself is unchanged.
+   */
+  transformUrl?: (url: string) => string;
   onClose: () => void;
 }
 
@@ -30,6 +35,7 @@ export function PublicFileShareModal({
   filePath,
   projectId,
   title,
+  transformUrl = (url) => url,
   onClose,
 }: PublicFileShareModalProps) {
   const { t } = useI18n();
@@ -82,14 +88,14 @@ export function PublicFileShareModal({
       ...(title ? { title } : {}),
     });
     const copy = writeClipboardTextLater(
-      request.then((created) => created.url),
+      request.then((created) => transformUrl(created.url)),
     );
     try {
       const created = await request;
       if (await copy) {
         setNotice(t("publicFileShareCopied"));
       } else {
-        setManualUrl(created.url);
+        setManualUrl(transformUrl(created.url));
         setNotice(t("publicFileShareManualCopy"));
       }
       await loadShares();
@@ -108,11 +114,12 @@ export function PublicFileShareModal({
     setError(null);
     setNotice(null);
     setManualUrl(null);
-    if (await writeClipboardTextLater(Promise.resolve(item.url))) {
+    const url = transformUrl(item.url);
+    if (await writeClipboardTextLater(Promise.resolve(url))) {
       setNotice(t("publicFileShareCopied"));
       return;
     }
-    setManualUrl(item.url);
+    setManualUrl(url);
     setNotice(t("publicFileShareManualCopy"));
   };
 
@@ -151,6 +158,9 @@ export function PublicFileShareModal({
           <span className={styles.liveBadge}>{t("publicShareLiveBadge")}</span>
         </div>
         <p className={styles.description}>{t("publicFileShareDescription")}</p>
+        {transformUrl("x") !== "x" && (
+          <p className={styles.description}>{t("publicFileSharePlayLinks")}</p>
+        )}
         <div className={styles.warning} role="note">
           <WarningIcon />
           <span>{t("publicFileShareWarning")}</span>

@@ -21,7 +21,7 @@ export function ViewerModeToggle({
   label,
   onToggle,
   onContextMenu,
-  linkless = false,
+  href: explicitHref,
 }: {
   mode: "edit" | "interactive";
   source: ViewerModeSource;
@@ -35,10 +35,10 @@ export function ViewerModeToggle({
   /** Owner-supplied right-click menu; absent means the browser's own menu. */
   onContextMenu?: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
   /**
-   * No addressable mode page exists (a public share's play builds its
-   * document client-side); every gesture then runs `onToggle`.
+   * An explicit link target replacing the `/file-view` mode page, for a
+   * mode whose document lives at its own URL such as a public share's play.
    */
-  linkless?: boolean;
+  href?: string;
 }) {
   const basePath = useRemoteBasePath();
   const query = new URLSearchParams({ mode });
@@ -47,7 +47,7 @@ export function ViewerModeToggle({
   if (artifact) query.set("artifact", "1");
   if (line) query.set("line", String(line));
   if (column) query.set("column", String(column));
-  const href = linkless ? "#" : `${basePath}/file-view?${query}`;
+  const href = explicitHref ?? `${basePath}/file-view?${query}`;
   return (
     <a
       className={styles.toggle}
@@ -69,11 +69,6 @@ export function ViewerModeToggle({
           event.preventDefault();
           return;
         }
-        if (linkless) {
-          event.preventDefault();
-          onToggle();
-          return;
-        }
         if (event.shiftKey) {
           event.preventDefault();
           window.open(href, "_blank", "noopener,noreferrer");
@@ -84,8 +79,7 @@ export function ViewerModeToggle({
         onToggle();
       }}
       onAuxClick={(event) => {
-        if (disabled || linkless) event.preventDefault();
-        if (linkless && !disabled && event.button === 1) onToggle();
+        if (disabled) event.preventDefault();
       }}
       onContextMenu={onContextMenu}
     >

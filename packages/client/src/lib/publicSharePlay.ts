@@ -4,7 +4,13 @@
  * sandboxed opaque-origin frame can run it with no network reach back to the
  * share. Assets the share does not serve stay as written and simply fail to
  * load inside the sandbox.
+ *
+ * The play document is the hosted static `play.html`, addressed by a plain
+ * URL that carries the same share grant as the file link: relay coordinates
+ * in the query and the secret in the fragment, which never reaches a static
+ * host's access log. That makes a play link copyable and shareable as-is.
  */
+import { DEFAULT_RELAY_URL, normalizeRelayUrl } from "@yep-anywhere/shared";
 
 const INLINE_ATTRIBUTES: ReadonlyArray<[selector: string, attribute: string]> =
   [
@@ -19,14 +25,86 @@ const INLINE_ATTRIBUTES: ReadonlyArray<[selector: string, attribute: string]> =
   ];
 const MAX_INLINED_BYTES = 48 * 1024 * 1024;
 
-export const PLAY_HANDSHAKE_READY = "ya-public-share-play-ready";
-export const PLAY_HANDSHAKE_DOCUMENT = "ya-public-share-play-document";
+export interface PublicSharePlayTarget {
+  relayUsername: string;
+  /** Omitted or default relay adds no `r` parameter, as share links do. */
+  relayUrl?: string;
+  secret: string;
+  projectId: string;
+  path: string;
+}
 
-export interface PlayDocumentMessage {
-  type: typeof PLAY_HANDSHAKE_DOCUMENT;
-  id: string;
-  title: string;
-  html: string;
+/** `play.html` beneath the hosted client's base, carrying the share grant. */
+export function buildPublicSharePlayUrl(
+  basePath: string,
+  target: PublicSharePlayTarget,
+): string {
+  const params = new URLSearchParams({
+    h: target.relayUsername,
+    projectId: target.projectId,
+    path: target.path,
+  });
+  if (target.relayUrl) {
+    const relayUrl = normalizeRelayUrl(target.relayUrl);
+    if (relayUrl !== DEFAULT_RELAY_URL) params.set("r", relayUrl);
+  }
+  const hash = new URLSearchParams({ share: target.secret });
+  return `${basePath}/play.html?${params}#${hash}`;
+}
+
+/** Read the target back out of a play URL; null when it is not one. */
+export function parsePublicSharePlayUrl(
+  href: string,
+): PublicSharePlayTarget | null {
+  let url: URL;
+  try {
+    url = new URL(href, "http://play.local");
+  } catch {
+    return null;
+  }
+  const secret = new URLSearchParams(url.hash.slice(1)).get("share");
+  const relayUsername = url.searchParams.get("h");
+  const projectId = url.searchParams.get("projectId");
+  const path = url.searchParams.get("path");
+  if (!secret || !relayUsername || !projectId || !path) return null;
+  const relayUrl = url.searchParams.get("r") ?? undefined;
+  return {
+    secret,
+    relayUsername,
+    projectId,
+    path,
+    ...(relayUrl ? { relayUrl } : {}),
+  };
+}
+
+/**
+ * The play counterpart of a public file share link, or null when the link is
+ * not a file share. Keeps the link's origin and its `/remote` prefix.
+ */
+export function publicSharePlayUrlFromFileShareUrl(
+  shareUrl: string,
+): string | null {
+  let url: URL;
+  try {
+    url = new URL(shareUrl);
+  } catch {
+    return null;
+  }
+  const match = /^(\/remote)?\/share\/([A-Za-z0-9_-]+)\/file$/.exec(
+    url.pathname,
+  );
+  const relayUsername = url.searchParams.get("h");
+  const projectId = url.searchParams.get("projectId");
+  const path = url.searchParams.get("path");
+  if (!match || !relayUsername || !projectId || !path) return null;
+  const relayUrl = url.searchParams.get("r") ?? undefined;
+  return `${url.origin}${buildPublicSharePlayUrl(match[1] ?? "", {
+    relayUsername,
+    projectId,
+    path,
+    secret: match[2]!,
+    ...(relayUrl ? { relayUrl } : {}),
+  })}`;
 }
 
 /** Local reference the share can serve: relative, no scheme, no host. */
@@ -102,41 +180,4 @@ export async function buildPlayableHtml(
   }
   await Promise.all(work);
   return `<!doctype html>${doc.documentElement.outerHTML}`;
-}
-
-/**
- * Open the hosted play page first, inside the user's click, then hand it the
- * document once built. The page is same-origin chrome; the document itself
- * only ever runs inside that page's opaque-origin sandboxed frame.
- */
-export function openPublicSharePlay(
-  playUrl: string,
-  title: string,
-  build: () => Promise<string>,
-): boolean {
-  const id = crypto.randomUUID();
-  const opened = window.open(`${playUrl}#${id}`, "_blank");
-  if (!opened) return false;
-  const document = build();
-  const deliver = (event: MessageEvent) => {
-    if (
-      event.source !== opened ||
-      event.origin !== window.location.origin ||
-      event.data?.type !== PLAY_HANDSHAKE_READY ||
-      event.data.id !== id
-    )
-      return;
-    window.removeEventListener("message", deliver);
-    void document.then((html) => {
-      const message: PlayDocumentMessage = {
-        type: PLAY_HANDSHAKE_DOCUMENT,
-        id,
-        title,
-        html,
-      };
-      opened.postMessage(message, window.location.origin);
-    });
-  };
-  window.addEventListener("message", deliver);
-  return true;
 }
