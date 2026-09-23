@@ -40,7 +40,7 @@ const VIEWER_HREF = `http://localhost:3400/projects/${PROJECT_ID}/file?path=${en
 function Harness() {
   const { handleContextMenu, contextMenuElement } = useLocalResourceClick();
   return (
-    <div onContextMenu={handleContextMenu}>
+    <div role="group" onContextMenu={handleContextMenu}>
       <a href={VIEWER_HREF}>{FILE_PATH}</a>
       {contextMenuElement}
     </div>
