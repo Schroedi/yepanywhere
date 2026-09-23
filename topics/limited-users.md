@@ -49,10 +49,14 @@ Creation permission is independent: a user can be allowed to create projects
 while locked to Current project only. A view/join grant is not a new-session
 grant; entering an already-running session must not bypass its principal or
 write-scope enforcement. Limited users never select an unsandboxed state.
-Approved migration (2026-09-21): existing users retain project-only confinement
-and have template creation disabled until explicitly granted. Apply personal
-directory and template-selection defaults only to newly created users; do not
-broaden an existing session's sandbox.
+Approved migration (user-directed 2026-09-23): apply the new defaults to existing
+limited users too. Set Personal directory scope and Selected App canvas,
+Storybook and Web page; fill an absent Create in root with `~/username`,
+preserving a configured custom root and unrelated grants/provider locks.
+This supersedes the earlier decision to preserve legacy project-only scope
+and disabled creation. Apply once; later administrator choices survive
+restarts. Existing running sessions keep their established sandbox until
+relaunched; migration does not broaden live provider mounts.
 
 Other host files remain readable under the existing filesystem sandbox
 contract. For the household use case, siblings can be consulted from an agent

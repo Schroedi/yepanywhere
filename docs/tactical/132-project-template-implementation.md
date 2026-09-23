@@ -57,9 +57,10 @@ Apply this scope to the two-template acceptance cases below as well.
 - Pending: ready-content admission, fresh-target materialization, durable
   setup/preparation, permissions/sandboxing, App access/reservations, creation
   UI and project-local identity. Template retrieval remains opt-in/default-off.
-- Approved: the supported-release capability/fallback plan below. Existing
-  limited users retain project-only scope and receive no template-creation
-  grant; defaults apply only to new users. No migration has run yet.
+- Approved: the supported-release capability/fallback plan below. The user's
+  2026-09-23 migration decision applies the new defaults to existing limited
+  users too, superseding the earlier preserve-restrictions decision. No
+  migration has run yet. Contributing-model: 6-Astra.
 - Complete: Delete user requires confirmation, naming the account and
   explaining that grants/usage are removed but files remain. Cancel sends no
   deletion request. Seven focused component tests and desktop/phone browser
@@ -211,11 +212,15 @@ settings. Server-side None / Selected / Any grants are authoritative:
   not imply YA visibility, view/join/new-session API grants, or confidentiality.
   Limited users never choose sandbox granularity at session creation.
 
-Approved migration: preserve existing users'
-project-only confinement and disable template creation until an administrator
-grants it; apply the new defaults only to newly created users. Do not silently
-broaden old accounts or already-running sessions. Record the eventual decision
-in the limited-users and project-templates contracts before migration code.
+Approved migration (user-directed 2026-09-23): apply the new defaults to existing
+limited users too: Selected App canvas, Storybook and Web page, Personal
+directory write scope, and `~/username` when no Create in root is configured.
+Preserve a configured custom root and unrelated grants/provider locks. This
+supersedes preserving legacy project-only confinement and disabled creation.
+Apply once, so subsequent administrator choices are not reset on restart.
+Existing running sessions retain their established sandbox until relaunched;
+do not mutate live provider mounts or treat a broader policy as a broader
+already-running sandbox. No runtime migration is performed by this doc update.
 
 Enforce the effective principal, locked provider settings, writable root and
 permission rechecks through create/fork/resume/join and provider process reuse.

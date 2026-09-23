@@ -273,9 +273,13 @@ silently falls back to another. Limited users cannot supply a source, script,
 arbitrary directory or permission grant: the superuser's configured project
 root is enforced at creation, and the new project belongs to that user.
 Missing project root prevents creation even when a template is allowed.
-The approved migration preserves existing users' project-only confinement and
-disables template creation until explicitly granted; new defaults apply only
-to newly created users.
+The approved migration (user-directed 2026-09-23) applies these new defaults to
+existing limited users too: Selected App canvas, Storybook and Web page,
+Personal directory scope, and `~/username` for an absent Create in root.
+Preserve configured custom roots and unrelated grants/provider locks. Apply
+once, retaining later administrator changes; running sessions keep their
+established sandbox until relaunched. This supersedes the earlier migration
+decision to retain legacy project-only confinement and disabled creation.
 
 Each limited user also has a server-enforced **Private apps only** permission
 ceiling. It defaults on for new users and on migration. While enabled, every

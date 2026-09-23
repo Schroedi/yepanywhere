@@ -60,12 +60,14 @@ Materialization and production admission remain open.
   preparation and readiness distinguishable; agent failure retains the starter.
 - Add server-enforced None / Selected / Any template grants to existing limited
   principals and Settings → Users. New users default to all three current
-  templates (App canvas, Storybook and Web page). Preserve existing users'
-  project-only confinement and disabled creation, as approved on 2026-09-21.
+  templates (App canvas, Storybook and Web page). Apply the same new defaults
+  to existing users, as directed on 2026-09-23, with a one-time migration that
+  preserves subsequent administrator changes.
   Enforce configured project root, provider locks,
   sandbox, ownership, app-exposure ceiling, and permission rechecks at the
   operation.
-- Default new users' Create in directory to `~/username`. Use it as the
+- Default new users' Create in directory to `~/username`; fill absent roots
+  on existing users while preserving configured custom roots. Use it as the
   limited user's default writable sandbox, independent of session cwd; an
   administrator-selected project-only mode instead confines each session to
   its active project, including projects outside the personal directory with
@@ -74,8 +76,9 @@ Materialization and production admission remain open.
   from filesystem write scope. Cover create/fork/resume/join and reused provider
   processes so none retains a broader principal's writable mounts. Preserve
   private runtime state, network confinement and unsupported-host refusal.
-  Reject missing roots and symlink escapes; do not broaden existing users or
-  live sessions silently. This workspace extension is user-directed and remains
+  Reject missing roots and symlink escapes. Migrate existing users to Personal
+  directory scope, but keep running sessions' established sandbox until
+  relaunch. This workspace extension is user-directed and remains
   unimplemented, alongside the template integration.
 - Implement the approved New project UI and exact older-server capability gate.
   Apply the approved supported-release capability/fallback plan recorded in
