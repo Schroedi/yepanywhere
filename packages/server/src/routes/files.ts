@@ -914,6 +914,8 @@ export function createFilesRoutes(deps: FilesDeps): Hono {
     const projectId = c.req.param("projectId");
     const relativePath = c.req.query("path");
     const highlight = c.req.query("highlight") === "true";
+    // A freshness probe: the same authorization and metadata, no content read.
+    const metadataOnly = c.req.query("metadata") === "only";
     const viewMode: FileViewMode =
       c.req.query("view") === "range" ? "range" : "full";
     const requestedRange = getLineRange(
@@ -989,6 +991,7 @@ export function createFilesRoutes(deps: FilesDeps): Hono {
         size: stats.size,
         mimeType,
         isText,
+        modifiedAt: Math.round(stats.mtimeMs),
       };
 
       // Build raw URL
@@ -998,6 +1001,7 @@ export function createFilesRoutes(deps: FilesDeps): Hono {
         metadata,
         rawUrl,
       };
+      if (metadataOnly) return c.json(response);
       let deferredPathDiscoveryHtml: string | undefined;
 
       // For text files under size limit, include the whole file unless the link

@@ -20,6 +20,14 @@ export const fileApi = {
     );
   },
 
+  /** Metadata only, for freshness checks; the server reads no content. */
+  getFileMetadata: (projectId: string, path: string) => {
+    const params = new URLSearchParams({ path, metadata: "only" });
+    return fetchJSON<FileContentResponse>(
+      `/projects/${projectId}/files?${params.toString()}`,
+    );
+  },
+
   getFileRawUrl: (projectId: string, path: string, download = false) => {
     const params = new URLSearchParams({ path });
     if (download) params.set("download", "true");

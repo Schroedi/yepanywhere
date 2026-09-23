@@ -132,6 +132,11 @@ export interface FileViewerSource {
     filePath: string,
     download: boolean,
   ) => string | null;
+  /** Current metadata without content, for the reload button's hover check. */
+  statFile?: (
+    projectId: string,
+    filePath: string,
+  ) => Promise<FileContentResponse>;
   fetchRawFileBlob?: (
     fileData: FileContentResponse,
     filePath: string,
@@ -506,6 +511,7 @@ const DEFAULT_FILE_VIEWER_SOURCE: FileViewerSource = {
     api.getFile(projectId, filePath, highlight, lineNumber, lineEnd, viewMode),
   getRawFileUrl: (projectId, filePath, download) =>
     api.getFileRawUrl(projectId, filePath, download),
+  statFile: (projectId, filePath) => api.getFileMetadata(projectId, filePath),
   // Fetch raw bytes through the active source transport so images and downloads
   // work when same-origin /api URLs cannot address the source.
   fetchRawFileBlob: (fileData, _filePath, download) => {
@@ -1092,6 +1098,54 @@ export const FileViewer = memo(function FileViewer({
         : highlightedHtml;
 
   const sourceIdentity = `${projectId}\0${filePath}\0${lineNumber ?? ""}\0${lineEnd ?? ""}\0${viewMode}`;
+  // The viewer deliberately does not watch the file; reloading is a reader's
+  // explicit act. A running interactive frame remounts on the same grant so
+  // its document is fetched again from disk.
+  const [frameReloadKey, setFrameReloadKey] = useState(0);
+  // Hovering the reload button probes the file's metadata and says whether
+  // the loaded copy is behind the disk; absent times (older servers) say
+  // nothing rather than guessing.
+  const [freshness, setFreshness] = useState<
+    { loadedAt: number; state: "fresh" } | { state: "stale"; at: number } | null
+  >(null);
+  const checkFreshness = useCallback(() => {
+    const loaded = fileData?.metadata.modifiedAt;
+    if (!source.statFile || loaded === undefined) return;
+    void source
+      .statFile(projectId, filePath)
+      .then((current) => {
+        const at = current.metadata.modifiedAt;
+        if (at === undefined) return;
+        setFreshness(
+          at !== loaded || current.metadata.size !== fileData?.metadata.size
+            ? { state: "stale", at }
+            : { state: "fresh", loadedAt: loaded },
+        );
+      })
+      .catch(() => setFreshness(null));
+  }, [source, projectId, filePath, fileData]);
+  const reloadFromDisk = useCallback(() => {
+    setFreshness(null);
+    setFrameReloadKey((value) => value + 1);
+    void source
+      .loadFile(
+        projectId,
+        filePath,
+        true,
+        effectiveLineNumber,
+        effectiveLineEnd,
+        effectiveViewMode,
+      )
+      .then(setFileData)
+      .catch((error) => setError(String(error)));
+  }, [
+    source,
+    projectId,
+    filePath,
+    effectiveLineNumber,
+    effectiveLineEnd,
+    effectiveViewMode,
+  ]);
 
   useEffect(() => {
     if (activeView === "source" || fileVersionControl.loading) return;
@@ -1571,6 +1625,7 @@ export const FileViewer = memo(function FileViewer({
             title={fileName}
             autoStart={interactivePreviewIdentity === viewIdentity}
             toolbarHost={modeControlsHost}
+            reloadKey={frameReloadKey}
           />
         );
       }
@@ -1856,26 +1911,31 @@ export const FileViewer = memo(function FileViewer({
               source={{ path: filePath, projectId }}
               line={effectiveLineNumber}
               artifact={hasHtmlPreview}
-              onSaved={
-                hasHtmlPreview
-                  ? undefined
-                  : () => {
-                      void source
-                        .loadFile(
-                          projectId,
-                          filePath,
-                          true,
-                          effectiveLineNumber,
-                          effectiveLineEnd,
-                          effectiveViewMode,
-                        )
-                        .then(setFileData)
-                        .catch((error) => setError(String(error)));
-                    }
-              }
+              onSaved={hasHtmlPreview ? undefined : reloadFromDisk}
             />
           )}
         <span ref={setModeControlsHost} />
+        {!diffActive && fileData && (
+          <button
+            type="button"
+            className={`file-viewer-action${freshness?.state === "stale" ? ` ${viewerStyles.reloadStale}` : ""}`}
+            aria-label={t("fileViewerReload" as never)}
+            title={
+              freshness?.state === "stale"
+                ? t("fileViewerReloadStale" as never, {
+                    time: new Date(freshness.at).toLocaleTimeString(),
+                  })
+                : freshness?.state === "fresh"
+                  ? t("fileViewerReloadFresh" as never)
+                  : t("fileViewerReload" as never)
+            }
+            onMouseEnter={checkFreshness}
+            onFocus={checkFreshness}
+            onClick={reloadFromDisk}
+          >
+            <RefreshIcon />
+          </button>
+        )}
         {!diffActive && metadata?.isText && content !== undefined && (
           <FileViewerDensityControls
             zoom={viewerDensity.zoom}
@@ -2137,6 +2197,25 @@ function FileViewerSelectionActions({
 }
 
 // Icons
+function RefreshIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" />
+      <path d="M13.5 2.5v3.2h-3.2" />
+    </svg>
+  );
+}
+
 function RawSourceIcon() {
   return (
     <svg

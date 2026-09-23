@@ -924,6 +924,8 @@ export interface FileMetadata {
   mimeType: string;
   /** Whether the file is a text file (can be displayed inline) */
   isText: boolean;
+  /** Last modification time in epoch milliseconds; absent from older servers. */
+  modifiedAt?: number;
 }
 
 /**

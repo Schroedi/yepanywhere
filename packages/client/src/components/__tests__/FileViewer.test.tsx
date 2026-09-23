@@ -181,6 +181,52 @@ describe("FileViewer", () => {
     );
   });
 
+  it("reloads from disk on demand and reports freshness on hover", async () => {
+    const file = (content: string, modifiedAt: number) => ({
+      metadata: {
+        path: "notes.md",
+        size: content.length,
+        mimeType: "text/markdown",
+        isText: true,
+        modifiedAt,
+      },
+      rawUrl: "",
+      content,
+      renderedMarkdownHtml: `<h1>${content.slice(2).trim()}</h1>`,
+    });
+    const source: FileViewerSource = {
+      loadFile: vi
+        .fn()
+        .mockResolvedValueOnce(file("# First\n", 1000))
+        .mockResolvedValueOnce(file("# Second\n", 2000)),
+      statFile: vi.fn().mockResolvedValue(file("# Second\n", 2000)),
+    };
+    render(
+      <I18nProvider>
+        <FileViewer
+          projectId="project-id"
+          filePath="notes.md"
+          source={source}
+        />
+      </I18nProvider>,
+    );
+    expect(await screen.findByRole("heading", { name: "First" })).toBeTruthy();
+    const reload = screen.getByRole("button", { name: "Reload from disk" });
+    expect(reload.getAttribute("title")).toBe("Reload from disk");
+    fireEvent.mouseEnter(reload);
+    await waitFor(() =>
+      expect(reload.getAttribute("title")).toMatch(/^Changed on disk at /),
+    );
+    expect(source.statFile).toHaveBeenCalledWith("project-id", "notes.md");
+    fireEvent.click(reload);
+    expect(await screen.findByRole("heading", { name: "Second" })).toBeTruthy();
+    expect(source.loadFile).toHaveBeenCalledTimes(2);
+    fireEvent.mouseEnter(reload);
+    await waitFor(() =>
+      expect(reload.getAttribute("title")).toMatch(/^Unchanged on disk/),
+    );
+  });
+
   it("returns from a diff to the retained raw source without loading", async () => {
     mocks.useFileVersionControl.mockReturnValue({
       cumulativeFile: null,

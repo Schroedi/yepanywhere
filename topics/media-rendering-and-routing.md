@@ -216,6 +216,15 @@ vocabulary even though their authorization routes remain distinct:
   one **Raw source** icon button whose pressed state means the source is
   showing; the local-file modal takes its initial representation from the
   context menu in this first convergence step.
+- The viewer does not watch the file, deliberately: a reader chooses when the
+  view changes. A **Reload from disk** refresh button beside the mode toggles
+  refetches the file in source and preview modes and remounts a running
+  interactive frame on its existing grant so the document is fetched again.
+  Hovering or focusing the button probes current metadata without reading
+  content (`metadata=only`) and the tooltip reports whether the loaded copy
+  is unchanged or was changed on disk at a given time; the icon takes the
+  warning color when stale. Servers without `modifiedAt` in file metadata
+  keep the plain tooltip.
 - Authenticated ordinary file and artifact viewers offer
   [source editing](file-source-editing.md). HTML Edit mode selects producer-mapped
   original file locations; without mappings it edits HTML directly. Editing

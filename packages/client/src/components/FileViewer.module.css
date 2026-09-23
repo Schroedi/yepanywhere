@@ -29,6 +29,10 @@
   background: var(--bg-code);
 }
 
+.reloadStale {
+  color: var(--warning-color, #d08a00);
+}
+
 .rawToggle[aria-pressed="true"] {
   background: color-mix(in srgb, var(--primary-color) 18%, transparent);
   color: var(--primary-color);

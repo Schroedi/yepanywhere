@@ -19,6 +19,8 @@ interface Props {
   /** The owning viewer may supply the source/preview toggle in its header. */
   showControls?: boolean;
   toolbarHost?: HTMLElement | null;
+  /** Changing this remounts a running frame so it refetches from disk. */
+  reloadKey?: number;
 }
 
 export function ArtifactPreview(props: Props) {
@@ -101,7 +103,7 @@ export function ArtifactPreview(props: Props) {
         </div>
       ) : grant ? (
         <iframe
-          key={grant.id}
+          key={`${grant.id}:${props.reloadKey ?? 0}`}
           className={styles.frame}
           title={props.title}
           aria-label={props.title}
