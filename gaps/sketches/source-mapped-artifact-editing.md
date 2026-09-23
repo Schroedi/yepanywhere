@@ -94,7 +94,18 @@ producer supplies a corresponding hit region.
 Decision (2026-09-22, user-requested; Contributing-model: 6-Astra): use
 the paired `ya-source-target:v1` HTML comments above and a sibling
 `paper-canvas.html.map`, rather than introduce a separate paper-only marker.
-This is a selected design, not an implemented build feature.
+Implemented first increment (2026-09-22, Contributing-model: 6-Astra): the
+paper builder emits paired comments around each included section/subsection,
+original `sections/*.qmd` line ranges and source hashes, and a sibling map
+with final HTML ranges and the HTML hash. The build receipt hashes the map.
+This is explicitly section/subsection precision, not paragraph or character
+precision. The version-3-shaped sidecar has empty standard `mappings` and
+records ranges in `x_ya_source_targets`; the current viewer reads the comments.
+The producer contract and build command live in the draft repository's
+`research/pii/frontier/papers/multilingual-pii-redaction/README.md`.
+The finer block/word mapping described below remains future work, including
+relocated footnotes and bibliography entries. Hash enforcement and automatic
+regeneration also remain unimplemented in the viewer.
 
 The concrete producer is the draft repository's `scripts/pii_paper_canvas.py`.
 It renders `research/pii/frontier/papers/multilingual-pii-redaction/index.qmd`
