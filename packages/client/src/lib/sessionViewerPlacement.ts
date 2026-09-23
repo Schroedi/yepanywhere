@@ -1,5 +1,8 @@
 import { createLocalStorageBoolean } from "./localStorageValue";
-import type { SessionViewerRegistration } from "./sessionViewerController";
+import type {
+  SessionViewerControllerState,
+  SessionViewerRegistration,
+} from "./sessionViewerController";
 import { UI_KEYS } from "./storageKeys";
 
 export const sessionRightPaneSetting = createLocalStorageBoolean(
@@ -21,4 +24,16 @@ export function sessionViewerUsesRightPane(
   if (!viewer.sessionId || !sessionRightPaneSetting.read()) return false;
   if (viewer.kind === "panel") return true;
   return viewer.kind === "file" && !!viewer.supportsRightPane;
+}
+
+/**
+ * The composer's bottom viewer controller stands in for a viewer the reader
+ * cannot see or reach from its own chrome. A covering viewer earns it while
+ * open, since its header may be scrolled away; a right-pane viewer keeps its
+ * own header beside the transcript, so only minimizing it creates the chip.
+ */
+export function sessionViewerShowsBottomController(
+  viewer: SessionViewerControllerState,
+): boolean {
+  return viewer.minimized || !sessionViewerUsesRightPane(viewer);
 }

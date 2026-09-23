@@ -248,7 +248,9 @@ the parent, so an Open-in-window action is always present.
 
 When the Appearance setting is on, file links in the session open in the
 right pane. The stable session host owns the document independently of the
-link's transcript row. Minimize parks at the existing composer controller;
+link's transcript row. While the pane is open there is no composer
+controller: the pane's own header carries minimize and close. Minimize parks
+at the existing composer controller, which appears only then;
 restore reuses the same mounted viewer and preserves reading state. Close
 destroys it and dismisses its originating link's open state, allowing that
 same link to open it again.

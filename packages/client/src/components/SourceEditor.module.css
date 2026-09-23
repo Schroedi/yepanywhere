@@ -1,7 +1,9 @@
 .workspace {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  /* Above the composer's floating viewer controller (10002): the editor
+     covers everything, and a parked-viewer chip must not show through it. */
+  z-index: 10003;
   display: flex;
   flex-direction: column;
   background: var(--bg-surface);

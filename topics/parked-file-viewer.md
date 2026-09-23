@@ -81,9 +81,11 @@ session composer and their narrower file authority.
 ## First trial: persistent composer controller
 
 The first presentation to evaluate is one controller in the bottom composer
-toolbar. It is present while the viewer is open as well as while it is parked,
-so its position and meaning do not depend on remembering where the source link
-was.
+toolbar. For a covering viewer it is present while the viewer is open as well
+as while it is parked, so its position and meaning do not depend on
+remembering where the source link was. A right-pane viewer keeps its own
+header beside the transcript, so it has no bottom controller until it is
+minimized; the controller then appears and its restore returns the pane.
 
 - The controller occupies the toolbar's available center gap rather than a
   fixed-width pill. Its pathname portion flexes; the toggle and close controls

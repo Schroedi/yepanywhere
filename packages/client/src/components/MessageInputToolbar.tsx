@@ -72,7 +72,10 @@ import { useI18n } from "../i18n";
 import type { BtwToolbarMode } from "../lib/btwAsideRouting";
 import { writeClipboardTextLater } from "../lib/clipboard";
 import { BROWSER_DEBUG_LEASE_TTL_MS } from "../lib/browserDebugLease";
-import { sessionViewerUsesRightPane } from "../lib/sessionViewerPlacement";
+import {
+  sessionViewerShowsBottomController,
+  sessionViewerUsesRightPane,
+} from "../lib/sessionViewerPlacement";
 import {
   type SessionViewerControllerState,
   useSessionViewerController,
@@ -3081,7 +3084,8 @@ export function MessageInputToolbar({
   const showToast = useOptionalToastContext()?.showToast;
   const sessionViewerController = useSessionViewerController();
   const fileViewerController =
-    sessionViewerController?.sessionId === (sessionId ?? "")
+    sessionViewerController?.sessionId === (sessionId ?? "") &&
+    sessionViewerShowsBottomController(sessionViewerController)
       ? sessionViewerController
       : null;
   const {
