@@ -423,8 +423,14 @@ describe("GlobalSessionsPage", () => {
     });
     renderPage("/sessions?q=Session");
     fireEvent.click(screen.getByRole("checkbox", { name: /^User/ }));
-    await waitFor(() =>
-      expect(screen.getByText(/Malformed transcript record/)).toBeDefined(),
+    // The scan passes through real start, scheduling and publish timers. The
+    // whole test takes ~310ms on a development host; CI runs at 8bdd9063a and
+    // b4601c77a exceeded the 1000ms default wait with "0 / 1 sessions
+    // scanned" showing, so the budget is 4x that observed limit.
+    await waitFor(
+      () =>
+        expect(screen.getByText(/Malformed transcript record/)).toBeDefined(),
+      { timeout: 4_000 },
     );
     expect(runtime.transport.fetch).toHaveBeenCalledTimes(1);
     expect(
