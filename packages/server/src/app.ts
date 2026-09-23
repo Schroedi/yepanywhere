@@ -3082,6 +3082,8 @@ export function createApp(options: AppOptions): AppResult {
 
     const publicShareDeps = {
       publicShareService: options.publicShareService,
+      listProjectRoots: async () =>
+        (await scanner.listProjects()).map((project) => project.path),
       loadSession: loadPublicShareSession,
       loadCompleteSession: loadCompletePublicShareSession,
       loadSessionUpdatedAt: loadPublicShareSessionUpdatedAt,

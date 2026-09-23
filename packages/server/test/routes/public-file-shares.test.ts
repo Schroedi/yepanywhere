@@ -147,6 +147,59 @@ describe("public file shares", () => {
     expect(await revokeResponse.json()).toEqual({ revoked: true });
   });
 
+  it("shares an absolute path under the registered project that owns it", async () => {
+    const otherRoot = path.join(testDir, "other-project");
+    await fs.mkdir(path.join(otherRoot, "build"), { recursive: true });
+    await fs.writeFile(path.join(otherRoot, "build", "paper.html"), "<p>x</p>");
+    // The existence check reads through the project file fetcher.
+    files.set("build/paper.html", "<p>x</p>");
+    const app = createPublicFileShareRoutes({
+      publicShareService: service,
+      fetchProjectFile,
+      listProjectRoots: async () => [projectRoot, otherRoot],
+      getPublicSharesEnabled: () => true,
+      getRemoteAccessEnabled: () => true,
+      getRelayConfig: () => ({
+        url: "wss://relay.example/ws",
+        username: "example-host",
+      }),
+      getYaClientBaseUrl: () => "https://ya.example/",
+    });
+    // Viewed from the first project's viewer, the file lives in the other one.
+    const created = await app.request("/public-file-shares", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        path: path.join(otherRoot, "build", "paper.html"),
+      }),
+    });
+    expect(created.status).toBe(200);
+    const url = new URL(((await created.json()) as { url: string }).url);
+    expect(url.searchParams.get("projectId")).toBe(toUrlProjectId(otherRoot));
+    expect(url.searchParams.get("path")).toBe("build/paper.html");
+    // The list resolves the same way, so the retained link is found again.
+    const listed = await app.request(
+      `/public-file-shares?projectId=${encodeURIComponent(projectId)}&path=${encodeURIComponent(path.join(otherRoot, "build", "paper.html"))}`,
+    );
+    expect(((await listed.json()) as { items: unknown[] }).items).toHaveLength(
+      1,
+    );
+    // Outside every registered project stays refused.
+    const outside = await app.request("/public-file-shares", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        path: path.join(testDir, "stray.html"),
+      }),
+    });
+    expect(outside.status).toBe(400);
+    expect(((await outside.json()) as { error: string }).error).toMatch(
+      /outside every registered project/,
+    );
+  });
+
   it("serves the current root and only directly referenced render assets", async () => {
     const { secret } = await service.createFileShare({
       projectId,

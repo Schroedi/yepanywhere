@@ -25,7 +25,10 @@ public-share transport.
 
 A dedicated public file share is a separate bearer grant for one current
 project-relative file. It does not depend on a session grant or reveal a
-session identity. The grant remains valid until revoked, while the served root
+session identity. The create and list routes resolve an absolute path to the
+registered project that owns it, deepest root first, so a file viewed from
+another project's viewer is shared under its own project and its retained
+links are found again; a path inside no registered project is refused. The grant remains valid until revoked, while the served root
 file and its allowed render assets remain live project content.
 
 Client fatal-render diagnostics capture only a route identity: query and hash
