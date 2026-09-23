@@ -212,11 +212,15 @@ export const SERVER_CAPABILITIES = {
     introducedIn: "0.9.1",
     advertisement: { kind: "version-implied" },
     description:
-      "Read bounded original sources and save explicit revision-checked edits, including artifact source references.",
+      "Read bounded original sources, save explicit revision-checked edits, including artifact source references, and run an artifact's approved rebuild hook.",
     clientFallback:
       "Hide Edit and make no file-edit requests; retain read and comment views.",
     serverContract: {
-      routes: ["GET /api/file-edit", "PUT /api/file-edit"],
+      routes: [
+        "GET /api/file-edit",
+        "PUT /api/file-edit",
+        "POST /api/file-edit/rebuild",
+      ],
       routeModules: ["packages/server/src/routes/file-edit.ts"],
     },
     lifecycle: {
