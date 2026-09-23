@@ -7,9 +7,9 @@ import {
 /**
  * Long-context effort-change warning: before a mid-session effort change on a
  * session whose prompt is already large, YA warns that the change re-reads
- * most of that prompt (the effort is part of the rendered system prompt on
- * the providers below, so the cached prefix no longer matches) and offers a
- * fork instead. Contract: topics/mid-session-effort-change.md.
+ * that whole prompt (the providers below cache the prompt per effort, so no
+ * cached prefix matches) and offers a fork instead. Contract:
+ * topics/mid-session-effort-change.md.
  */
 export type LongContextEffortWarningSettings = {
   /** Per-provider enablement. Absent or false means no warning. */
@@ -27,10 +27,10 @@ export const LONG_CONTEXT_EFFORT_WARNING_SLIDER_MAX_TOKENS = 500_000;
 export const LONG_CONTEXT_EFFORT_WARNING_SLIDER_STEP_TOKENS = 1_000;
 
 /**
- * Providers whose effort change is known to re-render the system prompt:
- * Claude (user-observed cache loss on effort change) and Codex (request-level
- * reasoning effort; see gaps/codex-cache-features.md for the Astra exception
- * that is not yet usable).
+ * Providers whose effort change is known to miss the prompt cache: Claude
+ * (the cache is keyed by effort; measured in topics/mid-session-effort-change.md
+ * § Claude cache measurement) and Codex (request-level reasoning effort; see
+ * gaps/codex-cache-features.md for the Astra exception that is not yet usable).
  */
 export const DEFAULT_LONG_CONTEXT_EFFORT_WARNING_SETTINGS: LongContextEffortWarningSettings =
   {

@@ -1,9 +1,10 @@
 # Mid-session effort change
 
-> A mid-session effort change re-renders the provider's system prompt, so on
-> a long-context session the next request re-reads most of the cached prompt;
-> YA warns before such a change on enabled providers past a configurable
-> token threshold and offers a fork at the new effort instead.
+> A mid-session effort change misses the provider's prompt cache (Claude
+> keys its cache by effort; Codex sends effort at request level), so on a
+> long-context session the next request re-reads the whole prompt; YA warns
+> before such a change on enabled providers past a configurable token
+> threshold and offers a fork at the new effort instead.
 
 Topic: mid-session-effort-change
 
@@ -24,13 +25,15 @@ live effort control is applied), [provider-fork-support](provider-fork-support.m
 
 ## Why
 
-On Claude, the selected effort is part of the rendered system prompt, so
-changing it mid-session changes the cached prefix and the next request
-re-reads the whole conversation (user observation, 2026-09-19; the
-Anthropic cache is an exact-prefix match). On Codex the effort is the
-request-level `reasoning.effort`, and OpenAI's own guidance is to keep that
-unchanged to preserve the cached prefix. Either way a routine-looking control
-can silently cost a full re-read of a 200k-token session, which is the same
+On Claude, the prompt cache is keyed by effort: changing it mid-session
+makes the next request miss the whole cached prefix, tools and system
+prompt included, and re-read the conversation at cache-write price. The
+request text does not change; only the `output_config.effort` parameter
+does (measured 2026-09-23, § Claude cache measurement). On Codex the
+effort is the request-level `reasoning.effort`, and OpenAI's own guidance is
+to keep that unchanged to preserve the cached prefix. Either way a
+routine-looking control can silently cost a full re-read of a 200k-token
+session, which is the same
 class of cost the [cache-miss-accounting](cache-miss-accounting.md) monitor
 exists to surface after the fact. This topic surfaces it before.
 
@@ -86,12 +89,14 @@ exists to surface after the fact. This topic surfaces it before.
 
 ## Provider notes
 
-- **Claude.** The fork keeps the source's prefix byte-identical and forks
-  within the cache window have been measured to hit the parent's cache
+- **Claude.** The fork keeps the source's prefix byte-identical, and forks
+  at the *same* effort within the cache window hit the parent's cache
   ([fork-is-the-only-rewind gap](../gaps/fork-is-the-only-rewind-and-changes-the-cache-key.md)
-  § Claude), so a fork at the new effort is the cheap path: the fork's first
-  request pays only for the new system prompt while the source session stays
-  warm at its old effort. The dialog says so.
+  § Claude). A fork at a *different* effort does not: the cache is keyed by
+  effort, so its first request re-reads the whole context just as an
+  in-place change would (§ Claude cache measurement). The fork saves nothing
+  on the re-read; it only keeps the source session unchanged and warm at its
+  old effort. The dialog says so.
 - **Codex.** A Codex fork changes the thread id and therefore the
   `prompt_cache_key`, and measured forks re-read most of the context
   ([quick-answer fork gap](../gaps/quick-answer-fork-cache-efficiency.md)),
@@ -110,3 +115,77 @@ exists to surface after the fact. This topic surfaces it before.
   that feature is enabled and a warm-session measurement shows the cache
   survives, `effortChangeKeepsPromptCache` exempts Astra; details in
   [codex-cache-features](../gaps/codex-cache-features.md).
+
+## Claude cache measurement (2026-09-23)
+
+Setup: Agent SDK 0.3.280 (`claude-agent-sdk-darwin-arm64` CLI), model
+`claude-sonnet-5`, adaptive thinking with summarized display, 1h cache TTL.
+Numbers are `cache_read_input_tokens` / `cache_creation_input_tokens` from
+the session JSONL or the CLI's JSON result.
+
+**Live YA session.** Started through `POST /api/projects/:projectId/sessions`
+at `on:medium` with ~98k tokens of repository source as the first message
+(one-word replies thereafter). Effort changed through
+`POST /api/processes/:processId/config` (`{"thinking":"on:high"}`), the path
+the dialog's Change anyway uses; it calls `applyFlagSettings({effortLevel})`
+on the live query without a restart.
+
+| Turn | Effort | Read | Created |
+|---|---|---|---|
+| 1 | medium | 0 | 97,770 |
+| 2 | medium | 97,770 | 100 |
+| 3 | changed to high | 0 | 97,971 |
+| 4 | changed back to medium | 97,870 | 202 |
+
+Turn 4 reused turn 2's medium entry: each effort keeps its own cache entry,
+and returning to an effort still inside its TTL hits it.
+
+**Request capture.** The same sequence driven directly through the SDK
+behind a logging HTTP proxy (`ANTHROPIC_BASE_URL`). Between the requests
+before and after `applyFlagSettings`, `system` and `tools` were
+byte-identical and `messages` was a pure append; the only other difference
+was `output_config.effort` (`medium` → `high`). The request still read 0.
+Claude Code places a cache breakpoint on the system prompt, so an unchanged
+tools+system prefix missing as well means effort partitions the cache for
+the whole prompt, the way a model change does. Whether the API renders
+effort into the prompt internally is not observable from the client.
+
+**Cold standalone control.** `claude -p` with a unique
+`--append-system-prompt` nonce and ~53k-token prompt, fresh process per
+run: medium 0 / 52,759; high 0 / 52,821; high again 52,821 / 0; low
+0 / 52,821. Earlier runs without a system-prompt nonce appeared to show
+effort-independent hits, but they were confounded by entries warmed at
+other efforts moments before; keep every effort cold when repeating this.
+
+**Forks** (`POST .../fork` with `clone-latest-complete` and `thinking`, then
+`POST .../resume`), from the session above while its medium and high
+entries were warm:
+
+| Fork effort | Read | Created |
+|---|---|---|
+| xhigh (never used by the source) | 0 | 98,493 |
+| medium (source's current effort) | 98,072 | 422 |
+
+A fork at high read 97,971, but only because turn 3 had already cached that
+prefix at high; it is not evidence that forks bridge efforts.
+
+Two incidental findings: the first attempt, using random NATO-alphabet
+filler, was refused by a safety classifier (`stop_reason: refusal`), so
+use real source text as filler; and the session's first turn created a
+new tools prefix after MCP tools loaded, an unrelated one-time miss.
+
+## Copy corrections (2026-09-23)
+
+The measurement above corrected the dialog copy; the trigger, condition,
+threshold, and fork mechanics in § Contract did not change.
+
+- The body says the prompt cache is kept separately for each effort, so the
+  next request re-reads the whole context. It previously said the change
+  "changes the system prompt", a mechanism the request capture ruled out.
+- One fork hint serves every provider: the fork also re-reads the context
+  and only keeps this session as it is, still cached at its current effort.
+  The previous Claude hint claimed the fork's first request could reuse this
+  session's cache, which holds only for a fork at the same effort.
+- This is API behavior, not YA or Claude Code behavior, so re-measure on a
+  model or SDK refresh before relaxing `effortChangeKeepsPromptCache` for
+  Claude.

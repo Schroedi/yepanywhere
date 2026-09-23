@@ -6281,7 +6281,6 @@ function SessionPageContent({
 
         {longContextEffortWarning && (
           <LongContextEffortWarningModal
-            provider={longContextEffortWarning.provider}
             contextTokens={longContextEffortWarning.contextTokens}
             currentEffortLabel={longContextEffortWarning.currentEffortLabel}
             nextEffortLabel={longContextEffortWarning.nextEffortLabel}
