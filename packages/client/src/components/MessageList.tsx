@@ -3916,14 +3916,35 @@ export const MessageList = memo(function MessageList({
         stopSearchArrowRepeat();
       }
     };
+    // A plain click on the framed match row accepts it, as Enter does.
+    // Controls and links inside the row keep their own actions, and a
+    // click that ends a text selection is not an acceptance.
+    const handleMatchRowClick = (event: MouseEvent) => {
+      if (!searchActive || event.button !== 0 || event.defaultPrevented) return;
+      const target = event.target as Element | null;
+      const row = target?.closest<HTMLElement>('[data-search-match="true"]');
+      if (!row || !containerRef.current?.contains(row)) return;
+      if (target?.closest("a, button, input, select, textarea, summary"))
+        return;
+      if (!window.getSelection()?.isCollapsed) return;
+      const selectedAnchorId = getSelectedSearchAnchorId();
+      const selectedTargetId = getSelectedSearchTargetId();
+      if (!selectedAnchorId || !selectedTargetId) return;
+      event.preventDefault();
+      stopSearchArrowRepeat();
+      handleSearchMatchSelect(selectedAnchorId, selectedTargetId, true);
+    };
+    window.addEventListener("click", handleMatchRowClick);
 
     window.addEventListener("keydown", handleKeyDown, true);
     window.addEventListener("keyup", handleKeyUp, true);
     return () => {
+      window.removeEventListener("click", handleMatchRowClick);
       window.removeEventListener("keydown", handleKeyDown, true);
       window.removeEventListener("keyup", handleKeyUp, true);
     };
   }, [
+    handleSearchMatchSelect,
     closeSearch,
     commitSearchJump,
     getSelectedSearchAnchorId,

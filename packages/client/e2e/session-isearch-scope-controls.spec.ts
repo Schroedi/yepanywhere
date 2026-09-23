@@ -103,3 +103,24 @@ test("committed jumps fade the row frame and clear on the next key", async ({
   await expect(page.getByRole("search")).toHaveCount(0);
   await expect(landed).toHaveClass(/landed/);
 });
+
+test("clicking the framed match row accepts it", async ({ page, baseURL }) => {
+  await page.setViewportSize({ width: 1000, height: 600 });
+  await openSpecimen(page, baseURL);
+
+  await page.keyboard.press("Control+s");
+  await page
+    .getByRole("textbox", { name: "Reverse search all turns" })
+    .fill("specimen is ready");
+  await page
+    .getByRole("navigation", { name: "Turn navigation" })
+    .getByRole("button", { name: "The specimen is ready.", exact: true })
+    .click();
+  await expect(page.getByRole("search")).toHaveCount(1);
+  const framed = page.locator('[data-search-match="true"]');
+  await expect(framed).toHaveCount(1);
+  await expect(framed).not.toHaveClass(/landed/);
+  await framed.click({ position: { x: 4, y: 4 } });
+  await expect(page.getByRole("search")).toHaveCount(0);
+  await expect(framed).toHaveClass(/landed/);
+});
