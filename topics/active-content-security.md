@@ -120,7 +120,13 @@ See
 HTML, XHTML, SVG, and other browser-active formats supplied by a project,
 agent, upload, or share are data to YA's normal file-viewing surfaces. They are
 shown as source, downloaded, or rendered in a scriptless opaque sandbox. They
-must not execute as top-level documents on a YA origin.
+must not execute as top-level documents on a YA origin. One viewer-chosen
+exception exists for a public file share's HTML root: the hosted play page
+runs it with scripts inside an opaque-origin `srcdoc` frame that lacks
+`allow-same-origin`, with its assets inlined as data URLs, so it is still
+never a top-level document on the hosted origin and has no reach to that
+origin's storage; see
+[Public File Views](relay-origin-and-share-gating.md#public-file-views).
 
 Initial active-type classification must include at least:
 

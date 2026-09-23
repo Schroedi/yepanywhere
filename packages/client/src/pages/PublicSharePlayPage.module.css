@@ -1,0 +1,16 @@
+.frame {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: white;
+}
+
+.notice {
+  padding: 24px;
+  font:
+    15px / 1.5 system-ui,
+    sans-serif;
+  color: var(--text-primary, #222);
+}

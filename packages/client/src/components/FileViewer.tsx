@@ -52,6 +52,8 @@ import { isMarkdownLikeFile } from "../lib/markdownFiles";
 import { extractMarkdownSnippetsFromSelection } from "../lib/markdownSelectionCopy";
 import { getRenderedFileClipboardPayload } from "../lib/renderedFileClipboard";
 import { ArtifactPreview } from "./ArtifactPreview";
+import { ViewerModeToggle } from "./ViewerModeToggle";
+import { buildPlayableHtml, openPublicSharePlay } from "../lib/publicSharePlay";
 import { SourceEditAction } from "./SourceEditor";
 import { ViewerWindowActions } from "./ViewerWindowActions";
 import {
@@ -1971,6 +1973,29 @@ export const FileViewer = memo(function FileViewer({
         {publicShareContext === null &&
           source === DEFAULT_FILE_VIEWER_SOURCE &&
           !diffActive && <PublicFileShareButton onOpen={setFileShareAnchor} />}
+        {publicShareContext !== null &&
+          !diffActive &&
+          hasHtmlPreview &&
+          content !== undefined &&
+          source.fetchRawFileBlob && (
+            <ViewerModeToggle
+              mode="interactive"
+              source={{}}
+              artifact
+              linkless
+              active={false}
+              label={t("publicSharePlay" as never)}
+              onToggle={() => {
+                const fetchRawFileBlob = source.fetchRawFileBlob!;
+                const currentFile = fileData!;
+                openPublicSharePlay(`${basePath}/play`, fileName, () =>
+                  buildPlayableHtml(content, filePath, (assetPath) =>
+                    fetchRawFileBlob(currentFile, assetPath, false),
+                  ),
+                );
+              }}
+            />
+          )}
         {publicShareContext === null && (
           <button
             type="button"

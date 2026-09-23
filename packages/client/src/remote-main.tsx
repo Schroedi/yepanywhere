@@ -172,6 +172,11 @@ const EmulatorPage = lazy(() =>
 const FilePage = lazy(() =>
   loadFilePageModule().then(({ FilePage }) => ({ default: FilePage })),
 );
+const PublicSharePlayPage = lazy(() =>
+  import("./pages/PublicSharePlayPage").then(({ PublicSharePlayPage }) => ({
+    default: PublicSharePlayPage,
+  })),
+);
 const ViewerModePage = lazy(() =>
   import("./pages/ViewerModePage").then(({ ViewerModePage }) => ({
     default: ViewerModePage,
@@ -391,6 +396,7 @@ const APP_ROUTES = (
         element={routeModule(<FilePage />)}
       />
       <Route path="file-view" element={routeModule(<ViewerModePage />)} />
+      <Route path="play" element={routeModule(<PublicSharePlayPage />)} />
       <Route
         path="projects/:projectId/sessions/:sessionId"
         element={routeModule(<SessionDomLingerRouteMarker />)}

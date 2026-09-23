@@ -200,6 +200,50 @@ describe("public file shares", () => {
     );
   });
 
+  it("authorizes an HTML root's stylesheets, scripts, and fonts for play", async () => {
+    files.set(
+      "site/index.html",
+      '<link rel="stylesheet" href="site.css"><script src="app.js"></script><img src="logo.png">',
+    );
+    files.set("site/site.css", "body{font-family:Paper}");
+    files.set("site/app.js", "console.log(1)");
+    files.set("site/other.js", "console.log(2)");
+    files.set("docs/notes.css", "p{}");
+    const { secret } = await service.createFileShare({
+      projectId,
+      path: "site/index.html",
+      title: "Site",
+      buildPublicUrl: (value) => `https://ya.example/share/${value}/file`,
+    });
+    const app = createPublicSharePublicRoutes({
+      publicShareService: service,
+      loadSession: vi.fn(async () => null),
+      getPublicSharesEnabled: () => true,
+      fetchProjectFile,
+    });
+    const status = async (path: string) =>
+      (
+        await app.request(
+          `/${secret}/files/raw?path=${encodeURIComponent(path)}`,
+        )
+      ).status;
+    expect(await status("site/site.css")).toBe(200);
+    expect(await status("site/app.js")).toBe(200);
+    expect(await status("site/other.js")).toBe(404);
+    // A Markdown root does not gain script or stylesheet authority.
+    const markdown = await service.createFileShare({
+      projectId,
+      path: "docs/guide.md",
+      title: "Guide",
+      buildPublicUrl: (value) => `https://ya.example/share/${value}/file`,
+    });
+    files.set("docs/guide.md", "# Guide\n\n[css](notes.css)\n");
+    expect(
+      (await app.request(`/${markdown.secret}/files/raw?path=docs%2Fnotes.css`))
+        .status,
+    ).toBe(404);
+  });
+
   it("serves the current root and only directly referenced render assets", async () => {
     const { secret } = await service.createFileShare({
       projectId,

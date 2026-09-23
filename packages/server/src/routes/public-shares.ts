@@ -118,6 +118,20 @@ const PUBLIC_SHARE_RENDER_SOURCE_EXTENSIONS = new Set([
   ".mdx",
   ".qmd",
 ]);
+/**
+ * A dedicated HTML file share also authorizes the stylesheets, scripts, and
+ * fonts its root references directly, so a viewer's play action can inline
+ * them into an opaque-origin sandboxed document. Session shares do not.
+ */
+const PUBLIC_SHARE_PLAY_ASSET_EXTENSIONS = new Set([
+  ".css",
+  ".js",
+  ".mjs",
+  ".otf",
+  ".ttf",
+  ".woff",
+  ".woff2",
+]);
 const PUBLIC_SHARE_RENDER_ASSET_EXTENSIONS = new Set([
   ".apng",
   ".avif",
@@ -821,13 +835,24 @@ async function publicFileShareMentionsRenderAsset(
   relativePath: string,
   projectRoot: string,
 ): Promise<boolean> {
+  const htmlRoot = /\.(?:html?|xhtml)$/i.test(fileShare.path);
   if (
     !deps.fetchProjectFile ||
     !hasPublicShareExtension(
       fileShare.path,
       PUBLIC_SHARE_RENDER_SOURCE_EXTENSIONS,
     ) ||
-    !hasPublicShareExtension(relativePath, PUBLIC_SHARE_RENDER_ASSET_EXTENSIONS)
+    !(
+      hasPublicShareExtension(
+        relativePath,
+        PUBLIC_SHARE_RENDER_ASSET_EXTENSIONS,
+      ) ||
+      (htmlRoot &&
+        hasPublicShareExtension(
+          relativePath,
+          PUBLIC_SHARE_PLAY_ASSET_EXTENSIONS,
+        ))
+    )
   ) {
     return false;
   }

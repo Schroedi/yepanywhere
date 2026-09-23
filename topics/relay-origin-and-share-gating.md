@@ -224,11 +224,31 @@ behavior where those affordances are read-only.
 A dedicated live file share authorizes exactly its root file. When that root is
 a bounded Markdown, MDX, Quarto Markdown, or HTML source, it also authorizes
 directly referenced SVG, raster-image, and supported video assets one level
-deep. It never authorizes another linked document, a nested asset referenced by
-an asset, a project scan, source-control data, or an app-data attachment. Each
+deep. An HTML root additionally authorizes its directly referenced
+stylesheets, scripts, and font files (2026-09-23), which exist for the
+viewer's **play** action below; a Markdown root gains no such authority. It
+never authorizes another linked document, a nested asset referenced by an
+asset, a project scan, source-control data, or an app-data attachment. Each
 asset request rereads the current root before authorizing the target, so editing
 the root immediately removes stale references and admits current ones. Root and
 asset responses keep the existing no-store and active-content hardening.
+
+**Play for public file viewers.** The hosted share viewer shows an HTML root
+as a scriptless preview and offers a play toggle. The relay has no HTTP path
+to the host and share files travel only over the relay WebSocket, so no
+top-level URL for the raw document exists; the viewer instead opens a hosted
+`/play` page in a new tab and hands it the document over a same-origin
+`postMessage` handshake keyed by a per-open id. Before hand-off the viewer
+fetches the root's directly referenced stylesheets, scripts, images, and
+media through the share's own raw file route and inlines them as data URLs,
+capped at 48 MiB; references the share does not serve stay as written and
+fail inside the sandbox. The play page renders the document full-window in
+an iframe with `sandbox="allow-scripts allow-popups allow-downloads
+allow-forms allow-modals"` and no `allow-same-origin`, so the document has an
+opaque origin: it cannot read the hosted client's storage or credentials and
+has no channel back to the share. The page itself is trusted hosted chrome
+and holds nothing but the document text. Second-level references such as
+fonts named inside a stylesheet are not inlined yet.
 
 The File Viewer creation action is visible only for the ordinary live working
 file when Public Read-Only Share can currently create links and the server has
