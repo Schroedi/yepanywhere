@@ -46,6 +46,9 @@ export interface ResourceContextMenuProps {
   onOpenPreview?: () => void;
   onOpenSource?: () => void;
   onStartNewSession?: () => void;
+  /** A running preview's stop action, shown last with `stopLabel`. */
+  onStop?: () => void;
+  stopLabel?: string;
 }
 
 export interface NewSessionPrefillOptions {
@@ -232,6 +235,8 @@ export function ResourceContextMenu({
   onOpenPreview,
   onOpenSource,
   onStartNewSession,
+  onStop,
+  stopLabel,
 }: ResourceContextMenuProps) {
   const { t } = useI18n();
   const [panel, setPanel] = useState<"open" | "root">("root");
@@ -440,6 +445,17 @@ export function ResourceContextMenu({
                 {t("fileLinkMenuCopyRenderedContents" as never)}
               </CopyActionLabel>
             </FilePathContextMenuItem>
+          ) : null}
+          {onStop && stopLabel ? (
+            <>
+              <div className={styles.separator} />
+              <FilePathContextMenuItem
+                onHover={usesHoverFlyout ? () => setPanel("root") : undefined}
+                onSelect={() => select(onStop)}
+              >
+                {stopLabel}
+              </FilePathContextMenuItem>
+            </>
           ) : null}
         </div>
       ) : null}

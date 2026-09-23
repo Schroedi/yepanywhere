@@ -1,3 +1,4 @@
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import styles from "./ViewerModeToggle.module.css";
 
@@ -19,6 +20,7 @@ export function ViewerModeToggle({
   disabled,
   label,
   onToggle,
+  onContextMenu,
 }: {
   mode: "edit" | "interactive";
   source: ViewerModeSource;
@@ -29,6 +31,8 @@ export function ViewerModeToggle({
   disabled?: boolean;
   label: string;
   onToggle: () => void;
+  /** Owner-supplied right-click menu; absent means the browser's own menu. */
+  onContextMenu?: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
 }) {
   const basePath = useRemoteBasePath();
   const query = new URLSearchParams({ mode });
@@ -71,6 +75,7 @@ export function ViewerModeToggle({
       onAuxClick={(event) => {
         if (disabled) event.preventDefault();
       }}
+      onContextMenu={onContextMenu}
     >
       <span className={styles.label}>{label}</span>
       <svg

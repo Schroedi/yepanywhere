@@ -129,6 +129,60 @@ it("admits only after a successful probe and keeps the grant reusable", async ()
   expect(state.fetch).toHaveBeenCalledTimes(1);
 });
 
+it("offers stop and a public artifact link from the running toggle's menu", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ artifactViewer: 1 }),
+    }),
+  );
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
+  });
+  const local = "http://artifacts.localhost:3400";
+  const origin =
+    window.location.hostname === "localhost"
+      ? local
+      : "https://artifacts.example.org";
+  state.fetch.mockImplementation(async (_path: string, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body));
+    const grantOrigin =
+      body.audience === "public" ? "https://artifacts.example.org" : origin;
+    return {
+      id: `grant-${body.audience}`,
+      url: `${grantOrigin}/a/${body.audience}/index.html`,
+      expiresAt: Date.now() + 1000,
+    };
+  });
+  mount();
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Run full HTML/CSS/JavaScript preview (current view is sanitized)",
+    }),
+  );
+  const stop = await screen.findByRole("button", {
+    name: "Stop interactive preview",
+  });
+  fireEvent.contextMenu(stop, { clientX: 20, clientY: 20 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "Copy public URL" }));
+  await waitFor(() =>
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "https://artifacts.example.org/a/public/index.html",
+    ),
+  );
+  expect(screen.queryByRole("menu")).toBeNull();
+  fireEvent.contextMenu(stop, { clientX: 20, clientY: 20 });
+  fireEvent.click(
+    screen.getByRole("menuitem", { name: "Stop interactive preview" }),
+  );
+  await screen.findByRole("button", {
+    name: "Run full HTML/CSS/JavaScript preview (current view is sanitized)",
+  });
+  expect(screen.getByTitle("Mockup").getAttribute("sandbox")).toBe("");
+});
+
 it("never offers private grants in a public share", () => {
   state.share = {};
   mount();

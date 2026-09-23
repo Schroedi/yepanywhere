@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { ResourceContextMenu } from "./FileResourceActions";
 import { ViewerModeToggle } from "./ViewerModeToggle";
 import { useArtifactGrant } from "../hooks/useArtifactGrant";
 import { useI18n } from "../i18n";
+import { writeClipboardTextLater } from "../lib/clipboard";
 import { createScriptlessHtmlPreviewDocument } from "../lib/scriptlessHtmlPreview";
 import styles from "./ArtifactPreview.module.css";
 
@@ -22,11 +24,9 @@ interface Props {
 export function ArtifactPreview(props: Props) {
   const { t } = useI18n();
   const [attempt, setAttempt] = useState(props.autoStart ? 1 : 0);
-  const { origin, grant, busy, failed, frameBlocked } = useArtifactGrant(
-    props.path,
-    props.projectId,
-    attempt,
-  );
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const { origin, grant, busy, failed, frameBlocked, createPublicUrl } =
+    useArtifactGrant(props.path, props.projectId, attempt);
 
   const controls = origin && (props.showControls !== false || failed) && (
     <div className={styles.toolbar}>
@@ -38,6 +38,14 @@ export function ArtifactPreview(props: Props) {
         disabled={busy}
         onToggle={() =>
           grant ? setAttempt(0) : setAttempt((value) => value + 1)
+        }
+        onContextMenu={
+          grant
+            ? (event) => {
+                event.preventDefault();
+                setMenu({ x: event.clientX, y: event.clientY });
+              }
+            : undefined
         }
         label={t(
           grant
@@ -52,9 +60,28 @@ export function ArtifactPreview(props: Props) {
       {failed && <span role="status">{t("artifactUnavailable")}</span>}
     </div>
   );
+  // Right-click on the running toggle: open the grant in a tab, copy a public
+  // artifact link (a separate public-origin grant, not a file share), or stop.
+  const runningMenu = menu && grant && (
+    <ResourceContextMenu
+      x={menu.x}
+      y={menu.y}
+      canStartNewSession={false}
+      onClose={() => setMenu(null)}
+      onOpen={() => window.open(grant.url, "_blank", "noopener,noreferrer")}
+      onCopyPublicUrl={
+        createPublicUrl
+          ? () => void writeClipboardTextLater(createPublicUrl())
+          : undefined
+      }
+      onStop={() => setAttempt(0)}
+      stopLabel={t("artifactStop")}
+    />
+  );
   return (
     <div className={`${styles.preview} ${props.className ?? ""}`}>
       {props.toolbarHost ? createPortal(controls, props.toolbarHost) : controls}
+      {runningMenu}
       {props.showControls === false && busy && (
         <div className={styles.notice} role="status">
           {t("artifactChecking")}
