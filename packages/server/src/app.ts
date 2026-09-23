@@ -228,6 +228,7 @@ import { grokACPProvider } from "./sdk/providers/grok-acp.js";
 
 import { createLocalFileRoutes } from "./routes/local-file.js";
 import { createFileEditRoutes } from "./routes/file-edit.js";
+import { ArtifactRebuildService } from "./services/ArtifactRebuildService.js";
 import { createLocalImageRoutes } from "./routes/local-image.js";
 import { createLocalResourcePathPolicy } from "./routes/local-resource-policy.js";
 import { type UploadDeps, createUploadRoutes } from "./routes/upload.js";
@@ -961,6 +962,9 @@ export function createApp(options: AppOptions): AppResult {
       resolveArtifactUrl: (url) => artifactServer.resolveSourceUrl(url),
       isWritePending: (path) =>
         options.dirtyFileEditorService?.isWritePending(path) ?? false,
+      rebuild: new ArtifactRebuildService(
+        join(effectiveDataDir, "artifact-rebuild"),
+      ),
     }),
   );
   const vhostAppControl = new VhostAppControl(

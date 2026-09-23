@@ -129,6 +129,76 @@ describe("source editing routes", () => {
       (await app.request(`/file-edit?path=${encodeURIComponent(html)}`)).status,
     ).toBe(413);
   });
+  it("reports a rebuild hook on preview and runs it only after explicit approval", async () => {
+    const { ArtifactRebuildService } = await import(
+      "../../src/services/ArtifactRebuildService.js"
+    );
+    const rebuild = new ArtifactRebuildService(join(root, "state"));
+    const app = createFileEditRoutes({
+      policy: createLocalResourcePathPolicy({
+        allowedPaths: [join(root, "project")],
+      }),
+      scanner: { getProject: async () => undefined },
+      resolveArtifactUrl: async () => file,
+      rebuild,
+    });
+    const artifact = join(root, "project", "report.html");
+    const script = join(root, "project", "build.mjs");
+    // The build keeps the descriptor comment, so the approval still matches.
+    await writeFile(
+      script,
+      `import { readFileSync, writeFileSync } from "node:fs"; writeFileSync(process.argv[2], readFileSync(process.argv[2], "utf8").replace("Before", "Rebuilt"));`,
+    );
+    const regenerate = {
+      hook: "report",
+      registrationVersion: 1,
+      proposedRegistration: {
+        cwd: join(root, "project"),
+        argv: [process.execPath, script, artifact],
+        outputs: [artifact],
+        timeoutSeconds: 30,
+      },
+    };
+    await writeFile(
+      artifact,
+      `<!-- ya-artifact:v1 ${JSON.stringify({ regenerate })} --><p>Before</p>`,
+    );
+    const preview = await (
+      await app.request(
+        `/file-edit?path=${encodeURIComponent(artifact)}&preview=1`,
+      )
+    ).json();
+    expect(preview.regenerate).toMatchObject({
+      hook: "report",
+      registered: false,
+      matches: false,
+    });
+    const post = (body: object) =>
+      app.request("/file-edit/rebuild", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    const refused = await post({ path: artifact, hook: "report" });
+    expect(refused.status).toBe(409);
+    expect((await refused.json()).regenerate.registered).toBe(false);
+    expect(await readFile(artifact, "utf8")).toContain("Before");
+
+    const approved = await post({
+      path: artifact,
+      hook: "report",
+      register: true,
+    });
+    expect(approved.status).toBe(200);
+    const result = await approved.json();
+    expect(result.ok).toBe(true);
+    expect(result.preview.content).toContain("Rebuilt");
+    expect(result.regenerate).toMatchObject({
+      registered: true,
+      matches: true,
+    });
+    expect((await post({ path: artifact, hook: "other" })).status).toBe(409);
+  });
   it("does not apply source edit middleware to unrelated API routes", async () => {
     const app = create();
     app.get("/other", (c) => c.text("ok"));

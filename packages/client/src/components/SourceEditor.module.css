@@ -53,7 +53,34 @@
   flex-wrap: wrap;
 }
 .notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
   background: var(--bg-secondary);
+}
+.rebuildControls {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.rebuildControls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.buildLog {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+.buildLog pre {
+  max-height: 40vh;
+  overflow: auto;
+  margin: 4px 0 0;
+  padding: 8px;
+  background: var(--bg-code, var(--bg-secondary));
+  white-space: pre-wrap;
 }
 .error {
   color: var(--error-color, #e66);

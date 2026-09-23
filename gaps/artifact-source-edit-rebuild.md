@@ -9,8 +9,15 @@ Proposed artifact discovery convention:
 
 The paper producer now supplies an anchored command proposal; its descriptor
 and save/scroll-restoration design are specified in
-[Planned rebuild after source save](../topics/file-source-editing.md#planned-rebuild-after-source-save).
-The YA consumer remains unimplemented.
+[Rebuild after source save](../topics/file-source-editing.md#rebuild-after-source-save).
+
+**2026-09-23 (Contributing-model: fable-5.1):** the trigger landed: approved
+per-artifact hook registrations in app data, `POST /api/file-edit/rebuild`,
+Rebuild / Approve and rebuild in the editor, opt-in auto-rebuild after save,
+and a preview swap on success. Still open here: snapshotting the last
+successful outputs before a run (a failed producer can leave partial files),
+reading-position restoration after the swap, and cancellation of a running
+build from the editor.
 
 ```html
 <!-- ya-artifact:v1 {"regenerate":{"hook":"report-build","registrationVersion":1}} -->

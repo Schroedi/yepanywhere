@@ -6,6 +6,10 @@ import { HTTPException } from "hono/http-exception";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import type { ProjectScanner } from "../projects/scanner.js";
+import {
+  type ArtifactRebuildService,
+  parseArtifactRebuildDescriptor,
+} from "../services/ArtifactRebuildService.js";
 import { expandHomePath } from "../utils/expandHomePath.js";
 import { writeFileAtomically } from "../utils/writeFileAtomically.js";
 import type { createLocalResourcePathPolicy } from "./local-resource-policy.js";
@@ -23,12 +27,24 @@ const saveSchema = z.object({
   revision: z.string().regex(/^[a-f0-9]{64}$/),
   content: z.string().max(MAX_EDIT_BYTES),
 });
+const rebuildSchema = z.object({
+  path: z.string().min(1).max(8192),
+  hook: z.string().min(1).max(128),
+  /** Approve the artifact's current proposal before running it. */
+  register: z.boolean().optional(),
+});
 
 export interface FileEditDeps {
   policy: ReturnType<typeof createLocalResourcePathPolicy>;
   scanner: Pick<ProjectScanner, "getProject">;
   resolveArtifactUrl: (url: string) => Promise<string>;
   isWritePending?: (path: string) => boolean;
+  /** Absent means previews report no rebuild hook and rebuilds are refused. */
+  rebuild?: ArtifactRebuildService;
+}
+
+function isHtmlPath(path: string): boolean {
+  return [".html", ".htm"].includes(extname(path).toLowerCase());
 }
 
 function revision(bytes: Uint8Array): string {
@@ -135,7 +151,65 @@ export function createFileEditRoutes(deps: FileEditDeps) {
       path,
       ref.preview === "1",
     );
+    if (ref.preview === "1" && deps.rebuild && isHtmlPath(source.path)) {
+      const descriptor = parseArtifactRebuildDescriptor(source.content);
+      if (descriptor)
+        return c.json({
+          ...source,
+          regenerate: await deps.rebuild.status(source.path, descriptor),
+        });
+    }
     return c.json(source);
+  });
+
+  // Run the artifact's approved rebuild hook, then return the fresh preview so
+  // the editor replaces HTML and mapping together. A registration mismatch
+  // is reported, never silently re-approved; `register` is the explicit act.
+  routes.post("/file-edit/rebuild", async (c) => {
+    if (!deps.rebuild)
+      return c.json({ error: "Artifact rebuild is unavailable" }, 409);
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid rebuild JSON" }, 400);
+    }
+    const parsed = rebuildSchema.safeParse(body);
+    if (!parsed.success)
+      return c.json({ error: "Invalid rebuild request" }, 400);
+    const before = await readSource(expandHomePath(parsed.data.path), true);
+    if (!isHtmlPath(before.path))
+      return c.json({ error: "Only HTML artifacts can be rebuilt" }, 400);
+    const descriptor = parseArtifactRebuildDescriptor(before.content);
+    if (!descriptor || descriptor.hook !== parsed.data.hook)
+      return c.json(
+        { error: "This artifact declares no matching rebuild hook" },
+        409,
+      );
+    let status = parsed.data.register
+      ? await deps.rebuild.register(before.path, descriptor)
+      : await deps.rebuild.status(before.path, descriptor);
+    if (!status.registered || !status.matches)
+      return c.json(
+        {
+          error: status.registered
+            ? "The artifact's proposed rebuild command changed since it was approved"
+            : "This rebuild command has not been approved",
+          regenerate: status,
+        },
+        409,
+      );
+    const result = await deps.rebuild.run(before.path, descriptor);
+    const { stats: _stats, ...after } = await readSource(before.path, true);
+    const nextDescriptor = parseArtifactRebuildDescriptor(after.content);
+    status = nextDescriptor
+      ? await deps.rebuild.status(after.path, nextDescriptor)
+      : status;
+    return c.json({
+      ...result,
+      preview: after,
+      regenerate: nextDescriptor ? status : undefined,
+    });
   });
 
   routes.put("/file-edit", async (c) => {

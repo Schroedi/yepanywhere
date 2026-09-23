@@ -121,10 +121,11 @@ messages select a source but never save or execute commands. Ordinary file
 selection previews deny external assets; artifact selection previews may load
 assets from their configured artifact origin. Authenticated YA owns reads/writes.
 
-## Planned rebuild after source save
+## Rebuild after source save
 
-This is a producer contract and consumer design; YA does not yet execute it.
-The PII paper builder emits the existing `ya-artifact:v1` discovery convention:
+Status: the hook registry, approval, bounded run, and preview swap landed
+2026-09-23; reading-position restoration below remains design. The PII paper
+builder emits the existing `ya-artifact:v1` discovery convention:
 
 ```html
 <!-- ya-artifact:v1 {"regenerate":{"hook":"pii-paper-canvas","registrationVersion":1,"proposedRegistration":{"cwd":"/absolute/project","argv":["/absolute/python3","/absolute/project/scripts/pii_paper_canvas.py","--quarto","/absolute/quarto"],"outputs":["/absolute/paper/_build/paper-canvas.html","/absolute/paper/_build/paper-canvas.pdf","/absolute/paper/_build/paper-canvas.receipt.json","/absolute/paper/_build/paper-canvas.html.map"],"timeoutSeconds":180}}} -->
@@ -138,15 +139,29 @@ Discovery alone does not authorize execution. The paper's `--no-source-map`
 mode retains this descriptor, includes the flag in `argv`, omits the map output,
 and removes its previous sidecar. The default build includes mapping.
 
-After a successful source save, offer **Rebuild** for a registered hook and an
-opt-in automatic rebuild after subsequent saves. A failed/conflicting save
-must not launch a build. Run without a provider turn, coalesce repeated saves,
-serialize per artifact and bind each result to the saved input revision.
-Keep the previous preview visible while building; replace HTML and mapping
-together after success. On failure keep the saved source and label the old
-preview stale, with access to build logs. The paper builder currently writes
-outputs directly; a consumer must snapshot the last successful revision before
-execution rather than assuming this producer publishes atomically.
+**Implemented behavior.** The preview read (`GET /api/file-edit?preview=1`)
+parses the first `ya-artifact:v1` comment of an HTML artifact and returns a
+`regenerate` status: the descriptor plus whether an approved registration
+exists for this artifact path and hook, and whether it still matches the
+proposal. Registrations live in app data
+(`{dataDir}/artifact-rebuild/rebuild-hooks.json`), keyed by canonical
+artifact path and hook id, never inside the project. The editor shows
+**Rebuild** for an approved hook, or **Approve and rebuild…** otherwise, which
+displays the working directory and argument vector and, on confirmation, sends
+`register: true` with the run. `POST /api/file-edit/rebuild` refuses an
+unapproved or changed proposal with 409 and the current status; it never
+re-approves implicitly. The run spawns the registered argv directly (no
+shell) in the registered directory with the registered timeout, SIGTERM then
+SIGKILL on expiry, and keeps a 64 KiB log tail. Concurrent requests for one
+artifact and hook join the in-flight run. On success the response carries the
+re-read HTML, which the editor swaps in together with its recomputed target
+list and clears the stale label; on failure the saved source and the old
+preview stay, the notice reports the exit code or timeout, and **Build
+output** expands the log. **Rebuild automatically after save** is a per-browser,
+per-artifact opt-in shown only for an approved hook; a failed or conflicting
+save never launches a build. The paper builder writes outputs directly; YA
+does not yet snapshot the last successful revision before execution, so a
+failed build can leave partially written outputs on disk.
 
 Capture reading position before replacing the old preview. A first delivery
 may restore the normalized scroll fraction `scrollTop / (scrollHeight -

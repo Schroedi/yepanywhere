@@ -22,11 +22,56 @@ interface SourceReference {
   artifactUrl?: string;
   relativeTo?: string;
 }
+/** Server-reported rebuild hook state for an artifact preview. */
+export interface RebuildStatus {
+  hook: string;
+  registrationVersion: number;
+  proposedRegistration?: {
+    cwd: string;
+    argv: string[];
+    outputs: string[];
+    timeoutSeconds: number;
+  };
+  registered: boolean;
+  matches: boolean;
+}
+interface RebuildResponse {
+  ok: boolean;
+  exitCode: number | null;
+  timedOut: boolean;
+  durationMs: number;
+  log: string;
+  preview: { path: string; content: string; revision: string };
+  regenerate?: RebuildStatus;
+}
 interface SourceSnapshot {
   path: string;
   content: string;
   revision: string;
   editable: boolean;
+  regenerate?: RebuildStatus;
+}
+interface PreviewState {
+  html: string;
+  path: string;
+  regenerate?: RebuildStatus;
+}
+
+const AUTO_REBUILD_KEY = "ya:source-editor:auto-rebuild";
+function readAutoRebuild(path: string): boolean {
+  try {
+    return localStorage.getItem(`${AUTO_REBUILD_KEY}:${path}`) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeAutoRebuild(path: string, enabled: boolean): void {
+  try {
+    if (enabled) localStorage.setItem(`${AUTO_REBUILD_KEY}:${path}`, "1");
+    else localStorage.removeItem(`${AUTO_REBUILD_KEY}:${path}`);
+  } catch {
+    // Preference storage is best effort.
+  }
 }
 interface Props {
   source: SourceReference;
@@ -103,13 +148,15 @@ export function SourceEditor({
   const runtime = useCurrentSourceRuntime();
   const [snapshot, setSnapshot] = useState<SourceSnapshot | null>(null);
   const [draft, setDraft] = useState("");
-  const [preview, setPreview] = useState<{ html: string; path: string } | null>(
-    null,
-  );
+  const [preview, setPreview] = useState<PreviewState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [stale, setStale] = useState(false);
+  const [building, setBuilding] = useState(false);
+  const [buildLog, setBuildLog] = useState<string | null>(null);
+  const [rebuilt, setRebuilt] = useState(false);
+  const [autoRebuild, setAutoRebuild] = useState(false);
   const [showPreview, setShowPreview] = useState(Boolean(artifact));
   const [closing, setClosing] = useState(false);
   const [location, setLocation] = useState({
@@ -163,9 +210,14 @@ export function SourceEditor({
         );
         setLocation(position);
         setSaved(false);
-        if (initial && artifact)
-          setPreview({ html: result.content, path: result.path });
-        else setShowPreview(false);
+        if (initial && artifact) {
+          setPreview({
+            html: result.content,
+            path: result.path,
+            regenerate: result.regenerate,
+          });
+          setAutoRebuild(readAutoRebuild(result.path));
+        } else setShowPreview(false);
       } catch (failure) {
         if (sequence === requestSequence.current)
           setError(
@@ -314,6 +366,82 @@ export function SourceEditor({
     return () => window.removeEventListener("beforeunload", unload);
   }, [dirty]);
 
+  /**
+   * Run the artifact's registered rebuild hook and swap in the fresh preview.
+   * An unapproved proposal is shown to the user first; approval is explicit
+   * and travels with the request, never inferred from the comment.
+   */
+  const rebuild = async (current: PreviewState) => {
+    const status = current.regenerate;
+    if (!status || building) return;
+    let register = false;
+    if (!status.registered || !status.matches) {
+      const proposal = status.proposedRegistration;
+      if (!proposal) {
+        setError(t("sourceEditorRebuildNoProposal"));
+        return;
+      }
+      if (
+        !window.confirm(
+          t("sourceEditorRebuildConfirm", {
+            hook: status.hook,
+            cwd: proposal.cwd,
+            argv: proposal.argv.join(" "),
+          }),
+        )
+      )
+        return;
+      register = true;
+    }
+    setBuilding(true);
+    setError(null);
+    setBuildLog(null);
+    setRebuilt(false);
+    try {
+      const result = await runtime.transport.fetch<RebuildResponse>(
+        "/file-edit/rebuild",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            path: current.path,
+            hook: status.hook,
+            register,
+          }),
+        },
+      );
+      setBuildLog(result.log.trim() || null);
+      if (!result.ok) {
+        setError(
+          t(
+            result.timedOut
+              ? "sourceEditorRebuildTimedOut"
+              : "sourceEditorRebuildFailed",
+            { code: String(result.exitCode ?? "") },
+          ),
+        );
+        if (result.regenerate)
+          setPreview((existing) =>
+            existing
+              ? { ...existing, regenerate: result.regenerate }
+              : existing,
+          );
+        return;
+      }
+      // Replace HTML and mapping together; the target list recomputes from it.
+      setPreview({
+        html: result.preview.content,
+        path: result.preview.path,
+        regenerate: result.regenerate ?? status,
+      });
+      setStale(false);
+      setRebuilt(true);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      setBuilding(false);
+    }
+  };
+
   const save = async (exit = false) => {
     if (!snapshot?.editable || busy) return;
     setBusy(true);
@@ -335,9 +463,19 @@ export function SourceEditor({
       );
       setSnapshot({ ...snapshot, content, revision: result.revision });
       setSaved(true);
-      if (preview) setStale(true);
+      if (preview) {
+        setStale(true);
+        setRebuilt(false);
+      }
       onSaved?.();
       if (exit) onClose();
+      // A failed or conflicting save returned above; only a real save builds.
+      else if (
+        preview?.regenerate?.registered &&
+        preview.regenerate.matches &&
+        autoRebuild
+      )
+        void rebuild(preview);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
     } finally {
@@ -423,14 +561,57 @@ export function SourceEditor({
       )}
       {preview && (
         <div className={styles.notice}>
-          {t(
-            stale
-              ? "sourceEditorStale"
-              : styled.grant
-                ? "sourceEditorStyled"
-                : "sourceEditorSnapshot",
+          <span>
+            {t(
+              building
+                ? "sourceEditorRebuilding"
+                : rebuilt
+                  ? "sourceEditorRebuilt"
+                  : stale
+                    ? "sourceEditorStale"
+                    : styled.grant
+                      ? "sourceEditorStyled"
+                      : "sourceEditorSnapshot",
+            )}
+          </span>
+          {preview.regenerate && (
+            <span className={styles.rebuildControls}>
+              <button
+                type="button"
+                disabled={building || busy}
+                onClick={() => void rebuild(preview)}
+              >
+                {t(
+                  preview.regenerate.registered && preview.regenerate.matches
+                    ? "sourceEditorRebuild"
+                    : "sourceEditorRebuildApprove",
+                )}
+              </button>
+              {preview.regenerate.registered && preview.regenerate.matches && (
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={autoRebuild}
+                    onChange={(event) => {
+                      setAutoRebuild(event.currentTarget.checked);
+                      writeAutoRebuild(
+                        preview.path,
+                        event.currentTarget.checked,
+                      );
+                    }}
+                  />
+                  {t("sourceEditorRebuildAuto")}
+                </label>
+              )}
+            </span>
           )}
         </div>
+      )}
+      {buildLog && (
+        <details className={styles.buildLog}>
+          <summary>{t("sourceEditorRebuildLog")}</summary>
+          <pre>{buildLog}</pre>
+        </details>
       )}
       {closing && (
         <div className={styles.confirm} role="alert">
