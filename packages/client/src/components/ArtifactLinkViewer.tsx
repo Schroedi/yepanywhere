@@ -30,6 +30,9 @@ export function ArtifactLinkViewer({
   const hidden = inactive || controller.minimized;
   const closeRef = useRef<HTMLButtonElement>(null);
   const [blocked, setBlocked] = useState(false);
+  // Manual only: the artifact origin serves from disk per request with
+  // no-store, so remounting the frame refetches; nothing watches the file.
+  const [reloadKey, setReloadKey] = useState(0);
   useModalBackGesture(
     controller.close,
     !hidden && !standalone,
@@ -83,6 +86,7 @@ export function ArtifactLinkViewer({
         <ViewerWindowActions
           className={headerStyles.actions}
           url={controller.url}
+          onReload={() => setReloadKey((value) => value + 1)}
           onMinimize={controller.minimize}
           onClose={controller.close}
           closeRef={closeRef}
@@ -94,6 +98,7 @@ export function ArtifactLinkViewer({
         </p>
       ) : (
         <iframe
+          key={reloadKey}
           className={styles.frame}
           title={controller.label}
           src={controller.url}

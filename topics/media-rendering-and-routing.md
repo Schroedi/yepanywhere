@@ -220,6 +220,9 @@ vocabulary even though their authorization routes remain distinct:
   view changes. A **Reload from disk** refresh button beside the mode toggles
   refetches the file in source and preview modes and remounts a running
   interactive frame on its existing grant so the document is fetched again.
+  The session-opened artifact viewer carries the same reload among its
+  window actions; the artifact origin serves from disk per request, so a
+  remount is a fresh read and nothing refreshes without that click.
   Hovering or focusing the button probes current metadata without reading
   content (`metadata=only`) and the tooltip reports whether the loaded copy
   is unchanged or was changed on disk at a given time; the icon takes the
