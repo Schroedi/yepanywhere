@@ -33,8 +33,23 @@ if (!command) {
 
 exitIfUnsafeHome({ entrypoint: command });
 
+// Tests bind Unix sockets under the child's TMPDIR, and macOS caps socket
+// paths at 104 bytes. Its per-user tmpdir (/var/folders/.../T/) leaves too
+// little room once nested, so POSIX roots start at /tmp when it is writable.
+function createTemporaryRoot() {
+  const prefix = "yep-anywhere-test-";
+  if (process.platform !== "win32") {
+    try {
+      return mkdtempSync(join("/tmp", prefix));
+    } catch {
+      // Fall back to the platform tmpdir, e.g. in sandboxes without /tmp.
+    }
+  }
+  return mkdtempSync(join(tmpdir(), prefix));
+}
+
 const temporaryRoot = temporaryHomeRequested
-  ? mkdtempSync(join(tmpdir(), "yep-anywhere-test-"))
+  ? createTemporaryRoot()
   : undefined;
 const temporaryHome = temporaryRoot ? join(temporaryRoot, "home") : undefined;
 const temporaryDirectory = temporaryRoot

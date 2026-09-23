@@ -53,6 +53,15 @@ describe("run-with-safe-home", () => {
     expect(relative(childEnvironment.tmp, childEnvironment.home)).toBe(
       "../home",
     );
+    if (process.platform !== "win32") {
+      // macOS rejects Unix socket paths over 104 bytes (including NUL).
+      const nestedSocket = join(
+        childEnvironment.tmp,
+        "managed-runner-socket-XXXXXX",
+        "provider.sock",
+      );
+      expect(Buffer.byteLength(nestedSocket)).toBeLessThan(104);
+    }
     expect(existsSync(childEnvironment.home)).toBe(false);
     expect(existsSync(childEnvironment.tmp)).toBe(false);
   });
