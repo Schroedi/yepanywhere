@@ -28,9 +28,30 @@ import { matchVhost, vhostHostnames } from "./vhosts.js";
 import { VhostAccess } from "./VhostAccess.js";
 
 const MAX_GRANTS = 256;
+
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (char) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        char
+      ]!,
+  );
+}
+
+/** Stand-in served to a sandboxed frame that navigated to a PDF. */
+function pdfInFrameDocument(url: string, name: string): string {
+  const href = escapeHtml(url);
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(name)}</title><style>body{font:15px/1.5 system-ui,sans-serif;margin:0;padding:24px;color:#222;background:#fafafa}p{margin:0 0 12px}a{color:#1a56c4}button{font:inherit;padding:4px 10px}</style></head><body><p><strong>${escapeHtml(name)}</strong> is a PDF. The embedded preview cannot display PDFs, so open it in its own tab.</p><p><a href="${href}" target="_blank" rel="noopener">Open PDF in a new tab</a> · <a href="${href}${url.includes("?") ? "&" : "?"}download=true">Download</a></p><p><button type="button" onclick="history.back()">Back</button></p></body></html>`;
+}
 const MAX_FILE_BYTES = 64 * 1024 * 1024;
+// Popups may escape the sandbox so an artifact can hand a PDF, or any
+// document the sandboxed frame cannot show, to a real top-level tab on this
+// same isolated origin; the popup never gains YA's origin.
+export const ARTIFACT_SANDBOX =
+  "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads";
 const ARTIFACT_CSP = [
-  "sandbox allow-scripts allow-same-origin",
+  `sandbox ${ARTIFACT_SANDBOX}`,
   "default-src 'self' data: blob: http: https:",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http: https:",
   "style-src 'self' 'unsafe-inline' data: blob: http: https:",
@@ -166,6 +187,18 @@ export class ArtifactServer {
       }
       grant.files.add(canonical);
       const mime = getMimeType(canonical) ?? "application/octet-stream";
+      // Chromium refuses its PDF viewer inside a sandboxed frame and shows
+      // "This content is blocked", so a frame navigation to a PDF gets a page
+      // that opens the same URL in a top-level tab instead. Direct fetches,
+      // top-level tabs, and explicit downloads still receive the bytes.
+      if (
+        mime === "application/pdf" &&
+        c.req.header("Sec-Fetch-Dest") === "iframe" &&
+        new URL(c.req.url).searchParams.get("download") !== "true"
+      ) {
+        await handle.close();
+        return c.html(pdfInFrameDocument(c.req.url, basename(canonical)));
+      }
       c.header("Content-Type", mime);
       if (new URL(c.req.url).searchParams.get("download") === "true") {
         c.header("Content-Disposition", "attachment");

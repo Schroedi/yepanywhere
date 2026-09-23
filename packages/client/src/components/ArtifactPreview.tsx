@@ -4,6 +4,7 @@ import { ResourceContextMenu } from "./FileResourceActions";
 import { ViewerModeToggle } from "./ViewerModeToggle";
 import { useArtifactGrant } from "../hooks/useArtifactGrant";
 import { useI18n } from "../i18n";
+import { ARTIFACT_FRAME_SANDBOX } from "../lib/artifactPreview";
 import { writeClipboardTextLater } from "../lib/clipboard";
 import { createScriptlessHtmlPreviewDocument } from "../lib/scriptlessHtmlPreview";
 import styles from "./ArtifactPreview.module.css";
@@ -107,7 +108,7 @@ export function ArtifactPreview(props: Props) {
           className={styles.frame}
           title={props.title}
           aria-label={props.title}
-          sandbox="allow-scripts allow-same-origin"
+          sandbox={ARTIFACT_FRAME_SANDBOX}
           referrerPolicy="no-referrer"
           src={grant.url}
         />

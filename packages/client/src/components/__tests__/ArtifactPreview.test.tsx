@@ -120,7 +120,7 @@ it("admits only after a successful probe and keeps the grant reusable", async ()
   );
   await screen.findByRole("button", { name: "Stop interactive preview" });
   expect(screen.getByTitle("Mockup").getAttribute("sandbox")).toBe(
-    "allow-scripts allow-same-origin",
+    "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads",
   );
   expect(screen.getByTitle("Mockup").getAttribute("src")).toBe(
     `${origin}/a/token/index.html`,

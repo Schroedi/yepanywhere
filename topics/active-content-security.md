@@ -231,6 +231,13 @@ these constraints before it ships:
   `allow-scripts` only when execution is intended and without
   `allow-same-origin`. A dedicated untrusted origin may later receive narrowly
   justified sandbox tokens for storage/workers; it never gains YA origin.
+  The isolated artifact origin's frames and its response `sandbox` directive
+  carry `allow-popups allow-popups-to-escape-sandbox allow-downloads`
+  (2026-09-23): Chromium refuses its PDF viewer inside any sandboxed frame,
+  so a frame navigation to a PDF is answered with a hand-off page whose link
+  opens the same grant URL in a top-level tab, and downloads stay possible.
+  An escaped popup is a plain tab on the artifact origin, which the artifact
+  already fully controls; it is not a route to the YA origin.
 - **Brokered host communication.** `postMessage` is schema-validated,
   capability-scoped, and tied to the expected child window. With an opaque
   origin, `event.origin` is `"null"`, so the parent must verify `event.source`

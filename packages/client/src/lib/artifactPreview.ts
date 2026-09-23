@@ -1,5 +1,14 @@
 import type { ArtifactViewerStatus } from "@yep-anywhere/shared";
 
+/**
+ * Sandbox for a frame on the isolated artifact origin. Mirrors the server's
+ * `sandbox` CSP directive. Popups may escape so the artifact can hand a PDF,
+ * or any document a sandboxed frame cannot display, to a top-level tab on
+ * that same isolated origin; the popup never gains YA's origin.
+ */
+export const ARTIFACT_FRAME_SANDBOX =
+  "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads";
+
 export function artifactAudience(hostname: string): "local" | "public" {
   return ["localhost", "127.0.0.1", "[::1]"].includes(hostname)
     ? "local"

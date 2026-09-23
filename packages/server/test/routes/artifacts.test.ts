@@ -140,8 +140,30 @@ it("serves an authorized HTML directory with executable bytes and revocable acce
   expect(html.status).toBe(200);
   expect(html.headers.get("content-type")).toContain("text/html");
   expect(html.headers.get("content-security-policy")).toContain(
-    "sandbox allow-scripts allow-same-origin",
+    "sandbox allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads",
   );
+  // A PDF navigated to inside the sandboxed frame gets a hand-off page;
+  // other fetch destinations and explicit downloads receive the bytes.
+  await writeFile(join(root, "paper.pdf"), "%PDF-1.4 stub");
+  const framed = await server.app.request(new URL("paper.pdf", grant.url), {
+    headers: { "Sec-Fetch-Dest": "iframe" },
+  });
+  expect(framed.headers.get("content-type")).toContain("text/html");
+  const handoff = await framed.text();
+  expect(handoff).toContain('target="_blank"');
+  expect(handoff).toContain("paper.pdf");
+  expect(handoff).not.toContain("%PDF");
+  const topLevel = await server.app.request(new URL("paper.pdf", grant.url), {
+    headers: { "Sec-Fetch-Dest": "document" },
+  });
+  expect(topLevel.headers.get("content-type")).toContain("application/pdf");
+  expect(await topLevel.text()).toBe("%PDF-1.4 stub");
+  const download = await server.app.request(
+    new URL("paper.pdf?download=true", grant.url),
+    { headers: { "Sec-Fetch-Dest": "iframe" } },
+  );
+  expect(download.headers.get("content-disposition")).toBe("attachment");
+  expect(await download.text()).toBe("%PDF-1.4 stub");
   expect(await html.text()).toContain('<script src="app.js">');
   const script = await server.app.request(new URL("app.js", grant.url));
   expect(script.status).toBe(200);

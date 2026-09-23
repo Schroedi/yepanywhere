@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../i18n";
+import { ARTIFACT_FRAME_SANDBOX } from "../lib/artifactPreview";
 import type { SessionViewerControllerState } from "../lib/sessionViewerController";
 import {
   useModalBackGesture,
@@ -96,7 +97,7 @@ export function ArtifactLinkViewer({
           className={styles.frame}
           title={controller.label}
           src={controller.url}
-          sandbox="allow-scripts allow-same-origin"
+          sandbox={ARTIFACT_FRAME_SANDBOX}
           referrerPolicy="no-referrer"
         />
       )}
