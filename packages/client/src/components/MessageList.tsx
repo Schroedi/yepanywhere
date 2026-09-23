@@ -20,7 +20,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { useAsyncQuestions } from "../contexts/AsyncQuestionsContext";
 import {
   SessionRewindProvider,
@@ -74,7 +74,10 @@ import {
   MESSAGE_STALE_THRESHOLD_MS,
 } from "../lib/messageAge";
 import type { ActiveToolApproval } from "@yep-anywhere/shared/transcript/types";
-import type { SessionIsearchScope } from "../lib/sessionIsearchGuide";
+import {
+  SESSION_ISEARCH_OPEN_EVENT,
+  type SessionIsearchScope,
+} from "../lib/sessionIsearchGuide";
 import {
   decideSessionScrollRestore,
   DEFAULT_SESSION_SCROLL_BEHAVIOR_MODE,
@@ -3934,12 +3937,24 @@ export const MessageList = memo(function MessageList({
       stopSearchArrowRepeat();
       handleSearchMatchSelect(selectedAnchorId, selectedTargetId, true);
     };
+    // The toolbar's search button: open in the last-used scope, or return
+    // focus to the open search. The synchronous commit mounts the input
+    // inside the tap, which is what lets a touch keyboard open.
+    const handleOpenRequest = () => {
+      if (searchActive) {
+        openSearch(searchScope);
+        return;
+      }
+      flushSync(() => startSearch(searchScope));
+    };
     window.addEventListener("click", handleMatchRowClick);
+    window.addEventListener(SESSION_ISEARCH_OPEN_EVENT, handleOpenRequest);
 
     window.addEventListener("keydown", handleKeyDown, true);
     window.addEventListener("keyup", handleKeyUp, true);
     return () => {
       window.removeEventListener("click", handleMatchRowClick);
+      window.removeEventListener(SESSION_ISEARCH_OPEN_EVENT, handleOpenRequest);
       window.removeEventListener("keydown", handleKeyDown, true);
       window.removeEventListener("keyup", handleKeyUp, true);
     };
@@ -3952,6 +3967,7 @@ export const MessageList = memo(function MessageList({
     handleSearchArrowKey,
     moveSearchSelection,
     navigateToAdjacentHiddenUserTurn,
+    openSearch,
     prepareSearchTarget,
     scrollToCurrent,
     searchActive,

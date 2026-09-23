@@ -102,6 +102,7 @@ import {
 import { getPermissionModeOptions } from "../lib/permissionModes";
 import { serverSupportsProjectQueue } from "../lib/projectQueueVisibility";
 import {
+  requestSessionIsearchOpen,
   SESSION_ISEARCH_GUIDE_EVENT,
   type SessionIsearchGuideState,
   type SessionIsearchScope,
@@ -1615,6 +1616,40 @@ export function MessageInputToolbarView({
       </button>
     );
   };
+  const renderTranscriptSearchButton = (className: string, menu = false) => {
+    if (!visibility.transcriptSearch) {
+      return null;
+    }
+    return (
+      <button
+        type="button"
+        className={className}
+        {...toolbarControlMarker("transcriptSearch")}
+        onClick={() => {
+          setBottomOverflowOpen(false);
+          requestSessionIsearchOpen();
+        }}
+        aria-label={t("toolbarTranscriptSearch")}
+        aria-pressed={menu ? undefined : shortcutsControl.isearchScope !== null}
+        title={t("toolbarTranscriptSearch")}
+        role={menu ? "menuitem" : undefined}
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="M20 20l-4-4" />
+        </svg>
+      </button>
+    );
+  };
   const renderSteerNowToggle = (className: string) => {
     if (!canToggleSteerNow || !actionsControl.send) {
       return null;
@@ -1745,6 +1780,8 @@ export function MessageInputToolbarView({
       statusControl &&
       isPriorityCollapsible("sessionStatus")) ||
     (visibility.shortcutsHelp && isPriorityCollapsible("shortcutsHelp")) ||
+    (visibility.transcriptSearch &&
+      isPriorityCollapsible("transcriptSearch")) ||
     (visibility.contextUsage &&
       actionsControl.contextUsage &&
       isPriorityCollapsible("contextUsage")) ||
@@ -1797,6 +1834,9 @@ export function MessageInputToolbarView({
         : "off",
     shortcutsHelp: visibility.shortcutsHelp
       ? effectivePriority("shortcutsHelp")
+      : "off",
+    transcriptSearch: visibility.transcriptSearch
+      ? effectivePriority("transcriptSearch")
       : "off",
     contextUsage:
       visibility.contextUsage && actionsControl.contextUsage
@@ -2469,6 +2509,11 @@ export function MessageInputToolbarView({
                       <ToolbarDoneIcon />
                     </button>
                   )}
+                {isPriorityCollapsible("transcriptSearch") &&
+                  renderTranscriptSearchButton(
+                    `${menuTierClass("transcriptSearch")} ${toolbarModuleStyles.transcriptSearchButton}`,
+                    true,
+                  )}
                 {visibility.shortcutsHelp &&
                   isPriorityCollapsible("shortcutsHelp") && (
                     <button
@@ -2541,6 +2586,9 @@ export function MessageInputToolbarView({
                 : t("toolbarQuestion")}
             </span>
           </button>
+        )}
+        {renderTranscriptSearchButton(
+          `${inlineTierClass("transcriptSearch")} ${toolbarModuleStyles.transcriptSearchButton}`,
         )}
         {visibility.shortcutsHelp && (
           // biome-ignore lint/a11y/noStaticElementInteractions: pointer leave only hides the adjacent shortcuts popover
