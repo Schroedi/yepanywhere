@@ -103,6 +103,7 @@ export default defineConfig(({ command }) => ({
     rollupOptions: {
       input: {
         main: resolve(__dirname, "remote.html"),
+        play: resolve(__dirname, "play.html"),
       },
       output: {
         manualChunks: {

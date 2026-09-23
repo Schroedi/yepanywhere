@@ -64,7 +64,11 @@ export function cspPlugin(options: CspPluginOptions = {}): Plugin {
 
     transformIndexHtml: {
       order: "post", // Run after other transforms
-      handler(html) {
+      handler(html, context) {
+        // play.html declares its own policy: it hosts an untrusted sandboxed
+        // document whose srcdoc frame would inherit this strict one.
+        if (/(?:^|\/)play\.html$/.test(context.filename ?? context.path ?? ""))
+          return html;
         // Compute hashes for inline scripts
         const inlineScripts = extractInlineScripts(html);
         const scriptHashes = inlineScripts.map(computeScriptHash);

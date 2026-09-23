@@ -236,9 +236,14 @@ asset responses keep the existing no-store and active-content hardening.
 **Play for public file viewers.** The hosted share viewer shows an HTML root
 as a scriptless preview and offers a play toggle. The relay has no HTTP path
 to the host and share files travel only over the relay WebSocket, so no
-top-level URL for the raw document exists; the viewer instead opens a hosted
-`/play` page in a new tab and hands it the document over a same-origin
-`postMessage` handshake keyed by a per-open id. Before hand-off the viewer
+top-level URL for the raw document exists; the viewer instead opens the
+hosted static `play.html` in a new tab and hands it the document over a
+same-origin `postMessage` handshake keyed by a per-open id. That document is
+a separate build entry outside the app's routes, so it never meets the login
+gate, and it carries its own permissive Content Security Policy: a `srcdoc`
+frame inherits its parent's policy, and the app's strict one would block the
+untrusted document's own stylesheets and scripts. The CSP plugin skips it by
+name; its policy still forbids nested frames, plugins, and form targets. Before hand-off the viewer
 fetches the root's directly referenced stylesheets, scripts, images, and
 media through the share's own raw file route and inlines them as data URLs,
 capped at 48 MiB; references the share does not serve stay as written and

@@ -1988,7 +1988,7 @@ export const FileViewer = memo(function FileViewer({
               onToggle={() => {
                 const fetchRawFileBlob = source.fetchRawFileBlob!;
                 const currentFile = fileData!;
-                openPublicSharePlay(`${basePath}/play`, fileName, () =>
+                openPublicSharePlay(`${basePath}/play.html`, fileName, () =>
                   buildPlayableHtml(content, filePath, (assetPath) =>
                     fetchRawFileBlob(currentFile, assetPath, false),
                   ),

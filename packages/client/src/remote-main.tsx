@@ -172,11 +172,6 @@ const EmulatorPage = lazy(() =>
 const FilePage = lazy(() =>
   loadFilePageModule().then(({ FilePage }) => ({ default: FilePage })),
 );
-const PublicSharePlayPage = lazy(() =>
-  import("./pages/PublicSharePlayPage").then(({ PublicSharePlayPage }) => ({
-    default: PublicSharePlayPage,
-  })),
-);
 const ViewerModePage = lazy(() =>
   import("./pages/ViewerModePage").then(({ ViewerModePage }) => ({
     default: ViewerModePage,
@@ -440,12 +435,6 @@ createRoot(rootElement).render(
           <Route
             path="/remote/share/:secret"
             element={routeModule(<PublicSharePage />)}
-          />
-          {/* Public: a share viewer's play tab must not meet the login gate. */}
-          <Route path="/play" element={routeModule(<PublicSharePlayPage />)} />
-          <Route
-            path="/remote/play"
-            element={routeModule(<PublicSharePlayPage />)}
           />
           <Route
             path="/-/preview"
