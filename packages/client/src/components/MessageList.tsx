@@ -3651,8 +3651,11 @@ export const MessageList = memo(function MessageList({
     scheduleSettledScrollState();
   }, [reportFollowingBottom, scheduleSettledScrollState]);
 
-  const { highlightSearchMatch, clearSearchMatchHighlight } =
-    useSearchMatchHighlight(inert);
+  const {
+    highlightSearchMatch,
+    clearSearchMatchHighlight,
+    releaseSearchMatchHighlightOnInput,
+  } = useSearchMatchHighlight(inert);
   const revealSearchMatch = useCallback(
     (targetId: string, showMotionCue: boolean) => {
       const query = userTurnNavSearchState?.query ?? "";
@@ -3719,6 +3722,7 @@ export const MessageList = memo(function MessageList({
       preserveScrollAfterTranscriptHeightChange(
         () => {
           closeSearch(false);
+          releaseSearchMatchHighlightOnInput();
           requestAnimationFrame(() => {
             revealSearchMatch(targetId, false);
           });
@@ -3732,6 +3736,7 @@ export const MessageList = memo(function MessageList({
       completeProgressiveReveal,
       jumpToSearchTarget,
       preserveScrollAfterTranscriptHeightChange,
+      releaseSearchMatchHighlightOnInput,
       revealSearchMatch,
     ],
   );
