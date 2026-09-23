@@ -59,6 +59,7 @@ import { useVersion } from "../hooks/useVersion";
 import { useI18n } from "../i18n";
 import { MainContent, useNavigationLayout } from "../layouts";
 import { setNewSessionPrefill } from "../lib/newSessionPrefill";
+import { groupProjectsForFilter } from "../lib/projectFilterOptions";
 import { serverSupportsProjectQueue } from "../lib/projectQueueVisibility";
 import { sessionCollectionRecordsToGlobalSessionItems } from "../lib/sessionCollectionRecords";
 import {
@@ -237,6 +238,10 @@ function SessionSearchPage() {
   const sessions = useMemo(
     () => sessionCollectionRecordsToGlobalSessionItems(records),
     [records],
+  );
+  const projectGroups = useMemo(
+    () => groupProjectsForFilter(feed.projects, sessions, Date.now()),
+    [feed.projects, sessions],
   );
   useEffect(() => {
     if (feed.hasMore && !feed.loading && !feed.error) void feed.loadMore();
@@ -626,6 +631,7 @@ function SessionSearchPage() {
               label={t("sessionSearchProjects")}
               className={styles.dropdownContainer}
               placeholder={t("sessionSearchProjects")}
+              align="right"
               triggerClassName={styles.dropdown}
               options={[
                 // An explicit first row, so returning to every project is a
@@ -635,7 +641,18 @@ function SessionSearchPage() {
                   label: t("globalSessionsFilterProjectPlaceholder"),
                   clearSelection: true,
                 },
-                ...feed.projects.map((p) => ({ value: p.id, label: p.name })),
+                ...projectGroups.current.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                })),
+                ...projectGroups.older.map((p, index) => ({
+                  value: p.id,
+                  label: p.name,
+                  groupLabelBefore:
+                    index === 0 && projectGroups.current.length > 0
+                      ? t("globalSessionsFilterProjectOlder")
+                      : undefined,
+                })),
               ]}
               selected={project ? [project] : []}
               onChange={(value) => changeParam("project", value[0] ?? "")}
@@ -645,6 +662,7 @@ function SessionSearchPage() {
               label={t("sessionSearchProviders")}
               className={styles.dropdownContainer}
               placeholder={t("sessionSearchProviders")}
+              align="right"
               triggerClassName={styles.dropdown}
               options={ALL_PROVIDERS.filter((p) =>
                 sessions.some((s) => s.provider === p),

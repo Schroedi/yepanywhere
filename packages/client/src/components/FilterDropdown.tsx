@@ -193,7 +193,9 @@ export function FilterDropdown<T extends string>({
 
   useEffect(() => {
     if (isOpen) {
-      sheetRef.current?.focus();
+      // Focus for Escape/keyboard handling only; scrolling the page to reveal
+      // the panel would leave it scrolled after the menu closes.
+      sheetRef.current?.focus({ preventScroll: true });
     }
   }, [isOpen]);
 

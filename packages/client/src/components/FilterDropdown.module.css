@@ -318,6 +318,10 @@
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
     min-width: 200px;
+    /* A long list scrolls inside the panel instead of growing the page. */
+    max-height: min(60vh, 480px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 100;
     animation: dropdownFadeIn 0.15s ease-out;
