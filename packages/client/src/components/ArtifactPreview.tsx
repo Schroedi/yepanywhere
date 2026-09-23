@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ResourceContextMenu } from "./FileResourceActions";
+import { useSessionAppAnnouncer } from "./SessionAppLinks";
 import { ViewerModeToggle } from "./ViewerModeToggle";
 import { useArtifactGrant } from "../hooks/useArtifactGrant";
 import { useI18n } from "../i18n";
@@ -30,6 +31,18 @@ export function ArtifactPreview(props: Props) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const { origin, grant, busy, failed, frameBlocked, createPublicUrl } =
     useArtifactGrant(props.path, props.projectId, attempt);
+  // A running preview is an App the session should be able to recall from
+  // its App action after the viewer closes, minimized or not.
+  const announceApp = useSessionAppAnnouncer();
+  useEffect(() => {
+    if (!grant) return;
+    announceApp({
+      sourceUrl: grant.url,
+      url: grant.url,
+      label: props.title,
+      artifactToken: new URL(grant.url).pathname.split("/")[2],
+    });
+  }, [grant, props.title, announceApp]);
 
   const controls = origin && (props.showControls !== false || failed) && (
     <div className={styles.toolbar}>

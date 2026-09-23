@@ -8,7 +8,7 @@ import {
 } from "../lib/sessionVhostApps";
 import { useSessionRightPaneSetting } from "./useSessionRightPaneSetting";
 import { sessionViewerUsesRightPane } from "../lib/sessionViewerPlacement";
-import { useSessionApps } from "../lib/sessionApps";
+import { type SessionApps, useSessionApps } from "../lib/sessionApps";
 import { useVhostAccess } from "./useVhostAccess";
 import { useVhostListener } from "./useVhostListener";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
@@ -29,11 +29,18 @@ type PaneViewerState = Extract<
   { kind: "file" | "panel" }
 >;
 
-function emptyPane(key: string) {
-  return {
-    key,
-    apps: [] as (SessionVhostApp & { announcementId: string })[],
-  };
+type PaneApp = SessionVhostApp & { announcementId: string };
+const PLAY_ANNOUNCEMENT_PREFIX = "play:";
+
+/** A saved viewer-activated app is the only app storage can seed. */
+function emptyPane(key: string, saved?: SessionApps["latest"]) {
+  const apps: PaneApp[] =
+    saved?.announcementId?.startsWith(PLAY_ANNOUNCEMENT_PREFIX) &&
+    saved.sourceUrl &&
+    saved.url
+      ? [{ ...saved, announcementId: saved.announcementId }]
+      : [];
+  return { key, apps };
 }
 
 /** Session right pane discovery and selection; parked routes do no discovery. */
@@ -63,9 +70,32 @@ export function useSessionRightPane(
   const [killing, setKilling] = useState(false);
   const initialized = useRef(new Set<string>());
   const announced = useRef(new Set<string>());
-  const [state, setState] = useState(() => emptyPane(key));
-  const current = state.key === key ? state : emptyPane(key);
+  const [state, setState] = useState(() => emptyPane(key, savedApps.latest));
+  const current = state.key === key ? state : emptyPane(key, savedApps.latest);
   if (state.key !== key) setState(current);
+  /**
+   * A viewer's play activation is an app the session should remember: it
+   * becomes the latest app so the App action recalls it after close, without
+   * the reader having to minimize instead.
+   */
+  const announce = useCallback(
+    (app: SessionVhostApp) => {
+      const announcementId = `${PLAY_ANNOUNCEMENT_PREFIX}${app.url}`;
+      setState((previous) => {
+        if (previous.key !== key) return previous;
+        return {
+          ...previous,
+          apps: [
+            ...previous.apps.filter(
+              (known) => known.announcementId !== announcementId,
+            ),
+            { ...app, announcementId },
+          ],
+        };
+      });
+    },
+    [key],
+  );
 
   useEffect(() => {
     if (!active || !config) return;
@@ -127,7 +157,14 @@ export function useSessionRightPane(
     if (!active) return;
     // Publish local discovery changes, never echo another tab's storage write.
     // Different transcript windows can legitimately have different latest apps.
-    saveLatest(latest);
+    // A play-activated app keeps its id so a reopened session can seed it.
+    saveLatest(
+      latest
+        ? latest.announcementId.startsWith(PLAY_ANNOUNCEMENT_PREFIX)
+          ? latest
+          : { ...latest, announcementId: undefined }
+        : undefined,
+    );
   }, [active, latest, saveLatest]);
   useEffect(() => {
     if (!active || !latest || !latestId || announced.current.has(latestId))
@@ -287,6 +324,7 @@ export function useSessionRightPane(
     expanded: !!(selected || paneViewer) && !controller?.minimized,
     enabled: sessionRightPaneEnabled,
     select,
+    announce,
     hide: () => (paneViewer ?? owned)?.minimize(),
     close: () => (paneViewer ?? owned)?.close(),
     canKill,

@@ -84,6 +84,12 @@ Pane width is persisted per browser. The session column may shrink to a
 readable minimum but is never removed.
 
 A detected-app action opens the latest discovered app, including after Close.
+A file viewer's interactive play activation also announces its grant as the
+session's latest app (2026-09-23): the reader can close the viewer and recall
+the running document from the App action without having minimized it first.
+Such a viewer-activated app keeps a `play:` announcement id in the saved
+latest-app entry, which is the one entry storage seeds back into a reopened
+session's app list, since transcript scanning cannot rediscover it.
 While the pane is expanded, that App action closes it completely without
 creating a bottom-bar entry. The separate minimize button still parks it.
 With the setting off it is a new-window link. V1 has one managed viewer:

@@ -39,6 +39,7 @@ import { SessionAppLinkContext } from "./SessionAppLinks";
 import {
   rewriteSessionLocalhostHref,
   type SessionAppConfig,
+  type SessionVhostApp,
 } from "../lib/sessionVhostApps";
 import { useRelayUsername } from "../hooks/useRemoteBasePath";
 
@@ -134,6 +135,7 @@ export function SessionViewerProvider({
   inactive = false,
   onSendComment,
   onOpenApp,
+  onAnnounceApp,
   appConfig,
   rightPaneTarget,
   children,
@@ -142,6 +144,7 @@ export function SessionViewerProvider({
   inactive?: boolean;
   onSendComment?: SendSessionViewerComment;
   onOpenApp?: (url: string) => boolean;
+  onAnnounceApp?: (app: SessionVhostApp) => void;
   appConfig?: SessionAppConfig;
   rightPaneTarget?: HTMLElement | null;
   children: ReactNode;
@@ -157,6 +160,7 @@ export function SessionViewerProvider({
         : {
             config: appConfig,
             open: onOpenApp,
+            announce: onAnnounceApp,
             rewriteHref: (url: string) =>
               rewriteSessionLocalhostHref(url, appConfig, {
                 clientUrl: window.location.href,
@@ -180,7 +184,7 @@ export function SessionViewerProvider({
               return undefined;
             },
           },
-    [inactive, appConfig, onOpenApp, relayUsername],
+    [inactive, appConfig, onOpenApp, onAnnounceApp, relayUsername],
   );
   const openArtifact = useCallback(
     (url: string, label: string) => {

@@ -6448,6 +6448,7 @@ function SessionPageContent({
                       onOpenApp={
                         rightPane.enabled ? rightPane.select : undefined
                       }
+                      onAnnounceApp={rightPane.announce}
                       appConfig={rightPane.config}
                       rightPaneTarget={rightPaneTarget}
                     >

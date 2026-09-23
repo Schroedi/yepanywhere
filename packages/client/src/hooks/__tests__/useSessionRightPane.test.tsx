@@ -140,6 +140,49 @@ describe("session right pane lifecycle", () => {
   });
 });
 
+describe("session right pane viewer-activated apps", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    invalidateLocalStorageValues();
+    clearCurrentSessionViewer();
+  });
+
+  it("makes a play activation the latest App and seeds it on return", () => {
+    const messages = [output("one")];
+    const { result, rerender } = renderHook(
+      ({ key, messages }) =>
+        useSessionRightPane(key, messages, config, true, key),
+      { initialProps: { key: "play", messages } },
+    );
+    expect(result.current.apps.at(-1)?.url).toContain("/one");
+    const grant = {
+      sourceUrl: `${config.localOrigin}/a/tok3n/report.html`,
+      url: `${config.localOrigin}/a/tok3n/report.html`,
+      label: "report.html",
+      artifactToken: "tok3n",
+    };
+    act(() => result.current.announce(grant));
+    expect(result.current.apps.at(-1)?.url).toBe(grant.url);
+    expect(result.current.apps).toHaveLength(2);
+    // Announcing the same grant again does not duplicate it.
+    act(() => result.current.announce(grant));
+    expect(result.current.apps).toHaveLength(2);
+    expect(
+      JSON.parse(localStorage.getItem("yep-anywhere-session-apps:play") ?? "{}")
+        .latest,
+    ).toMatchObject({ url: grant.url, announcementId: `play:${grant.url}` });
+
+    // Leaving and returning re-seeds the play app from storage, so the App
+    // action still recalls it after the viewer that started it closed.
+    rerender({ key: "elsewhere", messages: [] });
+    expect(result.current.apps).toHaveLength(0);
+    rerender({ key: "play", messages });
+    expect(result.current.apps.map((app) => app.url)).toEqual(
+      expect.arrayContaining([grant.url]),
+    );
+  });
+});
+
 describe("session right pane app persistence", () => {
   const sessionKey = "/project-1/session-1";
   const storageKey = `${SESSION_APPS_KEY_PREFIX}${sessionKey}`;
