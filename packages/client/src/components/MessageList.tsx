@@ -3655,7 +3655,7 @@ export const MessageList = memo(function MessageList({
   }, [reportFollowingBottom, scheduleSettledScrollState]);
 
   const {
-    highlightSearchMatch,
+    beginSearchMatchReveal,
     clearSearchMatchHighlight,
     releaseSearchMatchHighlightOnInput,
   } = useSearchMatchHighlight(inert);
@@ -3663,6 +3663,7 @@ export const MessageList = memo(function MessageList({
     (targetId: string, showMotionCue: boolean) => {
       const query = userTurnNavSearchState?.query ?? "";
       const caseSensitive = userTurnNavSearchState?.caseSensitive ?? false;
+      const highlightSearchMatch = beginSearchMatchReveal();
       scrollToRenderId(
         targetId,
         "auto",
@@ -3677,7 +3678,7 @@ export const MessageList = memo(function MessageList({
         },
       );
     },
-    [highlightSearchMatch, scrollToRenderId, userTurnNavSearchState],
+    [beginSearchMatchReveal, scrollToRenderId, userTurnNavSearchState],
   );
 
   const jumpToSearchTarget = useCallback(

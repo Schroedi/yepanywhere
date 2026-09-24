@@ -150,7 +150,9 @@ search box to ordinary visible transcript content must neither close search nor
 consume the content click; the clicked control's usual behavior and resulting
 scroll position win. Explicitly closing search after a committed jump must not
 restore the pre-search scroll position or issue a delayed recenter to a stale
-search target.
+search target. After a committed jump closes search, the landed match frame
+clears on the reader's next key, pointer, wheel, or touch input; a reveal still
+settling from that jump must not repaint the frame after that input.
 
 Marker-hover paging is sticky within a horizontal band. Once a hashmark owns the
 preview window, entering another marker at the same pointer Y must not page the

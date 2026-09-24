@@ -59,7 +59,12 @@ export function useSearchMatchHighlight(inert: boolean) {
   const cleanupRef = useRef<(() => void) | null>(null);
   const rowRef = useRef<HTMLElement | null>(null);
   const landedRef = useRef(false);
+  // Bumped by every clear. A reveal captures it before its asynchronous
+  // scroll settles, so a reveal begun before the reader dismissed the landing
+  // (or before a new search started) cannot repaint a frame nobody will clear.
+  const generationRef = useRef(0);
   const clearSearchMatchHighlight = useCallback(() => {
+    generationRef.current += 1;
     landedRef.current = false;
     cleanupRef.current?.();
     cleanupRef.current = null;
@@ -138,6 +143,19 @@ export function useSearchMatchHighlight(inert: boolean) {
     },
     [armLanded],
   );
+  /** Bind a highlight to the current generation; a later clear voids it. */
+  const beginSearchMatchReveal = useCallback(() => {
+    const generation = generationRef.current;
+    return (
+      row: HTMLElement,
+      scrollport: HTMLElement,
+      query: string,
+      caseSensitive: boolean,
+    ) => {
+      if (generationRef.current !== generation) return;
+      highlightSearchMatch(row, scrollport, query, caseSensitive);
+    };
+  }, [highlightSearchMatch]);
   // Once search has closed, the highlight only marks where the jump landed;
   // the reader's next deliberate input shows they have seen it. Programmatic
   // settle scrolls do not count, so listen for input rather than scroll.
@@ -148,7 +166,7 @@ export function useSearchMatchHighlight(inert: boolean) {
     armLanded();
   }, [armLanded]);
   return {
-    highlightSearchMatch,
+    beginSearchMatchReveal,
     clearSearchMatchHighlight,
     releaseSearchMatchHighlightOnInput,
   };
