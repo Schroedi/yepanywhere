@@ -248,6 +248,14 @@ identity and placement, so reloading preserves the marker. See
 [emulated-slash-commands.md](emulated-slash-commands.md#codex-goal-commands).
 This does not authorize copying provider-only stream output into YA storage.
 
+Provider-failure notices are the second exception. When a provider process
+dies without a user or YA stop request, the live turn is torn down and a
+provider such as Codex persists it as an ordinary `interrupted` abort. YA
+publishes a `local_command` notice ("Provider process ended unexpectedly; this
+turn was not interrupted by you", with the error as detail) after the latest
+turn content, and stores it with the session's local-command rows, so the
+attribution survives reload. A requested stop or abort publishes no notice.
+
 ## Draft-first augmentation decision
 
 The implementation has two publication phases per identified finalized item:

@@ -1,4 +1,7 @@
-import type { SessionClearloopBadge } from "@yep-anywhere/shared";
+import type {
+  DurableLocalCommandMessage,
+  SessionClearloopBadge,
+} from "@yep-anywhere/shared";
 import type {
   AppSessionSummary,
   NonHumanUserTurn,
@@ -350,7 +353,13 @@ export type ProcessEvent =
   | { type: "error"; error: Error }
   | { type: "idle-reap" }
   | { type: "complete" }
-  | { type: "terminated"; reason: string; error?: Error }
+  | {
+      type: "terminated";
+      reason: string;
+      error?: Error;
+      /** Attributed notice for an unrequested provider death; Supervisor persists it. */
+      failureNotice?: DurableLocalCommandMessage;
+    }
   | {
       type: "deferred-queue";
       reason?: "queued" | "cancelled" | "promoted";

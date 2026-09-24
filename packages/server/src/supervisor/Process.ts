@@ -2635,7 +2635,52 @@ export class Process {
    * Mark the process as terminated due to an error or external termination.
    * Emits a terminated event and cleans up resources.
    */
-  private markTerminated(reason: string, error?: Error): void {
+  /**
+   * An unrequested provider death tears down the running turn, and some
+   * providers (Codex) then persist it as an ordinary interrupt. Publish a
+   * notice row after the latest turn content so the transcript attributes
+   * the stop; Supervisor persists it with the session's local-command rows.
+   */
+  private publishProviderFailureNotice(
+    error: Error,
+  ): DurableLocalCommandMessage {
+    const placementAfterMessageId =
+      this._streamingMessageId ??
+      this.getMessageHistory()
+        .reverse()
+        .find(
+          (message) =>
+            typeof message.uuid === "string" &&
+            !message.isSynthetic &&
+            (message.type === "assistant" || message.type === "user"),
+        )?.uuid;
+    const id = randomUUID();
+    const notice: DurableLocalCommandMessage = {
+      type: "system",
+      subtype: "local_command",
+      content:
+        "Provider process ended unexpectedly; this turn was not interrupted by you",
+      details: [error.message],
+      session_id: this._sessionId,
+      uuid: id,
+      id,
+      timestamp: new Date().toISOString(),
+      ...(typeof placementAfterMessageId === "string"
+        ? { placementAfterMessageId }
+        : {}),
+      isMeta: false,
+      isSynthetic: true,
+    };
+    this.currentBucket.push(notice as SDKMessage);
+    this.emit({ type: "message", message: notice as SDKMessage });
+    return notice;
+  }
+
+  private markTerminated(
+    reason: string,
+    error?: Error,
+    options?: { failureNotice?: DurableLocalCommandMessage },
+  ): void {
     if (this._state.type === "terminated") {
       return; // Already terminated
     }
@@ -2679,7 +2724,14 @@ export class Process {
     });
 
     this.setState({ type: "terminated", reason, error });
-    this.emit({ type: "terminated", reason, error });
+    this.emit({
+      type: "terminated",
+      reason,
+      error,
+      ...(options?.failureNotice
+        ? { failureNotice: options.failureNotice }
+        : {}),
+    });
     if (this.viewerLifecycle.hasUnverifiedProviderOwnership) return;
 
     this.emitCompletion();
@@ -5095,7 +5147,13 @@ export class Process {
       // to prevent race where queueMessage is called before state changes to terminated
       if (this.isProcessTerminationError(err)) {
         this.transportFailed = true;
-        this.markTerminated("underlying process terminated", err);
+        const failureNotice =
+          this._state.type === "terminated" || this.abortInFlight
+            ? undefined
+            : this.publishProviderFailureNotice(err);
+        this.markTerminated("underlying process terminated", err, {
+          failureNotice,
+        });
         return;
       }
 

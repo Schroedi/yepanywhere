@@ -57,6 +57,9 @@ function createLaunchSettingsMetadata(
     recordSyntheticDone: vi.fn<SessionMetadataService["recordSyntheticDone"]>(
       async () => undefined,
     ),
+    addLocalCommandMessage: vi.fn<
+      SessionMetadataService["addLocalCommandMessage"]
+    >(async () => undefined),
   };
   const service = {
     getMetadata: () => undefined,
@@ -787,6 +790,52 @@ describe("Supervisor", () => {
         }),
       );
       expect(metadata.current()?.revision).toBe(7);
+    });
+
+    it("persists the notice for an unrequested provider death", async () => {
+      vi.spyOn(getLogger(), "error").mockImplementation(() => undefined);
+      vi.spyOn(getLogger(), "warn").mockImplementation(() => undefined);
+      const startSession = vi.fn(
+        async (options: Parameters<AgentProvider["startSession"]>[0]) => {
+          const queue = new MessageQueue();
+          async function* iterator() {
+            yield {
+              type: "system" as const,
+              subtype: "init" as const,
+              session_id: options.resumeSessionId ?? "new-session",
+            };
+            for await (const message of queue) {
+              void message;
+              throw new Error(
+                "Provider worker process exited: Provider reload replay buffer exceeded its bound",
+              );
+            }
+          }
+          return { iterator: iterator(), queue, abort: () => {} };
+        },
+      );
+      const metadata = createLaunchSettingsMetadata();
+      const supervisorWithMetadata = new Supervisor({
+        provider: testProvider(startSession),
+        sessionMetadataService: metadata.service,
+      });
+
+      const process = await supervisorWithMetadata.resumeSession(
+        "worker-dies",
+        "/tmp/test",
+        { text: "continue" },
+      );
+
+      expect("id" in process).toBe(true);
+      await vi.waitFor(() =>
+        expect(metadata.writes.addLocalCommandMessage).toHaveBeenCalledWith(
+          "worker-dies",
+          expect.objectContaining({
+            subtype: "local_command",
+            content: expect.stringContaining("not interrupted by you"),
+          }),
+        ),
+      );
     });
 
     it("does not persist a model change rejected by the provider", async () => {

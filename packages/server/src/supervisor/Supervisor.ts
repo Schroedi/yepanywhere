@@ -5503,6 +5503,21 @@ export class Supervisor {
         this.emitWorkerActivity();
       } else if (event.type === "terminated") {
         this.dirtyFileEditorService?.forgetProcess(process.id);
+        if (event.failureNotice) {
+          void this.sessionMetadataService
+            ?.addLocalCommandMessage(process.sessionId, event.failureNotice)
+            .catch((error: unknown) => {
+              getLogger().warn(
+                {
+                  event: "provider_failure_notice_persist_failed",
+                  sessionId: process.sessionId,
+                  errorMessage:
+                    error instanceof Error ? error.message : String(error),
+                },
+                `Failed to persist provider failure notice: ${process.sessionId}`,
+              );
+            });
+        }
         this.emitProcessTerminated(
           process.sessionId,
           process.projectId,

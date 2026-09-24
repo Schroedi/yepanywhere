@@ -202,6 +202,93 @@ describe("Process", () => {
       }
     });
 
+    it("publishes an attributed notice when the provider dies unrequested", async () => {
+      vi.spyOn(getLogger(), "error").mockImplementation(() => undefined);
+      vi.spyOn(getLogger(), "warn").mockImplementation(() => undefined);
+      const error = new Error(
+        "Provider worker process exited: Provider reload replay buffer exceeded its bound",
+      );
+      async function* failingIterator(): AsyncIterator<SDKMessage> {
+        yield { type: "system", subtype: "init", session_id: "sess-1" };
+        yield {
+          type: "assistant",
+          uuid: "assistant-1",
+          session_id: "sess-1",
+          message: { role: "assistant", content: "working" },
+        };
+        throw error;
+      }
+
+      const process = new Process(failingIterator(), {
+        projectPath: "/test",
+        projectId: "proj-1" as UrlProjectId,
+        sessionId: "sess-1",
+        provider: "codex",
+        idleTimeoutMs: 100,
+      });
+      const events: ProcessEvent[] = [];
+      process.subscribe((event) => {
+        events.push(event);
+      });
+
+      await vi.waitFor(() => expect(process.isTerminated).toBe(true));
+
+      const notice = events.find(
+        (event) =>
+          event.type === "message" && event.message.subtype === "local_command",
+      );
+      expect(notice).toMatchObject({
+        message: {
+          type: "system",
+          subtype: "local_command",
+          content: expect.stringContaining("not interrupted by you"),
+          details: [error.message],
+          placementAfterMessageId: "assistant-1",
+          isSynthetic: true,
+        },
+      });
+      const terminated = events.find((event) => event.type === "terminated");
+      expect(terminated).toMatchObject({
+        failureNotice: (notice as { message: unknown }).message,
+      });
+      expect(events.indexOf(notice as ProcessEvent)).toBeLessThan(
+        events.indexOf(terminated as ProcessEvent),
+      );
+    });
+
+    it("publishes no failure notice for a requested termination", async () => {
+      vi.spyOn(getLogger(), "warn").mockImplementation(() => undefined);
+      const process = new Process(
+        createMockIterator([
+          { type: "system", subtype: "init", session_id: "sess-1" },
+        ]),
+        {
+          projectPath: "/test",
+          projectId: "proj-1" as UrlProjectId,
+          sessionId: "sess-1",
+          provider: "codex",
+          idleTimeoutMs: 100,
+        },
+      );
+      const events: ProcessEvent[] = [];
+      process.subscribe((event) => {
+        events.push(event);
+      });
+
+      process.terminate("user stopped session");
+
+      const terminated = events.find((event) => event.type === "terminated");
+      expect(terminated).toBeDefined();
+      expect(terminated).not.toHaveProperty("failureNotice");
+      expect(
+        events.some(
+          (event) =>
+            event.type === "message" &&
+            event.message.subtype === "local_command",
+        ),
+      ).toBe(false);
+    });
+
     it("emits terminated event when process dies", async () => {
       const errorLog = vi
         .spyOn(getLogger(), "error")
