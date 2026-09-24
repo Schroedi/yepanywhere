@@ -1,10 +1,11 @@
 # Mid-session effort change
 
-> A mid-session effort change misses the provider's prompt cache (Claude
-> keys its cache by effort; Codex sends effort at request level), so on a
-> long-context session the next request re-reads the whole prompt; YA warns
-> before such a change on enabled providers past a configurable token
-> threshold and offers a fork at the new effort instead.
+> A mid-session effort change misses the provider's prompt cache on most
+> models (Claude keys its cache by effort except on Opus 5.5; Codex sends
+> effort at request level), so on a long-context session the next request
+> re-reads the whole prompt; YA warns before such a change on enabled
+> providers past a configurable token threshold, skips models measured to
+> keep the cache, and offers a fork at the new effort instead.
 
 Topic: mid-session-effort-change
 
@@ -25,17 +26,18 @@ live effort control is applied), [provider-fork-support](provider-fork-support.m
 
 ## Why
 
-On Claude, the prompt cache is keyed by effort: changing it mid-session
-makes the next request miss the whole cached prefix, tools and system
-prompt included, and re-read the conversation at cache-write price. The
-request text does not change; only the `output_config.effort` parameter
-does (measured 2026-09-23, § Claude cache measurement). On Codex the
-effort is the request-level `reasoning.effort`, and OpenAI's own guidance is
-to keep that unchanged to preserve the cached prefix. Either way a
-routine-looking control can silently cost a full re-read of a 200k-token
-session, which is the same
-class of cost the [cache-miss-accounting](cache-miss-accounting.md) monitor
-exists to surface after the fact. This topic surfaces it before.
+On Claude, the prompt cache is keyed by effort on most models: changing it
+mid-session makes the next request miss the whole cached prefix, tools and
+system prompt included, and re-read the conversation at cache-write price.
+The request text does not change; only the `output_config.effort` parameter
+does (measured on Sonnet 5 2026-09-23, § Claude cache measurement). Opus 5.5
+is the measured exception: its cache survives the same change (§ Opus 5.5
+measurement). On Codex the effort is the request-level `reasoning.effort`,
+and OpenAI's own guidance is to keep that unchanged to preserve the cached
+prefix. Either way a routine-looking control can silently cost a full
+re-read of a 200k-token session, which is the same class of cost the
+[cache-miss-accounting](cache-miss-accounting.md) monitor exists to surface
+after the fact. This topic surfaces it before.
 
 ## Contract
 
@@ -51,8 +53,12 @@ exists to surface after the fact. This topic surfaces it before.
   including cached reads on Claude) is known and at least the threshold, and
   no cache-safe mechanism exists for the provider/model pair
   (`effortChangeKeepsPromptCache` in
-  `packages/shared/src/long-context-effort-warning.ts`, currently false for
-  every pair; see § Codex Astra below).
+  `packages/shared/src/long-context-effort-warning.ts`). The only cache-safe
+  pair today is the `claude` provider with the concrete id
+  `claude-opus-5-5`, ignoring a trailing `[1m]` or dated-snapshot suffix. The
+  session's resolved model decides; an unresolved selection alias such as
+  `opus` still warns, because it may later resolve to an unmeasured version.
+  Codex Astra is not yet exempt; see § Codex Astra below.
 - **Dialog.** States the last request size and the from/to efforts, and
   offers three choices: **Change anyway** applies the change exactly as it
   would have without the warning; **Fork at <effort>** creates a
@@ -96,7 +102,8 @@ exists to surface after the fact. This topic surfaces it before.
   effort, so its first request re-reads the whole context just as an
   in-place change would (§ Claude cache measurement). The fork saves nothing
   on the re-read; it only keeps the source session unchanged and warm at its
-  old effort. The dialog says so.
+  old effort. The dialog says so. On Opus 5.5 there is no dialog: the change
+  keeps the cache in place.
 - **Codex.** A Codex fork changes the thread id and therefore the
   `prompt_cache_key`, and measured forks re-read most of the context
   ([quick-answer fork gap](../gaps/quick-answer-fork-cache-efficiency.md)),
@@ -174,6 +181,42 @@ filler, was refused by a safety classifier (`stop_reason: refusal`), so
 use real source text as filler; and the session's first turn created a
 new tools prefix after MCP tools loaded, an unrelated one-time miss.
 
+## Opus 5.5 measurement (2026-09-24)
+
+Same SDK and harness as § Claude cache measurement, with `claude-opus-5-5`
+and a fresh nonce per run so every prefix started cold. Each turn after the
+first asked a small arithmetic question ("Think it through: what is
+17*23+41?") so the model produced thinking blocks. Effort changed through
+`applyFlagSettings({effortLevel})`, the call behind YA's live effort
+control. The identical script ran on `claude-sonnet-5` for comparison:
+
+| Turn | Effort | Opus 5.5 read / created | Sonnet 5 read / created |
+|---|---|---|---|
+| t3 | medium | 123,296 / 92 | 129,456 / 130 |
+| t4 | changed to high | 123,388 / 92 | 0 / 129,696 |
+| t5 | high | 123,480 / 92 | 129,696 / 155 |
+| t6 | changed to low | 123,572 / 92 | 0 / 129,961 |
+| t7 | changed to medium | 123,664 / 94 | 129,586 / 486 |
+
+Sonnet's t7 hit only because its medium entry from t3 was still warm. The
+captured request bodies for both models have the same shape (identical
+`thinking`, `context_management`, message roles, and a cache breakpoint on
+the trailing `system`-role message), so the difference is how the API
+handles each model, not how YA or Claude Code builds the request. Through
+YA's own `POST /api/processes/:processId/config` route, an Opus 5.5 session
+likewise kept its cache across switches to low and to xhigh (90,286 and
+90,382 read).
+
+Opus 5.5 quirk, independent of effort: until the conversation contains at
+least one assistant message with a thinking block, every request reads only
+the tools and system prefix and re-creates all messages. A first run whose
+turns were "Reply with exactly: OK" (no thinking) missed on every turn,
+with and without effort changes; so did the YA run's early turns until the
+first thinking block appeared. Real Opus 5.5 sessions on this machine think
+early and showed 94-99% cache hit rates, so this does not affect the
+exemption, but it will confound any repeat measurement that uses
+non-thinking turns.
+
 ## Copy corrections (2026-09-23)
 
 The measurement above corrected the dialog copy; the trigger, condition,
@@ -187,5 +230,5 @@ threshold, and fork mechanics in § Contract did not change.
   The previous Claude hint claimed the fork's first request could reuse this
   session's cache, which holds only for a fork at the same effort.
 - This is API behavior, not YA or Claude Code behavior, so re-measure on a
-  model or SDK refresh before relaxing `effortChangeKeepsPromptCache` for
-  Claude.
+  model or SDK refresh before adding a model to, or keeping one in,
+  `effortChangeKeepsPromptCache` (Opus 5.5 was added 2026-09-24).

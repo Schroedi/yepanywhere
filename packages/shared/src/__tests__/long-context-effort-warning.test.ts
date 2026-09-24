@@ -114,6 +114,29 @@ describe("shouldWarnLongContextEffortChange", () => {
     ).toBe(false);
   });
 
+  it("stays quiet on Opus 5.5, whose cache survives an effort change", () => {
+    for (const model of [
+      "claude-opus-5-5",
+      "claude-opus-5-5[1m]",
+      "claude-opus-5-5-20260801",
+    ]) {
+      expect(shouldWarnLongContextEffortChange({ ...base, model })).toBe(false);
+    }
+  });
+
+  it("still warns on other Claude models, an unresolved alias, or another provider", () => {
+    for (const model of ["claude-sonnet-5", "claude-opus-5-6", "opus"]) {
+      expect(shouldWarnLongContextEffortChange({ ...base, model })).toBe(true);
+    }
+    expect(
+      shouldWarnLongContextEffortChange({
+        ...base,
+        provider: "codex",
+        model: "claude-opus-5-5",
+      }),
+    ).toBe(true);
+  });
+
   it("warns on Codex Astra until its in-place effort update is usable", () => {
     expect(
       shouldWarnLongContextEffortChange({

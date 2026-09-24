@@ -102,18 +102,36 @@ export function effortOfThinkingOption(
 }
 
 /**
+ * Concrete Claude model ids whose prompt cache survives an effort change,
+ * each confirmed by a warm-session measurement (topics/mid-session-effort-change.md
+ * § Claude cache measurement). A bare alias such as `opus` is not listed: it
+ * can resolve to a later version that has not been measured.
+ */
+const CLAUDE_EFFORT_CACHE_SAFE_MODELS: readonly string[] = ["claude-opus-5-5"];
+
+/** Strips the extended-context and dated-snapshot suffixes of a Claude id. */
+function baseClaudeModelId(model: string): string {
+  return model
+    .trim()
+    .toLowerCase()
+    .replace(/\[[^\]]*\]$/, "")
+    .replace(/-\d{8}$/, "");
+}
+
+/**
  * Whether a mid-session effort change on this provider and model keeps the
- * provider's prompt cache. Today no wired provider does: Codex's
- * `configuration_update` path for GPT-6 Astra exists in the pinned source but
- * is behind a default-off Codex feature YA does not enable
+ * provider's prompt cache. On Claude, Opus 5.5 does; Sonnet 5 was measured
+ * not to. Codex's `configuration_update` path for GPT-6 Astra exists in the
+ * pinned source but is behind a default-off Codex feature YA does not enable
  * (gaps/codex-cache-features.md). Flip the Astra branch once that is enabled
  * and a warm-session measurement confirms the cache survives.
  */
 export function effortChangeKeepsPromptCache(
-  _provider: ProviderName,
-  _model: string | undefined,
+  provider: ProviderName,
+  model: string | undefined,
 ): boolean {
-  return false;
+  if (provider !== "claude" || !model) return false;
+  return CLAUDE_EFFORT_CACHE_SAFE_MODELS.includes(baseClaudeModelId(model));
 }
 
 export interface LongContextEffortChangeQuery {

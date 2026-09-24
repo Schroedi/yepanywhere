@@ -1384,7 +1384,8 @@ function SessionPageContent({
   } = useLongContextEffortGuard({
     provider: effectiveProvider,
     providerInfo: currentProviderInfo,
-    model: effectiveModelConfig?.requestedModel ?? effectiveModelConfig?.model,
+    // The resolved id, not a selection alias, decides the cache-safe exemption.
+    model: effectiveModelConfig?.model ?? effectiveModelConfig?.requestedModel,
     contextTokens: session?.contextUsage?.inputTokens,
     settings: serverSettings?.longContextEffortWarning,
     canFork: supportsForkFromTurn && !forkAfterDisabled,
