@@ -18,6 +18,7 @@ import {
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { createSessionApi } from "../api/sessionClient";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
+import { BulkActionBar } from "../components/BulkActionBar";
 import { FilterDropdown } from "../components/FilterDropdown";
 import { PageHeader } from "../components/PageHeader";
 import { SessionListItem } from "../components/SessionListItem";
@@ -81,6 +82,7 @@ interface SearchHistoryControls {
   old: string;
   limit: string;
   selected: string[];
+  onlySelected?: boolean;
 }
 
 export function GlobalSessionsPage() {
@@ -189,6 +191,11 @@ function SessionSearchPage() {
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(remembered?.selected),
   );
+  const [onlySelected, setOnlySelected] = useState(
+    remembered?.onlySelected ?? false,
+  );
+  // An empty selection cannot restrict anything, so the toggle waits for one.
+  const withinSelection = onlySelected && selected.size > 0;
   useLayoutEffect(() => {
     if (window.history.state?.key !== location.key) return;
     const controls: SearchHistoryControls = {
@@ -199,12 +206,23 @@ function SessionSearchPage() {
       old,
       limit,
       selected: [...selected],
+      onlySelected,
     };
     window.history.replaceState(
       { ...window.history.state, yaSessionSearch: controls },
       "",
     );
-  }, [location.key, sourceKey, fields, basis, young, old, limit, selected]);
+  }, [
+    location.key,
+    sourceKey,
+    fields,
+    basis,
+    young,
+    old,
+    limit,
+    selected,
+    onlySelected,
+  ]);
   const [manage, setManage] = useState(false);
   const [zoomed, setZoomed] = useState<SearchPreviewTarget>();
   const [expanded, setExpanded] = useState<SearchPreviewTarget["session"]>();
@@ -262,7 +280,7 @@ function SessionSearchPage() {
       new Map(
         sessions.map((s) => {
           const reasons: string[] = [];
-          if (selected.size && !selected.has(s.id))
+          if (withinSelection && !selected.has(s.id))
             reasons.push(t("sessionSearchOutsideSelection"));
           if (project && s.projectId !== project)
             reasons.push(t("sessionSearchOutsideProject"));
@@ -292,6 +310,7 @@ function SessionSearchPage() {
       ),
     [
       sessions,
+      withinSelection,
       selected,
       project,
       providers,
@@ -395,9 +414,12 @@ function SessionSearchPage() {
       }),
     [],
   );
-  const apply = async () => {
-    const action = filters.at(-1);
-    if (!action || pending || !selected.size) return;
+  const selectedSessions = useMemo(
+    () => sessions.filter((session) => selected.has(session.id)),
+    [sessions, selected],
+  );
+  const apply = async (action: SearchStatus) => {
+    if (pending || !selected.size) return;
     setPending(true);
     setActionError(undefined);
     try {
@@ -424,6 +446,7 @@ function SessionSearchPage() {
           }),
         );
       }
+      setSelected(new Set());
       await feed.refetch();
     } catch (error) {
       setActionError(error instanceof Error ? error.message : String(error));
@@ -615,7 +638,9 @@ function SessionSearchPage() {
         }
       />
       <main className="page-scroll-container">
-        <div className={styles.content}>
+        <div
+          className={`${styles.content} ${selected.size ? styles.withBulkBar : ""}`}
+        >
           <SearchFilters
             basis={basis}
             onBasis={setBasis}
@@ -698,14 +723,20 @@ function SessionSearchPage() {
             onHelpInline={setHelpInline}
             count={selected.size}
             shown={results.length}
+            allShownSelected={results.every(({ session }) =>
+              selected.has(session.id),
+            )}
             filters={filters}
             onToggle={(status) =>
               changeParam("status", toggleStatus(filters, status).join(","))
             }
-            onReplace={() => setSelected(new Set(shownIds))}
+            onSelectShown={() =>
+              setSelected((previous) => new Set([...previous, ...shownIds]))
+            }
             onClear={() => setSelected(new Set())}
+            onlySelected={onlySelected}
+            onOnlySelected={setOnlySelected}
             onManage={() => setManage((value) => !value)}
-            onApply={() => void apply()}
             pending={pending}
           />
           {activeProject && (
@@ -899,6 +930,23 @@ function SessionSearchPage() {
             <p className={styles.help}>{t("sessionSearchUpgrade")}</p>
           )}
         </div>
+        <BulkActionBar
+          selectedCount={selected.size}
+          onArchive={() => apply("archived")}
+          onUnarchive={() => apply("unarchived")}
+          onStar={() => apply("starred")}
+          onUnstar={() => apply("unstarred")}
+          onMarkRead={() => apply("read")}
+          onMarkUnread={() => apply("unread")}
+          onClearSelection={() => setSelected(new Set())}
+          isPending={pending}
+          canArchive={selectedSessions.some((s) => !s.isArchived)}
+          canUnarchive={selectedSessions.some((s) => s.isArchived)}
+          canStar={selectedSessions.some((s) => !s.isStarred)}
+          canUnstar={selectedSessions.some((s) => s.isStarred)}
+          canMarkRead={selectedSessions.some((s) => s.hasUnread)}
+          canMarkUnread={selectedSessions.some((s) => !s.hasUnread)}
+        />
       </main>
       {expanded && (
         <SearchSessionMatches

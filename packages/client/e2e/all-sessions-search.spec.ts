@@ -78,7 +78,7 @@ test("All Sessions keeps every typed character with a large title catalog", asyn
   const search = page.getByRole("searchbox", { name: "Search sessions..." });
   await expect(search).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /Keep just 100\d matching/ }),
+    page.getByRole("button", { name: /^Select all 100\d$/ }),
   ).toBeVisible();
   await search.evaluate((node) => {
     const samples: Array<{
@@ -161,12 +161,12 @@ test("All Sessions preserves copying and returns to the query end only when typi
   );
   const help = page
     .locator("p:visible")
-    .filter({ hasText: "count is pre-filter;" });
+    .filter({ hasText: "count includes selections the search hides;" });
   await help.click({ clickCount: 3 });
   const selection = await page.evaluate(() =>
     window.getSelection()!.toString(),
   );
-  expect(selection).toContain("count is pre-filter");
+  expect(selection).toContain("count includes selections the search hides");
   await expect(search).not.toBeFocused();
   await help.click({ button: "right" });
   expect(await page.evaluate(() => window.getSelection()!.toString())).toBe(
@@ -333,10 +333,10 @@ for (const viewport of [
     const search = page.getByRole("searchbox", { name: "Search sessions..." });
     await search.fill(`Search fixture ${fixture}`);
     await page
-      .getByRole("button", {
-        name: "Keep just 6 matching sessions selected",
-        exact: true,
-      })
+      .getByRole("button", { name: "Select all 6", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Only selected", exact: true })
       .click();
     const requests: Array<{
       sessionId: string;
@@ -538,7 +538,7 @@ for (const viewport of [
     ).toHaveCount(0);
     const help = page
       .locator("p:visible")
-      .filter({ hasText: "count is pre-filter;" });
+      .filter({ hasText: "count includes selections the search hides;" });
     expect((await help.boundingBox())!.y).toBeLessThan(
       (await diagnostic.boundingBox())!.y,
     );
@@ -565,7 +565,7 @@ for (const viewport of [
       .poll(async () => {
         const help = page
           .locator("p:visible")
-          .filter({ hasText: "count is pre-filter;" });
+          .filter({ hasText: "count includes selections the search hides;" });
         return help.evaluate((node) => {
           const box = node.getBoundingClientRect();
           return box.right <= document.documentElement.clientWidth;
@@ -879,21 +879,22 @@ for (const viewport of [
     });
     expect(requests.length).toBeGreaterThan(2);
     await page
-      .getByRole("button", {
-        name: "Keep just 2 matching sessions selected",
-        exact: true,
-      })
+      .getByRole("button", { name: "Select all 2", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Only selected", exact: true })
       .click();
     await search.fill("quasarneedle alpha");
     await expect(rows).toHaveCount(1, { timeout: 30000 });
     await expect(
       page.getByRole("button", { name: "Clear 2 selected", exact: true }),
     ).toBeVisible();
+    // Narrow by clearing, then selecting what is shown; Only selected stays on.
     await page
-      .getByRole("button", {
-        name: "Keep just 1 matching sessions selected",
-        exact: true,
-      })
+      .getByRole("button", { name: "Clear 2 selected", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Select all 1", exact: true })
       .click();
     await search.fill("matching answer");
     await expect(rows).toHaveCount(1, { timeout: 30000 });
@@ -912,17 +913,18 @@ for (const viewport of [
     await search.fill("quasarneedle");
     await expect(rows).toHaveCount(2, { timeout: 30000 });
     await page
-      .getByRole("button", {
-        name: "Keep just 2 matching sessions selected",
-        exact: true,
-      })
+      .getByRole("button", { name: "Select all 2", exact: true })
       .click();
     await expect(
       page.getByRole("button", { name: "Filter: Unarchived", exact: true }),
     ).toHaveAttribute("aria-pressed", "true");
+    // Actions live in the selection bar, offering only what applies.
     await expect(
-      page.getByRole("button", { name: "Make Unarchived 2", exact: true }),
+      page.getByRole("button", { name: "Archive", exact: true }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Unarchive", exact: true }),
+    ).toHaveCount(0);
     const from = page.getByRole("textbox", { name: /^Minimum age/ });
     const initialWidth = await from.evaluate(
       (element) => element.getBoundingClientRect().width,
