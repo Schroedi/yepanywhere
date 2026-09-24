@@ -112,6 +112,11 @@ export function isCodexReasoningSummary(
 export interface ModelInfo {
   /** Model identifier (e.g., "sonnet", "qwen2.5-coder:0.5b") */
   id: string;
+  /**
+   * Provider-reported concrete model an alias `id` currently resolves to
+   * (e.g. "opus[1m]" → "claude-opus-5-5[1m]"), when the provider reports it.
+   */
+  resolvedModel?: string;
   /** Human-readable name */
   name: string;
   /** Description of the model's capabilities (optional) */

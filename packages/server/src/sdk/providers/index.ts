@@ -208,7 +208,10 @@ function hostedProvider(rawProvider: AgentProvider): AgentProvider {
         return (options: Parameters<AgentProvider["startSession"]>[0]) =>
           startHostedProviderSession(
             target.name,
-            options,
+            {
+              ...options,
+              launchModel: target.resolveLaunchModel?.(options.model),
+            },
             getProviderRuntimeSnapshot(),
           );
       }

@@ -277,6 +277,35 @@ describe("ClaudeProvider model list", () => {
     });
   });
 
+  it("resolves a launch alias to the concrete model the SDK reports", async () => {
+    const provider = new ClaudeProvider();
+    expect(provider.resolveLaunchModel("opus")).toBeUndefined();
+
+    await (
+      provider as unknown as {
+        normalizeSupportedModels(models: unknown[]): Promise<unknown>;
+      }
+    ).normalizeSupportedModels([
+      {
+        value: "opus[1m]",
+        resolvedModel: "claude-opus-5-5[1m]",
+        displayName: "Opus",
+        description: "Opus 5.5",
+      },
+      {
+        value: "sonnet",
+        resolvedModel: "claude-sonnet-5",
+        displayName: "Sonnet",
+        description: "Sonnet 5",
+      },
+    ]);
+
+    expect(provider.resolveLaunchModel("opus")).toBe("claude-opus-5-5");
+    expect(provider.resolveLaunchModel("sonnet")).toBe("claude-sonnet-5");
+    expect(provider.resolveLaunchModel("haiku")).toBeUndefined();
+    expect(provider.resolveLaunchModel(undefined)).toBeUndefined();
+  });
+
   it("keeps the default option generic when SDK returns a concrete-looking label", () => {
     const models = mergeClaudeModels([
       {

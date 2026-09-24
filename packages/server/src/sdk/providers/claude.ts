@@ -833,6 +833,7 @@ function enrichClaudeModel(model: ModelInfo): ModelInfo {
 function mapClaudeSdkModel(model: ClaudeSdkModelInfo): ModelInfo {
   return {
     id: model.value,
+    resolvedModel: model.resolvedModel,
     name: model.displayName,
     description: model.description,
     contextWindow: model.resolvedModel
@@ -1071,6 +1072,15 @@ export class ClaudeProvider implements AgentProvider {
 
   getModelCatalogCacheKey(): string {
     return getClaudeModelCatalogCacheKey(this.getAdditionalModelSelections());
+  }
+
+  resolveLaunchModel(model: string | undefined): string | undefined {
+    const resolved = this.cachedModels?.find(
+      (entry) => entry.id === model,
+    )?.resolvedModel;
+    // "[1m]" selects a context window, not a different model; drop it so the
+    // id matches the one the provider records on each response.
+    return resolved?.replace(/\[[^\]]*\]$/u, "") || undefined;
   }
 
   protected invalidateModelCache(): void {

@@ -134,6 +134,20 @@ describe("withAgentLaunchEnvironment", () => {
     });
   });
 
+  it("publishes the resolved launch model instead of its alias", () => {
+    expect(
+      withAgentLaunchEnvironment(
+        "claude",
+        { model: "opus", launchModel: "claude-opus-5-5" },
+        {},
+      ).AGENT_LAUNCH_MODEL,
+    ).toBe("claude-opus-5-5");
+    expect(
+      withAgentLaunchEnvironment("claude", { model: "opus" }, {})
+        .AGENT_LAUNCH_MODEL,
+    ).toBe("opus");
+  });
+
   it("removes unavailable optional launch facts", () => {
     expect(
       withAgentLaunchEnvironment(

@@ -234,6 +234,12 @@ export interface StartSessionOptions {
   restoredGoal?: ClaudeGoalSnapshot | null;
   /** Model to use (e.g., "sonnet", "opus", "haiku") */
   model?: string;
+  /**
+   * Concrete id `model` resolved to at launch (see
+   * `AgentProvider.resolveLaunchModel`). Only reported to the agent as
+   * `AGENT_LAUNCH_MODEL`; `model` still selects what the provider runs.
+   */
+  launchModel?: string;
   /** Provider-visible service tier. undefined means provider/default behavior. */
   serviceTier?: string;
   /** Thinking configuration (undefined = thinking disabled) */
@@ -538,6 +544,14 @@ export interface AgentProvider {
    * See topics/provider-abstraction.md § Per-model settings keying.
    */
   yaModelIdForReported?(reported: string | undefined): string | undefined;
+
+  /**
+   * Concrete provider model id a launch selection (e.g. "opus") currently
+   * resolves to, e.g. "claude-opus-5-5", from the already-fetched catalog; never
+   * probes. `undefined` when the selection is absent or the catalog does not
+   * report a resolution. Published to the agent as `AGENT_LAUNCH_MODEL`.
+   */
+  resolveLaunchModel?(model: string | undefined): string | undefined;
 
   /**
    * Generate a YA-owned summary through one of the supported helper
