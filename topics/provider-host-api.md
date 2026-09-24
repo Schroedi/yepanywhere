@@ -106,7 +106,12 @@ The stream carries queue pushes, queue-depth/removal state, sequenced
 `SDKMessage` events and acknowledgements, provider controls/RPC, permission
 state, approvals, completion, and failure. Acknowledgement advances only after
 the Hono `Process` consumes an event, so reload replay can repeat a boundary but
-cannot silently discard an unacknowledged suffix.
+cannot silently discard an unacknowledged suffix. The one exception is a
+superseded streaming snapshot: an unacknowledged `_isStreaming` event is
+dropped from the replay buffer when a later event with the same type and
+`uuid` arrives, because that event replaces it wholesale; replay sequences may
+therefore skip numbers. The unacknowledged bound (10,000 events or 64 MiB)
+still fails the worker, and its error names the event and byte counts.
 
 These are real local listeners rather than anonymous provider pipes. Stable
 discovery remains same-user local: the token stays in an owner-only file, the

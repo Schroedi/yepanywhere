@@ -217,6 +217,12 @@ equality is graded by whether the live item has a durable counterpart:
   snapshot preserves the existing transcript array and message identity.
   Replaceable same-id enrichment bursts publish their latest bounded snapshot,
   not every intermediate representation.
+- **Live tool-output snapshots are size-bounded.** A streaming tool result
+  replaces its predecessor wholesale, so an unbounded cumulative snapshot costs
+  quadratic bytes through provider replay, fan-out, and relay. Codex live
+  command/file-change output keeps its first and last 32 Ki characters with an
+  inline `… N characters omitted from the live preview …` marker; the completed
+  item carries the full output and settles the row.
 - **Reload-safe snapshots are reconciliation, not replay.** A native provider
   snapshot may contain the whole completed active-turn prefix. Reattaching YA
   must not publish that prefix as freshly observed live activity. Browser

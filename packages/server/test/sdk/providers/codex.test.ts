@@ -35,6 +35,8 @@ import { getLogger } from "../../../src/logging/logger.js";
 import { getCodexCommonPaths } from "../../../src/sdk/cli-detection.js";
 import { logSDKMessage } from "../../../src/sdk/messageLogger.js";
 import {
+  CODEX_LIVE_TOOL_OUTPUT_HEAD_CHARS,
+  CODEX_LIVE_TOOL_OUTPUT_TAIL_CHARS,
   CodexProvider,
   type CodexProviderConfig,
   formatCodexLoginCommand,
@@ -6119,6 +6121,60 @@ describe("CodexProvider Event Normalization", () => {
     );
     expect(second[0]).toMatchObject(
       codexAgentMessageDeltaFixtures.expectedSecondMessage,
+    );
+  });
+
+  it("bounds live command-output snapshots to a head and tail window", () => {
+    const provider = createTestProvider() as unknown as {
+      convertNotificationToSDKMessages: (
+        notification: { method: string; params?: unknown },
+        sessionId: string,
+        usageByTurnId: Map<string, unknown>,
+        liveEventState: ReturnType<typeof createLiveEventState>,
+      ) => Array<Record<string, unknown>>;
+    };
+    const liveEventState = createLiveEventState();
+    const chunk = `${"x".repeat(8191)}\n`;
+    const chunkCount = 128;
+    let last: Record<string, unknown> | undefined;
+    let largestSnapshot = 0;
+    for (let index = 0; index < chunkCount; index += 1) {
+      const delta = index === 0 ? `FIRST${chunk.slice(5)}` : chunk;
+      [last] = provider.convertNotificationToSDKMessages(
+        {
+          method: "item/commandExecution/outputDelta",
+          params: {
+            threadId: "thread-1",
+            turnId: "turn-1",
+            itemId: "cmd-1",
+            delta: index === chunkCount - 1 ? `${chunk.slice(4)}LAST` : delta,
+          },
+        },
+        "session-1",
+        new Map(),
+        liveEventState,
+      );
+      largestSnapshot = Math.max(largestSnapshot, JSON.stringify(last).length);
+    }
+
+    const content =
+      (last?.message as { content: Array<{ content: string }> } | undefined)
+        ?.content[0]?.content ?? "";
+    const totalChars = chunk.length * chunkCount;
+    const omitted =
+      totalChars -
+      CODEX_LIVE_TOOL_OUTPUT_HEAD_CHARS -
+      CODEX_LIVE_TOOL_OUTPUT_TAIL_CHARS;
+    expect(last).toMatchObject({ _isStreaming: true });
+    expect(content.startsWith("FIRST")).toBe(true);
+    expect(content.endsWith("LAST")).toBe(true);
+    expect(content).toContain(
+      `${omitted} characters omitted from the live preview`,
+    );
+    expect(largestSnapshot).toBeLessThan(
+      CODEX_LIVE_TOOL_OUTPUT_HEAD_CHARS +
+        CODEX_LIVE_TOOL_OUTPUT_TAIL_CHARS +
+        2048,
     );
   });
 

@@ -615,10 +615,52 @@ interface NormalizedFileChange {
 interface CodexLiveEventState {
   streamingTextByItemKey: Map<string, string>;
   streamingReasoningSummaryByItemKey: Map<string, string[]>;
-  streamingToolOutputByItemKey: Map<string, string>;
+  streamingToolOutputByItemKey: Map<string, CodexLiveToolOutput>;
   toolCallContexts: Map<string, CodexToolCallContext>;
   resultBackedToolItemsByTurnId: Map<string, Set<string>>;
   planUpdateCountByTurnId: Map<string, number>;
+}
+
+/**
+ * Each live tool-output message is a cumulative snapshot that replaces the
+ * previous one, so an unbounded snapshot makes a long output cost quadratic
+ * bytes across provider replay, fan-out, and relay. The live preview keeps the
+ * head (collapsed rows show leading lines) and the tail (progress); the
+ * completed item carries the full output.
+ */
+export const CODEX_LIVE_TOOL_OUTPUT_HEAD_CHARS = 32 * 1024;
+export const CODEX_LIVE_TOOL_OUTPUT_TAIL_CHARS = 32 * 1024;
+
+export interface CodexLiveToolOutput {
+  head: string;
+  tail: string;
+  omittedChars: number;
+}
+
+export function appendCodexLiveToolOutput(
+  output: CodexLiveToolOutput | undefined,
+  delta: string,
+): CodexLiveToolOutput {
+  let head = output?.head ?? "";
+  let tail = output?.tail ?? "";
+  let omittedChars = output?.omittedChars ?? 0;
+  const headRoom = CODEX_LIVE_TOOL_OUTPUT_HEAD_CHARS - head.length;
+  let rest = delta;
+  if (headRoom > 0) {
+    head += rest.slice(0, headRoom);
+    rest = rest.slice(headRoom);
+  }
+  tail += rest;
+  if (tail.length > CODEX_LIVE_TOOL_OUTPUT_TAIL_CHARS) {
+    omittedChars += tail.length - CODEX_LIVE_TOOL_OUTPUT_TAIL_CHARS;
+    tail = tail.slice(-CODEX_LIVE_TOOL_OUTPUT_TAIL_CHARS);
+  }
+  return { head, tail, omittedChars };
+}
+
+export function renderCodexLiveToolOutput(output: CodexLiveToolOutput): string {
+  if (output.omittedChars === 0) return `${output.head}${output.tail}`;
+  return `${output.head}\n… ${output.omittedChars} characters omitted from the live preview; the completed result shows the full output …\n${output.tail}`;
 }
 
 interface CodexFailureTraceEvent {
@@ -6351,8 +6393,12 @@ export class CodexProvider implements AgentProvider {
     liveEventState: CodexLiveEventState,
   ): SDKMessage {
     const key = this.buildItemEventKey(turnId, itemId);
-    const content = `${liveEventState.streamingToolOutputByItemKey.get(key) ?? ""}${delta}`;
-    liveEventState.streamingToolOutputByItemKey.set(key, content);
+    const output = appendCodexLiveToolOutput(
+      liveEventState.streamingToolOutputByItemKey.get(key),
+      delta,
+    );
+    liveEventState.streamingToolOutputByItemKey.set(key, output);
+    const content = renderCodexLiveToolOutput(output);
 
     const message = withCodexTimestamp({
       type: "user",

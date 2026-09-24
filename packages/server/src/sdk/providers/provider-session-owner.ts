@@ -31,6 +31,12 @@ export const PROVIDER_SESSION_PROTOCOL_VERSION = 1;
 export const MAX_UNACKNOWLEDGED_PROVIDER_EVENTS = 10_000;
 export const MAX_UNACKNOWLEDGED_PROVIDER_BYTES = 64 * 1024 * 1024;
 
+function snapshotKey(message: SDKMessage): string | null {
+  return typeof message.uuid === "string" && message.uuid
+    ? `${message.type}:${message.uuid}`
+    : null;
+}
+
 interface BufferedEvent {
   sequence: number;
   message: SDKMessage;
@@ -167,6 +173,7 @@ export class ProviderSessionOwner {
   private acknowledgedSequence = 0;
   private bufferedBytes = 0;
   private events: BufferedEvent[] = [];
+  private snapshotEvents = new Map<string, BufferedEvent>();
   private pendingApprovals = new Map<string, PendingApproval>();
   private queueDepth = 0;
   private providerAlive = true;
@@ -458,13 +465,15 @@ export class ProviderSessionOwner {
     }
     const sequence = ++this.sequence;
     const bytes = Buffer.byteLength(JSON.stringify(message));
-    this.events.push({
+    const event: BufferedEvent = {
       sequence,
       message,
       bytes,
       providerActivity: this.providerActivity,
       providerRetention: this.providerRetention,
-    });
+    };
+    this.pruneSupersededSnapshot(message, event);
+    this.events.push(event);
     this.bufferedBytes += bytes;
     if (
       this.events.length > MAX_UNACKNOWLEDGED_PROVIDER_EVENTS ||
@@ -472,7 +481,7 @@ export class ProviderSessionOwner {
     ) {
       this.emitController({
         type: "failed",
-        error: "Provider reload replay buffer exceeded its bound",
+        error: `Provider reload replay buffer exceeded its bound (${this.events.length} unacknowledged events, ${this.bufferedBytes} bytes)`,
       });
       this.signalTerminal("replay buffer exceeded", 1);
       return;
@@ -799,6 +808,31 @@ export class ProviderSessionOwner {
     queueMicrotask(() => this.drainDeferredSubmissions());
   }
 
+  /**
+   * A streaming snapshot (`_isStreaming` with a `uuid`) is replaced wholesale
+   * by the next same-id message, so replay after a reload needs only the
+   * latest one. Dropping the unacknowledged predecessors keeps a long
+   * streamed output from filling the replay bound while Hono is merely slow
+   * to consume; the live controller already received every snapshot.
+   */
+  private pruneSupersededSnapshot(
+    message: SDKMessage,
+    event: BufferedEvent,
+  ): void {
+    const key = snapshotKey(message);
+    if (!key) return;
+    const previous = this.snapshotEvents.get(key);
+    if (previous) {
+      const index = this.events.lastIndexOf(previous);
+      if (index >= 0) {
+        this.events.splice(index, 1);
+        this.bufferedBytes -= previous.bytes;
+      }
+    }
+    if (message._isStreaming === true) this.snapshotEvents.set(key, event);
+    else this.snapshotEvents.delete(key);
+  }
+
   private acknowledge(sequence: number): void {
     if (!Number.isInteger(sequence) || sequence <= this.acknowledgedSequence) {
       return;
@@ -815,6 +849,10 @@ export class ProviderSessionOwner {
       if (event.sequence > sequence) break;
       removeCount += 1;
       removeBytes += event.bytes;
+      const key = snapshotKey(event.message);
+      if (key && this.snapshotEvents.get(key) === event) {
+        this.snapshotEvents.delete(key);
+      }
     }
     if (removeCount > 0) {
       this.events.splice(0, removeCount);
