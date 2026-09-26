@@ -504,7 +504,7 @@ describe("limited-user middleware", () => {
         [...sessions].map(([sessionId, row]) => ({
           sessionId,
           projectId: row.projectId,
-          catalogFamily: row.provider,
+          provider: row.provider,
           updatedAt: new Date(row.lastActivityMs).toISOString(),
         })),
       getSessionMetadata: () => undefined,
@@ -819,6 +819,66 @@ describe("limited-user middleware", () => {
       headers: { Cookie: "yep-anywhere-acting-user=alice.deadbeef" },
     });
     expect(forged.status).toBe(200);
+  });
+});
+
+describe("session access resolver", () => {
+  /** topics/limited-users.md § Delivery v1 — Freshness. */
+  const hours = (count: number) => count * 60 * 60 * 1000;
+  const now = hours(10);
+
+  it("dates a live process that has seen no provider message by its catalog row", async () => {
+    const resolver = new SessionAccessResolver({
+      getLiveSession: () => ({
+        projectId: "join-project",
+        provider: "claude",
+        lastActivityMs: null,
+      }),
+      readCatalogRows: async () => [
+        {
+          sessionId: "resumed",
+          projectId: "join-project",
+          provider: "claude",
+          updatedAt: new Date(now - hours(3)).toISOString(),
+        },
+      ],
+      getSessionMetadata: () => undefined,
+      now: () => now,
+    });
+    const facts = await resolver.resolve("resumed");
+    expect(facts?.lastActivityMs).toBe(now - hours(3));
+    expect(
+      facts && resolver.canJoin(facts, { username: "alice", offsetMinutes: 0 }),
+    ).toBe(false);
+  });
+
+  it("dates a live process by its last provider message", async () => {
+    const resolver = new SessionAccessResolver({
+      getLiveSession: () => ({
+        projectId: "join-project",
+        provider: "claude",
+        lastActivityMs: now - hours(2),
+      }),
+      readCatalogRows: async () => [],
+      getSessionMetadata: () => undefined,
+      now: () => now,
+    });
+    const facts = await resolver.resolve("running");
+    expect(
+      facts && resolver.canJoin(facts, { username: "alice", offsetMinutes: 0 }),
+    ).toBe(false);
+  });
+
+  it("resolves no project for a session the catalog files under two", async () => {
+    const resolver = new SessionAccessResolver({
+      getLiveSession: () => undefined,
+      readCatalogRows: async () => [
+        { sessionId: "twice", projectId: "view-project" },
+        { sessionId: "twice", projectId: "secret-project" },
+      ],
+      getSessionMetadata: () => undefined,
+    });
+    expect(await resolver.resolve("twice")).toBeNull();
   });
 });
 

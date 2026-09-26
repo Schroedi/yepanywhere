@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { limitedActivityEvent } from "../../src/auth/activityEventAccess.js";
 import { SessionAccessResolver } from "../../src/auth/sessionAccess.js";
 import type { BusEvent } from "../../src/watcher/index.js";
@@ -129,7 +129,7 @@ describe("limited-user activity events", () => {
 });
 
 describe("SessionAccessResolver.resolveKnown", () => {
-  it("answers from memory and never reads the catalog", () => {
+  it("answers from memory, starting one background catalog read for what it lacks", async () => {
     let catalogReads = 0;
     const resolver = new SessionAccessResolver({
       getLiveSession: (sessionId) =>
@@ -146,7 +146,12 @@ describe("SessionAccessResolver.resolveKnown", () => {
     expect(resolver.resolveKnown("live")?.projectId).toBe("live-project");
     expect(resolver.resolveKnown("pinned")?.projectId).toBe("pinned-project");
     expect(resolver.resolveKnown("idle")).toBeNull();
-    expect(catalogReads).toBe(0);
+    expect(resolver.resolveKnown("idle")).toBeNull();
+    await vi.waitFor(() => {
+      expect(resolver.resolveKnown("idle")?.projectId).toBe("idle-project");
+    });
+    // Every miss above joined one read; a later event reuses its rows.
+    expect(catalogReads).toBe(1);
   });
 
   it("uses catalog rows an earlier resolve already read", async () => {

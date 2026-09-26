@@ -186,6 +186,10 @@ only needs the read-only extras.
 
 A session in a join project is joinable while
 `now − lastActivity ≤ providerCacheWarmMinutes + joinStaleOffsetMinutes`.
+`lastActivity` is the running process's last provider message; before the
+process has seen one (a session just resumed) and for a session with no
+process, it is the session catalog's last-update time. A session with
+neither is not fresh.
 `providerCacheWarmMinutes` is a believed prompt-cache-warm window per
 provider, shipped as **60 for Claude-family providers and 10 for everything
 else, Codex included** — the same zero point the stale-session cutoff above
@@ -230,8 +234,9 @@ percent-encoding is refused.
 | public shares, app links, devices, bang commands, absolute-path file reads, file editing and artifact rebuild (`/api/file-edit*`), uploads outside a session, server admin, relay/remote-access config | 403 |
 
 Session-to-project resolution for session-scoped paths uses the live process
-first and the session catalog second; a session that resolves to no project is
-refused. List filtering is by project only: a session the user started in a
+first and the session catalog second — the same retained catalog All Sessions
+and Inbox read, re-read at most every few seconds. A session that resolves to
+no project, including one the catalog files under two projects, is refused. List filtering is by project only: a session the user started in a
 project whose grant was later removed stays directly readable but no longer
 appears in their lists. Sessions the user starts are recorded with `createdByUser` in
 session metadata at create time, which is what makes the "always readable"
@@ -252,6 +257,8 @@ reaches a limited user only when it names a project they may read: directly,
 through the session it creates, or through the session it is about, resolved
 from what the server already holds in memory (live process, session metadata,
 last catalog read); a session that resolves to no project hides its event.
+Filtering never waits on the catalog: a session the last read lacked starts a
+background read, so that session's later events resolve.
 An event listing several projects arrives listing only the readable ones, or
 not at all. Signals that carry no project data (backend reload, restart-queue
 and catalog refresh counters, minus the catalog's refresh error) arrive so

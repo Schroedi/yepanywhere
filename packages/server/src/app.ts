@@ -811,10 +811,22 @@ export function createApp(options: AppOptions): AppResult {
       return {
         projectId: process.projectId,
         provider: process.provider,
-        lastActivityMs: Date.now(),
+        lastActivityMs: process.lastProviderMessageTime?.getTime() ?? null,
       };
     },
-    readCatalogRows: async () => [],
+    // The one retained catalog All Sessions and Inbox read, built below.
+    readCatalogRows: async () => {
+      if (!retainedCollections) {
+        throw new Error("Session catalog read before the app was built");
+      }
+      const { rows } = await retainedCollections.read();
+      return rows.map((row) => ({
+        sessionId: row.sessionId,
+        projectId: row.projectId,
+        provider: row.provider ?? row.catalogFamily,
+        updatedAt: row.updatedAt,
+      }));
+    },
     getSessionMetadata: (sessionId) =>
       options.sessionMetadataService?.getMetadata(sessionId),
   });
