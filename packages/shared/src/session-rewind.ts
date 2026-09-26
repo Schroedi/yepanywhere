@@ -160,6 +160,16 @@ export function parseClearloopArguments(
   return { turnIndex, total, prompt };
 }
 
+/**
+ * YA's same-session rewind commands. They exist only where rewind is
+ * supported; elsewhere the same text is the provider's own command.
+ */
+export const REWIND_SLASH_COMMANDS = ["clear", "fork", "clearloop"] as const;
+
+export function isRewindSlashCommand(command: string): boolean {
+  return (REWIND_SLASH_COMMANDS as readonly string[]).includes(command);
+}
+
 /** Parse the argument of `/clear [N]` or `/fork N`; bare `/clear` is 0. */
 export function parseTurnIndexArgument(
   argument: string,

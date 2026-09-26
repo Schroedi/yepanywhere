@@ -484,7 +484,10 @@ Three outcomes, all decided at enqueue so the user learns immediately:
   design. Refused with its own reason, not silently run.
 
 Anything else — ordinary prose, a provider command, a skill line, an effort
-modifier such as `/fast …` — queues as text exactly as before.
+modifier such as `/fast …` — queues as text exactly as before. That includes
+`/clear`, `/fork`, and `/clearloop` from a session without rewind support
+([session-rewind](session-rewind.md#commands)): there they are the provider's
+own commands, not YA's.
 
 A queued command resolves its turn at **dispatch**, not at enqueue. `/clearloop
 3: p` queued now loops over turn 3 as it stands when the project finally goes

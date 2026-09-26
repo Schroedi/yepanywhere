@@ -75,10 +75,13 @@ is one server-wide value).
 All three are YA-routed commands resolved by the composer's typed command
 resolver before provider ingress (`parseComposerSlashCommand`,
 `handleCustomCommand`). Their argument text is parsed by their handler, not
-the generic layer. They are available only when the server advertises the
-`session-rewind` capability and the session's provider supports rewind;
-otherwise the command menu marks them unavailable and a typed invocation
-fails visibly with the draft retained (never falls through as prompt text).
+the generic layer. They exist only when the server advertises the
+`session-rewind` capability and the session's provider supports rewind.
+Otherwise YA neither offers them in the command menu nor intercepts them: a
+typed `/clear`, `/fork`, or `/clearloop` is ordinary provider text, so it
+reaches the provider's own command when it has one, directly or through
+Project Queue. YA advertised no command there, so this is not the silent
+fall-through [emulated-slash-commands](emulated-slash-commands.md) forbids.
 
 - **`/clear N`** — rewind to the cut *after turn N*. Turn N and its response
   are the new tail. `/clear` with no argument is `/clear 0`.
@@ -436,9 +439,9 @@ history, not a toast, and is never model context.
   one. The optional-feature horizon on 2026-09-18 is v0.8.0 and
   v0.8.1 (the latest two stable releases and all releases from the
   preceding 14 days); neither has any of these. Without the capability the
-  client hides the menu entries, marks the commands unavailable, makes no
-  rewind or clearloop request, and ignores unknown queue kinds and metadata
-  fields. No existing capability meaning changes; existing fork behavior is
+  client hides the menu entries, leaves the command names to the provider
+  (§ Commands), makes no rewind or clearloop request, and ignores unknown
+  queue kinds and metadata fields. No existing capability meaning changes; existing fork behavior is
   unchanged. The originating request approved this gate.
 - Providers: Claude, Claude Gateway, and Claude Ollama sessions. Others
   report rewind unsupported; the route returns `409` and the client hides

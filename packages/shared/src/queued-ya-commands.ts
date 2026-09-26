@@ -11,6 +11,8 @@
  * the per-session YA-command lane.
  */
 
+import { isRewindSlashCommand } from "./session-rewind.js";
+
 /** Emulated commands the server can execute from a queue entry. */
 export const QUEUEABLE_YA_COMMANDS = ["clear", "clearloop"] as const;
 
@@ -76,15 +78,19 @@ function isComposerOnly(name: string): name is ComposerOnlyYaCommandName {
  * Decide how composer text should reach a delayed delivery lane. Anything that
  * is not a YA-emulated command — ordinary prose, a provider command, a skill
  * line, an effort modifier such as `/fast …` — is `prompt` and queues as text.
+ * Without rewind support, `/clear`, `/fork`, and `/clearloop` are the
+ * provider's own commands and queue as text too.
  */
 export function classifyQueuedYaCommand(
   text: string,
+  { rewindSupported }: { rewindSupported: boolean },
 ): QueuedYaCommandClassification {
   const match = /^\/([^\s/]+)(?:\s+([\s\S]*))?$/.exec(text.trim());
   if (!match) return { kind: "prompt" };
   const authored = match[1]?.toLowerCase() ?? "";
   const name = ALIASES[authored] ?? authored;
   const argument = match[2] ?? "";
+  if (!rewindSupported && isRewindSlashCommand(name)) return { kind: "prompt" };
   if (isQueueable(name)) {
     const trimmed = argument.trim();
     return {

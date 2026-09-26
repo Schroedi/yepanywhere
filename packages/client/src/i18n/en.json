@@ -2264,7 +2264,6 @@
   "rewindClearReplacingTurnTooltip": "Drop this turn and everything later, and put its prompt back in the composer",
   "rewindDone": "Rewound: {count} turn(s) kept as a collapsed group",
   "rewindNoop": "Nothing to clear: that turn is already the last one",
-  "rewindUnavailable": "Same-session rewind needs a Claude session on a server with rewind support",
   "rewindTurnNotFound": "Turn {index} is not in this session",
   "rewindTurnCleared": "Turn {index} is inside a cleared span; rewinding into cleared history is not supported yet",
   "rewindNoTurns": "This session has no turns to rewind to",

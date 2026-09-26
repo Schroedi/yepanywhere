@@ -35,8 +35,10 @@ import {
   thinkingOptionToConfig,
   SERVER_CAPABILITIES,
   isTurnEffort,
+  isRewindSlashCommand,
   parseClearloopArguments,
   parseTurnIndexArgument,
+  REWIND_SLASH_COMMANDS,
 } from "@yep-anywhere/shared";
 import {
   type ComponentProps,
@@ -286,9 +288,7 @@ import {
 } from "../lib/sessionTitleHelpers";
 import {
   CLIENT_SLASH_COMMANDS,
-  REWIND_SLASH_COMMANDS,
   createClientSlashCommand,
-  isRewindSlashCommand,
   normalizeSlashCommandForMatch,
   resolveComposerDoneTarget,
   resolveComposerSessionOperation,
@@ -2246,7 +2246,9 @@ function SessionPageContent({
       }
     };
 
-    const slashTurn = resolveComposerSlashTurn(text);
+    const slashTurn = resolveComposerSlashTurn(text, {
+      rewindSupported: supportsRewind,
+    });
     if (slashTurn.kind === "custom") {
       const sessionOperation = resolveComposerSessionOperation({
         text,
@@ -3415,7 +3417,9 @@ function SessionPageContent({
     // Project Queue is a delayed lane, so a YA-emulated command must be
     // carried to the scheduler rather than run now the way the composer's
     // direct paths run it (topics/project-queue.md § Queued YA commands).
-    const classified = classifyQueuedYaCommand(text);
+    const classified = classifyQueuedYaCommand(text, {
+      rewindSupported: supportsRewind,
+    });
     const refuseCommand = (message: string) => {
       draftControlsRef.current?.setDraft(text);
       showToast(message, "error");
@@ -3439,10 +3443,6 @@ function SessionPageContent({
         refuseCommand(
           t("projectQueueCommandNeedsSession", { command: yaCommand.name }),
         );
-        return;
-      }
-      if (!supportsRewind) {
-        refuseCommand(t("rewindUnavailable"));
         return;
       }
       if (
@@ -4594,10 +4594,6 @@ function SessionPageContent({
   );
   const handleRewindCommand = useCallback(
     (command: "clear" | "fork" | "clearloop", argument: string): boolean => {
-      if (!supportsRewind) {
-        showToast(t("rewindUnavailable"), "error");
-        return true;
-      }
       const { idByIndex, clearedIds, lastLiveIndex } = sessionTurnIndex;
       const turnMissing = (index: number) => {
         showToast(
@@ -4685,7 +4681,6 @@ function SessionPageContent({
       sessionTurnIndex,
       showToast,
       startClearloop,
-      supportsRewind,
       t,
     ],
   );
