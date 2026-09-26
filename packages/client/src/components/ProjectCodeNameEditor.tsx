@@ -10,16 +10,26 @@ import styles from "./ProjectCodeNameEditor.module.css";
 interface ProjectCodeNameEditorProps {
   project: Project;
   onUpdateCodeName?: (project: Project, codeName: string) => Promise<void>;
+  /**
+   * Why the last commit was refused. The caller renders it, because the chip
+   * sits in a title line that clips anything laid out below it.
+   */
+  error: string | null;
+  onErrorChange: (error: string | null) => void;
+  /** Id of the element showing `error`, for the field's `aria-describedby`. */
+  errorId: string;
 }
 
 export function ProjectCodeNameEditor({
   project,
   onUpdateCodeName,
+  error,
+  onErrorChange: setError,
+  errorId,
 }: ProjectCodeNameEditorProps) {
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(project.codeName ?? "");
-  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -89,6 +99,7 @@ export function ProjectCodeNameEditor({
             ref={inputRef}
             aria-label={t("projectCodeNameLabel")}
             aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errorId : undefined}
             className={styles.input}
             disabled={saving}
             maxLength={MAX_PROJECT_CODE_NAME_LENGTH}
@@ -133,11 +144,6 @@ export function ProjectCodeNameEditor({
         </button>
       ) : (
         <span className={styles.codeName}>{project.codeName}</span>
-      )}
-      {error && (
-        <span className={styles.error} role="alert">
-          {error}
-        </span>
       )}
     </div>
   );

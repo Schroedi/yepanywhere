@@ -20,7 +20,9 @@ Status: **implemented.**
   small outlined chip beside the full name, on the same line. Clicking it opens
   an inline editor, leaving the field commits, and the adjacent × cancels. The
   name yields space before the chip does, so the code stays readable on a
-  narrow card.
+  narrow card. A code the naming rule or the server refuses keeps the field
+  open and states the reason in full on its own line under the title line,
+  wrapping within the card; editing the field clears it.
 - Code names are unique across the projects visible to one YA server. A
   generated value remains stable across project ordering and visible-session
   changes, but is regenerated if another project's name introduces a generated

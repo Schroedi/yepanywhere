@@ -117,6 +117,36 @@ describe("ProjectCard", () => {
     });
   });
 
+  it("shows a refused code name's reason outside the truncated title line", async () => {
+    const onUpdateCodeName = vi.fn().mockResolvedValue(undefined);
+    render(
+      <I18nProvider>
+        <MemoryRouter>
+          <ProjectCard
+            project={{ ...project, codeName: "tst" }}
+            needsAttentionCount={0}
+            thinkingCount={0}
+            onUpdateCodeName={onUpdateCodeName}
+          />
+        </MemoryRouter>
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit code name" }));
+    const input = screen.getByRole("textbox", { name: "Project code name" });
+    fireEvent.change(input, { target: { value: "bad name" } });
+    fireEvent.blur(input);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("may contain only letters");
+    expect(alert.closest("strong")).toBeNull();
+    expect(input.getAttribute("aria-describedby")).toBe(alert.id);
+    expect(onUpdateCodeName).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: "good-name" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("cancels an inline code-name edit with the x control", () => {
     const onUpdateCodeName = vi.fn().mockResolvedValue(undefined);
     render(
