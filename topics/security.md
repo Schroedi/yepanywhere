@@ -106,7 +106,10 @@ names a project the user may read. Hiding a control in the client is cosmetic.
 in the project-write sandbox on this host, under the user's
 provider/model/effort lock. This covers create, resume, reactivate, a fork or
 clone copy once it runs, and Project Queue dispatch. A new session is forced
-to project-write, and an existing session must already be sandboxed. Remote
+to project-write, and an existing session must already be sandboxed. The same
+holds for acting in a session someone else started: a join grant sends turns,
+approves tools, interrupts, and changes the permission mode only of a session
+whose process runs sandboxed, never of the superuser's unsandboxed ones. Remote
 executors and computer control are refused, as is every other session action
 that launches a process, such as restart, recap, rewind, and clearloop. The
 sandbox keeps its own preconditions: enforced authentication, Linux, and a
@@ -124,12 +127,6 @@ new-session access to it, as an ordinary grant the superuser can revoke.
 
 **Outside the boundary.**
 
-- **A join grant confers the authority of the session joined.** A joiner may
-  send turns, approve tools, interrupt, and change the permission mode of any
-  fresh running session in that project, including the superuser's
-  unsandboxed sessions. Driving such a session is the server account's
-  authority. Grant join only to someone trusted with that authority, or only
-  on projects whose sessions run sandboxed.
 - **The network firewall is not forced.** A limited user's create request may
   turn off the sandbox's network firewall. The session then shares host
   networking and can reach the YA listener, local-network services, and
@@ -147,7 +144,7 @@ new-session access to it, as an ordinary grant the superuser can revoke.
   middleware, or a route that answers before it, breaches the boundary for
   every limited user at once.
 - **Unsupported hosts start nothing.** On a host where the sandbox cannot run,
-  a limited user can view and join sessions but cannot start one.
+  a limited user can view sessions but can neither start one nor act in one.
 
 ## File Access Is A Viewer Policy
 

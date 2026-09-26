@@ -1,6 +1,6 @@
 /**
- * Resolve which project a session belongs to, who started it, and whether it
- * is still fresh enough for a limited user to join.
+ * Resolve which project a session belongs to, who started it, whether it runs
+ * sandboxed, and whether it is still fresh enough for a limited user to join.
  *
  * Contract: topics/limited-users.md § Delivery v1 — Authorization.
  *
@@ -18,6 +18,11 @@ export interface SessionAccessFacts {
   provider: string | undefined;
   lastActivityMs: number | null;
   createdByUser: string | undefined;
+  /**
+   * Whether the session runs in the project-write sandbox: the live
+   * process's enforced level, else the level its last launch recorded.
+   */
+  sandboxed: boolean;
 }
 
 export interface SessionAccessResolverDeps {
@@ -28,6 +33,8 @@ export interface SessionAccessResolverDeps {
         provider?: string;
         /** Last provider message; null before the process has seen one. */
         lastActivityMs?: number | null;
+        /** The process enforces the project-write sandbox. */
+        sandboxed?: boolean;
       }
     | undefined;
   /** Session catalog rows, for sessions with no live process. */
@@ -39,10 +46,14 @@ export interface SessionAccessResolverDeps {
       updatedAt?: string;
     }>
   >;
-  /** Session metadata, for the user recorded at creation. */
-  getSessionMetadata: (
-    sessionId: string,
-  ) => { createdByUser?: string; workingProjectId?: string } | undefined;
+  /** Session metadata: the user recorded at creation and the sandbox level. */
+  getSessionMetadata: (sessionId: string) =>
+    | {
+        createdByUser?: string;
+        workingProjectId?: string;
+        sandboxLevel?: string;
+      }
+    | undefined;
   now?: () => number;
 }
 
@@ -167,9 +178,12 @@ export class SessionAccessResolver {
         provider: live.provider,
         lastActivityMs: live.lastActivityMs ?? row?.updatedAtMs ?? null,
         createdByUser: metadata?.createdByUser,
+        // What the running process enforces, whatever its metadata says.
+        sandboxed: live.sandboxed === true,
       };
     }
 
+    const sandboxed = metadata?.sandboxLevel === "project-write";
     if (!row) {
       // A pinned project still identifies an otherwise unknown session.
       if (metadata?.workingProjectId) {
@@ -178,6 +192,7 @@ export class SessionAccessResolver {
           provider: undefined,
           lastActivityMs: null,
           createdByUser: metadata.createdByUser,
+          sandboxed,
         };
       }
       return null;
@@ -187,10 +202,15 @@ export class SessionAccessResolver {
       provider: row.provider,
       lastActivityMs: row.updatedAtMs,
       createdByUser: metadata?.createdByUser,
+      sandboxed,
     };
   }
 
-  /** Whether a limited user may send turns to this session right now. */
+  /**
+   * Whether the session is fresh enough for a limited user to send turns to
+   * it right now. Freshness alone: the middleware also requires the session
+   * to run sandboxed.
+   */
   canJoin(
     facts: SessionAccessFacts,
     options: { username: string; offsetMinutes: number },

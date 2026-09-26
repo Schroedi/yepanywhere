@@ -42,8 +42,8 @@ export type LimitedRouteDecision =
     }
   /**
    * Allowed when the session's project grants at least `required`. A `join`
-   * requirement additionally needs the session to be fresh unless the user
-   * started it.
+   * requirement additionally needs the session to run sandboxed, and to be
+   * fresh unless the user started it.
    */
   | { kind: "session"; sessionId: string; required: RequiredAccess }
   /** Allowed, and the response is a list the caller must filter. */
@@ -157,8 +157,9 @@ function hasPrefix(path: string, prefixes: readonly string[]): boolean {
 
 /**
  * Session-scoped mutations a joiner may perform: sending and shaping turns in
- * an existing session. The few others a limited user may perform need the
- * project's new-session grant and are listed below.
+ * an existing session, which must run sandboxed (the middleware checks). The
+ * few others a limited user may perform need the project's new-session grant
+ * and are listed below.
  */
 const JOIN_SESSION_ACTIONS = new Set([
   "messages",

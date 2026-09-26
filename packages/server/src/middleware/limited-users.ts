@@ -399,6 +399,19 @@ export function createLimitedUsersMiddleware(
         if (!satisfies(level, decision.required)) {
           return c.json({ error: "Not permitted for this user" }, 403);
         }
+        if (decision.required === "join" && !facts.sandboxed) {
+          // Driving a process that runs outside the sandbox — sending turns,
+          // approving tools, changing its permission mode — is the server
+          // account's authority, whoever started it and however fresh it is.
+          return c.json(
+            {
+              error:
+                "This session runs outside the sandbox, so this user cannot act in it; start a new session instead",
+              reason: "unsandboxed-session",
+            },
+            403,
+          );
+        }
         if (
           decision.required === "join" &&
           !options.sessionAccess.canJoin(facts, {

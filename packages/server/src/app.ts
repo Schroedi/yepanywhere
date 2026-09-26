@@ -818,6 +818,7 @@ export function createApp(options: AppOptions): AppResult {
         projectId: process.projectId,
         provider: process.provider,
         lastActivityMs: process.lastProviderMessageTime?.getTime() ?? null,
+        sandboxed: process.sandboxEnforcement?.effective === "project-write",
       };
     },
     // The one retained catalog All Sessions and Inbox read, built below.

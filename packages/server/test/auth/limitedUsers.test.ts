@@ -524,10 +524,24 @@ describe("limited-user middleware", () => {
     const app = new Hono();
     const sessions = new Map<
       string,
-      { projectId: string; provider: string; lastActivityMs: number }
+      {
+        projectId: string;
+        provider: string;
+        lastActivityMs: number;
+        sandboxLevel?: string;
+      }
     >([
       [
         "fresh",
+        {
+          projectId: "join-project",
+          provider: "codex",
+          lastActivityMs: 0,
+          sandboxLevel: "project-write",
+        },
+      ],
+      [
+        "unsandboxed",
         { projectId: "join-project", provider: "codex", lastActivityMs: 0 },
       ],
     ]);
@@ -541,7 +555,9 @@ describe("limited-user middleware", () => {
           provider: row.provider,
           updatedAt: new Date(row.lastActivityMs).toISOString(),
         })),
-      getSessionMetadata: () => undefined,
+      getSessionMetadata: (sessionId) => ({
+        sandboxLevel: sessions.get(sessionId)?.sandboxLevel,
+      }),
       now,
     });
     app.use(
@@ -618,7 +634,10 @@ describe("limited-user middleware", () => {
       }),
     );
     app.get("/api/projects/:projectId/files", (c) => c.json({ ok: true }));
+    app.get("/api/sessions/:sessionId", (c) => c.json({ ok: true }));
     app.post("/api/sessions/:sessionId/messages", (c) => c.json({ ok: true }));
+    app.put("/api/sessions/:sessionId/mode", (c) => c.json({ ok: true }));
+    app.post("/api/sessions/:sessionId/input", (c) => c.json({ ok: true }));
     app.get("/api/issues", (c) => c.json({ issues: [] }));
     return app;
   };
@@ -754,6 +773,27 @@ describe("limited-user middleware", () => {
     expect(((await response.json()) as { reason?: string }).reason).toBe(
       "stale-session",
     );
+  });
+
+  it("refuses every join action on a fresh session outside the sandbox", async () => {
+    const app = await buildApp({ now: () => 5 * 60 * 1000 });
+    for (const [method, action] of [
+      ["POST", "messages"],
+      ["PUT", "mode"],
+      ["POST", "input"],
+    ] as const) {
+      const response = await app.request(
+        `/api/sessions/unsandboxed/${action}`,
+        { method },
+      );
+      expect(response.status, action).toBe(403);
+      expect(
+        ((await response.json()) as { reason?: string }).reason,
+        action,
+      ).toBe("unsandboxed-session");
+    }
+    // Reading it stays open to a joiner.
+    expect((await app.request("/api/sessions/unsandboxed")).status).toBe(200);
   });
 
   it("answers 401 once the logged-in user is disabled", async () => {
@@ -901,6 +941,25 @@ describe("session access resolver", () => {
     expect(
       facts && resolver.canJoin(facts, { username: "alice", offsetMinutes: 0 }),
     ).toBe(false);
+  });
+
+  it("takes a live process's sandbox over the level its metadata recorded", async () => {
+    const resolverFor = (sandboxed: boolean) =>
+      new SessionAccessResolver({
+        getLiveSession: () => ({
+          projectId: "join-project",
+          provider: "claude",
+          lastActivityMs: now,
+          sandboxed,
+        }),
+        readCatalogRows: async () => [],
+        getSessionMetadata: () => ({ sandboxLevel: "project-write" }),
+        now: () => now,
+      });
+    expect((await resolverFor(false).resolve("running"))?.sandboxed).toBe(
+      false,
+    );
+    expect((await resolverFor(true).resolve("running"))?.sandboxed).toBe(true);
   });
 
   it("resolves no project for a session the catalog files under two", async () => {

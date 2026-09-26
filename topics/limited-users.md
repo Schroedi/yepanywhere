@@ -174,8 +174,13 @@ way, because it is where the switch and the first user both live.
 - `newSessionProjects: string[]` — projects where the user may start
   sessions. Every session they start is forced to `sandboxLevel:
   "project-write"`; the request cannot select `none`.
-- `joinProjects: string[]` — projects where the user may send turns to a
-  **fresh** existing session started by anyone.
+- `joinProjects: string[]` — projects where the user may act in a
+  **fresh**, **sandboxed** existing session started by anyone: send and
+  shape turns, attach files, answer and approve tool requests, interrupt,
+  and change its permission mode. That is the authority of the session's
+  process, so it is granted only where that process runs in the
+  project-write sandbox; a session running outside it stays read-only for
+  the user, whoever started it.
 - `viewProjects: string[]` — projects whose sessions the user may read.
 - `joinStaleOffsetMinutes` — −5 to +60, default 0 (see freshness below).
 - `lock: { provider?, model?, effort? }` — any subset; an absent field is
@@ -225,7 +230,7 @@ percent-encoding is refused.
 | resume or reactivate a session | `newSessionProjects` on its project; the session must already run sandboxed and on this host, else 403; the lock applies as at create, replacing the session's model and effort with locked ones |
 | fork or clone a session | `newSessionProjects` on its project; the copy is recorded as the user's own; running it is a resume, under the row above |
 | any other session action that starts a provider process (restart, recap, retitle, fork-after-summary, rewind, clearloop, resuming or steering a restart-paused queued message, session bang commands) and moving a session to another project | 403: only listed session actions are open, and each listed one that launches applies this launch policy |
-| turn/approval/interrupt on a session | the session's project in `newSessionProjects` or `joinProjects`, **and** the session is fresh or started by this user |
+| turn/approval/interrupt/permission-mode change on a session | the session's project in `newSessionProjects` or `joinProjects`, **and** the session runs sandboxed (its live process enforces project-write, or with no process its last launch recorded it), else 403 with reason `unsandboxed-session`, **and** it is fresh or started by this user, else 403 with reason `stale-session` |
 | any session the user started | always at least readable, including after its project grant is removed |
 | Issues & PRs (`/api/issues*`) | 403, and the nav entry is hidden: it spends the host's ticket-system credentials |
 | Inbox, Projects, Source Control, All Sessions | served, with every project and session outside the user's grants removed before pagination; All Sessions project options and aggregate statistics use the same scope |
