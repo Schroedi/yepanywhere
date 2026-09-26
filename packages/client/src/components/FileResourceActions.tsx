@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useOptionalToastContext } from "../contexts/ToastContext";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { beginTooltipSuppression } from "../hooks/useTooltipAppearance";
 import { useI18n } from "../i18n";
 import { useClientSummarySourceKey } from "../lib/clientSummaryStore";
+import { downloadBlob } from "../lib/imageActions";
 import { isMarkdownLikeFile } from "../lib/markdownFiles";
 import {
   createNewSessionPrefillToken,
@@ -27,6 +29,14 @@ export function supportsSourceAndPreview(
   );
 }
 
+/**
+ * What the resource menu's Download row saves: bytes the client fetches, or
+ * a URL the browser downloads itself.
+ */
+export type ResourceDownload =
+  | { fileName: string; loadBlob: () => Promise<Blob> }
+  | { url: string };
+
 export interface ResourceContextMenuProps {
   x: number;
   y: number;
@@ -41,7 +51,7 @@ export interface ResourceContextMenuProps {
   onCopyProjectRelativePath?: () => void;
   onCopyPublicUrl?: () => void;
   onCopyViewerLink?: () => void;
-  onDownload?: () => void;
+  download?: ResourceDownload;
   onOpen: () => void;
   onOpenPreview?: () => void;
   onOpenSource?: () => void;
@@ -142,6 +152,37 @@ export function useStartNewSessionFromFile(
   }, [filePath, projectId, startNewSession]);
 }
 
+/**
+ * Saves a resource menu download. Fetched bytes go under `fileName`, and a
+ * failed fetch is reported: the menu has closed by the time the fetch settles,
+ * so the reason goes to an error toast. A URL is handed to the browser, whose
+ * own download UI reports its failures.
+ */
+function useSaveResourceDownload() {
+  const { t } = useI18n();
+  const showToast = useOptionalToastContext()?.showToast;
+  return (download: ResourceDownload) => {
+    if ("url" in download) {
+      const anchor = document.createElement("a");
+      anchor.href = download.url;
+      anchor.click();
+      return;
+    }
+    const { fileName, loadBlob } = download;
+    void loadBlob()
+      .then((blob) => downloadBlob(blob, fileName))
+      .catch((error: unknown) => {
+        showToast?.(
+          t("resourceDownloadFailed" as never, {
+            fileName,
+            reason: error instanceof Error ? error.message : String(error),
+          }),
+          "error",
+        );
+      });
+  };
+}
+
 function FilePathContextMenuItem({
   children,
   expanded = false,
@@ -230,7 +271,7 @@ export function ResourceContextMenu({
   onCopyProjectRelativePath,
   onCopyPublicUrl,
   onCopyViewerLink,
-  onDownload,
+  download,
   onOpen,
   onOpenPreview,
   onOpenSource,
@@ -239,6 +280,7 @@ export function ResourceContextMenu({
   stopLabel,
 }: ResourceContextMenuProps) {
   const { t } = useI18n();
+  const saveDownload = useSaveResourceDownload();
   const [panel, setPanel] = useState<"open" | "root">("root");
   const hasPresentationChoice = Boolean(onOpenSource && onOpenPreview);
   const hasCopyActions = Boolean(
@@ -257,7 +299,7 @@ export function ResourceContextMenu({
     window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   const rootItemCount =
     1 +
-    Number(Boolean(onDownload)) +
+    Number(Boolean(download)) +
     Number(Boolean(canStartNewSession && onStartNewSession)) +
     Number(Boolean(onCopyImage)) +
     Number(Boolean(onCopyProjectRelativePath)) +
@@ -349,10 +391,10 @@ export function ResourceContextMenu({
               t("fileLinkMenuOpen" as never)
             )}
           </FilePathContextMenuItem>
-          {onDownload ? (
+          {download ? (
             <FilePathContextMenuItem
               onHover={usesHoverFlyout ? () => setPanel("root") : undefined}
-              onSelect={() => select(onDownload)}
+              onSelect={() => select(() => saveDownload(download))}
             >
               {t("resourceMenuDownload" as never)}
             </FilePathContextMenuItem>

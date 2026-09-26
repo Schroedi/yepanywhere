@@ -106,7 +106,6 @@ describe("FilePathContextMenu", () => {
 
   it("adds capability-shaped image actions without file-only entries", () => {
     const onCopyImage = vi.fn();
-    const onDownload = vi.fn();
     render(
       <I18nProvider>
         <ResourceContextMenu
@@ -116,7 +115,7 @@ describe("FilePathContextMenu", () => {
           dismissLabel="Dismiss image actions"
           onClose={vi.fn()}
           onCopyImage={onCopyImage}
-          onDownload={onDownload}
+          download={{ fileName: "plot.png", loadBlob: vi.fn() }}
           onOpen={vi.fn()}
         />
       </I18nProvider>,

@@ -22,6 +22,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api/client";
+import { projectRawFileApiPath } from "../api/fileClient";
 import { BackArrowIcon } from "./BackArrowIcon";
 import {
   buildPublicShareFileHref,
@@ -52,6 +53,7 @@ import { downloadBlob } from "../lib/imageActions";
 import { isMarkdownLikeFile } from "../lib/markdownFiles";
 import { extractMarkdownSnippetsFromSelection } from "../lib/markdownSelectionCopy";
 import { getRenderedFileClipboardPayload } from "../lib/renderedFileClipboard";
+import { toSourceTransportApiPath } from "../lib/sourceTransportPaths";
 import type { ViewerFindSource } from "../lib/viewerFind";
 import { ArtifactPreview } from "./ArtifactPreview";
 import { ViewerModeToggle } from "./ViewerModeToggle";
@@ -1462,9 +1464,12 @@ export const FileViewer = memo(function FileViewer({
       return;
     }
 
-    const params = new URLSearchParams({ path: filePath, download: "true" });
     void transport
-      .fetchBlob(`/projects/${projectId}/files/raw?${params}`)
+      .fetchBlob(
+        toSourceTransportApiPath(
+          projectRawFileApiPath(projectId, filePath, true),
+        ),
+      )
       .then((blob) => downloadBlob(blob, fileName))
       .catch((err) => {
         setError(
@@ -1492,9 +1497,8 @@ export const FileViewer = memo(function FileViewer({
     if (source.fetchRawFileBlob) {
       return source.fetchRawFileBlob(fileData, filePath, false);
     }
-    const params = new URLSearchParams({ path: filePath });
     return transport.fetchBlob(
-      `/projects/${encodeURIComponent(projectId)}/files/raw?${params}`,
+      toSourceTransportApiPath(projectRawFileApiPath(projectId, filePath)),
     );
   }, [fileData, filePath, projectId, source, transport]);
   const imageActions = useImageResourceActions({

@@ -326,7 +326,10 @@ vocabulary even though their authorization routes remain distinct:
 - **Download** is a direct root-menu action for every local-file and
   project-file link. It fetches the original bytes through the active source
   transport and saves them under the path basename; opening a viewer is not a
-  prerequisite.
+  prerequisite. When the bytes cannot be fetched — the file is gone, outside
+  the allow-set, or the transport fails — nothing is saved and an error toast
+  names the file and the reason. Image menus' **Download** follows the same
+  rule.
 - Public shares may expose their share-scoped viewer link and project-relative
   path, but the file action menu does not derive or copy the host's absolute
   project path.

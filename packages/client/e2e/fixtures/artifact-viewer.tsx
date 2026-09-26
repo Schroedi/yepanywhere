@@ -36,7 +36,7 @@ function Fixture() {
       canStartNewSession={false}
       onClose={() => {}}
       onCopyPublicUrl={() => {}}
-      onDownload={() => {}}
+      download={{ url: "about:blank" }}
       onOpen={() => {}}
     />
   ) : query.has("settings") ? (

@@ -17,6 +17,7 @@ import {
   useState,
 } from "react";
 import { api } from "../api/client";
+import { projectRawFileApiPath } from "../api/fileClient";
 import { usePublicShareContext } from "../contexts/PublicShareContext";
 import { useOptionalSessionMetadata } from "../contexts/SessionMetadataContext";
 import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
@@ -34,7 +35,7 @@ import {
   writeClipboardText,
   writeClipboardTextLater,
 } from "../lib/clipboard";
-import { downloadBlob, writeClipboardImageLater } from "../lib/imageActions";
+import { writeClipboardImageLater } from "../lib/imageActions";
 import { ArtifactPreview } from "./ArtifactPreview";
 import { SourceEditAction } from "./SourceEditor";
 import { ViewerFindField } from "./ViewerFindField";
@@ -241,13 +242,11 @@ function localResourceApiPath(
     resource.kind === "project-raw-file" ||
     (resource.kind === "project-file" && resource.projectId)
   ) {
-    const params = new URLSearchParams({ path: resource.path });
-    if (download) {
-      params.set("download", "true");
-    }
-    return `/api/projects/${encodeURIComponent(
+    return projectRawFileApiPath(
       resource.projectId ?? "",
-    )}/files/raw?${params.toString()}`;
+      resource.path,
+      download,
+    );
   }
 
   const params = new URLSearchParams({ path: resource.path });
@@ -1022,12 +1021,10 @@ function getCurrentHref(): string | undefined {
   return typeof window === "undefined" ? undefined : window.location.href;
 }
 
-function downloadArtifactUrl(rawUrl: string): void {
+function artifactDownloadUrl(rawUrl: string): string {
   const url = new URL(rawUrl);
   url.searchParams.set("download", "true");
-  const anchor = document.createElement("a");
-  anchor.href = url.href;
-  anchor.click();
+  return url.href;
 }
 
 function isLocalFileResource(resource: LocalResourceRef): boolean {
@@ -1145,37 +1142,24 @@ function LocalResourceContextMenu({
       }
       onClose={onClose}
       onOpen={() => openResource()}
-      onDownload={
-        isMedia
-          ? () => {
-              void fetchLocalMediaBlob(
-                contextMenu.resource.path,
-                undefined,
-                "modal",
+      download={{
+        fileName: getFileName(contextMenu.resource.path),
+        loadBlob: () => {
+          const { projectFileTarget, resource } = contextMenu;
+          return isMedia
+            ? fetchLocalMediaBlob(resource.path, undefined, "modal", transport)
+            : fetchLocalResourceBlob(
+                projectFileTarget
+                  ? projectRawFileApiPath(
+                      projectFileTarget.projectId,
+                      projectFileTarget.filePath,
+                      true,
+                    )
+                  : localResourceApiPath(resource, false, true),
                 transport,
-              )
-                .then((blob) =>
-                  downloadBlob(blob, getFileName(contextMenu.resource.path)),
-                )
-                .catch(() => {});
-            }
-          : () => {
-              const { projectFileTarget, resource } = contextMenu;
-              const apiPath = projectFileTarget
-                ? `/api/projects/${encodeURIComponent(
-                    projectFileTarget.projectId,
-                  )}/files/raw?${new URLSearchParams({
-                    path: projectFileTarget.filePath,
-                    download: "true",
-                  })}`
-                : localResourceApiPath(resource, false, true);
-              void fetchLocalResourceBlob(apiPath, transport)
-                .then((blob) =>
-                  downloadBlob(blob, getFileName(contextMenu.resource.path)),
-                )
-                .catch(() => {});
-            }
-      }
+              );
+        },
+      }}
       onCopyImage={
         isMedia
           ? () => {
@@ -1544,7 +1528,7 @@ export function useLocalResourceClick(
       onOpen={() =>
         openArtifact?.(artifactContextMenu.url, artifactContextMenu.label)
       }
-      onDownload={() => downloadArtifactUrl(artifactContextMenu.url)}
+      download={{ url: artifactDownloadUrl(artifactContextMenu.url) }}
       onCopyPublicUrl={
         artifactContextMenu.publicUrl
           ? () => void writeClipboardText(artifactContextMenu.publicUrl ?? "")

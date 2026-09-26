@@ -3568,6 +3568,7 @@
   "fileLinkMenuViewerLink": "Viewer link",
   "fileLinkMenuContents": "Contents",
   "resourceMenuDownload": "Download",
+  "resourceDownloadFailed": "Could not download {fileName}: {reason}",
   "imageResourceMenuImage": "Image",
   "imageResourceDismissMenu": "Dismiss image menu",
   "fileLinkMenuView": "View",

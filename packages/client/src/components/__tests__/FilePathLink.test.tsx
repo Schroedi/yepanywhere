@@ -10,6 +10,7 @@ import { type ReactNode, StrictMode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PublicShareProvider } from "../../contexts/PublicShareContext";
+import { ToastProvider } from "../../contexts/ToastContext";
 import { I18nProvider } from "../../i18n";
 import { LOCAL_CLIENT_SUMMARY_SOURCE_KEY } from "../../lib/clientSummaryStore";
 import { getNewSessionPrefill } from "../../lib/newSessionPrefill";
@@ -677,6 +678,36 @@ describe("FilePathLink", () => {
     expect(String(fetchFile.mock.calls[0]?.[0])).toContain(
       "/api/projects/project-id/files/raw?path=docs%2Fguide.md&download=true",
     );
+  });
+
+  it("reports a file-link download that cannot be fetched", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("File not found", { status: 404 })),
+    );
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+
+    render(
+      <I18nProvider>
+        <ToastProvider>
+          <FilePathLink
+            projectId="project-id"
+            filePath="docs/gone.md"
+            displayText="gone.md"
+          />
+        </ToastProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("link", { name: "gone.md" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Download" }));
+
+    expect(
+      await screen.findByText(/^Could not download gone\.md: /),
+    ).toBeTruthy();
+    expect(click).not.toHaveBeenCalled();
   });
 
   it("opens the selected HTML presentation from the context menu", async () => {
