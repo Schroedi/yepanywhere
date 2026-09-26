@@ -9,15 +9,6 @@ Topic: project-names
 
 Status: **implemented (2026-09-20).**
 
-**Approved extension, not implemented:** deliberate post-creation human naming
-must be recorded inside every affected project in `.project-identity.json`,
-so redoc and other agents preserve the exact name outside YA. Creation-time
-choices remain provisional and create no marker. See the
-[identity contract](project-captions.md#approved-project-local-identity-extension-not-implemented)
-and [implementation gap](../gaps/project-local-identity.md). This deliberately
-changes the storage posture for that specific later edit, not the current
-runtime described below or unrelated metadata families.
-
 ## User-visible contract
 
 - **Adding a project** takes a path, a name, and, when Short Project Code
@@ -73,6 +64,10 @@ keeps the path-derived name in its snapshot and applies the override on every
 read. Retained session-catalog rows store the name their file was read under,
 so the collection projection names each row afresh rather than trusting the
 stored `projectName`. A rename therefore needs no rescan.
+
+An approved, unimplemented extension would also record a deliberate
+post-creation rename in the project itself; see
+[project captions § Approved project-local identity extension](project-captions.md#approved-project-local-identity-extension-not-implemented).
 
 Capability `project-names` (permanent ID 80, version-implied from `0.8.2`)
 owns the `name` and `codeName` request fields on `POST /api/projects`,

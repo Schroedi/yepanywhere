@@ -313,27 +313,12 @@ exist. Redoc keeps the whole doc hierarchy truthful and readable, repairs
 links, and refreshes a project-specific `docs/brand.svg` leading README.
 This project branding is separate from the template chooser illustration.
 
-Initial name/intent is provisional and creates no protection marker. Only a
-deliberate post-creation YA-UI name/caption edit creates root
-`.project-identity.json`, for existing/imported projects as well as templates.
-Follow the exact schema in project-captions and the vendored redoc reference.
-Preserve independent human name/description strings byte-for-byte at the
-decoded-string level. Description is humanText + separately editable agentCoda;
-the coda owns its separator and can be replaced/removed. Name has no coda.
-Do not normalize repeated spaces or Unicode; reject invalid input instead.
-
-This project-local file is the authority, an explicitly approved exception to
-app-data-only storage. Private YA metadata alone is insufficient. Do not create
-the file for ordinary discovery or automatically ignore it. Fail a human edit
-if the record cannot safely persist. Handle malformed versions, escaping
-symlinks, concurrent file/UI edits, cache invalidation and independent reset.
-Legacy private overrides do not prove a post-creation conscious human edit.
-
-Redoc reads this record before revising README or manifest descriptions,
-preserves the human portion exactly, and may update the coda. Do not rename
-package IDs/imports/directories/deployment targets as autodoc. Ordinary prose
-is freely revisable; no Git-blame ownership ledger or blanket protection for
-handwritten docs. Users wanting editorial control may supply their own procedure.
+Implement the
+[project-local identity record](../../topics/project-captions.md#approved-project-local-identity-extension-not-implemented)
+for existing/imported projects as well as templates, including redoc's use of
+it. That section is the contract; the
+[identity gap](../../gaps/project-local-identity.md) lists the decisions it
+leaves open and the verification.
 
 Retain the flatter template layout: root app modules, tests/ and scripts/ for
 real artifacts, no superfluous src/ or empty directory placeholders. Prefer
