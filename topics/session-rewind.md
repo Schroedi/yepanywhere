@@ -395,14 +395,18 @@ A loop starts patient when the command itself arrived through a patient lane —
 a `/clearloop` delivered by Project Queue (§ Queued YA commands in
 [project-queue](project-queue.md)) — and impatient otherwise. Patience is also
 a runtime control on the remaining-count badge; changing it lands at the next
-boundary and never disturbs the iteration already running.
+boundary and never disturbs the iteration already running. A change made while
+that iteration rewinds or sends is kept: the loop's own record writes apply to
+the record as it is then, not to the copy the iteration started from.
 
 **Remaining-count badge menu.** Right-click, long-press, or the context-menu
 key on the session header's badge opens Stop, the patience toggle (Patient /
 Impatient), and Start now. Start now ends the current iteration immediately,
 skipping both the remaining inactivity window and any project wait; it refuses
 while the loop is already starting an iteration, rather than overlapping
-itself. A left click still cancels, as before. The badge is green while
+itself. Starting spans the boundary's record of the finished iteration through
+the next send, so a Start now that lands while a timer-driven boundary is
+still writing is refused rather than counting an iteration twice. A left click still cancels, as before. The badge is green while
 impatient and Project Queue purple while patient, so the wait the loop is in
 is legible without opening the menu. The sidebar and Agents chips stay
 passive and carry the same color.

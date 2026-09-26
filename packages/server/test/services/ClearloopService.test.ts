@@ -17,17 +17,41 @@ const projectId = Buffer.from("/home/user/test-project").toString(
   "base64url",
 ) as UrlProjectId;
 
-/** Enough of the metadata service for the clearloop record and its notice. */
+/**
+ * Enough of the metadata service for the clearloop record and its notice.
+ * Like the real service, a write updates the record at once and then waits
+ * for its flush; `holdFlushes` parks every later flush until released.
+ */
 function fakeMetadataService(): SessionMetadataService & {
   notices: string[];
+  holdFlushes: () => { held: () => number; release: () => void };
 } {
   let clearloop: SessionClearloopJob | undefined;
   const notices: string[] = [];
+  let flushGate: Promise<void> | null = null;
+  let heldFlushes = 0;
   return {
     notices,
+    holdFlushes: () => {
+      let release = (): void => {};
+      flushGate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return {
+        held: () => heldFlushes,
+        release: () => {
+          flushGate = null;
+          release();
+        },
+      };
+    },
     getClearloop: () => clearloop,
     setClearloop: async (_id: string, job: SessionClearloopJob | undefined) => {
       clearloop = job;
+      if (flushGate) {
+        heldFlushes += 1;
+        await flushGate;
+      }
     },
     addLocalCommandMessage: async (
       _id: string,
@@ -35,7 +59,7 @@ function fakeMetadataService(): SessionMetadataService & {
     ) => {
       notices.push(notice.content);
     },
-  } as unknown as SessionMetadataService & { notices: string[] };
+  } as unknown as ReturnType<typeof fakeMetadataService>;
 }
 
 /**
@@ -52,6 +76,7 @@ function startLoop(options?: { holdRewind?: boolean }) {
     getSupervisor: () =>
       ({ getProcessForSession: () => undefined }) as unknown as Supervisor,
     getInactivitySeconds: () => 30,
+    getProjectIdleStatus: async () => ({ idle: true, blockers: [] }),
   });
   let releaseRewind = (): void => {};
   let releaseSend = (): void => {};
@@ -283,6 +308,72 @@ describe("ClearloopService background tasks", () => {
     await started;
 
     await vi.waitFor(() => expect(sent).toHaveLength(2));
+  });
+});
+
+describe("ClearloopService single flight", () => {
+  it("refuses Start now while a check is closing out the iteration", async () => {
+    const sessionMetadataService = fakeMetadataService();
+    const service = new ClearloopService({
+      eventBus: new EventBus(),
+      sessionMetadataService,
+      getSupervisor: () =>
+        ({ getProcessForSession: () => undefined }) as unknown as Supervisor,
+      getInactivitySeconds: () => 0,
+    });
+    const sentIterations: Array<number | undefined> = [];
+    service.setRunner({
+      rewind: async () => "noop",
+      send: async ({ job }) => {
+        sentIterations.push(job.currentIteration);
+      },
+    });
+    await service.start(sessionId, projectId, {
+      cutMessageId: "cut-1",
+      cutTurnIndex: 3,
+      prompt: "keep going",
+      total: 3,
+      commandText: "/clearloop 0 3: keep going",
+    });
+    await vi.waitFor(() => expect(sentIterations).toEqual([1]));
+
+    // The timer-driven check reaches the boundary and parks in the flush that
+    // records iteration 1 as completed.
+    const flushes = sessionMetadataService.holdFlushes();
+    await vi.waitFor(() => expect(flushes.held()).toBe(1));
+
+    const startNow = service.startNow(sessionId);
+    flushes.release();
+    await expect(startNow).rejects.toThrow(/already starting an iteration/);
+
+    await vi.waitFor(() =>
+      expect(sessionMetadataService.getClearloop(sessionId)?.state).toBe(
+        "completed",
+      ),
+    );
+    expect(sentIterations).toEqual([1, 2, 3]);
+    expect(sessionMetadataService.getClearloop(sessionId)?.completed).toBe(3);
+  });
+
+  it("keeps a patience change made while the iteration rewinds", async () => {
+    const { service, sessionMetadataService, started, release } = startLoop({
+      holdRewind: true,
+    });
+    await started;
+
+    const patient = await service.setPatience(sessionId, true);
+    expect(patient?.patient).toBe(true);
+    release();
+
+    await vi.waitFor(() =>
+      expect(
+        sessionMetadataService.getClearloop(sessionId)?.currentIteration,
+      ).toBe(1),
+    );
+    expect(sessionMetadataService.getClearloop(sessionId)?.patient).toBe(true);
+
+    await service.cancel(sessionId);
+    release();
   });
 });
 
