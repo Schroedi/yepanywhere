@@ -97,9 +97,11 @@ export interface ProjectQueueMessage {
   mode?: PermissionMode;
   metadata?: UserMessageMetadata;
   /**
-   * A YA-emulated command to run against the target session at dispatch
-   * instead of sending `text` to the provider. `text` stays the verbatim
-   * command line so every queue surface shows what the user typed.
+   * Marks `text` as a YA-emulated command to run against the target session
+   * at dispatch instead of sending it to the provider. `text` is the only
+   * source of the command: the server re-derives name and argument from it on
+   * every write and at dispatch, so what runs is what every queue surface
+   * shows.
    */
   yaCommand?: QueuedYaCommand;
 }

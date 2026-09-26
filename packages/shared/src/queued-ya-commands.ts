@@ -108,3 +108,29 @@ export function classifyQueuedYaCommand(
   }
   return { kind: "prompt" };
 }
+
+/**
+ * The queueable command a tagged queue item's text spells, or undefined when
+ * it spells none. A tag exists only where the enqueuing session supported
+ * rewind, so the text is read with rewind support.
+ */
+export function queuedYaCommandForText(
+  text: string,
+): QueuedYaCommand | undefined {
+  const classified = classifyQueuedYaCommand(text, { rewindSupported: true });
+  return classified.kind === "queueable" ? classified.command : undefined;
+}
+
+/**
+ * Re-tag an edited queue message from its new text: a tagged item edited to
+ * another command runs that command, and one edited into prose becomes a
+ * prompt. An untagged message is returned unchanged.
+ */
+export function retagEditedQueuedMessage<
+  T extends { text: string; yaCommand?: QueuedYaCommand },
+>(message: T): T {
+  if (!message.yaCommand) return message;
+  const { yaCommand: _previous, ...rest } = message;
+  const yaCommand = queuedYaCommandForText(message.text);
+  return (yaCommand ? { ...rest, yaCommand } : rest) as T;
+}

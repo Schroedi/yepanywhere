@@ -27,7 +27,10 @@ import {
   type SessionLaunchOptions,
 } from "../supervisor/Supervisor.js";
 import type { AttachmentStagingService } from "../uploads/AttachmentStagingService.js";
-import type { ProjectQueueService } from "./ProjectQueueService.js";
+import {
+  type ProjectQueueService,
+  queuedYaCommandToRun,
+} from "./ProjectQueueService.js";
 import {
   ProjectQueueReadinessCheck,
   type ProjectQueueReadinessCommand,
@@ -943,6 +946,9 @@ export class ProjectQueueScheduler {
     const item = grants
       ? this.withinEnqueuerLaunchPolicy(queuedItem, grants)
       : queuedItem;
+    // Derived from the text as it stands, never a stored copy, so an item
+    // left inconsistent by an older build fails here instead of running.
+    const yaCommand = queuedYaCommandToRun(item);
     const permissionMode = item.message.mode ?? item.target.mode;
     const modelSettings = this.toModelSettings(item);
     const result =
@@ -953,6 +959,7 @@ export class ProjectQueueScheduler {
             modelSettings,
             options.deliveryIntent,
             grants,
+            yaCommand,
           )
         : await this.dispatchNewSessionItem(
             item,
@@ -1005,6 +1012,7 @@ export class ProjectQueueScheduler {
     modelSettings: ModelSettings,
     deliveryIntent: PromoteNowOptions["deliveryIntent"],
     grants: LimitedUserGrants | null,
+    yaCommand: QueuedYaCommand | undefined,
   ): Promise<ProjectQueueDispatchOutcome> {
     if (item.target.type !== "existing-session") {
       throw new Error("Project queue item target changed during dispatch");
@@ -1039,7 +1047,6 @@ export class ProjectQueueScheduler {
       );
       if (refused) throw new Error(refused.error);
     }
-    const yaCommand = item.message.yaCommand;
     if (yaCommand) {
       // A YA-emulated command is not provider text; the composer deliberately
       // did not run it, so the runner performs it here instead of resuming

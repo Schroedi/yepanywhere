@@ -695,6 +695,8 @@ export {
   type QueuedYaCommandClassification,
   type QueuedYaCommandName,
   classifyQueuedYaCommand,
+  queuedYaCommandForText,
+  retagEditedQueuedMessage,
 } from "./queued-ya-commands.js";
 export {
   type ClearloopCommandArguments,

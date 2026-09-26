@@ -469,6 +469,59 @@ describe("ProjectQueueScheduler", () => {
     );
   });
 
+  it("refuses a retried command whose text no longer spells it", async () => {
+    await scheduler.dispose();
+    await fs.writeFile(
+      path.join(testDir, "project-queues.json"),
+      JSON.stringify({
+        version: 3,
+        items: [
+          {
+            id: "stale",
+            projectId,
+            projectPath: PROJECT_PATH,
+            target: { type: "existing-session", sessionId: "session-1" },
+            // Left behind by a build that let an edit keep the old tag.
+            message: {
+              text: "summarize instead",
+              yaCommand: { name: "clearloop", argument: "3 2: keep going" },
+            },
+            createdAt: "2026-06-01T00:00:00.000Z",
+            updatedAt: "2026-06-01T00:00:00.000Z",
+            status: "queued",
+          },
+        ],
+      }),
+    );
+    service = new ProjectQueueService({ dataDir: testDir, eventBus });
+    await service.initialize();
+    await service.resumeDispatch();
+    scheduler = new ProjectQueueScheduler({
+      projectQueueService: service,
+      supervisor,
+      eventBus,
+      idleGraceMs: 1,
+      blockedRetryMs: 10,
+    });
+    const runs: unknown[] = [];
+    scheduler.setYaCommandRunner({
+      run: async (input) => {
+        runs.push(input);
+      },
+    });
+
+    await service.retryItem(projectId, "stale");
+
+    await waitFor(() => {
+      const [item] = service.listProject(projectId).items;
+      expect(item?.lastAttemptAt).toBeDefined();
+      expect(item?.status).toBe("failed");
+      expect(item?.lastError).toContain("no longer spells /clearloop");
+    });
+    expect(runs).toHaveLength(0);
+    expect(supervisor.resumeCalls).toHaveLength(0);
+  });
+
   it("fails a queued YA command item with the session's refusal", async () => {
     scheduler.setYaCommandRunner({
       run: async () => {

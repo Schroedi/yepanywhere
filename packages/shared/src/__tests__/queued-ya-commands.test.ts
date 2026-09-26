@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { classifyQueuedYaCommand } from "../queued-ya-commands.js";
+import {
+  classifyQueuedYaCommand,
+  retagEditedQueuedMessage,
+} from "../queued-ya-commands.js";
 
 const rewind = { rewindSupported: true };
 const noRewind = { rewindSupported: false };
@@ -64,5 +67,32 @@ describe("classifyQueuedYaCommand", () => {
     ]) {
       expect(classifyQueuedYaCommand(text, rewind)).toEqual({ kind: "prompt" });
     }
+  });
+});
+
+describe("retagEditedQueuedMessage", () => {
+  const tagged = {
+    text: "/clearloop 3 2: p",
+    mode: "default",
+    yaCommand: { name: "clearloop" as const, argument: "3 2: p" },
+  };
+
+  it("follows an edit to another command", () => {
+    expect(retagEditedQueuedMessage({ ...tagged, text: "/clear 5" })).toEqual({
+      text: "/clear 5",
+      mode: "default",
+      yaCommand: { name: "clear", argument: "5" },
+    });
+  });
+
+  it("turns a command edited into prose into a prompt", () => {
+    expect(
+      retagEditedQueuedMessage({ ...tagged, text: "summarize instead" }),
+    ).toEqual({ text: "summarize instead", mode: "default" });
+  });
+
+  it("leaves an untagged message alone, even when it looks like a command", () => {
+    const prose = { text: "/clear 5" };
+    expect(retagEditedQueuedMessage(prose)).toBe(prose);
   });
 });
