@@ -3,7 +3,8 @@
 > A project caption is a one- or two-sentence description shown under the
 > project name on Projects and in the session breadcrumb tooltip. The server
 > derives it from the project's README, else a known manifest, caches the
-> result for a day, and lets the user override it inline with a ✓/× editor.
+> result until those files change, and lets the user override it inline with
+> a ✓/× editor.
 
 Topic: project-captions
 
@@ -95,10 +96,14 @@ Captions are at most 300 characters. A longer README paragraph is cut at the
 last sentence boundary inside the limit, else at a word boundary with an
 ellipsis. Whitespace is collapsed.
 
-Derived captions are cached in server memory per project path for 24 hours
-so listing projects never rescans directories. A README edit therefore shows
-up within a day or after a server restart; an override applies immediately
-because it lives outside the cache. The current template content prototype
+Derived captions, including the finding that a project has none, are cached
+in server memory per project path. Each listing reuses a cached result only
+while the project directory and every file its derivation read still carry
+the same modification time, size, and inode; checking that costs one `stat`
+per input rather than a directory scan. A README edit, including an agent
+replacing a template's placeholder comment with the real summary, therefore
+shows up on the next project read. An override applies immediately because it
+lives outside the cache. The current template content prototype
 ([[project-templates]]) seeds a readable summary during scripted setup and
 leads its README with a separate thumbnail image block, which the heuristic
 skips. Preparation then refines the initial summary through redoc.
@@ -113,7 +118,9 @@ Capability `project-captions` (permanent ID 79, version-implied from
   `GET /api/projects/:projectId`, and `POST /api/projects` responses;
 - `PATCH /api/projects/:projectId/caption` with `{ caption: string | null }`;
   `null` or an empty string clears the override; the response carries the
-  resulting effective `caption`;
+  resulting effective `caption`. The id must name a listed project: any other
+  directory, including a removed (hidden) project, answers 404 and stores
+  nothing;
 - the `project-captions-changed` event naming the changed project ids, which
   the client uses to revalidate project lists and the selected project.
 

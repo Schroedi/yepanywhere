@@ -705,7 +705,9 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
       return c.json({ error: "caption must be a string or null" }, 400);
     }
 
-    const project = await deps.scanner.getOrCreateProject(projectId);
+    // Only a listed project takes a caption; an arbitrary directory's id
+    // must not gain app-data metadata through this route.
+    const project = await deps.scanner.getProject(projectId);
     if (!project) {
       return c.json({ error: "Project not found" }, 404);
     }
