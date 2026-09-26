@@ -127,6 +127,10 @@ alone establishes neither.
 
 ## Existing work and consumer boundaries
 
+- [DuckDB transcript queries](duckdb-transcript-queries.md) is a separate,
+  mostly orthogonal investigation of on-demand file queries and derived tables.
+  The shared discovery context is persuasive Developer Voices interviews,
+  not a proposed technical dependency between the two experiments.
 - [Session catalog observation](../../topics/session-catalog-observation.md)
   already defines retained collections, bounded reconciliation, shared work,
   and freshness. Its [reconciliation plan](../../docs/tactical/093-provider-session-reconciliation.md)
