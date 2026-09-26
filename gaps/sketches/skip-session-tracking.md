@@ -30,6 +30,27 @@ field fidelity, and exact watcher invalidation. Skip should replace an owning
 derivation mechanism where useful, not become another cache layered over the
 same invalidation problem.
 
+## Selection criterion: maintained computed state
+
+The maintainer relays the Skip founder's advice: when update handling is simple
+routing, such as delivering IRC messages, Skip adds no advantage over that
+simple routing. Its value arises when updates must keep meaningful computed
+state in sync, such as counts or relationships describing who converses with
+whom. This is attributed design guidance, not a measured YA performance claim.
+
+Apply that distinction before selecting a migration target. Provider event
+forwarding alone is not a reason to introduce Skip. Session counts by project
+or status, relationship joins, and dependent summary projections are better
+candidates because they maintain computed properties across changes. A cache
+qualifies only if its dependency maintenance benefits from the graph; merely
+retaining or forwarding a value does not establish that benefit.
+
+The POC should include simple routing as a control and a separate workload with
+maintained counts/relationships. Name the derived properties, their source
+dependencies, and the existing update logic that Skip would replace. Measure
+the cost and correctness of keeping those properties synchronized, rather than
+using message throughput alone to judge the framework's value.
+
 ## Existing work and consumer boundaries
 
 - [Session catalog observation](../../topics/session-catalog-observation.md)
