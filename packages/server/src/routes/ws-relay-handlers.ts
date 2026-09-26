@@ -374,9 +374,7 @@ export interface RelayHandlerDeps {
    */
   authorizeSubscription?: (params: {
     username: string | null;
-    channel: string;
-    sessionId?: string;
-    projectId?: string;
+    target: SubscriptionAccessTarget;
   }) => Promise<boolean>;
   /** Remote session service for session persistence (optional for direct, required for relay) */
   remoteSessionService?: RemoteSessionService;
@@ -1657,6 +1655,50 @@ export function handleWorktreeSubscribe(
 /**
  * Handle a subscribe message.
  */
+/**
+ * The projects and sessions a subscription reads: exactly the ids its channel
+ * handler below uses, so authorization judges what the stream will deliver
+ * rather than whichever id a client puts beside it. `global` is the activity
+ * channel, whose events are filtered one by one; `unknown` is a channel this
+ * server does not serve.
+ */
+export type SubscriptionAccessTarget =
+  | { kind: "global" }
+  | { kind: "scoped"; projectIds: string[]; sessionIds: string[] }
+  | { kind: "unknown" };
+
+export function subscriptionAccessTarget(
+  msg: RelaySubscribe,
+): SubscriptionAccessTarget {
+  const ids = (...values: unknown[]): string[] =>
+    values.filter(
+      (value): value is string => typeof value === "string" && value !== "",
+    );
+  switch (msg.channel) {
+    case "activity":
+      return { kind: "global" };
+    case "session":
+      return { kind: "scoped", projectIds: [], sessionIds: ids(msg.sessionId) };
+    case "/api/experimental/conversation/subscribe":
+      return {
+        kind: "scoped",
+        projectIds: [],
+        sessionIds: ids(msg.query?.sessionId),
+      };
+    case "session-watch":
+      return {
+        kind: "scoped",
+        projectIds: ids(msg.projectId),
+        sessionIds: ids(msg.sessionId),
+      };
+    case "glossary":
+    case "worktree":
+      return { kind: "scoped", projectIds: ids(msg.projectId), sessionIds: [] };
+    default:
+      return { kind: "unknown" };
+  }
+}
+
 export function handleSubscribe(
   subscriptions: Map<string, () => void>,
   msg: RelaySubscribe,
@@ -2304,16 +2346,9 @@ export async function handleMessage(
       },
       onSubscribe: async (subscribeMsg) => {
         if (deps.authorizeSubscription) {
-          const params = subscribeMsg as unknown as {
-            channel: string;
-            sessionId?: string;
-            projectId?: string;
-          };
           const permitted = await deps.authorizeSubscription({
             username: authenticatedConnectionIdentity(connState),
-            channel: params.channel,
-            sessionId: params.sessionId,
-            projectId: params.projectId,
+            target: subscriptionAccessTarget(subscribeMsg),
           });
           if (!permitted) {
             send({

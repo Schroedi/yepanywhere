@@ -216,6 +216,77 @@ describe("WebSocket limited-user login E2E", () => {
     }
   });
 
+  it("judges a session subscription by its session, not a granted projectId beside it", async () => {
+    const ws = await connectWebSocket(limitedCookie);
+    try {
+      const subscribe = (frame: Omit<RelaySubscribe, "subscriptionId">) => {
+        const subscriptionId = randomUUID();
+        return awaitResponse(ws, subscriptionId, {
+          ...frame,
+          subscriptionId,
+        } as RelaySubscribe);
+      };
+      // Each channel reads the session it names; a granted projectId riding
+      // along opens nothing.
+      expect(
+        (
+          await subscribe({
+            type: "subscribe",
+            channel: "session",
+            sessionId: "some-other-users-session",
+            projectId: "granted-project",
+          })
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await subscribe({
+            type: "subscribe",
+            channel: "session-watch",
+            sessionId: "some-other-users-session",
+            projectId: "granted-project",
+          })
+        ).status,
+      ).toBe(403);
+      expect(
+        (
+          await subscribe({
+            type: "subscribe",
+            channel: "/api/experimental/conversation/subscribe",
+            projectId: "granted-project",
+            query: {
+              sessionId: "some-other-users-session",
+              maxMessages: 10,
+              anchorMessageId: null,
+            },
+          })
+        ).status,
+      ).toBe(403);
+      // A channel this server does not know grants a limited login nothing.
+      expect(
+        (
+          await subscribe({
+            type: "subscribe",
+            channel: "not-a-channel" as RelaySubscribe["channel"],
+            projectId: "granted-project",
+          })
+        ).status,
+      ).toBe(403);
+      // A project channel on a granted project stays open to the login.
+      expect(
+        (
+          await subscribe({
+            type: "subscribe",
+            channel: "glossary",
+            projectId: "granted-project",
+          })
+        ).status,
+      ).not.toBe(403);
+    } finally {
+      ws.close();
+    }
+  });
+
   it("leaves a superuser login's socket unrestricted", async () => {
     const ws = await connectWebSocket(superuserCookie);
     try {

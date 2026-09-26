@@ -239,7 +239,13 @@ row above durable.
 
 The same principal check gates websocket subscriptions: a limited user may
 subscribe to a session channel only for sessions they may read, and the
-global activity channel is filtered to their accessible projects.
+global activity channel is filtered to their accessible projects. A
+subscription is judged by exactly the ids its channel reads: the session for
+the session and Conversation channels, both session and project for the
+session-watch channel, the project for the glossary and worktree channels.
+Every one of them must be readable; another id beside them, such as a granted
+`projectId` on a session subscription, opens nothing. A subscription naming
+none of its ids, or on a channel the server does not serve, is refused.
 
 A `/api/ws` socket acts as the login that opened it, for its whole lifetime.
 An SRP socket acts as its proven identity; a directly opened socket acts as

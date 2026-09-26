@@ -66,6 +66,7 @@ import { createAuthRoutes } from "./auth/routes.js";
 import type { UserUsageService } from "./auth/UserUsageService.js";
 import type { LimitedUsersService } from "./auth/LimitedUsersService.js";
 import { SessionAccessResolver } from "./auth/sessionAccess.js";
+import type { SubscriptionAccessTarget } from "./routes/ws-relay-handlers.js";
 import type { SrpLimitedUserLookup } from "./routes/ws-srp-handlers.js";
 import { createLimitedUsersMiddleware } from "./middleware/limited-users.js";
 import { createUsersRoutes } from "./routes/users.js";
@@ -546,9 +547,7 @@ export interface AppResult {
    */
   authorizeSubscription: (params: {
     username: string | null;
-    channel: string;
-    sessionId?: string;
-    projectId?: string;
+    target: SubscriptionAccessTarget;
   }) => Promise<boolean>;
   /** Whether one activity event is visible to an authenticated identity. */
   isActivityEventVisible: (
@@ -3317,29 +3316,32 @@ export function createApp(options: AppOptions): AppResult {
         levelFor(grants, event.projectId) !== "none"
       );
     },
-    authorizeSubscription: async ({
-      username,
-      channel,
-      sessionId,
-      projectId,
-    }) => {
+    authorizeSubscription: async ({ username, target }) => {
       // The superuser (no limited identity on the socket) subscribes freely.
       if (!username) return true;
       if (username === options.remoteAccessService?.getUsername()) return true;
       const grants = getActiveLimitedGrants(username);
       if (!grants) return false;
-      if (projectId) return levelFor(grants, projectId) !== "none";
-      if (sessionId) {
+      // The activity channel carries events for every project; its rows are
+      // filtered by the same grants downstream.
+      if (target.kind === "global") return true;
+      if (target.kind === "unknown") return false;
+      const { projectIds, sessionIds } = target;
+      if (projectIds.length === 0 && sessionIds.length === 0) return false;
+      if (projectIds.some((id) => levelFor(grants, id) === "none")) {
+        return false;
+      }
+      for (const sessionId of sessionIds) {
         const facts = await sessionAccessResolver.resolve(sessionId);
         if (!facts) return false;
-        return (
-          facts.createdByUser === username ||
-          levelFor(grants, facts.projectId) !== "none"
-        );
+        if (
+          facts.createdByUser !== username &&
+          levelFor(grants, facts.projectId) === "none"
+        ) {
+          return false;
+        }
       }
-      // Channels with no id of their own (activity) carry events for every
-      // project; their rows are filtered by the same grants downstream.
-      return channel === "activity";
+      return true;
     },
   };
 }
