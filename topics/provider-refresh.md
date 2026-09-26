@@ -1009,7 +1009,58 @@ Previous-model registry review:
 6. Use read-only catalog and lifecycle checks routinely. Do not spend tokens
    on live model turns without explicit approval.
 
-Current source refresh, 2026-09-22 (Claude Code 2.1.280 / SDK 0.3.280):
+Current source refresh, 2026-09-26 (Claude Code 2.1.283 / SDK 0.3.283):
+
+- `@anthropic-ai/claude-agent-sdk` advances from `0.3.280` to `0.3.283`;
+  its native executable reports Claude Code `2.1.283`. The independently
+  installed `claude` still reports `2.1.280`; YA launches the bundled
+  executable first. Root compatibility and SDK markers advance together.
+- The declared SDK diff is additive for YA. The `SDKMessage` union and the
+  `query()`, `supportedModels()`, `supportedCommands()`, `setModel()`,
+  `setMaxThinkingTokens()`, `interrupt()`, `mcpServerStatus()`, and usage
+  controls YA consumes are not removed or renamed. `setMaxThinkingTokens()`
+  now rejects a `'highlights'` display it cannot send, where it previously fell
+  back silently. YA passes no display mode, so this does not affect YA.
+  Unused additions include the alpha `prewarm()` spare-process API,
+  `conversation_reset` `trigger`/`user_message_uuid`/`timestamp`, init
+  `plugin_errors` and `view_mode`, and managed `deniedModels`. `claude --help`
+  adds only `--client-data-url` and a file form of `--agents` under `--print`.
+- `resumeSessionAt`/`resumeDropsTurn` are unchanged. Their declared contract is
+  byte-identical, and the guard in the bundled executable has the same call
+  site and rule order. Any `queued_command` attachment in the discarded range
+  is still refused as absorbed queued content. That includes task
+  notifications, which persist as `queued_command` attachments with
+  `commandMode: "task-notification"`. The only drift is in what the guard
+  treats as skippable. `advisor_stripped` and `credential_org` attachments
+  become skippable, and `repl_mcp_needs_auth` no longer is. Two new synthetic
+  tool-result placeholders may precede the declared prompt: "session ended
+  before this call's result was recorded" and "result not in this copy".
+- An authenticated no-turn handshake returns 11 model rows and 92 commands.
+  SDK 0.3.280 returned five rows in the same minute. The catalog now uses
+  versioned display names (`Opus 5.5`, `Sonnet 5`, `Haiku 4.5`), drops the
+  `[1m]` spellings (`default` and `opus` resolve to `claude-opus-5-5`), and
+  lists previous versions: `claude-opus-5`, `claude-fable-5`,
+  `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, and
+  `claude-sonnet-4-6`. `claude-fable-5` follows `claude-fable-5-1`, and
+  `mergeClaudeModels()` let that later row overwrite the stable `fable` row
+  with Fable 5 metadata. It now folds only the first Fable-family row. Showing
+  previous versions as primary rows conflicts with
+  [older-claude-models](older-claude-models.md) and is recorded in
+  `gaps/claude-live-catalog-lists-previous-models.md`. Plugin skills are now
+  listed by bare name, with the namespaced form kept as an alias. `/focus` is
+  new, and `/goal` and `/loop` remain native. The usage response has the same
+  field paths.
+- 194 transcript rows written by Claude Code 2.1.283 validate against
+  `claude-sdk-schema` without failures.
+- No real model turn was run. Authentication, model catalog, command
+  inventory, and subscription usage all come from no-turn control requests.
+
+Status: Claude Code 2.1.283 / SDK 0.3.283 package, declared surfaces, resume
+truncation guard, model discovery, commands, usage, and persisted-schema
+coverage are refreshed. The previous-model chooser placement awaits a product
+decision.
+
+Previous source refresh, 2026-09-22 (Claude Code 2.1.280 / SDK 0.3.280):
 
 - `@anthropic-ai/claude-agent-sdk` advances from `0.3.273` to `0.3.280`;
   its native executable reports Claude Code `2.1.280`, matching the
@@ -1636,7 +1687,7 @@ The server package currently pins provider-adjacent packages as follows:
 
 | package | current/wanted | latest observed | role |
 |---|---:|---:|---|
-| `@anthropic-ai/claude-agent-sdk` | `0.3.280` | `0.3.280` | Active Claude provider dependency |
+| `@anthropic-ai/claude-agent-sdk` | `0.3.283` | `0.3.283` | Active Claude provider dependency |
 | `@agentclientprotocol/sdk` | `0.12.0` | `0.24.0` | Active ACP client dependency for Grok/Gemini |
 
 Treat both rows as provider-refresh inputs.
