@@ -228,6 +228,35 @@ export const SERVER_CAPABILITIES = {
       reason: "Older servers do not provide conditional source writes.",
     },
   },
+  limitedUsers: {
+    id: CAPABILITY_ID_ALLOCATIONS.limitedUsers.id,
+    name: "limited-users",
+    kind: "permanent",
+    area: "security",
+    introducedIn: "0.9.0",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Enable limited users with the limitedUsersEnabled setting and manage their accounts, grants, logins, and usage.",
+    clientFallback:
+      "Hide Users settings and send no users request or limitedUsersEnabled write.",
+    serverContract: {
+      routes: [
+        "GET /api/users/me",
+        "POST /api/users/logout",
+        "POST /api/users/switch",
+        "GET /api/users",
+        "POST /api/users",
+        "PATCH /api/users/:username",
+        "GET /api/users/usage",
+        "DELETE /api/users/:username",
+      ],
+      requestFields: ["limitedUsersEnabled"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Servers before 0.9.0 have no limited users.",
+    },
+  },
   projectTemplateSources: {
     id: CAPABILITY_ID_ALLOCATIONS.projectTemplateSources.id,
     name: "project-template-sources",

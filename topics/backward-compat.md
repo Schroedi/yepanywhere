@@ -7,6 +7,15 @@ Topic: backward-compat
 
 ## Decisions
 
+2026-09-26 limited users — gate Settings → Users behind the new
+version-implied `limited-users` capability (ID 83, from 0.9.0) instead of
+probing `/api/users` for a 404. Released v0.9.0 and v0.9.1 carry the feature
+and infer the capability from their version; an older server previously got a
+toggle whose `limitedUsersEnabled` write it silently dropped, and now gets no
+toggle and no request. `GET /api/auth/status` gains an additive
+`limitedUsersEnabled` boolean; only the co-deployed local login page reads it,
+and a server without it keeps that page's Username field hidden.
+
 2026-09-07 Codex `/clone` — keep the existing route and response fields while
 using native provider forks. `messageCount` remains a conservative inherited
 prefix offset for older `/btw` clients, using `Number.MAX_SAFE_INTEGER` until

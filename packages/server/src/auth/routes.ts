@@ -89,6 +89,8 @@ export function createAuthRoutes(deps: AuthRoutesDeps): Hono {
    * - setupRequired: whether initial setup is needed (enabled but no account)
    * - disabledByEnv: whether auth is disabled by --auth-disable flag
    * - authFilePath: path to auth.json (for recovery instructions)
+   * - limitedUsersEnabled: whether a named (limited-user) login can succeed,
+   *   so the login page offers a Username field only then
    */
   app.get("/status", async (c) => {
     const isEnabled = authService.isEnabled();
@@ -96,6 +98,8 @@ export function createAuthRoutes(deps: AuthRoutesDeps): Hono {
       hasDesktopToken: !!desktopAuthToken || !!desktopBootstrapService,
       localhostOpen: authService.isLocalhostOpen(),
       authFilePath: authService.getFilePath(),
+      limitedUsersEnabled:
+        limitedUsers !== undefined && isLimitedUsersEnabled?.() === true,
     };
 
     // If auth is disabled by env var, it overrides settings

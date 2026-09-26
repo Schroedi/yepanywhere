@@ -17,6 +17,7 @@ import { UsersSettings } from "../UsersSettings";
 const {
   principalState,
   settingsState,
+  versionState,
   mockListUsers,
   mockCreateUser,
   mockDeleteUser,
@@ -36,6 +37,13 @@ const {
     resolved: true,
   },
   settingsState: { settings: {} as Record<string, unknown> },
+  versionState: {
+    version: { capabilities: ["limited-users"] } as {
+      current?: string;
+      capabilities?: string[];
+    },
+    loading: false,
+  },
   mockListUsers: vi.fn(),
   mockCreateUser: vi.fn(),
   mockDeleteUser: vi.fn(),
@@ -92,6 +100,13 @@ vi.mock("../../../hooks/useServerSettings", () => ({
   }),
 }));
 
+vi.mock("../../../hooks/useVersion", () => ({
+  useVersion: () => ({
+    version: versionState.version,
+    loading: versionState.loading,
+  }),
+}));
+
 vi.mock("../SettingsPaneTitleContext", () => ({
   useSettingsPaneTitle: () => {},
 }));
@@ -136,6 +151,8 @@ describe("Settings → Users", () => {
     };
     principalState.resolved = true;
     settingsState.settings = {};
+    versionState.version = { capabilities: ["limited-users"] };
+    versionState.loading = false;
     mockListUsers.mockReset();
     mockCreateUser.mockReset();
     mockDeleteUser.mockReset();
@@ -252,14 +269,23 @@ describe("Settings → Users", () => {
     expect(mockListUsers).not.toHaveBeenCalled();
   });
 
-  it("reports an older server without the users surface rather than an error", async () => {
-    const missing = Object.assign(new Error("Not found"), { status: 404 });
-    mockListUsers.mockRejectedValue(missing);
+  it("tells an older server's user it lacks limited users and asks it nothing", () => {
+    versionState.version = { current: "0.8.1", capabilities: [] };
     render(<UsersSettings />);
 
-    await waitFor(() => {
-      expect(screen.getByText("usersUnsupportedServer")).toBeTruthy();
-    });
+    expect(screen.getByText("usersUnsupportedServer")).toBeTruthy();
+    // No toggle whose write that server would silently drop, and no request.
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(mockListUsers).not.toHaveBeenCalled();
+  });
+
+  it("waits for the server version before calling a server unsupported", () => {
+    versionState.version = {};
+    versionState.loading = true;
+    render(<UsersSettings />);
+
+    expect(screen.getByText("loading")).toBeTruthy();
+    expect(screen.queryByText("usersUnsupportedServer")).toBeNull();
   });
 
   it("does not call the directory before the server says who this client is", () => {

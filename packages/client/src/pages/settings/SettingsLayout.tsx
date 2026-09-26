@@ -303,6 +303,12 @@ export function SettingsLayout() {
     if (index >= 0) categories.splice(index, 1);
   }
   if (
+    !serverHasCapability(versionInfo, SERVER_CAPABILITIES.limitedUsers.name)
+  ) {
+    const index = categories.findIndex((item) => item.id === "users");
+    if (index >= 0) categories.splice(index, 1);
+  }
+  if (
     !serverHasCapability(versionInfo, SERVER_CAPABILITIES.computerControl.name)
   ) {
     const index = categories.findIndex(

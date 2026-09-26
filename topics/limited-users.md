@@ -304,8 +304,12 @@ therefore gets exactly the 403/404 answers above, never superuser authority.
   at the cap the least recently seen go first, and a limiter currently
   blocking its name goes only when nothing else can, so spraying fresh names
   does not lift a lockout.
-- **Direct.** The login page accepts an optional username; blank is the
-  superuser. The cookie session records which principal it authenticated.
+- **Direct.** While limited users are enabled, the login page accepts an
+  optional username; blank is the superuser. With the feature off it asks for
+  the password alone, exactly as before limited users existed, and sends no
+  username. It learns which before sign-in from `limitedUsersEnabled` on the
+  unauthenticated `GET /api/auth/status`; a server that omits the field reads
+  as off. The cookie session records which principal it authenticated.
 - **A relay-authenticated limited user is locked to that user** for the life
   of the connection: no switch control, and `POST /api/users/switch` is
   refused.
@@ -388,8 +392,12 @@ for, so nothing about limited users appears anywhere else until one exists.
   server's capabilities dropped still renders its pane from a typed URL,
   because that pane's unsupported-server message is the answer the reader
   came for.
-- **An older server** without `/api/users` makes the page say so rather than
-  report a failure; no other client behavior depends on the route existing.
+- **An older server** without the `limited-users` capability (before
+  v0.9.0) loses the category from the Settings list; its pane, from a typed
+  URL, says the server lacks limited users. The client then sends that server
+  no users request and no `limitedUsersEnabled` write, which it would drop
+  silently. No other client behavior depends on the capability. See
+  [server capabilities](server-capabilities.md).
 
 Nav entries a limited user cannot use are hidden, and the sidebar session
 list shows only sessions in their accessible projects plus sessions they

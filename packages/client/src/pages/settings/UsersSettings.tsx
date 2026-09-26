@@ -7,12 +7,15 @@ import type {
 import {
   JOIN_STALE_OFFSET_MAX_MINUTES,
   JOIN_STALE_OFFSET_MIN_MINUTES,
+  SERVER_CAPABILITIES,
+  serverHasCapability,
 } from "@yep-anywhere/shared";
 import { api } from "../../api/client";
 import { useActingPrincipal } from "../../hooks/useActingPrincipal";
 import { useProjects } from "../../hooks/useProjects";
 import { useProviders } from "../../hooks/useProviders";
 import { useServerSettings } from "../../hooks/useServerSettings";
+import { useVersion } from "../../hooks/useVersion";
 import { useI18n } from "../../i18n";
 import { toBrowserAppHref } from "../../lib/appHref";
 import { SettingsItem } from "./SettingsItem";
@@ -120,10 +123,16 @@ export function UsersSettings() {
     refresh: refreshPrincipal,
   } = useActingPrincipal();
 
+  const { version, loading: versionLoading } = useVersion();
+  // A server without limited users would 404 every request here and silently
+  // drop a limitedUsersEnabled write, so the pane asks it nothing.
+  const supported = serverHasCapability(
+    version,
+    SERVER_CAPABILITIES.limitedUsers.name,
+  );
+
   const [users, setUsers] = useState<LimitedUserSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
-  /** Null while unknown; false once the server answers that it has no surface. */
-  const [supported, setSupported] = useState<boolean | null>(null);
   const [editor, setEditor] = useState<EditorTarget | null>(null);
   const [draft, setDraft] = useState<DraftState>(EMPTY_DRAFT);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +147,7 @@ export function UsersSettings() {
     // Until the server says who this client is, the hook reports the
     // superuser placeholder. Asking now would send one refused request on
     // every load for a switched superuser or a limited user.
-    if (!principalResolved) return;
+    if (!principalResolved || !supported) return;
     if (!canManage) {
       setLoaded(true);
       return;
@@ -146,18 +155,12 @@ export function UsersSettings() {
     try {
       const response = await api.listUsers();
       setUsers(response.users);
-      setSupported(true);
     } catch (loadError) {
-      // Only a missing route means the server lacks the surface. A refusal
-      // means it has one and this principal may not use it, which the
-      // acting-principal branches above already handle.
-      const status = (loadError as { status?: number }).status;
-      setSupported(status !== 404);
       setError((loadError as Error).message);
     } finally {
       setLoaded(true);
     }
-  }, [canManage, principalResolved]);
+  }, [canManage, principalResolved, supported]);
 
   useEffect(() => {
     void loadUsers();
@@ -166,13 +169,13 @@ export function UsersSettings() {
   // Usage is its own read: a server without the ledger 404s here while the
   // directory above still works, and the table simply does not appear.
   const loadUsage = useCallback(async () => {
-    if (!principalResolved || !canManage) return;
+    if (!principalResolved || !canManage || !supported) return;
     try {
       setUsage(await api.getUserUsage());
     } catch {
       setUsage(null);
     }
-  }, [canManage, principalResolved]);
+  }, [canManage, principalResolved, supported]);
 
   useEffect(() => {
     void loadUsage();
@@ -256,7 +259,7 @@ export function UsersSettings() {
 
   // Rendering the directory before the identity lands would flash the
   // superuser's pane at a limited user on every load.
-  if (!principalResolved) {
+  if (!principalResolved || (!supported && versionLoading)) {
     return <SettingsSection description={t("loading")} />;
   }
 
@@ -264,7 +267,7 @@ export function UsersSettings() {
     return <LimitedUserView onLogout={() => void logout()} busy={busy} />;
   }
 
-  if (supported === false) {
+  if (!supported) {
     return (
       <SettingsSection
         title={t("settingsUsersTitle")}

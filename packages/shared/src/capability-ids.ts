@@ -516,6 +516,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "file-source-editing",
     introducedIn: "0.9.1",
   },
+  limitedUsers: {
+    id: 83,
+    direction: "server",
+    name: "limited-users",
+    introducedIn: "0.9.0",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

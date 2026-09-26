@@ -25,6 +25,7 @@ describe("limited-user logins through the users routes", () => {
   let authService: AuthService;
   let limitedUsers: LimitedUsersService;
   let remoteSessions: RemoteSessionService;
+  let serverSettingsService: ServerSettingsService;
   let superuserCookie: string;
 
   const relaySession = (username: string) =>
@@ -79,7 +80,7 @@ describe("limited-user logins through the users routes", () => {
     remoteSessions = new RemoteSessionService({ dataDir });
     await remoteSessions.initialize();
 
-    const serverSettingsService = new ServerSettingsService({ dataDir });
+    serverSettingsService = new ServerSettingsService({ dataDir });
     await serverSettingsService.initialize();
     await serverSettingsService.updateSettings({ limitedUsersEnabled: true });
 
@@ -99,6 +100,25 @@ describe("limited-user logins through the users routes", () => {
     remoteSessions.shutdown();
     await instance.disposeSessionReaders();
     await rm(testDir, { recursive: true, force: true });
+  });
+
+  it("tells a signed-out login page whether a named login can succeed", async () => {
+    const status = async () => {
+      const response = await instance.app.request("/api/auth/status", {
+        headers: { "X-Yep-Anywhere": "true" },
+      });
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as {
+        authenticated: boolean;
+        limitedUsersEnabled?: boolean;
+      };
+      expect(body.authenticated).toBe(false);
+      return body.limitedUsersEnabled;
+    };
+
+    expect(await status()).toBe(true);
+    await serverSettingsService.updateSettings({ limitedUsersEnabled: false });
+    expect(await status()).toBe(false);
   });
 
   it("ends a relay logout's session and its saved resume credential, and nothing else", async () => {
