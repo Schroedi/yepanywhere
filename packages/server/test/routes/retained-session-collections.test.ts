@@ -1,4 +1,11 @@
-import { appendFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  mkdir,
+  mkdtemp,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { toUrlProjectId, truncateSessionTitle } from "@yep-anywhere/shared";
@@ -17,7 +24,10 @@ import { ClaudeSessionReader } from "../../src/sessions/reader.js";
 import { EventBus } from "../../src/watcher/EventBus.js";
 import { collectionCatalogAdapters } from "../../src/sessions/catalog-adapters/collection-catalog-adapters.js";
 import { CodexSessionReader } from "../../src/sessions/codex-reader.js";
-import { catalogProjectIdentity } from "../../src/sessions/catalog-adapters/row.js";
+import {
+  catalogFileVersion,
+  catalogProjectIdentity,
+} from "../../src/sessions/catalog-adapters/row.js";
 import type { Project } from "../../src/supervisor/types.js";
 import {
   readClaudeCatalogRecency,
@@ -457,6 +467,114 @@ it("keeps a reaped Claude session at its content time, not its shutdown mtime", 
     (await collections.read()).rows.find((row) => row.sessionId === sessionId)
       ?.updatedAt,
   ).toBe(contentAt);
+});
+
+it("reads a row an older build stored for an unchanged file once more", async () => {
+  dataDir = await mkdtemp(join(tmpdir(), "retained-row-format-"));
+  const projectPath = join(dataDir, "project");
+  const project: Project = {
+    id: catalogProjectIdentity(projectPath).projectId,
+    path: projectPath,
+    name: "Project",
+    provider: "codex",
+    sessionDir: dataDir,
+    sessionCount: 1,
+    activeOwnedCount: 0,
+    activeExternalCount: 0,
+    lastActivity: null,
+  };
+  const sessionId = "44444444-4444-4444-8444-444444444444";
+  const file = join(dataDir, `rollout-2026-09-08T00-00-00-${sessionId}.jsonl`);
+  const long = `${"Context before ".repeat(30)}quasarneedle`;
+  const createdAt = "2026-09-08T00:00:00.000Z";
+  await writeFile(
+    file,
+    `${[
+      {
+        type: "session_meta",
+        timestamp: createdAt,
+        payload: { id: sessionId, cwd: projectPath, timestamp: createdAt },
+      },
+      {
+        type: "event_msg",
+        timestamp: "2026-09-08T00:01:00.000Z",
+        payload: { type: "user_message", message: long },
+      },
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join("\n")}\n`,
+  );
+  // What a build before whole titles and summary creation times persisted for
+  // this file: the display cut, no createdAt, and the file's current version.
+  const stale: SessionCatalogRow = {
+    catalogFamily: "codex",
+    storeKey: dataDir,
+    sessionId,
+    ...catalogProjectIdentity(projectPath),
+    projectName: "Project",
+    provider: "codex",
+    updatedAt: "2026-09-08T00:01:00.000Z",
+    title: truncateSessionTitle(long),
+    fidelity: "head",
+    sourceVersion: catalogFileVersion(await stat(file)),
+    location: { kind: "file", path: file },
+  };
+  const seed = new SessionCatalogService({ dataDir });
+  await seed.initialize();
+  await seed.reconcile([
+    {
+      catalogFamily: "codex",
+      storeKey: dataDir,
+      scan: async () => ({ sourceVersion: "old-build", rows: [stale] }),
+    },
+  ]);
+  seed.stop();
+
+  const scanner = new ProjectScanner({ projectsDir: join(dataDir, "unused") });
+  vi.spyOn(scanner, "listProjects").mockResolvedValue([project]);
+  const reader = new CodexSessionReader({ sessionsDir: dataDir, projectPath });
+  const headReads = vi.spyOn(reader, "getSessionListSummary");
+  collections = new RetainedSessionCollections({
+    dataDir,
+    eventBus: new EventBus(),
+    adapters: (rows, signal, paths) =>
+      collectionCatalogAdapters(
+        {
+          scanner,
+          readerFactory: () => {
+            throw new Error("Unexpected Claude reader");
+          },
+          codexSessionsDir: dataDir,
+          codexReaderFactory: () => reader,
+          geminiScanner: {
+            getHashToCwd: async () => {
+              throw new Error("Unexpected Gemini lookup");
+            },
+          },
+          getCatalogFamilies: () => ["codex"],
+        },
+        rows,
+        signal,
+        paths,
+      ),
+  });
+  await collections.refresh();
+  const reread = (await collections.read()).rows.find(
+    (row) => row.sessionId === sessionId,
+  );
+  expect(reread?.title).toBe(long);
+  expect(reread?.createdAt).toBe(createdAt);
+  expect(reread?.sourceVersion).toBe(stale.sourceVersion);
+  expect(headReads).toHaveBeenCalledTimes(1);
+
+  // Once current, an unchanged file is still answered from its row.
+  headReads.mockClear();
+  await collections.refresh();
+  expect(headReads).not.toHaveBeenCalled();
+  expect(
+    (await collections.read()).rows.find((row) => row.sessionId === sessionId)
+      ?.title,
+  ).toBe(long);
 });
 
 it("keeps the last accepted rows on failure and stops publication after disposal", async () => {

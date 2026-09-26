@@ -36,6 +36,13 @@ import {
   catalogProjectIdentity,
 } from "./row.js";
 
+/**
+ * Version of the facts `readFileRow` stores. Bump it whenever a stored fact is
+ * added or changed. Rows without it predate the untruncated title and the
+ * summary's creation time, so they are read once more.
+ */
+const FILE_ROW_FORMAT = 1;
+
 export interface CollectionCatalogDeps extends SessionProviderResolutionDeps {
   scanner: ProjectScanner;
   getCatalogFamilies: () => readonly ProviderCatalogFamily[];
@@ -68,7 +75,10 @@ async function readFileRow(
   try {
     const stats = await stat(file.filePath);
     const sourceVersion = catalogFileVersion(stats);
-    if (old?.sourceVersion === sourceVersion)
+    if (
+      old?.sourceVersion === sourceVersion &&
+      old.rowFormat === FILE_ROW_FORMAT
+    )
       return { ...old, projectName: project.name };
     const cached = await deps.sessionIndexService?.getCachedSessionSummary(
       source.sessionDir,
@@ -140,6 +150,7 @@ async function readFileRow(
         : {}),
       fidelity: summary || title ? "head" : "identity",
       sourceVersion,
+      rowFormat: FILE_ROW_FORMAT,
       location: { kind: "file", path: file.filePath },
       ...(summary?.asyncQuestions
         ? { asyncQuestions: summary.asyncQuestions }

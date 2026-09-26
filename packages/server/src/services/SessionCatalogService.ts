@@ -1182,6 +1182,14 @@ function normalizeRow(
     );
   }
   requireBoundedString(row.sourceVersion, "row sourceVersion", 16_384);
+  if (
+    row.rowFormat !== undefined &&
+    !(Number.isSafeInteger(row.rowFormat) && row.rowFormat > 0)
+  ) {
+    throw new Error(
+      `Invalid session catalog rowFormat: ${String(row.rowFormat)}`,
+    );
+  }
   validateLocation(row);
   return cloneRow(row);
 }
@@ -1220,6 +1228,7 @@ function cloneRow(row: SessionCatalogRow): SessionCatalogRow {
       : {}),
     fidelity: row.fidelity,
     sourceVersion: row.sourceVersion,
+    ...(row.rowFormat !== undefined ? { rowFormat: row.rowFormat } : {}),
     location: { ...row.location },
   };
 }

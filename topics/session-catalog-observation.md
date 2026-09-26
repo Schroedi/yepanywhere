@@ -210,6 +210,13 @@ owns grouping, sharding, and persistence. Three rules keep families joinable:
   truncation, or replacement — a file's mtime and size, or the store's own
   updated timestamp. It is what a retained projection of that row stays valid
   for; a coarser value silently serves stale derived work.
+- **A reused row must also be current in format.** An adapter that answers an
+  unchanged source from its retained row (the Claude/Codex/Gemini file
+  adapter does) records the version of the projection that built it in
+  `rowFormat`, and reuses a row only at its current format. When the facts a
+  row stores change — the whole title, the summary's creation time — bumping
+  that format makes each persisted row from an older build read once more on
+  the next reconciliation, while `sourceVersion` stays the file's identity.
 - **Recency may use a narrower provider/platform activity clock.** Plain Codex
   rollouts on Windows use the later of file modification and change time,
   because Windows can defer the last-write timestamp until Codex closes its
