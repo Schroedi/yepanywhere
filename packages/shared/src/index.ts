@@ -1115,6 +1115,12 @@ export {
   isPublicSessionSharePublicMetadata,
   isPublicSessionShareResponse,
 } from "./public-shares.js";
+export {
+  findHtmlRootAssetReferences,
+  PUBLIC_SHARE_MEDIA_ASSET_EXTENSIONS,
+  resolveHtmlRootAssetPath,
+} from "./html-root-assets.js";
+export type { HtmlRootAssetReference } from "./html-root-assets.js";
 
 export type {
   CreatePublicFileShareRequest,

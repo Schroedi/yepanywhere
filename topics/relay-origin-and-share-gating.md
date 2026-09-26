@@ -222,13 +222,21 @@ Markdown behavior, local-media modal, copy affordances, and line/source toggle
 behavior where those affordances are read-only.
 
 A dedicated live file share authorizes exactly its root file. When that root is
-a bounded Markdown, MDX, Quarto Markdown, or HTML source, it also authorizes
+a bounded Markdown, MDX, or Quarto Markdown source, it also authorizes
 directly referenced SVG, raster-image, and supported video assets one level
-deep. An HTML root additionally authorizes its directly referenced
-stylesheets, scripts, and font files (2026-09-23), which exist for the
-viewer's **play** action below; a Markdown root gains no such authority. It
-never authorizes another linked document, a nested asset referenced by an
-asset, a project scan, source-control data, or an app-data attachment. Each
+deep. An HTML root instead authorizes what its elements load, which is what
+the viewer's **play** action below inlines: `link rel=stylesheet` CSS,
+`script src` JavaScript, `link rel=icon`, `img`, `source`, and `video` media
+and `video poster` images. One shared decision, `findHtmlRootAssetReferences`
+in `packages/shared`, serves both the server's authorization and the play
+page's inlining, so play never requests a file the share refuses. A reference
+made any other way — an `<a href>`, a CSS `url()`, a preload hint — gains no
+authority, even for a file of an asset type. The root's own directory is its
+site root: `/assets/app.js` in `dist/index.html` names `dist/assets/app.js`,
+as a browser serving that directory would load it. A Markdown root gains no
+script or stylesheet authority. A share never authorizes another linked
+document, a nested asset referenced by an asset, a project scan,
+source-control data, or an app-data attachment. Each
 asset request rereads the current root before authorizing the target, so editing
 the root immediately removes stale references and admits current ones. Root and
 asset responses keep the existing no-store and active-content hardening.
@@ -248,13 +256,14 @@ its directly referenced assets, read live — until that share is revoked.
 The play page loads the share itself. The relay has no HTTP path to the host,
 so the page opens its own relay WebSocket to the named host and makes the same
 secret-only reads the share viewer makes: the root through
-`/public-api/shares/:secret/files` and each directly referenced stylesheet,
-script, image, and media file through the share's raw file route. Those
+`/public-api/shares/:secret/files` and each asset the root's elements load
+through the share's raw file route. Those
 requests are plaintext share requests with the relay-operator visibility
 described above. It inlines the assets as data URLs, capped at 48 MiB in
-total; references the share does not serve stay as written and fail inside
-the sandbox. Second-level references such as fonts named inside a stylesheet
-are not inlined yet.
+total; a reference the share does not serve (a missing file, or a server
+older than this rule) stays as written and fails inside the sandbox. Fonts and
+images named in CSS, whether in a stylesheet or the root's own `style`, are
+not inlined yet, so the share does not authorize them.
 
 `play.html` is a separate entry of the hosted client build, outside the app's
 routes, so it never meets the login gate. It carries its own Content Security

@@ -1,6 +1,7 @@
 import {
   DEFAULT_RELAY_URL,
   PUBLIC_SHARE_INITIAL_PROMPT_MAX_LENGTH,
+  PUBLIC_SHARE_MEDIA_ASSET_EXTENSIONS,
   PUBLIC_SHARE_SESSION_CHUNKS_CAPABILITY,
   type AppSession,
   type CreatePublicSessionShareRequest,
@@ -12,6 +13,7 @@ import {
   type PublicSessionShareViewerActionResponse,
   type RevokePublicSessionSharesResponse,
   type UrlProjectId,
+  findHtmlRootAssetReferences,
   isUrlProjectId,
   normalizeRelayUrl,
   parseLineColumn,
@@ -123,40 +125,6 @@ const PUBLIC_SHARE_RENDER_SOURCE_EXTENSIONS = new Set([
   ".md",
   ".mdx",
   ".qmd",
-]);
-/**
- * A dedicated HTML file share also authorizes the stylesheets, scripts, and
- * fonts its root references directly, so a viewer's play action can inline
- * them into an opaque-origin sandboxed document. Session shares do not.
- */
-const PUBLIC_SHARE_PLAY_ASSET_EXTENSIONS = new Set([
-  ".css",
-  ".js",
-  ".mjs",
-  ".otf",
-  ".ttf",
-  ".woff",
-  ".woff2",
-]);
-const PUBLIC_SHARE_RENDER_ASSET_EXTENSIONS = new Set([
-  ".apng",
-  ".avif",
-  ".avi",
-  ".bmp",
-  ".gif",
-  ".ico",
-  ".jpeg",
-  ".jpg",
-  ".mkv",
-  ".mov",
-  ".mp4",
-  ".ogv",
-  ".png",
-  ".svg",
-  ".tif",
-  ".tiff",
-  ".webm",
-  ".webp",
 ]);
 const MAX_PUBLIC_SHARE_TRANSITIVE_SOURCE_BYTES = 1024 * 1024;
 
@@ -792,7 +760,7 @@ async function publicShareSessionMentionsRenderAsset(
   dataDir?: string,
 ): Promise<boolean> {
   if (
-    !hasPublicShareExtension(relativePath, PUBLIC_SHARE_RENDER_ASSET_EXTENSIONS)
+    !hasPublicShareExtension(relativePath, PUBLIC_SHARE_MEDIA_ASSET_EXTENSIONS)
   ) {
     return false;
   }
@@ -848,17 +816,13 @@ async function publicFileShareMentionsRenderAsset(
       fileShare.path,
       PUBLIC_SHARE_RENDER_SOURCE_EXTENSIONS,
     ) ||
-    !(
-      hasPublicShareExtension(
+    // An HTML root's assets, scripts and stylesheets included, are decided
+    // by the element that loads each one, below.
+    (!htmlRoot &&
+      !hasPublicShareExtension(
         relativePath,
-        PUBLIC_SHARE_RENDER_ASSET_EXTENSIONS,
-      ) ||
-      (htmlRoot &&
-        hasPublicShareExtension(
-          relativePath,
-          PUBLIC_SHARE_PLAY_ASSET_EXTENSIONS,
-        ))
-    )
+        PUBLIC_SHARE_MEDIA_ASSET_EXTENSIONS,
+      ))
   ) {
     return false;
   }
@@ -879,6 +843,13 @@ async function publicFileShareMentionsRenderAsset(
         MAX_PUBLIC_SHARE_TRANSITIVE_SOURCE_BYTES
     ) {
       return false;
+    }
+    if (htmlRoot) {
+      // The play page inlines exactly these, so it never asks for a file
+      // this refuses, and a linked document is never among them.
+      return findHtmlRootAssetReferences(source.content, fileShare.path).some(
+        (reference) => reference.path === relativePath,
+      );
     }
     return extractLocalRenderReferences(source.content).some(
       (reference) =>

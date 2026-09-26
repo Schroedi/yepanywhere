@@ -200,14 +200,17 @@ describe("public file shares", () => {
     );
   });
 
-  it("authorizes an HTML root's stylesheets, scripts, and fonts for play", async () => {
+  it("authorizes exactly the assets an HTML root's elements load for play", async () => {
     files.set(
       "site/index.html",
-      '<link rel="stylesheet" href="site.css"><script src="app.js"></script><img src="logo.png">',
+      '<link rel="stylesheet" href="site.css"><link rel="preload" as="font" href="paper.woff2"><script src="app.js"></script><script src="/assets/entry.js"></script><img src="logo.png"><a href="src/server.js">source</a>',
     );
     files.set("site/site.css", "body{font-family:Paper}");
     files.set("site/app.js", "console.log(1)");
+    files.set("site/assets/entry.js", "console.log(3)");
     files.set("site/other.js", "console.log(2)");
+    files.set("site/src/server.js", "export const secret = 1;");
+    files.set("site/paper.woff2", "font");
     files.set("docs/notes.css", "p{}");
     const { secret } = await service.createFileShare({
       projectId,
@@ -229,7 +232,12 @@ describe("public file shares", () => {
       ).status;
     expect(await status("site/site.css")).toBe(200);
     expect(await status("site/app.js")).toBe(200);
+    // A leading slash names the root's directory, as the play page resolves it.
+    expect(await status("site/assets/entry.js")).toBe(200);
     expect(await status("site/other.js")).toBe(404);
+    // A linked document, and a file no element loads, stay private.
+    expect(await status("site/src/server.js")).toBe(404);
+    expect(await status("site/paper.woff2")).toBe(404);
     // A Markdown root does not gain script or stylesheet authority.
     const markdown = await service.createFileShare({
       projectId,

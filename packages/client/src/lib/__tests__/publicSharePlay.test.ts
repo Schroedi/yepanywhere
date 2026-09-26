@@ -2,11 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildPlayableHtml,
   buildPublicSharePlayUrl,
-  isInlinableReference,
   KEEP_FRAGMENT_LINKS_IN_FRAME_SCRIPT,
   parsePublicSharePlayUrl,
   publicSharePlayUrlFromFileShareUrl,
-  resolveShareReference,
 } from "../publicSharePlay";
 
 describe("public share play links", () => {
@@ -53,21 +51,26 @@ describe("public share play links", () => {
 });
 
 describe("public share play", () => {
-  it("resolves references against the root's directory", () => {
-    expect(resolveShareReference("_build/paper.html", "canvas.css")).toBe(
-      "_build/canvas.css",
+  it("requests only the assets the share authorizes, root-absolute ones included", async () => {
+    const fetchAsset = vi.fn(async (path: string) => {
+      if (path === "_build/assets/entry.js")
+        return new Blob(["console.log(1)"], { type: "text/javascript" });
+      if (path === "_build/pic.png")
+        return new Blob(["png"], { type: "image/png" });
+      throw new Error("not served");
+    });
+    const html = await buildPlayableHtml(
+      `<script src="/assets/entry.js?v=2"></script><img src=pic.png><a href="src/server.js">source</a><style>p{background:url(bg.png)}</style>`,
+      "_build/paper.html",
+      fetchAsset,
     );
-    expect(resolveShareReference("_build/paper.html", "../img/a.png")).toBe(
-      "img/a.png",
-    );
-    expect(resolveShareReference("_build/paper.html", "/site/x.js?v=1")).toBe(
-      "site/x.js",
-    );
-    expect(isInlinableReference("https://cdn.example/x.js")).toBe(false);
-    expect(isInlinableReference("//cdn.example/x.js")).toBe(false);
-    expect(isInlinableReference("data:text/plain,x")).toBe(false);
-    expect(isInlinableReference("#top")).toBe(false);
-    expect(isInlinableReference("app.js")).toBe(true);
+    expect(fetchAsset.mock.calls.map(([path]) => path)).toEqual([
+      "_build/assets/entry.js",
+      "_build/pic.png",
+    ]);
+    expect(html).toContain('<script src="data:text/javascript;base64,');
+    expect(html).toContain('<img src="data:image/png;base64,');
+    expect(html).toContain('href="src/server.js"');
   });
 
   it("inlines served assets as data URLs and leaves the rest untouched", async () => {
