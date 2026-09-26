@@ -74,13 +74,13 @@ async function createRewindFixture(
     lastActivity: null,
   };
   const entry: FixtureEntry = (type, uuid, parentUuid, text, extra = {}) => ({
-    ...extra,
     type,
     uuid,
     parentUuid,
     sessionId,
     cwd: projectPath,
     timestamp: "2026-09-26T08:00:00.000Z",
+    ...extra,
     message:
       type === "user"
         ? { role: "user", content: text }
@@ -154,6 +154,44 @@ async function createRewindFixture(
     clearloopRunner,
     yaCommandRunner,
   };
+}
+
+/**
+ * Turns 1–5, then `/clear 3` dropped 4–5 (its rewind already applied), then
+ * turn 6 continued from turn 3. The reader shows 4–5 as a cleared span
+ * between turn 3 and turn 6.
+ */
+async function createClearedTurnFixture() {
+  const later = { timestamp: "2026-09-26T09:00:00.000Z" };
+  const fixture = await createRewindFixture((entry) => [
+    entry("user", "u1", null, "first"),
+    entry("assistant", "a1", "u1", "one"),
+    entry("user", "u2", "a1", "second"),
+    entry("assistant", "a2", "u2", "two"),
+    entry("user", "u3", "a2", "third"),
+    entry("assistant", "a3", "u3", "three"),
+    entry("user", "u4", "a3", "fourth"),
+    entry("assistant", "a4", "u4", "four"),
+    entry("user", "u5", "a4", "fifth"),
+    entry("assistant", "a5", "u5", "five"),
+    entry("user", "u6", "a3", "sixth", later),
+    entry("assistant", "a6", "u6", "six", later),
+  ]);
+  await fixture.metadata.addRewindRecord(
+    fixture.sessionId,
+    {
+      id: "clear-3",
+      at: "2026-09-26T08:30:00.000Z",
+      cutMessageId: "a3",
+      cutTurnIndex: 3,
+      droppedFromMessageId: "u4",
+      droppedTurnCount: 2,
+      reason: "clear",
+    },
+    { recordId: "clear-3", cutMessageId: "a3" },
+  );
+  await fixture.metadata.clearPendingRewind(fixture.sessionId);
+  return fixture;
 }
 
 describe("rewind orchestration", () => {
@@ -249,6 +287,56 @@ describe("rewind orchestration", () => {
     // is refused as a cut source rather than recorded as turn 0.
     expect(response.status).toBe(400);
     expect(fixture.metadata.getRewindRecords(fixture.sessionId)).toEqual([]);
+  });
+
+  it("records the last live turn as N when clearing before a turn after a clear", async () => {
+    const fixture = await createClearedTurnFixture();
+
+    const response = await fixture.routes.request(
+      `/projects/${fixture.project.id}/sessions/${fixture.sessionId}/rewind`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cut: { kind: "before-user-turn", sourceMessageId: "u6" },
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    const record = fixture.metadata
+      .getRewindRecords(fixture.sessionId)
+      .find((row) => row.id !== "clear-3");
+    // Clear replacing turn 6 keeps through turn 3, so its header reads
+    // `/clear 3`, which is also the N a copied `/clearloop 3 …` accepts.
+    expect(record).toMatchObject({ cutMessageId: "a3", cutTurnIndex: 3 });
+  });
+
+  it("forks before a turn from that turn's context, not the cleared span above it", async () => {
+    const fixture = await createClearedTurnFixture();
+    vi.spyOn(Supervisor.prototype, "supportsForkSession").mockReturnValue(true);
+    const forkSession = vi
+      .spyOn(Supervisor.prototype, "forkSession")
+      .mockResolvedValue({ sessionId: "fork-1" } as Awaited<
+        ReturnType<Supervisor["forkSession"]>
+      >);
+
+    const response = await fixture.routes.request(
+      `/projects/${fixture.project.id}/sessions/${fixture.sessionId}/fork`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          forkKind: "before-user-turn",
+          sourceMessageId: "u6",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(forkSession.mock.calls[0]?.[0]).toMatchObject({
+      boundary: { kind: "message", provider: "claude", messageId: "a3" },
+    });
   });
 
   it("a queued /clearloop starts a patient loop at the resolved cut", async () => {

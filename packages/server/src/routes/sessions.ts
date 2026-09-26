@@ -1501,9 +1501,11 @@ function resolveForkAfterBoundary(
     };
   }
 
+  const chain = sourceChainMessages(messages, sourceMessage);
+  const chainIndex = chain.indexOf(sourceMessage);
   let nextUserIndex = -1;
-  for (let index = sourceIndex + 1; index < messages.length; index += 1) {
-    const candidate = messages[index];
+  for (let index = chainIndex + 1; index < chain.length; index += 1) {
+    const candidate = chain[index];
     if (candidate && isRealUserTurn(candidate)) {
       nextUserIndex = index;
       break;
@@ -1516,11 +1518,10 @@ function resolveForkAfterBoundary(
     };
   }
 
-  const searchEnd =
-    nextUserIndex >= 0 ? nextUserIndex - 1 : messages.length - 1;
+  const searchEnd = nextUserIndex >= 0 ? nextUserIndex - 1 : chain.length - 1;
   let hasAssistantResponse = false;
-  for (let index = sourceIndex + 1; index <= searchEnd; index += 1) {
-    const candidate = messages[index];
+  for (let index = chainIndex + 1; index <= searchEnd; index += 1) {
+    const candidate = chain[index];
     if (candidate && messageRole(candidate) === "assistant") {
       hasAssistantResponse = true;
       break;
@@ -1534,8 +1535,8 @@ function resolveForkAfterBoundary(
   }
 
   let boundary: Message | undefined;
-  for (let index = searchEnd; index > sourceIndex; index -= 1) {
-    const candidate = messages[index];
+  for (let index = searchEnd; index > chainIndex; index -= 1) {
+    const candidate = chain[index];
     const role = candidate ? messageRole(candidate) : undefined;
     if (
       candidate &&
@@ -1581,16 +1582,65 @@ function resolveForkAfterBoundary(
   };
 }
 
+/**
+ * The rows on a source turn's own provider chain. A cleared span is a dead
+ * branch: a live turn neither continues from nor is answered by its rows,
+ * while a cleared turn's chain is its own span, the spans enclosing it, and
+ * the live prefix before them (topics/session-rewind.md § Vocabulary).
+ */
+function sourceChainMessages(messages: Message[], source: Message): Message[] {
+  const groupOf = (message: Message): string | undefined =>
+    typeof message.rewoundGroupId === "string"
+      ? message.rewoundGroupId
+      : undefined;
+  const enclosingGroup = new Map<string, string>();
+  for (const message of messages) {
+    const group = groupOf(message);
+    const parent = message.rewoundParentGroupId;
+    if (group && typeof parent === "string") enclosingGroup.set(group, parent);
+  }
+  const chainGroups = new Set<string>();
+  for (
+    let group = groupOf(source);
+    group && !chainGroups.has(group);
+    group = enclosingGroup.get(group)
+  ) {
+    chainGroups.add(group);
+  }
+  return messages.filter((message) => {
+    const group = groupOf(message);
+    return !group || chainGroups.has(group);
+  });
+}
+
+/**
+ * The turn a "before this turn" cut keeps: the previous real turn on the
+ * source's chain, which is turn N−1 only when no clear dropped the turns
+ * between.
+ */
+function precedingChainTurn(
+  messages: Message[],
+  source: Message,
+): Message | undefined {
+  const chain = sourceChainMessages(messages, source);
+  for (let index = chain.indexOf(source) - 1; index >= 0; index -= 1) {
+    const candidate = chain[index];
+    if (candidate && messageId(candidate) && isRealUserTurn(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
 function resolveForkBeforeBoundary(
   messages: Message[],
   sourceMessageId: string,
   providerName: ProviderName,
 ): ReturnType<typeof resolveForkAfterBoundary> {
-  const sourceIndex = messages.findIndex(
+  const sourceMessage = messages.find(
     (message) => messageId(message) === sourceMessageId,
   );
-  const sourceMessage = messages[sourceIndex];
-  if (sourceIndex < 0 || !sourceMessage) {
+  if (!sourceMessage) {
     return { error: "Selected source message was not found", status: 404 };
   }
   if (!isRealUserTurn(sourceMessage)) {
@@ -1600,23 +1650,14 @@ function resolveForkBeforeBoundary(
     };
   }
 
-  for (let index = sourceIndex - 1; index >= 0; index -= 1) {
-    const candidate = messages[index];
-    const candidateId = candidate ? messageId(candidate) : undefined;
-    if (candidate && candidateId && isRealUserTurn(candidate)) {
-      return resolveForkAfterBoundary(
-        messages,
-        candidateId,
-        false,
-        providerName,
-      );
-    }
+  const keptTurnId = messageId(precedingChainTurn(messages, sourceMessage));
+  if (!keptTurnId) {
+    return {
+      error: "There is no completed turn before the selected request",
+      status: 409,
+    };
   }
-
-  return {
-    error: "There is no completed turn before the selected request",
-    status: 409,
-  };
+  return resolveForkAfterBoundary(messages, keptTurnId, false, providerName);
 }
 
 function forkSummaryTitleCandidate(summary: string): string | undefined {
@@ -6055,20 +6096,22 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
     // The kept turn's stamped ordinal is the record's N: the same number the
     // turn menu shows, so `/clear N` and the label agree by construction.
-    // The boundary above already refused non-turns; a source that still has
-    // no stamp came from an unnormalized history and has no N to record.
-    const sourceIndex = turnIndexOf(sourceMessage);
-    if (sourceIndex === undefined) {
+    // A before cut keeps the previous turn on the source's chain, which a
+    // clear may have put well below N−1. The boundary above already refused
+    // non-turns; a kept turn that still has no stamp came from an
+    // unnormalized history and has no N to record.
+    const keptTurn =
+      cut.kind === "before-user-turn" && sourceMessage
+        ? precedingChainTurn(messages, sourceMessage)
+        : sourceMessage;
+    const cutTurnIndex = turnIndexOf(keptTurn);
+    if (cutTurnIndex === undefined) {
       return {
         ok: false,
         error: "That message is not a user turn",
         status: 409,
       };
     }
-    const cutTurnIndex =
-      cut.kind === "before-user-turn"
-        ? Math.max(0, sourceIndex - 1)
-        : sourceIndex;
     return {
       ok: true,
       cutMessageId: boundary.providerBoundary.messageId,

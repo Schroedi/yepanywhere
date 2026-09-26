@@ -67,7 +67,11 @@ is one server-wide value).
   recorded as turn 0. `N = 0` names the empty prefix before turn 1.
 - **Cut.** The last kept chain entry. *After turn N* keeps turn N's prompt
   and its complete response; *before turn N* keeps everything preceding
-  turn N's prompt, which is the same cut as *after turn N−1*.
+  turn N's prompt, which is the same cut as *after* the turn N continued
+  from. That is turn N−1 unless a clear dropped the turns between: after
+  `/clear 3` drops 4–5, *before turn 6* is *after turn 3*. Both cuts, for
+  rewind and for fork, are resolved on the source turn's own chain, so a
+  cleared span is never the context of a live turn.
 - **Rewind.** Drop everything past the cut from the provider's live
   conversation while keeping the session id. On Claude this is the SDK's
   truncating resume (`resume` + `resumeSessionAt`), so it is a process
@@ -127,7 +131,8 @@ The existing per-prompt **Fork from this turn** menu
 entries on rewind-capable providers, after the fork entries:
 
 - **Clear after this turn** — `/clear N` for this turn.
-- **Clear replacing this turn** — `/clear N−1` for this turn, then hand
+- **Clear replacing this turn** — the cut *before turn N*, recorded as
+  `/clear K` for the turn K it keeps (see **Cut**), then hand
   this turn's prompt text back to the composer (the Codex Esc-Esc shape).
   The composer changes only after the rewind succeeds; a refused or failed
   rewind leaves the draft exactly as it was. An empty composer receives the
@@ -583,6 +588,10 @@ Durable pointers by symbol and module; grep for the symbol.
   same rewind, each reading the transcript once; a queued `/clearloop` starts
   a patient loop at that cut; an iteration's resume carries the session's
   saved launch settings and recap preferences
+  (`session-rewind-orchestration.test.ts`).
+- After `/clear 3` drops turns 4–5, **Clear replacing this turn** on turn 6
+  cuts after turn 3 and records `/clear 3`, and a fork before turn 6 keeps
+  turns 1–3; neither lands on the cleared turn 5
   (`session-rewind-orchestration.test.ts`).
 - A clearloop iteration ends only after the configured inactivity window
   elapses with no user send and no provider event; a steer or patient
