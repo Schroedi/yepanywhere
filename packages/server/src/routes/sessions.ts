@@ -57,6 +57,7 @@ import type {
 } from "../metadata/index.js";
 import type { ProjectMetadataService } from "../metadata/index.js";
 import {
+  type ForkOrdinalClaim,
   goalCommandOf,
   nonHumanUserTurnField,
 } from "../metadata/SessionMetadataService.js";
@@ -5566,15 +5567,13 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       body.mode ?? sourceLaunchSettings?.permissionMode;
 
     if (restartMode === "fork") {
-      const { ordinal, lineageRootId } =
-        (await deps.sessionMetadataService?.nextForkOrdinal(sessionId)) ?? {
-          ordinal: 1,
-          lineageRootId: sessionId,
-        };
+      const claimed =
+        await deps.sessionMetadataService?.nextForkOrdinal(sessionId);
+      const lineageRootId = claimed?.lineageRootId ?? sessionId;
       const forkTitle = deriveForkTitle({
         preferredTitle: originalMetadata?.customTitle,
         sourceSession,
-        ordinal,
+        ordinal: claimed?.ordinal ?? 1,
       });
       let fork: Awaited<ReturnType<Supervisor["forkSession"]>>;
       try {
@@ -5589,6 +5588,9 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           sandboxStateKey: originalMetadata?.sandboxStateKey,
         });
       } catch (error) {
+        if (claimed) {
+          await deps.sessionMetadataService?.releaseForkOrdinal(claimed);
+        }
         getLogger().warn(
           {
             event: "restart_fork_failed",
@@ -6812,6 +6814,9 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         ...inheritedSandboxSettings(originalMetadata),
       });
     } catch (error) {
+      if (claimed) {
+        await deps.sessionMetadataService?.releaseForkOrdinal(claimed);
+      }
       getLogger().warn(
         {
           event: "session_fork_failed",
@@ -7300,11 +7305,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       // lineage the target belongs to is recorded either way.
       const forkLineageRootId =
         deps.sessionMetadataService.forkLineageRoot(sessionId);
+      let fallbackClaim: ForkOrdinalClaim | undefined;
       const fallbackTitle = async (): Promise<string | undefined> => {
         if (!baseTitle) return undefined;
-        const claimed =
+        fallbackClaim =
           await deps.sessionMetadataService?.nextForkOrdinal(sessionId);
-        return forkTitleWithOrdinal(baseTitle, claimed?.ordinal ?? 1);
+        return forkTitleWithOrdinal(baseTitle, fallbackClaim?.ordinal ?? 1);
       };
       const savedExecutor = parseOptionalExecutor(
         deps.sessionMetadataService.getExecutor(sessionId),
@@ -7556,6 +7562,14 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
               );
             } catch (cleanupError) {
               logCleanupFailure("archive-target", cleanupError);
+            }
+          } else if (fallbackClaim) {
+            try {
+              await deps.sessionMetadataService?.releaseForkOrdinal(
+                fallbackClaim,
+              );
+            } catch (cleanupError) {
+              logCleanupFailure("release-fork-ordinal", cleanupError);
             }
           }
           if (!completed && targetProcessId) {

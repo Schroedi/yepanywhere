@@ -17,6 +17,7 @@ import {
   type Principal,
 } from "../../src/auth/principal.js";
 import { getLogger } from "../../src/logging/logger.js";
+import { SessionMetadataService } from "../../src/metadata/SessionMetadataService.js";
 import {
   canonicalizeProjectPath,
   encodeProjectId,
@@ -4891,6 +4892,58 @@ describe("Sessions metadata route", () => {
       forkedFromSessionId: "sess-1",
       forkLineageRootId: "sess-1",
     });
+  });
+
+  it("gives a failed fork's number to the next fork", async () => {
+    const project = createProject();
+    const dataDir = await mkdtemp(join(tmpdir(), "ya-fork-ordinal-"));
+    try {
+      const sessionMetadataService = new SessionMetadataService({ dataDir });
+      await sessionMetadataService.initialize();
+      await sessionMetadataService.setTitle("sess-1", "Refactor session");
+      const forkSession = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("provider fork failed"))
+        .mockResolvedValue({ sessionId: "sess-fork" });
+
+      const routes = createSessionsRoutes({
+        supervisor: {
+          getProcessForSession: vi.fn(() => undefined),
+          supportsForkSession: vi.fn(() => true),
+          forkSession,
+          resumeSession: vi.fn(),
+          startSession: vi.fn(),
+        } as unknown as SessionsDeps["supervisor"],
+        scanner: {
+          getOrCreateProject: vi.fn(async () => project),
+        } as unknown as SessionsDeps["scanner"],
+        readerFactory: vi.fn(
+          () =>
+            ({
+              getSessionSummary: vi.fn(async () => null),
+            }) as unknown as ISessionReader,
+        ),
+        sessionMetadataService,
+        eventBus: { emit: vi.fn() } as unknown as SessionsDeps["eventBus"],
+      });
+
+      const fork = () =>
+        routes.request(`/projects/${project.id}/sessions/sess-1/fork`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ upToMessageId: "msg-uuid-3" }),
+        });
+
+      expect((await fork()).status).toBe(500);
+      const response = await fork();
+      expect(response.status).toBe(200);
+      expect((await response.json()).title).toBe("Fork: Refactor session");
+      expect(sessionMetadataService.getMetadata("sess-1")?.forksCreated).toBe(
+        1,
+      );
+    } finally {
+      await rm(dataDir, { recursive: true, force: true });
+    }
   });
 
   it("renumbers rather than stacks the prefix when forking a fork", async () => {

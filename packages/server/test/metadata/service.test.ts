@@ -1306,6 +1306,55 @@ describe("SessionMetadataService", () => {
       });
     });
 
+    it("finds the root of a fork that predates lineage roots", async () => {
+      await service.initialize();
+
+      // The root numbered its forks before targets recorded their root; the
+      // existing forks carry only their source.
+      await service.nextForkOrdinal("session-1");
+      await service.updateMetadata("fork-a", {
+        forkedFromSessionId: "session-1",
+      });
+      await service.updateMetadata("fork-b", {
+        forkedFromSessionId: "fork-a",
+      });
+
+      expect(service.forkLineageRoot("fork-b")).toBe("session-1");
+      expect(await service.nextForkOrdinal("fork-b")).toEqual({
+        ordinal: 2,
+        lineageRootId: "session-1",
+      });
+    });
+
+    it("stops at a source cycle instead of looping", async () => {
+      await service.initialize();
+      await service.updateMetadata("fork-a", {
+        forkedFromSessionId: "fork-b",
+      });
+      await service.updateMetadata("fork-b", {
+        forkedFromSessionId: "fork-a",
+      });
+
+      expect(["fork-a", "fork-b"]).toContain(service.forkLineageRoot("fork-a"));
+    });
+
+    it("gives a failed fork's number back unless a later fork took one", async () => {
+      await service.initialize();
+
+      await service.nextForkOrdinal("session-1");
+      const failed = await service.nextForkOrdinal("session-1");
+      await service.releaseForkOrdinal(failed);
+      expect(await service.nextForkOrdinal("session-1")).toEqual({
+        ordinal: 2,
+        lineageRootId: "session-1",
+      });
+
+      const overtaken = await service.nextForkOrdinal("session-1");
+      await service.nextForkOrdinal("session-1");
+      await service.releaseForkOrdinal(overtaken);
+      expect(service.getMetadata("session-1")).toEqual({ forksCreated: 4 });
+    });
+
     it("preserves other metadata while counting forks", async () => {
       await service.initialize();
       await service.setTitle("session-1", "My Title");
