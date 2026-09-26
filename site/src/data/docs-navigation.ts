@@ -74,6 +74,12 @@ export const docsNavigation: DocsNavSection[] = [
           "Schedule durable follow-up work after an entire project is quiet.",
       },
       {
+        path: "/docs/project-templates",
+        title: "Project templates",
+        description:
+          "Make reusable project starters and share a template source.",
+      },
+      {
         path: "/docs/notifications-and-voice",
         title: "Notifications and voice",
         description: "Stay responsive and talk to agents from a phone.",

@@ -1,9 +1,7 @@
-# Create and share project templates for YA
-
-> A guide to making reusable project starters, extending YA-default bases,
-> and sharing a template source with other YA users.
-
-Topic: project-template-authoring
+---
+title: Project templates
+description: Make reusable project starters, extend the YA-default bases, and share a template source with other YA users.
+---
 
 A template gives a new project its starting files, instructions and tools.
 A **base** is a reusable part of that starter, such as web tooling, testing
@@ -211,6 +209,6 @@ Include the tested YA-default commit when your template relies on its
 bases. This lets another person reproduce your starter instead of guessing
 which changing branch version you used.
 
-This guide is maintained in YA at `topics/project-template-authoring.md`.
+This guide is maintained in YA at `site/src/content/docs/project-templates.md`.
 `graehl/agents/project-templates/README.md` is a synchronized copy; its
 `VENDORED.md` records the source revision and how to refresh it.

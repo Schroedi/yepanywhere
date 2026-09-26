@@ -29,8 +29,9 @@ default source's
 [FORMAT.md](https://github.com/graehl/agents/blob/master/project-templates/FORMAT.md),
 with its `composition.py` conformance tests, defined the initial version. This
 YA topic owns the product integration, not a second evolving schema.
-The user-facing [template-authoring guide](project-template-authoring.md)
-explains how to create and share a source; the default source's
+The user-facing [Project templates guide](../site/src/content/docs/project-templates.md)
+(published at `/docs/project-templates`) explains how to create and share a
+source; the default source's
 `project-templates/README.md` is its synchronized copy. Keep cache and
 protocol details here rather than in that guide.
 The superseded prompt-first proposal and the stacks and reach paths set aside

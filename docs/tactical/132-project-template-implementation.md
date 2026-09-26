@@ -25,9 +25,10 @@ Apply this scope to the two-template acceptance cases below as well.
   combined-library validation. Later sources replace matching definitions;
   community templates can extend YA-default bases. Empty subdirectories mean
   repository root. Automatic update checks remain a sketch.
-- Complete: user-facing authoring guide in `topics/project-template-authoring.md`
-  (`799bcd2b3`), copied exactly into agents `project-templates/README.md`
-  (`77a2cf9`), with pinned provenance and YA's MIT notice. Original agents
+- Complete: user-facing authoring guide, now the site guide
+  `site/src/content/docs/project-templates.md` (written as
+  `topics/project-template-authoring.md` at `799bcd2b3`), copied exactly
+  into agents `project-templates/README.md` (`77a2cf9`), with pinned provenance and YA's MIT notice. Original agents
   material uses MIT-0 (`eb6b931`); imported content retains its own terms.
 - Verification: all ten source-service tests pass, including limited-user
   denial, concurrent-request rejection, layered inheritance and dependency
