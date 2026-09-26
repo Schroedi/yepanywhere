@@ -666,7 +666,10 @@ refused, and the grant is created as borrowing instead, when the directory is
 a working tree's own root, a home directory, or a directory holding YA's data
 directory, and — outside any working tree, where nothing else distinguishes a
 bundle from ordinary content — when it sits under a home directory or under
-YA's state. `~/Downloads` is the case that decides that rule.
+YA's state. `~/Downloads` is the case that decides that rule. A working tree
+counts as that distinguishing context only when its root lies strictly inside
+the home directory or YA's state: a dotfiles repository at `~/.git` encloses
+everything in the home directory and leaves `~/Downloads` protected.
 
 Inside a working tree, location is not the evidence: a capture written to
 `<checkout>/.artifacts/` is still the caller's to clean up. There the frozen

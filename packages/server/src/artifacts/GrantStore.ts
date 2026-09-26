@@ -148,6 +148,10 @@ async function trackedFiles(root: string): Promise<Set<string> | null> {
  * no such evidence, and a directory under a home directory or under YA's state
  * is ordinary content that happened to be published; `~/Downloads` is the case
  * that would otherwise cost a user their files.
+ *
+ * Only a working tree rooted strictly inside a protected directory is that
+ * evidence for it. A dotfiles repository at `~/.git` encloses every path under
+ * the home directory, so its presence says nothing about `~/Downloads`.
  */
 export async function deletableDirectory(
   root: string,
@@ -157,12 +161,13 @@ export async function deletableDirectory(
   if (path === dirname(path)) return false;
   // The root of a checkout is the checkout, not a bundle inside one.
   if (await has(join(path, ".git"))) return false;
-  const tracked = (await enclosingWorkingTree(path)) !== null;
+  const tree = await enclosingWorkingTree(path);
   for (const other of [...forbidden, homedir()]) {
     if (!other) continue;
     const compare = resolve(other);
     if (path === compare || compare.startsWith(`${path}/`)) return false;
-    if (!tracked && path.startsWith(`${compare}/`)) return false;
+    const treeInside = tree?.startsWith(`${compare}/`) === true;
+    if (!treeInside && path.startsWith(`${compare}/`)) return false;
   }
   return true;
 }

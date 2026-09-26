@@ -232,6 +232,41 @@ describe("durable artifact grants", () => {
     ).toBe(false);
   });
 
+  it("does not let a repository rooted at a protected directory own what is under it", async () => {
+    // A dotfiles repository at `~/.git` makes every path in the home
+    // directory part of a working tree. That is no evidence `~/Downloads` is
+    // a disposable bundle; a checkout inside the home directory still is.
+    const { base } = await workspace();
+    const home = join(base, "home");
+    const downloads = join(home, "Downloads");
+    const checkout = join(home, "checkout", "docs");
+    await mkdir(downloads, { recursive: true });
+    await mkdir(checkout, { recursive: true });
+    await writeFile(join(downloads, "index.html"), "<h1>Mine</h1>");
+    await writeFile(join(checkout, "index.html"), "<h1>Capture</h1>");
+    await git(home, ["init"]);
+    await git(join(home, "checkout"), ["init"]);
+
+    const server = new ArtifactServer(
+      { port: 4402, localOrigin: "http://artifacts.localhost:3400" },
+      createLocalResourcePathPolicy({ allowedPaths: [base] }),
+      { stateDir: join(base, "state"), protectedPaths: [home] },
+    );
+    const mine = await server.createGrant(
+      join(downloads, "index.html"),
+      "local",
+      true,
+    );
+    expect(mine.owned).toBe(false);
+    const capture = await server.createGrant(
+      join(checkout, "index.html"),
+      "local",
+      true,
+    );
+    expect(capture.owned).toBe(true);
+    await server.close();
+  });
+
   it("owns only what Git does not track inside a working tree", async () => {
     const { base } = await workspace();
     // `docs/` holds no `.git` itself; the checkout above it does. A checkout
