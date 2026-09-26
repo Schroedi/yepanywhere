@@ -6,7 +6,6 @@ import {
   stat,
   unlink,
 } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { runGit } from "../git/gitExec.js";
 import { writeFileAtomically } from "../utils/writeFileAtomically.js";
@@ -152,6 +151,10 @@ async function trackedFiles(root: string): Promise<Set<string> | null> {
  * Only a working tree rooted strictly inside a protected directory is that
  * evidence for it. A dotfiles repository at `~/.git` encloses every path under
  * the home directory, so its presence says nothing about `~/Downloads`.
+ *
+ * `forbidden` is every protected directory, the home directory included: the
+ * caller names it, so the rule can be exercised against a home that is not
+ * the host's.
  */
 export async function deletableDirectory(
   root: string,
@@ -162,7 +165,7 @@ export async function deletableDirectory(
   // The root of a checkout is the checkout, not a bundle inside one.
   if (await has(join(path, ".git"))) return false;
   const tree = await enclosingWorkingTree(path);
-  for (const other of [...forbidden, homedir()]) {
+  for (const other of forbidden) {
     if (!other) continue;
     const compare = resolve(other);
     if (path === compare || compare.startsWith(`${path}/`)) return false;

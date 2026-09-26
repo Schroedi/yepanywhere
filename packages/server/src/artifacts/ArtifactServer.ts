@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
+import { homedir } from "node:os";
 import { basename, dirname, extname, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { getRequestListener } from "@hono/node-server";
@@ -83,6 +84,11 @@ export interface ArtifactServerOptions {
   stateDir?: string;
   /** Directories an owning grant may never delete, whatever a caller says. */
   protectedPaths?: readonly (string | undefined)[];
+  /**
+   * The server user's home directory, which is always protected; defaults to
+   * the host's.
+   */
+  homeDirectory?: string;
 }
 
 export class ArtifactServer {
@@ -106,7 +112,10 @@ export class ArtifactServer {
   ) {
     this.config = validateArtifactConfig(config);
     this.store = new GrantStore(options.stateDir);
-    this.protectedPaths = options.protectedPaths ?? [];
+    this.protectedPaths = [
+      ...(options.protectedPaths ?? []),
+      options.homeDirectory ?? homedir(),
+    ];
     this.vhostAccess = new VhostAccess(options.stateDir);
     this.ready = Promise.all([this.restore(), this.vhostAccess.ready]).then(
       () => {},

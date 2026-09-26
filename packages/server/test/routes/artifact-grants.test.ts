@@ -7,12 +7,11 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { execFile } from "node:child_process";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ArtifactServer } from "../../src/artifacts/ArtifactServer.js";
-import { deletableDirectory } from "../../src/artifacts/GrantStore.js";
 import { createLocalResourcePathPolicy } from "../../src/routes/local-resource-policy.js";
 
 const directories: string[] = [];
@@ -31,7 +30,13 @@ async function workspace() {
   return { base, bundle, entry: join(bundle, "index.html") };
 }
 
-function serverFor(base: string, config: Record<string, unknown> = {}) {
+// Ownership refuses anything under the home directory, so a fixture home
+// keeps these results the same on a host whose temporary directory is there.
+function serverFor(
+  base: string,
+  config: Record<string, unknown> = {},
+  homeDirectory = join(base, "home"),
+) {
   return new ArtifactServer(
     {
       port: 4402,
@@ -39,7 +44,11 @@ function serverFor(base: string, config: Record<string, unknown> = {}) {
       ...config,
     },
     createLocalResourcePathPolicy({ allowedPaths: [base] }),
-    { stateDir: join(base, "state"), protectedPaths: [join(base, "state")] },
+    {
+      stateDir: join(base, "state"),
+      protectedPaths: [join(base, "state")],
+      homeDirectory,
+    },
   );
 }
 
@@ -174,7 +183,11 @@ describe("durable artifact grants", () => {
     const stateHolder = new ArtifactServer(
       { port: 4402, localOrigin: "http://artifacts.localhost:3400" },
       createLocalResourcePathPolicy({ allowedPaths: [base] }),
-      { stateDir: join(base, "state"), protectedPaths: [base] },
+      {
+        stateDir: join(base, "state"),
+        protectedPaths: [base],
+        homeDirectory: join(base, "home"),
+      },
     );
     const held = await stateHolder.createGrant(entry, "local", true);
     expect(held.owned).toBe(false);
@@ -225,14 +238,19 @@ describe("durable artifact grants", () => {
   });
 
   it("refuses to own a directory under a home directory", async () => {
-    // No fixture is written there: this only asks the path-policy question
-    // against the real home value used by the production module.
-    expect(
-      await deletableDirectory(join(homedir(), "artifact-fixture"), []),
-    ).toBe(false);
+    const { base, bundle, entry } = await workspace();
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    const server = serverFor(base, { expiryDays: 1 }, base);
+    const grant = await server.createGrant(entry, "local", true);
+    expect(grant.owned).toBe(false);
+    clock.mockReturnValue(now + 25 * 3600_000);
+    await server.settleExpired();
+    expect(await exists(join(bundle, "index.html"))).toBe(true);
+    await server.close();
   });
 
-  it("does not let a repository rooted at a protected directory own what is under it", async () => {
+  it("does not let a repository rooted at the home directory own what is under it", async () => {
     // A dotfiles repository at `~/.git` makes every path in the home
     // directory part of a working tree. That is no evidence `~/Downloads` is
     // a disposable bundle; a checkout inside the home directory still is.
@@ -247,11 +265,7 @@ describe("durable artifact grants", () => {
     await git(home, ["init"]);
     await git(join(home, "checkout"), ["init"]);
 
-    const server = new ArtifactServer(
-      { port: 4402, localOrigin: "http://artifacts.localhost:3400" },
-      createLocalResourcePathPolicy({ allowedPaths: [base] }),
-      { stateDir: join(base, "state"), protectedPaths: [home] },
-    );
+    const server = serverFor(base, {}, home);
     const mine = await server.createGrant(
       join(downloads, "index.html"),
       "local",
