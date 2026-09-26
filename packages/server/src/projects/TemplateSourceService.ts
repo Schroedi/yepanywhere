@@ -66,13 +66,44 @@ export const templateSourceConfig = z.strictObject({
     ),
 });
 
+/**
+ * Runs git for a GitHub template source. The ref check and the download share
+ * one runner so they reach the remote the same way.
+ */
+export type TemplateSourceGit = (
+  args: string[],
+  options: { cwd?: string; timeout: number; maxBuffer: number },
+) => Promise<{ stdout: string }>;
+
+/**
+ * Git with the host's system and global Git config ignored: a user's URL
+ * rewrites, credential helpers, proxy and CA settings apply to neither call.
+ * `emptyConfig` names an empty file standing in for the global config.
+ */
+export function isolatedTemplateSourceGit(
+  emptyConfig: string,
+): TemplateSourceGit {
+  return (args, options) =>
+    execute("git", args, {
+      ...options,
+      env: {
+        ...process.env,
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: emptyConfig,
+        GIT_TERMINAL_PROMPT: "0",
+      },
+    });
+}
+
 /** Fetching is injectable so route tests use local fixtures without network. */
 export type FetchTemplateRepository = (
   config: ProjectTemplateSourceConfig,
   directory: string,
+  git: TemplateSourceGit,
 ) => Promise<string>;
 export type ResolveTemplateRevision = (
   config: ProjectTemplateSourceConfig,
+  git: TemplateSourceGit,
 ) => Promise<string>;
 
 export class TemplateSourceBusyError extends Error {
@@ -127,8 +158,10 @@ async function localSnapshot(
   };
 }
 
-async function resolveRevision(
+/** Resolves a GitHub source's branch, tag or HEAD to the commit ls-remote reports. */
+export async function resolveTemplateRevision(
   config: ProjectTemplateSourceConfig,
+  git: TemplateSourceGit,
 ): Promise<string> {
   if (/^[0-9a-f]{40}$/.test(config.revision)) return config.revision;
   const ref = config.revision;
@@ -136,14 +169,9 @@ async function resolveRevision(
     ref === "HEAD" || ref.startsWith("refs/")
       ? [ref, `${ref}^{}`]
       : [`refs/heads/${ref}`, `refs/tags/${ref}`, `refs/tags/${ref}^{}`];
-  const { stdout } = await execute(
-    "git",
+  const { stdout } = await git(
     ["ls-remote", "--exit-code", config.repository, ...patterns],
-    {
-      timeout: 30_000,
-      maxBuffer: 64 * 1024,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-    },
+    { timeout: 30_000, maxBuffer: 64 * 1024 },
   );
   const refs = new Map(
     stdout
@@ -167,23 +195,16 @@ async function resolveRevision(
 async function fetchRepository(
   config: ProjectTemplateSourceConfig,
   directory: string,
+  runGit: TemplateSourceGit,
 ): Promise<string> {
-  const emptyConfig = join(directory, "git-config");
-  await writeFile(emptyConfig, "", { mode: 0o600 });
   const checkout = join(directory, "repository");
   const hooks = join(directory, "empty-hooks");
   await mkdir(hooks, { mode: 0o700 });
-  const git = async (args: string[]) =>
-    execute("git", args, {
+  const git = (args: string[]) =>
+    runGit(args, {
       cwd: directory,
       timeout: 180_000,
       maxBuffer: 2 * 1024 * 1024,
-      env: {
-        ...process.env,
-        GIT_CONFIG_NOSYSTEM: "1",
-        GIT_CONFIG_GLOBAL: emptyConfig,
-        GIT_TERMINAL_PROMPT: "0",
-      },
     });
   await git(["init", checkout]);
   await git(["-C", checkout, "remote", "add", "origin", config.repository]);
@@ -288,7 +309,7 @@ export class TemplateSourceService {
   constructor(
     dataDir: string,
     private readonly fetch: FetchTemplateRepository = fetchRepository,
-    private readonly resolveRef: ResolveTemplateRevision = resolveRevision,
+    private readonly resolveRef: ResolveTemplateRevision = resolveTemplateRevision,
   ) {
     this.directory = join(dataDir, "project-templates-source");
   }
@@ -385,13 +406,16 @@ export class TemplateSourceService {
   ): Promise<void> {
     const snapshots: ProjectTemplateSourceSnapshot[] = [];
     let changed = false;
+    const emptyGitConfig = join(this.directory, "git-config");
+    await writeFile(emptyGitConfig, "", { mode: 0o600 });
+    const git = isolatedTemplateSourceGit(emptyGitConfig);
     for (const source of config.sources) {
       if (!githubRepository.test(source.repository)) {
         snapshots.push(await localSnapshot(source));
         changed = true;
         continue;
       }
-      const resolved = await this.resolveRef(source);
+      const resolved = await this.resolveRef(source, git);
       const cached = previous.snapshot?.sources.find(
         (item) =>
           item.id === source.id &&
@@ -409,6 +433,7 @@ export class TemplateSourceService {
       const commit = await this.fetch(
         { ...source, revision: resolved },
         directory,
+        git,
       );
       if (commit !== resolved || !/^[0-9a-f]{40,64}$/.test(commit))
         throw new Error("Fetched revision differs from the resolved commit");

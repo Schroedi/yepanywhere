@@ -87,7 +87,12 @@ base replacement changes templates depending on it and requires source review.
 **Retrieval and relocation:** `GET`/`PUT /api/project-template-source` are
 superuser-only source administration. The feature defaults off. Fetch resolves
 each configured GitHub ref to a commit before downloading, then validates the whole
-combined library without executing setup. Raw shallow Git checkouts remain
+combined library without executing setup. The ref check and the download run
+Git in one environment that ignores the host's system and global Git config,
+so a user's URL rewrites, credential helpers, proxy and CA settings apply to
+neither; process environment such as `https_proxy` applies to both. A name
+that is both a branch and a tag is refused until qualified as `refs/heads/` or
+`refs/tags/`, and an annotated tag resolves to the commit it points at. Raw shallow Git checkouts remain
 unchanged under `dataDir/project-templates-source`; a separate translated
 snapshot rewrites explicit `~/repository-name` text references to the matching
 retrieved repository. Later sources supply duplicate repository-name aliases.
