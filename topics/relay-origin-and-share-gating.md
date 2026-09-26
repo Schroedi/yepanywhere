@@ -234,26 +234,43 @@ the root immediately removes stale references and admits current ones. Root and
 asset responses keep the existing no-store and active-content hardening.
 
 **Play for public file viewers.** The hosted share viewer shows an HTML root
-as a scriptless preview and offers a play toggle. The relay has no HTTP path
-to the host and share files travel only over the relay WebSocket, so no
-top-level URL for the raw document exists; the viewer instead opens the
-hosted static `play.html` in a new tab and hands it the document over a
-same-origin `postMessage` handshake keyed by a per-open id. That document is
-a separate build entry outside the app's routes, so it never meets the login
-gate, and it carries its own permissive Content Security Policy: a `srcdoc`
-frame inherits its parent's policy, and the app's strict one would block the
-untrusted document's own stylesheets and scripts. The CSP plugin skips it by
-name; its policy still forbids nested frames, plugins, and form targets. Before hand-off the viewer
-fetches the root's directly referenced stylesheets, scripts, images, and
-media through the share's own raw file route and inlines them as data URLs,
-capped at 48 MiB; references the share does not serve stay as written and
-fail inside the sandbox. The play page renders the document full-window in
-an iframe with `sandbox="allow-scripts allow-popups allow-downloads
-allow-forms allow-modals"` and no `allow-same-origin`, so the document has an
-opaque origin: it cannot read the hosted client's storage or credentials and
-has no channel back to the share. The page itself is trusted hosted chrome
-and holds nothing but the document text. Second-level references such as
-fonts named inside a stylesheet are not inlined yet.
+as a scriptless preview and offers a play toggle: an ordinary link that opens
+the hosted client's static `play.html` in a new tab. A play URL carries the
+same grant as the file-share link, and nothing more: the relay username, a
+non-default relay URL, the project id and the root path in the query, and the
+share secret in the fragment (`#share=`). Browsers send neither a fragment nor
+a fragment-bearing `Referer` with a request, so the secret stays out of the
+static host's access log; like any share link it remains in the address bar
+and browser history. A play link can be reloaded, pasted into a fresh tab, or
+passed on, and it authorizes exactly what its file share does — the root and
+its directly referenced assets, read live — until that share is revoked.
+
+The play page loads the share itself. The relay has no HTTP path to the host,
+so the page opens its own relay WebSocket to the named host and makes the same
+secret-only reads the share viewer makes: the root through
+`/public-api/shares/:secret/files` and each directly referenced stylesheet,
+script, image, and media file through the share's raw file route. Those
+requests are plaintext share requests with the relay-operator visibility
+described above. It inlines the assets as data URLs, capped at 48 MiB in
+total; references the share does not serve stay as written and fail inside
+the sandbox. Second-level references such as fonts named inside a stylesheet
+are not inlined yet.
+
+`play.html` is a separate entry of the hosted client build, outside the app's
+routes, so it never meets the login gate. It carries its own Content Security
+Policy, permissive for the document's resources: a `srcdoc` frame inherits
+its parent's policy, and the app's strict one would block the untrusted
+document's own stylesheets and scripts. The CSP plugin skips the page by name.
+Its policy forbids plugins and form submission and admits frames only from its
+own origin and `blob:`. The page renders the document full-window in an iframe
+with `sandbox="allow-scripts allow-popups allow-downloads allow-forms
+allow-modals"` and no `allow-same-origin`, so the document has an opaque
+origin and cannot read the hosted client's storage or credentials. A `srcdoc`
+document resolves relative URLs against the play page, so a fragment-only link
+would navigate the frame to `play.html` without its query and grant; a click
+handler injected ahead of the document's own scripts resolves such links on the
+frame's own location instead, including links the document creates at
+runtime.
 
 The File Viewer creation action is visible only for the ordinary live working
 file when Public Read-Only Share can currently create links and the server has
@@ -267,7 +284,10 @@ read-only and never reaches Edit. An absolute path is filed under the
 registered project that owns it, as the share routes do for File Viewer. The
 running interactive preview's toggle menu offers the same **Copy public URL**,
 copying that file share in play form, so every **Copy public URL** for a file
-names one bounded, revocable file grant. File links reuse the established public-share
+names one bounded, revocable file grant. While that preview is running, the
+File Viewer's share dialog also copies its links in play form and says so, so
+a recipient opens straight into the running document; otherwise it copies the
+ordinary file link. File links reuse the established public-share
 relay registration and secret-only `/public-api/shares/:secret/files` reads;
 they do not add a relay protocol or registration mode.
 
