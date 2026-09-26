@@ -11,7 +11,9 @@ import { createLimitedUsersMiddleware } from "../../src/middleware/limited-users
 import {
   actingUsername,
   applyLimitedLaunchPolicy,
+  applyLimitedResumePolicy,
 } from "../../src/routes/limited-session-launch.js";
+import type { ModelSettings } from "../../src/supervisor/Supervisor.js";
 import { buildUserMessageMetadata } from "../../src/routes/session-request-helpers.js";
 import {
   PRINCIPAL_VARIABLE,
@@ -117,6 +119,53 @@ describe("limited-user route policy", () => {
       sessionId: "s1",
       required: "new-session",
     });
+  });
+
+  it("allows only listed session actions, whose launches apply the launch policy", () => {
+    for (const action of [
+      "resume",
+      "reactivate",
+      "fork",
+      "clone",
+      "attachments/staging/materialize",
+    ]) {
+      expect(
+        decide("POST", `/api/projects/abc/sessions/s1/${action}`),
+        action,
+      ).toEqual({ kind: "session", sessionId: "s1", required: "new-session" });
+    }
+    for (const action of ["terminate", "archive", "done"]) {
+      expect(decide("POST", `/api/sessions/s1/${action}`), action).toEqual({
+        kind: "session",
+        sessionId: "s1",
+        required: "new-session",
+      });
+    }
+    expect(decide("DELETE", "/api/sessions/s1/recovered-queue/q1")).toEqual({
+      kind: "session",
+      sessionId: "s1",
+      required: "new-session",
+    });
+  });
+
+  it("refuses session actions that launch a process without the launch policy", () => {
+    for (const [method, url] of [
+      ["POST", "/api/projects/abc/sessions/s1/restart"],
+      ["POST", "/api/projects/abc/sessions/s1/recap"],
+      ["POST", "/api/projects/abc/sessions/s1/retitle"],
+      ["POST", "/api/projects/abc/sessions/s1/fork-summary"],
+      ["POST", "/api/projects/abc/sessions/s1/rewind"],
+      ["POST", "/api/projects/abc/sessions/s1/clearloop"],
+      ["POST", "/api/projects/abc/sessions/s1/bang-commands"],
+      ["PUT", "/api/projects/abc/sessions/s1/project"],
+      ["POST", "/api/sessions/s1/recovered-queue/q1/resume"],
+      ["POST", "/api/sessions/s1/recovered-queue/q1/steer"],
+      ["POST", "/api/sessions/s1/some-new-launcher"],
+    ] as const) {
+      expect(decide(method, url), `${method} ${url}`).toEqual({
+        kind: "deny",
+      });
+    }
   });
 
   it("allows the status polls every client makes, and only as reads", () => {
@@ -301,6 +350,100 @@ describe("limited-user launch policy", () => {
       provider: "claude",
     });
     expect(outcome.kind).toBe("error");
+  });
+
+  it("refuses a remote executor or computer control, which leave the sandbox", () => {
+    expect(
+      applyLimitedLaunchPolicy(contextFor(alice), { executor: "devbox" }),
+    ).toEqual({
+      kind: "error",
+      error:
+        "This user's sessions run only on this host, not on a remote executor",
+    });
+    expect(
+      applyLimitedLaunchPolicy(contextFor(alice), { computerControl: true })
+        .kind,
+    ).toBe("error");
+  });
+
+  describe("resuming an existing session", () => {
+    const sandboxed = (): ModelSettings => ({
+      providerName: "codex",
+      model: "gpt-4",
+      requestedModel: "gpt-4",
+      sandboxLevel: "project-write",
+    });
+
+    it("leaves the superuser's settings untouched", () => {
+      const settings: ModelSettings = { sandboxLevel: "none" };
+      expect(
+        applyLimitedResumePolicy(
+          contextFor({ kind: "superuser" }),
+          settings,
+          {},
+        ),
+      ).toEqual({ kind: "superuser" });
+      expect(settings.sandboxLevel).toBe("none");
+    });
+
+    it("refuses a session that runs outside the sandbox", () => {
+      for (const sandboxLevel of [undefined, "none"] as const) {
+        const outcome = applyLimitedResumePolicy(
+          contextFor(alice),
+          { ...sandboxed(), sandboxLevel },
+          {},
+        );
+        expect(outcome.kind, String(sandboxLevel)).toBe("error");
+      }
+    });
+
+    it("refuses a session on a remote executor", () => {
+      expect(
+        applyLimitedResumePolicy(
+          contextFor(alice),
+          { ...sandboxed(), executor: "devbox" },
+          {},
+        ).kind,
+      ).toBe("error");
+    });
+
+    it("refuses a session whose provider is outside the lock", () => {
+      expect(
+        applyLimitedResumePolicy(
+          contextFor(alice),
+          { ...sandboxed(), providerName: "claude" },
+          {},
+        ).kind,
+      ).toBe("error");
+    });
+
+    it("refuses a requested model outside the lock", () => {
+      expect(
+        applyLimitedResumePolicy(contextFor(alice), sandboxed(), {
+          model: "gpt-4",
+        }).kind,
+      ).toBe("error");
+    });
+
+    it("replaces the session's persisted model and effort with the locked ones", () => {
+      const withEffort = {
+        ...alice,
+        grants: {
+          ...alice.grants,
+          lock: { ...alice.grants.lock, effort: "medium" },
+        },
+      };
+      const settings = sandboxed();
+      expect(
+        applyLimitedResumePolicy(contextFor(withEffort), settings, {}),
+      ).toEqual({
+        kind: "applied",
+        username: "alice",
+      });
+      expect(settings.model).toBe("gpt-5");
+      expect(settings.requestedModel).toBe("gpt-5");
+      expect(settings.effort).toBe("medium");
+    });
   });
 
   describe("a locked effort against the request's thinking option", () => {

@@ -213,7 +213,10 @@ percent-encoding is refused.
 |---|---|
 | any API path not on the v1 allowlist | 403 |
 | `GET` of a project-scoped path | allowed when the project is in any of the three lists, else 404 |
-| session create in a project | `newSessionProjects` only; sandbox forced; lock applied |
+| session create in a project | `newSessionProjects` only; sandbox forced; lock applied; a remote executor or computer control is refused |
+| resume or reactivate a session | `newSessionProjects` on its project; the session must already run sandboxed and on this host, else 403; the lock applies as at create, replacing the session's model and effort with locked ones |
+| fork or clone a session | `newSessionProjects` on its project; the copy is recorded as the user's own; running it is a resume, under the row above |
+| any other session action that starts a provider process (restart, recap, retitle, fork-after-summary, rewind, clearloop, resuming or steering a restart-paused queued message, session bang commands) and moving a session to another project | 403: only listed session actions are open, and each listed one that launches applies this launch policy |
 | turn/approval/interrupt on a session | the session's project in `newSessionProjects` or `joinProjects`, **and** the session is fresh or started by this user |
 | any session the user started | always at least readable, including after its project grant is removed |
 | Issues & PRs (`/api/issues*`) | 403, and the nav entry is hidden: it spends the host's ticket-system credentials |

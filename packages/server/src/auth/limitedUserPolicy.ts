@@ -157,8 +157,8 @@ function hasPrefix(path: string, prefixes: readonly string[]): boolean {
 
 /**
  * Session-scoped mutations a joiner may perform: sending and shaping turns in
- * an existing session. Anything else about a session (terminate, rewind,
- * fork, clone, archive, move) needs the project's new-session grant.
+ * an existing session. The few others a limited user may perform need the
+ * project's new-session grant and are listed below.
  */
 const JOIN_SESSION_ACTIONS = new Set([
   "messages",
@@ -176,6 +176,45 @@ const JOIN_SESSION_ACTIONS = new Set([
   // Attaching an image or document is part of composing that turn.
   "upload",
 ]);
+
+/**
+ * Session-scoped mutations a new-session grant adds to the join actions.
+ * Every one here that starts or resumes a provider process applies the
+ * limited launch policy at its route (routes/limited-session-launch.ts):
+ * resume and reactivate, while fork and clone record the user as creator of
+ * a transcript that only a policy-checked resume can run. Any other session
+ * action is refused, including restart, recap, retitle, fork-summary, rewind,
+ * clearloop, recovered-queue resume, session bang commands, and moving a
+ * session between projects, so a launching route added later stays out of a
+ * limited user's reach until it applies the policy and is listed here.
+ */
+const NEW_SESSION_SESSION_ACTIONS = new Set([
+  "resume",
+  "reactivate",
+  "fork",
+  "clone",
+  "terminate",
+  "archive",
+  "done",
+  "metadata",
+  // Materializing staged attachments into a session's first turn.
+  "attachments",
+]);
+
+/** What a session-scoped mutation needs, or null when it is refused. */
+function sessionMutationRequirement(
+  action: string,
+  method: string,
+): RequiredAccess | null {
+  if (JOIN_SESSION_ACTIONS.has(action)) return "join";
+  if (NEW_SESSION_SESSION_ACTIONS.has(action)) return "new-session";
+  // Dropping a restart-paused queued message launches nothing; resuming or
+  // steering it does, through a path without the launch policy.
+  if (action === "recovered-queue" && method === "DELETE") {
+    return "new-session";
+  }
+  return null;
+}
 
 export interface LimitedRouteRequest {
   method: string;
@@ -263,11 +302,10 @@ export function decideLimitedRoute(
       if (isRead) {
         return { kind: "session", sessionId, required: "view" };
       }
-      return {
-        kind: "session",
-        sessionId,
-        required: JOIN_SESSION_ACTIONS.has(action) ? "join" : "new-session",
-      };
+      const required = sessionMutationRequirement(action, method);
+      return required
+        ? { kind: "session", sessionId, required }
+        : { kind: "deny" };
     }
     return {
       kind: "project",
@@ -300,11 +338,10 @@ export function decideLimitedRoute(
     if (sessionId === null) return { kind: "deny" };
     const action = (sessionScoped[3] ?? "").split("/")[0] ?? "";
     if (isRead) return { kind: "session", sessionId, required: "view" };
-    return {
-      kind: "session",
-      sessionId,
-      required: JOIN_SESSION_ACTIONS.has(action) ? "join" : "new-session",
-    };
+    const required = sessionMutationRequirement(action, method);
+    return required
+      ? { kind: "session", sessionId, required }
+      : { kind: "deny" };
   }
   if (path === "/api/inbox" || path.startsWith("/api/inbox/")) {
     return isRead

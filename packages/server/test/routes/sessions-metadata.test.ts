@@ -10,7 +10,12 @@ import type {
   TranscriptDisplayObject,
   UrlProjectId,
 } from "@yep-anywhere/shared";
+import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  PRINCIPAL_VARIABLE,
+  type Principal,
+} from "../../src/auth/principal.js";
 import { getLogger } from "../../src/logging/logger.js";
 import {
   canonicalizeProjectPath,
@@ -3459,6 +3464,90 @@ describe("Sessions metadata route", () => {
       expect.objectContaining({ text: "continue" }),
       undefined,
       expect.objectContaining({ providerName: "claude" }),
+      { requireProviderSessionId: true },
+    );
+  });
+
+  it("resumes for a limited user only a sandboxed session, inside their lock", async () => {
+    const project = createProject();
+    const resumeSession = vi.fn(async () => ({
+      id: "proc-1",
+      sessionId: "sess-1",
+      permissionMode: "default",
+      modeVersion: 0,
+    }));
+    let sandboxLevel: "none" | "project-write" = "none";
+    const routes = createSessionsRoutes({
+      supervisor: {
+        resumeSession,
+      } as unknown as SessionsDeps["supervisor"],
+      scanner: {
+        getOrCreateProject: vi.fn(async () => project),
+      } as unknown as SessionsDeps["scanner"],
+      readerFactory: vi.fn(
+        () =>
+          ({
+            getSessionSummary: vi.fn(async () => null),
+            getSession: vi.fn(async () => null),
+            getSessionFilePath: vi.fn(
+              async () => "/home/user/.codex/sessions/sess-1.jsonl",
+            ),
+          }) as unknown as ISessionReader,
+      ),
+      sessionMetadataService: {
+        getMetadata: vi.fn(() => ({ sandboxLevel })),
+        getProvider: vi.fn(() => "codex"),
+        getRequestedModel: vi.fn(() => "gpt-4"),
+        setRequestedModel: vi.fn(async () => undefined),
+        getExecutor: vi.fn(() => undefined),
+      } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
+    });
+    const limited: Principal = {
+      kind: "limited",
+      username: "alice",
+      grants: {
+        newSessionProjects: [project.id],
+        joinProjects: [],
+        viewProjects: [],
+        joinStaleOffsetMinutes: 0,
+        lock: { model: "gpt-5" },
+      },
+      switched: false,
+      locked: true,
+      via: "direct",
+    };
+    const app = new Hono<{
+      Variables: Record<typeof PRINCIPAL_VARIABLE, Principal>;
+    }>();
+    app.use("*", async (c, next) => {
+      c.set(PRINCIPAL_VARIABLE, limited);
+      await next();
+    });
+    app.route("/", routes);
+    const resume = () =>
+      app.request(`/projects/${project.id}/sessions/sess-1/resume`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "continue" }),
+      });
+
+    const refused = await resume();
+    expect(refused.status).toBe(403);
+    expect(resumeSession).not.toHaveBeenCalled();
+
+    sandboxLevel = "project-write";
+    const resumed = await resume();
+    expect(resumed.status).toBe(200);
+    expect(resumeSession).toHaveBeenCalledWith(
+      "sess-1",
+      project.path,
+      expect.objectContaining({ text: "continue" }),
+      undefined,
+      expect.objectContaining({
+        sandboxLevel: "project-write",
+        model: "gpt-5",
+        requestedModel: "gpt-5",
+      }),
       { requireProviderSessionId: true },
     );
   });

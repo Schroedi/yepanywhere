@@ -195,6 +195,7 @@ import { buildThinkingOptions } from "./session-thinking-options.js";
 import {
   actingUsername,
   applyLimitedLaunchPolicy,
+  applyLimitedResumePolicy,
 } from "./limited-session-launch.js";
 import type { UserUsageService } from "../auth/UserUsageService.js";
 import type { EventBus } from "../watcher/index.js";
@@ -4516,28 +4517,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       executor = parsedSavedExecutor.executor;
     }
 
-    // For remote sessions, sync local files TO remote before resuming
-    // This ensures the remote has the latest session state
-    if (executor) {
-      const projectDir = getProjectDirFromCwd(resumeProjectPath);
-      const syncResult = await syncSessions({
-        host: executor,
-        projectDir,
-        direction: "to-remote",
-      });
-      if (!syncResult.success) {
-        console.warn(
-          `[resume] Failed to pre-sync session to ${executor}: ${syncResult.error}`,
-        );
-        // Continue anyway - remote may have the files from before
-      }
-
-      // Save executor to metadata if not already saved (e.g. client provided it)
-      if (deps.sessionMetadataService) {
-        await deps.sessionMetadataService.setExecutor(sessionId, executor);
-      }
-    }
-
     const globalInstructions = getGlobalInstructions();
 
     const providerName = body.provider ?? metadataProvider ?? identity.provider;
@@ -4625,6 +4604,70 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       }
     }
 
+    const resumeSettings: ModelSettings = {
+      model,
+      requestedModel: body.model,
+      serviceTier,
+      thinking,
+      effort,
+      providerName,
+      executor,
+      sandboxLevel: settledSandboxLevel,
+      sandboxNetworkFirewall: settledSandboxNetworkFirewall,
+      sandboxStateKey: persistedMetadata?.sandboxStateKey,
+      globalInstructions,
+      permissions: body.permissions,
+      recapMode: helperSettings.recapMode,
+      recapAfterSeconds:
+        helperSettings.recapAfterSeconds ??
+        deps.sessionMetadataService?.getRecapAfterSeconds?.(sessionId),
+      // Body value wins; otherwise recover the per-session preference from
+      // metadata so a body-less resume does not default back to native.
+      promptSuggestionMode:
+        helperSettings.promptSuggestionMode ??
+        deps.sessionMetadataService?.getPromptSuggestionMode?.(sessionId),
+      helperSideModel: helperSettings.helperSideModel,
+      resumeMode,
+      resumeSessionAt,
+      ...resolveCompactModelSettings(deps, {
+        provider: providerName,
+        yaModelId: requestedModel,
+        modelCandidates: [
+          requestedModel,
+          model,
+          previousProcess?.resolvedModel,
+        ],
+      }),
+    };
+    // A limited user resumes only a sandboxed session, on this host, inside
+    // their lock (topics/limited-users.md § Delivery v1).
+    const limitedResume = applyLimitedResumePolicy(c, resumeSettings, body);
+    if (limitedResume.kind === "error") {
+      return c.json({ error: limitedResume.error }, 403);
+    }
+
+    // For remote sessions, sync local files TO remote before resuming
+    // This ensures the remote has the latest session state
+    if (executor) {
+      const projectDir = getProjectDirFromCwd(resumeProjectPath);
+      const syncResult = await syncSessions({
+        host: executor,
+        projectDir,
+        direction: "to-remote",
+      });
+      if (!syncResult.success) {
+        console.warn(
+          `[resume] Failed to pre-sync session to ${executor}: ${syncResult.error}`,
+        );
+        // Continue anyway - remote may have the files from before
+      }
+
+      // Save executor to metadata if not already saved (e.g. client provided it)
+      if (deps.sessionMetadataService) {
+        await deps.sessionMetadataService.setExecutor(sessionId, executor);
+      }
+    }
+
     let result: Awaited<ReturnType<Supervisor["resumeSession"]>>;
     try {
       result = await deps.supervisor.resumeSession(
@@ -4632,41 +4675,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         resumeProjectPath,
         userMessage,
         body.mode,
-        {
-          model,
-          requestedModel: body.model,
-          serviceTier,
-          thinking,
-          effort,
-          providerName,
-          executor,
-          sandboxLevel: settledSandboxLevel,
-          sandboxNetworkFirewall: settledSandboxNetworkFirewall,
-          sandboxStateKey: persistedMetadata?.sandboxStateKey,
-          globalInstructions,
-          permissions: body.permissions,
-          recapMode: helperSettings.recapMode,
-          recapAfterSeconds:
-            helperSettings.recapAfterSeconds ??
-            deps.sessionMetadataService?.getRecapAfterSeconds?.(sessionId),
-          // Body value wins; otherwise recover the per-session preference from
-          // metadata so a body-less resume does not default back to native.
-          promptSuggestionMode:
-            helperSettings.promptSuggestionMode ??
-            deps.sessionMetadataService?.getPromptSuggestionMode?.(sessionId),
-          helperSideModel: helperSettings.helperSideModel,
-          resumeMode,
-          resumeSessionAt,
-          ...resolveCompactModelSettings(deps, {
-            provider: providerName,
-            yaModelId: requestedModel,
-            modelCandidates: [
-              requestedModel,
-              model,
-              previousProcess?.resolvedModel,
-            ],
-          }),
-        },
+        resumeSettings,
         { requireProviderSessionId: true },
       );
     } catch (error) {
@@ -4958,6 +4967,27 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           ? { helperSideModel: helperSettings.helperSideModel }
           : {}),
       };
+      // A limited user reactivates only a sandboxed session, on this host,
+      // inside their lock (topics/limited-users.md § Delivery v1). The cold
+      // settings already carry every override the body named, so checking
+      // them covers both; an override the lock then replaced follows it.
+      const limitedReactivate = applyLimitedResumePolicy(c, coldSettings, body);
+      if (limitedReactivate.kind === "error") {
+        return c.json({ error: limitedReactivate.error }, 403);
+      }
+      if (limitedReactivate.kind === "applied") {
+        for (const field of [
+          "model",
+          "requestedModel",
+          "thinking",
+          "effort",
+        ] as const) {
+          if (Object.hasOwn(overrideModelSettings, field)) {
+            (overrideModelSettings as Record<string, unknown>)[field] =
+              coldSettings[field];
+          }
+        }
+      }
       const requestedOverrides: SessionReactivationOverrides = {
         ...(Object.hasOwn(body, "mode") && body.mode !== undefined
           ? { permissionMode: body.mode }
@@ -6806,6 +6836,15 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         },
       );
     }
+    const forkCreator = actingUsername(c);
+    if (forkCreator) {
+      // A limited user's fork is theirs, like a session they start
+      // (topics/limited-users.md § Delivery v1).
+      await deps.sessionMetadataService?.recordSessionCreator(
+        fork.sessionId,
+        forkCreator,
+      );
+    }
     if (deps.sessionMetadataService) {
       await deps.sessionMetadataService.updateMetadata(fork.sessionId, {
         title: forkTitle,
@@ -8566,6 +8605,15 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         );
       }
 
+      const cloneCreator = actingUsername(c);
+      if (cloneCreator) {
+        // A limited user's clone is theirs, like a session they start
+        // (topics/limited-users.md § Delivery v1).
+        await deps.sessionMetadataService?.recordSessionCreator(
+          result.newSessionId,
+          cloneCreator,
+        );
+      }
       // Set clone metadata. /btw asides pass parentSessionId so the child
       // can jump back into the parent viewport.
       if (deps.sessionMetadataService) {

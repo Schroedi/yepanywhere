@@ -1,21 +1,35 @@
 /**
- * Launch policy a limited user's new session must obey.
+ * Launch policy every process a limited user starts must obey.
  *
- * Contract: topics/limited-users.md § Delivery v1.
+ * Contract: topics/limited-users.md § Delivery v1 and § Execution boundary.
  *
- * Two things are settled here, at the route, not in the form: the session is
- * sandboxed whether or not the request asked for it, and any locked
- * provider, model, or effort is applied. A request that names a value
- * conflicting with the lock is refused rather than quietly overridden, so a
- * stale client cannot believe it launched what it asked for.
+ * This is the one owner of what a limited user may launch, applied at every
+ * route that starts or resumes a provider process on their behalf and at
+ * Project Queue dispatch. Routes that would launch without it are refused by
+ * the route policy (auth/limitedUserPolicy.ts) rather than left open.
+ *
+ * - The session runs sandboxed. A new session is forced to `project-write`;
+ *   an existing session must already be sandboxed, since its boundary was
+ *   settled when it was created and a limited user may not drive an
+ *   unsandboxed process.
+ * - It runs on this host: a remote executor and computer control are outside
+ *   any sandbox, so either one is refused.
+ * - A locked provider, model, or effort is applied. A request naming a value
+ *   that conflicts with the lock is refused rather than quietly overridden,
+ *   so a stale client cannot believe it launched what it asked for.
  */
 
 import type { Context } from "hono";
 import {
+  type LimitedUserGrants,
+  type LimitedUserLock,
   lockedThinkingOption,
+  type ThinkingOption,
   thinkingOptionEffort,
+  thinkingOptionToConfig,
 } from "@yep-anywhere/shared";
 import { type Principal, PRINCIPAL_VARIABLE } from "../auth/principal.js";
+import type { ModelSettings } from "../supervisor/Supervisor.js";
 
 export interface LimitedLaunchBody {
   provider?: string;
@@ -23,6 +37,15 @@ export interface LimitedLaunchBody {
   thinking?: string;
   sandboxLevel?: string;
   sandboxNetworkFirewall?: boolean;
+  executor?: string;
+  computerControl?: boolean;
+}
+
+/** What a request asked for, as distinct from what the launch will use. */
+export interface LimitedLaunchRequest {
+  provider?: string;
+  model?: string;
+  thinking?: string;
 }
 
 export type LimitedLaunchOutcome =
@@ -49,6 +72,118 @@ export function actingUsername(c: Context): string | undefined {
   return principal.kind === "limited" ? principal.username : undefined;
 }
 
+/** Refusal for launch options that leave the host's sandbox. */
+function hostEscapeError(options: {
+  executor?: string;
+  computerControl?: boolean;
+}): string | null {
+  if (options.executor) {
+    return "This user's sessions run only on this host, not on a remote executor";
+  }
+  if (options.computerControl) {
+    return "This user's sessions cannot use computer control";
+  }
+  return null;
+}
+
+/**
+ * Refusal for a request that names a value the lock forbids. A blank or
+ * "default" model names nothing and takes the locked one.
+ */
+function lockConflictError(
+  lock: LimitedUserLock,
+  requested: LimitedLaunchRequest,
+): string | null {
+  for (const field of ["provider", "model"] as const) {
+    const locked = lock[field];
+    const value = requested[field];
+    if (
+      locked &&
+      typeof value === "string" &&
+      value.length > 0 &&
+      value !== "default" &&
+      value !== locked
+    ) {
+      return `This user is limited to ${field} "${locked}"`;
+    }
+  }
+  // The lock names a bare effort; the request names a thinking option. Compare
+  // like with like, so "on:high" against a "high" lock is agreement, not a
+  // conflict, and a request that names no effort at all ("off", "auto") takes
+  // the locked one rather than escaping the budget the superuser set.
+  if (lock.effort && typeof requested.thinking === "string") {
+    const requestedEffort = thinkingOptionEffort(requested.thinking);
+    if (requestedEffort !== null && requestedEffort !== lock.effort) {
+      return `This user is limited to effort "${lock.effort}"`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Apply the launch policy to a new session's request body in place: the
+ * session-create routes and a Project Queue new-session target.
+ */
+export function limitNewSessionLaunch(
+  grants: LimitedUserGrants,
+  body: LimitedLaunchBody,
+): { error: string } | null {
+  const hostEscape = hostEscapeError(body);
+  if (hostEscape) return { error: hostEscape };
+  const conflict = lockConflictError(grants.lock, body);
+  if (conflict) return { error: conflict };
+
+  // Sandbox is not the user's to clear.
+  body.sandboxLevel = "project-write";
+  const { lock } = grants;
+  if (lock.provider) body.provider = lock.provider;
+  if (lock.model) body.model = lock.model;
+  if (lock.effort) body.thinking = lockedThinkingOption(lock.effort);
+  return null;
+}
+
+/**
+ * Apply the launch policy in place to the settings an existing session's
+ * process will resume with. `requested` is what the request itself named,
+ * which alone can conflict with the lock; a session's persisted model is not
+ * the user's request and is simply replaced by the locked one.
+ */
+export function limitExistingSessionLaunch(
+  grants: LimitedUserGrants,
+  settings: ModelSettings,
+  requested: LimitedLaunchRequest,
+): { error: string } | null {
+  if (settings.sandboxLevel !== "project-write") {
+    return {
+      error:
+        "This session runs outside the sandbox, so this user cannot start it; start a new session instead",
+    };
+  }
+  const hostEscape = hostEscapeError(settings);
+  if (hostEscape) return { error: hostEscape };
+  const conflict = lockConflictError(grants.lock, requested);
+  if (conflict) return { error: conflict };
+
+  const { lock } = grants;
+  if (lock.provider && settings.providerName !== lock.provider) {
+    return {
+      error: `This session uses a provider other than "${lock.provider}", which this user is limited to`,
+    };
+  }
+  if (lock.model) {
+    settings.model = lock.model;
+    settings.requestedModel = lock.model;
+  }
+  if (lock.effort) {
+    const { thinking, effort } = thinkingOptionToConfig(
+      lockedThinkingOption(lock.effort) as ThinkingOption,
+    );
+    settings.thinking = thinking;
+    settings.effort = effort;
+  }
+  return null;
+}
+
 /**
  * Apply the limited user's launch policy to a session-create body in place.
  * Returns what happened so the caller can record session ownership.
@@ -59,48 +194,27 @@ export function applyLimitedLaunchPolicy(
 ): LimitedLaunchOutcome {
   const principal = principalFor(c);
   if (principal.kind !== "limited") return { kind: "superuser" };
+  const refused = limitNewSessionLaunch(principal.grants, body);
+  if (refused) return { kind: "error", error: refused.error };
+  return { kind: "applied", username: principal.username };
+}
 
-  // Sandbox is not the user's to clear.
-  body.sandboxLevel = "project-write";
-
-  const { lock } = principal.grants;
-  const conflicts: Array<[keyof LimitedLaunchBody, string | undefined]> = [
-    ["provider", lock.provider],
-    ["model", lock.model],
-  ];
-  for (const [field, locked] of conflicts) {
-    if (!locked) continue;
-    const requested = body[field];
-    if (
-      typeof requested === "string" &&
-      requested.length > 0 &&
-      requested !== "default" &&
-      requested !== locked
-    ) {
-      return {
-        kind: "error",
-        error: `This user is limited to ${String(field)} "${locked}"`,
-      };
-    }
-    (body as Record<string, unknown>)[field] = locked;
-  }
-
-  // The lock names a bare effort; the request names a thinking option. Compare
-  // like with like, so "on:high" against a "high" lock is agreement, not a
-  // conflict, and a request that names no effort at all ("off", "auto") takes
-  // the locked one rather than escaping the budget the superuser set.
-  if (lock.effort) {
-    const requested = body.thinking;
-    const requestedEffort =
-      typeof requested === "string" ? thinkingOptionEffort(requested) : null;
-    if (requestedEffort !== null && requestedEffort !== lock.effort) {
-      return {
-        kind: "error",
-        error: `This user is limited to effort "${lock.effort}"`,
-      };
-    }
-    body.thinking = lockedThinkingOption(lock.effort);
-  }
-
+/**
+ * Apply the limited user's launch policy to an existing session's resume
+ * settings in place.
+ */
+export function applyLimitedResumePolicy(
+  c: Context,
+  settings: ModelSettings,
+  requested: LimitedLaunchRequest,
+): LimitedLaunchOutcome {
+  const principal = principalFor(c);
+  if (principal.kind !== "limited") return { kind: "superuser" };
+  const refused = limitExistingSessionLaunch(
+    principal.grants,
+    settings,
+    requested,
+  );
+  if (refused) return { kind: "error", error: refused.error };
   return { kind: "applied", username: principal.username };
 }
