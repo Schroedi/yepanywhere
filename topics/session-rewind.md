@@ -378,7 +378,12 @@ stops the live process it persists that process's current effort, thinking,
 model, and permission mode as the session's launch settings, so the resume
 that sends the next prompt (a clearloop iteration or the user's next send)
 uses what was last applied mid-session rather than the original launch
-values.
+values. An iteration's resume is assembled by the same code as the `/resume`
+route, with those saved launch settings standing in for a client's request:
+the session's saved model, executor, recap mode and timing, prompt-suggestion
+preference, and settled sandbox all apply. Choices only a client request
+carries and the session never saves (a helper side model, permission rules)
+are absent, exactly as in a resume request that omits them.
 
 **The loop's own rewind is not a stop.** Rewinding aborts the live process
 to arm the truncating resume, which raises the same abort signal as a kill.
@@ -478,10 +483,14 @@ Durable pointers by symbol and module; grep for the symbol.
 - `transcript/messageProjection.ts` — the `rewound_group` system item.
 
 **Server** (`packages/server/src`)
-- `routes/sessions.ts` — `rewindSessionToCut` (the rewind operation),
-  `resolveRewindCut`, `sendClearloopPrompt`, the `/rewind` and `/clearloop`
-  routes, the clearloop runner, `rewindRecordIdsFor` on the detail
-  responses, the `/clone` rewind-state copy.
+- `routes/sessions.ts` — `runRewindCommand`, the one operation behind the
+  `/rewind` and `/clearloop` routes and queued `/clear N` / `/clearloop`
+  commands (provider and running-loop refusals, one session read, typed-N
+  resolution, then rewind or loop start); `rewindSessionToCut` (the rewind
+  itself, also run by each clearloop iteration), `resolveRewindCut`,
+  `sendClearloopPrompt` over `buildResumeLaunch` (the resume launch assembly
+  shared with the `/resume` route), the clearloop runner, `rewindRecordIdsFor`
+  on the detail responses, the `/clone` rewind-state copy.
 - `supervisor/resume-truncation.ts` — `resolveResumeTruncation` (the
   activation-seam consumption of `pendingRewind`) and
   `isResumeDropsTurnRefusal`; `Supervisor.consumePendingRewind`,
@@ -555,6 +564,11 @@ Durable pointers by symbol and module; grep for the symbol.
   and a discarded range containing a non-turn row is refused by YA.
 - `/clearloop 3 2: p` and `/clear 3` then `/clearloop 2: p` produce the same
   rewind records and sends.
+- A queued `/clear N` and the interactive rewind of the same turn record the
+  same rewind, each reading the transcript once; a queued `/clearloop` starts
+  a patient loop at that cut; an iteration's resume carries the session's
+  saved launch settings and recap preferences
+  (`session-rewind-orchestration.test.ts`).
 - A clearloop iteration ends only after the configured inactivity window
   elapses with no user send and no provider event; a steer or patient
   delivery inside the window resets it and is included in the next group.

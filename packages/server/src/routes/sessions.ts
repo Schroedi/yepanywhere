@@ -579,6 +579,29 @@ function persistedSandboxNetworkFirewall(
   );
 }
 
+/**
+ * Launch choices one resume request makes for an existing session. An unset
+ * field falls back to what the session saved, so a resume with no client body
+ * (a `/clearloop` iteration, a body-less route call) keeps the session's
+ * standing settings.
+ */
+interface ResumeLaunchRequest {
+  /** YA model id the request names; absent recovers the saved one. */
+  model?: string;
+  serviceTier?: ModelSettings["serviceTier"];
+  thinking?: ModelSettings["thinking"];
+  effort?: ModelSettings["effort"];
+  /** SSH host alias the request names; absent recovers the saved one. */
+  executor?: string;
+  permissions?: ModelSettings["permissions"];
+  recapMode?: ModelSettings["recapMode"];
+  recapAfterSeconds?: number;
+  promptSuggestionMode?: ModelSettings["promptSuggestionMode"];
+  helperSideModel?: string;
+  resumeMode: NonNullable<ModelSettings["resumeMode"]>;
+  resumeSessionAt?: string;
+}
+
 function inheritedSandboxSettings(
   metadata:
     | {
@@ -2239,6 +2262,78 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         deps.serverSettingsService?.getSetting("globalInstructions"),
       hints: deps.serverSettingsService?.getSetting("agentContextHints"),
     });
+
+  /**
+   * The one assembly of an existing session's resume launch: the request's
+   * choices over the session's saved model, executor, helper preferences and
+   * settled sandbox. The resume route and `/clearloop` iterations both use it.
+   */
+  const buildResumeLaunch = (input: {
+    sessionId: string;
+    providerName: ProviderName;
+    workingProjectPath: string;
+    /** Model the replaced process reported, a compact-window lookup key. */
+    previousResolvedModel?: string;
+    request: ResumeLaunchRequest;
+  }): { projectPath: string; settings: ModelSettings } | { error: string } => {
+    const { sessionId, providerName, request } = input;
+    const saved = deps.sessionMetadataService;
+    const metadata = saved?.getMetadata?.(sessionId);
+    const requestedModel = request.model ?? saved?.getRequestedModel(sessionId);
+    const model =
+      requestedModel && requestedModel !== "default"
+        ? requestedModel
+        : undefined;
+    let executor = request.executor;
+    if (!executor) {
+      const savedExecutor = parseOptionalExecutor(
+        saved?.getExecutor(sessionId),
+      );
+      if (savedExecutor.error) return { error: savedExecutor.error };
+      executor = savedExecutor.executor;
+    }
+    const recapMode = request.recapMode ?? metadata?.recapMode;
+    const sandboxLevel = metadata?.sandboxLevel ?? "none";
+    const sandboxError = getSessionSandboxSettingsError(
+      sandboxLevel,
+      recapMode,
+    );
+    if (sandboxError) return { error: sandboxError };
+    return {
+      projectPath:
+        sandboxLevel === "project-write"
+          ? (metadata?.sandboxProjectPath ?? input.workingProjectPath)
+          : input.workingProjectPath,
+      settings: {
+        model,
+        requestedModel,
+        serviceTier: request.serviceTier,
+        thinking: request.thinking,
+        effort: request.effort,
+        providerName,
+        executor,
+        sandboxLevel,
+        sandboxNetworkFirewall: persistedSandboxNetworkFirewall(metadata),
+        sandboxStateKey: metadata?.sandboxStateKey,
+        globalInstructions: getGlobalInstructions(),
+        permissions: request.permissions,
+        recapMode,
+        recapAfterSeconds:
+          request.recapAfterSeconds ?? saved?.getRecapAfterSeconds?.(sessionId),
+        promptSuggestionMode:
+          request.promptSuggestionMode ??
+          saved?.getPromptSuggestionMode?.(sessionId),
+        helperSideModel: request.helperSideModel,
+        resumeMode: request.resumeMode,
+        resumeSessionAt: request.resumeSessionAt,
+        ...resolveCompactModelSettings(deps, {
+          provider: providerName,
+          yaModelId: requestedModel,
+          modelCandidates: [requestedModel, model, input.previousResolvedModel],
+        }),
+      },
+    };
+  };
 
   const initializeProjectHeartbeatDefaults = async (
     sessionId: string,
@@ -4433,13 +4528,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
     const settledSandboxLevel = persistedMetadata?.sandboxLevel ?? "none";
     const settledSandboxNetworkFirewall =
-      settledSandboxLevel === "project-write" &&
-      persistedMetadata?.sandboxNetworkFirewall !== false;
-    const resumeProjectPath =
-      settledSandboxLevel === "project-write"
-        ? (persistedMetadata?.sandboxProjectPath ??
-          identity.workingProject.path)
-        : identity.workingProject.path;
+      persistedSandboxNetworkFirewall(persistedMetadata);
     if (
       body.sandboxLevel !== undefined ||
       body.sandboxNetworkFirewall !== undefined
@@ -4467,13 +4556,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         );
       }
     }
-    const sandboxSettingsError = getSessionSandboxSettingsError(
-      settledSandboxLevel,
-      helperSettings.recapMode,
-    );
-    if (sandboxSettingsError) {
-      return c.json({ error: sandboxSettingsError }, 400);
-    }
 
     const serverTimestamp = Date.now();
     const userMessage: UserMessage = {
@@ -4490,34 +4572,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         actingUsername(c),
       ),
     };
-
-    const { thinking, effort } = buildThinkingOptions(body);
-
-    // Convert model option (undefined or "default" means use CLI default). When
-    // the client sends no model (e.g. resume after a server restart), recover the
-    // YA model id persisted at launch so the process keeps its requested alias
-    // and per-model settings stay keyed by it. See topics/provider-abstraction.md.
-    const requestedModel =
-      body.model ?? deps.sessionMetadataService?.getRequestedModel(sessionId);
-    const model =
-      requestedModel && requestedModel !== "default"
-        ? requestedModel
-        : undefined;
-    const serviceTier = normalizeOptionalServiceTier(body.serviceTier);
-
-    // Use client-provided executor, falling back to saved executor from metadata.
-    let executor = parsedBodyExecutor.executor;
-    if (!executor) {
-      const parsedSavedExecutor = parseOptionalExecutor(
-        deps.sessionMetadataService?.getExecutor(sessionId),
-      );
-      if (parsedSavedExecutor.error) {
-        return c.json({ error: parsedSavedExecutor.error }, 400);
-      }
-      executor = parsedSavedExecutor.executor;
-    }
-
-    const globalInstructions = getGlobalInstructions();
 
     const providerName = body.provider ?? metadataProvider ?? identity.provider;
     const previousProcess = deps.supervisor.getProcessForSession?.(sessionId);
@@ -4604,41 +4658,30 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       }
     }
 
-    const resumeSettings: ModelSettings = {
-      model,
-      requestedModel: body.model,
-      serviceTier,
-      thinking,
-      effort,
+    const launch = buildResumeLaunch({
+      sessionId,
       providerName,
-      executor,
-      sandboxLevel: settledSandboxLevel,
-      sandboxNetworkFirewall: settledSandboxNetworkFirewall,
-      sandboxStateKey: persistedMetadata?.sandboxStateKey,
-      globalInstructions,
-      permissions: body.permissions,
-      recapMode: helperSettings.recapMode,
-      recapAfterSeconds:
-        helperSettings.recapAfterSeconds ??
-        deps.sessionMetadataService?.getRecapAfterSeconds?.(sessionId),
-      // Body value wins; otherwise recover the per-session preference from
-      // metadata so a body-less resume does not default back to native.
-      promptSuggestionMode:
-        helperSettings.promptSuggestionMode ??
-        deps.sessionMetadataService?.getPromptSuggestionMode?.(sessionId),
-      helperSideModel: helperSettings.helperSideModel,
-      resumeMode,
-      resumeSessionAt,
-      ...resolveCompactModelSettings(deps, {
-        provider: providerName,
-        yaModelId: requestedModel,
-        modelCandidates: [
-          requestedModel,
-          model,
-          previousProcess?.resolvedModel,
-        ],
-      }),
-    };
+      workingProjectPath: identity.workingProject.path,
+      previousResolvedModel: previousProcess?.resolvedModel,
+      request: {
+        model: body.model,
+        serviceTier: normalizeOptionalServiceTier(body.serviceTier),
+        ...buildThinkingOptions(body),
+        executor: parsedBodyExecutor.executor,
+        permissions: body.permissions,
+        recapMode: helperSettings.recapMode,
+        recapAfterSeconds: helperSettings.recapAfterSeconds,
+        promptSuggestionMode: helperSettings.promptSuggestionMode,
+        helperSideModel: helperSettings.helperSideModel,
+        resumeMode,
+        resumeSessionAt,
+      },
+    });
+    if ("error" in launch) {
+      return c.json({ error: launch.error }, 400);
+    }
+    const { settings: resumeSettings, projectPath: resumeProjectPath } = launch;
+    const executor = resumeSettings.executor;
     // A limited user resumes only a sandboxed session, on this host, inside
     // their lock (topics/limited-users.md § Delivery v1).
     const limitedResume = applyLimitedResumePolicy(c, resumeSettings, body);
@@ -5811,6 +5854,13 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     processAborted: boolean;
   };
 
+  /** A session as one rewind command read it, shared by its steps. */
+  type RewindSource = {
+    providerName: ProviderName;
+    process: Process | undefined;
+    session: Session | null;
+  };
+
   const isRewindProvider = (providerName: ProviderName): boolean =>
     isClaudeSdkProviderName(providerName);
 
@@ -5854,13 +5904,13 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     clearloopIteration?: number;
     clearloopTotal?: number;
     clearloopPrompt?: string;
+    /** The session as the caller just resolved it; absent loads it here. */
+    source?: RewindSource;
   }): Promise<RewindFailure | RewindSuccess> => {
     const { project, projectId, sessionId } = input;
-    const { providerName, process } = await resolveRewindProvider(
-      project,
-      projectId,
-      sessionId,
-    );
+    const { providerName, process } =
+      input.source ??
+      (await resolveRewindProvider(project, projectId, sessionId));
     if (!isRewindProvider(providerName)) {
       return {
         ok: false,
@@ -5895,13 +5945,15 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         status: 409,
       };
     }
-    const session = await loadRestartSourceSession(
-      project,
-      sessionId,
-      projectId,
-      providerName,
-      process,
-    );
+    const session = input.source
+      ? input.source.session
+      : await loadRestartSourceSession(
+          project,
+          sessionId,
+          projectId,
+          providerName,
+          process,
+        );
     if (!session) {
       return { ok: false, error: "Session not found", status: 404 };
     }
@@ -5997,34 +6049,19 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
   };
 
   /** Resolve a turn-relative cut to the provider chain entry it keeps. */
-  const resolveRewindCut = async (input: {
-    project: Project;
-    projectId: UrlProjectId;
-    sessionId: string;
-    cut: RewindCut;
-  }): Promise<
-    RewindFailure | { ok: true; cutMessageId: string; cutTurnIndex: number }
-  > => {
-    const { providerName, process } = await resolveRewindProvider(
-      input.project,
-      input.projectId,
-      input.sessionId,
-    );
-    const session = await loadRestartSourceSession(
-      input.project,
-      input.sessionId,
-      input.projectId,
-      providerName,
-      process,
-    );
-    if (!session) {
-      return { ok: false, error: "Session not found", status: 404 };
-    }
+  const resolveRewindCut = (
+    source: RewindSource & { session: Session },
+    sessionId: string,
+    cut: RewindCut,
+  ):
+    | RewindFailure
+    | { ok: true; cutMessageId: string; cutTurnIndex: number } => {
+    const { providerName, process, session } = source;
     // Numbering spans the full sequence, cleared turns included, but a cut
     // inside a cleared span is a tree hop whose UI is unspecified; refuse it
     // (topics/session-rewind.md § Vocabulary).
     const sourceMessage = session.messages.find(
-      (message) => messageId(message) === input.cut.sourceMessageId,
+      (message) => messageId(message) === cut.sourceMessageId,
     );
     if (sourceMessage?.rewoundGroupId) {
       return {
@@ -6039,20 +6076,16 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         (message as { subtype?: unknown }).subtype !== "rewound_group",
     );
     const sourceIsBusy = Boolean(
-      deps.externalTracker?.isExternal(input.sessionId) ||
+      deps.externalTracker?.isExternal(sessionId) ||
         process?.state.type === "in-turn" ||
         process?.state.type === "waiting-input",
     );
     const boundary =
-      input.cut.kind === "before-user-turn"
-        ? resolveForkBeforeBoundary(
-            messages,
-            input.cut.sourceMessageId,
-            providerName,
-          )
+      cut.kind === "before-user-turn"
+        ? resolveForkBeforeBoundary(messages, cut.sourceMessageId, providerName)
         : resolveForkAfterBoundary(
             messages,
-            input.cut.sourceMessageId,
+            cut.sourceMessageId,
             sourceIsBusy,
             providerName,
           );
@@ -6072,7 +6105,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     const cutTurnIndex =
       sourceIndex === undefined
         ? 0
-        : input.cut.kind === "before-user-turn"
+        : cut.kind === "before-user-turn"
           ? Math.max(0, sourceIndex - 1)
           : sourceIndex;
     return {
@@ -6111,62 +6144,35 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       projectId,
       sessionId,
     );
-    const persistedMetadata =
-      deps.sessionMetadataService?.getMetadata?.(sessionId);
-    const launch = persistedMetadata?.effectiveLaunchSettings;
-    const requestedModel =
-      deps.sessionMetadataService?.getRequestedModel(sessionId);
-    const model =
-      requestedModel && requestedModel !== "default"
-        ? requestedModel
-        : undefined;
-    const parsedExecutor = parseOptionalExecutor(
-      deps.sessionMetadataService?.getExecutor(sessionId),
-    );
-    if (parsedExecutor.error) throw new Error(parsedExecutor.error);
-    const settledSandboxLevel = persistedMetadata?.sandboxLevel ?? "none";
-    const resumeProjectPath =
-      settledSandboxLevel === "project-write"
-        ? (persistedMetadata?.sandboxProjectPath ?? project.path)
-        : project.path;
-    const serverTimestamp = Date.now();
-    const userMessage: UserMessage = {
-      text: input.prompt,
-      // YA-injected, not a principal's turn: no sender and no usage record.
-      metadata: buildUserMessageMetadata({}, serverTimestamp, "direct"),
-    };
-    const result = await deps.supervisor.resumeSession(
+    // No client asks for this turn, so the settings the session last applied
+    // stand in for the choices a resume request would carry.
+    const saved =
+      deps.sessionMetadataService?.getEffectiveLaunchSettings?.(sessionId);
+    const launch = buildResumeLaunch({
       sessionId,
-      resumeProjectPath,
-      userMessage,
-      launch?.permissionMode,
-      {
-        model,
-        requestedModel: requestedModel ?? undefined,
-        serviceTier: launch?.serviceTier ?? undefined,
-        thinking: launch?.thinking ?? undefined,
-        effort: launch?.effort ?? undefined,
-        providerName,
-        executor: parsedExecutor.executor,
-        sandboxLevel: settledSandboxLevel,
-        sandboxNetworkFirewall:
-          settledSandboxLevel === "project-write" &&
-          persistedMetadata?.sandboxNetworkFirewall !== false,
-        sandboxStateKey: persistedMetadata?.sandboxStateKey,
-        globalInstructions: getGlobalInstructions(),
-        recapAfterSeconds:
-          deps.sessionMetadataService?.getRecapAfterSeconds?.(sessionId),
-        promptSuggestionMode:
-          deps.sessionMetadataService?.getPromptSuggestionMode?.(sessionId),
+      providerName,
+      workingProjectPath: project.path,
+      request: {
+        serviceTier: saved?.serviceTier ?? undefined,
+        thinking: saved?.thinking ?? undefined,
+        effort: saved?.effort ?? undefined,
         // The iteration's rewind is armed as the session's pending rewind;
         // the supervisor applies it when this resume launches the process.
         resumeMode: "full",
-        ...resolveCompactModelSettings(deps, {
-          provider: providerName,
-          yaModelId: requestedModel,
-          modelCandidates: [requestedModel, model],
-        }),
       },
+    });
+    if ("error" in launch) throw new Error(launch.error);
+    const userMessage: UserMessage = {
+      text: input.prompt,
+      // YA-injected, not a principal's turn: no sender and no usage record.
+      metadata: buildUserMessageMetadata({}, Date.now(), "direct"),
+    };
+    const result = await deps.supervisor.resumeSession(
+      sessionId,
+      launch.projectPath,
+      userMessage,
+      saved?.permissionMode,
+      launch.settings,
       { requireProviderSessionId: true },
     );
     if (isQueueFullResponse(result)) {
@@ -6206,47 +6212,30 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
   });
 
   /**
-   * The user turn a queued rewind command names: turn `N`, or the session's
+   * The user turn a typed rewind command names: turn `N`, or the session's
    * last real turn when the command gave no number. Queued commands resolve
    * this at dispatch, so `/clearloop 3: p` queued now loops over whatever the
    * tail is when the project finally goes quiet.
    */
-  const resolveQueuedTurnSource = async (input: {
-    project: Project;
-    projectId: UrlProjectId;
-    sessionId: string;
-    turnIndex?: number;
-  }): Promise<RewindFailure | { ok: true; sourceMessageId: string }> => {
-    const { providerName, process } = await resolveRewindProvider(
-      input.project,
-      input.projectId,
-      input.sessionId,
-    );
-    const session = await loadRestartSourceSession(
-      input.project,
-      input.sessionId,
-      input.projectId,
-      providerName,
-      process,
-    );
-    if (!session) {
-      return { ok: false, error: "Session not found", status: 404 };
-    }
+  const typedTurnSourceMessageId = (
+    session: Session,
+    turnIndex: number | undefined,
+  ): RewindFailure | { ok: true; sourceMessageId: string } => {
     const turns = session.messages.filter(
       (message) =>
         !message.rewoundGroupId && turnIndexOf(message) !== undefined,
     );
     const target =
-      input.turnIndex === undefined
+      turnIndex === undefined
         ? turns[turns.length - 1]
-        : turns.find((message) => turnIndexOf(message) === input.turnIndex);
+        : turns.find((message) => turnIndexOf(message) === turnIndex);
     if (!target) {
       return {
         ok: false,
         error:
-          input.turnIndex === undefined
+          turnIndex === undefined
             ? "The session has no turns to rewind to"
-            : `Turn ${input.turnIndex} is not in the session`,
+            : `Turn ${turnIndex} is not in the session`,
         status: 409,
       };
     }
@@ -6257,40 +6246,127 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     return { ok: true, sourceMessageId: id };
   };
 
+  /**
+   * The one server operation behind `/clear N` and `/clearloop`, whether the
+   * composer sent it or Project Queue dispatched it: refuse what rewind cannot
+   * do, read the session once, resolve the kept turn, then rewind or start the
+   * loop (topics/session-rewind.md).
+   */
+  const runRewindCommand = async (input: {
+    project: Project;
+    projectId: UrlProjectId;
+    sessionId: string;
+    /** An explicit cut, or typed turn N (the last real turn when absent). */
+    target: { cut: RewindCut } | { turnIndex?: number };
+    action:
+      | { name: "clear" }
+      | {
+          name: "clearloop";
+          prompt: string;
+          total: number;
+          commandText: string;
+          patient: boolean;
+        };
+  }): Promise<
+    | RewindFailure
+    | { ok: true; rewind: RewindSuccess }
+    | {
+        ok: true;
+        job: Awaited<ReturnType<ClearloopService["start"]>>;
+      }
+  > => {
+    const { project, projectId, sessionId, action } = input;
+    const clearloopService = deps.clearloopService;
+    if (action.name === "clear" && clearloopService?.isRunning(sessionId)) {
+      return {
+        ok: false,
+        error: "Cancel the running /clearloop before rewinding",
+        status: 409,
+      };
+    }
+    const { providerName, process } = await resolveRewindProvider(
+      project,
+      projectId,
+      sessionId,
+    );
+    if (!isRewindProvider(providerName)) {
+      return {
+        ok: false,
+        error: `${providerName} does not support same-session rewind`,
+        status: 409,
+      };
+    }
+    const session = await loadRestartSourceSession(
+      project,
+      sessionId,
+      projectId,
+      providerName,
+      process,
+    );
+    if (!session) {
+      return { ok: false, error: "Session not found", status: 404 };
+    }
+    const source = { providerName, process, session };
+    let cut: RewindCut;
+    if ("cut" in input.target) {
+      cut = input.target.cut;
+    } else {
+      const typed = typedTurnSourceMessageId(session, input.target.turnIndex);
+      if (!typed.ok) return typed;
+      cut = { kind: "after-user-turn", sourceMessageId: typed.sourceMessageId };
+    }
+    const resolved = resolveRewindCut(source, sessionId, cut);
+    if (!resolved.ok) return resolved;
+    if (action.name === "clear") {
+      const rewind = await rewindSessionToCut({
+        project,
+        projectId,
+        sessionId,
+        cutMessageId: resolved.cutMessageId,
+        cutTurnIndex: resolved.cutTurnIndex,
+        reason: "clear",
+        source,
+      });
+      return rewind.ok ? { ok: true, rewind } : rewind;
+    }
+    if (!clearloopService) {
+      return { ok: false, error: "clearloop is not available", status: 404 };
+    }
+    try {
+      const job = await clearloopService.start(sessionId, projectId, {
+        cutMessageId: resolved.cutMessageId,
+        cutTurnIndex: resolved.cutTurnIndex,
+        prompt: action.prompt,
+        total: action.total,
+        commandText: action.commandText,
+        ...(action.patient ? { patient: true } : {}),
+      });
+      return { ok: true, job };
+    } catch (error) {
+      if (error instanceof ClearloopConflictError) {
+        return { ok: false, error: error.message, status: 409 };
+      }
+      throw error;
+    }
+  };
+
   // Route tests supply a partial scheduler; the runner is optional like the
   // other scheduler hooks this module calls.
   deps.projectQueueScheduler?.setYaCommandRunner?.({
     run: async ({ sessionId, projectId, command, commandText }) => {
       const project = await deps.scanner.getOrCreateProject(projectId);
       if (!project) throw new Error("Project not found");
-      // The interactive routes refuse these two cases; a queued command has
-      // the same session in the same states, so it refuses them identically
-      // and keeps its text for Retry.
-      const { providerName } = await resolveRewindProvider(
-        project,
-        projectId,
-        sessionId,
-      );
-      if (!isRewindProvider(providerName)) {
-        throw new Error(`${providerName} does not support same-session rewind`);
-      }
-      if (deps.clearloopService?.isRunning(sessionId)) {
-        throw new Error(
-          `Cancel the running /clearloop before ${commandText} runs`,
-        );
-      }
-      const parsed =
+      const clearloop =
         command.name === "clearloop"
           ? parseClearloopArguments(command.argument)
           : null;
-      if (command.name === "clearloop" && !parsed) {
+      if (command.name === "clearloop" && !clearloop) {
         throw new Error(`Cannot read the arguments of ${commandText}`);
       }
-      const turnArgument =
-        command.name === "clearloop"
-          ? parsed?.turnIndex
-          : (parseTurnIndexArgument(command.argument, { allowEmpty: true }) ??
-            undefined);
+      const turnArgument = clearloop
+        ? clearloop.turnIndex
+        : (parseTurnIndexArgument(command.argument, { allowEmpty: true }) ??
+          undefined);
       if (command.name === "clear" && turnArgument === undefined) {
         throw new Error(`Cannot read the turn number of ${commandText}`);
       }
@@ -6299,50 +6375,26 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         // session operation the scheduler can perform.
         throw new Error("/clear 0 has no queued meaning; queue a new session");
       }
-      const source = await resolveQueuedTurnSource({
+      // A refusal fails the queued item, which keeps its text for Retry.
+      const result = await runRewindCommand({
         project,
         projectId,
         sessionId,
-        ...(turnArgument === undefined ? {} : { turnIndex: turnArgument }),
+        target: turnArgument === undefined ? {} : { turnIndex: turnArgument },
+        action: clearloop
+          ? {
+              name: "clearloop",
+              prompt: clearloop.prompt,
+              total: clearloop.total,
+              commandText,
+              // The user chose a lane that waits for the project; the loop it
+              // starts keeps waiting (topics/project-queue.md § Queued YA
+              // commands).
+              patient: true,
+            }
+          : { name: "clear" },
       });
-      if (!source.ok) throw new Error(source.error);
-      const resolved = await resolveRewindCut({
-        project,
-        projectId,
-        sessionId,
-        cut: {
-          kind: "after-user-turn",
-          sourceMessageId: source.sourceMessageId,
-        },
-      });
-      if (!resolved.ok) throw new Error(resolved.error);
-      if (command.name === "clear") {
-        const result = await rewindSessionToCut({
-          project,
-          projectId,
-          sessionId,
-          cutMessageId: resolved.cutMessageId,
-          cutTurnIndex: resolved.cutTurnIndex,
-          reason: "clear",
-        });
-        if (!result.ok) throw new Error(result.error);
-        return;
-      }
-      if (!deps.clearloopService) {
-        throw new Error("clearloop is not available");
-      }
-      if (!parsed)
-        throw new Error(`Cannot read the arguments of ${commandText}`);
-      await deps.clearloopService.start(sessionId, projectId, {
-        cutMessageId: resolved.cutMessageId,
-        cutTurnIndex: resolved.cutTurnIndex,
-        prompt: parsed.prompt,
-        total: parsed.total,
-        commandText,
-        // The user chose a lane that waits for the project; the loop it starts
-        // keeps waiting (topics/project-queue.md § Queued YA commands).
-        patient: true,
-      });
+      if (!result.ok) throw new Error(result.error);
     },
   });
 
@@ -6365,37 +6417,25 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
     const cut = parseRewindCut(body);
     if ("error" in cut) return c.json({ error: cut.error }, 400);
-    if (deps.clearloopService?.isRunning(sessionId)) {
-      return c.json(
-        { error: "Cancel the running /clearloop before rewinding" },
-        409,
-      );
-    }
-    const resolved = await resolveRewindCut({
+    const result = await runRewindCommand({
       project,
       projectId,
       sessionId,
-      cut,
-    });
-    if (!resolved.ok) {
-      return c.json({ error: resolved.error }, resolved.status);
-    }
-    const result = await rewindSessionToCut({
-      project,
-      projectId,
-      sessionId,
-      cutMessageId: resolved.cutMessageId,
-      cutTurnIndex: resolved.cutTurnIndex,
-      reason: "clear",
+      target: { cut },
+      action: { name: "clear" },
     });
     if (!result.ok) {
       return c.json({ error: result.error }, result.status);
     }
+    if (!("rewind" in result)) {
+      throw new Error("A clear command returned no rewind result");
+    }
+    const { rewind } = result;
     return c.json({
-      record: result.record,
-      cutMessageId: result.cutMessageId,
-      noop: result.record === null,
-      processAborted: result.processAborted,
+      record: rewind.record,
+      cutMessageId: rewind.cutMessageId,
+      noop: rewind.record === null,
+      processAborted: rewind.processAborted,
     });
   });
 
@@ -6448,42 +6488,26 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         typeof record.commandText === "string" && record.commandText.trim()
           ? record.commandText.trim()
           : `/clearloop ${total}: ${prompt}`;
-      const { providerName } = await resolveRewindProvider(
+      const result = await runRewindCommand({
         project,
         projectId,
         sessionId,
-      );
-      if (!isRewindProvider(providerName)) {
-        return c.json(
-          { error: `${providerName} does not support same-session rewind` },
-          409,
-        );
-      }
-      const resolved = await resolveRewindCut({
-        project,
-        projectId,
-        sessionId,
-        cut,
-      });
-      if (!resolved.ok) {
-        return c.json({ error: resolved.error }, resolved.status);
-      }
-      try {
-        const job = await deps.clearloopService.start(sessionId, projectId, {
-          cutMessageId: resolved.cutMessageId,
-          cutTurnIndex: resolved.cutTurnIndex,
+        target: { cut },
+        action: {
+          name: "clearloop",
           prompt,
           total,
           commandText,
-          ...(record.patient === true ? { patient: true } : {}),
-        });
-        return c.json({ job }, 202);
-      } catch (error) {
-        if (error instanceof ClearloopConflictError) {
-          return c.json({ error: error.message }, 409);
-        }
-        throw error;
+          patient: record.patient === true,
+        },
+      });
+      if (!result.ok) {
+        return c.json({ error: result.error }, result.status);
       }
+      if (!("job" in result)) {
+        throw new Error("A clearloop command returned no job");
+      }
+      return c.json({ job: result.job }, 202);
     },
   );
 
