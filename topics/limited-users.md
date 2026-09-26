@@ -578,8 +578,12 @@ A limited user creates projects only where the superuser said they may.
   parent is an error, because building a whole tree from one typed path
   turns a typo into directories nobody meant to make.
 - **Ownership.** The project records `ownerUsername`, absent for the
-  superuser, and it survives the project being rediscovered by a
-  session-directory scan once it has sessions. Ownership is not itself
+  superuser, and it survives a restart, the project being rediscovered by a
+  session-directory scan once it has sessions, and the superuser hiding the
+  project or adding it again. A limited user adds a directory, never an
+  existing project: adding a path that is already a project with another
+  owner or none, or one the superuser hid, is refused, while their own
+  project may be added again. Ownership is not itself
   access: creating the project also adds it to the creator's new-session
   grants, so it is theirs to list, open, and start sessions in the moment it
   exists. That is an ordinary grant, shown in Settings → Users, and the

@@ -25,6 +25,7 @@ describe("a limited user's project creation through the app", () => {
   let outside: string;
   let instance: AppResult;
   let limitedUsersService: LimitedUsersService;
+  let projectMetadataService: ProjectMetadataService;
   let cookie: string;
 
   beforeEach(async () => {
@@ -56,7 +57,7 @@ describe("a limited user's project creation through the app", () => {
     const serverSettingsService = new ServerSettingsService({ dataDir });
     await serverSettingsService.initialize();
     await serverSettingsService.updateSettings({ limitedUsersEnabled: true });
-    const projectMetadataService = new ProjectMetadataService({ dataDir });
+    projectMetadataService = new ProjectMetadataService({ dataDir });
     await projectMetadataService.initialize();
 
     instance = createApp({
@@ -117,6 +118,43 @@ describe("a limited user's project creation through the app", () => {
     expect(
       limitedUsersService.getActiveGrants("archer")?.newSessionProjects,
     ).toEqual([projectId]);
+  });
+
+  it("may add its own project again", async () => {
+    const projectPath = join(root, "notes");
+    expect((await addProject(projectPath)).status).toBe(200);
+
+    expect((await addProject(projectPath)).status).toBe(200);
+    expect(
+      projectMetadataService.getMetadata(toUrlProjectId(projectPath))
+        ?.ownerUsername,
+    ).toBe("archer");
+  });
+
+  it("refuses to claim a project the superuser already added under its root", async () => {
+    const projectPath = join(root, "shared");
+    await mkdir(projectPath);
+    const projectId = toUrlProjectId(projectPath);
+    await projectMetadataService.addProject(projectId, projectPath);
+
+    expect((await addProject(projectPath)).status).toBe(403);
+    expect(
+      projectMetadataService.getMetadata(projectId)?.ownerUsername,
+    ).toBeUndefined();
+    expect(
+      limitedUsersService.getActiveGrants("archer")?.newSessionProjects,
+    ).toEqual([]);
+  });
+
+  it("refuses to bring back a project the superuser hid", async () => {
+    const projectPath = join(root, "retired");
+    await mkdir(projectPath);
+    const projectId = toUrlProjectId(projectPath);
+    await projectMetadataService.addProject(projectId, projectPath);
+    await projectMetadataService.hideProject(projectId, projectPath);
+
+    expect((await addProject(projectPath)).status).toBe(403);
+    expect(projectMetadataService.isHiddenProjectPath(projectPath)).toBe(true);
   });
 
   it("refuses a symbolic link under the root that points outside it", async () => {

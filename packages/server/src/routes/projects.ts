@@ -597,6 +597,26 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
         "Adding a limited user's project needs the limited users service",
       );
     }
+    // A limited user adds a directory; re-adding must not claim a project
+    // that is already here under another owner or none, nor show one the
+    // superuser hid. Their own project may be added again.
+    if (owner) {
+      const existing = await deps.scanner.getProject(
+        toUrlProjectId(normalizedPath),
+      );
+      if (
+        deps.projectMetadataService?.isHiddenProjectPath(normalizedPath) ||
+        (existing && existing.ownerUsername !== owner.username)
+      ) {
+        return c.json(
+          {
+            error:
+              "This directory is already a project; ask the superuser for access",
+          },
+          403,
+        );
+      }
+    }
 
     // `create` is the client's confirmed answer to "this does not exist yet".
     // Without it a missing directory is refused exactly as it always was, so
