@@ -5,11 +5,17 @@ authorized. Preserve ordinary Git defaults and existing workstream decisions.
 
 ## Question and initial disposition
 
-If a user already uses Jujutsu (`jj`) locally with ordinary Git remotes,
-what must YA understand? Start by testing whether existing Git inspection is
-sufficient in a colocated workspace. Do not build a second source-control
-client merely because jj exists. Full semantic equivalence is unlikely:
-current YA assumes Git branches, an index, and HEAD-based history.
+Separate **baseline compatibility** from **optional jj-specific views**.
+When `.git` is present alongside `.jj`, YA can retain its existing Git behavior
+without requiring dedicated jj integration. YA need not mirror jj's full model
+to remain useful there. This is a product-scope decision, not a claim that
+every Git control has identical jj semantics.
+
+When only `.jj` is exposed, YA should recognize the workspace as jj-managed
+rather than infer that it has no version control because ordinary Git discovery
+fails. Recognition is the first candidate slice. Optional jj-specific Source
+Control views could serve either layout, including colocated users; native
+publication and workspace management remain separate, unapproved extensions.
 
 Research checkpoint: 2026-09-26. Evidence is upstream documentation, live
 GitHub metadata, and YA source inspection at
@@ -57,7 +63,8 @@ workspaces are also distinct from Git linked worktrees.
 Consequently, a Git diff remaining dirty after a jj snapshot can be correct:
 it still compares the files with the draft's parent. Conversely, a clean Git
 working tree is not proof that all jj changes are published or finished.
-These are different questions that a jj-aware view would need to label.
+These are limits of the existing Git projection, not requirements to add a
+jj-aware view for colocated users.
 
 YA findings, rather than a runtime compatibility claim:
 
@@ -70,10 +77,36 @@ YA findings, rather than a runtime compatibility claim:
 
 The existing [Source Control contract](../../topics/source-control.md#product-boundary)
 owns inspection, narrow explicit mutations, and passive-read behavior.
-The smallest candidate is detection plus an honest compatibility indication
-and clearly unavailable operations where needed, retaining proven Git reads.
-Non-colocated repositories require an explicit support decision; never silently
-convert them or aim Git commands into jj's private backing store.
+The candidate is recognizing a non-colocated jj workspace and distinguishing
+unsupported source-control operations from absence of version control. Retain
+existing file browsing and session use; recognizing jj does not advertise a
+native diff/history backend. Colocated users retain the existing Git path
+whether or not they later opt into jj-specific views.
+
+Discovery should respect the nearest workspace boundary, including when the
+selected directory is below its root or a jj workspace sits inside an unrelated
+outer Git checkout. Do not let an ancestor `.git` falsely classify that inner
+workspace. Additional jj workspaces may link to shared repository storage, so
+do not require every `.jj` directory to contain a complete backing Git store.
+Validate marker ownership/layout against the selected jj version, and represent
+missing tools or unreadable metadata honestly. Never silently convert a
+workspace, initialize metadata, or aim Git commands into jj's private store.
+
+## Optional jj-specific views in either layout
+
+Colocation supplies compatibility, not every useful jj concept. Candidate
+Source Control projections include the current working-copy change and its
+parents, change stacks, bookmarks and their remote state, revision evolution,
+and jj conflicts or stale-workspace state. These could be useful alongside
+ordinary Git views when both `.git` and `.jj` are present, as well as provide
+native inspection in a non-colocated workspace.
+
+This is a semantic scope sketch, not a selected UI layout or an implementation
+plan. Keep jj presence and Git availability as distinct facts; do not model
+them as mutually exclusive repository types. Each future jj view should state
+whether it shows recorded state or live files and preserve immutable review
+anchors. Adding inspection does not imply adding jj mutation controls. The
+passive-observation constraints below apply in either layout.
 
 ## Shared files versus separate workspaces
 
@@ -157,30 +190,33 @@ No representative adoption survey, YA-user demand count, or controlled
 multi-agent advantage was established in this investigation. Popularity alone
 does not justify a jj-native UI or a change in isolation defaults.
 
-## Small evaluation before choosing implementation
+## Evaluation for recognition, with broader checks deferred
 
-In disposable repositories, pin jj and Git versions and exercise YA's real
-status/diff/history/mutation paths:
+In disposable repositories, pin jj and Git versions. The first slice tests
+discovery and truthful capability reporting through YA's real project and
+Source Control paths:
 
-1. Compare plain Git, colocated jj, non-colocated jj, and an additional native
-   jj workspace. Include nested cwd discovery, no bookmark, multiple bookmarks,
-   merge parents, conflicts, new files, and staged Git leftovers.
-2. Check Git projection before/after a jj snapshot and `jj new`; prove what
-   YA means by dirty, clean, current revision, upstream, ahead, and behind.
-   Exercise SSH fetch/publish against a test remote with explicit targets.
-3. Record files, index, refs, jj operation heads and working-copy metadata
-   before/after repeated passive YA reads. They must not snapshot, reconcile,
-   move refs, rewrite files, or flood metadata watchers. Test divergent
-   operation heads, not just a linear quiet repository.
-4. Run two sessions sharing files, then two with separate workspaces. Include
-   disjoint edits, same-file collisions, unsnapshotted edits, a peer rewrite,
-   restart/recovery, and supervised landing with both contributions verified.
-   Compare coordination and total integration effort, not just snapshot ease.
-5. Keep the no-change outcome available: if Git inspection meets the intended
-   workflow, document its tested limits. Add detection/guardrails only for
-   demonstrated mismatches; require a concrete unmet workflow before a native
-   jj status/history adapter or workstream backend.
+1. Plain Git and colocated jj retain existing Git behavior. Non-colocated jj
+   and additional native jj workspaces are recognized, including nested cwd,
+   shared storage, and an unrelated enclosing Git repository.
+2. Missing jj executable, malformed/unreadable metadata, and ordinary non-VCS
+   directories produce distinct, truthful results. Recognition must not imply
+   supported jj operations or disable ordinary file/session access.
+3. Repeated discovery and passive views leave files, Git index/refs, jj
+   operation heads, and working-copy metadata unchanged. No automatic snapshot,
+   reconciliation, conversion, or repository initialization occurs.
+
+For any later jj-specific view, test both layouts, revision/publication
+meanings, conflicts, stale or divergent state, and immutable review anchors.
+Keep existing Git inspection available in colocated mode. Native mutation
+controls need their own explicit target and recovery checks. If jj-backed workstreams become a
+candidate, compare shared-directory versus separate-workspace coordination and
+supervised landing. Those broader investigations are not prerequisites for
+the recognition slice and do not expand it into a second VCS client.
 
 Opened 2026-09-26 from the user-requested jj compatibility, adoption, and
 multi-session investigation, including the draft-commit/branch clarification.
+Scope clarified by user direction on 2026-09-26: colocated mode needs no special
+work for baseline Git support; recognize non-colocated `.jj` workspaces, and
+consider optional jj-specific Source Control views in either layout.
 Contributing-model: gpt-6-astra
