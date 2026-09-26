@@ -227,6 +227,17 @@ export function createProjectQueueRoutes(deps: ProjectQueueRoutesDeps): Hono {
             }
           : {}),
       });
+      // Queuing is the user's action, so it counts now, like a turn deferred
+      // on the session route; a YA command is no turn there either.
+      if (!item.message.yaCommand) {
+        if (item.target.type === "new-session") {
+          void deps.userUsageService?.recordSession(actor?.username);
+        }
+        void deps.userUsageService?.recordTurn(
+          actor?.username,
+          item.message.text,
+        );
+      }
       const queue = await projectQueueResponse(resolved.project, deps);
       return c.json(
         {

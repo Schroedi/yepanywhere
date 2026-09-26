@@ -8,6 +8,7 @@ import {
   getSessionDisplayTitle,
   isUrlProjectId,
 } from "@yep-anywhere/shared";
+import type { UserUsageService } from "../auth/UserUsageService.js";
 import type { SessionMetadataService } from "../metadata/index.js";
 import type { ProjectScanner } from "../projects/scanner.js";
 import type { ProjectQueueService } from "../services/ProjectQueueService.js";
@@ -31,6 +32,7 @@ export interface ProjectQueueRoutesDeps extends ProjectQueueTitleDeps {
   scanner: ProjectScanner;
   projectQueueService: ProjectQueueService;
   projectQueueScheduler?: Pick<ProjectQueueScheduler, "getProjectStatus">;
+  userUsageService?: Pick<UserUsageService, "recordSession" | "recordTurn">;
 }
 
 export type GlobalProjectQueueRoutesDeps = ProjectQueueTitleDeps & {

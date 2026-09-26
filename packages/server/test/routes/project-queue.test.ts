@@ -14,6 +14,7 @@ import {
   PRINCIPAL_VARIABLE,
   type Principal,
 } from "../../src/auth/principal.js";
+import { UserUsageService } from "../../src/auth/UserUsageService.js";
 import type { ProjectScanner } from "../../src/projects/scanner.js";
 import {
   createGlobalProjectQueueRoutes,
@@ -601,6 +602,68 @@ describe("Project Queue Routes", () => {
       message: { text: "edited by alice" },
     });
     expect(own.status).toBe(200);
+  });
+
+  it("counts a queued prompt in the usage ledger when it is queued", async () => {
+    const userUsageService = new UserUsageService({ dataDir: testDir });
+    const limited: Principal = {
+      kind: "limited",
+      username: "alice",
+      grants: {
+        newSessionProjects: [projectId],
+        joinProjects: [projectId],
+        viewProjects: [],
+        joinStaleOffsetMinutes: 0,
+        lock: {},
+      },
+      switched: false,
+      locked: false,
+      via: "direct",
+    };
+    let principal: Principal = limited;
+    const app = new Hono<{
+      Variables: Record<typeof PRINCIPAL_VARIABLE, Principal>;
+    }>();
+    app.use("*", async (c, next) => {
+      c.set(PRINCIPAL_VARIABLE, principal);
+      await next();
+    });
+    app.route("/", createRoutes({ userUsageService }));
+    const queue = (body: unknown) =>
+      app.request(`/${projectId}/queue`, {
+        method: "POST",
+        body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" },
+      });
+
+    const newSession = await queue({
+      target: { type: "new-session" },
+      message: { text: "start three words" },
+    });
+    expect(newSession.status).toBe(201);
+    principal = { kind: "superuser" };
+    const followUp = await queue({
+      target: { type: "existing-session", sessionId: "session-1" },
+      message: { text: "then this" },
+    });
+    expect(followUp.status).toBe(201);
+    const command = await queue({
+      target: { type: "existing-session", sessionId: "session-1" },
+      message: {
+        text: "/clear 1",
+        yaCommand: { name: "clear", argument: "1" },
+      },
+    });
+    expect(command.status).toBe(201);
+
+    const report = await userUsageService.report(["alice"]);
+    expect(
+      report.users.find((user) => user.username === "alice")?.total,
+    ).toMatchObject({ sessions: 1, turns: 1, words: 3 });
+    // The queued YA command is no turn, as on the session routes.
+    expect(
+      report.users.find((user) => user.username === null)?.total,
+    ).toMatchObject({ sessions: 0, turns: 1, words: 2 });
   });
 
   it("shows a limited user only their granted projects' queue", async () => {

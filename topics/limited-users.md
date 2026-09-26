@@ -418,9 +418,23 @@ this install and how much.
   append-only record per session start, per user turn, and per settled
   provider turn's token charge: timestamp, username (absent for the
   superuser), and then a turn's word count or a charge's model short name,
-  project name, and input/output token counts. Appending is
-  the only write on the turn path. A torn record from an interrupted append
-  costs itself and nothing else, and so does a failed append: it is logged,
+  project name, and input/output token counts. A record is written when the
+  server accepts the action:
+  - **A session start** is any request that creates a session: start or
+    create, with or without a project and including one the supervisor
+    holds for a free worker; fork; clone, which includes a `/btw` aside;
+    restart, in either mode; fork-after-summary, once its fork exists; and a
+    Project Queue new-session item when it is queued. Resume and reactivate
+    continue a session and start none.
+  - **A user turn** is counted when accepted, whether sent at once, deferred,
+    or queued in Project Queue, so a queued turn later deleted still counts.
+    A YA command (`/clear`, `/clearloop`, and the like) is no turn, and
+    neither is a YA-injected prompt or a recovered queue entry being
+    delivered again.
+
+  Appending is the only write on the turn path. A torn record from an
+  interrupted append costs itself and nothing else, and so does a failed
+  append: it is logged,
   the action it records still succeeds, and later appends proceed. The file
   keeps the newest 50,000 records: once it holds 1,000 more it is trimmed
   oldest-first, so a report's reach shrinks rather than its recent numbers

@@ -133,6 +133,9 @@ export class UserUsageService {
 
   /** Usage per principal, seeded so a user who has done nothing still shows. */
   async report(knownUsernames: readonly string[] = []): Promise<UsageReport> {
+    // Includes every record accepted before the report was asked for, even
+    // one a fire-and-forget caller is still appending.
+    await this.writeChain;
     const events = await this.readEvents();
     return summarizeUsage(events, { now: this.now(), knownUsernames });
   }

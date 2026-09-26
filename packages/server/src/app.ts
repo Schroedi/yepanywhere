@@ -2168,6 +2168,7 @@ export function createApp(options: AppOptions): AppResult {
         piSessionsDir,
         piReaderFactory,
         sessionMetadataService: options.sessionMetadataService,
+        userUsageService: options.userUsageService,
       }),
     );
   }

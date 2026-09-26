@@ -4052,6 +4052,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       );
     }
 
+    // Accepted, whether it starts now or waits for a worker.
+    void deps.userUsageService?.recordSession(actingUsername(c));
+    void deps.userUsageService?.recordTurn(actingUsername(c), userMessage.text);
+
     // Check if request was queued
     if (isQueuedResponse(result)) {
       return c.json({ ...result, serverTimestamp }, 202); // 202 Accepted - queued for processing
@@ -4065,8 +4069,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         limitedLaunch.username,
       );
     }
-    void deps.userUsageService?.recordSession(actingUsername(c));
-    void deps.userUsageService?.recordTurn(actingUsername(c), userMessage.text);
 
     await persistLaunchMetadata(
       result.sessionId,
@@ -4214,6 +4216,9 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       );
     }
 
+    // Accepted, whether it starts now or waits for a worker.
+    void deps.userUsageService?.recordSession(actingUsername(c));
+
     // Check if request was queued
     if (isQueuedResponse(result)) {
       return c.json({ ...result, serverTimestamp: Date.now() }, 202); // 202 Accepted - queued for processing
@@ -4229,7 +4234,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         limitedLaunch.username,
       );
     }
-    void deps.userUsageService?.recordSession(actingUsername(c));
 
     await persistLaunchMetadata(
       result.sessionId,
@@ -4357,6 +4361,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       );
     }
 
+    // Accepted, whether it starts now or waits for a worker.
+    void deps.userUsageService?.recordSession(actingUsername(c));
+    void deps.userUsageService?.recordTurn(actingUsername(c), userMessage.text);
+
     if (isQueuedResponse(result)) {
       return c.json({ ...result, serverTimestamp: Date.now() }, 202);
     }
@@ -4462,6 +4470,9 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         503,
       );
     }
+
+    // Accepted, whether it starts now or waits for a worker.
+    void deps.userUsageService?.recordSession(actingUsername(c));
 
     if (isQueuedResponse(result)) {
       return c.json({ ...result, serverTimestamp: Date.now() }, 202);
@@ -5671,6 +5682,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         );
       }
 
+      void deps.userUsageService?.recordSession(actingUsername(c));
       await persistLaunchMetadata(
         result.sessionId,
         sourceProvider,
@@ -5811,6 +5823,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       );
     }
 
+    void deps.userUsageService?.recordSession(actingUsername(c));
     await persistLaunchMetadata(
       result.sessionId,
       providerName,
@@ -6920,6 +6933,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         forkCreator,
       );
     }
+    void deps.userUsageService?.recordSession(forkCreator);
     if (deps.sessionMetadataService) {
       await deps.sessionMetadataService.updateMetadata(fork.sessionId, {
         title: forkTitle,
@@ -7321,6 +7335,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         sourceSession.model,
         sourceProcess?.model,
       );
+      const forkSummaryActor = actingUsername(c);
 
       void (async () => {
         let generatorSessionId: string | undefined;
@@ -7403,6 +7418,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             ...inheritedSandboxSettings(originalMetadata),
           });
           targetSessionId = target.sessionId;
+          void deps.userUsageService?.recordSession(forkSummaryActor);
           await updateForkSummaryChildMetadata(
             target.sessionId,
             sessionId,
@@ -8698,6 +8714,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           cloneCreator,
         );
       }
+      void deps.userUsageService?.recordSession(cloneCreator);
       // Set clone metadata. /btw asides pass parentSessionId so the child
       // can jump back into the parent viewport.
       if (deps.sessionMetadataService) {
