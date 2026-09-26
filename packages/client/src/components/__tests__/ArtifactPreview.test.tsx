@@ -186,6 +186,54 @@ it("admits only after a successful probe and keeps the grant reusable", async ()
   expect(state.fetch).toHaveBeenCalledTimes(1);
 });
 
+it.each([
+  { reused: false, revokes: 1 },
+  { reused: true, revokes: 0 },
+])(
+  "revokes a grant that arrives after the preview closed only if it was minted for it: %j",
+  async ({ reused, revokes }) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ artifactViewer: 1 }),
+      }),
+    );
+    const origin =
+      window.location.hostname === "localhost"
+        ? "http://artifacts.localhost:3400"
+        : "https://artifacts.example.org";
+    let admit!: (grant: object) => void;
+    state.fetch.mockImplementation((_path: string, init?: RequestInit) =>
+      init?.method === "DELETE"
+        ? Promise.resolve({ success: true })
+        : new Promise((resolve) => {
+            admit = resolve;
+          }),
+    );
+    const { unmount } = mount();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Run full HTML/CSS/JavaScript preview (current view is sanitized)",
+      }),
+    );
+    await waitFor(() => expect(state.fetch).toHaveBeenCalledTimes(1));
+    unmount();
+    admit({
+      id: "grant",
+      url: `${origin}/a/token/index.html`,
+      expiresAt: Date.now() + 1000,
+      reused,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(
+      state.fetch.mock.calls.filter(
+        ([, init]) => (init as RequestInit | undefined)?.method === "DELETE",
+      ),
+    ).toHaveLength(revokes);
+  },
+);
+
 it("opens only its own frame's same-grant tab requests, without an opener", async () => {
   vi.stubGlobal(
     "fetch",

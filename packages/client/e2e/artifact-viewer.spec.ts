@@ -612,11 +612,17 @@ test("saves artifact expiry without revoking links, alongside addresses and port
       })
     ).status,
   ).toBe(200);
+  // The original link still has over half the new lifetime left, so reopening
+  // its file reuses it; a file with no live link gets the new lifetime.
+  const reopened = await instance.artifactServer.createGrant(entry, "local");
+  expect(reopened).toMatchObject({ id: original.id, reused: true });
+  const later = join(dirname(entry), "later.html");
+  await writeFile(later, "<!doctype html><p>Later</p>");
   const start = Date.now();
-  const shorter = await instance.artifactServer.createGrant(entry, "local");
+  const longer = await instance.artifactServer.createGrant(later, "local");
   const twelveDays = 12 * 24 * 3600_000;
-  expect(shorter.expiresAt).toBeGreaterThanOrEqual(start + twelveDays);
-  expect(shorter.expiresAt).toBeLessThanOrEqual(Date.now() + twelveDays);
+  expect(longer.expiresAt).toBeGreaterThanOrEqual(start + twelveDays);
+  expect(longer.expiresAt).toBeLessThanOrEqual(Date.now() + twelveDays);
   await page
     .getByLabel("Public artifact address (optional)")
     .fill("https://artifacts.example.test");

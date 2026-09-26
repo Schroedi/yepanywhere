@@ -513,18 +513,30 @@ export class ArtifactServer {
     const now = Date.now();
     for (const [token, grant] of this.grants)
       if (grant.expiresAt <= now) this.grants.delete(token);
-    if (this.grants.size >= MAX_GRANTS)
-      throw new HTTPException(429, {
-        message: "Close an artifact viewer before opening another",
-      });
-    const token = randomBytes(32).toString("base64url");
     const root = dirname(allowed.file.resolvedPath);
+    const entry = basename(allowed.file.resolvedPath);
+    const lifetimeMs = this.config.expiryDays! * 24 * 60 * 60 * 1000;
     // Ownership is refused rather than honoured for a directory that is
     // plainly not a disposable bundle; the grant is still created, borrowing.
     // Ownership is never inherited from configuration: a preview of a file
     // the user already had must not delete it when the viewer closes. Only a
     // caller that produced the directory says so, by asking.
     const wants = owned === true;
+    // Borrowed grants outlive their viewers, so reopening a file must not
+    // mint another one each time or the grant cap fills with duplicates.
+    const live = wants
+      ? undefined
+      : this.reusableGrant(root, entry, now, lifetimeMs);
+    if (live) return this.issue(live, origin, true);
+    if (this.grants.size >= MAX_GRANTS) {
+      const nextExpiry = Math.min(
+        ...[...this.grants.values()].map((grant) => grant.expiresAt),
+      );
+      throw new HTTPException(429, {
+        message: `Too many live artifact links (${MAX_GRANTS}); the next one expires at ${new Date(nextExpiry).toISOString()}`,
+      });
+    }
+    const token = randomBytes(32).toString("base64url");
     // Ownership freezes the fileset: what is here now and is not the working
     // tree's own is what this grant may remove later, whatever else the
     // directory collects. Nothing left to own means nothing to own it.
@@ -536,8 +548,8 @@ export class ArtifactServer {
       id: randomUUID(),
       token,
       root,
-      entry: basename(allowed.file.resolvedPath),
-      expiresAt: now + this.config.expiryDays! * 24 * 60 * 60 * 1000,
+      entry,
+      expiresAt: now + lifetimeMs,
       owned: frozen !== null,
       ...(frozen ? { ownedFiles: frozen } : {}),
       files: new Set(),
@@ -545,11 +557,38 @@ export class ArtifactServer {
     this.grants.set(token, grant);
     // The caller is handed a URL, so the grant must already be durable.
     await this.persist();
+    return this.issue(grant, origin, false);
+  }
+
+  /**
+   * A live borrowed grant for the same entry file, if one still has at least
+   * half the configured lifetime left and no more than all of it: a viewer
+   * opened on it is not cut off soon after, and shortening the expiry setting
+   * is not undone by handing out an older, longer-lived link.
+   */
+  private reusableGrant(
+    root: string,
+    entry: string,
+    now: number,
+    lifetimeMs: number,
+  ): Grant | undefined {
+    let best: Grant | undefined;
+    for (const grant of this.grants.values()) {
+      if (grant.owned || grant.root !== root || grant.entry !== entry) continue;
+      if (grant.expiresAt < now + lifetimeMs / 2) continue;
+      if (grant.expiresAt > now + lifetimeMs) continue;
+      if (!best || grant.expiresAt > best.expiresAt) best = grant;
+    }
+    return best;
+  }
+
+  private issue(grant: Grant, origin: string, reused: boolean) {
     return {
       id: grant.id,
-      url: `${origin}/a/${token}/${encodeURIComponent(grant.entry)}`,
+      url: `${origin}/a/${grant.token}/${encodeURIComponent(grant.entry)}`,
       expiresAt: grant.expiresAt,
       owned: grant.owned,
+      reused,
     };
   }
 

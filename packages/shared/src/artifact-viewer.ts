@@ -69,4 +69,10 @@ export interface ArtifactViewerGrant {
   expiresAt: number;
   /** True when this grant deletes its directory at expiry or revocation. */
   owned?: boolean;
+  /**
+   * True when the server handed out an existing live grant that other viewers
+   * or tabs may hold, so the requester must not revoke it. Older servers omit
+   * it and never reuse.
+   */
+  reused?: boolean;
 }

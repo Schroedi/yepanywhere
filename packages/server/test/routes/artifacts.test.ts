@@ -373,6 +373,71 @@ it("expires each link at its original lifetime after an expiry-only settings cha
   await server.close();
 });
 
+it("reopening a file reuses its live borrowed link instead of filling the grant cap", async () => {
+  directory = await mkdtemp(join(tmpdir(), "ya-artifact-reuse-"));
+  const entry = join(directory, "index.html");
+  await writeFile(entry, "<h1>Reused</h1>");
+  const now = Date.now();
+  const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+  const server = new ArtifactServer(
+    { port: 4402, localOrigin: "http://artifacts.localhost:3400" },
+    createLocalResourcePathPolicy({ allowedPaths: [directory] }),
+  );
+  try {
+    const first = await server.createGrant(entry, "local");
+    expect(first.reused).toBe(false);
+    // More preview starts than the cap allows, each leaving its link behind.
+    for (let open = 0; open < 300; open++) {
+      const again = await server.createGrant(entry, "local");
+      expect(again).toMatchObject({ id: first.id, url: first.url });
+      expect(again.reused).toBe(true);
+    }
+    // A caller asking to own its directory always gets a grant of its own.
+    const owning = await server.createGrant(entry, "local", true);
+    expect(owning.id).not.toBe(first.id);
+    expect(owning.reused).toBe(false);
+    // Past half its lifetime a link is no longer handed to a new viewer, but
+    // it keeps serving whoever already holds it.
+    clock.mockReturnValue(now + 3.5 * 24 * 3600_000 + 1);
+    const renewed = await server.createGrant(entry, "local");
+    expect(renewed.id).not.toBe(first.id);
+    expect(renewed.expiresAt).toBe(
+      now + 3.5 * 24 * 3600_000 + 1 + 7 * 24 * 3600_000,
+    );
+    expect((await server.app.request(first.url)).status).toBe(200);
+  } finally {
+    await server.close();
+  }
+});
+
+it("refuses a new link past the cap with the time the next one expires", async () => {
+  directory = await mkdtemp(join(tmpdir(), "ya-artifact-cap-"));
+  const now = Date.now();
+  vi.spyOn(Date, "now").mockReturnValue(now);
+  const server = new ArtifactServer(
+    { port: 4402, localOrigin: "http://artifacts.localhost:3400" },
+    createLocalResourcePathPolicy({ allowedPaths: [directory] }),
+  );
+  try {
+    const entries: string[] = [];
+    for (let index = 0; index <= 256; index++) {
+      const dir = join(directory, `bundle-${index}`);
+      await mkdir(dir);
+      entries.push(join(dir, "index.html"));
+      await writeFile(entries[index]!, `<h1>${index}</h1>`);
+    }
+    for (const entry of entries.slice(0, 256))
+      await server.createGrant(entry, "local");
+    await expect(server.createGrant(entries[256]!, "local")).rejects.toThrow(
+      `Too many live artifact links (256); the next one expires at ${new Date(now + 7 * 24 * 3600_000).toISOString()}`,
+    );
+    // Reopening an already linked file needs no new slot.
+    expect((await server.createGrant(entries[0]!, "local")).reused).toBe(true);
+  } finally {
+    await server.close();
+  }
+});
+
 it("validates whole expiry days, rounding a legacy hours write up to a day", () => {
   expect(validateArtifactConfig({ port: 4402 }).expiryDays).toBe(7);
   expect(validateArtifactConfig({ port: 4402 }, 3).expiryDays).toBe(3);

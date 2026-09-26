@@ -72,9 +72,14 @@ export function useArtifactGrant(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2500);
     setBusy(true);
-    const revokeUnpublished = (id: string) => {
+    // A reused grant may be running in another viewer or tab; only a grant
+    // minted for this request is this request's to take back.
+    const revokeUnpublished = (grant: ArtifactViewerGrant) => {
+      if (grant.reused) return;
       void runtime.transport
-        .fetch(`/artifacts/${encodeURIComponent(id)}`, { method: "DELETE" })
+        .fetch(`/artifacts/${encodeURIComponent(grant.id)}`, {
+          method: "DELETE",
+        })
         .catch(() => {});
     };
     void (async () => {
@@ -90,11 +95,11 @@ export function useArtifactGrant(
           },
         );
         if (new URL(admitted.url).origin !== origin) {
-          revokeUnpublished(admitted.id);
+          revokeUnpublished(admitted);
           throw new Error("Unexpected artifact origin");
         }
         if (cancelled) {
-          revokeUnpublished(admitted.id);
+          revokeUnpublished(admitted);
           return;
         }
         setGrant(admitted);

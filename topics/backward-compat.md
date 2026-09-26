@@ -317,6 +317,16 @@ type, so a settings file saved before the removal and a hosted client still
 sending it both keep working; the status no longer reports it, and a client
 that read it sees the field absent, which it already had to tolerate.
 
+2026-09-26 `POST /api/artifacts` borrowed-grant reuse — a borrowing request
+may now return an existing live grant for the same entry file, with an
+additive `reused: true`, rather than a new grant; no capability gates it. Older
+servers omit the field and never reuse, so a new client revokes exactly as
+before against them. An older client against a new server can still revoke a
+reused grant it abandoned mid-request, breaking another viewer's frame of that
+file until it reopens; that narrow race was accepted over gating reuse, since
+unreused grants exhaust the 256-grant cap for every client. See
+[active content security](active-content-security.md).
+
 2026-09-19 persisted session-summary index version 5 — the on-disk shape is
 unchanged from 3 and 4; the number now also dates an index's entries, which is
 what ends the one-shot Claude empty-summary repair. Versions 3 and 4 are still

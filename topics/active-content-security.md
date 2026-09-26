@@ -574,6 +574,19 @@ grants remain valid across viewer close, pane replacement, and browser-tab
 handoff, then expire on the server's fixed deadline or explicit revocation.
 This does not erase files already read or artifact-origin local storage.
 
+Because borrowed grants outlive their viewers, a borrowing request for an entry
+file that already has a live borrowed grant receives that grant again, marked
+`reused`, instead of a new one. Reuse requires at least half the configured
+lifetime to remain and no more than all of it, so a newly opened viewer is not
+cut off soon after, and shortening the expiry setting is not undone by an older
+longer-lived link. Reopening a file therefore consumes no additional slot: the
+cap bounds distinct files previewed within one lifetime, at most two live
+grants each. A requester never revokes a `reused` grant it did not mint, since
+another viewer or tab may hold it; an explicit revocation by id still withdraws
+it for everyone. A request asking to own its directory always receives its own
+grant. At the cap, the refusal is HTTP 429 naming the time the next live grant
+expires.
+
 The saved **Link expiry (days)** slider and paired numeric field accept whole
 days from 1 through 30, defaulting to 7. The lifetime is fixed when each grant
 is created. Changing only expiry preserves existing grants and their original
