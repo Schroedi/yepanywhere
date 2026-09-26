@@ -868,6 +868,11 @@ export function mergeClaudeModels(models: ModelInfo[]): ModelInfo[] {
     byId.set(model.id, enrichClaudeModel(model));
   }
 
+  // The catalog lists the current Fable row before any previous Fable
+  // versions (Claude Code 2.1.283 adds `claude-fable-5` after
+  // `claude-fable-5-1`). Only that first row speaks for the stable `fable`
+  // selection; later ones stay concrete rows like `claude-opus-5`.
+  let fableFolded = false;
   for (const model of models) {
     if (model.id === "default") {
       const fallback = byId.get("default");
@@ -883,7 +888,8 @@ export function mergeClaudeModels(models: ModelInfo[]): ModelInfo[] {
       );
       continue;
     }
-    if (model.id !== "fable" && claudeModelFamily(model.id) === "fable") {
+    if (!fableFolded && claudeModelFamily(model.id) === "fable") {
+      fableFolded = true;
       const fallback = byId.get("fable");
       byId.set(
         "fable",

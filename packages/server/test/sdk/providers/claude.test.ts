@@ -386,6 +386,34 @@ describe("ClaudeProvider model list", () => {
     });
   });
 
+  it("keeps the current Fable row when the catalog also lists older Fables", () => {
+    // Claude Code 2.1.283 lists the previous Fable after the current one.
+    const models = mergeClaudeModels([
+      {
+        id: "claude-fable-5-1",
+        resolvedModel: "claude-fable-5-1",
+        name: "Fable 5.1",
+        description: "Fable 5.1 · Most capable for your hardest tasks",
+      },
+      {
+        id: "claude-fable-5",
+        resolvedModel: "claude-fable-5",
+        name: "Fable 5",
+        description: "Fable 5 · Previous Fable",
+      },
+    ]);
+
+    expect(models.find((model) => model.id === "fable")).toMatchObject({
+      name: "Fable",
+      resolvedModel: "claude-fable-5-1",
+      description: "Fable 5.1 · Most capable for your hardest tasks",
+    });
+    expect(models.find((model) => model.id === "claude-fable-5")).toMatchObject(
+      { name: "Fable 5", resolvedModel: "claude-fable-5" },
+    );
+    expect(models.map((model) => model.id)).not.toContain("claude-fable-5-1");
+  });
+
   it("merges the live Opus 5 extended row into the stable opus alias", () => {
     const models = mergeClaudeModels([
       {
