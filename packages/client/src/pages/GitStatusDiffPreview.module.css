@@ -6,9 +6,7 @@
   border-bottom: 1px solid var(--border-color);
 }
 
-/* The toolbar's width-adaptive layout is the shared `.viewer-header` container
-   in renderers.css, the same one the file viewer and the session right pane
-   use: identity column first, controls wrapping greedily after it. The rules
-   that used to live here were a private 520px breakpoint that reordered the
-   identity onto its own row and wrapped each control group separately, which
-   disagreed with the file viewer at the same width. */
+/* The toolbar's width-adaptive layout is the shared `ViewerHeader.module.css`,
+   the same one the file viewer and the session right pane use. Do not add a
+   toolbar-specific breakpoint here: it would stop the diff toolbar wrapping on
+   the same terms as the file viewer at the same width. */

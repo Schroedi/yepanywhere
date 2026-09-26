@@ -10,12 +10,10 @@
    not fit moves to the next row — a row that then fills from the width the
    header actually has. Widening a viewer therefore only ever removes rows.
 
-   Do not reintroduce a fixed grid or a per-viewer width breakpoint. The file
-   viewer used to pin its narrow layout to a seven-column two-row grid, which
-   capped each button row at about half the header width: the buttons that did
-   not fit those columns spilled into a third row while the left half of every
-   row stayed empty. The diff toolbar carried a separate 520px breakpoint that
-   disagreed with the file viewer's at the same width. */
+   No fixed grid or per-viewer width breakpoint: wrapping must only ever remove
+   rows. A fixed column grid caps each button row below the header width and
+   spills buttons into extra rows while space stays empty; a per-viewer
+   breakpoint makes two viewers disagree at the same width. */
 .header {
   display: flex;
   flex-wrap: wrap;

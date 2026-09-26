@@ -4999,8 +4999,8 @@ pre.code-highlighter-plain,
 /* The source browser's pane toolbar owns file identity, hunk navigation,
    view controls, and file actions. It stays inside the scroll frame so it can
    remain sticky without spending a second content row. Its reflow is the
-   shared `.viewer-header` layout above, so it wraps on the same terms as the
-   file viewer's header. */
+   shared `ViewerHeader.module.css`, so it wraps on the same terms as the file
+   viewer's header. */
 .git-diff-pane-toolbar {
   position: sticky;
   top: 0;

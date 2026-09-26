@@ -366,11 +366,9 @@ describe("Source Control workbench layout CSS contract", () => {
   });
 
   it("takes the diff toolbar's reflow from the shared viewer header", async () => {
-    // The toolbar used to own a private 520px breakpoint that fought the
-    // legacy two-class `git-diff-*` rules on the same elements and disagreed
-    // with the file viewer's own narrow layout. Both now defer to
-    // `ViewerHeader.module.css`, so neither the module nor the legacy
-    // stylesheet may lay the toolbar out again.
+    // The toolbar's reflow belongs to `ViewerHeader.module.css`, shared with
+    // the file viewer, so neither the diff preview module nor the legacy
+    // stylesheet may lay the toolbar out with rules of its own.
     const [previewCss, css, headerCss] = await Promise.all([
       readFile(gitStatusDiffPreviewStylesheetUrl, "utf8"),
       readFile(rendererStylesheetUrl, "utf8"),
