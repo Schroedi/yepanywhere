@@ -397,12 +397,14 @@ export function createSessionSubscription(
             currentStreamingMessageId = startMessageId;
           }
 
-          const textDelta =
-            extractTextDelta(message) ?? extractTextFromAssistant(message);
-          if (textDelta && currentStreamingMessageId) {
+          const snapshot = extractTextFromAssistant(message);
+          const textDelta = extractTextDelta(message);
+          const text = snapshot ?? textDelta;
+          if (text !== null && currentStreamingMessageId) {
             process.accumulateStreamingText(
               currentStreamingMessageId,
-              textDelta,
+              text,
+              snapshot !== null ? "snapshot" : "delta",
             );
           }
 
@@ -410,7 +412,10 @@ export function createSessionSubscription(
           // Optional markdown/tool enrichment may follow as a same-id update,
           // but must never delay or reorder the underlying transcript event.
           emit("message", markSubagent(message));
-          if (isStreamingComplete(message)) {
+          if (
+            isStreamingComplete(message) ||
+            (snapshot !== null && message._isStreaming !== true)
+          ) {
             currentStreamingMessageId = null;
             process.clearStreamingText();
           }
@@ -545,7 +550,7 @@ export function createSessionSubscription(
     ? process.getStreamingContent()
     : null;
   if (streamingContent) {
-    getAugmenter()
+    coordinatorTail = getAugmenter()
       .then(async (aug) => {
         await aug.processCatchUp(
           streamingContent.text,

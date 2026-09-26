@@ -2943,12 +2943,16 @@ export class Process {
   }
 
   /**
-   * Accumulate streaming text from a delta.
-   * Called by stream routes when processing stream_event messages.
+   * Keep catch-up text current: append native deltas or replace snapshots.
+   * Called by subscriptions while processing provider messages.
    */
-  accumulateStreamingText(messageId: string, text: string): void {
-    if (this._streamingMessageId !== messageId) {
-      // New streaming message, reset accumulator
+  accumulateStreamingText(
+    messageId: string,
+    text: string,
+    mode: "delta" | "snapshot" = "delta",
+  ): void {
+    if (mode === "snapshot" || this._streamingMessageId !== messageId) {
+      // A snapshot contains the whole message, including its previous prefix.
       this._streamingMessageId = messageId;
       this._streamingText = text;
     } else {

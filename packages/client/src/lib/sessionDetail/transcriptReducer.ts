@@ -8,7 +8,10 @@ import {
 } from "../linearMessageDedup";
 import { isUnconfirmedSelfSend } from "../deliveryState";
 import { reconcileCodexToolMessages } from "../codexToolReconciliation";
-import { getMessageId } from "@yep-anywhere/shared/transcript/message";
+import {
+  collapseMessageSnapshots,
+  getMessageId,
+} from "@yep-anywhere/shared/transcript/message";
 import {
   findMessageIndexById,
   mergeJSONLMessages,
@@ -106,10 +109,13 @@ function updatePersistedTimestampWatermark(
 }
 
 export function tagJsonlMessages(messages: readonly Message[]): Message[] {
-  return messages.map((message) => ({
-    ...message,
-    _source: "jsonl" as const,
-  }));
+  return collapseMessageSnapshots(
+    messages.map((message) => ({
+      ...message,
+      // A new session's REST fallback can still contain live provider snapshots.
+      _source: message._isStreaming ? ("sdk" as const) : ("jsonl" as const),
+    })),
+  );
 }
 
 function mergePersistedMessagesForProvider(
@@ -617,7 +623,7 @@ export function reduceSessionDetailState(
     case "restoreRouteSnapshot":
       return {
         ...state,
-        messages: action.snapshot.messages,
+        messages: collapseMessageSnapshots(action.snapshot.messages),
         session: action.snapshot.session,
         pagination: action.snapshot.pagination,
         agentContent: action.snapshot.agentContent,
@@ -815,9 +821,9 @@ export function reduceSessionDetailState(
     case "prependOlderMessages": {
       const taggedMessages = tagJsonlMessages(action.messages);
       const provider = state.session?.provider;
-      const combined = [...taggedMessages, ...state.messages];
-      const messages = maybeReconcileApprox(
-        combined,
+      const messages = mergePersistedMessagesForProvider(
+        [...taggedMessages, ...state.messages],
+        taggedMessages,
         provider,
         action.codexStreamDurableIdAlignment === true,
       );

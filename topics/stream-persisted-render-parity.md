@@ -217,6 +217,13 @@ equality is graded by whether the live item has a durable counterpart:
   snapshot preserves the existing transcript array and message identity.
   Replaceable same-id enrichment bursts publish their latest bounded snapshot,
   not every intermediate representation.
+- **Cumulative text is a snapshot.** Assistant string snapshots replace the
+  late-subscriber text accumulator; only native text deltas append. The
+  markdown coordinator consumes the new suffix of successive cumulative
+  snapshots, consumes completion once, and resets between messages. Catch-up
+  seeds that same state before later events run, so joining mid-message does
+  not append the already displayed prefix again. Snapshot identity and bulk
+  loading follow [stream/durable dedup](stream-durable-id-dedup.md#snapshot-identity-at-bulk-boundaries).
 - **Live tool-output snapshots are size-bounded.** A streaming tool result
   replaces its predecessor wholesale, so an unbounded cumulative snapshot costs
   quadratic bytes through provider replay, fan-out, and relay. Codex live

@@ -38,6 +38,7 @@ import {
   type UpdateClearloopRequest,
 } from "@yep-anywhere/shared";
 import { isRealUserTurn } from "@yep-anywhere/shared/transcript/messageProjection";
+import { collapseMessageSnapshots } from "@yep-anywhere/shared/transcript/message";
 import { randomUUID } from "node:crypto";
 import {
   ClearloopConflictError,
@@ -1983,7 +1984,7 @@ function sdkMessagesToClientMessages(sdkMessages: SDKMessage[]): Message[] {
       });
     }
   }
-  return messages;
+  return collapseMessageSnapshots(messages);
 }
 
 /**
