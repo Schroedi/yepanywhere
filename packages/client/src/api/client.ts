@@ -1152,7 +1152,6 @@ export const api = {
         kind: "after-user-turn" | "before-user-turn";
         sourceMessageId: string;
       };
-      cutTurnIndex?: number;
     },
   ) =>
     fetchJSON<{
@@ -1173,7 +1172,6 @@ export const api = {
         kind: "after-user-turn" | "before-user-turn";
         sourceMessageId: string;
       };
-      cutTurnIndex?: number;
       prompt: string;
       total: number;
       commandText: string;

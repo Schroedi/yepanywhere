@@ -162,7 +162,6 @@ describe("useSessionRewindControls", () => {
     );
     expect(rewindSession).toHaveBeenCalledWith("p1", "s1", {
       cut: { kind: "after-user-turn", sourceMessageId: "u2" },
-      cutTurnIndex: 2,
     });
 
     // The metadata event echoing this tab's own rewind costs no second fetch.
@@ -230,7 +229,6 @@ describe("useSessionRewindControls", () => {
     await waitFor(() => expect(startClearloop).toHaveBeenCalled());
     expect(startClearloop).toHaveBeenCalledWith("p1", "s1", {
       cut: { kind: "after-user-turn", sourceMessageId: "u3" },
-      cutTurnIndex: 3,
       prompt: "keep going",
       total: 4,
       commandText: "/clearloop 4: keep going",

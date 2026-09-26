@@ -154,11 +154,12 @@ a sent message would, so a reload does not restore it.
 ## Server rewind operation
 
 `POST /api/projects/:projectId/sessions/:sessionId/rewind` with
-`{ cut: { kind: "after-user-turn" | "before-user-turn", sourceMessageId },
-cutTurnIndex? }`. The client resolves `N` to the turn's YA message id from
-its own turn index; the server resolves the real human-turn boundary from
-the transcript exactly as the fork route does (provider ids stay
-server-side), then:
+`{ cut: { kind: "after-user-turn" | "before-user-turn", sourceMessageId } }`.
+For a typed `/clear N` the client maps `N` to that turn's YA message id
+through the server's `turnIndex` stamps (§ Vocabulary); the request carries
+no `N`. The server resolves the real human-turn boundary from the
+transcript exactly as the fork route does (provider ids stay server-side),
+takes the record's `N` from the kept turn's own stamp, then:
 
 1. Rejects (`409`) when the session is `in-turn`, `waiting-input`, or
    compacting, when a live queued or steered message is pending, or when the
@@ -314,9 +315,11 @@ input, the reader instead emits the dropped rows as a **rewound group**:
   timeline entries are ordered by their latest row time, and a later time on
   the header would drag the cut's turn past the group's own rows. The rewind
   time is kept in the header's `rewoundGroup.at`.
-
-- Search, copy, and turn navigation treat grouped rows as history: they are
-  reachable when expanded and never counted as turns for `N`.
+- Grouped rows keep their stamped `N` (§ Vocabulary), so a cleared turn's
+  menu still shows its index, but they are history rather than live turns:
+  search reaches them only while their group is expanded, turn navigation
+  skips them, the tail window does not count them, and `/clear N` naming one
+  is refused (§ Future work).
 
 **Composer recall.** `/clear N`, `/fork N`, and `/clearloop …` never become
 transcript turns, so accepted commands are recorded per session in browser
@@ -614,7 +617,7 @@ Durable pointers by symbol and module; grep for the symbol.
   (toggle, copy control) and the nested-row styling.
 - `lib/sessionDetail/renderItems.ts` — `getDisplayRenderItems` collapse
   filter, `getRenderItemRewoundGroupId`; `lib/sessionDetail/search.ts`
-  excludes rewound rows from turn anchors.
+  excludes rewound rows from turn-navigation anchors.
 - `hooks/useSessionMessages.ts` — `refreshTranscriptTail` (the bounded
   tail refetch through `fetchNewMessages`, replacing the loaded window via
   `applyFullTailReconciliation`).

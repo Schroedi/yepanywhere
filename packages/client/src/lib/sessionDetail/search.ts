@@ -396,7 +396,8 @@ export function getSearchableUserTurnPreview(item: RenderItem): string | null {
   if (item.type !== "user_prompt" || item.isSubagent) {
     return null;
   }
-  // Rows a same-session rewind dropped are history, never turns.
+  // Rows a same-session rewind dropped keep their turn index N, but they are
+  // history, not live turns, so turn navigation skips them.
   if (item.sourceMessages.some((message) => message.rewoundGroupId)) {
     return null;
   }

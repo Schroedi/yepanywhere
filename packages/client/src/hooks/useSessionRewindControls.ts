@@ -108,18 +108,13 @@ export function useSessionRewindControls({
     });
   }, []);
   const rewindToCut = useCallback(
-    async (
-      cut: {
-        kind: "after-user-turn" | "before-user-turn";
-        sourceMessageId: string;
-      },
-      cutTurnIndex: number,
-    ): Promise<boolean> => {
+    async (cut: {
+      kind: "after-user-turn" | "before-user-turn";
+      sourceMessageId: string;
+    }): Promise<boolean> => {
       try {
-        const result = await api.rewindSession(projectId, sessionId, {
-          cut,
-          cutTurnIndex,
-        });
+        // The server takes the record's N from the kept turn's own stamp.
+        const result = await api.rewindSession(projectId, sessionId, { cut });
         if (result.noop) {
           showToast(t("rewindNoop"), "success");
           return true;
@@ -148,13 +143,9 @@ export function useSessionRewindControls({
   );
   const clearAfterUserMessage = useCallback(
     (messageId: string) => {
-      const index = sessionTurnIndex.indexById.get(messageId) ?? 0;
-      void rewindToCut(
-        { kind: "after-user-turn", sourceMessageId: messageId },
-        index,
-      );
+      void rewindToCut({ kind: "after-user-turn", sourceMessageId: messageId });
     },
-    [rewindToCut, sessionTurnIndex],
+    [rewindToCut],
   );
   const clearReplacingUserMessage = useCallback(
     (messageId: string) => {
@@ -169,10 +160,7 @@ export function useSessionRewindControls({
       const promptText = turnContentText(source?.message?.content).trim();
       void rewindThenDraftPrompt(
         () =>
-          rewindToCut(
-            { kind: "before-user-turn", sourceMessageId: messageId },
-            index - 1,
-          ),
+          rewindToCut({ kind: "before-user-turn", sourceMessageId: messageId }),
         promptText,
         () => draftControlsRef.current,
       );
@@ -182,14 +170,13 @@ export function useSessionRewindControls({
   const startClearloop = useCallback(
     async (
       sourceMessageId: string,
-      cutTurnIndex: number,
+      turnIndex: number,
       parsed: { total: number; prompt: string },
       commandText: string,
     ) => {
       try {
         await api.startClearloop(projectId, sessionId, {
           cut: { kind: "after-user-turn", sourceMessageId },
-          cutTurnIndex,
           prompt: parsed.prompt,
           total: parsed.total,
           commandText,
@@ -197,7 +184,7 @@ export function useSessionRewindControls({
         showToast(
           t("clearloopStarted", {
             total: String(parsed.total),
-            index: String(cutTurnIndex),
+            index: String(turnIndex),
           }),
           "success",
         );
@@ -380,7 +367,7 @@ export function useSessionRewindControls({
         void createDirectTurnFork(sourceMessageId, "after-user-turn");
         return true;
       }
-      void rewindToCut({ kind: "after-user-turn", sourceMessageId }, index);
+      void rewindToCut({ kind: "after-user-turn", sourceMessageId });
       return true;
     },
     [
