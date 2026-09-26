@@ -247,11 +247,10 @@ import {
 import { createSessionDraftStorageKey } from "../lib/sessionDraftStorage";
 import {
   type ComposerTurnRecallCache,
-  type ComposerTurnRecallEntry,
-  createCommandRecallEntry,
   createComposerTurnRecallCache,
   mergeCommandRecallEntries,
 } from "../lib/composerTurnRecall";
+import { useSessionCommandRecall } from "../lib/sessionCommandRecall";
 import { turnContentText } from "../lib/sessionMessageText";
 import {
   getEstimatedServerOffsetMs,
@@ -2942,45 +2941,9 @@ function SessionPageContent({
     composerTurnRecallCacheRef.current = createComposerTurnRecallCache();
   }
   const composerTurnRecallCache = composerTurnRecallCacheRef.current;
-  // Accepted YA commands never become turns; keep them recallable per session
-  // (browser-local, newest first) and merge them ahead of the transcript turns.
-  const commandRecallStorageKey = `ya:command-recall:${actualSessionId}`;
-  const [commandRecallEntries, setCommandRecallEntries] = useState<
-    ComposerTurnRecallEntry[]
-  >(() => {
-    try {
-      const raw = window.localStorage.getItem(commandRecallStorageKey);
-      const parsed: unknown = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed)
-        ? parsed.filter(
-            (entry): entry is ComposerTurnRecallEntry =>
-              typeof entry?.id === "string" && typeof entry?.text === "string",
-          )
-        : [];
-    } catch {
-      return [];
-    }
-  });
-  const recordCommandRecall = useCallback(
-    (text: string) => {
-      setCommandRecallEntries((previous) => {
-        const next = [
-          createCommandRecallEntry(text),
-          ...previous.filter((entry) => entry.text !== text),
-        ].slice(0, 50);
-        try {
-          window.localStorage.setItem(
-            commandRecallStorageKey,
-            JSON.stringify(next),
-          );
-        } catch {
-          // Browser storage is best effort; the in-memory list still serves.
-        }
-        return next;
-      });
-    },
-    [commandRecallStorageKey],
-  );
+  // Accepted YA commands never become turns; they are recalled ahead of them.
+  const { entries: commandRecallEntries, record: recordCommandRecall } =
+    useSessionCommandRecall(actualSessionId);
   const composerTurnRecallEntries = useMemo(
     () =>
       mergeCommandRecallEntries(

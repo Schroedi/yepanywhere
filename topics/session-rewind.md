@@ -321,7 +321,11 @@ input, the reader instead emits the dropped rows as a **rewound group**:
 **Composer recall.** `/clear N`, `/fork N`, and `/clearloop …` never become
 transcript turns, so accepted commands are recorded per session in browser
 storage and merged ahead of the turn history in the recall drawer
-(Ctrl+Up). A command that fails to parse is put back into the composer
+(Ctrl+Up). One browser-local key holds that history for the 30 most
+recently used sessions, 50 commands each, so running commands in many
+sessions cannot grow storage without bound; the per-session keys earlier
+releases wrote are folded into it and removed on the next read. A command
+that fails to parse is put back into the composer
 instead of being discarded. Harness-injected user rows such as task
 notifications are never offered for recall.
 
@@ -600,8 +604,9 @@ Durable pointers by symbol and module; grep for the symbol.
 - `hooks/useSessionRewindControls.ts` — `handleRewindCommand`,
   `rewindToCut`, `startClearloop`, `cancelClearloop`, the
   `SessionRewindProvider` value, draft restore/clear, the metadata-event
-  rewind application; `pages/SessionPage.tsx` keeps command recall and the
-  header badge.
+  rewind application; `pages/SessionPage.tsx` keeps the header badge.
+- `lib/sessionCommandRecall.ts` — the bounded command-recall store and
+  `useSessionCommandRecall`.
 - `lib/sessionRewind.ts` — `getSessionTurnIndex` (server stamps, live-tail
   numbering), `supportsSessionRewind`; `contexts/SessionRewindContext.tsx`.
 - `components/blocks/ForkTurnMenu.tsx` — Clear entries and the indexed
