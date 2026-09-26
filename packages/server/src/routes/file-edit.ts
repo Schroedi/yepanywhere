@@ -42,7 +42,8 @@ export interface FileEditDeps {
   policy: ReturnType<typeof createLocalResourcePathPolicy>;
   scanner: Pick<ProjectScanner, "getProject">;
   resolveArtifactUrl: (url: string) => Promise<string>;
-  isWritePending?: (path: string) => boolean;
+  /** Whether an agent write to this symlink-resolved path is in flight. */
+  isWritePending?: (realPath: string) => Promise<boolean>;
   /** Absent means previews report no rebuild hook and rebuilds are refused. */
   rebuild?: ArtifactRebuildService;
 }
@@ -254,16 +255,13 @@ export function createFileEditRoutes(deps: FileEditDeps) {
         413,
       );
     const source = await readSource(parsed.data.path);
-    if (saving.has(source.path) || deps.isWritePending?.(source.path))
-      return c.json(
-        {
-          error:
-            "This file is being edited; retry after the active write finishes",
-        },
-        409,
-      );
+    const busy = {
+      error: "This file is being edited; retry after the active write finishes",
+    };
+    if (saving.has(source.path)) return c.json(busy, 409);
     saving.add(source.path);
     try {
+      if (await deps.isWritePending?.(source.path)) return c.json(busy, 409);
       // Re-read after taking the per-file writer slot. A second browser's
       // save must not reuse a snapshot taken before the first save completed.
       const current = await readSource(source.path);
@@ -283,7 +281,7 @@ export function createFileEditRoutes(deps: FileEditDeps) {
           { error: "Editing hard-linked files is not supported" },
           409,
         );
-      if (deps.isWritePending?.(source.path))
+      if (await deps.isWritePending?.(source.path))
         return c.json({ error: "This file has an active writer" }, 409);
       await writeFileAtomically(source.path, bytes, {
         mode: current.stats.mode & 0o777,

@@ -1003,8 +1003,8 @@ export function createApp(options: AppOptions): AppResult {
       policy: localResourcePathPolicy,
       scanner,
       resolveArtifactUrl: (url) => artifactServer.resolveSourceUrl(url),
-      isWritePending: (path) =>
-        options.dirtyFileEditorService?.isWritePending(path) ?? false,
+      isWritePending: async (path) =>
+        (await options.dirtyFileEditorService?.isWritePending(path)) ?? false,
       rebuild: new ArtifactRebuildService(
         join(effectiveDataDir, "artifact-rebuild"),
       ),

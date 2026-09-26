@@ -121,7 +121,9 @@ roots.
 PUT `/api/file-edit` takes `{path, revision, content}`. It checks the current
 bytes against the revision and atomically replaces the file, preserving mode.
 A stale revision, another browser save in progress, a detectable in-flight agent
-write, or a hard link returns a conflict. Unknown external writers are not
+write, or a hard link returns a conflict. An in-flight agent write is matched
+by symlink-resolved path on both sides, so a project registered or opened
+through a symlink still conflicts. Unknown external writers are not
 filesystem-locked; a writer racing after the final comparison is not prevented.
 No source backup or editor state is stored inside the project.
 

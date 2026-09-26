@@ -30,7 +30,7 @@ describe("source editing routes", () => {
       }),
       scanner: { getProject: async () => undefined },
       resolveArtifactUrl: async () => file,
-      isWritePending: () => pending,
+      isWritePending: async () => pending,
     });
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "source-edit-"));
