@@ -293,6 +293,40 @@ describe("LimitedUsersService", () => {
     expect(service.getSrpChallengeInputs("mallory")).toEqual(unknown);
   });
 
+  it("gives each unknown identity its own salt, so a real one does not stand out", async () => {
+    await service.create({ username: "alice", password: "correct-horse" });
+    const alice = service.getSrpChallengeInputs("alice").salt;
+    const first = service.getSrpChallengeInputs("mallory").salt;
+    const second = service.getSrpChallengeInputs("trudy").salt;
+
+    // Probing two random names and then a real one used to show the two
+    // random names sharing a salt that the real name did not.
+    expect(first).not.toBe(second);
+    expect(new Set([alice, first, second]).size).toBe(3);
+    // Same hex form and size as a salt generated for a real password: 128
+    // bytes, leading zero nibbles dropped.
+    for (const salt of [alice, first, second]) {
+      expect(salt).toMatch(/^[0-9a-f]{240,256}$/);
+    }
+  });
+
+  it("keeps an unknown identity's salt across a restart, as a real user's is", async () => {
+    const before = service.getSrpChallengeInputs("mallory");
+    await service.flushPendingWrites();
+    const restarted = new LimitedUsersService({ dataDir: dir });
+    await restarted.initialize();
+    expect(restarted.getSrpChallengeInputs("mallory")).toEqual(before);
+  });
+
+  it("answers a disabled user with a decoy, not the user's own salt", async () => {
+    await service.create({ username: "alice", password: "correct-horse" });
+    const enabled = service.getSrpChallengeInputs("alice");
+    await service.update("alice", { disabled: true });
+    const disabled = service.getSrpChallengeInputs("alice");
+    expect(disabled.known).toBe(false);
+    expect(disabled.salt).not.toBe(enabled.salt);
+  });
+
   it("refuses a disabled user's login and grants", async () => {
     await service.create({ username: "alice", password: "correct-horse" });
     await service.update("alice", { disabled: true });

@@ -3317,10 +3317,9 @@ export function createApp(options: AppOptions): AppResult {
     resolveAbsoluteFilePaths: localResourcePathPolicy.findAllowedFilePaths,
     limitedUsers: limitedUsersService
       ? {
+          isEnabled: isLimitedUsersEnabled,
           getSrpChallengeInputs: (username) =>
-            isLimitedUsersEnabled()
-              ? limitedUsersService.getSrpChallengeInputs(username)
-              : undefined,
+            limitedUsersService.getSrpChallengeInputs(username),
         }
       : undefined,
     activityEventForIdentity: (username, event) => {

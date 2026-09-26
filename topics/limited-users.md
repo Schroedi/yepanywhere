@@ -279,10 +279,22 @@ therefore gets exactly the 403/404 answers above, never superuser authority.
 
 - **Relay.** `srp_hello.identity` selects the verifier: the remote-access
   record for the superuser, else the limited user of that name. An unknown
-  identity gets a challenge computed against a fixed dummy salt and verifier
-  and fails only at the proof step, and every hello response is padded to a
-  fixed floor, so response timing does not disclose which usernames exist.
-  This closes the existing early "unknown identity" leak as well.
+  or disabled identity gets a challenge computed against a decoy salt and
+  verifier and fails only at the proof step. The decoy salt is derived per
+  identity from a persisted server secret, so it is stable for a name across
+  hellos and restarts, as a real salt is, and differs between names, as real
+  salts do: neither a salt shared by every unknown name nor one that changes
+  on each hello can pick out the names that exist. Every hello response is
+  padded to a fixed floor, and every identity has its own hello limiter, so
+  neither response timing nor rate limiting discloses them either. This
+  closes the existing early "unknown identity" leak as well. All of this
+  applies only while limited users are enabled; with the feature off the
+  server answers `srp_hello` exactly as before it existed — an unknown
+  identity is refused at once, unpadded, and only the configured superuser
+  name has a per-identity limiter. The per-identity limiters are capped;
+  at the cap the least recently seen go first, and a limiter currently
+  blocking its name goes only when nothing else can, so spraying fresh names
+  does not lift a lockout.
 - **Direct.** The login page accepts an optional username; blank is the
   superuser. The cookie session records which principal it authenticated.
 - **A relay-authenticated limited user is locked to that user** for the life
@@ -560,7 +572,7 @@ effort changes made by the superuser.
   before the one modular exponentiation SRP needs per attempt, so cost does
   not grow with the number of users. Response time must not reveal whether
   a username exists (decided 2026-09-19): an unknown identity runs the
-  same challenge computation against a fixed dummy salt and verifier and
+  same challenge computation against a decoy salt and verifier and
   returns an indistinguishable error only at the proof step, and the
   handler pads every hello response to a minimum elapsed time (sleep to a
   floor such as the observed p95 of a real challenge) so a fast path cannot

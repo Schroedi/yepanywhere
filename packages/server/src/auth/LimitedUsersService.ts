@@ -22,7 +22,7 @@ import {
   limitedUserPasswordError,
   limitedUsernameError,
 } from "@yep-anywhere/shared";
-import { generateVerifier } from "../crypto/srp-server.js";
+import { deriveDecoySalt, generateVerifier } from "../crypto/srp-server.js";
 import { createCoalescingSaver } from "../lib/coalescingSaver.js";
 import {
   OWNER_READ_WRITE_FILE_MODE,
@@ -43,8 +43,12 @@ export interface LimitedUserRecord extends LimitedUserGrants {
 
 interface LimitedUsersState {
   version: number;
-  /** Fixed SRP inputs answered for unknown identities, so timing matches. */
-  dummySrp?: { salt: string; verifier: string };
+  /**
+   * What an unknown identity's SRP challenge is computed from: a salt derived
+   * per identity from `secret`, and one verifier. The verifier never reaches
+   * the client, so sharing it discloses nothing; the salt does, so it varies.
+   */
+  decoySrp?: { secret: string; verifier: string };
   users: Record<string, LimitedUserRecord>;
 }
 
@@ -143,7 +147,7 @@ export class LimitedUsersService {
       ) as LimitedUsersState;
       this.state = {
         version: CURRENT_VERSION,
-        dummySrp: parsed.dummySrp,
+        decoySrp: parsed.decoySrp,
         users: {},
       };
       for (const [username, record] of Object.entries(parsed.users ?? {})) {
@@ -169,14 +173,19 @@ export class LimitedUsersService {
       this.state = { version: CURRENT_VERSION, users: {} };
     }
 
-    if (!this.state.dummySrp) {
-      // A fixed decoy credential, generated once, so an unknown identity can
-      // be answered with a real challenge computation instead of an early
-      // error that discloses which usernames exist.
-      this.state.dummySrp = await generateVerifier(
+    if (!this.state.decoySrp) {
+      // Generated once and persisted, so an unknown identity is answered with
+      // a real challenge computation instead of an early error that discloses
+      // which usernames exist, and with the same salt after a restart as a
+      // real user's is.
+      const { verifier } = await generateVerifier(
         `unknown-${crypto.randomBytes(8).toString("hex")}`,
         crypto.randomBytes(32).toString("hex"),
       );
+      this.state.decoySrp = {
+        secret: crypto.randomBytes(32).toString("hex"),
+        verifier,
+      };
       await this.save();
     }
   }
@@ -211,8 +220,8 @@ export class LimitedUsersService {
 
   /**
    * SRP challenge inputs for an identity. Unknown or disabled identities get
-   * the fixed decoy credential so the handshake proceeds identically and
-   * fails only at the proof step.
+   * a decoy credential whose salt is stable per identity, so the handshake
+   * proceeds identically and fails only at the proof step.
    */
   getSrpChallengeInputs(username: string): {
     salt: string;
@@ -223,11 +232,15 @@ export class LimitedUsersService {
     if (record && record.disabled !== true) {
       return { ...record.srp, known: true };
     }
-    const dummy = this.state.dummySrp;
-    if (!dummy) {
+    const decoy = this.state.decoySrp;
+    if (!decoy) {
       throw new Error("LimitedUsersService.initialize() was not awaited");
     }
-    return { ...dummy, known: false };
+    return {
+      salt: deriveDecoySalt(decoy.secret, username),
+      verifier: decoy.verifier,
+      known: false,
+    };
   }
 
   async create(input: LimitedUserInput): Promise<LimitedUserSummary> {
