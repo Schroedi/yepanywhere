@@ -113,7 +113,11 @@ from the default branch sets that source's revision to `HEAD`. Poll only while
 a retrieval is active, and preserve in-progress field edits during status
 updates. Failed/interrupted retrieval is explicit and does not admit a partial
 library; the last successful snapshot may remain visible as prior content.
-Automatic chooser-triggered checks are only a
+Saved source state that cannot be read, parsed or validated is moved aside as
+`state.unreadable-<time>.json` in the private cache; the settings then show
+the default sources in an error state naming that file, and a Save replaces
+them without hand repair. State that cannot be moved aside is never
+overwritten except by that Save. Automatic chooser-triggered checks are only a
 [sketch](../gaps/sketches/project-template-automatic-updates.md).
 
 **Compatibility:** capability `project-template-sources` owns only retrieval,

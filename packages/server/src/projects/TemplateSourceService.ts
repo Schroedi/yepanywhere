@@ -66,6 +66,40 @@ export const templateSourceConfig = z.strictObject({
     ),
 });
 
+/** The saved `state.json`, validated whole because retrieval reuses its snapshot. */
+const savedTemplateSourceState = z.object({
+  config: templateSourceConfig,
+  phase: z.enum(["disabled", "fetching", "ready", "error"]),
+  error: z.string().optional(),
+  result: z.enum(["updated", "up-to-date"]).optional(),
+  snapshot: z
+    .object({
+      sources: z.array(
+        z.object({
+          id: z.string(),
+          repository: z.string(),
+          contentPath: z.string(),
+          revision: z.string(),
+          commit: z.string().nullable(),
+          local: z.boolean().optional(),
+          rawDirectory: z.string(),
+          directory: z.string(),
+          rewrittenFiles: z.number(),
+        }),
+      ),
+      templates: z.array(
+        z.object({
+          id: z.string(),
+          sourceId: z.string(),
+          title: z.string(),
+          description: z.string(),
+          status: z.enum(["draft", "ready"]),
+        }),
+      ),
+    })
+    .optional(),
+});
+
 /**
  * Runs git for a GitHub template source. The ref check and the download share
  * one runner so they reach the remote the same way.
@@ -315,15 +349,17 @@ export class TemplateSourceService {
   }
 
   private async load(): Promise<void> {
-    let saved: string;
+    const file = join(this.directory, "state.json");
+    let parsed: ProjectTemplateSourceState;
     try {
-      saved = await readFile(join(this.directory, "state.json"), "utf8");
+      parsed = savedTemplateSourceState.parse(
+        JSON.parse(await readFile(file, "utf8")),
+      );
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-      throw error;
+      await this.setAsideUnreadableState(file, error);
+      return;
     }
-    const parsed = JSON.parse(saved) as ProjectTemplateSourceState;
-    templateSourceConfig.parse(parsed.config);
     this.state = parsed;
     if (this.state.phase === "fetching") {
       this.state = {
@@ -332,6 +368,50 @@ export class TemplateSourceService {
         ...(parsed.snapshot ? { snapshot: parsed.snapshot } : {}),
         error: "Retrieval was interrupted. Fetch again to retry.",
       };
+    }
+  }
+
+  /**
+   * Moves an unreadable saved state out of the way and starts from the defaults
+   * in an explained error state, so a Save can replace it without a hand edit.
+   */
+  private async setAsideUnreadableState(
+    file: string,
+    cause: unknown,
+  ): Promise<void> {
+    const aside = `state.unreadable-${new Date().toISOString().replaceAll(":", "-")}.json`;
+    let error = `Saved template source settings could not be read and were set aside as ${aside}. Save to replace them with the settings shown.`;
+    let movedAside = true;
+    try {
+      await rename(file, join(this.directory, aside));
+      console.error(
+        `[TemplateSource] Unreadable saved state set aside as ${aside}:`,
+        cause,
+      );
+    } catch (renameError) {
+      movedAside = false;
+      error =
+        "Saved template source settings could not be read. Save to replace them with the settings shown.";
+      console.error(
+        "[TemplateSource] Unreadable saved state could not be set aside:",
+        cause,
+        renameError,
+      );
+    }
+    this.state = {
+      config: structuredClone(DEFAULT_PROJECT_TEMPLATE_SOURCES),
+      phase: "error",
+      error,
+    };
+    // Keep the explanation across a restart, but never write over the only copy.
+    if (!movedAside) return;
+    try {
+      await this.persist();
+    } catch (persistError) {
+      console.error(
+        "[TemplateSource] Cannot persist the unreadable-state notice:",
+        persistError,
+      );
     }
   }
 

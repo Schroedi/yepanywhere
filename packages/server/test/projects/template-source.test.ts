@@ -2,6 +2,7 @@ import {
   mkdtemp,
   mkdir,
   readFile,
+  readdir,
   realpath,
   rm,
   writeFile,
@@ -247,6 +248,56 @@ describe("template source retrieval", () => {
       phase: "error",
       error: expect.stringContaining("interrupted"),
     });
+  });
+
+  it("sets an unreadable saved state aside so the next save replaces it", async () => {
+    const directory = join(root, "project-templates-source");
+    await mkdir(directory, { recursive: true });
+    const saved = [
+      "{ not json",
+      JSON.stringify({
+        config: { enabled: true, sources: [] },
+        phase: "ready",
+      }),
+      JSON.stringify({ config, phase: "ready", snapshot: { sources: 7 } }),
+    ];
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const bytes of saved) {
+      logged.mockClear();
+      await writeFile(join(directory, "state.json"), bytes);
+      const service = new TemplateSourceService(root);
+      const state = await service.current();
+      expect(state).toMatchObject({
+        config: { enabled: false },
+        phase: "error",
+        error: expect.stringContaining("set aside"),
+      });
+      expect(state.snapshot).toBeUndefined();
+      const asideName = (await readdir(directory)).find((name) =>
+        name.startsWith("state.unreadable-"),
+      );
+      expect(asideName).toBeDefined();
+      expect(state.error).toContain(asideName);
+      expect(logged).toHaveBeenCalledWith(
+        `[TemplateSource] Unreadable saved state set aside as ${asideName}:`,
+        expect.anything(),
+      );
+      expect(await readFile(join(directory, asideName ?? ""), "utf8")).toBe(
+        bytes,
+      );
+      // The explanation survives a restart until a save replaces it.
+      expect(await new TemplateSourceService(root).current()).toMatchObject({
+        phase: "error",
+        error: state.error,
+      });
+      await service.configure({ ...config, enabled: false });
+      expect(await new TemplateSourceService(root).current()).toEqual({
+        config: { ...config, enabled: false },
+        phase: "disabled",
+      });
+      await rm(join(directory, asideName ?? ""));
+    }
+    logged.mockRestore();
   });
 
   it("layers sources last-wins, resolves shared bases and relocates cached dependents after an update", async () => {
