@@ -420,9 +420,13 @@ this install and how much.
   superuser), and then a turn's word count or a charge's model short name,
   project name, and input/output token counts. Appending is
   the only write on the turn path. A torn record from an interrupted append
-  costs itself and nothing else. The file is capped at 50,000 records,
-  trimmed oldest-first, so a report's reach shrinks rather than its recent
-  numbers going wrong. Deleting a user deletes their records.
+  costs itself and nothing else, and so does a failed append: it is logged,
+  the action it records still succeeds, and later appends proceed. The file
+  keeps the newest 50,000 records: once it holds 1,000 more it is trimmed
+  oldest-first, so a report's reach shrinks rather than its recent numbers
+  going wrong. The count comes from the file on a process's first write, so
+  a server restarted before that many appends still trims. Deleting a user
+  deletes their records.
 - **Interaction time** is the union of the five-minute windows each action
   opens: one lone turn counts five minutes, two turns two minutes apart count
   as one continuous stretch rather than two, and a gap longer than five

@@ -30,10 +30,12 @@ import {
  * Cap the ledger so an install that runs for years cannot grow it without
  * bound. At roughly 60 bytes a line this is a few megabytes, and trimming
  * keeps the newest records: a report's window shrinks rather than its recent
- * numbers going wrong.
+ * numbers going wrong. The file may run `TRIM_SLACK` records over the cap
+ * before a trim, so a trim rewrites the file once per `TRIM_SLACK` appends
+ * rather than on every one.
  */
-const MAX_LEDGER_EVENTS = 50_000;
-const TRIM_CHECK_INTERVAL = 1_000;
+export const MAX_LEDGER_EVENTS = 50_000;
+export const TRIM_SLACK = 1_000;
 
 export interface UserUsageServiceOptions {
   dataDir: string;
@@ -44,9 +46,19 @@ export interface UserUsageServiceOptions {
 export class UserUsageService {
   private readonly filePath: string;
   private readonly now: () => number;
-  /** Serializes appends so two turns cannot interleave a partial line. */
+  /**
+   * Serializes writes so two turns cannot interleave a partial line. It never
+   * holds a rejection: each write's failure belongs to that write alone, so
+   * one failed append cannot stop every later one.
+   */
   private writeChain: Promise<void> = Promise.resolve();
-  private appendsSinceTrimCheck = 0;
+  /**
+   * Records in the file, counted from the file itself on this process's first
+   * write rather than from zero, so the cap holds on a host restarted more
+   * often than a trim would otherwise come due. Undefined until then, and
+   * again after a failed write leaves the count uncertain.
+   */
+  private ledgerRecords: number | undefined;
 
   constructor(options: UserUsageServiceOptions) {
     this.filePath = path.join(options.dataDir, "user-usage.jsonl");
@@ -125,32 +137,52 @@ export class UserUsageService {
     return summarizeUsage(events, { now: this.now(), knownUsernames });
   }
 
-  /** Drop every record for a user, so deleting them takes their history too. */
-  async forgetUser(username: string): Promise<void> {
-    await this.writeChain;
-    this.writeChain = this.writeChain.then(async () => {
+  /**
+   * Drop every record for a user, so deleting them takes their history too.
+   * Rejects only if this rewrite itself fails, never for an earlier append.
+   */
+  forgetUser(username: string): Promise<void> {
+    return this.serialize(async () => {
       const events = await this.readEvents();
       const kept = events.filter((event) => event.u !== username);
+      this.ledgerRecords = events.length;
       if (kept.length === events.length) return;
       await this.rewrite(kept);
     });
-    await this.writeChain;
   }
 
+  /**
+   * Run one write after every earlier one has settled, whether it succeeded
+   * or not, and hand its own outcome to the caller alone.
+   */
+  private serialize(write: () => Promise<void>): Promise<void> {
+    const run = this.writeChain.then(write);
+    this.writeChain = run.catch(() => {
+      // A failed count is re-read from the file by the next write.
+      this.ledgerRecords = undefined;
+    });
+    return run;
+  }
+
+  /**
+   * Append one record. Callers fire and forget on the turn path, so this
+   * resolves either way: a failed append is logged and costs that record.
+   */
   private append(event: UsageEvent): Promise<void> {
-    this.writeChain = this.writeChain.then(async () => {
+    return this.serialize(async () => {
       await fs.mkdir(path.dirname(this.filePath), { recursive: true });
+      this.ledgerRecords ??= (await this.readEvents()).length;
       await fs.appendFile(this.filePath, `${JSON.stringify(event)}\n`, {
         mode: OWNER_READ_WRITE_FILE_MODE,
       });
       await enforceOwnerReadWriteFilePermissions(this.filePath, "[UserUsage]");
-      this.appendsSinceTrimCheck += 1;
-      if (this.appendsSinceTrimCheck >= TRIM_CHECK_INTERVAL) {
-        this.appendsSinceTrimCheck = 0;
-        await this.trimIfOversized();
+      this.ledgerRecords += 1;
+      if (this.ledgerRecords > MAX_LEDGER_EVENTS + TRIM_SLACK) {
+        await this.trimToCap();
       }
+    }).catch((error: unknown) => {
+      console.warn("[UserUsage] Usage ledger append failed:", error);
     });
-    return this.writeChain;
   }
 
   private async readEvents(): Promise<UsageEvent[]> {
@@ -182,8 +214,9 @@ export class UserUsageService {
     return events;
   }
 
-  private async trimIfOversized(): Promise<void> {
+  private async trimToCap(): Promise<void> {
     const events = await this.readEvents();
+    this.ledgerRecords = events.length;
     if (events.length <= MAX_LEDGER_EVENTS) return;
     await this.rewrite(events.slice(events.length - MAX_LEDGER_EVENTS));
   }
@@ -193,6 +226,7 @@ export class UserUsageService {
     const temporary = `${this.filePath}.tmp`;
     await fs.writeFile(temporary, body, { mode: OWNER_READ_WRITE_FILE_MODE });
     await fs.rename(temporary, this.filePath);
+    this.ledgerRecords = events.length;
     await enforceOwnerReadWriteFilePermissions(this.filePath, "[UserUsage]");
   }
 }

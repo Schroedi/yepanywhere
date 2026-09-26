@@ -2,8 +2,12 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { USAGE_AFK_AFTER_MS } from "@yep-anywhere/shared";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { UserUsageService } from "../../src/auth/UserUsageService.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  MAX_LEDGER_EVENTS,
+  TRIM_SLACK,
+  UserUsageService,
+} from "../../src/auth/UserUsageService.js";
 
 /** Contract: topics/limited-users.md § Delivery v1 — Usage. */
 
@@ -180,6 +184,57 @@ describe("UserUsageService", () => {
       .filter((line) => line !== "")
       .map((line) => JSON.parse(line).x);
     expect(tiers).toEqual([undefined, 1]);
+  });
+
+  it("keeps recording after one append fails", async () => {
+    const file = path.join(dir, "user-usage.jsonl");
+    // A directory where the ledger belongs makes the next append fail.
+    await fs.mkdir(file);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await expect(
+        service.recordTurn("archer", "lost"),
+      ).resolves.toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(
+        "[UserUsage] Usage ledger append failed:",
+        expect.anything(),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+    await fs.rmdir(file);
+
+    await service.recordTurn("archer", "counted");
+    // Deleting a user does not answer with the earlier append's failure.
+    await expect(service.forgetUser("lana")).resolves.toBeUndefined();
+
+    const report = await service.report();
+    expect(
+      report.users.find((user) => user.username === "archer")?.total.turns,
+    ).toBe(1);
+  });
+
+  it("trims a ledger an earlier process left over the cap", async () => {
+    const file = path.join(dir, "user-usage.jsonl");
+    const oversized = MAX_LEDGER_EVENTS + TRIM_SLACK;
+    await fs.writeFile(
+      file,
+      Array.from(
+        { length: oversized },
+        (_, index) => `${JSON.stringify({ t: index, k: "turn" })}\n`,
+      ).join(""),
+    );
+    // A process restarted before its own appends reach the cap must still
+    // hold the file to it.
+    const restarted = new UserUsageService({ dataDir: dir, now: () => clock });
+
+    await restarted.recordTurn("archer", "newest");
+
+    const lines = (await fs.readFile(file, "utf-8"))
+      .split("\n")
+      .filter((line) => line !== "");
+    expect(lines).toHaveLength(MAX_LEDGER_EVENTS);
+    expect(JSON.parse(lines.at(-1) ?? "{}")).toMatchObject({ u: "archer" });
   });
 
   it("reads back what an earlier process wrote", async () => {
