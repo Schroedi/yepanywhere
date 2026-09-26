@@ -22,10 +22,27 @@ import {
   fetchPublicShareJsonViaRelay,
 } from "./lib/publicShareRelay";
 
+/**
+ * `allow-forms` lets the document's scripted forms receive their submit
+ * event; play.html's `form-action 'none'` still refuses every form navigation.
+ */
 export const PLAY_FRAME_SANDBOX =
   "allow-scripts allow-popups allow-downloads allow-forms allow-modals";
 
 const notice = document.getElementById("notice") as HTMLParagraphElement;
+
+/**
+ * A srcdoc document's fallback base URL is this page's base URL, which by
+ * default is the page URL with the share secret in its fragment. Give the
+ * page a base without the fragment before the document exists.
+ */
+function dropFragmentFromBaseUrl(): void {
+  const url = new URL(window.location.href);
+  url.hash = "";
+  const base = document.createElement("base");
+  base.href = url.href;
+  document.head.prepend(base);
+}
 
 async function main(): Promise<void> {
   const target = parsePublicSharePlayUrl(window.location.href);
@@ -33,6 +50,7 @@ async function main(): Promise<void> {
     notice.textContent = enMessages.publicSharePlayInvalid;
     return;
   }
+  dropFragmentFromBaseUrl();
   notice.textContent = enMessages.publicSharePlayWaiting;
   const relayUrl = normalizeRelayUrl(target.relayUrl ?? DEFAULT_RELAY_URL);
   const relayUsername = target.relayUsername;

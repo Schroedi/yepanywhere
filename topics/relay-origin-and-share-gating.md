@@ -270,16 +270,24 @@ routes, so it never meets the login gate. It carries its own Content Security
 Policy, permissive for the document's resources: a `srcdoc` frame inherits
 its parent's policy, and the app's strict one would block the untrusted
 document's own stylesheets and scripts. The CSP plugin skips the page by name.
-Its policy forbids plugins and form submission and admits frames only from its
-own origin and `blob:`. The page renders the document full-window in an iframe
-with `sandbox="allow-scripts allow-popups allow-downloads allow-forms
-allow-modals"` and no `allow-same-origin`, so the document has an opaque
-origin and cannot read the hosted client's storage or credentials. A `srcdoc`
-document resolves relative URLs against the play page, so a fragment-only link
-would navigate the frame to `play.html` without its query and grant; a click
-handler injected ahead of the document's own scripts resolves such links on the
-frame's own location instead, including links the document creates at
-runtime.
+Its policy forbids plugins, nested frames (`frame-src 'none'`; the page's own
+`srcdoc` frame is not a framed URL) and form navigation, and admits a `<base>`
+only on its own origin. The document inherits that policy, so it can frame
+nothing, including the hosted client. The page renders the document
+full-window in an iframe with `sandbox="allow-scripts allow-popups
+allow-downloads allow-forms allow-modals"` and no `allow-same-origin`, so the
+document has an opaque origin and cannot read the hosted client's storage or
+credentials. `allow-forms` stays so the document's scripted forms receive
+their submit events; the policy still refuses every form navigation.
+
+A `srcdoc` document's base URL falls back to the play page's, so before
+rendering the page sets its own base to its address without the fragment: the
+document can observe the query's coordinates but never the share secret.
+Relative URLs in the document therefore resolve against the play page, so a
+fragment-only link would navigate the frame to `play.html` without its grant;
+a click handler injected ahead of the document's own scripts resolves such
+links on the frame's own location instead, including links the document
+creates at runtime.
 
 The File Viewer creation action is visible only for the ordinary live working
 file when Public Read-Only Share can currently create links and the server has
