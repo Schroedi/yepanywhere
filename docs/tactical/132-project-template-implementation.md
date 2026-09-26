@@ -7,7 +7,7 @@ Contributing-model: 6-Astra.
 ## Implementation checkpoint — 2026-09-21
 
 The user authorized implementation and expanded the default limited-user
-selection to every template at agents HEAD `947fc67`: App canvas, Storybook,
+selection to every current default-source template: App canvas, Storybook,
 and Web page. All three remain draft until their content review/admission.
 Apply this scope to the two-template acceptance cases below as well.
 
@@ -115,22 +115,21 @@ Read these before implementing their corresponding slice:
   [project directory storage](../../topics/project-directory-storage.md).
 - [Server capabilities](../../topics/server-capabilities.md) and
   [hosted compatibility](../../topics/remote-hosted-compatibility.md).
-- The actual library at `~/agents/project-templates`: `PROGRAM.md`,
-  `FORMAT.md`, `README.md`, `library.json`, selected manifests, `composition.py`,
-  and its tests. Read the agents repository's entry instructions and governing
-  program chain before editing it. FORMAT.md is the single format authority.
+- The actual library, the default source's
+  [`project-templates`](https://github.com/graehl/agents/tree/master/project-templates):
+  `PROGRAM.md`, `FORMAT.md`, `README.md`, `library.json`, selected manifests,
+  `composition.py`, and its tests. Read that repository's entry instructions
+  and governing program chain before editing it. FORMAT.md is the single
+  format authority.
 
-The library landed at agents `d6a64e9` and `4baf1bf`; `eb2dd3c` added the
-template illustration and `f3e64ec` added redoc and the flatter source layout.
 YA `2bc60b548` holds the initial contracts/mockups, `aad6e4154` the preview
 contract, and `526fb1236` the project-local identity contract. Reconcile newer
 commits and worktree changes before acting; these are orientation anchors.
 
 Both manifests are still draft. Local materialization, setup, typecheck,
 unit/static-server tests, build, browser interaction and optional server
-activation passed for both templates. Composition had 13 passing cases.
-Fresh examples were `~/agents/tasks/redoc-flat-canvas` and
-`~/agents/tasks/redoc-flat-web-page`. These local checks do not establish YA
+activation passed for both templates in fresh materialized projects.
+Composition had 13 passing cases. These local checks do not establish YA
 integration or actual provider discovery/invocation of project skills.
 
 Approved UI source: `packages/client/mockups/project-templates/README.md` and
@@ -202,25 +201,11 @@ settings. Server-side None / Selected / Any grants are authoritative:
   Missing/draft/unavailable selections do not fall back to another template.
 - One permitted available choice is automatic; multiple choices show cards.
   No arbitrary source, script, grant or parent-directory fields for limited users.
-- New users default Create in to `~/username`, administrator editable. This is
-  also their default writable personal-directory sandbox, independent of cwd.
-- The administrator may instead lock Current project only. It grants writes
-  only to the active project, including one outside the personal directory
-  with an explicit new-session grant. Do not intersect that project's writable
-  root with the personal directory. View-only does not grant session creation.
-- Other paths remain read-only under existing read policy. Filesystem reads do
-  not imply YA visibility, view/join/new-session API grants, or confidentiality.
-  Limited users never choose sandbox granularity at session creation.
-
-Approved migration (user-directed 2026-09-23): apply the new defaults to existing
-limited users too: Selected App canvas, Storybook and Web page, Personal
-directory write scope, and `~/username` when no Create in root is configured.
-Preserve a configured custom root and unrelated grants/provider locks. This
-supersedes preserving legacy project-only confinement and disabled creation.
-Apply once, so subsequent administrator choices are not reset on restart.
-Existing running sessions retain their established sandbox until relaunched;
-do not mutate live provider mounts or treat a broader policy as a broader
-already-running sandbox. No runtime migration is performed by this doc update.
+- Create in, the Personal directory and Current project only write scopes, and
+  the one-time migration of existing limited users follow the
+  [workspace direction](../../topics/limited-users.md#approved-workspace-direction-2026-09-21-not-implemented).
+  Do not mutate live provider mounts or treat a broader policy as a broader
+  already-running sandbox.
 
 Enforce the effective principal, locked provider settings, writable root and
 permission rechecks through create/fork/resume/join and provider process reuse.

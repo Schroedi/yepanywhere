@@ -1,7 +1,8 @@
 # YA cannot instantiate the composable App canvas template
 
-The source library and local materializer exist in `~/agents/project-templates`
-at agents commits `d6a64e9` and `4baf1bf`. YA registers directories and can explicitly create
+The source library and local materializer exist in the default source's
+[`project-templates`](https://github.com/graehl/agents/tree/master/project-templates)
+directory. YA registers directories and can explicitly create
 a missing directory through `packages/server/src/routes/projects.ts`, but does
 not materialize templates. Its client `AddProjectForm` has no template mode.
 Settings → Users has a project-root grant but no template
@@ -50,36 +51,25 @@ Materialization and production admission remain open.
   Verify concurrent claims have exactly one winner, and stop/delete/restart or
   namespace reconfiguration cannot silently release a name. Test attempted
   release/takeover by limited users and recovery after partial setup failure.
-  Store the reservation's public/private state. Template creation offers an
-  unchecked Public app option only when a public root exists; enforce each
-  limited user's default-on Private apps only ceiling server-side against
-  forged creation and row-update requests. Private reservations use the
-  existing app-scoped bearer.
+  Store the reservation's public/private state and enforce the
+  [Private apps only](../topics/limited-users.md) ceiling server-side against
+  forged creation and row-update requests.
 - Show the usable starter as soon as deterministic setup has built it, then
   auto-send the project-context prepare turn with intent. Keep setup, agent
   preparation and readiness distinguishable; agent failure retains the starter.
-- Add server-enforced None / Selected / Any template grants to existing limited
-  principals and Settings → Users. New users default to all three current
-  templates (App canvas, Storybook and Web page). Apply the same new defaults
-  to existing users, as directed on 2026-09-23, with a one-time migration that
-  preserves subsequent administrator changes.
-  Enforce configured project root, provider locks,
-  sandbox, ownership, app-exposure ceiling, and permission rechecks at the
-  operation.
-- Default new users' Create in directory to `~/username`; fill absent roots
-  on existing users while preserving configured custom roots. Use it as the
-  limited user's default writable sandbox, independent of session cwd; an
-  administrator-selected project-only mode instead confines each session to
-  its active project, including projects outside the personal directory with
-  explicit new-session grants. Do not expose a granularity option to the
-  limited user. Other projects remain read-only. Separate API project grants
-  from filesystem write scope. Cover create/fork/resume/join and reused provider
-  processes so none retains a broader principal's writable mounts. Preserve
-  private runtime state, network confinement and unsupported-host refusal.
-  Reject missing roots and symlink escapes. Migrate existing users to Personal
-  directory scope, but keep running sessions' established sandbox until
-  relaunch. This workspace extension is user-directed and remains
-  unimplemented, alongside the template integration.
+- Add the server-enforced
+  [template grants](../topics/project-templates.md#limited-user-permissions) to
+  existing limited principals and Settings → Users, with their defaults.
+  Enforce configured project root, provider locks, sandbox, ownership,
+  app-exposure ceiling, and permission rechecks at the operation.
+- Implement the
+  [workspace direction](../topics/limited-users.md#approved-workspace-direction-2026-09-21-not-implemented):
+  Create in defaults, the two superuser-locked write scopes, and the one-time
+  migration of existing users. Separate API project grants from filesystem
+  write scope. Cover create/fork/resume/join and reused provider processes so
+  none retains a broader principal's writable mounts. Preserve private runtime
+  state, network confinement and unsupported-host refusal. Reject missing
+  roots and symlink escapes.
 - Implement the approved New project UI and exact older-server capability gate.
   Apply the approved supported-release capability/fallback plan recorded in
   tactical 132; existing capabilities retain their meanings.

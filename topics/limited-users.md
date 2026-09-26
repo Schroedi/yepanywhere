@@ -53,8 +53,7 @@ Approved migration (user-directed 2026-09-23): apply the new defaults to existin
 limited users too. Set Personal directory scope and Selected App canvas,
 Storybook and Web page; fill an absent Create in root with `~/username`,
 preserving a configured custom root and unrelated grants/provider locks.
-This supersedes the earlier decision to preserve legacy project-only scope
-and disabled creation. Apply once; later administrator choices survive
+Apply once; later administrator choices survive
 restarts. Existing running sessions keep their established sandbox until
 relaunched; migration does not broaden live provider mounts.
 
@@ -627,7 +626,7 @@ user may do:
 | Sessions elsewhere | 404 |
 | Files, source control, git status | within member projects only; the same sandbox roots the session sees |
 | Server-wide settings | read where harmless, write refused |
-| Apps settings | only rows reserved for their projects ([[project-templates]] § App name reservation); Public is available only when the superuser has disabled Private apps only, and remains explicit opt-in |
+| Apps settings | only rows reserved for their projects ([[project-templates]] § Persistent app-name reservations); Public is available only when the superuser has disabled Private apps only, and remains explicit opt-in |
 | Public shares, app links | within member projects only |
 | Devices, push, browser profile | their own |
 | Agents/process view, Inbox, All Sessions | filtered to member projects |
