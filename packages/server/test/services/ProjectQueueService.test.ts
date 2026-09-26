@@ -598,6 +598,43 @@ describe("ProjectQueueService", () => {
       );
     });
 
+    it("refuses a malformed command when it is queued or edited, not at dispatch", async () => {
+      const service = await createService();
+      for (const [text, name, argument, reason] of [
+        ["/clear", "clear", "", "needs a turn number"],
+        ["/clear 0", "clear", "0", "needs a turn number"],
+        ["/clear abc", "clear", "abc", "Cannot read queued /clear abc"],
+        [
+          "/clearloop 3 go",
+          "clearloop",
+          "3 go",
+          "Cannot read queued /clearloop 3 go",
+        ],
+      ] as const) {
+        await expect(
+          service.createItem({
+            projectId,
+            projectPath: "/tmp/project-queue",
+            request: {
+              target: sessionTarget,
+              message: { text, yaCommand: { name, argument } },
+            },
+          }),
+        ).rejects.toThrow(reason);
+      }
+      expect(service.listProject(projectId).items).toEqual([]);
+
+      const created = await queueClearloop(service);
+      await expect(
+        service.updateItem(projectId, created.id, {
+          message: { ...created.message, text: "/clearloop 0: p" },
+        }),
+      ).rejects.toBeInstanceOf(ProjectQueueValidationError);
+      expect(service.listProject(projectId).items[0]?.message.text).toBe(
+        "/clearloop 3 2: p",
+      );
+    });
+
     it("refuses a command bound for a new session, queued or retargeted", async () => {
       const service = await createService();
       await expect(
@@ -647,6 +684,7 @@ describe("ProjectQueueService", () => {
             stored("edited", "/clearloop 3 5: q", sessionTarget),
             stored("prose", "summarize instead", sessionTarget),
             stored("retargeted", "/clearloop 3 2: p", { type: "new-session" }),
+            stored("malformed", "/clearloop 3: ", sessionTarget),
           ],
         }),
       );
@@ -657,7 +695,9 @@ describe("ProjectQueueService", () => {
         ["edited", "queued"],
         ["prose", "failed"],
         ["retargeted", "failed"],
+        ["malformed", "failed"],
       ]);
+      expect(items[3]?.lastError).toContain("Cannot read queued /clearloop 3:");
       expect(items[0]?.message.yaCommand).toEqual({
         name: "clearloop",
         argument: "3 5: q",

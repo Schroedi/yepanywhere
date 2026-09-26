@@ -3388,6 +3388,16 @@ function SessionPageContent({
       );
       return;
     }
+    if (classified.kind === "invalid") {
+      refuseCommand(
+        classified.problem === "clear-zero"
+          ? t("projectQueueClearZero")
+          : t("projectQueueCommandSyntax", {
+              command: classified.command.name,
+            }),
+      );
+      return;
+    }
     const yaCommand =
       classified.kind === "queueable" ? classified.command : undefined;
     if (yaCommand) {

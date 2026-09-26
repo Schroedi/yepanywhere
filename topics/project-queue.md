@@ -470,7 +470,10 @@ ever reinterprets slash-shaped text by content.
 Three outcomes, all decided at enqueue so the user learns immediately:
 
 - **Queueable** — `/clear N` and `/clearloop [N] M: <prompt>`. The server runs
-  them against the target session at dispatch. A `/clearloop` promoted this
+  them against the target session at dispatch. An argument that cannot run —
+  bare `/clear` or `/clear 0`, `/clear abc`, a `/clearloop` without `M:` and a
+  prompt — is refused with a visible reason and the draft is restored, rather
+  than failing when the project goes quiet. A `/clearloop` promoted this
   way starts **patient** ([session-rewind](session-rewind.md#clearloop)): the
   user chose a lane that waits for the project, so the loop it starts keeps
   waiting.
@@ -495,9 +498,12 @@ every create, edit, and load and again at dispatch, so a queue row can never
 show one command while another runs. Editing a tagged item's text to another
 `/clear` or `/clearloop` changes what runs; editing it into prose makes it an
 ordinary prompt, because the queue editors re-tag from the new text before
-saving. The server refuses a tagged message whose text no longer spells the
-tagged command, and a tagged item whose target is, or is edited to be, a new
-session. An item persisted in either state by an older build loads as failed
+saving. An edit to a malformed `/clear` or `/clearloop` keeps its tag, so it
+is refused rather than queued as provider text. The server refuses a tagged
+message whose text no longer spells the tagged command or whose argument
+cannot run, reading it with the same shared parser the dispatch runner uses,
+and a tagged item whose target is, or is edited to be, a new session. An item
+persisted in any of these states by an older build loads as failed
 with that reason instead of being dropped, and a Retry of it unchanged fails
 the same way at dispatch rather than delivering the command line to a
 provider as a prompt. Editing untagged text into a command line does not tag
@@ -506,9 +512,10 @@ it: the queue editors do not know whether the target session supports rewind.
 A queued command resolves its turn at **dispatch**, not at enqueue. `/clearloop
 3: p` queued now loops over turn 3 as it stands when the project finally goes
 quiet, and a command with no number uses the tail then. A queued command takes
-no attachments, targets an existing session only, and `/clear 0` is refused
-because it is the composer's navigate-to-a-new-session action rather than a
-session operation a scheduler can perform.
+no attachments, targets an existing session only, and `/clear 0` (or bare
+`/clear`) is refused at enqueue because it is the composer's
+navigate-to-a-new-session action rather than a session operation a scheduler
+can perform. Only the turn is resolved late; the argument's shape is not.
 
 Dispatching a YA command starts no provider work, so it settles the item
 without a session launch. A refusal from the session — a provider that does

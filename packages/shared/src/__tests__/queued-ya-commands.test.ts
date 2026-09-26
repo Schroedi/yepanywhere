@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyQueuedYaCommand,
+  readQueuedYaCommand,
   retagEditedQueuedMessage,
 } from "../queued-ya-commands.js";
 
@@ -21,6 +22,28 @@ describe("classifyQueuedYaCommand", () => {
       command: { name: "clear", argument: "7" },
       commandText: "/clear 7",
     });
+  });
+
+  it("refuses a rewind command whose argument cannot run", () => {
+    for (const [text, argument, problem] of [
+      ["/clear", "", "clear-zero"],
+      ["/clear 0", "0", "clear-zero"],
+      ["/clear abc", "abc", "syntax"],
+      ["/clear -2", "-2", "syntax"],
+    ] as const) {
+      expect(classifyQueuedYaCommand(text, rewind)).toEqual({
+        kind: "invalid",
+        command: { name: "clear", argument },
+        problem,
+      });
+    }
+    for (const text of ["/clearloop", "/clearloop 3 go", "/clearloop 0: p"]) {
+      expect(classifyQueuedYaCommand(text, rewind)).toMatchObject({
+        kind: "invalid",
+        command: { name: "clearloop" },
+        problem: "syntax",
+      });
+    }
   });
 
   it("refuses commands that act on the composer, aliases included", () => {
@@ -70,6 +93,24 @@ describe("classifyQueuedYaCommand", () => {
   });
 });
 
+describe("readQueuedYaCommand", () => {
+  it("reads what the dispatch runner performs", () => {
+    expect(readQueuedYaCommand({ name: "clear", argument: "7" })).toEqual({
+      ok: true,
+      action: { name: "clear", turnIndex: 7 },
+    });
+    expect(
+      readQueuedYaCommand({ name: "clearloop", argument: "2: keep going" }),
+    ).toEqual({
+      ok: true,
+      action: {
+        name: "clearloop",
+        arguments: { total: 2, prompt: "keep going" },
+      },
+    });
+  });
+});
+
 describe("retagEditedQueuedMessage", () => {
   const tagged = {
     text: "/clearloop 3 2: p",
@@ -89,6 +130,16 @@ describe("retagEditedQueuedMessage", () => {
     expect(
       retagEditedQueuedMessage({ ...tagged, text: "summarize instead" }),
     ).toEqual({ text: "summarize instead", mode: "default" });
+  });
+
+  it("keeps the tag on an edit to a malformed command, so it is refused", () => {
+    expect(retagEditedQueuedMessage({ ...tagged, text: "/clear abc" })).toEqual(
+      {
+        text: "/clear abc",
+        mode: "default",
+        yaCommand: { name: "clear", argument: "abc" },
+      },
+    );
   });
 
   it("leaves an untagged message alone, even when it looks like a command", () => {

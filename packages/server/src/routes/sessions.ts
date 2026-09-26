@@ -32,8 +32,7 @@ import {
   isWorkstreamId,
   mainWorkstreamId,
   truncateSessionTitle,
-  parseClearloopArguments,
-  parseTurnIndexArgument,
+  readQueuedYaCommand,
   type SessionRewindReason,
   type SessionRewindRecord,
   type UpdateClearloopRequest,
@@ -77,6 +76,7 @@ import { appendApprovalAuditLog } from "../security/approvalAuditLog.js";
 import { getSessionSandboxSettingsError } from "../session-sandbox.js";
 import type { ModelInfoService } from "../services/ModelInfoService.js";
 import type { ProjectQueueScheduler } from "../services/ProjectQueueScheduler.js";
+import { describeQueuedYaCommandProblem } from "../services/ProjectQueueService.js";
 import type { ServerSettingsService } from "../services/ServerSettingsService.js";
 import type { SessionQueuePersistenceService } from "../services/SessionQueuePersistenceService.js";
 import type { WorkstreamService } from "../services/WorkstreamService.js";
@@ -6409,43 +6409,36 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     run: async ({ sessionId, projectId, command, commandText }) => {
       const project = await deps.scanner.getOrCreateProject(projectId);
       if (!project) throw new Error("Project not found");
-      const clearloop =
-        command.name === "clearloop"
-          ? parseClearloopArguments(command.argument)
-          : null;
-      if (command.name === "clearloop" && !clearloop) {
-        throw new Error(`Cannot read the arguments of ${commandText}`);
+      // The queue refused an unreadable argument when the item was queued,
+      // edited, or loaded; the scheduler hands over only commands that read.
+      const reading = readQueuedYaCommand(command);
+      if (!reading.ok) {
+        throw new Error(
+          describeQueuedYaCommandProblem(command, reading.problem),
+        );
       }
-      const turnArgument = clearloop
-        ? clearloop.turnIndex
-        : (parseTurnIndexArgument(command.argument, { allowEmpty: true }) ??
-          undefined);
-      if (command.name === "clear" && turnArgument === undefined) {
-        throw new Error(`Cannot read the turn number of ${commandText}`);
-      }
-      if (command.name === "clear" && turnArgument === 0) {
-        // `/clear 0` is the composer's "start a new session" navigation, not a
-        // session operation the scheduler can perform.
-        throw new Error("/clear 0 has no queued meaning; queue a new session");
-      }
+      const { action } = reading;
+      const turnArgument =
+        action.name === "clear" ? action.turnIndex : action.arguments.turnIndex;
       // A refusal fails the queued item, which keeps its text for Retry.
       const result = await runRewindCommand({
         project,
         projectId,
         sessionId,
         target: turnArgument === undefined ? {} : { turnIndex: turnArgument },
-        action: clearloop
-          ? {
-              name: "clearloop",
-              prompt: clearloop.prompt,
-              total: clearloop.total,
-              commandText,
-              // The user chose a lane that waits for the project; the loop it
-              // starts keeps waiting (topics/project-queue.md § Queued YA
-              // commands).
-              patient: true,
-            }
-          : { name: "clear" },
+        action:
+          action.name === "clearloop"
+            ? {
+                name: "clearloop",
+                prompt: action.arguments.prompt,
+                total: action.arguments.total,
+                commandText,
+                // The user chose a lane that waits for the project; the loop it
+                // starts keeps waiting (topics/project-queue.md § Queued YA
+                // commands).
+                patient: true,
+              }
+            : { name: "clear" },
       });
       if (!result.ok) throw new Error(result.error);
     },

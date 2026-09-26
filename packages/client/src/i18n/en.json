@@ -2293,6 +2293,8 @@
   "projectQueueUnsupportedCommand": "/{command} cannot be queued yet.",
   "projectQueueCommandNeedsSession": "/{command} acts on an existing session, so it cannot start a queued new session.",
   "projectQueueCommandNoAttachments": "Remove the attachments before queueing /{command}.",
+  "projectQueueClearZero": "/clear without a turn number starts a new session, so it cannot be queued. Queue a new session instead.",
+  "projectQueueCommandSyntax": "/{command} cannot be queued as written. Use /clear N or /clearloop [N] M: prompt.",
   "clearloopRemainingBadgeCancelHint": "Click to cancel the loop: the current turn finishes and no further rewind happens.",
   "clearloopCancelConfirm": "Cancel this clearloop? The current turn will finish; no further rewind or resend will happen.",
   "clearloopIterationBadgeTitle": "Iteration {completed} of {total} done. After the quiet window the session rewinds to the cut and resends this prompt. The x cancels the loop without stopping the current turn.",

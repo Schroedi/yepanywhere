@@ -19,6 +19,7 @@ import {
   type ProviderName,
   QUEUEABLE_YA_COMMANDS,
   type QueuedYaCommand,
+  type QueuedYaCommandProblem,
   type ShowThinking,
   type StagedAttachmentRef,
   type ThinkingOption,
@@ -27,6 +28,7 @@ import {
   type UrlProjectId,
   isUrlProjectId,
   queuedYaCommandForText,
+  readQueuedYaCommand,
 } from "@yep-anywhere/shared";
 import type {
   AttachmentStagingService,
@@ -466,12 +468,27 @@ function normalizeYaCommand(raw: unknown): QueuedYaCommand | undefined {
   return { name: name as QueuedYaCommand["name"], argument: argument ?? "" };
 }
 
+/** Why a queued command's argument cannot run, as a queue error message. */
+export function describeQueuedYaCommandProblem(
+  command: QueuedYaCommand,
+  problem: QueuedYaCommandProblem,
+): string {
+  if (problem === "clear-zero") {
+    return "Queued /clear needs a turn number: /clear 0 starts a new session, so queue a new session instead";
+  }
+  const commandText = command.argument
+    ? `/${command.name} ${command.argument}`
+    : `/${command.name}`;
+  return `Cannot read queued ${commandText}; use /clear N or /clearloop [N] M: prompt`;
+}
+
 /**
  * The YA command a tagged item runs, derived from `message.text` alone, or
  * undefined for an untagged item. An edit or retarget therefore changes what
  * runs together with what the queue shows. Throws when the text no longer
- * spells the tagged command or the target is not an existing session: a
- * command line must never reach a provider as a prompt.
+ * spells the tagged command, its argument cannot run, or the target is not an
+ * existing session: a command line must never reach a provider as a prompt,
+ * and a malformed one is refused when queued, not when the project goes quiet.
  */
 export function queuedYaCommandToRun(item: {
   target: ProjectQueueTarget;
@@ -488,6 +505,12 @@ export function queuedYaCommandToRun(item: {
   if (item.target.type !== "existing-session") {
     throw new ProjectQueueValidationError(
       `Queued /${command.name} runs against an existing session and cannot target a new session`,
+    );
+  }
+  const reading = readQueuedYaCommand(command);
+  if (!reading.ok) {
+    throw new ProjectQueueValidationError(
+      describeQueuedYaCommandProblem(command, reading.problem),
     );
   }
   return command;

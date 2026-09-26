@@ -692,10 +692,14 @@ export {
   type ComposerOnlyYaCommandName,
   type UnsupportedQueuedYaCommandName,
   type QueuedYaCommand,
+  type QueuedYaCommandAction,
   type QueuedYaCommandClassification,
   type QueuedYaCommandName,
+  type QueuedYaCommandProblem,
+  type QueuedYaCommandReading,
   classifyQueuedYaCommand,
   queuedYaCommandForText,
+  readQueuedYaCommand,
   retagEditedQueuedMessage,
 } from "./queued-ya-commands.js";
 export {
