@@ -349,8 +349,9 @@ export class ProjectQueueScheduler {
   /**
    * The project idle predicate without the Project Queue readiness check.
    * Other schedulers — a patient `/clearloop`, for instance — share this work
-   * predicate, but the readiness snapshot is only refreshed while this queue
-   * has backlog, so an empty queue would hold them on a stale caption forever.
+   * predicate through `getProjectWorkStatusYieldingToQueue`; the readiness
+   * snapshot is only refreshed while this queue has backlog, so an empty
+   * queue would hold them on a stale caption forever.
    */
   async getProjectWorkStatus(
     projectId: UrlProjectId,
@@ -373,6 +374,56 @@ export class ProjectQueueScheduler {
       }
     }
     return { idle: status.blockers.length === 0, blockers: status.blockers };
+  }
+
+  /**
+   * The work predicate for automated work that yields to this queue, such as
+   * a patient `/clearloop`. While the project is otherwise quiet, an item
+   * this queue would promote once its quiet window passes also blocks: work
+   * re-checking on a shorter window would otherwise start first every time,
+   * and the item would wait the other work out. An item the queue itself is
+   * holding (dispatch paused, first item failed, automation paused on its
+   * session, readiness check not passed) does not block, so the other work
+   * never waits on something that is not going to run. Nor does it block
+   * while the project is otherwise busy: the caller already waits then, and
+   * a blocker the caller discounts (its own session) also holds this queue.
+   */
+  async getProjectWorkStatusYieldingToQueue(
+    projectId: UrlProjectId,
+  ): Promise<ProjectIdleStatus> {
+    const status = await this.getProjectWorkStatus(projectId);
+    const queueBlocker = status.idle
+      ? this.promotingItemBlocker(projectId)
+      : null;
+    if (queueBlocker) status.blockers.push(queueBlocker);
+    return { idle: status.blockers.length === 0, blockers: status.blockers };
+  }
+
+  /** Why this queue is about to start work in the project, or null. */
+  private promotingItemBlocker(projectId: UrlProjectId): string | null {
+    if (!this.projectQueueService.hasDispatchableItem(projectId)) {
+      // A claimed head is `dispatching`, no longer dispatchable, until the
+      // work it starts shows up in the ordinary predicate.
+      return this.inFlight.has(projectId) ? "project-queue:dispatching" : null;
+    }
+    const head = this.projectQueueService.listProject(projectId).items[0];
+    if (
+      head?.target.type === "existing-session" &&
+      this.options.isSessionAutomationPaused?.(head.target.sessionId)
+    ) {
+      return null;
+    }
+    const command = this.options.getReadinessCommand?.();
+    if (command) {
+      const snapshot = this.readiness.get(projectId);
+      if (
+        snapshot?.commandKey !== JSON.stringify(command) ||
+        snapshot.blocker !== null
+      ) {
+        return null;
+      }
+    }
+    return "project-queue:item-waiting";
   }
 
   async getProjectStatus(

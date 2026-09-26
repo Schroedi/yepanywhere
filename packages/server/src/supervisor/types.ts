@@ -365,6 +365,11 @@ export type ProcessEvent =
       reason?: "queued" | "cancelled" | "promoted";
       tempId?: string;
       yaCommand?: SessionQueuedYaCommand;
+      /**
+       * Only a server-owned entry outside this process's queues changed (the
+       * `/clearloop` job re-checking); no queue this process holds moved.
+       */
+      republished?: boolean;
     }
   | {
       type: "recap-result";

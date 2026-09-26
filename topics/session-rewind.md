@@ -415,8 +415,19 @@ same predicate Project Queue uses, minus its readiness check, because that
 check is only refreshed while Project Queue has backlog. Blockers naming the
 loop's own session are dropped: that session's quiescence is what the
 inactivity window already measured, so counting it would hold the loop
-against itself. While a patient loop is held, the queue-rail entry reports the
-raw blockers in place of the countdown, and it re-asks every five seconds.
+against itself. A patient loop also yields to Project Queue: while the project
+is otherwise quiet and Project Queue has an item it will promote once its quiet
+window passes, the loop is held (`project-queue:item-waiting`, then
+`project-queue:dispatching`), so a loop window shorter than the quiet window
+cannot start first at every boundary and keep that item waiting for the whole
+loop. Queued items therefore run at the loop's next boundary, one quiet
+window apart, before its next iteration. An item Project Queue is
+itself holding — dispatch paused, a failed first item, automation paused on its
+session, a readiness check not passed — does not hold the loop, and neither
+does a queue that the loop's own session is blocking. While a patient loop is
+held, the queue-rail entry reports the raw blockers in place of the countdown,
+and it re-asks every five seconds. Those re-checks republish the entry but are
+not project activity, so they do not restart Project Queue's quiet window.
 A server with no Project Queue cannot report project idleness; it refuses to
 make a loop patient rather than silently running it impatiently.
 

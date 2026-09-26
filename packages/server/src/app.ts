@@ -1559,7 +1559,9 @@ export function createApp(options: AppOptions): AppResult {
         getProjectIdleStatus:
           options.eventBus && options.projectQueueService
             ? (projectId) =>
-                projectQueueScheduler?.getProjectWorkStatus(projectId) ??
+                projectQueueScheduler?.getProjectWorkStatusYieldingToQueue(
+                  projectId,
+                ) ??
                 Promise.resolve({
                   idle: false,
                   blockers: ["project-scheduler-unavailable"],

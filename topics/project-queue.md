@@ -476,7 +476,7 @@ Three outcomes, all decided at enqueue so the user learns immediately:
   than failing when the project goes quiet. A `/clearloop` promoted this
   way starts **patient** ([session-rewind](session-rewind.md#clearloop)): the
   user chose a lane that waits for the project, so the loop it starts keeps
-  waiting.
+  waiting, including for items this queue is about to promote.
 - **Composer-only** — `/model`, `/btw`, `/done`, `/archive`, `/terminate`,
   `/title`, `/compact`. These act on composer or client state, so queueing
   one would have to either run it now or run it later against a composer that

@@ -4305,7 +4305,12 @@ export class Process {
    * since the transport re-queries the canonical projection on this event.
    */
   notifyQueueProjectionChanged(yaCommand?: SessionQueuedYaCommand): void {
-    this.emitDeferredQueueChange("queued", undefined, yaCommand);
+    this.emit({
+      type: "deferred-queue",
+      reason: "queued",
+      yaCommand,
+      republished: true,
+    });
   }
 
   private emitDeferredQueueChange(

@@ -6962,6 +6962,34 @@ describe("Supervisor", () => {
       });
     });
 
+    it("counts a republished clearloop queue entry as no worker activity", async () => {
+      // Project Queue restarts its quiet window on worker activity, and a held
+      // patient /clearloop republishes its entry on every re-check.
+      const eventBus = new EventBus();
+      const events: BusEvent[] = [];
+      eventBus.subscribe((event) => events.push(event));
+      const supervisorWithBus = new Supervisor({
+        sdk: mockSdk,
+        idleTimeoutMs: 100,
+        eventBus,
+      });
+      mockSdk.addScenario(createMockScenario("sess-123", "Hello!"));
+      const process = await supervisorWithBus.startSession("/tmp/test", {
+        text: "hi",
+      });
+      if ("queued" in process || "error" in process) {
+        throw new Error("expected a started process");
+      }
+      const workerActivityEvents = () =>
+        events.filter((event) => event.type === "worker-activity-changed")
+          .length;
+      const before = workerActivityEvents();
+
+      process.notifyQueueProjectionChanged("clearloop");
+
+      expect(workerActivityEvents()).toBe(before);
+    });
+
     it("emits session-status-changed event when session starts", async () => {
       const eventBus = new EventBus();
       const events: BusEvent[] = [];

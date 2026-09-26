@@ -1,6 +1,7 @@
 import {
   type LimitedUserGrants,
   type PermissionMode,
+  type SessionClearloopJob,
   type StagedAttachmentRef,
   toUrlProjectId,
   type UrlProjectId,
@@ -10,12 +11,15 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getLogger } from "../../src/logging/logger.js";
+import type { SessionMetadataService } from "../../src/metadata/index.js";
 import { ProjectStoragePolicy } from "../../src/projects/projectStoragePolicy.js";
 import type { UserMessage } from "../../src/sdk/types.js";
+import { ClearloopService } from "../../src/services/ClearloopService.js";
 import {
   RetryableSessionLaunchError,
   type ModelSettings,
   type SessionLaunchOptions,
+  type Supervisor,
 } from "../../src/supervisor/Supervisor.js";
 import {
   ProjectQueueScheduler,
@@ -1570,5 +1574,128 @@ describe("ProjectQueueScheduler", () => {
       { status: "failed", messagePreview: "first" },
       { status: "queued", messagePreview: "second" },
     ]);
+  });
+
+  describe("work that yields to the queue", () => {
+    async function queueItem(sessionId = "session-2"): Promise<void> {
+      await service.createItem({
+        projectId,
+        projectPath: PROJECT_PATH,
+        request: {
+          target: { type: "existing-session", sessionId },
+          message: { text: "queued behind a loop" },
+        },
+      });
+    }
+
+    async function schedulerWith(
+      options: Partial<ConstructorParameters<typeof ProjectQueueScheduler>[0]>,
+    ): Promise<void> {
+      await scheduler.dispose();
+      scheduler = new ProjectQueueScheduler({
+        projectQueueService: service,
+        supervisor,
+        eventBus,
+        idleGraceMs: 60_000,
+        ...options,
+      });
+    }
+
+    it("is blocked by an item the queue will promote once quiet", async () => {
+      await schedulerWith({});
+      await queueItem();
+
+      await expect(
+        scheduler.getProjectWorkStatusYieldingToQueue(projectId),
+      ).resolves.toEqual({
+        idle: false,
+        blockers: ["project-queue:item-waiting"],
+      });
+      // The queue's own predicate must not wait on its own head.
+      await expect(scheduler.getProjectWorkStatus(projectId)).resolves.toEqual({
+        idle: true,
+        blockers: [],
+      });
+    });
+
+    it("is not blocked by an item the queue is holding", async () => {
+      await schedulerWith({
+        isSessionAutomationPaused: (sessionId) => sessionId === "session-2",
+      });
+      await queueItem();
+      await expect(
+        scheduler.getProjectWorkStatusYieldingToQueue(projectId),
+      ).resolves.toEqual({ idle: true, blockers: [] });
+
+      await queueItem("session-3");
+      await service.pauseDispatch();
+      await schedulerWith({});
+      await expect(
+        scheduler.getProjectWorkStatusYieldingToQueue(projectId),
+      ).resolves.toEqual({ idle: true, blockers: [] });
+    });
+
+    it("adds no queue blocker while the project is otherwise busy", async () => {
+      await schedulerWith({});
+      supervisor.processes.push(
+        createProcess(projectId, { state: { type: "in-turn" } }),
+      );
+      await queueItem();
+
+      await expect(
+        scheduler.getProjectWorkStatusYieldingToQueue(projectId),
+      ).resolves.toMatchObject({
+        idle: false,
+        blockers: expect.not.arrayContaining(["project-queue:item-waiting"]),
+      });
+    });
+
+    it("lets a queued item run before a patient loop's next iteration", async () => {
+      // The loop's boundary (at least 250 ms) comes well before the queue's
+      // quiet window, so without yielding the loop would start first.
+      await schedulerWith({ idleGraceMs: 700 });
+      let clearloop: SessionClearloopJob | undefined;
+      const order: string[] = [];
+      const loop = new ClearloopService({
+        eventBus,
+        sessionMetadataService: {
+          getClearloop: () => clearloop,
+          setClearloop: async (_id: string, job?: SessionClearloopJob) => {
+            clearloop = job;
+          },
+          addLocalCommandMessage: async () => {},
+        } as unknown as SessionMetadataService,
+        getSupervisor: () =>
+          ({ getProcessForSession: () => undefined }) as unknown as Supervisor,
+        getInactivitySeconds: () => 0,
+        patientRecheckMs: 20,
+        getProjectIdleStatus: (id) =>
+          scheduler.getProjectWorkStatusYieldingToQueue(id),
+      });
+      loop.setRunner({
+        rewind: async () => "noop",
+        send: async () => {
+          order.push("loop");
+        },
+      });
+      const resume = supervisor.resumeSession.bind(supervisor);
+      supervisor.resumeSession = async (...args) => {
+        order.push("queue");
+        return resume(...args);
+      };
+
+      await loop.start("loop-session", projectId, {
+        cutMessageId: "cut-1",
+        cutTurnIndex: 1,
+        prompt: "again",
+        total: 2,
+        commandText: "/clearloop 1 2: again",
+        patient: true,
+      });
+      await queueItem();
+
+      await waitFor(() => expect(clearloop?.state).toBe("completed"), 3_000);
+      expect(order).toEqual(["loop", "queue", "loop"]);
+    });
   });
 });

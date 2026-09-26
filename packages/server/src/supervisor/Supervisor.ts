@@ -5506,7 +5506,10 @@ export class Supervisor {
         if (event.state.type === "in-turn") {
           this.cancelInFlightForkedRecap(process);
         }
-      } else if (event.type === "deferred-queue") {
+      } else if (event.type === "deferred-queue" && !event.republished) {
+        // A republished entry moved no queue, so it is not worker activity:
+        // Project Queue restarts its quiet window on every such event, and a
+        // held patient /clearloop republishes on each of its re-checks.
         if (
           event.reason === "queued" &&
           process.state.type === "idle" &&

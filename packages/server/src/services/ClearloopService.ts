@@ -47,10 +47,10 @@ export interface ClearloopServiceOptions {
   /** Current server-wide inactivity window, read at every boundary. */
   getInactivitySeconds: () => number;
   /**
-   * Project idle predicate for patient loops, without the Project Queue
-   * readiness check. Absent when this server has no Project Queue, which is
-   * what makes a loop refuse to become patient rather than silently run
-   * impatiently.
+   * Project idle predicate for patient loops: Project Queue's, without its
+   * readiness check, and blocked while that queue is about to promote an
+   * item. Absent when this server has no Project Queue, which is what makes
+   * a loop refuse to become patient rather than silently run impatiently.
    */
   getProjectIdleStatus?: (
     projectId: UrlProjectId,
