@@ -162,13 +162,13 @@ describe("session right pane viewer-activated apps", () => {
       label: "report.html",
       artifactToken: "tok3n",
     };
-    act(() => result.current.announce(grant));
-    expect(result.current.apps.at(-1)?.url).toBe(grant.url);
+    act(() => result.current.announce(grant.url, grant.label));
+    expect(result.current.apps.at(-1)).toMatchObject(grant);
     expect(result.current.apps).toHaveLength(2);
     // The announcing viewer already shows it; the pane must not take it over.
     expect(result.current.selected).toBeUndefined();
     // Announcing the same grant again does not duplicate it.
-    act(() => result.current.announce(grant));
+    act(() => result.current.announce(grant.url, grant.label));
     expect(result.current.apps).toHaveLength(2);
     expect(
       JSON.parse(localStorage.getItem("yep-anywhere-session-apps:play") ?? "{}")
@@ -180,9 +180,55 @@ describe("session right pane viewer-activated apps", () => {
     rerender({ key: "elsewhere", messages: [] });
     expect(result.current.apps).toHaveLength(0);
     rerender({ key: "play", messages });
-    expect(result.current.apps.map((app) => app.url)).toEqual(
-      expect.arrayContaining([grant.url]),
+    expect(result.current.apps).toHaveLength(2);
+    expect(result.current.apps.at(-1)?.url).toBe(grant.url);
+    expect(result.current.selected).toBeUndefined();
+  });
+
+  const savedGrantUrl = `${config.localOrigin}/a/w33k/report.html`;
+  const saveGrant = (key: string) =>
+    localStorage.setItem(
+      `${SESSION_APPS_KEY_PREFIX}${key}`,
+      JSON.stringify({
+        latest: {
+          sourceUrl: savedGrantUrl,
+          url: savedGrantUrl,
+          label: "report.html",
+          artifactToken: "w33k",
+          announcementId: `play:${savedGrantUrl}`,
+        },
+        dismissed: [],
+      }),
     );
+
+  it("offers a saved play app on reopen without opening it", () => {
+    localStorage.setItem(UI_KEYS.sessionRightPane, "true");
+    saveGrant("reopened");
+    invalidateLocalStorageValues();
+    invalidateSessionApps();
+    const { result } = renderHook(() =>
+      useSessionRightPane("reopened", [], config, true, "reopened"),
+    );
+    expect(result.current.apps.map((app) => app.url)).toEqual([savedGrantUrl]);
+    // Storage cannot establish that a week-old grant is still alive.
+    expect(result.current.selected).toBeUndefined();
+    expect(result.current.expanded).toBe(false);
+  });
+
+  it("keeps a saved play app as the latest over loaded history", () => {
+    saveGrant("history");
+    invalidateLocalStorageValues();
+    invalidateSessionApps();
+    const { result } = renderHook(() =>
+      useSessionRightPane("history", [output("one")], config, true, "history"),
+    );
+    expect(result.current.apps.map((app) => app.url)).toHaveLength(2);
+    expect(result.current.apps.at(-1)?.url).toBe(savedGrantUrl);
+    expect(
+      JSON.parse(
+        localStorage.getItem(`${SESSION_APPS_KEY_PREFIX}history`) ?? "{}",
+      ).latest,
+    ).toMatchObject({ announcementId: `play:${savedGrantUrl}` });
   });
 });
 

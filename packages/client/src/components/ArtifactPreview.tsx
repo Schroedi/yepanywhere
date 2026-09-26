@@ -68,13 +68,7 @@ export function ArtifactPreview(props: Props) {
   }, [frame, running, onFindSource]);
   useEffect(() => () => onFindSource?.(null), [onFindSource]);
   useEffect(() => {
-    if (!grant) return;
-    announceApp({
-      sourceUrl: grant.url,
-      url: grant.url,
-      label: props.title,
-      artifactToken: new URL(grant.url).pathname.split("/")[2],
-    });
+    if (grant) announceApp(grant.url, props.title);
   }, [grant, props.title, announceApp]);
 
   const controls = origin && (props.showControls !== false || failed) && (

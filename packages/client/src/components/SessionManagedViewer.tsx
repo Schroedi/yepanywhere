@@ -39,7 +39,6 @@ import { SessionAppLinkContext } from "./SessionAppLinks";
 import {
   rewriteSessionLocalhostHref,
   type SessionAppConfig,
-  type SessionVhostApp,
 } from "../lib/sessionVhostApps";
 import { useRelayUsername } from "../hooks/useRemoteBasePath";
 
@@ -144,7 +143,7 @@ export function SessionViewerProvider({
   inactive?: boolean;
   onSendComment?: SendSessionViewerComment;
   onOpenApp?: (url: string) => boolean;
-  onAnnounceApp?: (app: SessionVhostApp) => void;
+  onAnnounceApp?: (url: string, label: string) => void;
   appConfig?: SessionAppConfig;
   rightPaneTarget?: HTMLElement | null;
   children: ReactNode;
@@ -203,12 +202,7 @@ export function SessionViewerProvider({
       restoreSessionViewer(viewerId);
       // An opened artifact is an App the session recalls after this viewer
       // closes, the same as a file viewer's play activation.
-      onAnnounceApp?.({
-        sourceUrl: url,
-        url,
-        label,
-        artifactToken: new URL(url).pathname.split("/")[2],
-      });
+      onAnnounceApp?.(url, label);
       return true;
     },
     [inactive, onAnnounceApp, sessionId, version?.artifactViewer, viewerId],

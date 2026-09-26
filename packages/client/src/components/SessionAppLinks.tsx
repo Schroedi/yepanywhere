@@ -1,8 +1,5 @@
 import { createContext, useContext, useMemo } from "react";
-import type {
-  SessionAppConfig,
-  SessionVhostApp,
-} from "../lib/sessionVhostApps";
+import type { SessionAppConfig } from "../lib/sessionVhostApps";
 import type { Message } from "../types";
 import { sessionToolUrls, sessionVhostApp } from "../lib/sessionVhostApps";
 import styles from "./SessionAppLinks.module.css";
@@ -12,15 +9,15 @@ export const SessionAppLinkContext = createContext<{
   open?: (url: string) => boolean;
   rewriteHref?: (url: string) => string;
   publicHref?: (url: string) => string | undefined;
-  /** Record a viewer-activated app as the session's latest App. */
-  announce?: (app: SessionVhostApp) => void;
+  /** Record a viewer-activated app URL as the session's latest App. */
+  announce?: (url: string, label: string) => void;
 } | null>(null);
 
 const preserveHref = (url: string) => url;
 const noPublicHref = () => undefined;
 
 /** Announce an app the reader started from a viewer, or no-op outside a session. */
-export function useSessionAppAnnouncer(): (app: SessionVhostApp) => void {
+export function useSessionAppAnnouncer(): (url: string, label: string) => void {
   const announce = useContext(SessionAppLinkContext)?.announce;
   return announce ?? noAnnounce;
 }

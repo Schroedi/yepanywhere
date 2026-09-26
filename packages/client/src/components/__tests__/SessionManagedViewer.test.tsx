@@ -287,7 +287,7 @@ describe("session App announcements", () => {
   function PlayingViewer() {
     const announce = useSessionAppAnnouncer();
     useEffect(() => {
-      announce({ sourceUrl: grantUrl, url: grantUrl, label: "report.html" });
+      announce(grantUrl, "report.html");
     }, [announce]);
     return <div data-testid="playing" />;
   }
@@ -326,9 +326,7 @@ describe("session App announcements", () => {
     });
 
     expect(screen.getByTestId("playing")).toBeTruthy();
-    expect(onAnnounceApp).toHaveBeenCalledWith(
-      expect.objectContaining({ url: grantUrl }),
-    );
+    expect(onAnnounceApp).toHaveBeenCalledWith(grantUrl, "report.html");
   });
 
   it("announces an artifact link opened from session prose as an App", () => {
@@ -345,11 +343,6 @@ describe("session App announcements", () => {
     );
     act(() => screen.getByRole("button", { name: "open artifact" }).click());
 
-    expect(onAnnounceApp).toHaveBeenCalledWith({
-      sourceUrl: grantUrl,
-      url: grantUrl,
-      label: "Report",
-      artifactToken: "tok3n",
-    });
+    expect(onAnnounceApp).toHaveBeenCalledWith(grantUrl, "Report");
   });
 });

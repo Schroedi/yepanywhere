@@ -32,7 +32,10 @@ type PaneViewerState = Extract<
 type PaneApp = SessionVhostApp & { announcementId: string };
 const PLAY_ANNOUNCEMENT_PREFIX = "play:";
 
-/** A saved viewer-activated app is the only app storage can seed. */
+/**
+ * A saved viewer-activated app is the only app storage can seed. It was the
+ * latest app when saved, so the history discovered next ranks below it.
+ */
 function emptyPane(key: string, saved?: SessionApps["latest"]) {
   const apps: PaneApp[] =
     saved?.announcementId?.startsWith(PLAY_ANNOUNCEMENT_PREFIX) &&
@@ -40,7 +43,7 @@ function emptyPane(key: string, saved?: SessionApps["latest"]) {
     saved.url
       ? [{ ...saved, announcementId: saved.announcementId }]
       : [];
-  return { key, apps };
+  return { key, apps, historyPending: true };
 }
 
 /** Session right pane discovery and selection; parked routes do no discovery. */
@@ -73,16 +76,19 @@ export function useSessionRightPane(
   const [state, setState] = useState(() => emptyPane(key, savedApps.latest));
   const current = state.key === key ? state : emptyPane(key, savedApps.latest);
   if (state.key !== key) setState(current);
+  const configRef = useRef(config);
+  configRef.current = config;
   /**
    * A viewer's play activation is an app the session should remember: it
    * becomes the latest app so the App action recalls it after close, without
-   * the reader having to minimize instead. The announcing viewer is already
-   * showing it, so the announcement must not also open it as the pane's app.
+   * the reader having to minimize instead. A URL the pane cannot resolve as an
+   * app would never be listed, so it is not recorded.
    */
   const announce = useCallback(
-    (app: SessionVhostApp) => {
+    (url: string, label: string) => {
+      const app = sessionVhostApp(url, configRef.current, window.location.href);
+      if (!app) return;
       const announcementId = `${PLAY_ANNOUNCEMENT_PREFIX}${app.url}`;
-      announced.current.add(`vhost:${key}:${announcementId}`);
       setState((previous) => {
         if (previous.key !== key) return previous;
         return {
@@ -91,7 +97,7 @@ export function useSessionRightPane(
             ...previous.apps.filter(
               (known) => known.announcementId !== announcementId,
             ),
-            { ...app, announcementId },
+            { ...app, label, announcementId },
           ],
         };
       });
@@ -132,13 +138,19 @@ export function useSessionRightPane(
             (knownApp) => knownApp.announcementId === app.announcementId,
           )?.url !== app.url,
       );
-      if (!latest && !changed) return previous;
+      if (!latest && !changed)
+        return previous.historyPending
+          ? { ...previous, historyPending: false }
+          : previous;
+      const retained = previous.apps.filter(
+        (app) => !found.has(app.announcementId),
+      );
       return {
         ...previous,
-        apps: [
-          ...previous.apps.filter((app) => !found.has(app.announcementId)),
-          ...found.values(),
-        ],
+        historyPending: false,
+        apps: previous.historyPending
+          ? [...found.values(), ...retained]
+          : [...retained, ...found.values()],
       };
     });
   }, [active, config, key, messages]);
@@ -168,8 +180,17 @@ export function useSessionRightPane(
         : undefined,
     );
   }, [active, latest, saveLatest]);
+  // Only a fresh tool announcement opens the pane. A viewer-activated app is
+  // already on screen in its announcing viewer, and a seeded one is a saved
+  // grant that storage cannot establish is still alive.
   useEffect(() => {
-    if (!active || !latest || !latestId || announced.current.has(latestId))
+    if (
+      !active ||
+      !latest ||
+      !latestId ||
+      latest.announcementId.startsWith(PLAY_ANNOUNCEMENT_PREFIX) ||
+      announced.current.has(latestId)
+    )
       return;
     announced.current.add(latestId);
     if (sessionRightPaneEnabled)

@@ -92,7 +92,10 @@ session's latest app (2026-09-23): the reader can close the viewer and recall
 the running document from the App action without having minimized it first.
 Such a viewer-activated app keeps a `play:` announcement id in the saved
 latest-app entry, which is the one entry storage seeds back into a reopened
-session's app list, since transcript scanning cannot rediscover it.
+session's app list, since transcript scanning cannot rediscover it. It was the
+latest app when saved, so it stays the App action's target above the history
+loaded with the reopened session, and like loaded history it is offered but
+never opened automatically: storage cannot establish that its grant is alive.
 Opening an artifact link from session prose announces the same way
 (2026-09-25). File viewers the session hosts, in the pane or as a modal, sit
 inside the session's App-link context so their play activation reaches it. A
