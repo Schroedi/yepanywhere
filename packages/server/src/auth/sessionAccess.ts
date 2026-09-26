@@ -91,6 +91,30 @@ export class SessionAccessResolver {
   async resolve(sessionId: string): Promise<SessionAccessFacts | null> {
     const metadata = this.deps.getSessionMetadata(sessionId);
     const live = this.deps.getLiveSession(sessionId);
+    if (!live && !this.catalog.has(sessionId)) {
+      await this.refreshCatalog();
+    }
+    return this.factsFrom(sessionId, metadata, live);
+  }
+
+  /**
+   * Facts from what is already in memory — the live process, session
+   * metadata, and the last catalog read — without reading the catalog, for
+   * callers that cannot wait, such as per-event activity filtering.
+   */
+  resolveKnown(sessionId: string): SessionAccessFacts | null {
+    return this.factsFrom(
+      sessionId,
+      this.deps.getSessionMetadata(sessionId),
+      this.deps.getLiveSession(sessionId),
+    );
+  }
+
+  private factsFrom(
+    sessionId: string,
+    metadata: ReturnType<SessionAccessResolverDeps["getSessionMetadata"]>,
+    live: ReturnType<SessionAccessResolverDeps["getLiveSession"]>,
+  ): SessionAccessFacts | null {
     if (live) {
       return {
         projectId: metadata?.workingProjectId ?? live.projectId,
@@ -100,11 +124,7 @@ export class SessionAccessResolver {
       };
     }
 
-    let row = this.catalog.get(sessionId);
-    if (!row) {
-      await this.refreshCatalog();
-      row = this.catalog.get(sessionId);
-    }
+    const row = this.catalog.get(sessionId);
     if (!row) {
       // A pinned project still identifies an otherwise unknown session.
       if (metadata?.workingProjectId) {

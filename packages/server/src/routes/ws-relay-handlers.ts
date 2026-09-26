@@ -86,7 +86,11 @@ import {
 import type { AttachmentStagingService } from "../uploads/AttachmentStagingService.js";
 import type { Supervisor } from "../supervisor/Supervisor.js";
 import type { UploadManager } from "../uploads/manager.js";
-import type { EventBus, FocusedSessionWatchManager } from "../watcher/index.js";
+import type {
+  BusEvent,
+  EventBus,
+  FocusedSessionWatchManager,
+} from "../watcher/index.js";
 import { isPolicySrpRequired } from "./ws-auth-policy.js";
 import {
   type SpeechWebSocketSession,
@@ -362,11 +366,14 @@ export interface RelayHandlerDeps {
   remoteAccessService?: RemoteAccessService;
   /** Limited-user SRP verifiers, selected by srp_hello identity. */
   limitedUsers?: SrpLimitedUserLookup;
-  /** Whether one activity event is visible to an authenticated identity. */
-  isActivityEventVisible?: (
+  /**
+   * One activity event as an authenticated identity may receive it, or null
+   * when it is hidden from them.
+   */
+  activityEventForIdentity?: (
     username: string | null,
-    event: { projectId?: string },
-  ) => boolean;
+    event: BusEvent,
+  ) => BusEvent | null;
   /**
    * Whether the authenticated identity may open this subscription. Absent
    * means every authenticated connection may (the single-superuser case).
@@ -1144,11 +1151,12 @@ export function handleActivitySubscribe(
   browserProfileService?: BrowserProfileService,
   closeConnection?: () => void,
   /**
-   * Whether this connection's identity may see one activity event. Absent
-   * means every event is visible, which is the single-superuser case.
+   * One activity event as this connection's identity may receive it, or null
+   * when hidden. Absent means every event is delivered as is, which is the
+   * single-superuser case.
    * See topics/limited-users.md § Delivery v1 — Authorization.
    */
-  isEventVisible?: (event: { projectId?: string }) => boolean,
+  eventForViewer?: (event: BusEvent) => BusEvent | null,
 ): void {
   const { subscriptionId, browserProfileId, originMetadata } = msg;
 
@@ -1173,12 +1181,6 @@ export function handleActivitySubscribe(
 
   let eventId = 0;
   const sendEvent = (eventType: string, data: unknown) => {
-    if (
-      isEventVisible &&
-      !isEventVisible((data ?? {}) as { projectId?: string })
-    ) {
-      return;
-    }
     send({
       type: "event",
       subscriptionId,
@@ -1189,6 +1191,7 @@ export function handleActivitySubscribe(
   };
 
   const { cleanup } = createActivitySubscription(eventBus, sendEvent, {
+    eventForSubscriber: eventForViewer,
     logLabel: subscriptionId,
     onError: (err) => {
       console.error("[WS Relay] Error in activity subscription:", err);
@@ -1717,7 +1720,7 @@ export function handleSubscribe(
     paths: readonly string[],
   ) => Promise<ReadonlySet<string>>,
   conversationSubscriptions?: ConversationSubscriptions,
-  isActivityEventVisible?: (event: { projectId?: string }) => boolean,
+  activityEventForViewer?: (event: BusEvent) => BusEvent | null,
 ): void {
   const { subscriptionId, channel } = msg;
 
@@ -1761,7 +1764,7 @@ export function handleSubscribe(
         connectedBrowsers,
         browserProfileService,
         closeConnection,
-        isActivityEventVisible,
+        activityEventForViewer,
       );
       break;
 
@@ -2376,11 +2379,11 @@ export async function handleMessage(
           () => ws.close(4004, "Legacy browser profile revoked"),
           deps.resolveAbsoluteFilePaths,
           deps.conversationSubscriptions,
-          deps.isActivityEventVisible
+          deps.activityEventForIdentity
             ? (event) =>
                 (
-                  deps.isActivityEventVisible as NonNullable<
-                    RelayHandlerDeps["isActivityEventVisible"]
+                  deps.activityEventForIdentity as NonNullable<
+                    RelayHandlerDeps["activityEventForIdentity"]
                   >
                 )(authenticatedConnectionIdentity(connState), event)
             : undefined,

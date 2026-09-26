@@ -38,6 +38,7 @@ describe("WebSocket limited-user login E2E", () => {
   let limitedCookie: string;
   let superuserCookie: string;
   let serverSettingsService: ServerSettingsService;
+  let eventBus: EventBus;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `ws-limited-user-test-${randomUUID()}`);
@@ -75,8 +76,8 @@ describe("WebSocket limited-user login E2E", () => {
     });
     await remoteAccessService.configure("owner-remote-password");
 
-    const eventBus = new EventBus();
-    const { app, supervisor, authorizeSubscription, isActivityEventVisible } =
+    eventBus = new EventBus();
+    const { app, supervisor, authorizeSubscription, activityEventForIdentity } =
       createApp({
         sdk: new MockClaudeSDK(),
         projectsDir: testDir,
@@ -100,7 +101,7 @@ describe("WebSocket limited-user login E2E", () => {
       }),
       remoteAccessService,
       authorizeSubscription,
-      isActivityEventVisible,
+      activityEventForIdentity,
     });
     app.get("/api/ws", wsRelayHandler);
 
@@ -282,6 +283,116 @@ describe("WebSocket limited-user login E2E", () => {
           })
         ).status,
       ).not.toBe(403);
+    } finally {
+      ws.close();
+    }
+  });
+
+  it("delivers a limited login only the activity events of its projects", async () => {
+    const ws = await connectWebSocket(limitedCookie);
+    try {
+      const subscriptionId = randomUUID();
+      const received: Array<{ eventType: string; data: unknown }> = [];
+      let onEvent = () => {};
+      ws.on("message", (raw: WebSocket.RawData) => {
+        const msg: YepMessage =
+          typeof raw === "string"
+            ? (JSON.parse(raw) as YepMessage)
+            : decodeJsonFrame<YepMessage>(raw as Buffer);
+        if (msg.type !== "event" || msg.subscriptionId !== subscriptionId) {
+          return;
+        }
+        received.push({ eventType: msg.eventType, data: msg.data });
+        onEvent();
+      });
+      const waitFor = (eventType: string) =>
+        new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Timed out waiting for ${eventType}; received ${received
+                    .map((event) => event.eventType)
+                    .join(", ")}`,
+                ),
+              ),
+            4000,
+          );
+          onEvent = () => {
+            if (received.some((event) => event.eventType === eventType)) {
+              clearTimeout(timeout);
+              resolve();
+            }
+          };
+          onEvent();
+        });
+
+      ws.send(
+        encodeJsonFrame({
+          type: "subscribe",
+          subscriptionId,
+          channel: "activity",
+        } satisfies RelaySubscribe),
+      );
+      await waitFor("connected");
+
+      const timestamp = new Date().toISOString();
+      eventBus.emit({
+        type: "session-created",
+        session: {
+          id: "other-session",
+          projectId: "other-project",
+          title: "Other project's secret title",
+        } as never,
+        timestamp,
+      });
+      eventBus.emit({
+        type: "file-change",
+        provider: "claude",
+        path: "/home/owner/.claude/projects/other/other-session.jsonl",
+        relativePath: "projects/other/other-session.jsonl",
+        changeType: "modify",
+        fileType: "session",
+        timestamp,
+      });
+      eventBus.emit({
+        type: "session-metadata-changed",
+        sessionId: "unknown-session",
+        title: "Unattributed title",
+        timestamp,
+      });
+      eventBus.emit({
+        type: "projects-changed",
+        projectIds: ["other-project", "granted-project"],
+        timestamp,
+      });
+      eventBus.emit({
+        type: "process-state-changed",
+        sessionId: "granted-session",
+        projectId: "granted-project" as never,
+        activity: "idle",
+        timestamp,
+      });
+      await waitFor("process-state-changed");
+
+      // Startup catalog refreshes may also arrive; judge only what was sent.
+      const emittedTypes = new Set([
+        "session-created",
+        "file-change",
+        "session-metadata-changed",
+        "projects-changed",
+        "process-state-changed",
+      ]);
+      const delivered = received.filter((event) =>
+        emittedTypes.has(event.eventType),
+      );
+      expect(delivered.map((event) => event.eventType)).toEqual([
+        "projects-changed",
+        "process-state-changed",
+      ]);
+      expect(delivered[0]?.data).toMatchObject({
+        projectIds: ["granted-project"],
+      });
     } finally {
       ws.close();
     }

@@ -65,6 +65,7 @@ import type { AuthService } from "./auth/AuthService.js";
 import { createAuthRoutes } from "./auth/routes.js";
 import type { UserUsageService } from "./auth/UserUsageService.js";
 import type { LimitedUsersService } from "./auth/LimitedUsersService.js";
+import { limitedActivityEvent } from "./auth/activityEventAccess.js";
 import { SessionAccessResolver } from "./auth/sessionAccess.js";
 import type { SubscriptionAccessTarget } from "./routes/ws-relay-handlers.js";
 import type { SrpLimitedUserLookup } from "./routes/ws-srp-handlers.js";
@@ -333,7 +334,11 @@ import {
   type HeartbeatTurnCandidate,
 } from "./supervisor/Supervisor.js";
 import type { Message, Project } from "./supervisor/types.js";
-import { FocusedSessionWatchManager, type EventBus } from "./watcher/index.js";
+import {
+  type BusEvent,
+  FocusedSessionWatchManager,
+  type EventBus,
+} from "./watcher/index.js";
 import { LifecycleWebhookService } from "./webhooks/LifecycleWebhookService.js";
 
 export interface AppOptions {
@@ -549,11 +554,11 @@ export interface AppResult {
     username: string | null;
     target: SubscriptionAccessTarget;
   }) => Promise<boolean>;
-  /** Whether one activity event is visible to an authenticated identity. */
-  isActivityEventVisible: (
+  /** One activity event as an authenticated identity may receive it. */
+  activityEventForIdentity: (
     username: string | null,
-    event: { projectId?: string },
-  ) => boolean;
+    event: BusEvent,
+  ) => BusEvent | null;
 }
 
 function getMessageContentBlocks(message: Message): AppContentBlock[] {
@@ -3306,15 +3311,17 @@ export function createApp(options: AppOptions): AppResult {
               : undefined,
         }
       : undefined,
-    isActivityEventVisible: (username, event) => {
-      if (!username) return true;
-      if (username === options.remoteAccessService?.getUsername()) return true;
+    activityEventForIdentity: (username, event) => {
+      if (!username) return event;
+      if (username === options.remoteAccessService?.getUsername()) return event;
       const grants = getActiveLimitedGrants(username);
-      if (!grants) return false;
-      return (
-        typeof event.projectId !== "string" ||
-        levelFor(grants, event.projectId) !== "none"
-      );
+      if (!grants) return null;
+      return limitedActivityEvent(event, {
+        isProjectAccessible: (projectId) =>
+          levelFor(grants, projectId) !== "none",
+        knownSessionProject: (sessionId) =>
+          sessionAccessResolver.resolveKnown(sessionId)?.projectId,
+      });
     },
     authorizeSubscription: async ({ username, target }) => {
       // The superuser (no limited identity on the socket) subscribes freely.

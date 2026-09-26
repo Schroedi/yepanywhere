@@ -247,6 +247,20 @@ Every one of them must be readable; another id beside them, such as a granted
 `projectId` on a session subscription, opens nothing. A subscription naming
 none of its ids, or on a channel the server does not serve, is refused.
 
+The activity channel is filtered by event type, by default deny. An event
+reaches a limited user only when it names a project they may read: directly,
+through the session it creates, or through the session it is about, resolved
+from what the server already holds in memory (live process, session metadata,
+last catalog read); a session that resolves to no project hides its event.
+An event listing several projects arrives listing only the readable ones, or
+not at all. Signals that carry no project data (backend reload, restart-queue
+and catalog refresh counters, minus the catalog's refresh error) arrive so
+the client refetches its filtered lists. Host inventory never arrives: watched
+provider file paths, YA's own source changes, network binding, browser tabs,
+and worker counts. As for lists, the rule is by project only; a session the
+user started stays readable through its own channels. A new event type is
+hidden until classified.
+
 A `/api/ws` socket acts as the login that opened it, for its whole lifetime.
 An SRP socket acts as its proven identity; a directly opened socket acts as
 the cookie login of its upgrade request. Its tunneled requests and its

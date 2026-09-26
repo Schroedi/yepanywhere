@@ -49,7 +49,7 @@ export interface WsRelayDeps {
   /** Limited-user SRP verifiers and subscription authorization. */
   limitedUsers?: RelayHandlerDeps["limitedUsers"];
   authorizeSubscription?: RelayHandlerDeps["authorizeSubscription"];
-  isActivityEventVisible?: RelayHandlerDeps["isActivityEventVisible"];
+  activityEventForIdentity?: RelayHandlerDeps["activityEventForIdentity"];
   conversationSubscriptions?: ConversationSubscriptions;
   upgradeWebSocket: UpgradeWebSocketFn;
   /** The main Hono app to route requests through */
@@ -104,7 +104,7 @@ export interface AcceptRelayConnectionDeps {
   /** Limited-user SRP verifiers and subscription authorization. */
   limitedUsers?: RelayHandlerDeps["limitedUsers"];
   authorizeSubscription?: RelayHandlerDeps["authorizeSubscription"];
-  isActivityEventVisible?: RelayHandlerDeps["isActivityEventVisible"];
+  activityEventForIdentity?: RelayHandlerDeps["activityEventForIdentity"];
   conversationSubscriptions?: ConversationSubscriptions;
   /** The main Hono app to route requests through */
   app: Hono<{ Bindings: HttpBindings }>;
@@ -269,7 +269,7 @@ export function createWsRelayRoutes(
     conversationSubscriptions,
     limitedUsers,
     authorizeSubscription,
-    isActivityEventVisible,
+    activityEventForIdentity,
   } = deps;
 
   // Build handler dependencies
@@ -297,7 +297,7 @@ export function createWsRelayRoutes(
     conversationSubscriptions,
     limitedUsers,
     authorizeSubscription,
-    isActivityEventVisible,
+    activityEventForIdentity,
   };
 
   // Return the WebSocket handler with origin validation
@@ -496,7 +496,7 @@ export function createAcceptRelayConnection(
     conversationSubscriptions,
     limitedUsers,
     authorizeSubscription,
-    isActivityEventVisible,
+    activityEventForIdentity,
   } = deps;
 
   // Build handler dependencies
@@ -524,7 +524,7 @@ export function createAcceptRelayConnection(
     conversationSubscriptions,
     limitedUsers,
     authorizeSubscription,
-    isActivityEventVisible,
+    activityEventForIdentity,
   };
 
   // Return the accept relay connection handler
