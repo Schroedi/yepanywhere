@@ -257,9 +257,15 @@ input, the reader instead emits the dropped rows as a **rewound group**:
   turns — for the tail window, and for the next rewind's `droppedTurnCount`
   and `droppedFromMessageId`, which grow without bound across a long loop
   when the previous iterations' queued messages never leave the live branch.
-  A durable receipt merged into the middle of a
-  cleared span — a `/goal` or clearloop notice whose timestamp lands there —
-  joins the group of the row before it, for the same reason.
+  A durable receipt — a `/goal` receipt or clearloop notice — follows the
+  rows' own rule: of the rewinds whose cut precedes its merged position, it
+  joins the earliest one made at or after the receipt was written, among the
+  groups of the rows on either side of it and the groups enclosing them. A
+  receipt written after the last rewind — a clearloop's final notice, a
+  `/goal` receipt after `/clear N` with no later turn — stays live even when
+  it follows a grouped row, so a reload shows what the watching tab showed.
+  A retry notice written between two iterations joins the later iteration's
+  group, the rewind that dropped it.
 - **Nesting.** A group nests exactly when its own cut is a row that some
   other rewind dropped. A clear whose cut is earlier than an existing group's
   cut therefore encloses that group: the new block claims the unclaimed rows
@@ -658,5 +664,7 @@ Durable pointers by symbol and module; grep for the symbol.
   no `rewoundParentGroupId` on either — on the server projection and on the
   client's in-place application alike (`claude-messages.test.ts`,
   `renderSelectors.test.ts`).
-- A durable receipt whose timestamp lands inside a cleared span joins that
-  group; one on the live branch does not (`goal-overlays.test.ts`).
+- A durable receipt written before a rewind that dropped its position joins
+  that group (the enclosing one when an inner rewind came first); one written
+  after the last rewind stays live at a group's tail or before the next turn
+  (`goal-overlays.test.ts`).

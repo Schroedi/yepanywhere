@@ -7,6 +7,7 @@ import type {
   PermissionMode,
   SessionOwnership,
 } from "@yep-anywhere/shared";
+import { REWOUND_GROUP_SUBTYPE } from "@yep-anywhere/shared";
 import type { NotificationService } from "../notifications/index.js";
 import type { SDKMessage } from "../sdk/types.js";
 import type { Message, Session, SessionSummary } from "../supervisor/types.js";
@@ -204,6 +205,7 @@ export function mergeLocalCommandMessages(
   window: { hasOlderMessages?: boolean; hasNewerMessages?: boolean } = {},
 ): Message[] {
   const merged = [...messages];
+  const rewoundGroups = collectRewoundGroupFacts(messages);
   const firstMs = messages.map(messageTimestampMs).find((ms) => ms !== null);
   const lastMs = messages
     .map(messageTimestampMs)
@@ -247,31 +249,85 @@ export function mergeLocalCommandMessages(
     }
     merged.splice(insertAt, 0, {
       ...command,
-      ...enclosingRewoundGroup(merged[insertAt - 1]),
+      ...receiptRewoundGroup(
+        merged,
+        insertAt,
+        Date.parse(command.timestamp),
+        rewoundGroups,
+      ),
     } as Message);
   }
   return merged;
 }
 
+interface RewoundGroupFacts {
+  /** When the rewind that dropped this group happened (`rewoundGroup.at`). */
+  atMs: number;
+  parentGroupId?: string;
+}
+
+function rewoundGroupIdOf(message: Message | undefined): string | undefined {
+  const groupId = message?.rewoundGroupId;
+  return typeof groupId === "string" && groupId ? groupId : undefined;
+}
+
+/** Rewind time and enclosing group of every rewound group whose header is present. */
+function collectRewoundGroupFacts(
+  messages: readonly Message[],
+): Map<string, RewoundGroupFacts> {
+  const facts = new Map<string, RewoundGroupFacts>();
+  for (const message of messages) {
+    const groupId = rewoundGroupIdOf(message);
+    if (!groupId || message.subtype !== REWOUND_GROUP_SUBTYPE) continue;
+    const at = (message.rewoundGroup as { at?: unknown } | undefined)?.at;
+    const atMs = typeof at === "string" ? Date.parse(at) : Number.NaN;
+    if (!Number.isFinite(atMs)) continue;
+    const parent = message.rewoundParentGroupId;
+    facts.set(groupId, {
+      atMs,
+      ...(typeof parent === "string" && parent
+        ? { parentGroupId: parent }
+        : {}),
+    });
+  }
+  return facts;
+}
+
 /**
- * A receipt that lands after a row a rewind dropped was written inside that
- * cleared span, so it belongs to the same group rather than rendering as a
- * live row between collapsed groups (topics/session-rewind.md).
+ * The rewound group a receipt inserted at `insertAt` belongs to, by the rule
+ * the reader applies to transcript rows: of the rewinds whose cut precedes
+ * it, the earliest one made at or after the receipt was written. Only the
+ * groups of its two neighbours and the groups enclosing them qualify. A
+ * receipt written after the last rewind — a clearloop's final notice, a
+ * `/goal` receipt after `/clear N` — is on the live branch even when it
+ * follows a grouped row (topics/session-rewind.md).
  */
-function enclosingRewoundGroup(previous: Message | undefined): {
-  rewoundGroupId?: string;
-  rewoundParentGroupId?: string;
-} {
-  const row = previous as
-    | { rewoundGroupId?: unknown; rewoundParentGroupId?: unknown }
-    | undefined;
-  const groupId = row?.rewoundGroupId;
-  if (typeof groupId !== "string" || !groupId) return {};
-  const parentId = row?.rewoundParentGroupId;
+function receiptRewoundGroup(
+  merged: readonly Message[],
+  insertAt: number,
+  receiptMs: number,
+  groups: ReadonlyMap<string, RewoundGroupFacts>,
+): { rewoundGroupId?: string; rewoundParentGroupId?: string } {
+  if (!Number.isFinite(receiptMs)) return {};
+  let best: { groupId: string; facts: RewoundGroupFacts } | undefined;
+  for (const neighbour of [merged[insertAt - 1], merged[insertAt]]) {
+    const seen = new Set<string>();
+    for (
+      let groupId = rewoundGroupIdOf(neighbour);
+      groupId && !seen.has(groupId);
+      groupId = groups.get(groupId)?.parentGroupId
+    ) {
+      seen.add(groupId);
+      const facts = groups.get(groupId);
+      if (!facts || facts.atMs < receiptMs) continue;
+      if (!best || facts.atMs < best.facts.atMs) best = { groupId, facts };
+    }
+  }
+  if (!best) return {};
   return {
-    rewoundGroupId: groupId,
-    ...(typeof parentId === "string" && parentId
-      ? { rewoundParentGroupId: parentId }
+    rewoundGroupId: best.groupId,
+    ...(best.facts.parentGroupId
+      ? { rewoundParentGroupId: best.facts.parentGroupId }
       : {}),
   };
 }
