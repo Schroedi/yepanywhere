@@ -18,7 +18,10 @@ window counts live turns. Corrected 2026-09-19 after a 69-iteration loop: a
 watching tab no longer folds every earlier group inside the newest one (only a
 dropped cut nests), and delivered queued messages and durable receipts inside a
 cleared span are grouped with it instead of rendering as live rows scattered
-through the collapsed history. Known limits: the sidebar does not nest rewound
+through the collapsed history. Corrected 2026-09-26 after a loop ended at
+12/100 on a background-command notification: clearloop rewinds no longer pass
+the drop guard, a boundary waits for Claude background tasks, and a failed
+iteration is retried instead of ending the loop. Known limits: the sidebar does not nest rewound
 groups, `/clear 0` starts a new session rather than rewinding in place, and
 secondary readers (catalog previews, search, counts) still project without
 records until the next turn
@@ -176,17 +179,23 @@ server-side), then:
    truncation (the API-error tail cut), and the record stops being pending
    once the process has started. A route never consumes it itself, so no
    launch path can replay a tail the view shows as dropped. When exactly one
-   turn is dropped, `resumeDropsTurn` names that turn's prompt UUID so the
-   CLI refuses if the discarded range holds anything the user's view had not
-   seen (an absorbed queued message, a task notification). The SDK validates
-   only a single declared turn, so a multi-turn drop passes no
-   `resumeDropsTurn`. A refusal is deterministic and is never retried: it
-   arrives as an `error_during_execution` result whose text starts with
-   `Resume rejected by --resume-drops-turn:`; the supervisor deletes that
-   rewind record, emits the metadata event with `rewindRecordRemoved`, every
-   open view reloads the transcript (the grouped rows are live again), a
-   running clearloop ends as `interrupted`, and the next send resumes the
-   full chain.
+   turn is dropped by `/clear N`, `resumeDropsTurn` names that turn's prompt
+   UUID so the CLI refuses if the discarded range holds anything the user's
+   view had not seen (an absorbed queued message, a task notification). The
+   SDK validates only a single declared turn, so a multi-turn drop passes no
+   `resumeDropsTurn`. A clearloop iteration's rewind passes none either: the
+   loop discards its iteration whole by contract (§ `/clearloop`), and an
+   agent's background command routinely lands its completion notification
+   inside the turn, which the guard would refuse. A refusal of the same
+   record is deterministic: it arrives as an `error_during_execution` result
+   whose text starts with `Resume rejected by --resume-drops-turn:`; the
+   supervisor deletes that rewind record, emits the metadata event with
+   `rewindRecordRemoved`, every open view reloads the transcript (the grouped
+   rows are live again), and the next send resumes the full chain. The
+   process exit publishes a "Claude refused the rewind" notice rather than
+   the unexpected-exit one
+   ([stream-persisted-render-parity](stream-persisted-render-parity.md)). A
+   running clearloop treats the refusal as a failed iteration (§ Stopping).
 4. Returns the record (`null` when the cut was already the tail, a no-op)
    and whether a process was stopped. The session metadata event carries
    the record (`rewindRecord`); every open view of the session applies it
@@ -313,6 +322,16 @@ where progress is any provider message or raw provider event and the session
 is idle or waiting for input at the end of the window. Then `m` increments;
 if `m < M` the next iteration starts, else the loop completes.
 
+**Background tasks hold the boundary.** While Claude reports a background
+task still running (a backgrounded command or agent; session crons do not
+count, since they last as long as the process), the session is busy for
+the loop: no countdown runs and no rewind happens. The rewind would stop
+the process and kill the task, and the task's completion notification
+would start a turn the agent needs to see. Once no task remains, the
+window counts from the last progress as usual. The hold is bounded: after
+30 minutes of waiting on background tasks alone (a task that never exits,
+such as a dev server) the boundary proceeds and the rewind stops them.
+
 **Why inactivity, not turn counting.** A strict "one assistant turn plus its
 blocking question and answer" boundary requires YA to classify every user
 send as a question answer or a manual turn. The inactivity boundary needs no
@@ -418,8 +437,13 @@ it arrives.
 - Ordinary sends do not stop the loop (see the inactivity rationale). A user
   who wants to keep the current iteration's result cancels the loop before
   the window elapses.
-- A rewind refusal or provider failure ends the loop as `interrupted` with
-  the error.
+- A failed iteration — its rewind or launch fails, or the provider refuses
+  its truncation — is retried rather than ending the loop: the loop writes
+  a durable "iteration m failed; retrying" notice with the error, restarts
+  the inactivity window from zero, and at that boundary rewinds and sends
+  the same iteration again, which resumes the provider process when none
+  is attached. `m` does not advance. The third consecutive failure ends the
+  loop as `interrupted` with the error; a successful send resets the count.
 - A server restart during a running loop marks it `interrupted` at the next
   startup (with the durable notice); YA never resumes a loop on startup.
 - The remaining-count chip in the session header is also the cancel control:
@@ -432,7 +456,8 @@ it arrives.
 session at the tail (a `local_command` display row, like goal receipts):
 the original `/clearloop N M: <prompt>` line, `completed m of M`, and for
 `cancelled`/`interrupted` the remaining `M−m`. The notice is session
-history, not a toast, and is never model context.
+history, not a toast, and is never model context. A notice carrying an
+error (an interruption, a retry) shows the error expanded without a click.
 
 ## Defaults and compatibility
 
@@ -579,7 +604,16 @@ Durable pointers by symbol and module; grep for the symbol.
 - `/clear N` during `in-turn` or with a pending queued message is refused
   with `409` and records nothing.
 - A single-turn drop passes `resumeDropsTurn`; a multi-turn drop does not,
-  and a discarded range containing a non-turn row is refused by YA.
+  and a discarded range containing a non-turn row is refused by YA. A
+  clearloop iteration's rewind never passes it
+  (`session-rewind-orchestration.test.ts`).
+- A clearloop boundary waits while Claude reports a live background task,
+  not for session crons, and proceeds once the hold limit passes; a failed
+  iteration is retried after a fresh window without advancing `m`, a
+  refusal outside the loop's own launch counts as a failure, and the third
+  consecutive failure interrupts the loop (`ClearloopService.test.ts`).
+- A refused guarded resume publishes the refused-rewind notice, not the
+  unexpected-exit one, with its details open (`process.termination.test.ts`).
 - `/clearloop 3 2: p` and `/clear 3` then `/clearloop 2: p` produce the same
   rewind records and sends.
 - A queued `/clear N` and the interactive rewind of the same turn record the

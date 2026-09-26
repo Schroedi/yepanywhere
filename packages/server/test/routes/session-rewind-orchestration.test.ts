@@ -362,6 +362,39 @@ describe("rewind orchestration", () => {
       }),
     );
   });
+
+  it("guards a one-turn /clear but not a clearloop iteration's drop", async () => {
+    const clear = await createRewindFixture();
+    await clear.yaCommandRunner.run({
+      sessionId: clear.sessionId,
+      projectId: clear.project.id,
+      projectPath: clear.project.path,
+      command: { name: "clear", argument: "1" },
+      commandText: "/clear 1",
+    } as Parameters<YaCommandRunner["run"]>[0]);
+    expect(clear.metadata.getPendingRewind(clear.sessionId)).toMatchObject({
+      dropsTurnPromptId: "u2",
+    });
+
+    // A clearloop iteration is discarded whole, task notifications and
+    // absorbed queued messages included, so the provider must not refuse it.
+    const loop = await createRewindFixture();
+    await loop.clearloopRunner.rewind({
+      sessionId: loop.sessionId,
+      projectId: loop.project.id,
+      job: {
+        id: "loop-1",
+        cutMessageId: "a1",
+        cutTurnIndex: 1,
+        prompt: "again",
+        total: 3,
+      },
+      iteration: 2,
+    } as Parameters<ClearloopRunner["rewind"]>[0]);
+    const pending = loop.metadata.getPendingRewind(loop.sessionId);
+    expect(pending?.cutMessageId).toBe("a1");
+    expect(pending?.dropsTurnPromptId).toBeUndefined();
+  });
 });
 
 describe("resume launch settings", () => {

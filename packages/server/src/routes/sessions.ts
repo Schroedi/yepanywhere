@@ -5991,7 +5991,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         processAborted: false,
       };
     }
-    if (droppedTurnCount > 1) droppedPromptIds = [];
+    // The drop guard protects a hand-picked `/clear N` from discarding what
+    // the user never saw. A clearloop iteration is discarded whole by
+    // contract, task notifications and absorbed queued messages included.
+    if (droppedTurnCount > 1 || input.reason === "clearloop") {
+      droppedPromptIds = [];
+    }
 
     let processAborted = false;
     if (process) {
