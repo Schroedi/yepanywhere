@@ -446,6 +446,9 @@ function processMessage(
           subtype,
           content,
           details: systemLocalCommandDetails(msg),
+          ...((msg as { detailsOpen?: unknown }).detailsOpen === true
+            ? { detailsOpen: true }
+            : {}),
           sourceMessages: [msg],
           isSubagent: msg.isSubagent,
         });

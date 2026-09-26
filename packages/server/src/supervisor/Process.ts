@@ -87,6 +87,7 @@ import {
   type LivenessProbeResult,
   type LivenessProcessState,
 } from "./liveness.js";
+import { isResumeDropsTurnRefusalText } from "./resume-truncation.js";
 import type {
   AgentActivity,
   InputRequest,
@@ -2655,12 +2656,17 @@ export class Process {
             (message.type === "assistant" || message.type === "user"),
         )?.uuid;
     const id = randomUUID();
+    // A refused rewind also ends the process, but deliberately: the dropped
+    // range held content outside the declared turn, so the turns were kept.
+    const content = isResumeDropsTurnRefusalText(error.message)
+      ? "Claude refused the rewind and exited; the dropped turns were kept"
+      : "Provider process ended unexpectedly; this turn was not interrupted by you";
     const notice: DurableLocalCommandMessage = {
       type: "system",
       subtype: "local_command",
-      content:
-        "Provider process ended unexpectedly; this turn was not interrupted by you",
+      content,
       details: [error.message],
+      detailsOpen: true,
       session_id: this._sessionId,
       uuid: id,
       id,

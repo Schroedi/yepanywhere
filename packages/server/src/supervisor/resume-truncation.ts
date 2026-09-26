@@ -61,6 +61,11 @@ export function resolveResumeTruncation(input: {
 export const RESUME_DROPS_TURN_REFUSAL_PREFIX =
   "Resume rejected by --resume-drops-turn:";
 
+/** Whether an error or result text reports a drop-guard refusal. */
+export function isResumeDropsTurnRefusalText(text: string): boolean {
+  return text.includes(RESUME_DROPS_TURN_REFUSAL_PREFIX);
+}
+
 export function isResumeDropsTurnRefusal(message: SDKMessage): boolean {
   if (message.type !== "result") return false;
   const texts: string[] = [];
@@ -71,5 +76,5 @@ export function isResumeDropsTurnRefusal(message: SDKMessage): boolean {
   push(message.result);
   push(message.errors);
   push(message.error);
-  return texts.some((text) => text.includes(RESUME_DROPS_TURN_REFUSAL_PREFIX));
+  return texts.some(isResumeDropsTurnRefusalText);
 }

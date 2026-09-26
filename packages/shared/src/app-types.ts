@@ -513,6 +513,11 @@ export interface DurableLocalCommandMessage extends AppMessageExtensions {
   subtype: "local_command";
   content: string;
   details?: string[];
+  /**
+   * The details explain why the notice exists (an error), so the transcript
+   * shows them without a click. Absent means collapsed.
+   */
+  detailsOpen?: boolean;
   timestamp: string;
   uuid: string;
   id: string;

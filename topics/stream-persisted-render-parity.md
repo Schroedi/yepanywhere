@@ -255,6 +255,11 @@ publishes a `local_command` notice ("Provider process ended unexpectedly; this
 turn was not interrupted by you", with the error as detail) after the latest
 turn content, and stores it with the session's local-command rows, so the
 attribution survives reload. A requested stop or abort publishes no notice.
+When the exit is Claude refusing a guarded rewind
+([session-rewind](session-rewind.md#server-rewind-operation)), the notice says
+so instead ("Claude refused the rewind and exited; the dropped turns were
+kept"). Both carry `detailsOpen`, so the error shows without a click; a
+local-command row without it keeps its details collapsed.
 
 ## Draft-first augmentation decision
 

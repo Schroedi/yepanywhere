@@ -243,6 +243,7 @@ describe("Process", () => {
           subtype: "local_command",
           content: expect.stringContaining("not interrupted by you"),
           details: [error.message],
+          detailsOpen: true,
           placementAfterMessageId: "assistant-1",
           isSynthetic: true,
         },
@@ -254,6 +255,45 @@ describe("Process", () => {
       expect(events.indexOf(notice as ProcessEvent)).toBeLessThan(
         events.indexOf(terminated as ProcessEvent),
       );
+    });
+
+    it("attributes a refused rewind rather than reporting a crash", async () => {
+      vi.spyOn(getLogger(), "error").mockImplementation(() => undefined);
+      vi.spyOn(getLogger(), "warn").mockImplementation(() => undefined);
+      const error = new Error(
+        "Provider worker process exited: Claude Code returned an error result: Resume rejected by --resume-drops-turn: range contains absorbed queued content",
+      );
+      async function* refusingIterator(): AsyncIterator<SDKMessage> {
+        yield { type: "system", subtype: "init", session_id: "sess-1" };
+        throw error;
+      }
+
+      const process = new Process(refusingIterator(), {
+        projectPath: "/test",
+        projectId: "proj-1" as UrlProjectId,
+        sessionId: "sess-1",
+        provider: "claude",
+        idleTimeoutMs: 100,
+      });
+      const events: ProcessEvent[] = [];
+      process.subscribe((event) => {
+        events.push(event);
+      });
+
+      await vi.waitFor(() => expect(process.isTerminated).toBe(true));
+
+      const notice = events.find(
+        (event) =>
+          event.type === "message" && event.message.subtype === "local_command",
+      );
+      expect(notice).toMatchObject({
+        message: {
+          content:
+            "Claude refused the rewind and exited; the dropped turns were kept",
+          details: [error.message],
+          detailsOpen: true,
+        },
+      });
     });
 
     it("publishes no failure notice for a requested termination", async () => {
