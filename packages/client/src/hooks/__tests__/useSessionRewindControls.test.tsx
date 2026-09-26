@@ -81,8 +81,7 @@ function renderControls(overrides: Partial<UseSessionRewindControlsOptions>) {
     supportsRewind: true,
     provider: "claude",
     model: "opus",
-    applyRewindLocally: vi.fn(() => true),
-    reloadSession: vi.fn(),
+    refreshTranscriptTail: vi.fn(async () => {}),
     draftControlsRef: { current: draftControls() },
     recordCommandRecall: vi.fn(),
     createDirectTurnFork: vi.fn(async () => {}),
@@ -143,7 +142,7 @@ describe("useSessionRewindControls", () => {
     ).toBe(false);
   });
 
-  it("runs /clear N as a rewind after turn N and applies the record in place", async () => {
+  it("runs /clear N as a rewind after turn N and takes the server's projection once", async () => {
     const rewound = record();
     rewindSession.mockResolvedValue({ record: rewound });
     const { hook, options } = renderControls({});
@@ -159,13 +158,23 @@ describe("useSessionRewindControls", () => {
       options.draftControlsRef.current?.confirmInputClear,
     ).toHaveBeenCalled();
     await waitFor(() =>
-      expect(options.applyRewindLocally).toHaveBeenCalledWith(rewound),
+      expect(options.refreshTranscriptTail).toHaveBeenCalledTimes(1),
     );
     expect(rewindSession).toHaveBeenCalledWith("p1", "s1", {
       cut: { kind: "after-user-turn", sourceMessageId: "u2" },
       cutTurnIndex: 2,
     });
-    expect(options.reloadSession).not.toHaveBeenCalled();
+
+    // The metadata event echoing this tab's own rewind costs no second fetch.
+    act(() => {
+      activityBus.emitLocal("session-metadata-changed", {
+        type: "session-metadata-changed",
+        sessionId: "s1",
+        rewindRecord: rewound,
+        timestamp: "2026-09-26T00:00:01.000Z",
+      });
+    });
+    expect(options.refreshTranscriptTail).toHaveBeenCalledTimes(1);
   });
 
   it("hands a malformed command back to the composer without a request", () => {
@@ -228,32 +237,35 @@ describe("useSessionRewindControls", () => {
     });
   });
 
-  it("applies a rewind recorded elsewhere, and reloads when it cannot", () => {
-    const applyRewindLocally = vi.fn(() => false);
-    const { options } = renderControls({ applyRewindLocally });
+  it("takes the server's projection for a rewind recorded or refused elsewhere", () => {
+    const { options } = renderControls({});
     const rewound = record();
-
     const timestamp = "2026-09-26T00:00:01.000Z";
-
-    act(() => {
-      activityBus.emitLocal("session-metadata-changed", {
-        type: "session-metadata-changed",
-        sessionId: "other",
-        rewindRecord: rewound,
-        timestamp,
+    const emit = (
+      data: Partial<{
+        sessionId: string;
+        rewindRecord: SessionRewindRecord;
+        rewindRecordRemoved: string;
+      }>,
+    ) =>
+      act(() => {
+        activityBus.emitLocal("session-metadata-changed", {
+          type: "session-metadata-changed",
+          sessionId: "s1",
+          timestamp,
+          ...data,
+        });
       });
-    });
-    expect(applyRewindLocally).not.toHaveBeenCalled();
 
-    act(() => {
-      activityBus.emitLocal("session-metadata-changed", {
-        type: "session-metadata-changed",
-        sessionId: "s1",
-        rewindRecord: rewound,
-        timestamp,
-      });
-    });
-    expect(applyRewindLocally).toHaveBeenCalledWith(rewound);
-    expect(options.reloadSession).toHaveBeenCalledTimes(1);
+    emit({ sessionId: "other", rewindRecord: rewound });
+    expect(options.refreshTranscriptTail).not.toHaveBeenCalled();
+
+    emit({ rewindRecord: rewound });
+    emit({ rewindRecord: rewound });
+    expect(options.refreshTranscriptTail).toHaveBeenCalledTimes(1);
+
+    // A refused rewind makes its grouped rows live again.
+    emit({ rewindRecordRemoved: rewound.id });
+    expect(options.refreshTranscriptTail).toHaveBeenCalledTimes(2);
   });
 });

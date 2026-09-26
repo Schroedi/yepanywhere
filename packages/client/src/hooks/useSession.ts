@@ -1168,8 +1168,7 @@ export function useSession(
     updateRouteScrollSnapshot,
     updateActiveWindowFollowingBottom,
     restoredFromSnapshot,
-    reloadSession,
-    applyRewindLocally,
+    refreshTranscriptTail,
   } = useSessionMessages({
     projectId,
     sessionId,
@@ -2662,10 +2661,8 @@ export function useSession(
     session,
     updateSession,
     setSessionModel,
-    /** Discard the loaded transcript and fetch it again from the server. */
-    reloadSession,
-    /** Apply a same-session rewind to the loaded transcript in place. */
-    applyRewindLocally,
+    /** Replace the loaded window with the server's projection of the tail. */
+    refreshTranscriptTail,
     messages,
     agentContent, // Subagent messages keyed by agentId (for Task tool)
     mergeLoadedAgentContent,

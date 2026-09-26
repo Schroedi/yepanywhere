@@ -190,25 +190,23 @@ server-side), then:
    record is deterministic: it arrives as an `error_during_execution` result
    whose text starts with `Resume rejected by --resume-drops-turn:`; the
    supervisor deletes that rewind record, emits the metadata event with
-   `rewindRecordRemoved`, every open view reloads the transcript (the grouped
-   rows are live again), and the next send resumes the full chain. The
+   `rewindRecordRemoved`, every open view takes the server's projection again
+   (the grouped rows are live again), and the next send resumes the full
+   chain. The
    process exit publishes a "Claude refused the rewind" notice rather than
    the unexpected-exit one
    ([stream-persisted-render-parity](stream-persisted-render-parity.md)). A
    running clearloop treats the refusal as a failed iteration (§ Stopping).
 4. Returns the record (`null` when the cut was already the tail, a no-op)
    and whether a process was stopped. The session metadata event carries
-   the record (`rewindRecord`); every open view of the session applies it
-   to its loaded transcript in place (rows after the cut join the group
-   behind the synthetic header), and refetches only when the cut lies
-   outside its loaded window. **The in-place application must produce what a
-   reload produces**: it follows the same membership, nesting, and header
-   placement rules as the reader below, so a watching tab and a tab opened
-   afterwards show the same outline, and no reload is needed to correct one.
-   In particular the header goes immediately before the first row this
-   record claims, not immediately after the cut, so earlier groups at the
-   same cut keep their place ahead of it. The tab that issued the rewind applies it
-   from the response before the event arrives. The detail response carries
+   the record (`rewindRecord`). **Group membership is computed only by the
+   reader below**: every open view of the session refetches its bounded
+   tail and replaces its loaded window with that projection, keeping the view
+   mounted, so a watching tab and a tab opened afterwards show the same
+   outline by construction. The client never regroups rows itself, since an
+   incremental catch-up can only append. The tab that issued the rewind
+   refetches on the response and ignores the event echoing the same record;
+   if the refetch fails, the view reloads the session. The detail response carries
    `rewindRecordIds`, the ids of the records its projection applied; a tab
    returning to the session with a cached transcript compares them and
    reloads whole when they differ, since an incremental catch-up can only
@@ -591,9 +589,9 @@ Durable pointers by symbol and module; grep for the symbol.
 - `lib/sessionDetail/renderItems.ts` — `getDisplayRenderItems` collapse
   filter, `getRenderItemRewoundGroupId`; `lib/sessionDetail/search.ts`
   excludes rewound rows from turn anchors.
-- `lib/sessionDetail/transcriptReducer.ts` — `applyRewindToMessages` and
-  the `applyRewind` action; `hooks/useSessionMessages.ts` —
-  `applyRewindLocally`, `reloadSession`.
+- `hooks/useSessionMessages.ts` — `refreshTranscriptTail` (the bounded
+  tail refetch through `fetchNewMessages`, replacing the loaded window via
+  `applyFullTailReconciliation`).
 - `components/MessageList.tsx` — scroll-anchored `toggleRewoundGroup`,
   the clearloop chip and `ClearloopCountdown`;
   `components/ClearloopRemainingBadge.tsx`.
@@ -661,9 +659,11 @@ Durable pointers by symbol and module; grep for the symbol.
   branch stays live and in place, after the whole group whatever its length
   (`claude-messages.test.ts`).
 - Two rewinds to the same live cut produce two sibling groups in order, with
-  no `rewoundParentGroupId` on either — on the server projection and on the
-  client's in-place application alike (`claude-messages.test.ts`,
-  `renderSelectors.test.ts`).
+  no `rewoundParentGroupId` on either (`claude-messages.test.ts`).
+- A rewind, whether issued here or seen on the metadata event, replaces the
+  loaded window with the server's bounded tail projection without unmounting
+  the view, fetching once per record; a failed refetch reloads
+  (`useSessionMessages.cache.test.tsx`, `useSessionRewindControls.test.tsx`).
 - A durable receipt written before a rewind that dropped its position joins
   that group (the enclosing one when an inner rewind came first); one written
   after the last rewind stays live at a group's tail or before the next turn

@@ -1,13 +1,13 @@
 import {
   parseClearloopArguments,
   parseTurnIndexArgument,
-  type SessionRewindRecord,
 } from "@yep-anywhere/shared";
 import {
   type RefObject,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useNavigate } from "react-router-dom";
@@ -37,8 +37,8 @@ export interface UseSessionRewindControlsOptions {
   /** Provider and model a `/clear 0` new session starts with. */
   provider: string | undefined;
   model: string | undefined;
-  applyRewindLocally: (record: SessionRewindRecord) => boolean;
-  reloadSession: () => void;
+  /** Replace the loaded window with the server's regrouped projection. */
+  refreshTranscriptTail: () => Promise<void>;
   draftControlsRef: RefObject<DraftControls | null>;
   recordCommandRecall: (commandText: string) => void;
   createDirectTurnFork: (
@@ -71,8 +71,7 @@ export function useSessionRewindControls({
   supportsRewind,
   provider,
   model,
-  applyRewindLocally,
-  reloadSession,
+  refreshTranscriptTail,
   draftControlsRef,
   recordCommandRecall,
   createDirectTurnFork,
@@ -81,6 +80,17 @@ export function useSessionRewindControls({
   const { showToast } = useToastContext();
   const basePath = useRemoteBasePath();
   const navigate = useNavigate();
+  // Rewinds this view has already asked the server to project, so the
+  // metadata event echoing this tab's own rewind costs no second fetch.
+  const projectedRewindIdsRef = useRef(new Set<string>());
+  const refreshForRewind = useCallback(
+    (recordId: string) => {
+      if (projectedRewindIdsRef.current.has(recordId)) return;
+      projectedRewindIdsRef.current.add(recordId);
+      void refreshTranscriptTail();
+    },
+    [refreshTranscriptTail],
+  );
 
   const sessionTurnIndex = useMemo(
     () => getSessionTurnIndex(messages),
@@ -120,11 +130,9 @@ export function useSessionRewindControls({
           }),
           "success",
         );
-        // Restructure the loaded transcript in place; only a cut older than
-        // the loaded window needs the server's projection refetched.
-        if (!result.record || !applyRewindLocally(result.record)) {
-          reloadSession();
-        }
+        // Group membership is the server's (topics/session-rewind.md); the
+        // view takes its projection rather than regrouping rows itself.
+        if (result.record) refreshForRewind(result.record.id);
         return true;
       } catch (error) {
         showToast(
@@ -136,7 +144,7 @@ export function useSessionRewindControls({
         return false;
       }
     },
-    [applyRewindLocally, projectId, reloadSession, sessionId, showToast, t],
+    [projectId, refreshForRewind, sessionId, showToast, t],
   );
   const clearAfterUserMessage = useCallback(
     (messageId: string) => {
@@ -205,21 +213,19 @@ export function useSessionRewindControls({
     [projectId, sessionId, showToast, t],
   );
   // A rewind performed elsewhere (a clearloop iteration, another tab) arrives
-  // on the metadata event; apply it to the loaded transcript in place.
+  // on the metadata event. A refused rewind deletes its record, making its
+  // grouped rows live again; either way the server's projection is current.
   useEffect(
     () =>
       activityBus.on("session-metadata-changed", (data) => {
         if (data.sessionId !== sessionId) return;
-        // A refused rewind deletes its record; the grouped rows are live
-        // again and only the server projection knows the result.
         if (data.rewindRecordRemoved) {
-          reloadSession();
+          void refreshTranscriptTail();
           return;
         }
-        if (!data.rewindRecord) return;
-        if (!applyRewindLocally(data.rewindRecord)) reloadSession();
+        if (data.rewindRecord) refreshForRewind(data.rewindRecord.id);
       }),
-    [applyRewindLocally, reloadSession, sessionId],
+    [refreshForRewind, refreshTranscriptTail, sessionId],
   );
   const cancelClearloop = useCallback(async () => {
     try {
