@@ -286,7 +286,10 @@ input, the reader instead emits the dropped rows as a **rewound group**:
   of them drops the shared cut, so each stays its own top-level collapsed
   entry in iteration order rather than vanishing inside the newest one.
 - A tail window never starts inside a group: when the window boundary
-  lands on a grouped row, it backs up to that group's header.
+  lands on a grouped row or header — a caller-chosen `tailFrom` row, or a
+  compaction boundary a rewind dropped — it backs up to the header of the
+  outermost group enclosing it, since a nested header is hidden while any
+  enclosing group is collapsed.
 - Placement: at the cut, in transcript order, before any later live rows.
 - Presentation: one collapsed outline entry by default. Expanding shows the
   dropped turns with their ordinary rendering, styled as nested rows (the
