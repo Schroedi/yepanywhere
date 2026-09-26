@@ -45,11 +45,22 @@ candidates because they maintain computed properties across changes. A cache
 qualifies only if its dependency maintenance benefits from the graph; merely
 retaining or forwarding a value does not establish that benefit.
 
-The POC should include simple routing as a control and a separate workload with
-maintained counts/relationships. Name the derived properties, their source
-dependencies, and the existing update logic that Skip would replace. Measure
-the cost and correctness of keeping those properties synchronized, rather than
-using message throughput alone to judge the framework's value.
+A routing-only POC is nevertheless a useful first stage: it quantifies framework
+overhead on YA's expected workload without claiming to demonstrate the
+framework's value. Model many retained sessions with usually only 1–5 active,
+routing their updates into the chosen authoritative inputs and indexes, together
+with filesystem notification subscriptions. Compare the same work with and
+without Skip before implementing meaningful derived views.
+
+The maintainer's hypothesis is that, if this overhead is acceptable, queryable
+derived state and summaries can then fit naturally into the framework with
+less application-level update logic. Place each derivation deliberately as
+incrementally maintained/subscribed state or a lazy cached query, using correct,
+small immutable updates in either case. Test this hypothesis with a second
+workload that names the derived properties, their source dependencies, and the
+existing update logic being replaced. Good performance and freshness depend
+on that graph placement and correct source observation; routing throughput
+alone establishes neither.
 
 ## Existing work and consumer boundaries
 
@@ -200,6 +211,14 @@ first implementation into a client state rewrite.
    today's implementation and a Skip-backed candidate. A whole-provider-service
    mock is useful later for ownership/reload behavior; neither mock proves real
    SDK or native watcher correctness.
+   The first deliverable may stop at routing and index/input updates with
+   filesystem subscription setup, delivery, and teardown. Use many retained
+   sessions and 1, 3, and 5 active sessions as the ordinary workload, plus an
+   all-idle case and separately labelled higher-concurrency stress. Hold
+   storage, event traces, and index semantics equivalent across implementations
+   so this stage isolates overhead rather than a storage redesign. Simulated
+   notifications give reproducible schedules; a bounded real-filesystem check
+   is still needed before claiming native notification costs or correctness.
 2. **Vary demand and churn independently.** Exercise small and large histories,
    sparse hot sessions, broad list reads, many idle sessions, simultaneous
    reconnects, repeated keyed queries, and bursts of updates. Include cold
@@ -210,6 +229,10 @@ first implementation into a client state rewrite.
    derivation, durable SQLite-backed facts versus memory, and finally a separate
    process. Avoid attributing a multi-change result to Skip alone. Pin runtime,
    package revision, trace, and cache state for every comparison.
+   After the overhead stage, add counts, relationships, or queryable summaries
+   using keyed immutable changes rather than whole-corpus replacement. Compare
+   eager/subscribed maintenance and lazy recomputation under identical demand;
+   inspect how much manual dependency/invalidation logic each actually removes.
 4. **Measure the full cost.** Record startup-to-first-usable-catalog, cold/warm
    query and update-to-consumer p50/p95/p99, CPU/event-loop delay, total memory
    including Wasm/native/process overhead, filesystem calls, DB reads/writes,
@@ -224,9 +247,11 @@ first implementation into a client state rewrite.
    watchers. Backend timings alone do not prove UI responsiveness; a later
    consumer check must include real sequential typing under concurrent updates.
 
-Proceed beyond the sketch only when the POC shows a useful measured trade-off
-and names which existing cache/invalidation owner it can replace. Keeping the
-current mechanism, using Skip only for one projection, or adopting bounded SQL
+An overhead-only result is a valid first POC outcome, with derived-state value
+explicitly untested. Proceed to production adoption only when the POC shows a
+useful measured trade-off and names which existing cache/invalidation owner it
+can replace. Keeping the current mechanism, using Skip only for one projection,
+or adopting bounded SQL
 storage without Skip are all valid outcomes. This sketch changes no roadmap
 priority and authorizes no production migration.
 
