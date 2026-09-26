@@ -19,7 +19,11 @@ import {
 import { dirname, extname, posix, win32 } from "node:path";
 import type { Context } from "hono";
 import { Hono } from "hono";
-import { decodeProjectId, getProjectName } from "../projects/paths.js";
+import {
+  decodeProjectId,
+  getProjectName,
+  type ProjectDisplayNameResolver,
+} from "../projects/paths.js";
 import { tryClaimProjectPathIndex } from "../projects/projectPathIndex.js";
 import type { RelayClientStatus } from "../services/RelayClientService.js";
 import {
@@ -108,6 +112,8 @@ export interface PublicShareRoutesDeps extends PublicSharePublicRoutesDeps {
     projectId: UrlProjectId,
     sessionId: string,
   ) => Promise<AppSession | null>;
+  /** Names the shared session's project; defaults to the path's name. */
+  projectDisplayName?: ProjectDisplayNameResolver;
 }
 
 const PUBLIC_SHARE_RENDER_SOURCE_EXTENSIONS = new Set([
@@ -1522,7 +1528,9 @@ export function createPublicShareRoutes(deps: PublicShareRoutesDeps): Hono {
     const title =
       body.title ?? sessionSummary.customTitle ?? sessionSummary.title;
     const projectRoot = decodeProjectId(body.projectId);
-    const projectName = getProjectName(projectRoot);
+    const projectName = (deps.projectDisplayName ?? getProjectName)(
+      projectRoot,
+    );
     const initialPrompt =
       normalizePromptPreview(sessionSummary.initialPrompt ?? "") ??
       (capture ? getInitialPromptPreview(capture.snapshot) : null) ??

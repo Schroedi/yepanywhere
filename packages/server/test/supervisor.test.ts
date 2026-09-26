@@ -3,6 +3,9 @@ import {
   POST_COMPACT_REPLAY_CONTINUE,
   POST_COMPACT_REPLAY_PREAMBLE,
 } from "@yep-anywhere/shared";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComputerSession } from "../src/computer-control/contract.js";
 import type { ComputerControlService } from "../src/computer-control/service.js";
@@ -13,6 +16,7 @@ import type {
   SessionMetadataService,
 } from "../src/metadata/index.js";
 import { getLogger } from "../src/logging/logger.js";
+import { ProjectMetadataService } from "../src/metadata/ProjectMetadataService.js";
 import { dispatchProviderCommand } from "../src/supervisor/provider-command.js";
 import type { NotificationService } from "../src/notifications/index.js";
 import { MockClaudeSDK, createMockScenario } from "../src/sdk/mock.js";
@@ -7030,6 +7034,51 @@ describe("Supervisor", () => {
       expect(events.some((event) => event.type === "session-id-remapped")).toBe(
         false,
       );
+    });
+
+    it("names a new session's project by its chosen name, following a rename", async () => {
+      const dataDir = await mkdtemp(join(tmpdir(), "supervisor-project-name-"));
+      try {
+        const projectMetadata = new ProjectMetadataService({ dataDir });
+        await projectMetadata.initialize();
+        await projectMetadata.setProjectNameOverride(
+          encodeProjectId("/tmp/yepanywhere"),
+          "YA",
+        );
+        const eventBus = new EventBus();
+        const events: BusEvent[] = [];
+        eventBus.subscribe((event) => events.push(event));
+        const supervisorWithNames = new Supervisor({
+          sdk: new MockClaudeSDK(),
+          idleTimeoutMs: 100,
+          eventBus,
+          projectDisplayName: (projectPath) =>
+            projectMetadata.getProjectDisplayName(projectPath),
+        });
+
+        const process = await supervisorWithNames.startSession(
+          "/tmp/yepanywhere",
+          { text: "hello" },
+        );
+
+        const created = events.find(
+          (e): e is Extract<BusEvent, { type: "session-created" }> =>
+            e.type === "session-created",
+        );
+        expect(created?.session.projectName).toBe("YA");
+        expect(process.getInfo().projectName).toBe("YA");
+        await projectMetadata.setProjectNameOverride(
+          encodeProjectId("/tmp/yepanywhere"),
+          "Yep",
+        );
+        expect(
+          supervisorWithNames
+            .getProcessInfoList()
+            .find((info) => info.id === process.id)?.projectName,
+        ).toBe("Yep");
+      } finally {
+        await rm(dataDir, { recursive: true });
+      }
     });
 
     it("emits a public remap when init follows the provisional ID timeout", async () => {

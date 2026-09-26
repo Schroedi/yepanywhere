@@ -32,21 +32,27 @@ runtime described below or unrelated metadata families.
   differing name is stored; renaming the directory later therefore changes
   the name of a project that was never explicitly named.
 - A chosen name is the project's name everywhere: project cards, sidebar
-  rows, session breadcrumbs, All Sessions rows and its project filter, and
-  the source name the code-name allocator reads. A chosen code takes the
-  same path as an explicit edit on Projects, so it wins over the generated
-  value and displaces a conflicting project's generated code.
+  rows, session breadcrumbs, All Sessions and Inbox rows and the All
+  Sessions project filter, recents, the Agents page's live processes, a new
+  session's live sidebar insert, sessions detected from another program,
+  push notifications, the project named on a new public share, and the
+  source name the code-name allocator reads. A rename takes effect on the
+  next read of each surface; no session file is reread for it. A chosen
+  code takes the same path as an explicit edit on Projects, so it wins over
+  the generated value and displaces a conflicting project's generated code.
+- Two records keep the name they were written with: an existing public
+  share, whose snapshot is immutable, and token-usage ledger entries, which
+  are durable history.
 - Confirming the form opens a new session in the project. A just-added
   project has no sessions to list, so the earlier landing on its empty All
   Sessions view was a detour.
 - Removing a project drops its chosen name with its other metadata; adding
   the path again starts from the path's own name.
 - Project list changes are announced. Adding, removing, or renaming a project
-  emits `projects-changed`, which refreshes project lists and advances the
-  global session collection so the All Sessions project filter neither keeps
-  offering a removed project nor misses a new one. Before this event the
-  filter's list came from a generation-gated cache that nothing bumped on
-  add or remove.
+  emits `projects-changed`, which refreshes project lists, advances the
+  global session collection, and makes an open All Sessions view refetch,
+  so its rows and project filter neither keep a removed project or old name
+  nor miss a new one.
 - The name is invalid when longer than 80 characters after collapsing
   whitespace; a rejected request adds nothing. The code follows the
   [code-name rules](project-code-names.md#character-and-editing-rules), and
@@ -57,9 +63,14 @@ runtime described below or unrelated metadata families.
 The override lives in `projectNames` of `project-metadata.json`, never inside
 the project directory ([project directory storage](project-directory-storage.md)
 posture, as for [code names](project-code-names.md) and
-[captions](project-captions.md)). The scanner keeps the path-derived name in
-its snapshot and applies the override on every read, so a rename needs no
-rescan.
+[captions](project-captions.md)). `ProjectMetadataService`
+`getProjectDisplayName` owns the resolution — the chosen name, else
+`getProjectName` of the path — and every server surface that names a
+project from its path takes it as a `ProjectDisplayNameResolver`. The scanner
+keeps the path-derived name in its snapshot and applies the override on every
+read. Retained session-catalog rows store the name their file was read under,
+so the collection projection names each row afresh rather than trusting the
+stored `projectName`. A rename therefore needs no rescan.
 
 Capability `project-names` (permanent ID 80, version-implied from `0.8.2`)
 owns the `name` and `codeName` request fields on `POST /api/projects`,

@@ -37,7 +37,10 @@ import { getLogger } from "../logging/logger.js";
 import type { SessionMetadataService } from "../metadata/index.js";
 import type { ToolResultMediaStore } from "../media/ToolResultMediaStore.js";
 import type { NotificationService } from "../notifications/index.js";
-import { getProjectName } from "../projects/paths.js";
+import {
+  getProjectName,
+  type ProjectDisplayNameResolver,
+} from "../projects/paths.js";
 import {
   getSessionSandboxSettingsError,
   prepareSessionSandbox,
@@ -543,6 +546,8 @@ export interface SupervisorOptions {
   /** Real SDK interface with full features */
   realSdk?: RealClaudeSDKInterface;
   idleTimeoutMs?: number;
+  /** Names a process's project; defaults to the path's name. */
+  projectDisplayName?: ProjectDisplayNameResolver;
   /** Default permission mode for new sessions */
   defaultPermissionMode?: PermissionMode;
   /** EventBus for emitting session status changes */
@@ -647,6 +652,7 @@ export class Supervisor {
   private sdk: ClaudeSDK | null;
   private realSdk: RealClaudeSDKInterface | null;
   private idleTimeoutMs: number;
+  private readonly projectDisplayName: ProjectDisplayNameResolver;
   private defaultPermissionMode: PermissionMode;
   private eventBus?: EventBus;
   private maxWorkers: number;
@@ -758,6 +764,7 @@ export class Supervisor {
     this.sdk = options.sdk ?? null;
     this.realSdk = options.realSdk ?? null;
     this.idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
+    this.projectDisplayName = options.projectDisplayName ?? getProjectName;
     this.defaultPermissionMode = options.defaultPermissionMode ?? "default";
     this.eventBus = options.eventBus;
     this.maxWorkers = options.maxWorkers ?? 0; // 0 = unlimited
@@ -1338,6 +1345,7 @@ export class Supervisor {
       sessionId: tempSessionId,
       initialState: "idle",
       idleTimeoutMs: this.idleTimeoutMs,
+      projectDisplayName: this.projectDisplayName,
       queue,
       sessionQueuePersistenceService: this.sessionQueuePersistenceService,
       toolResultMediaStore: this.toolResultMediaStore,
@@ -2161,6 +2169,7 @@ export class Supervisor {
       projectId,
       sessionId: tempSessionId,
       idleTimeoutMs: this.idleTimeoutMs,
+      projectDisplayName: this.projectDisplayName,
       queue,
       sessionQueuePersistenceService: this.sessionQueuePersistenceService,
       toolResultMediaStore: this.toolResultMediaStore,
@@ -2421,6 +2430,7 @@ export class Supervisor {
       sessionId: tempSessionId,
       initialState: "idle",
       idleTimeoutMs: this.idleTimeoutMs,
+      projectDisplayName: this.projectDisplayName,
       queue,
       sessionQueuePersistenceService: this.sessionQueuePersistenceService,
       toolResultMediaStore: this.toolResultMediaStore,
@@ -2695,6 +2705,7 @@ export class Supervisor {
       projectId,
       sessionId: tempSessionId,
       idleTimeoutMs: this.idleTimeoutMs,
+      projectDisplayName: this.projectDisplayName,
       initialState: result.initialTurnState ?? "idle",
       queue,
       sessionQueuePersistenceService: this.sessionQueuePersistenceService,
@@ -2833,6 +2844,7 @@ export class Supervisor {
       projectId,
       sessionId,
       idleTimeoutMs: this.idleTimeoutMs,
+      projectDisplayName: this.projectDisplayName,
       permissionMode: effectiveMode,
       provider: "claude", // Legacy mock SDK simulates Claude
       model: modelSettings?.model,
@@ -5828,7 +5840,7 @@ export class Supervisor {
     const session: SessionSummary = {
       id: process.sessionId,
       projectId: process.projectId,
-      projectName: getProjectName(process.projectPath),
+      projectName: info.projectName,
       title: optimistic.title,
       fullTitle: optimistic.fullTitle,
       createdAt: now,

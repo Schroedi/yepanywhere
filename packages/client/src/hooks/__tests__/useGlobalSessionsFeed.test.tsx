@@ -475,9 +475,9 @@ describe("useGlobalSessionsFeed", () => {
 
     const metrics = getQueryRevalidationMetrics();
     expect(metrics.subscribers).toBe(3);
-    // One listener per event (reconnect, visibility restore, and catalog
-    // publication), shared by all mounts.
-    expect(metrics.eventSubscriptions).toBe(3);
+    // One listener per event (reconnect, visibility restore, catalog
+    // publication, and project list changes), shared by all mounts.
+    expect(metrics.eventSubscriptions).toBe(4);
 
     const requestsBefore = mocks.getGlobalSessions.mock.calls.length;
     vi.useFakeTimers();
@@ -492,6 +492,30 @@ describe("useGlobalSessionsFeed", () => {
     // The widest subscriber runs, so the 15- and 50-row feeds are served by the
     // 100-row refetch instead of issuing their own.
     expect(refetches[0]?.[0]).toMatchObject({ limit: 100 });
+  });
+
+  it("refetches when a project is added, removed, or renamed", async () => {
+    mocks.getGlobalSessions.mockResolvedValue(
+      globalSessionsResponse(["session-a"]),
+    );
+    const feed = renderHook(() => useFeedWithRecords({ limit: 50 }));
+    await waitFor(() => expect(feed.result.current.feed.loading).toBe(false));
+
+    const requestsBefore = mocks.getGlobalSessions.mock.calls.length;
+    vi.useFakeTimers();
+    await act(async () => {
+      activityBus.emitLocal("projects-changed", {
+        type: "projects-changed",
+        projectIds: ["project-a"],
+        timestamp: new Date().toISOString(),
+      });
+      await vi.advanceTimersByTimeAsync(600);
+    });
+    vi.useRealTimers();
+
+    expect(
+      mocks.getGlobalSessions.mock.calls.slice(requestsBefore),
+    ).toHaveLength(1);
   });
 
   it("returns the query to fresh after a reconnect refetch", async () => {

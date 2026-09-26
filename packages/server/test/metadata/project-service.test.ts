@@ -330,6 +330,18 @@ describe("ProjectMetadataService", () => {
       await reloaded.hideProject(projectId, "/repos/alpha");
       expect(reloaded.getProjectNameOverride(projectId)).toBeUndefined();
     });
+
+    it("names a project by its chosen name, else by its path's last component", async () => {
+      expect(service.getProjectDisplayName("/repos/alpha")).toBe("alpha");
+      await service.setProjectNameOverride(
+        encodeProjectId("/repos/alpha"),
+        "Alpha Service",
+      );
+      expect(service.getProjectDisplayName("/repos/alpha")).toBe(
+        "Alpha Service",
+      );
+      expect(service.getProjectDisplayName("/repos/beta")).toBe("beta");
+    });
   });
 
   describe("hideProject", () => {

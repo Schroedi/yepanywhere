@@ -44,6 +44,7 @@ import type {
   Project,
 } from "../supervisor/types.js";
 import type { EventBus } from "../watcher/index.js";
+import type { ProjectDisplayNameResolver } from "../projects/paths.js";
 import { buildProviderProjectCatalog } from "./provider-catalog.js";
 import { getActiveSessionIndexOptions } from "./session-list-options.js";
 
@@ -68,6 +69,8 @@ export interface InboxDeps {
   piReaderFactory?: (projectPath: string) => PiSessionReader;
   eventBus?: EventBus;
   sessionAutoArchiveDays?: number;
+  /** Names a retained row's project; defaults to the path's name. */
+  projectDisplayName?: ProjectDisplayNameResolver;
 }
 
 export interface InboxItem {

@@ -121,7 +121,9 @@ import {
   GROK_SESSIONS_DIR,
   PI_SESSIONS_DIR,
   decodeProjectId,
+  getProjectName,
   grokSessionMediaRoots,
+  type ProjectDisplayNameResolver,
 } from "./projects/paths.js";
 import { ProjectScanner } from "./projects/scanner.js";
 import {
@@ -1564,7 +1566,16 @@ export function createApp(options: AppOptions): AppResult {
   // a previous server process are closed out here.
   void clearloopService?.reconcileAfterRestart();
 
+  // Every server surface names a project the same way: its chosen name, else
+  // its path's (topics/project-names.md).
+  const projectMetadataForNames = options.projectMetadataService;
+  const projectDisplayName: ProjectDisplayNameResolver = projectMetadataForNames
+    ? (projectPath) =>
+        projectMetadataForNames.getProjectDisplayName(projectPath)
+    : getProjectName;
+
   supervisor = new Supervisor({
+    projectDisplayName,
     onProcessInventoryChanged: () => {
       // Gateway services that opted into auto-stop need to know when their
       // last session goes away; the live process list is that answer.
@@ -1726,6 +1737,7 @@ export function createApp(options: AppOptions): AppResult {
         eventBus: options.eventBus,
         supervisor,
         scanner,
+        projectDisplayName,
         decayMs: 30000, // 30 seconds
         // Callback to get session summary for new external sessions
         // projectId is now UrlProjectId (base64url) - ExternalSessionTracker converts it
@@ -1873,6 +1885,7 @@ export function createApp(options: AppOptions): AppResult {
       eventBus: options.eventBus,
       pushService: options.pushService,
       supervisor,
+      projectDisplayName,
     });
   }
 
@@ -1883,6 +1896,7 @@ export function createApp(options: AppOptions): AppResult {
       supervisor,
       projectQueueService: options.projectQueueService,
       externalTracker,
+      projectDisplayName,
     });
   }
 
@@ -2543,6 +2557,7 @@ export function createApp(options: AppOptions): AppResult {
       piReaderFactory,
       eventBus: options.eventBus,
       sessionAutoArchiveDays: options.sessionAutoArchiveDays,
+      projectDisplayName,
     }),
   );
 
@@ -2570,6 +2585,7 @@ export function createApp(options: AppOptions): AppResult {
       piReaderFactory,
       eventBus: options.eventBus,
       sessionAutoArchiveDays: options.sessionAutoArchiveDays,
+      projectDisplayName,
     }),
   );
 
@@ -3135,6 +3151,7 @@ export function createApp(options: AppOptions): AppResult {
         (await scanner.listProjects()).map((project) => project.path),
       loadSession: loadPublicShareSession,
       loadCompleteSession: loadCompletePublicShareSession,
+      projectDisplayName,
       loadSessionUpdatedAt: loadPublicShareSessionUpdatedAt,
       loadSessionSummary: loadPublicShareSessionSummary,
       fetchProjectFile: fetchPublicShareProjectFile,

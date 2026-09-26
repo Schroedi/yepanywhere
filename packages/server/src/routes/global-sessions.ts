@@ -26,7 +26,10 @@ import type { SessionMetadataService } from "../metadata/SessionMetadataService.
 import type { NotificationService } from "../notifications/index.js";
 import type { CodexSessionScanner } from "../projects/codex-scanner.js";
 import type { GeminiSessionScanner } from "../projects/gemini-scanner.js";
-import { isDetachedProjectPath } from "../projects/paths.js";
+import {
+  isDetachedProjectPath,
+  type ProjectDisplayNameResolver,
+} from "../projects/paths.js";
 import type { ProjectScanner } from "../projects/scanner.js";
 import type { CodexSessionReader } from "../sessions/codex-reader.js";
 import type { GeminiSessionReader } from "../sessions/gemini-reader.js";
@@ -92,6 +95,8 @@ export interface GlobalSessionsDeps {
   eventBus?: EventBus;
   /** Sessions older than this many days are hidden from default scans. 0 disables. */
   sessionAutoArchiveDays?: number;
+  /** Names a retained row's project; defaults to the path's name. */
+  projectDisplayName?: ProjectDisplayNameResolver;
 }
 
 export interface GlobalSessionItem {

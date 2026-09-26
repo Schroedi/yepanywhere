@@ -9,6 +9,7 @@ import {
   decodeProjectId,
   encodeProjectId,
   getProjectName,
+  type ProjectDisplayNameResolver,
 } from "../projects/paths.js";
 import type { SessionListSummary } from "../sessions/types.js";
 import type { ProjectScanner } from "../projects/scanner.js";
@@ -56,10 +57,6 @@ const DEFAULT_ABORT_GRACE_MS = 30000;
  */
 const DEFAULT_FORK_GRACE_MS = 30000;
 
-function getProjectNameForProjectId(projectId: UrlProjectId): string {
-  return getProjectName(decodeProjectId(projectId));
-}
-
 type TrackedSessionSummary =
   | { fidelity: "complete"; summary: SessionSummary }
   | { fidelity: "list"; summary: SessionListSummary };
@@ -68,6 +65,8 @@ export interface ExternalSessionTrackerOptions {
   eventBus: EventBus;
   supervisor: Supervisor;
   scanner: ProjectScanner;
+  /** Names a detected session's project; defaults to the path's name. */
+  projectDisplayName?: ProjectDisplayNameResolver;
   /** Time in ms before external status decays to idle (default: 30000) */
   decayMs?: number;
   /** Grace period in ms after abort before external detection resumes (default: 30000) */
@@ -106,6 +105,7 @@ export class ExternalSessionTracker {
   private eventBus: EventBus;
   private supervisor: Supervisor;
   private scanner: ProjectScanner;
+  private readonly projectDisplayName: ProjectDisplayNameResolver;
   private decayMs: number;
   private abortGraceMs: number;
   private forkGraceMs: number;
@@ -140,6 +140,7 @@ export class ExternalSessionTracker {
     this.eventBus = options.eventBus;
     this.supervisor = options.supervisor;
     this.scanner = options.scanner;
+    this.projectDisplayName = options.projectDisplayName ?? getProjectName;
     this.decayMs = options.decayMs ?? 30000;
     this.abortGraceMs = options.abortGraceMs ?? DEFAULT_ABORT_GRACE_MS;
     this.forkGraceMs = options.forkGraceMs ?? DEFAULT_FORK_GRACE_MS;
@@ -219,7 +220,7 @@ export class ExternalSessionTracker {
                 ownership: this.detectedOwnership(sessionId),
                 projectName:
                   observed.summary.projectName ??
-                  getProjectNameForProjectId(projectId),
+                  this.projectDisplayName(decodeProjectId(projectId)),
               },
               timestamp: now,
             };
@@ -666,7 +667,7 @@ export class ExternalSessionTracker {
       const summary: SessionSummary = {
         id: sessionId,
         projectId,
-        projectName: getProjectNameForProjectId(projectId),
+        projectName: this.projectDisplayName(decodeProjectId(projectId)),
         title: null,
         fullTitle: null,
         createdAt: meta.timestamp,
@@ -766,7 +767,7 @@ export class ExternalSessionTracker {
       const summary: SessionSummary = {
         id: meta.id,
         projectId,
-        projectName: getProjectName(meta.cwd),
+        projectName: this.projectDisplayName(meta.cwd),
         title: null,
         fullTitle: null,
         createdAt: meta.timestamp,

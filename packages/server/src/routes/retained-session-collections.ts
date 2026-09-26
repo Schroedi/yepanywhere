@@ -1,6 +1,6 @@
-import { basename } from "node:path";
 import { truncateSessionTitle } from "@yep-anywhere/shared";
 import { nonHumanUserTurnField } from "../metadata/SessionMetadataService.js";
+import { getProjectName } from "../projects/paths.js";
 import type { RetainedSessionCollections } from "../services/RetainedSessionCollections.js";
 import {
   getEffectiveProviderUpdatedAt,
@@ -26,16 +26,17 @@ export async function readRetainedSessionItems(
     | "externalTracker"
     | "notificationService"
     | "sessionAutoArchiveDays"
+    | "projectDisplayName"
   >,
 ) {
   const { rows, catalog } = await service.read();
+  // Named now, not from the row: a stored `projectName` is only as current as
+  // the file's last read, and renaming a project rereads nothing.
+  const projectDisplayName = deps.projectDisplayName ?? getProjectName;
   const projects = new Map(
     rows.map((row) => [
       row.projectId,
-      {
-        id: row.projectId,
-        name: row.projectName ?? basename(row.projectPath),
-      },
+      { id: row.projectId, name: projectDisplayName(row.projectPath) },
     ]),
   );
   const cutoff = getActiveSessionIndexOptions(
@@ -98,9 +99,7 @@ export async function readRetainedSessionItems(
       provider,
       projectId,
       projectName:
-        projects.get(projectId)?.name ??
-        row.projectName ??
-        basename(row.projectPath),
+        projects.get(projectId)?.name ?? projectDisplayName(row.projectPath),
       ownership: runtime.ownership,
       pendingInputType: runtime.pendingInputType,
       activity: runtime.activity,

@@ -43,7 +43,10 @@ import { DEFAULT_IDLE_TIMEOUT_MS } from "../defaults.js";
 import { getLogger } from "../logging/logger.js";
 import type { ToolResultMediaMessageMaterializer } from "../media/ToolResultMediaMessageMaterializer.js";
 import type { ToolResultMediaStore } from "../media/ToolResultMediaStore.js";
-import { getProjectName } from "../projects/paths.js";
+import {
+  getProjectName,
+  type ProjectDisplayNameResolver,
+} from "../projects/paths.js";
 import { concatUserMessages, INTERRUPT_PREAMBLE } from "../sdk/messageQueue.js";
 import type { AgentMessageQueue } from "../sdk/messageQueue.js";
 import type {
@@ -880,6 +883,8 @@ export interface ProcessConstructorOptions extends ProcessOptions {
   isProcessAlive?: () => boolean;
   /** Return true when an idle process should stay owned for an explicit feature. */
   shouldRetainIdleProcess?: (sessionId: string) => boolean;
+  /** Names the project in `getInfo()`; defaults to the path's name. */
+  projectDisplayName?: ProjectDisplayNameResolver;
   /** Terminal provider incident retained by Supervisor across process reaping. */
   initialProviderRuntimeStatus?: ProviderRuntimeStatus;
   /** Actively query provider/session status when passive evidence is stale. */
@@ -972,6 +977,7 @@ export class Process {
   private _sessionId: string;
   readonly projectPath: string;
   readonly projectId: UrlProjectId;
+  private readonly projectDisplayName: ProjectDisplayNameResolver;
   readonly startedAt: Date;
   readonly provider: ProviderName;
   readonly model: string | undefined;
@@ -1218,6 +1224,7 @@ export class Process {
     this._sessionId = options.sessionId;
     this.projectPath = options.projectPath;
     this.projectId = options.projectId;
+    this.projectDisplayName = options.projectDisplayName ?? getProjectName;
     this.startedAt = new Date();
     this._state =
       options.initialState === "idle"
@@ -2862,7 +2869,7 @@ export class Process {
       sessionId: this._sessionId,
       projectId: this.projectId,
       projectPath: this.projectPath,
-      projectName: getProjectName(this.projectPath),
+      projectName: this.projectDisplayName(this.projectPath),
       sessionTitle: null, // Will be populated by Supervisor with session data
       state: activity,
       startedAt: this.startedAt.toISOString(),

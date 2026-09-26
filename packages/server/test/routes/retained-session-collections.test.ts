@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { toUrlProjectId, truncateSessionTitle } from "@yep-anywhere/shared";
 import { afterEach, expect, it, vi } from "vitest";
+import { ProjectMetadataService } from "../../src/metadata/ProjectMetadataService.js";
 import { SessionCatalogService } from "../../src/services/SessionCatalogService.js";
 import { RetainedSessionCollections } from "../../src/services/RetainedSessionCollections.js";
 import { createGlobalSessionsRoutes } from "../../src/routes/global-sessions.js";
@@ -339,6 +340,51 @@ it("keeps a retained row's whole title searchable and truncates for display", as
   expect(row?.initialPrompt).toBe(long);
   expect(row?.title).toBe(truncateSessionTitle(long));
   expect(row?.title).not.toContain("quasarneedle");
+});
+
+it("names retained rows and the project filter by the project's current chosen name", async () => {
+  dataDir = await mkdtemp(join(tmpdir(), "retained-project-name-"));
+  const projectPath = join(dataDir, "yepanywhere");
+  const identity = catalogProjectIdentity(projectPath);
+  const projectMetadata = new ProjectMetadataService({ dataDir });
+  await projectMetadata.initialize();
+  await projectMetadata.setProjectNameOverride(identity.projectId, "YA");
+  // A row stored before the rename still carries the directory name, and an
+  // unchanged file is never read again to replace it.
+  const service = {
+    read: async () => ({
+      rows: [
+        {
+          catalogFamily: "claude" as const,
+          storeKey: "store",
+          sessionId: "session",
+          ...identity,
+          projectName: "yepanywhere",
+          updatedAt: "2026-09-08T00:00:00.000Z",
+          fidelity: "head" as const,
+          sourceVersion: "v1",
+          location: {
+            kind: "file" as const,
+            path: join(projectPath, "session.jsonl"),
+          },
+        } satisfies SessionCatalogRow,
+      ],
+      catalog: {},
+    }),
+  } as unknown as RetainedSessionCollections;
+  const deps = {
+    projectDisplayName: (path: string) =>
+      projectMetadata.getProjectDisplayName(path),
+  } as Parameters<typeof readRetainedSessionItems>[1];
+
+  const named = await readRetainedSessionItems(service, deps);
+  expect(named.sessions[0]?.projectName).toBe("YA");
+  expect(named.projects).toEqual([{ id: identity.projectId, name: "YA" }]);
+
+  await projectMetadata.setProjectNameOverride(identity.projectId, null);
+  const cleared = await readRetainedSessionItems(service, deps);
+  expect(cleared.sessions[0]?.projectName).toBe("yepanywhere");
+  expect(cleared.projects[0]?.name).toBe("yepanywhere");
 });
 
 it("bounds Claude recency discovery to the latest conversation row", async () => {

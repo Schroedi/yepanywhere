@@ -19,6 +19,7 @@ import {
   decodeProjectId,
   encodeProjectId,
   getProjectIdentityKey,
+  getProjectName,
 } from "../projects/paths.js";
 import { createCoalescingSaver } from "../lib/coalescingSaver.js";
 import {
@@ -216,6 +217,14 @@ export class ProjectMetadataService {
 
   getProjectNameOverride(projectId: string): string | undefined {
     return this.state.projectNames?.[this.canonicalProjectId(projectId)]?.name;
+  }
+
+  /** The project's display name: the chosen name, else its path's name. */
+  getProjectDisplayName(projectPath: string): string {
+    return (
+      this.getProjectNameOverride(encodeProjectId(projectPath)) ??
+      getProjectName(projectPath)
+    );
   }
 
   /**

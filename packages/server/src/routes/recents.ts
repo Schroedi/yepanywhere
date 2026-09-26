@@ -8,7 +8,6 @@ import { PRINCIPAL_VARIABLE, type Principal } from "../auth/principal.js";
 import type { ISessionIndexService } from "../indexes/types.js";
 import type { CodexSessionScanner } from "../projects/codex-scanner.js";
 import type { GeminiSessionScanner } from "../projects/gemini-scanner.js";
-import { decodeProjectId, getProjectName } from "../projects/paths.js";
 import type { ProjectScanner } from "../projects/scanner.js";
 import type { RecentsService } from "../recents/index.js";
 import type { CodexSessionReader } from "../sessions/codex-reader.js";
@@ -68,8 +67,7 @@ export function createRecentsRoutes(deps: RecentsDeps) {
         continue;
       }
 
-      const projectPath = decodeProjectId(projectId);
-      const projectName = getProjectName(projectPath);
+      const projectName = project.name;
       const resolved = await findSessionListSummaryAcrossProviders(
         project,
         entry.sessionId,

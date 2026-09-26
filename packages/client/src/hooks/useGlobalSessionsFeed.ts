@@ -60,12 +60,14 @@ const REFETCH_DEBOUNCE_MS = 500;
  * client missed session events. The rest arrive through `useFileActivity`
  * because this feed patches its collection from the event before deciding
  * whether a refetch is even needed, and that patch is per-query bookkeeping
- * rather than a revalidation.
+ * rather than a revalidation. Adding, removing, or renaming a project changes
+ * rows' project names and the project filter without touching any session.
  */
 const GLOBAL_SESSIONS_REVALIDATE_EVENTS = [
   "reconnect",
   "refresh",
   "session-catalog-updated",
+  "projects-changed",
 ] as const;
 const GLOBAL_SESSIONS_DEFAULT_LIMIT = 100;
 const GLOBAL_SESSIONS_STALE_TIME_MS = 30_000;
