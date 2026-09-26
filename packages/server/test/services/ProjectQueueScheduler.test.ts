@@ -1,4 +1,5 @@
 import {
+  type LimitedUserGrants,
   type PermissionMode,
   type StagedAttachmentRef,
   toUrlProjectId,
@@ -21,6 +22,7 @@ import {
   type ProjectQueueDispatchResult,
   type ProjectQueueExternalTracker,
   type ProjectQueueProcessSnapshot,
+  type ProjectQueueSessionLaunchMetadata,
   type ProjectQueueSupervisor,
 } from "../../src/services/ProjectQueueScheduler.js";
 import { ProjectQueueService } from "../../src/services/ProjectQueueService.js";
@@ -110,6 +112,7 @@ class FakeSupervisor implements ProjectQueueSupervisor {
   resumeBlocker: Promise<void> | null = null;
   queueNextStart = false;
   startModelSettings: Array<ModelSettings | undefined> = [];
+  resumeModelSettings: Array<ModelSettings | undefined> = [];
   startLaunchOptions: SessionLaunchOptions | undefined;
   createLaunchOptions: SessionLaunchOptions | undefined;
   resumeLaunchOptions: SessionLaunchOptions | undefined;
@@ -168,10 +171,11 @@ class FakeSupervisor implements ProjectQueueSupervisor {
     projectPath: string,
     message: UserMessage,
     _permissionMode?: PermissionMode,
-    _modelSettings?: ModelSettings,
+    modelSettings?: ModelSettings,
     launchOptions?: SessionLaunchOptions,
   ): Promise<ProjectQueueDispatchResult> {
     this.resumeCalls.push({ sessionId, projectPath, message });
+    this.resumeModelSettings.push(modelSettings);
     this.resumeLaunchOptions = launchOptions;
     await this.resumeBlocker;
     if (this.resumeError) throw this.resumeError;
@@ -671,6 +675,142 @@ describe("ProjectQueueScheduler", () => {
         }),
       ]),
     );
+  });
+
+  it("resumes a sandboxed session inside its sandbox for a queued turn", async () => {
+    await scheduler.dispose();
+    scheduler = new ProjectQueueScheduler({
+      projectQueueService: service,
+      supervisor,
+      eventBus,
+      idleGraceMs: 1,
+      blockedRetryMs: 10,
+      getSessionLaunchMetadata: () => ({
+        sandboxLevel: "project-write",
+        sandboxNetworkFirewall: false,
+        sandboxStateKey: "state-1",
+        sandboxProjectPath: "/sandboxed/project",
+        workingProjectId: projectId,
+      }),
+    });
+    await service.createItem({
+      projectId,
+      projectPath: PROJECT_PATH,
+      request: {
+        target: { type: "existing-session", sessionId: "session-1" },
+        message: { text: "continue inside the sandbox" },
+      },
+    });
+
+    await waitFor(() => expect(supervisor.resumeCalls).toHaveLength(1));
+    expect(supervisor.resumeCalls[0]?.projectPath).toBe("/sandboxed/project");
+    expect(supervisor.resumeModelSettings[0]).toMatchObject({
+      sandboxLevel: "project-write",
+      sandboxNetworkFirewall: false,
+      sandboxStateKey: "state-1",
+    });
+  });
+
+  describe("an item a limited user queued", () => {
+    const grantsFor = (level: "new-session" | "join"): LimitedUserGrants => ({
+      newSessionProjects: level === "new-session" ? [projectId] : [],
+      joinProjects: level === "join" ? [projectId] : [],
+      viewProjects: [],
+      joinStaleOffsetMinutes: 0,
+      lock: { model: "gpt-5" },
+    });
+
+    async function schedulerWith(
+      grants: LimitedUserGrants | null,
+      session?: ProjectQueueSessionLaunchMetadata,
+    ) {
+      await scheduler.dispose();
+      scheduler = new ProjectQueueScheduler({
+        projectQueueService: service,
+        supervisor,
+        eventBus,
+        idleGraceMs: 1,
+        blockedRetryMs: 10,
+        getLimitedUserGrants: (username) =>
+          username === "alice" ? grants : null,
+        getSessionLaunchMetadata: () => session,
+      });
+    }
+
+    async function failedError(): Promise<string | undefined> {
+      let lastError: string | undefined;
+      await waitFor(() => {
+        const [item] = service.listProject(projectId).items;
+        expect(item?.status).toBe("failed");
+        lastError = item?.lastError;
+      });
+      return lastError;
+    }
+
+    it("launches sandboxed, inside the lock, and attributed to that user", async () => {
+      await schedulerWith(grantsFor("new-session"));
+      await service.createItem({
+        projectId,
+        projectPath: PROJECT_PATH,
+        createdByUser: "alice",
+        request: {
+          target: {
+            type: "new-session",
+            provider: "codex",
+            sandboxLevel: "none",
+          },
+          message: {
+            text: "start as alice",
+            metadata: { sentByUser: "mallory" },
+          },
+        },
+      });
+
+      await waitFor(() => expect(supervisor.startCalls).toHaveLength(1));
+      expect(supervisor.startModelSettings[0]).toMatchObject({
+        sandboxLevel: "project-write",
+        model: "gpt-5",
+      });
+      expect(supervisor.startCalls[0]?.message.metadata?.sentByUser).toBe(
+        "alice",
+      );
+    });
+
+    it("fails once the user no longer holds the project's new-session grant", async () => {
+      await schedulerWith(grantsFor("join"));
+      await service.createItem({
+        projectId,
+        projectPath: PROJECT_PATH,
+        createdByUser: "alice",
+        request: {
+          target: { type: "new-session", provider: "codex" },
+          message: { text: "start as alice" },
+        },
+      });
+
+      expect(await failedError()).toMatch(/can no longer start sessions/);
+      expect(supervisor.startCalls).toHaveLength(0);
+    });
+
+    it("fails a turn to a session that runs outside the sandbox", async () => {
+      await schedulerWith(grantsFor("new-session"), {
+        sandboxLevel: "none",
+        workingProjectId: projectId,
+        provider: "codex",
+      });
+      await service.createItem({
+        projectId,
+        projectPath: PROJECT_PATH,
+        createdByUser: "alice",
+        request: {
+          target: { type: "existing-session", sessionId: "session-1" },
+          message: { text: "continue as alice" },
+        },
+      });
+
+      expect(await failedError()).toMatch(/outside the sandbox/);
+      expect(supervisor.resumeCalls).toHaveLength(0);
+    });
   });
 
   it("defaults queued project sandboxes to the network firewall", async () => {

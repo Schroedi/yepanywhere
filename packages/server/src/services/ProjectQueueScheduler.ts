@@ -1,16 +1,23 @@
 import {
   DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
+  type LimitedUserGrants,
   type PermissionMode,
   type ProjectQueueItem,
   type ProjectQueueProjectStatus,
   type ProjectQueuePromoteNowResult,
   type ProviderName,
   type QueuedYaCommand,
+  type SessionSandboxLevel,
   type UploadedFile,
   type UrlProjectId,
   thinkingOptionToConfig,
   fromUrlProjectId,
 } from "@yep-anywhere/shared";
+import {
+  limitExistingSessionLaunch,
+  limitQueuedLaunch,
+} from "../auth/limitedLaunchPolicy.js";
+import { levelFor } from "../auth/limitedUserPolicy.js";
 import { getLogger } from "../logging/logger.js";
 import type { UserMessage } from "../sdk/types.js";
 import type { BusEvent, EventBus } from "../watcher/EventBus.js";
@@ -153,6 +160,16 @@ interface PromoteNowOptions {
   automatic?: boolean;
 }
 
+export interface ProjectQueueSessionLaunchMetadata {
+  sandboxLevel?: SessionSandboxLevel;
+  sandboxNetworkFirewall?: boolean;
+  sandboxStateKey?: string;
+  sandboxProjectPath?: string;
+  workingProjectId?: string;
+  createdByUser?: string;
+  provider?: ProviderName;
+}
+
 export interface ProjectQueueSchedulerOptions {
   projectQueueService: ProjectQueueService;
   supervisor: ProjectQueueSupervisor;
@@ -169,6 +186,20 @@ export interface ProjectQueueSchedulerOptions {
   ) => UrlProjectId;
   getGlobalInstructions?: () => string | undefined;
   isSessionAutomationPaused?: (sessionId: string) => boolean;
+  /**
+   * The persisted launch facts of an existing session: the sandbox it was
+   * created with, which a queued turn resumes it inside as `/resume` does, and
+   * who started it.
+   */
+  getSessionLaunchMetadata?: (
+    sessionId: string,
+  ) => ProjectQueueSessionLaunchMetadata | undefined;
+  /**
+   * Current grants of the limited user who queued an item; null when that
+   * user is gone, disabled, or limited users are off. Without this option no
+   * item a limited user queued can run.
+   */
+  getLimitedUserGrants?: (username: string) => LimitedUserGrants | null;
   onSessionStarted?: (args: {
     item: ProjectQueueItem;
     process: ProjectQueueProcessSnapshot;
@@ -905,9 +936,13 @@ export class ProjectQueueScheduler {
   }
 
   private async dispatchItem(
-    item: ProjectQueueItem,
+    queuedItem: ProjectQueueItem,
     options: PromoteNowOptions,
   ): Promise<ProjectQueueDispatchOutcome> {
+    const grants = this.enqueuerGrants(queuedItem);
+    const item = grants
+      ? this.withinEnqueuerLaunchPolicy(queuedItem, grants)
+      : queuedItem;
     const permissionMode = item.message.mode ?? item.target.mode;
     const modelSettings = this.toModelSettings(item);
     const result =
@@ -917,6 +952,7 @@ export class ProjectQueueScheduler {
             permissionMode,
             modelSettings,
             options.deliveryIntent,
+            grants,
           )
         : await this.dispatchNewSessionItem(
             item,
@@ -934,14 +970,74 @@ export class ProjectQueueScheduler {
     return result;
   }
 
+  /**
+   * The current grants of the limited user who queued an item, or null for a
+   * superuser's item. Grants are read at dispatch, not enqueue, so an item
+   * whose user lost the project's new-session grant, was disabled, or was
+   * removed fails rather than running as anyone.
+   */
+  private enqueuerGrants(item: ProjectQueueItem): LimitedUserGrants | null {
+    const username = item.createdByUser;
+    if (!username) return null;
+    const grants = this.options.getLimitedUserGrants?.(username) ?? null;
+    if (!grants || levelFor(grants, item.projectId) !== "new-session") {
+      throw new Error(
+        `${username}, who queued this item, can no longer start sessions in this project`,
+      );
+    }
+    return grants;
+  }
+
+  /** The item as its limited user may launch it now, or a refusal. */
+  private withinEnqueuerLaunchPolicy(
+    item: ProjectQueueItem,
+    grants: LimitedUserGrants,
+  ): ProjectQueueItem {
+    const launchItem = { ...item, target: { ...item.target } };
+    const refused = limitQueuedLaunch(grants, launchItem);
+    if (refused) throw new Error(refused.error);
+    return launchItem;
+  }
+
   private async dispatchExistingSessionItem(
     item: ProjectQueueItem,
     permissionMode: PermissionMode | undefined,
     modelSettings: ModelSettings,
     deliveryIntent: PromoteNowOptions["deliveryIntent"],
+    grants: LimitedUserGrants | null,
   ): Promise<ProjectQueueDispatchOutcome> {
     if (item.target.type !== "existing-session") {
       throw new Error("Project queue item target changed during dispatch");
+    }
+    // A session's sandbox is settled when it is created; a queued turn
+    // resumes it inside that boundary, as /resume does, rather than asking
+    // for none (topics/session-sandboxing.md).
+    const session = this.options.getSessionLaunchMetadata?.(
+      item.target.sessionId,
+    );
+    let projectPath = item.projectPath;
+    if (session?.sandboxLevel === "project-write") {
+      modelSettings.sandboxLevel = "project-write";
+      modelSettings.sandboxNetworkFirewall =
+        session.sandboxNetworkFirewall !== false;
+      modelSettings.sandboxStateKey = session.sandboxStateKey;
+      projectPath = session.sandboxProjectPath ?? item.projectPath;
+    }
+    if (grants) {
+      const ownSession = session?.createdByUser === item.createdByUser;
+      if (!ownSession && session?.workingProjectId !== item.projectId) {
+        throw new Error(
+          "A queued turn from this user may target only a session in its project or one they started",
+        );
+      }
+      // The lock is judged against the provider the session actually runs.
+      modelSettings.providerName ??= session?.provider;
+      const refused = limitExistingSessionLaunch(
+        grants,
+        modelSettings,
+        item.target,
+      );
+      if (refused) throw new Error(refused.error);
     }
     const yaCommand = item.message.yaCommand;
     if (yaCommand) {
@@ -966,7 +1062,7 @@ export class ProjectQueueScheduler {
     );
     return this.supervisor.resumeSession(
       item.target.sessionId,
-      item.projectPath,
+      projectPath,
       this.toUserMessage(item, stagedAttachments, deliveryIntent),
       permissionMode,
       modelSettings,
@@ -1109,18 +1205,25 @@ export class ProjectQueueScheduler {
       item.message.attachments || stagedAttachments.length > 0
         ? [...(item.message.attachments ?? []), ...stagedAttachments]
         : undefined;
+    // The turn is attributed to whoever queued it, never to a sender the
+    // queued request itself claimed; absent means the superuser.
+    const { sentByUser: _claimedSender, ...storedMetadata } =
+      item.message.metadata ?? {};
+    const hasMetadata =
+      item.message.metadata || deliveryIntent || item.createdByUser;
     return {
       text: item.message.text,
       automaticSource: "project-queue",
       ...(attachments ? { attachments } : {}),
       ...(item.message.mode ? { mode: item.message.mode } : {}),
-      ...(item.message.metadata || deliveryIntent
+      ...(hasMetadata
         ? {
             metadata: {
-              ...item.message.metadata,
+              ...storedMetadata,
               ...(deliveryIntent === "steer"
                 ? { deliveryIntent: "steer" as const, steerNow: true }
                 : {}),
+              ...(item.createdByUser ? { sentByUser: item.createdByUser } : {}),
             },
           }
         : {}),

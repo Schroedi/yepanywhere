@@ -1747,11 +1747,33 @@ export function createApp(options: AppOptions): AppResult {
       isSessionAutomationPaused: (sessionId) =>
         options.sessionMetadataService?.getMetadata(sessionId)
           ?.automationPausedUntilUserTurn === true,
+      getSessionLaunchMetadata: (sessionId) => {
+        const metadata = options.sessionMetadataService?.getMetadata(sessionId);
+        if (!metadata) return undefined;
+        return {
+          sandboxLevel: metadata.sandboxLevel,
+          sandboxNetworkFirewall: metadata.sandboxNetworkFirewall,
+          sandboxStateKey: metadata.sandboxStateKey,
+          sandboxProjectPath: metadata.sandboxProjectPath,
+          workingProjectId: metadata.workingProjectId,
+          createdByUser: metadata.createdByUser,
+          provider: options.sessionMetadataService?.getProvider(sessionId),
+        };
+      },
+      getLimitedUserGrants: getActiveLimitedGrants,
       onSessionStarted: async ({ item, process }) => {
         if (item.target.type !== "new-session") return;
         const metadata = options.sessionMetadataService;
         if (!metadata) return;
 
+        if (item.createdByUser) {
+          // A limited user's queued session is theirs, like one they start
+          // directly (topics/limited-users.md § Delivery v1).
+          await metadata.recordSessionCreator(
+            process.sessionId,
+            item.createdByUser,
+          );
+        }
         await initializeSessionHeartbeatDefaults({
           sessionId: process.sessionId,
           projectId: item.projectId,

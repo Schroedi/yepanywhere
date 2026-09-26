@@ -68,6 +68,31 @@ export class ProjectQueueValidationError extends Error {
   }
 }
 
+/** A well-formed item the queuing user's launch policy does not allow. */
+export class ProjectQueueLaunchRefusedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProjectQueueLaunchRefusedError";
+  }
+}
+
+/**
+ * Checks, and may adjust in place, the normalized target and message of an
+ * item being queued or edited; returns a refusal reason or null.
+ */
+export type ProjectQueueLaunchPolicy = (draft: {
+  target: ProjectQueueTarget;
+  message: ProjectQueueMessage;
+}) => string | null;
+
+function applyLaunchPolicy(
+  policy: ProjectQueueLaunchPolicy | undefined,
+  draft: { target: ProjectQueueTarget; message: ProjectQueueMessage },
+): void {
+  const refusal = policy?.(draft);
+  if (refusal) throw new ProjectQueueLaunchRefusedError(refusal);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -537,6 +562,7 @@ function normalizeProjectQueueItem(
       createdAt,
       updatedAt,
       createdFrom: normalizeCreatedFrom(raw.createdFrom),
+      createdByUser: optionalString(raw.createdByUser, "createdByUser"),
       status,
       lastError: optionalString(raw.lastError, "lastError"),
       lastAttemptAt: optionalString(raw.lastAttemptAt, "lastAttemptAt"),
@@ -564,6 +590,7 @@ function summarizeItem(item: ProjectQueueItem): ProjectQueueItemSummary {
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
     createdFrom: item.createdFrom,
+    ...(item.createdByUser ? { createdByUser: item.createdByUser } : {}),
     status: item.status,
     attachmentCount,
     lastError: item.lastError,
@@ -760,6 +787,9 @@ export class ProjectQueueService {
     projectId: UrlProjectId;
     projectPath: string;
     request: CreateProjectQueueItemRequest;
+    /** The limited user queuing it; absent for the superuser. */
+    createdByUser?: string;
+    launchPolicy?: ProjectQueueLaunchPolicy;
   }): Promise<ProjectQueueItemSummary> {
     return this.withMutation(async () => {
       this.ensureInitialized();
@@ -767,6 +797,10 @@ export class ProjectQueueService {
       const itemId = randomUUID();
       const normalizedMessage = normalizeMessage(params.request.message);
       const target = normalizeTarget(params.request.target);
+      applyLaunchPolicy(params.launchPolicy, {
+        target,
+        message: normalizedMessage,
+      });
       const createdFrom = normalizeCreatedFrom(params.request.createdFrom);
       const preparedMessage = await this.prepareMessageForItem(
         itemId,
@@ -781,6 +815,9 @@ export class ProjectQueueService {
         createdAt: now,
         updatedAt: now,
         createdFrom,
+        ...(params.createdByUser
+          ? { createdByUser: params.createdByUser }
+          : {}),
         status: "queued",
       };
       this.state.items.push(item);
@@ -800,6 +837,7 @@ export class ProjectQueueService {
     projectId: UrlProjectId,
     itemId: string,
     request: UpdateProjectQueueItemRequest,
+    launchPolicy?: ProjectQueueLaunchPolicy,
   ): Promise<ProjectQueueItemSummary | null> {
     return this.withMutation(async () => {
       this.ensureInitialized();
@@ -815,14 +853,21 @@ export class ProjectQueueService {
         request.target !== undefined
           ? normalizeTarget(request.target)
           : undefined;
-      const preparedMessage =
+      const normalizedMessage =
         request.message !== undefined
-          ? await this.prepareMessageForItem(
-              existing.id,
-              normalizeMessage(request.message),
-              existing.message.stagedAttachments,
-            )
+          ? normalizeMessage(request.message)
           : undefined;
+      applyLaunchPolicy(launchPolicy, {
+        target: normalizedTarget ?? { ...existing.target },
+        message: normalizedMessage ?? existing.message,
+      });
+      const preparedMessage = normalizedMessage
+        ? await this.prepareMessageForItem(
+            existing.id,
+            normalizedMessage,
+            existing.message.stagedAttachments,
+          )
+        : undefined;
       const updated: StoredProjectQueueItem = {
         ...existing,
         ...(normalizedTarget ? { target: normalizedTarget } : {}),

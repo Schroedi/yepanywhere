@@ -16,7 +16,7 @@ import * as path from "node:path";
 import type { Context } from "hono";
 import { runGit } from "../git/gitExec.js";
 import { expandHomePath } from "../utils/expandHomePath.js";
-import { principalFor } from "./limited-session-launch.js";
+import { principalFor } from "../auth/limitedLaunchPolicy.js";
 
 /** First commit of a project YA created, so the tree has a root to diff from. */
 export const INITIAL_COMMIT_MESSAGE = "Initial commit";

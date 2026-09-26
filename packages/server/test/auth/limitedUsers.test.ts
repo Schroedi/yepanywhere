@@ -12,7 +12,7 @@ import {
   actingUsername,
   applyLimitedLaunchPolicy,
   applyLimitedResumePolicy,
-} from "../../src/routes/limited-session-launch.js";
+} from "../../src/auth/limitedLaunchPolicy.js";
 import type { ModelSettings } from "../../src/supervisor/Supervisor.js";
 import { buildUserMessageMetadata } from "../../src/routes/session-request-helpers.js";
 import {

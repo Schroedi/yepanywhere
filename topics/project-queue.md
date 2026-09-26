@@ -39,6 +39,14 @@ idle predicate; standalone yacron is explicitly ineligible.
   A direct Gateway caller without this durable settlement channel receives the
   existing `queue_full` response at worker capacity instead of an acceptance
   whose deferred validation failure it cannot observe.
+- An existing-session item resumes its session inside the sandbox the session
+  was created with, as `/resume` does; a queued turn never asks for a
+  different boundary.
+- An item records the limited user who queued it, if any. That user's launch
+  policy applies when the item is queued or edited and again at dispatch from
+  their grants at that time, and the turn and any new session are attributed
+  to them ([limited-users](limited-users.md) § Delivery v1). An item with no
+  recorded user is the superuser's.
 - Delivery never rewrites user text with hidden prompt framing, elapsed-time
   markers, or automatic anchors.
 - A normal session queue is lower-level than Project Queue. Existing in-turn

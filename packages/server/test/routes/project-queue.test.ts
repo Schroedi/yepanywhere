@@ -519,6 +519,90 @@ describe("Project Queue Routes", () => {
     ]);
   });
 
+  it("queues a limited user's item under their launch policy, and only lets them change their own", async () => {
+    const limited: Principal = {
+      kind: "limited",
+      username: "alice",
+      grants: {
+        newSessionProjects: [projectId],
+        joinProjects: [],
+        viewProjects: [],
+        joinStaleOffsetMinutes: 0,
+        lock: { model: "gpt-5" },
+      },
+      switched: false,
+      locked: true,
+      via: "direct",
+    };
+    const app = new Hono<{
+      Variables: Record<typeof PRINCIPAL_VARIABLE, Principal>;
+    }>();
+    app.use("*", async (c, next) => {
+      c.set(PRINCIPAL_VARIABLE, limited);
+      await next();
+    });
+    app.route("/", createRoutes());
+    const send = (method: string, url: string, body: unknown) =>
+      app.request(url, {
+        method,
+        body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" },
+      });
+
+    const remote = await send("POST", `/${projectId}/queue`, {
+      target: { type: "new-session", executor: "devbox" },
+      message: { text: "run elsewhere" },
+    });
+    expect(remote.status).toBe(403);
+    const command = await send("POST", `/${projectId}/queue`, {
+      target: { type: "existing-session", sessionId: "session-1" },
+      message: {
+        text: "/clear 1",
+        yaCommand: { name: "clear", argument: "1" },
+      },
+    });
+    expect(command.status).toBe(403);
+
+    const created = await send("POST", `/${projectId}/queue`, {
+      target: { type: "new-session", sandboxLevel: "none" },
+      message: { text: "start as alice" },
+    });
+    expect(created.status).toBe(201);
+    const { item } = (await created.json()) as {
+      item: ProjectQueueItemSummary;
+    };
+    expect(item.createdByUser).toBe("alice");
+    expect(item.target).toMatchObject({
+      type: "new-session",
+      sandboxLevel: "project-write",
+      model: "gpt-5",
+    });
+
+    const superuserItem = await service.createItem({
+      projectId,
+      projectPath: project.path,
+      request: {
+        target: { type: "existing-session", sessionId: "session-1" },
+        message: { text: "superuser's turn" },
+      },
+    });
+    const foreign = await send(
+      "PATCH",
+      `/${projectId}/queue/${superuserItem.id}`,
+      { message: { text: "rewritten by alice" } },
+    );
+    expect(foreign.status).toBe(404);
+    const foreignDelete = await app.request(
+      `/${projectId}/queue/${superuserItem.id}`,
+      { method: "DELETE" },
+    );
+    expect(foreignDelete.status).toBe(404);
+    const own = await send("PATCH", `/${projectId}/queue/${item.id}`, {
+      message: { text: "edited by alice" },
+    });
+    expect(own.status).toBe(200);
+  });
+
   it("shows a limited user only their granted projects' queue", async () => {
     const otherProjectId = toUrlProjectId("/tmp/project-queue-route-other");
     const grantedItem = await service.createItem({

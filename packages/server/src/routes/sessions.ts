@@ -196,7 +196,7 @@ import {
   actingUsername,
   applyLimitedLaunchPolicy,
   applyLimitedResumePolicy,
-} from "./limited-session-launch.js";
+} from "../auth/limitedLaunchPolicy.js";
 import type { UserUsageService } from "../auth/UserUsageService.js";
 import type { EventBus } from "../watcher/index.js";
 import { resolveExistingSessionIdentity } from "./session-existing-identity.js";

@@ -150,6 +150,11 @@ export interface ProjectQueueItem {
   createdAt: string;
   updatedAt: string;
   createdFrom?: ProjectQueueCreatedFrom;
+  /**
+   * The limited user who queued this item, whose launch policy and
+   * attribution apply when it runs; absent means the superuser.
+   */
+  createdByUser?: string;
   status: ProjectQueueItemStatus;
   lastError?: string;
   lastAttemptAt?: string;
@@ -166,6 +171,8 @@ export interface ProjectQueueItemSummary {
   createdAt: string;
   updatedAt: string;
   createdFrom?: ProjectQueueCreatedFrom;
+  /** The limited user who queued this item; absent means the superuser. */
+  createdByUser?: string;
   status: ProjectQueueItemStatus;
   attachmentCount: number;
   lastError?: string;

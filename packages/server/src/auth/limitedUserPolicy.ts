@@ -180,7 +180,7 @@ const JOIN_SESSION_ACTIONS = new Set([
 /**
  * Session-scoped mutations a new-session grant adds to the join actions.
  * Every one here that starts or resumes a provider process applies the
- * limited launch policy at its route (routes/limited-session-launch.ts):
+ * limited launch policy at its route (auth/limitedLaunchPolicy.ts):
  * resume and reactivate, while fork and clone record the user as creator of
  * a transcript that only a policy-checked resume can run. Any other session
  * action is refused, including restart, recap, retitle, fork-summary, rewind,

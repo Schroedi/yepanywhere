@@ -24,11 +24,13 @@ import {
   type LimitedUserGrants,
   type LimitedUserLock,
   lockedThinkingOption,
+  type ProjectQueueMessage,
+  type ProjectQueueTarget,
   type ThinkingOption,
   thinkingOptionEffort,
   thinkingOptionToConfig,
 } from "@yep-anywhere/shared";
-import { type Principal, PRINCIPAL_VARIABLE } from "../auth/principal.js";
+import { type Principal, PRINCIPAL_VARIABLE } from "./principal.js";
 import type { ModelSettings } from "../supervisor/Supervisor.js";
 
 export interface LimitedLaunchBody {
@@ -182,6 +184,32 @@ export function limitExistingSessionLaunch(
     settings.effort = effort;
   }
   return null;
+}
+
+/**
+ * Apply the launch policy in place to a Project Queue item a limited user
+ * queues, and again at dispatch from their grants at that time. A new-session
+ * target is held to the new-session rule. An existing-session target may not
+ * name a remote executor or a value outside the lock; whether that session
+ * runs sandboxed is a fact of the session, checked by
+ * `limitExistingSessionLaunch` at dispatch. A queued YA command (a rewind or
+ * clear) is refused, like the session routes that perform them.
+ */
+export function limitQueuedLaunch(
+  grants: LimitedUserGrants,
+  item: { target: ProjectQueueTarget; message: ProjectQueueMessage },
+): { error: string } | null {
+  if (item.message.yaCommand) {
+    return { error: "This user cannot queue YA commands" };
+  }
+  const { target } = item;
+  if (target.type === "new-session") {
+    return limitNewSessionLaunch(grants, target);
+  }
+  const hostEscape = hostEscapeError(target);
+  if (hostEscape) return { error: hostEscape };
+  const conflict = lockConflictError(grants.lock, target);
+  return conflict ? { error: conflict } : null;
 }
 
 /**
