@@ -226,6 +226,7 @@ percent-encoding is refused.
 |---|---|
 | any API path not on the v1 allowlist | 403 |
 | `GET` of a project-scoped path | allowed when the project is in any of the three lists, else 404 |
+| rename, caption, code name, or remove a project | only a project the user owns, which also needs its `newSessionProjects` grant, else 403: these are one value every principal sees, so a grant to start sessions in someone else's project is no say in how it is presented. For every principal, an id naming no listed project is 404 and nothing is stored |
 | session create in a project | `newSessionProjects` only; sandbox forced; lock applied; a remote executor or computer control is refused |
 | resume or reactivate a session | `newSessionProjects` on its project; the session must already run sandboxed and on this host, else 403; the lock applies as at create, replacing the session's model and effort with locked ones |
 | fork or clone a session | `newSessionProjects` on its project; the copy is recorded as the user's own; running it is a resume, under the row above |

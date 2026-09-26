@@ -74,8 +74,10 @@ stored `projectName`. A rename therefore needs no rescan.
 
 Capability `project-names` (permanent ID 80, version-implied from `0.8.2`)
 owns the `name` and `codeName` request fields on `POST /api/projects`,
-`PATCH /api/projects/:projectId/name` (a string sets, empty or `null` clears),
-and the `projects-changed` event. The reviewed older server corpus is v0.8.0
+`PATCH /api/projects/:projectId/name` (a string sets, empty or `null` clears;
+the id must name a listed project, else 404 and nothing is stored), and the
+`projects-changed` event. A limited user may rename only a project they own
+([limited users](limited-users.md) § Authorization). The reviewed older server corpus is v0.8.0
 and v0.8.1; without the capability the add form is path-only, the client sends
 neither field, and the project takes its path name as before. An older server
 that received the fields would ignore them and add the project under its path

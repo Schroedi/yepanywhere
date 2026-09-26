@@ -9,7 +9,7 @@ import {
   type ProjectQueueItemSummary,
   type UrlProjectId,
 } from "@yep-anywhere/shared";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import type { SessionIndexService } from "../indexes/index.js";
 import type {
   ProjectMetadataService,
@@ -24,6 +24,7 @@ import {
   isContainedOnDisk,
 } from "./project-creation.js";
 import type { LimitedUsersService } from "../auth/LimitedUsersService.js";
+import { principalFor } from "../auth/limitedLaunchPolicy.js";
 import type { CodexSessionScanner } from "../projects/codex-scanner.js";
 import type { GeminiSessionScanner } from "../projects/gemini-scanner.js";
 import {
@@ -102,6 +103,23 @@ interface ProjectActivityCounts {
   activeExternalCount: number;
   projectQueueBlockingCount: number;
 }
+
+/**
+ * Whether the acting principal may change how a project is named, captioned,
+ * code-named or listed. Those are one value every principal sees, so a
+ * limited user changes them only on a project they own; a grant to start
+ * sessions somewhere is not a say in how it is presented to everyone else.
+ * topics/limited-users.md § Delivery v1 — Authorization.
+ */
+function mayEditSharedProjectMetadata(c: Context, project: Project): boolean {
+  const principal = principalFor(c);
+  return (
+    principal.kind !== "limited" || project.ownerUsername === principal.username
+  );
+}
+
+const NOT_PROJECT_OWNER_ERROR =
+  "Only the project's owner or the superuser may change this project";
 
 function emptyProjectActivityCounts(): ProjectActivityCounts {
   return {
@@ -731,6 +749,9 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
     if (!project) {
       return c.json({ error: "Project not found" }, 404);
     }
+    if (!mayEditSharedProjectMetadata(c, project)) {
+      return c.json({ error: NOT_PROJECT_OWNER_ERROR }, 403);
+    }
 
     let caption: string | null;
     try {
@@ -776,9 +797,14 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
       return c.json({ error: "name must be a string or null" }, 400);
     }
 
-    const project = await deps.scanner.getOrCreateProject(projectId);
+    // Only a listed project takes a name; an arbitrary directory's id must
+    // not become a project through a rename.
+    const project = await deps.scanner.getProject(projectId);
     if (!project) {
       return c.json({ error: "Project not found" }, 404);
+    }
+    if (!mayEditSharedProjectMetadata(c, project)) {
+      return c.json({ error: NOT_PROJECT_OWNER_ERROR }, 403);
     }
 
     let name: string | null;
@@ -795,8 +821,7 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
     await deps.projectMetadataService.setProjectNameOverride(project.id, name);
     deps.scanner.invalidateCache();
     publishProjectsChanged([project.id]);
-    const renamed =
-      (await deps.scanner.getOrCreateProject(projectId)) ?? project;
+    const renamed = (await deps.scanner.getProject(projectId)) ?? project;
     return c.json({ name: renamed.name });
   });
 
@@ -819,9 +844,12 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
       return c.json({ error: "codeName is required" }, 400);
     }
 
-    const project = await deps.scanner.getOrCreateProject(projectId);
+    const project = await deps.scanner.getProject(projectId);
     if (!project) {
       return c.json({ error: "Project not found" }, 404);
+    }
+    if (!mayEditSharedProjectMetadata(c, project)) {
+      return c.json({ error: NOT_PROJECT_OWNER_ERROR }, 403);
     }
 
     try {
@@ -856,6 +884,9 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
     const project = await deps.scanner.getProject(projectId);
     if (!project) {
       return c.json({ error: "Project not found" }, 404);
+    }
+    if (!mayEditSharedProjectMetadata(c, project)) {
+      return c.json({ error: NOT_PROJECT_OWNER_ERROR }, 403);
     }
 
     await deps.projectMetadataService.hideProject(project.id, project.path);

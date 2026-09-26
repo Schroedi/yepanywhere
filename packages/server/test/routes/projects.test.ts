@@ -671,7 +671,7 @@ describe("Projects Routes", () => {
     const emit = vi.fn();
     const routes = createProjectsRoutes({
       scanner: {
-        getOrCreateProject: vi.fn(async () => project),
+        getProject: vi.fn(async () => project),
         listProjects: vi.fn(async () => [project, otherProject]),
       } as unknown as ProjectScanner,
       readerFactory: vi.fn(),

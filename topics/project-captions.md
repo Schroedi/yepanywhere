@@ -120,7 +120,8 @@ Capability `project-captions` (permanent ID 79, version-implied from
   `null` or an empty string clears the override; the response carries the
   resulting effective `caption`. The id must name a listed project: any other
   directory, including a removed (hidden) project, answers 404 and stores
-  nothing;
+  nothing. A limited user may caption only a project they own
+  ([limited users](limited-users.md) § Authorization);
 - the `project-captions-changed` event naming the changed project ids, which
   the client uses to revalidate project lists and the selected project.
 

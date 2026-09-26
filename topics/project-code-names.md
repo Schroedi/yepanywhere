@@ -143,6 +143,10 @@ uses full project names, preserves the released title format and activity
 frames, hides editing, and sends no code-name request. Enabling the browser
 preference against such a server does not weaken that fallback.
 
+The edit route accepts only a listed project (404 otherwise, nothing stored),
+and a limited user may edit only a project they own
+([limited users](limited-users.md) § Authorization).
+
 ## Related contracts
 
 - [`docs/tactical/003-session-activity-tab-title.md`](../docs/tactical/003-session-activity-tab-title.md)
