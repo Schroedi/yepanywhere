@@ -157,27 +157,74 @@ subscriptions can schedule refresh, but are not themselves proof of coverage.
 
 ## Small POC before any runtime adoption
 
-1. Use immutable, sanitized Claude/Codex fixtures plus normalized visible-turn
-   rows as a parity oracle. Include many retained sessions with 1–5 active in
-   the later mutation trace. No provider process is needed for the first pass.
-2. Compare the existing bounded reader, direct DuckDB JSONL queries, and reused
-   DuckDB tables on the same selected corpus and query outputs. Add a comparable
-   SQLite projection; evaluate Parquet separately rather than combining format
-   conversion and engine changes into one unexplained speedup.
-3. Include cold one-shot extraction, repeated counts/grouping/joins, selective
-   session/time queries, and exact substring scans. Separate build cost from
-   reuse benefit; record bytes read, CPU, peak/retained memory, storage/spill,
-   cancellation latency, and interference with the serving event loop.
-4. In a second pass, append and rewrite fixture sources. Verify idempotent
+**Start with simple local database use, not lakehouse integration.** The
+maintainer requests a SQLite-versus-DuckDB native storage pilot, including
+concurrent activity. DuckDB's [native single-file database](https://duckdb.org/faq)
+does not require Iceberg, DuckLake, or Parquet export; the
+[Iceberg rejection](../../topics/iceberg.md) does not reject this experiment.
+
+1. Feed identical normalized rows from sanitized Claude/Codex fixtures into a
+   local SQLite database and a native DuckDB database file. Use the same result
+   oracle and durability requirements, with realistic indexes for each engine
+   and their build costs reported. Include small everyday datasets as well as
+   many retained sessions with 1–5 active. No provider process is needed.
+2. Prioritize exact substring search alongside simple session lookup, ordered
+   message paging, small appends, and metadata updates; analytical
+   counts/grouping/joins are a separate workload. Report initial load, cold
+   open, warmed queries, and update costs
+   separately; analytical throughput alone cannot establish everyday fit.
+3. Run a serial baseline, then overlapping readers and updates at controlled
+   rates, including a long historical query while active sessions append.
+   Start with one owning process and separate connections, respecting each
+   engine's supported concurrency model. Record SQLite journal/busy settings,
+   DuckDB thread settings, transaction/batch sizes, and conflict/retry policy.
+   Compare application-visible p50/p95/p99 latency, throughput, freshness,
+   blocking, failures/retries, and event-loop interference; verify results at
+   known committed boundaries. Multiple writable processes are a separate
+   topology/ownership experiment, not an assumed common capability.
+4. Record CPU, bytes read/written, peak/retained memory, database plus journal,
+   temporary/spill storage, and cancellation latency. Use repeated trials and
+   controlled resource contention; follow the project's performance-measurement
+   guidance when executing the pilot. Include scheduling and retries in cost.
+5. Only then compare the existing bounded reader, direct DuckDB JSONL queries,
+   and retained tables on equivalent outputs. Evaluate Parquet separately so
+   format conversion and engine changes do not explain one combined speedup.
+6. In a later pass, append and rewrite fixture sources. Verify idempotent
    ingestion, exact covered results, invalidation, restart, and interrupted
    publication. Account for watcher/ingestion work rather than crediting DuckDB
    with maintenance the harness performs.
-5. Decide whether the result earns a diagnostic-only tool, optional backend
+7. Decide whether the result earns a diagnostic-only tool, optional backend
    worker, or production path. Check native package size, supported OS/CPU and
    Node/Bun combinations, resource ceilings, and deployment cost before adding
    a dependency. A server query engine alone does not satisfy the Skip sketch's
    selective local-client view goal; any later connection needs explicit
    snapshot/delta publication and coverage semantics.
+
+### Substring-search comparison
+
+Whether DuckDB beats SQLite for YA substring search is an explicit pilot
+question, not a consequence of its analytical positioning. Compare SQLite
+scans, SQLite FTS5 trigram indexing, and DuckDB native-table substring scans.
+Add a DuckDB substring-index arm only after verifying a concrete supported
+implementation; its documented word-oriented FTS is not an equivalent index.
+Use query plans/profiling to distinguish index pruning from faster scanning.
+
+[SQLite's built-in FTS5 trigram tokenizer](https://www.sqlite.org/fts5.html#the_trigram_tokenizer)
+supports substring matching and indexed LIKE/GLOB under documented restrictions.
+Verify availability in YA's actual Node/Bun SQLite builds. Include short queries
+below three characters, Unicode/case normalization, punctuation, literal wildcard
+characters, common/rare/absent matches, and project/session filters. Short FTS
+queries do not match, while LIKE/GLOB may fall back to scans; LIKE with ESCAPE
+cannot use this index. Preserve YA's exact literal-substring semantics through
+candidate filtering and exact verification where needed, charging both costs.
+
+Measure first-page and complete-result latency under concurrent appends,
+edits/deletions, and evolving queries as a user types. Include index size,
+build/update cost, freshness, cancellation, and interference with writes. Any
+external-content FTS index needs explicit transactional synchronization with
+its source table; account for that maintenance. Neither engine wins by returning
+stale or semantically different matches. A subsequent UI integration must also
+verify sequential keystroke acknowledgement within YA's 100 ms requirement.
 
 The proposal is warranted by documented file-query capabilities and YA's
 existing repeated-acquisition problem. Performance, operational fit, and simpler
