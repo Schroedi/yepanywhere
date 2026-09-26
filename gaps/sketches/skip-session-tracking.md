@@ -36,13 +36,22 @@ same invalidation problem.
 
 ## Main evaluation: selective authoritative client views
 
-Here, an **authoritative view** means a client-held projection with a declared
-scope, completeness, and source revision that the server can establish. The
-provider transcript, filesystem, Git state, and YA-owned ancillary stores retain
-their respective write authority. The client can answer covered queries locally
-without a round trip while distinguishing synchronized, stale, incomplete, and
-disconnected views. This is the proposed meaning to test, not an existing Skip
-or YA guarantee of instantaneous agreement with external files.
+Here, an **authoritative view** means the client provably holds the relevant
+state for its declared scope at an accepted source revision. Covered queries
+and rendering can therefore execute locally without introducing a server query
+or waiting for validation. The maintainer explicitly accepts slight real-time
+staleness from update propagation; proving coverage does not require proving
+that no newer server update exists at the instant of a local read.
+
+Establish completeness when admitting a snapshot and maintain it through
+ordered updates, with a detectable gap/replacement boundary. Initial hydration
+or expanding the scope may require acquisition; ordinary reads within an
+already-covered scope must not reintroduce that wait. A disconnected client can
+still know its coverage at the last accepted revision while losing its freshness
+assurance. Exact acceptable propagation-delay bounds remain to be measured and
+chosen. The provider transcript, filesystem, Git state, and YA-owned ancillary
+stores retain their respective write authority. These are POC requirements,
+not claims that Skip or YA already supplies the complete protocol.
 
 The desired selectable scopes include:
 
