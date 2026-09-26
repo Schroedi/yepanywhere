@@ -140,6 +140,59 @@ is possible but unsupported by this public evidence.
 The originating [interview](https://www.youtube.com/watch?v=JCPrxKse4YQ) is
 human context only; neither video nor transcript was retrieved.
 
+## Related projects and successor search
+
+Checked 2026-09-26. The clone confirms the user's freshness observation:
+the newest of all 22 advertised branch tips is main on July 9; the runner
+and its append log end July 1, and the other experiment logs end June 30.
+History supplies more implementation evidence, not newer development.
+
+Three independently authored projects provide relevant public comparisons.
+No Clair citation or derivation was found in the inspected sources. These
+are source/documentation findings, not runtime or reliability evaluations.
+
+| Project | Mechanism and relevance | Activity observed |
+| --- | --- | --- |
+| [Confer](https://github.com/codeshrew/confer) | Dedicated Git hub for message commits; signed orphan commits under per-role presence refs. Separate agent clones, local trust/cursors, polling/watch, task projection and dashboard. Its [design](https://github.com/codeshrew/confer/blob/main/DESIGN.md) is particularly relevant to multiple hosts and humans. | Created July 14; [v0.8.38](https://github.com/codeshrew/confer/releases/tag/v0.8.38) published September 26; one star. |
+| [Armature](https://github.com/scullxbones/armature) | [Architecture](https://github.com/scullxbones/armature/blob/main/docs/design/architecture.md) separates an `_armature` orphan branch and operations worktree from source. Per-worker append logs carry claims, heartbeats, notes and task transitions. Broader task orchestration than proximity awareness. | Last push September 26; one star. |
+| [Leat](https://github.com/justinstimatze/leat) | Git message bus with per-author JSONL lanes, direct/channel messages and local cursors. Source retries push after pull/rebase. An orphan ref is not a documented requirement; it cites mcp-dispatch's transport contract rather than Clair. | Last push September 10; zero stars. |
+
+Confer's inspected checkout is `0ef6ae172ee8ef78e5b3c2a525a863fce2e0a057`.
+It documents Claude and Grok reactive adapters and Codex polling. This makes
+it a useful next implementation to inspect for provider-neutral exchange,
+not an adoption recommendation. Its pre-1.0 formats and small public adoption
+signal leave maturity unestablished. Per-writer files avoid some content
+conflicts; they do not eliminate shared branch-tip contention. None of these
+sources establishes better local efficiency than registry files.
+
+Plugin discovery did not find Clair or a newer distribution:
+
+- The independent [claude-plugins.dev search API](https://claude-plugins.dev/api/plugins?q=clair)
+  returned five unrelated name/description matches. Author queries for
+  `JBJamesBrownJB` and `James Brown` returned zero. Its automatic public-GitHub
+  indexing is not an exhaustive inventory of unpublished or unindexed plugins.
+- The complete current claudemarketplaces.com core and two plugin sitemaps
+  contained no relevant author or Clair listing. The similarly named
+  [Waypoint Claire](https://claudemarketplaces.com/plugins/poindexter12-waypoint/claire)
+  is unrelated component-authoring tooling.
+- Anthropic's [official directory manifest](https://github.com/anthropics/claude-plugins-official/blob/main/.claude-plugin/marketplace.json)
+  contained neither Clair nor James. Other false leads included Cody Bromley's
+  Clairvoyance design-guidance plugin and Aaron Maturen's clair-de-config.
+
+The public successor search covered the author's 18 public repositories,
+public organization membership, author/repository/code searches, self-linked
+CV and Medium feed, and company-name organization searches. No linked second
+account or public Clair v2 was found. The [CV](https://github.com/JBJamesBrownJB/cv)
+mentions Speciate, an artificial-life sandbox, not a coordination successor;
+its repository link returned 404, which cannot distinguish deletion from
+private visibility. Public company-name searches cannot settle private work.
+
+The August 12 [publisher-supplied episode description](https://podcasts.apple.com/ie/podcast/the-enterprise-ai-gap-with-james-brown/id1687271887?i=1000782967095)
+still links the original Clair repository. Only the description was retrieved,
+not the video or transcript. This is evidence of the public pointer remaining
+unchanged, not evidence that development continued. A private/employer-owned
+successor remains possible; the search supplies no affirmative evidence for it.
+
 ## Assessment of replacing the registry
 
 The useful idea is selective, session-aware disclosure of relevant work.
