@@ -1712,6 +1712,41 @@ describe("NewSessionForm", () => {
         0,
       );
     });
+
+    it("keeps a locked value this client cannot name, stated as stored", async () => {
+      actAsLimited({
+        provider: "newer-provider",
+        model: "newer-model",
+        effort: "colossal",
+      });
+      renderForm();
+
+      await waitFor(() => {
+        expect(screen.getByText("Set by your account")).toBeTruthy();
+      });
+      // Offering the provider picker would launch something the route refuses.
+      expect(screen.queryByRole("button", { name: "Claude" })).toBeNull();
+      expect(screen.getByText("newer-provider")).toBeTruthy();
+      expect(screen.getByText("colossal")).toBeTruthy();
+      fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
+        target: { value: "locked launch" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "newSessionStartAction" }),
+      );
+
+      await waitFor(() => {
+        expect(mockStartSession).toHaveBeenCalledTimes(1);
+      });
+      expect(mockStartSession.mock.calls[0]?.[2]).toEqual(
+        expect.objectContaining({
+          provider: "newer-provider",
+          model: "newer-model",
+          thinking: "on:colossal",
+          sandboxLevel: "project-write",
+        }),
+      );
+    });
   });
 
   it("turns off side-session recaps when sandboxing is enabled", async () => {

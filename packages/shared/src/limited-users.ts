@@ -106,10 +106,9 @@ export interface ActingPrincipal {
   /** Whether the feature is enabled at all on this server. */
   enabled: boolean;
   /**
-   * Whether this install has at least one limited user. The sidebar's Users
-   * shortcut appears only then, so turning the feature on does not by itself
-   * put an account control in front of a single-user install. It never
-   * discloses how many: a limited user sees only that they are one.
+   * Whether this install has at least one limited user, for a surface that
+   * needs to know an install has more than one principal. It never discloses
+   * how many: a limited user sees only that they are one.
    */
   hasLimitedUsers: boolean;
   /** Where logout should send this client. */

@@ -77,6 +77,8 @@ import {
   resolveSupportedThinkingMode,
 } from "../lib/effortLevels";
 import {
+  knownLockedEffort,
+  knownLockedProvider,
   launchLockFor,
   launchLockOverrides,
   type LaunchLock,
@@ -1428,10 +1430,12 @@ export function NewSessionForm({
   // preference worth saving as this client's default.
   const applyLaunchLock = useCallback(() => {
     if (!launchLock.limited) return;
-    if (launchLock.provider) setSelectedProvider(launchLock.provider);
+    const lockedProvider = knownLockedProvider(launchLock);
+    if (lockedProvider) setSelectedProvider(lockedProvider);
     if (launchLock.model) setSelectedModel(launchLock.model);
     if (launchLock.effort) {
-      setSelectedEffortLevel(launchLock.effort);
+      const lockedEffort = knownLockedEffort(launchLock);
+      if (lockedEffort) setSelectedEffortLevel(lockedEffort);
       setSelectedThinkingMode("on");
     }
     setSandboxLevel("project-write");
@@ -4051,6 +4055,8 @@ export function NewSessionForm({
     </NewSessionOptionSection>
   ) : null;
   // What this account settles, stated where the withheld pickers would sit.
+  // An effort this client cannot name is stated as stored.
+  const lockedEffortLevel = knownLockedEffort(launchLock);
   const fixedLaunchSection = launchLock.limited ? (
     <NewSessionFixedLaunch
       lock={launchLock}
@@ -4061,8 +4067,8 @@ export function NewSessionForm({
           : null
       }
       effortLabel={
-        launchLock.effort
-          ? getEffortLevelLabel(launchLock.effort, selectedProviderInfo, t)
+        lockedEffortLevel
+          ? getEffortLevelLabel(lockedEffortLevel, selectedProviderInfo, t)
           : null
       }
       sandboxAvailable={supportsSessionSandboxing}

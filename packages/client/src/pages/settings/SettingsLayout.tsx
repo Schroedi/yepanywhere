@@ -256,7 +256,8 @@ export function SettingsLayout() {
     settingsContainerWidth,
   );
   const { version: versionInfo } = useVersion();
-  const { principal: actingPrincipal } = useActingPrincipal();
+  const { principal: actingPrincipal, resolved: principalResolved } =
+    useActingPrincipal();
   const serverBacksUpBrowserSettings = serverHasCapability(
     versionInfo,
     BROWSER_SETTINGS_BACKUP_CAPABILITY,
@@ -347,15 +348,19 @@ export function SettingsLayout() {
   }
   // A limited user keeps only the categories they can actually operate; the
   // rest are inert or never finish loading for them. topics/limited-users.md
-  // § Delivery v1.
+  // § Delivery v1. Until the server names the principal, its placeholder is
+  // the superuser, so no category is offered or mounted: a superuser-only
+  // pane would otherwise send its refused requests first.
   const actingAsLimitedUser = actingPrincipal.username !== null;
-  const visibleCategories = actingAsLimitedUser
-    ? categories.filter((item) => limitedUserMaySeeSettingsCategory(item.id))
-    : categories;
+  const visibleCategories = !principalResolved
+    ? []
+    : actingAsLimitedUser
+      ? categories.filter((item) => limitedUserMaySeeSettingsCategory(item.id))
+      : categories;
   // The backup slot is server-wide and `/api/browser-settings-backup` is
   // denied for a limited user, so the buttons would only ever fail for them.
   const canBackUpBrowserSettings =
-    serverBacksUpBrowserSettings && !actingAsLimitedUser;
+    serverBacksUpBrowserSettings && principalResolved && !actingAsLimitedUser;
 
   // Two-column settings can fit before the persistent app sidebar can.
   const effectiveCategory =
@@ -432,16 +437,17 @@ export function SettingsLayout() {
     />
   );
 
-  const searchResults = searchActive ? (
-    <SettingsSearchResults
-      categories={visibleCategories}
-      components={CATEGORY_COMPONENTS}
-      query={deferredSearchQuery || searchQuery.trim()}
-      matchValues={matchValues}
-      onJumpToItem={handleSearchJumpToItem}
-      onOpenCategory={handleSearchOpenCategory}
-    />
-  ) : null;
+  const searchResults =
+    searchActive && principalResolved ? (
+      <SettingsSearchResults
+        categories={visibleCategories}
+        components={CATEGORY_COMPONENTS}
+        query={deferredSearchQuery || searchQuery.trim()}
+        matchValues={matchValues}
+        onJumpToItem={handleSearchJumpToItem}
+        onOpenCategory={handleSearchOpenCategory}
+      />
+    ) : null;
 
   const handleBack = () => {
     navigateToSettingsRoot();
@@ -459,7 +465,7 @@ export function SettingsLayout() {
     effectiveCategory !== undefined &&
     !limitedUserMaySeeSettingsCategory(effectiveCategory);
   const CategoryComponent =
-    effectiveCategory && !withheldFromPrincipal
+    effectiveCategory && principalResolved && !withheldFromPrincipal
       ? CATEGORY_COMPONENTS[effectiveCategory]
       : null;
 

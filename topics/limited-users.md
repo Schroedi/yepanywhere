@@ -364,7 +364,9 @@ for, so nothing about limited users appears anywhere else until one exists.
   lock leaves a field free, that field keeps its ordinary picker; a lock that
   empties the whole provider/model/thinking column gives the column's width
   back rather than leaving a hole. The composer's model chip keeps its badge
-  and loses its menu.
+  and loses its menu. A locked provider or effort this client cannot name,
+  such as one a newer server knows, is still locked: its picker is withheld,
+  the caption states the value as stored, and the launch sends it verbatim.
 
   The lock also outranks saved and per-project defaults in the form, and is
   reapplied over the launch body at submit, so a submit racing the
@@ -388,10 +390,13 @@ for, so nothing about limited users appears anywhere else until one exists.
   Notifications, Users, and About. Like the route policy, the list is
   default-deny: a category added later is hidden from limited users until
   someone lists it. A hidden category does not render from a typed URL
-  either. That suppression is about the principal alone: a category the
-  server's capabilities dropped still renders its pane from a typed URL,
-  because that pane's unsupported-server message is the answer the reader
-  came for.
+  either. Until the server has named the acting principal, Settings offers
+  and mounts no category at all, since the client's placeholder principal is
+  the superuser and a superuser-only pane would otherwise send its refused
+  requests before being hidden. That suppression is about the principal
+  alone: a category the server's capabilities dropped still renders its pane
+  from a typed URL, because that pane's unsupported-server message is the
+  answer the reader came for.
 - **An older server** without the `limited-users` capability (before
   v0.9.0) loses the category from the Settings list; its pane, from a typed
   URL, says the server lacks limited users. The client then sends that server
