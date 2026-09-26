@@ -257,6 +257,74 @@ describe("Process", () => {
       );
     });
 
+    it("publishes a failure notice after a command notice still saving", async () => {
+      vi.spyOn(getLogger(), "error").mockImplementation(() => undefined);
+      vi.spyOn(getLogger(), "warn").mockImplementation(() => undefined);
+      const error = new Error("Provider worker process exited: signal 9");
+      let failProvider!: () => void;
+      let delivered = false;
+      const iterator: AsyncIterator<SDKMessage> = {
+        next: () => {
+          if (!delivered) {
+            delivered = true;
+            return Promise.resolve({
+              done: false,
+              value: { type: "system", subtype: "init", session_id: "sess-1" },
+            });
+          }
+          return new Promise((_resolve, reject) => {
+            failProvider = () => reject(error);
+          });
+        },
+      };
+      const process = new Process(iterator, {
+        projectPath: "/test",
+        projectId: "proj-1" as UrlProjectId,
+        sessionId: "sess-1",
+        provider: "codex",
+        idleTimeoutMs: 100,
+        runProviderCommandFn: async () => ({
+          handled: true,
+          output: { summary: "/goal", details: ["Keep working"] },
+        }),
+      });
+      const events: ProcessEvent[] = [];
+      process.subscribe((event) => {
+        events.push(event);
+      });
+      await vi.waitFor(() => expect(failProvider).toBeTypeOf("function"));
+
+      let finishSave!: () => void;
+      const saving = new Promise<void>((resolve) => {
+        finishSave = resolve;
+      });
+      const persistOutput = vi.fn(() => saving);
+      const command = process.runProviderCommand("goal", "Keep working", {
+        persistOutput,
+      });
+      await vi.waitFor(() => expect(persistOutput).toHaveBeenCalledOnce());
+      failProvider();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(process.isTerminated).toBe(false);
+
+      finishSave();
+      await command;
+      await vi.waitFor(() => expect(process.isTerminated).toBe(true));
+
+      const published = events.flatMap((event) =>
+        event.type === "message" && event.message.subtype === "local_command"
+          ? [event.message.content]
+          : event.type === "terminated"
+            ? ["terminated"]
+            : [],
+      );
+      expect(published).toEqual([
+        "/goal",
+        expect.stringContaining("not interrupted by you"),
+        "terminated",
+      ]);
+    });
+
     it("attributes a refused rewind rather than reporting a crash", async () => {
       vi.spyOn(getLogger(), "error").mockImplementation(() => undefined);
       vi.spyOn(getLogger(), "warn").mockImplementation(() => undefined);

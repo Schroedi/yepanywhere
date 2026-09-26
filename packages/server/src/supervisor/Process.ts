@@ -1039,8 +1039,8 @@ export class Process {
   private _streamingText = "";
   /** Message ID for current streaming response */
   private _streamingMessageId: string | null = null;
-  /** Preserve provider/receipt ordering while a local command is saved. */
-  private commandOutputPublication: Promise<void> | null = null;
+  /** Preserve provider/notice ordering while a local notice is saved. */
+  private localNoticePublication: Promise<void> | null = null;
 
   /**
    * Rolling buffer of recent assistant text turns used as context for
@@ -2384,51 +2384,78 @@ export class Process {
     }
     const result = await this.runProviderCommandFn(command, argument);
     if (result.handled && result.output) {
-      const previousPublication = this.commandOutputPublication;
-      let releasePublication!: () => void;
-      const publication = new Promise<void>((resolve) => {
-        releasePublication = resolve;
-      });
-      this.commandOutputPublication = publication;
-      if (previousPublication) await previousPublication;
-      try {
-        const placementAfterMessageId =
-          this._streamingMessageId ??
-          this.getMessageHistory()
-            .reverse()
-            .find(
-              (message) =>
-                typeof message.uuid === "string" &&
-                !message.isSynthetic &&
-                (message.type === "assistant" || message.type === "user"),
-            )?.uuid;
-        const id = randomUUID();
-        const synthetic: DurableLocalCommandMessage = {
-          type: "system",
-          subtype: "local_command",
+      await this.publishLocalNotice(
+        {
           content: result.output.summary,
-          ...(result.output.details ? { details: result.output.details } : {}),
-          session_id: this._sessionId,
-          uuid: id,
-          id,
-          timestamp: new Date().toISOString(),
+          details: result.output.details,
           tempId: options?.tempId,
-          ...(typeof placementAfterMessageId === "string"
-            ? { placementAfterMessageId }
-            : {}),
-          isMeta: false,
-          isSynthetic: true,
-        };
-        await options?.persistOutput?.(synthetic);
-        this.currentBucket.push(synthetic as SDKMessage);
-        this.emit({ type: "message", message: synthetic as SDKMessage });
-      } finally {
-        releasePublication();
-        if (this.commandOutputPublication === publication)
-          this.commandOutputPublication = null;
-      }
+        },
+        options?.persistOutput,
+      );
     }
     return result;
+  }
+
+  /**
+   * Publish a YA local notice row into the live transcript, after the latest
+   * turn content (or the message still streaming). Publications run one at a
+   * time in call order, and a notice with `persist` is shown only once
+   * persisted, so a reload never shows less than the live view did.
+   */
+  private async publishLocalNotice(
+    notice: {
+      content: string;
+      details?: string[];
+      detailsOpen?: boolean;
+      tempId?: string;
+    },
+    persist?: (message: DurableLocalCommandMessage) => Promise<void>,
+  ): Promise<DurableLocalCommandMessage> {
+    const previousPublication = this.localNoticePublication;
+    let releasePublication!: () => void;
+    const publication = new Promise<void>((resolve) => {
+      releasePublication = resolve;
+    });
+    this.localNoticePublication = publication;
+    if (previousPublication) await previousPublication;
+    try {
+      const placementAfterMessageId =
+        this._streamingMessageId ??
+        this.getMessageHistory()
+          .reverse()
+          .find(
+            (message) =>
+              typeof message.uuid === "string" &&
+              !message.isSynthetic &&
+              (message.type === "assistant" || message.type === "user"),
+          )?.uuid;
+      const id = randomUUID();
+      const message: DurableLocalCommandMessage = {
+        type: "system",
+        subtype: "local_command",
+        content: notice.content,
+        ...(notice.details ? { details: notice.details } : {}),
+        ...(notice.detailsOpen ? { detailsOpen: true } : {}),
+        session_id: this._sessionId,
+        uuid: id,
+        id,
+        timestamp: new Date().toISOString(),
+        ...(notice.tempId !== undefined ? { tempId: notice.tempId } : {}),
+        ...(typeof placementAfterMessageId === "string"
+          ? { placementAfterMessageId }
+          : {}),
+        isMeta: false,
+        isSynthetic: true,
+      };
+      await persist?.(message);
+      this.currentBucket.push(message as SDKMessage);
+      this.emit({ type: "message", message: message as SDKMessage });
+      return message;
+    } finally {
+      releasePublication();
+      if (this.localNoticePublication === publication)
+        this.localNoticePublication = null;
+    }
   }
 
   get supportsNativeCommands(): boolean {
@@ -2640,55 +2667,30 @@ export class Process {
   }
 
   /**
-   * Mark the process as terminated due to an error or external termination.
-   * Emits a terminated event and cleans up resources.
-   */
-  /**
    * An unrequested provider death tears down the running turn, and some
    * providers (Codex) then persist it as an ordinary interrupt. Publish a
-   * notice row after the latest turn content so the transcript attributes
-   * the stop; Supervisor persists it with the session's local-command rows.
+   * notice row so the transcript attributes the stop; Supervisor persists it
+   * with the session's local-command rows from the terminated event.
    */
   private publishProviderFailureNotice(
     error: Error,
-  ): DurableLocalCommandMessage {
-    const placementAfterMessageId =
-      this._streamingMessageId ??
-      this.getMessageHistory()
-        .reverse()
-        .find(
-          (message) =>
-            typeof message.uuid === "string" &&
-            !message.isSynthetic &&
-            (message.type === "assistant" || message.type === "user"),
-        )?.uuid;
-    const id = randomUUID();
+  ): Promise<DurableLocalCommandMessage> {
     // A refused rewind also ends the process, but deliberately: the dropped
     // range held content outside the declared turn, so the turns were kept.
     const content = isResumeDropsTurnRefusalText(error.message)
       ? "Claude refused the rewind and exited; the dropped turns were kept"
       : "Provider process ended unexpectedly; this turn was not interrupted by you";
-    const notice: DurableLocalCommandMessage = {
-      type: "system",
-      subtype: "local_command",
+    return this.publishLocalNotice({
       content,
       details: [error.message],
       detailsOpen: true,
-      session_id: this._sessionId,
-      uuid: id,
-      id,
-      timestamp: new Date().toISOString(),
-      ...(typeof placementAfterMessageId === "string"
-        ? { placementAfterMessageId }
-        : {}),
-      isMeta: false,
-      isSynthetic: true,
-    };
-    this.currentBucket.push(notice as SDKMessage);
-    this.emit({ type: "message", message: notice as SDKMessage });
-    return notice;
+    });
   }
 
+  /**
+   * Mark the process as terminated due to an error or external termination.
+   * Emits a terminated event and cleans up resources.
+   */
   private markTerminated(
     reason: string,
     error?: Error,
@@ -3592,7 +3594,9 @@ export class Process {
       return `Process terminated: ${this._state.reason}`;
     }
     if (this.transportFailed) {
-      return "Process transport failed";
+      // Terminated in all but state while its failure notice publishes; say
+      // so, since clients resume a session whose process is terminated.
+      return "Process terminated: provider transport failed";
     }
     return null;
   }
@@ -4936,8 +4940,8 @@ export class Process {
         }
         // A receipt reserves its visible position before awaiting disk. Let it
         // publish before provider output that arrived during that save.
-        while (this.commandOutputPublication) {
-          await this.commandOutputPublication;
+        while (this.localNoticePublication) {
+          await this.localNoticePublication;
         }
         const receivedAt = new Date();
         this._lastMessageTime = receivedAt;
@@ -5163,7 +5167,7 @@ export class Process {
         const failureNotice =
           this._state.type === "terminated" || this.abortInFlight
             ? undefined
-            : this.publishProviderFailureNotice(err);
+            : await this.publishProviderFailureNotice(err);
         this.markTerminated("underlying process terminated", err, {
           failureNotice,
         });

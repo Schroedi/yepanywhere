@@ -261,6 +261,16 @@ so instead ("Claude refused the rewind and exited; the dropped turns were
 kept"). Both carry `detailsOpen`, so the error shows without a click; a
 local-command row without it keeps its details collapsed.
 
+Every such notice — command output, a goal receipt, a provider-failure
+notice — is placed by one rule: after the message still streaming, else the
+latest non-synthetic user or assistant row. Notices publish one at a time in
+the order raised, and provider output that arrives meanwhile waits behind
+them. A goal receipt is saved before it is shown; a failure notice is shown
+first and stored as the process ends. So a provider that dies while a goal
+receipt is saving shows the receipt, then its failure notice, and only then
+reports the process terminated. Input sent in between is already refused as
+sent to a terminated process, so a client resumes the session for it.
+
 ## Draft-first augmentation decision
 
 The implementation has two publication phases per identified finalized item:
