@@ -33,12 +33,20 @@ export function useSessionAppPublicHref(): (url: string) => string | undefined {
   return useContext(SessionAppLinkContext)?.publicHref ?? noPublicHref;
 }
 
-/** Rewrite only anchor destinations in trusted rendered transcript HTML. */
+/**
+ * Rewrite only anchor destinations in trusted rendered transcript HTML.
+ * The no-rewriter default returns the HTML without parsing it.
+ */
 export function rewriteSessionAppLinksHtml(
   html: string,
   rewriteHref: (url: string) => string,
 ): string {
-  if (typeof document === "undefined" || !/href/i.test(html)) return html;
+  if (
+    rewriteHref === preserveHref ||
+    typeof document === "undefined" ||
+    !/href/i.test(html)
+  )
+    return html;
   const template = document.createElement("template");
   template.innerHTML = html;
   let changed = false;

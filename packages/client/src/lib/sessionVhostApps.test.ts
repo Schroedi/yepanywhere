@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ArtifactViewerStatus } from "@yep-anywhere/shared";
 import {
+  publicSessionLocalhostHref,
   rewriteSessionLocalhostHref,
+  sessionLocalhostRewriteApplies,
   sessionToolUrls,
   sessionVhostApp,
 } from "./sessionVhostApps";
@@ -135,6 +137,68 @@ describe("session vhost apps", () => {
         force: true,
       }),
     ).toBe("https://reports.example.org/today");
+  });
+  it("decides per page whether transcript rewriting can change a destination", () => {
+    const relayPage = {
+      clientUrl: "https://ya.example.org/-/relay/home/sessions/one",
+      relayed: true,
+    };
+    const directPage = {
+      clientUrl: "http://localhost:3400/sessions/one",
+      relayed: false,
+    };
+    const { vhostPublicRoot: _root, ...noRoot } = vhostConfig;
+    expect(sessionLocalhostRewriteApplies(vhostConfig, relayPage)).toBe(true);
+    expect(sessionLocalhostRewriteApplies(vhostConfig, directPage)).toBe(false);
+    expect(
+      sessionLocalhostRewriteApplies(
+        { ...vhostConfig, alwaysRewriteVhostLinks: true },
+        directPage,
+      ),
+    ).toBe(true);
+    expect(
+      sessionLocalhostRewriteApplies(vhostConfig, {
+        ...directPage,
+        force: true,
+      }),
+    ).toBe(true);
+    expect(sessionLocalhostRewriteApplies(noRoot, relayPage)).toBe(false);
+    expect(sessionLocalhostRewriteApplies(undefined, relayPage)).toBe(false);
+  });
+  it("offers an explicit public URL only where a public destination exists", () => {
+    const directPage = {
+      clientUrl: "http://localhost:3400/sessions/one",
+      relayed: false,
+    };
+    expect(
+      publicSessionLocalhostHref(
+        "http://reports.localhost/today",
+        vhostConfig,
+        directPage,
+      ),
+    ).toBe("https://reports.example.org/today");
+    expect(
+      publicSessionLocalhostHref(
+        "https://plan.example.org/path",
+        vhostConfig,
+        directPage,
+      ),
+    ).toBe("https://plan.example.org/path");
+    expect(
+      publicSessionLocalhostHref(
+        "https://elsewhere.test/path",
+        vhostConfig,
+        directPage,
+      ),
+    ).toBeUndefined();
+    const { vhostPublicRoot: _root, ...noRoot } = vhostConfig;
+    expect(
+      publicSessionLocalhostHref(
+        "http://reports.localhost/today",
+        noRoot,
+        directPage,
+      ),
+    ).toBeUndefined();
   });
   it("rewrites generic subdomains but not private apps without an access decision", () => {
     const context = {

@@ -37,8 +37,10 @@ import {
 import { Modal, useModalLayer } from "./ui/Modal";
 import { SessionAppLinkContext } from "./SessionAppLinks";
 import {
+  publicSessionLocalhostHref,
   rewriteSessionLocalhostHref,
   type SessionAppConfig,
+  sessionLocalhostRewriteApplies,
 } from "../lib/sessionVhostApps";
 import { useRelayUsername } from "../hooks/useRemoteBasePath";
 
@@ -152,39 +154,24 @@ export function SessionViewerProvider({
   const version = useRetainedVersionInfo(runtime.sourceKey);
   const relayUsername = useRelayUsername();
   const viewerId = useId();
-  const appLinks = useMemo(
-    () =>
-      inactive
-        ? null
-        : {
-            config: appConfig,
-            open: onOpenApp,
-            announce: onAnnounceApp,
-            rewriteHref: (url: string) =>
-              rewriteSessionLocalhostHref(url, appConfig, {
-                clientUrl: window.location.href,
-                relayed: relayUsername !== undefined,
-              }),
-            publicHref: (url: string) => {
-              if (!appConfig?.vhostPublicRoot) return undefined;
-              const rewritten = rewriteSessionLocalhostHref(url, appConfig, {
-                clientUrl: window.location.href,
-                relayed: relayUsername !== undefined,
-                force: true,
-              });
-              if (rewritten !== url) return rewritten;
-              try {
-                const target = new URL(url);
-                if (target.hostname.endsWith(`.${appConfig.vhostPublicRoot}`))
-                  return target.href;
-              } catch {
-                return undefined;
-              }
-              return undefined;
-            },
-          },
-    [inactive, appConfig, onOpenApp, onAnnounceApp, relayUsername],
-  );
+  const appLinks = useMemo(() => {
+    if (inactive) return null;
+    const relayed = relayUsername !== undefined;
+    const linkContext = () => ({ clientUrl: window.location.href, relayed });
+    return {
+      config: appConfig,
+      open: onOpenApp,
+      announce: onAnnounceApp,
+      // Without a rewriter, rendered HTML is not parsed at all; with one that
+      // could never change a destination, every streamed block would be.
+      rewriteHref: sessionLocalhostRewriteApplies(appConfig, linkContext())
+        ? (url: string) =>
+            rewriteSessionLocalhostHref(url, appConfig, linkContext())
+        : undefined,
+      publicHref: (url: string) =>
+        publicSessionLocalhostHref(url, appConfig, linkContext()),
+    };
+  }, [inactive, appConfig, onOpenApp, onAnnounceApp, relayUsername]);
   const openArtifact = useCallback(
     (url: string, label: string) => {
       if (

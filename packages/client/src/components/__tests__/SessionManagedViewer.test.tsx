@@ -9,8 +9,12 @@ import {
   restoreSessionViewer,
 } from "../../lib/sessionViewerController";
 import { sessionRightPaneSetting } from "../../lib/sessionViewerPlacement";
+import type { SessionAppConfig } from "../../lib/sessionVhostApps";
 import { MessageList } from "../MessageList";
-import { useSessionAppAnnouncer } from "../SessionAppLinks";
+import {
+  useSessionAppAnnouncer,
+  useSessionAppLinksHtml,
+} from "../SessionAppLinks";
 import {
   SessionViewerProvider,
   SessionViewerTranscriptGate,
@@ -327,6 +331,46 @@ describe("session App announcements", () => {
 
     expect(screen.getByTestId("playing")).toBeTruthy();
     expect(onAnnounceApp).toHaveBeenCalledWith(grantUrl, "report.html");
+  });
+
+  it("parses no rendered HTML when no transcript link rewrite can apply", () => {
+    const html = '<p><a href="http://plan.localhost/path">plan</a></p>';
+    const appConfig: SessionAppConfig = {
+      port: 4402,
+      available: true,
+      locked: false,
+      defaultLocalOrigin: ARTIFACT_ORIGIN,
+      localOrigin: ARTIFACT_ORIGIN,
+      vhostPublicRoot: "example.org",
+    };
+    function RenderedLinks() {
+      return <div data-testid="links">{useSessionAppLinksHtml(html)}</div>;
+    }
+    const session = (config?: SessionAppConfig) => (
+      <I18nProvider>
+        <SessionViewerProvider sessionId="session-1" appConfig={config}>
+          <RenderedLinks />
+        </SessionViewerProvider>
+      </I18nProvider>
+    );
+    const createElement = vi.spyOn(document, "createElement");
+    const templatesCreated = () =>
+      createElement.mock.calls.filter(([tag]) => tag === "template").length;
+    try {
+      // A direct page with no public root, then with one but no "always".
+      const view = render(session());
+      view.rerender(session(appConfig));
+      expect(screen.getByTestId("links").textContent).toBe(html);
+      expect(templatesCreated()).toBe(0);
+
+      view.rerender(session({ ...appConfig, alwaysRewriteVhostLinks: true }));
+      expect(screen.getByTestId("links").textContent).toBe(
+        '<p><a href="https://plan.example.org/path">plan</a></p>',
+      );
+      expect(templatesCreated()).toBe(1);
+    } finally {
+      createElement.mockRestore();
+    }
   });
 
   it("announces an artifact link opened from session prose as an App", () => {

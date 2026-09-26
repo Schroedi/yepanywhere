@@ -99,6 +99,11 @@ stable component identity, and lower update cadence.
   caller can apply them incrementally.
 - Avoid string comparisons as change detection after a formatter has already
   determined whether it changed anything. Preserve and reuse the boolean.
+- An optional per-block HTML transform is absent, not an identity, where it
+  cannot change anything. The session app-link rewriter
+  (`SessionViewerProvider`) exists only when
+  `sessionLocalhostRewriteApplies` holds for the page, so ordinary direct
+  sessions parse no streamed or completed HTML block for it.
 - When fixing one high-rate path, keep tracing. A throttled markdown path does
   not prove text placeholders, tool previews, activity/freshness state,
   queued-message UI, or composer-adjacent state are also covered.
