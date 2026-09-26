@@ -255,22 +255,24 @@ export function collectVisibleClaudeEntries(
   } = collectRewoundRows(allRawMessages, options.rewindRecords ?? []);
   // Rewound rows are withheld from tip selection so the cut is the live tail
   // until the session writes past it; they rejoin below as grouped extras.
-  // Live rows keep their position in this filtered list, which is the line
-  // space the live queue entries below are ordered in.
-  const liveLineByRawLine = new Map<number, number>();
+  // Every entry is ordered by its line in the file, so a position in this
+  // filtered list is mapped back through `fileLine` before it is used.
   let rawMessages: ClaudeSessionEntry[];
+  let fileLine = (index: number) => index;
   if (rewoundGroupByUuid.size === 0) {
     rawMessages = allRawMessages;
   } else {
     rawMessages = [];
+    const fileLineByIndex: number[] = [];
     for (let lineIndex = 0; lineIndex < allRawMessages.length; lineIndex++) {
       const raw = allRawMessages[lineIndex];
       if (!raw) continue;
       const uuid = getEntryUuid(raw);
       if (uuid && rewoundGroupByUuid.has(uuid)) continue;
-      liveLineByRawLine.set(lineIndex, rawMessages.length);
+      fileLineByIndex.push(lineIndex);
       rawMessages.push(raw);
     }
+    fileLine = (index) => fileLineByIndex[index] ?? index;
   }
   // Queued messages are paired across the whole file: a pair whose enqueue a
   // rewind claimed renders inside that group, the rest stay live.
@@ -287,7 +289,7 @@ export function collectVisibleClaudeEntries(
     const raw = rawMessages[lineIndex];
     const uuid = raw ? getEntryUuid(raw) : undefined;
     if (uuid) {
-      lineIndexByUuid.set(uuid, lineIndex);
+      lineIndexByUuid.set(uuid, fileLine(lineIndex));
     }
   }
 
@@ -322,7 +324,7 @@ export function collectVisibleClaudeEntries(
     if (!parentUuid) continue;
 
     const existing = compactSummariesByParent.get(parentUuid);
-    const entry = { lineIndex, raw };
+    const entry = { lineIndex: fileLine(lineIndex), raw };
     if (existing) {
       existing.push(entry);
     } else {
@@ -353,7 +355,7 @@ export function collectVisibleClaudeEntries(
       continue;
     }
 
-    pushExtra(logicalParentUuid, raw, lineIndex);
+    pushExtra(logicalParentUuid, raw, fileLine(lineIndex));
     for (const summary of summaries) {
       const summaryUuid = getEntryUuid(summary.raw);
       if (!summaryUuid || !activeBranchUuids.has(summaryUuid)) {
@@ -373,7 +375,7 @@ export function collectVisibleClaudeEntries(
 
   for (const branch of findSiblingToolBranches(activeBranch, rawMessages)) {
     for (const node of branch.nodes) {
-      pushExtra(branch.branchPoint, node.raw, node.lineIndex);
+      pushExtra(branch.branchPoint, node.raw, fileLine(node.lineIndex));
     }
   }
 
@@ -452,25 +454,21 @@ export function collectVisibleClaudeEntries(
 
   const entries: Array<{ lineIndex: number; raw: ClaudeSessionEntry }> = [];
   const includedUuids = new Set<string>();
-  const includedNonUuidLineIndices = new Set<string>();
+  const includedNonUuidLineIndices = new Set<number>();
   const pushUnique = (raw: ClaudeSessionEntry, lineIndex: number) => {
     const uuid = getEntryUuid(raw);
     if (uuid) {
       if (includedUuids.has(uuid)) return;
       includedUuids.add(uuid);
     } else {
-      // A grouped row's index is a file line; a live row's is its index in the
-      // filtered list. The group qualifies the key so the two never collide.
-      const group = (raw as { rewoundGroupId?: unknown }).rewoundGroupId;
-      const key = `${typeof group === "string" ? group : ""}:${lineIndex}`;
-      if (includedNonUuidLineIndices.has(key)) return;
-      includedNonUuidLineIndices.add(key);
+      if (includedNonUuidLineIndices.has(lineIndex)) return;
+      includedNonUuidLineIndices.add(lineIndex);
     }
     entries.push({ lineIndex, raw });
   };
 
   for (const node of activeBranch) {
-    pushUnique(node.raw, node.lineIndex);
+    pushUnique(node.raw, fileLine(node.lineIndex));
 
     const extras = extrasByParent.get(node.uuid);
     if (!extras) continue;
@@ -482,10 +480,8 @@ export function collectVisibleClaudeEntries(
 
   for (const queuedEntry of historicalQueueEntries) {
     if (rewoundGroupByLine.has(queuedEntry.lineIndex)) continue;
-    const lineIndex =
-      liveLineByRawLine.get(queuedEntry.lineIndex) ?? queuedEntry.lineIndex;
     const beforeLength = entries.length;
-    pushUnique(queuedEntry.raw, lineIndex);
+    pushUnique(queuedEntry.raw, queuedEntry.lineIndex);
     if (entries.length === beforeLength) continue;
 
     const appended = entries.pop();

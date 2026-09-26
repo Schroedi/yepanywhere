@@ -652,7 +652,8 @@ Durable pointers by symbol and module; grep for the symbol.
   ride along with their cut (`pagination.test.ts`).
 - A queued message delivered inside a cleared span is grouped with it and
   keeps its delivery stamp, while a queued message delivered on the live
-  branch stays live and in place (`claude-messages.test.ts`).
+  branch stays live and in place, after the whole group whatever its length
+  (`claude-messages.test.ts`).
 - Two rewinds to the same live cut produce two sibling groups in order, with
   no `rewoundParentGroupId` on either — on the server projection and on the
   client's in-place application alike (`claude-messages.test.ts`,

@@ -263,6 +263,69 @@ describe("collectVisibleClaudeEntries with rewind records", () => {
     ]);
   });
 
+  it("keeps a live queued message after a cleared span of any length", () => {
+    const withQueued: RawSessionMessage[] = [
+      messages[0],
+      messages[1],
+      messages[2],
+      messages[3],
+      {
+        type: "user",
+        uuid: "u2b",
+        parentUuid: "a2",
+        timestamp: "2026-09-18T10:01:10.000Z",
+      },
+      {
+        type: "assistant",
+        uuid: "a2b",
+        parentUuid: "u2b",
+        timestamp: "2026-09-18T10:01:15.000Z",
+      },
+      {
+        type: "user",
+        uuid: "u3",
+        parentUuid: "a1",
+        timestamp: "2026-09-18T10:03:00.000Z",
+      },
+      {
+        type: "queue-operation",
+        operation: "enqueue",
+        content: "live one",
+        timestamp: "2026-09-18T10:03:10.000Z",
+      },
+      {
+        type: "queue-operation",
+        operation: "remove",
+        timestamp: "2026-09-18T10:03:20.000Z",
+      },
+      {
+        type: "assistant",
+        uuid: "a3",
+        parentUuid: "u3",
+        timestamp: "2026-09-18T10:03:30.000Z",
+      },
+    ];
+    const { entries } = collectVisibleClaudeEntries(withQueued, {
+      rewindRecords: [record],
+    });
+    const labels = entries.map((entry) => {
+      const row = entry as { uuid?: string; operation?: string };
+      return row.uuid ?? `queued:${row.operation}`;
+    });
+    expect(labels).toEqual([
+      "u1",
+      "a1",
+      "rewound-group-rw-1",
+      "u2",
+      "a2",
+      "u2b",
+      "a2b",
+      "u3",
+      "queued:enqueue",
+      "a3",
+    ]);
+  });
+
   it("makes repeated rewinds to one live cut siblings, in order", () => {
     const looped: RawSessionMessage[] = [
       messages[0],
