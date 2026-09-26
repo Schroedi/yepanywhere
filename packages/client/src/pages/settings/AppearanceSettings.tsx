@@ -131,6 +131,7 @@ import {
 import { useWiderConversationActivityPreviews } from "../../hooks/useWiderConversationActivityPreviews";
 import { useWorkflowTags } from "../../hooks/useWorkflowTags";
 import { usePdfjsRendererSetting } from "../../hooks/usePdfjsRendererSetting";
+import { useTranscriptMarginNavigation } from "../../hooks/useTranscriptMarginNavigation";
 import { useSessionRightPaneSetting } from "../../hooks/useSessionRightPaneSetting";
 import { usePanelSlideAnimations } from "../../hooks/usePanelSlideAnimations";
 import { useAcliCommentarySetting } from "../../hooks/useAcliCommentarySetting";
@@ -242,6 +243,10 @@ export function AppearanceSettings() {
     useSessionRightPaneSetting();
   const { pdfjsRendererEnabled, setPdfjsRendererEnabled } =
     usePdfjsRendererSetting();
+  const {
+    transcriptMarginNavigationEnabled,
+    setTranscriptMarginNavigationEnabled,
+  } = useTranscriptMarginNavigation();
   const { panelSlideAnimations, setPanelSlideAnimations } =
     usePanelSlideAnimations();
   const { acliCommentaryEnabled, setAcliCommentaryEnabled } =
@@ -391,6 +396,10 @@ export function AppearanceSettings() {
     undoEntry(glossaryHintsEnabled, setGlossaryHintsEnabled),
     undoEntry(workflowTagsEnabled, setWorkflowTagsEnabled),
     undoEntry(sessionRightPaneEnabled, setSessionRightPaneEnabled),
+    undoEntry(
+      transcriptMarginNavigationEnabled,
+      setTranscriptMarginNavigationEnabled,
+    ),
     undoEntry(panelSlideAnimations, setPanelSlideAnimations),
     undoEntry(acliCommentaryEnabled, setAcliCommentaryEnabled),
     undoEntry(tooltipDelayMs, setTooltipDelayMs),
@@ -793,6 +802,23 @@ export function AppearanceSettings() {
                 setWiderConversationActivityPreviews(event.target.checked)
               }
               aria-label={t("appearanceWiderActivityPreviewsTitle")}
+            />
+            <span className="toggle-slider" />
+          </label>
+        </SettingsItem>
+        <SettingsItem
+          label={t("appearanceTranscriptMarginNavigationTitle")}
+          description={t("appearanceTranscriptMarginNavigationDescription")}
+          keywords={["margin", "click", "right-click", "outline", "navigation"]}
+        >
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={transcriptMarginNavigationEnabled}
+              onChange={(event) =>
+                setTranscriptMarginNavigationEnabled(event.target.checked)
+              }
+              aria-label={t("appearanceTranscriptMarginNavigationTitle")}
             />
             <span className="toggle-slider" />
           </label>

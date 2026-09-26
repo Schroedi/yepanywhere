@@ -278,11 +278,9 @@ input, the reader instead emits the dropped rows as a **rewound group**:
   keeps the header fixed under the pointer (the list never jumps to the
   tail), and works the same with Conversation view on or off, where the
   expanded rows are projected like any other rows.
-- **Margin navigation.** A click on a row's margin (the row itself, not its
-  content or a control) scrolls so the next row at the same outline level
-  lands just under the pointer; right-click goes to the previous one. A
-  further click without moving the mouse steps again. Outline levels are the
-  top level and each rewound group.
+- Each rewound group is its own outline level for the opt-in margin
+  navigation owned by
+  [turn-rail-marker-layout](turn-rail-marker-layout.md#margin-navigation).
 - Every rewind produces its own group, so M clearloop iterations leave M
   reviewable groups at the same cut, in order.
 - The header row carries the cut row's timestamp, not the rewind time:
@@ -562,8 +560,8 @@ Durable pointers by symbol and module; grep for the symbol.
   the `applyRewind` action; `hooks/useSessionMessages.ts` —
   `applyRewindLocally`, `reloadSession`.
 - `components/MessageList.tsx` — scroll-anchored `toggleRewoundGroup`,
-  margin navigation (`navigateFromMargin`), the clearloop chip and
-  `ClearloopCountdown`; `components/ClearloopRemainingBadge.tsx`.
+  the clearloop chip and `ClearloopCountdown`;
+  `components/ClearloopRemainingBadge.tsx`.
 - `lib/composerTurnRecall.ts` — `mergeCommandRecallEntries`, task
   notifications excluded.
 - `pages/settings/MessageDeliverySettings.tsx` — the inactivity setting.

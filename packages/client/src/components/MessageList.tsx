@@ -44,6 +44,7 @@ import { useMessageListSelectionQuote } from "../hooks/useMessageListSelectionQu
 import { useRelativeNow } from "../hooks/useRelativeNow";
 import { useRecentProjectPathLinks } from "../hooks/useRecentProjectPathLinks";
 import { useTranscriptRenderWindow } from "../hooks/useTranscriptRenderWindow";
+import { useTranscriptMarginNavigation } from "../hooks/useTranscriptMarginNavigation";
 import { useI18n } from "../i18n";
 import {
   createRememberedDisclosureStateRegistry,
@@ -3247,14 +3248,22 @@ export const MessageList = memo(function MessageList({
   );
 
   /**
-   * Margin navigation (topics/session-rewind.md): a click on a row's margin,
-   * not on its content or controls, scrolls so the next row at the same
-   * outline level lands under the pointer; right-click goes to the previous
-   * one. Repeated clicks without moving the mouse therefore step through the
-   * outline. Outline levels are the top level and each rewound group.
+   * Opt-in margin navigation (topics/turn-rail-marker-layout.md): a plain
+   * click on a row's margin, not on its content or controls, scrolls so the
+   * next row at the same outline level lands under the pointer; right-click
+   * goes to the previous one. Repeated clicks without moving the mouse
+   * therefore step through the outline. Outline levels are the top level and
+   * each rewound group. Modified clicks and clicks that end a text selection
+   * keep their browser meaning.
    */
+  const { transcriptMarginNavigationEnabled } = useTranscriptMarginNavigation();
   const navigateFromMargin = useCallback(
     (event: React.MouseEvent<HTMLElement>, direction: 1 | -1): boolean => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+        return false;
+      }
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed) return false;
       const target = event.target as HTMLElement;
       const row = target.closest<HTMLElement>(".message-render-row");
       if (!row || target !== row) return false;
@@ -4752,8 +4761,14 @@ export const MessageList = memo(function MessageList({
           data-transcript-render-weight={transcriptRenderWindow.totalWeight}
           onPointerOver={handleTranscriptPointerOver}
           onPointerLeave={handleTranscriptPointerLeave}
-          onClick={handleMarginClick}
-          onContextMenu={handleMarginContextMenu}
+          onClick={
+            transcriptMarginNavigationEnabled ? handleMarginClick : undefined
+          }
+          onContextMenu={
+            transcriptMarginNavigationEnabled
+              ? handleMarginContextMenu
+              : undefined
+          }
         >
           {floatingSelectionActions}
           {progressiveRevealActive && (

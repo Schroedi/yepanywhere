@@ -490,6 +490,8 @@
   "appearanceOutputToolPreviewLinesLabel": "Tool preview lines",
   "appearanceOutputToolPreviewLinesUnit": "lines",
   "appearanceSessionRightPaneTitle": "Session right pane",
+  "appearanceTranscriptMarginNavigationTitle": "Margin click navigation",
+  "appearanceTranscriptMarginNavigationDescription": "Click a transcript row's empty margin to scroll to the next row at the same level; right-click goes back. Right-clicking a margin then skips the browser menu. Clicks with a modifier key or that end a text selection are unaffected.",
   "appearancePanelSlideAnimationsTitle": "Slide animations",
   "appearancePanelSlideAnimationsDescription": "Animate the sidebar and right pane sliding in and out. Turn off for instant show/hide, including App and other right-pane viewers.",
   "appearanceSessionRightPaneDescription": "Open file viewers and detected local apps in a right drawer on narrow screens or a resizable column beside the session on wide screens. When off, files cover the transcript and app links open in a new window.",
