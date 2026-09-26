@@ -321,6 +321,22 @@ export class LimitedUsersService {
     return toLimitedUserSummary(record);
   }
 
+  /**
+   * Give a user the new-session grant on a project they just created, so it
+   * is theirs to use the moment it exists. It is an ordinary grant: listed in
+   * Settings → Users, and the superuser may revoke it like any other.
+   */
+  async grantNewSessionProject(
+    username: string,
+    projectId: string,
+  ): Promise<void> {
+    const record = this.state.users[username];
+    if (!record) throw new Error("User not found");
+    if (record.newSessionProjects.includes(projectId)) return;
+    record.newSessionProjects.push(projectId);
+    await this.save();
+  }
+
   async remove(username: string): Promise<boolean> {
     if (!this.state.users[username]) return false;
     delete this.state.users[username];

@@ -504,7 +504,11 @@ A limited user creates projects only where the superuser said they may.
   see a path carried in the body: `POST /api/projects` reaches the route for
   a limited user and is refused there unless the path is under their root.
   The root itself is the parent directory, not a project, and `..` cannot
-  walk out of it. The superuser may still add anything.
+  walk out of it. Nor can a symbolic link: containment is decided on the
+  path as the filesystem resolves it, a project path that is itself a link is
+  refused even when it points back inside, and the check is repeated after
+  the directory is made and before it is registered. The superuser may still
+  add anything.
 - **A directory that does not exist yet** is offered rather than refused.
   The client asks, and only a request that explicitly says `create` makes
   it: YA creates the directory, runs `git init`, and leaves one empty commit
@@ -519,7 +523,11 @@ A limited user creates projects only where the superuser said they may.
   turns a typo into directories nobody meant to make.
 - **Ownership.** The project records `ownerUsername`, absent for the
   superuser, and it survives the project being rediscovered by a
-  session-directory scan once it has sessions.
+  session-directory scan once it has sessions. Ownership is not itself
+  access: creating the project also adds it to the creator's new-session
+  grants, so it is theirs to list, open, and start sessions in the moment it
+  exists. That is an ordinary grant, shown in Settings → Users, and the
+  superuser may revoke it like any other.
 - **Display.** A project a limited user owns reads as `owner/name` wherever
   a project is named for a person to pick — the Projects page, the project
   selector, the sidebar — because two people's `notes` are otherwise the

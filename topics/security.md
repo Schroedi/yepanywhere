@@ -110,6 +110,15 @@ sandbox keeps its own preconditions: enforced authentication, Linux, and a
 supported provider. When they are not met, the launch fails; it never falls
 back to an unsandboxed process.
 
+**Project creation.** A limited user adds a project only strictly beneath
+the directory the superuser configured for them, judged where the filesystem
+resolves it: symbolic links on the way are followed, and a project path that
+is itself a symbolic link is refused. The check runs again once the directory
+exists and before the project is registered, so a link swapped in during the
+request can at worst leave an empty repository outside that directory; it is
+never registered as a project. Creating a project grants its creator
+new-session access to it, as an ordinary grant the superuser can revoke.
+
 **Outside the boundary.**
 
 - **A join grant confers the authority of the session joined.** A joiner may

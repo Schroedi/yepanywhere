@@ -21,7 +21,9 @@ import { warmGitAuthorPalette } from "../git/authorPalette.js";
 import {
   decideProjectCreation,
   ensureProjectDirectory,
+  isContainedOnDisk,
 } from "./project-creation.js";
+import type { LimitedUsersService } from "../auth/LimitedUsersService.js";
 import type { CodexSessionScanner } from "../projects/codex-scanner.js";
 import type { GeminiSessionScanner } from "../projects/gemini-scanner.js";
 import {
@@ -67,6 +69,8 @@ export interface ProjectsDeps {
   sessionMetadataService?: SessionMetadataService;
   /** ProjectMetadataService for persisting added projects */
   projectMetadataService?: ProjectMetadataService;
+  /** Grants a limited user the project they just created. */
+  limitedUsersService?: Pick<LimitedUsersService, "grantNewSessionProject">;
   eventBus?: EventBus;
   projectQueueService?: Pick<ProjectQueueService, "listAll" | "listProject">;
   sessionIndexService?: SessionIndexService;
@@ -583,9 +587,15 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
 
     // A limited user may only add projects under their configured directory;
     // the superuser may add anything (topics/limited-users.md § Delivery v1).
-    const creation = decideProjectCreation(c, normalizedPath);
+    const creation = await decideProjectCreation(c, normalizedPath);
     if (creation.kind === "denied") {
       return c.json({ error: creation.error }, 403);
+    }
+    const owner = creation.owner;
+    if (owner && !deps.limitedUsersService) {
+      throw new Error(
+        "Adding a limited user's project needs the limited users service",
+      );
     }
 
     // `create` is the client's confirmed answer to "this does not exist yet".
@@ -596,6 +606,19 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
     });
     if (directory.kind === "error") {
       return c.json({ error: directory.error }, directory.status);
+    }
+    // Checked again now the directory exists: a link swapped in under the
+    // root since the first check must not become a registered project.
+    if (
+      owner &&
+      !(await isContainedOnDisk(owner.projectRoot, normalizedPath))
+    ) {
+      return c.json(
+        {
+          error: `This user may only create projects under ${owner.projectRoot}`,
+        },
+        403,
+      );
     }
 
     // Create projectId and try to get/create the project
@@ -615,7 +638,7 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
       await deps.projectMetadataService.addProject(
         projectId,
         normalizedPath,
-        creation.ownerUsername,
+        owner?.username,
       );
       // A name equal to the path's own is no override at all.
       if (
@@ -640,6 +663,14 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
         publishCodeNameChanges(update.changedProjectIds);
       }
     }
+    // Owning a project is what makes it theirs to use; without the grant it
+    // would vanish from their own project list the moment it was made.
+    if (owner) {
+      await deps.limitedUsersService?.grantNewSessionProject(
+        owner.username,
+        project.id,
+      );
+    }
     publishProjectsChanged([project.id]);
 
     const codeNameByProjectId = await codeNamesForProjects([project]);
@@ -648,9 +679,7 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
         ...project,
         codeName: codeNameByProjectId.get(project.id),
         caption: await captionForProject(project),
-        ...(creation.ownerUsername
-          ? { ownerUsername: creation.ownerUsername }
-          : {}),
+        ...(owner ? { ownerUsername: owner.username } : {}),
       },
       created: directory.kind === "created",
     });
