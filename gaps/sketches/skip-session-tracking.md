@@ -1,0 +1,165 @@
+# Server-side Skip for provider sessions and demand-filled caches
+
+Status: maintainer-requested sketch, not an approved migration. Start with a
+performance simulation POC, preferably at the YA backend boundary; no POC or
+performance measurement has been run for this sketch.
+
+## Aim and placement
+
+Evaluate [SkipLabs/skip](https://github.com/SkipLabs/skip) as the incremental
+computation owner for provider-session tracking and derived server views.
+Consider embedding its TypeScript API in the provider service, in the YA
+server, or running a separate reactive process. A provider-side graph could
+survive Hono reloads; a YA-side graph is closer to catalog queries and rendering
+metadata. A separate process adds serialization, failure, recovery, and
+deployment costs. Choose ownership from the measured workload rather than
+maintaining equivalent graphs in both services by default.
+
+The maintainer reports the provider service as currently usable only on Linux.
+For scope, treat Linux as the practical baseline. The checked-in
+[runtime architecture](../../ARCHITECTURE.md#provider-runtime-ownership-and-reload)
+also describes an opt-in macOS implementation, disabled by default because of
+[active-turn interruptions](../macos-provider-host-turn-interruptions.md).
+A backend-level POC avoids coupling this experiment to provider-host platform
+repair; a whole-provider-service mock remains an alternative.
+
+Candidates include session inventories, project/session joins, summary
+projections, and lazy-filled caches such as project-path membership. Preserve
+canonical YA session identity, provider-native history, source revisions,
+field fidelity, and exact watcher invalidation. Skip should replace an owning
+derivation mechanism where useful, not become another cache layered over the
+same invalidation problem.
+
+## Existing work and consumer boundaries
+
+- [Session catalog observation](../../topics/session-catalog-observation.md)
+  already defines retained collections, bounded reconciliation, shared work,
+  and freshness. Its [reconciliation plan](../../docs/tactical/093-provider-session-reconciliation.md)
+  is the starting point, not a blank-slate catalog replacement.
+- [Server cache publication](../../topics/server-cache-publication.md) owns
+  cold-load sharing, revision fences, and durable publication ordering.
+- [Project-path links](../../topics/project-path-links.md) use a demand-driven,
+  in-memory directory cache backed by shared watcher leases. No eager tree
+  crawl occurs on index construction. Unwatched facts require fresh probes.
+  Inspect `packages/server/src/projects/projectPathIndex.ts` and
+  `packages/server/src/augments/project-path-links.ts` for a second POC seam.
+- Some recognition data is delivered in bulk to the session-render UI, notably
+  glossary artifacts. Include these consumers when inventorying caches and
+  measuring publication costs. Do not conflate them with a full project-path
+  corpus: the current path-link contract deliberately sends bounded confirmed
+  targets or annotated HTML. `TextBlock.tsx` consumes both `projectPathLinks`
+  and a glossary artifact. Preserve that distinction when considering shared
+  snapshots, deltas, or demand-based queries.
+- [SQLite-backed cold storage](../sqlite-backed-cold-storage-startup.md) is the
+  related proposal for moving large JSON metadata/index stores to bounded SQL
+  reads. [Slow sidebar after restart](../sidebar-slow-after-server-restart.md)
+  tracks the visible startup/reconnect cost. These overlap with session-history
+  tracking, but neither means that all provider transcripts should move to SQL.
+- [Per-session versus shared SQLite](prefer-per-session-sqlite-over-global-keyed-by-session.md)
+  records the storage-layout trade-off, including the cross-session-query
+  exception. Follow [runtime-portable SQLite](../../topics/optional-sqlite.md)
+  if the experiment adds a SQLite source adapter.
+
+## What Skip provides, and what still belongs to YA
+
+Source inspection on 2026-09-26 used upstream revision
+[`56e6a3bed3f4e804cbf4f705f8a9f0c9d1533e10`](https://github.com/SkipLabs/skip/tree/56e6a3bed3f4e804cbf4f705f8a9f0c9d1533e10).
+These are framework capabilities, not measured YA benefits.
+
+**Runtime.** The [upstream README](https://github.com/SkipLabs/skip/blob/56e6a3bed3f4e804cbf4f705f8a9f0c9d1533e10/README.md)
+describes a TypeScript API over Wasm or native runtimes, rather than a pure-JS
+engine. Wasm is the default and is documented for Node and Bun, with a 32-bit
+address-space limit; native installation is more involved. Verify the selected
+package version and packaged YA platforms before adopting either. In-process
+API use and a separate HTTP service are distinct deployment choices.
+
+**Push: fully subscribed/populated within a defined scope.** Eager collections
+maintain derived values as input changes arrive. A resource exposes an eager
+result collection that clients can read or subscribe to. This fits compact
+session inventories and active subscriptions. Fully populated must name its
+scope: an eager project resource need not ingest every transcript or every
+filesystem path. Initialization and ongoing maintenance still cost work.
+
+**Pull: lazy cached query-back-to-truth.** `LazyCollection` computes keyed
+values on demand and memoizes dependency-tracked work. Its truth is the inputs
+represented in the graph; a lazy function is not an automatic asynchronous
+filesystem/database read-through cache. External reads and change observation
+need an adapter. The [core API](https://github.com/SkipLabs/skip/blob/56e6a3bed3f4e804cbf4f705f8a9f0c9d1533e10/skipruntime-ts/core/src/api.ts)
+requires resource outputs to be eager and documents lazy collections as
+intermediate computations, with eager wrappers needed to expose them. An HTTP
+GET instead of a subscription is another axis: it does not by itself make the
+underlying graph lazy. Keep computation pure and bring mutable external truth
+through explicit inputs or external services.
+
+For path membership, a possible adapter would hydrate only requested
+directories or exact candidates, feed versioned facts into Skip, and invalidate
+them through the existing watcher owner. The POC must establish whether this
+actually simplifies the current mechanism, including cached absence,
+incomplete listings, missed events, and eviction. A zero-I/O warm cache hit is
+the baseline to preserve, not a benefit Skip gets credit for introducing.
+
+**Filesystem subscriptions.** The inspected [external-source documentation](https://github.com/SkipLabs/skip/blob/56e6a3bed3f4e804cbf4f705f8a9f0c9d1533e10/www/docs/externals.md)
+provides `ExternalService.subscribe`/`unsubscribe`, initial/update callbacks,
+and shutdown integration. It lists Skip, PostgreSQL, Kafka, and polled HTTP
+adapters. No ready-made filesystem watcher adapter was found in the inspected
+runtime, helper, example, and documentation sources. The useful support is
+the adapter lifecycle and downstream incremental propagation; YA would still
+own OS watches, race-free initial snapshots, rename/delete interpretation,
+overflow repair, source-version fencing, and release of unused watches.
+Do not replace existing watch sharing with one watcher per resource or client.
+
+**Persistence is a separate decision.** The repository also contains SKDB, a
+reactive SQL database; it is distinct from the Skip reactive-service framework.
+The inspected service API and deployment docs do not establish a switchable
+in-memory/on-disk persistence backend for the framework's computation graph.
+Treat configurable graph persistence as unverified, not an assumed feature.
+External durable storage can feed a graph, but storage choice, hydration,
+restart recovery, and migration remain explicit design work.
+
+Using more on-disk database reads/writes may be strictly slower or otherwise
+worse for hot, small, already-cached workloads. It may nevertheless be desirable
+for bounded RAM, cold history queries, and restart readiness. Separate durable
+user metadata from disposable derived caches and provider-owned transcripts.
+Compare an in-memory graph with durable-source variants; do not infer that Skip
+requires a database or that adding one improves performance.
+
+## Initial performance simulation POC
+
+1. **Choose the backend seam and retain a baseline.** Prefer mocked provider
+   events, catalog reads, and filesystem facts feeding the real YA backend
+   acquisition/publication path. Replay the same deterministic trace through
+   today's implementation and a Skip-backed candidate. A whole-provider-service
+   mock is useful later for ownership/reload behavior; neither mock proves real
+   SDK or native watcher correctness.
+2. **Vary demand and churn independently.** Exercise small and large histories,
+   sparse hot sessions, broad list reads, many idle sessions, simultaneous
+   reconnects, repeated keyed queries, and bursts of updates. Include cold
+   startup, warm hits, project switches, rename/delete/recreate, missed watcher
+   events, and unsubscribe/re-subscribe. Count unnecessary untouched-row work.
+3. **Separate the choices.** First compare current caches with an in-process
+   Skip graph over equivalent in-memory facts. Then vary eager versus lazy
+   derivation, durable SQLite-backed facts versus memory, and finally a separate
+   process. Avoid attributing a multi-change result to Skip alone. Pin runtime,
+   package revision, trace, and cache state for every comparison.
+4. **Measure the full cost.** Record startup-to-first-usable-catalog, cold/warm
+   query and update-to-consumer p50/p95/p99, CPU/event-loop delay, total memory
+   including Wasm/native/process overhead, filesystem calls, DB reads/writes,
+   bytes written, watcher count, graph/resource retention, and transport bytes.
+   For bulk recognizers, include initial serialization, repeated publication,
+   client parse/match cost, and whether one changed fact resends the corpus.
+5. **Check correctness and lifecycle before claiming a win.** Compare each
+   result against a from-scratch oracle over authoritative fixture state.
+   Test mutation during hydration, stale completion, reconnect/restart, errors,
+   and final unsubscribe. Preserve explicit unknown/stale states and access
+   boundaries. Verify no idle scans, retained orphan resources, or leaked
+   watchers. Backend timings alone do not prove UI responsiveness; a later
+   consumer check must include real sequential typing under concurrent updates.
+
+Proceed beyond the sketch only when the POC shows a useful measured trade-off
+and names which existing cache/invalidation owner it can replace. Keeping the
+current mechanism, using Skip only for one projection, or adopting bounded SQL
+storage without Skip are all valid outcomes. This sketch changes no roadmap
+priority and authorizes no production migration.
+
+Captured 2026-09-26 at the maintainer's request.
+Contributing-model: 6-Astra
