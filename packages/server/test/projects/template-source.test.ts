@@ -454,6 +454,53 @@ describe("template source retrieval", () => {
     );
   });
 
+  it("revalidates a local overlay's edits without re-copying unchanged GitHub sources", async () => {
+    const localDirectory = async (name: string) => {
+      await fixture(join(root, name), "");
+      return realpath(join(root, name, "repository"));
+    };
+    const fetch = vi.fn(
+      async (entry: ProjectTemplateSourceConfig, directory: string) =>
+        fixture(directory, entry.contentPath),
+    );
+    const service = new TemplateSourceService(
+      join(root, "data"),
+      fetch,
+      async () => sha,
+    );
+    const local = {
+      ...source,
+      id: "local",
+      repository: await localDirectory("local"),
+      contentPath: "",
+    };
+    const layered = { enabled: true, sources: [source, local] };
+    await service.configure(layered);
+    await service.waitForRetrieval();
+    const first = await service.current();
+    const copied = first.snapshot?.sources[0]?.directory;
+    const path = join(local.repository, "templates/app/template.json");
+    const manifest = JSON.parse(await readFile(path, "utf8"));
+    manifest.title = "Edited overlay";
+    await writeFile(path, JSON.stringify(manifest));
+    await service.configure(layered);
+    await service.waitForRetrieval();
+    const edited = await service.current();
+    expect(edited).toMatchObject({ phase: "ready", result: "up-to-date" });
+    expect(edited.snapshot?.sources[0]?.directory).toBe(copied);
+    expect(edited.snapshot?.templates[0]?.title).toBe("Edited overlay");
+    const moved = {
+      ...local,
+      repository: await localDirectory("moved"),
+    };
+    await service.configure({ enabled: true, sources: [source, moved] });
+    await service.waitForRetrieval();
+    const relocated = await service.current();
+    expect(relocated).toMatchObject({ phase: "ready", result: "updated" });
+    expect(relocated.snapshot?.sources[0]?.directory).not.toBe(copied);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it("reports a local Git owner's HEAD but revalidates working files without copying them", async () => {
     await fixture(root, "project-templates");
     const repository = await realpath(join(root, "repository"));

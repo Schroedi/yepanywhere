@@ -105,7 +105,10 @@ cache paths are not a generated project's runtime dependency.
 `HEAD` selects the remote default-branch tip at explicit fetch time. A named
 branch/tag or full SHA selects another revision. Update checks remote refs
 first; unchanged commits and source order reuse the admitted snapshots and
-report Already up to date without downloading repository content. Updating
+report Already up to date without downloading repository content. Local
+sources are re-read on every update, but their file edits never re-copy or
+re-translate the GitHub snapshots, since translation targets only each local
+source's directory; only a changed local directory does. Updating
 from the default branch sets that source's revision to `HEAD`. Poll only while
 a retrieval is active, and preserve in-progress field edits during status
 updates. Failed/interrupted retrieval is explicit and does not admit a partial

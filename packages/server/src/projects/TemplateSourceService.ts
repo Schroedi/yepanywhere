@@ -405,14 +405,22 @@ export class TemplateSourceService {
     previous: ProjectTemplateSourceState,
   ): Promise<void> {
     const snapshots: ProjectTemplateSourceSnapshot[] = [];
+    // Set when a GitHub copy or a relocation target differs from the admitted
+    // snapshot; local working files are re-read below either way.
     let changed = false;
     const emptyGitConfig = join(this.directory, "git-config");
     await writeFile(emptyGitConfig, "", { mode: 0o600 });
     const git = isolatedTemplateSourceGit(emptyGitConfig);
     for (const source of config.sources) {
       if (!githubRepository.test(source.repository)) {
-        snapshots.push(await localSnapshot(source));
-        changed = true;
+        const snapshot = await localSnapshot(source);
+        snapshots.push(snapshot);
+        // Relocation aliases a local source by its directory, never its files.
+        const admitted = previous.snapshot?.sources.find(
+          (item) => item.id === source.id,
+        );
+        if (!admitted?.local || admitted.directory !== snapshot.directory)
+          changed = true;
         continue;
       }
       const resolved = await this.resolveRef(source, git);
@@ -489,7 +497,6 @@ export class TemplateSourceService {
         description,
         status,
       }));
-    for (const template of templates) library.compose(template.id);
     this.state = {
       config,
       phase: "ready",
