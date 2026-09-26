@@ -133,6 +133,7 @@ import {
 } from "./push/index.js";
 import { createPushRoutes } from "./push/routes.js";
 import { ProjectStoragePolicy } from "./projects/projectStoragePolicy.js";
+import { settleGitAuthorPaletteRefreshes } from "./git/authorPalette.js";
 import type { RecentsService } from "./recents/index.js";
 import type {
   RemoteAccessService,
@@ -1072,6 +1073,7 @@ export function createApp(options: AppOptions): AppResult {
     await projectFileCompletion.dispose();
     await bangCommandService?.dispose();
     await scanner.dispose();
+    await settleGitAuthorPaletteRefreshes();
     const entries = Array.from(readerCache.entries());
     readerCache.clear();
     await Promise.all(entries.map(([key, reader]) => closeReader(key, reader)));
