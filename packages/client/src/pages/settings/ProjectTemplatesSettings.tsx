@@ -2,13 +2,10 @@ import { useEffect, useState } from "react";
 import {
   DEFAULT_PROJECT_TEMPLATE_SOURCE,
   DEFAULT_PROJECT_TEMPLATE_SOURCES,
-  SERVER_CAPABILITIES,
-  serverHasCapability,
   type ProjectTemplateSourceState,
   type ProjectTemplateSourcesConfig,
 } from "@yep-anywhere/shared";
 import { fetchJSON } from "../../api/sourceApiFetch";
-import { useVersion } from "../../hooks/useVersion";
 import { useActingPrincipal } from "../../hooks/useActingPrincipal";
 import { useI18n } from "../../i18n";
 import { SettingsSection } from "./SettingsSection";
@@ -52,14 +49,8 @@ function sourceConfig(
 export function ProjectTemplatesSettings() {
   const { t } = useI18n();
   useSettingsPaneTitle(t("settingsProjectTemplatesTitle"));
-  const { version } = useVersion();
   const { principal, resolved } = useActingPrincipal();
-  const supported = serverHasCapability(
-    version,
-    SERVER_CAPABILITIES.projectTemplateSources.name,
-  );
-  const allowed =
-    supported && resolved && principal.superuser && !principal.switched;
+  const allowed = resolved && principal.superuser && !principal.switched;
   const [state, setState] = useState<ProjectTemplateSourceState | null>(null);
   const [draft, setDraft] = useState(() =>
     editConfig(DEFAULT_PROJECT_TEMPLATE_SOURCES),

@@ -395,15 +395,15 @@ for, so nothing about limited users appears anywhere else until one exists.
   and mounts no category at all, since the client's placeholder principal is
   the superuser and a superuser-only pane would otherwise send its refused
   requests before being hidden. That suppression is about the principal
-  alone: a category the server's capabilities dropped still renders its pane
-  from a typed URL, because that pane's unsupported-server message is the
-  answer the reader came for.
+  alone: a typed URL for a category the server does not serve still gets an
+  answer, the category's unsupported-server message
+  ([settings placement](settings-ui-placement.md#categories-what-each-is-for)).
 - **An older server** without the `limited-users` capability (before
-  v0.9.0) loses the category from the Settings list; its pane, from a typed
-  URL, says the server lacks limited users. The client then sends that server
-  no users request and no `limitedUsersEnabled` write, which it would drop
-  silently. No other client behavior depends on the capability. See
-  [server capabilities](server-capabilities.md).
+  v0.9.0) loses the category from the Settings list; a typed URL says the
+  server lacks limited users, and the Users pane does not mount. The client
+  then sends that server no users request and no `limitedUsersEnabled` write,
+  which it would drop silently. No other client behavior depends on the
+  capability. See [server capabilities](server-capabilities.md).
 
 Nav entries a limited user cannot use are hidden, and the sidebar session
 list shows only sessions in their accessible projects plus sessions they

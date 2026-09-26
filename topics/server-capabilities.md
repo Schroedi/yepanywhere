@@ -570,9 +570,9 @@ after v0.9.0 and v0.9.1 shipped the feature, so those releases infer it from
 their version, and 0.9.0 precedes the ID 82 allocation's 0.9.1. The
 2026-09-26 optional-feature horizon is v0.9.0 and v0.9.1; both have the
 contract, and v0.8.1 and older have none of it. Without the capability the
-client drops Settings → Users from the category list, its pane from a typed
-URL reports an unsupported server, and it sends no users request and no
-`limitedUsersEnabled` write. The same review added the additive
+client drops Settings → Users from the category list, a typed URL reports an
+unsupported server without mounting the pane, and it sends no users request
+and no `limitedUsersEnabled` write. The same review added the additive
 `limitedUsersEnabled` boolean to `GET /api/auth/status` without a capability:
 only the local login page reads it, served by the same server, and an absent
 field hides the limited-user Username field. See

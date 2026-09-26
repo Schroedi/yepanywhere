@@ -7,15 +7,12 @@ import type {
 import {
   JOIN_STALE_OFFSET_MAX_MINUTES,
   JOIN_STALE_OFFSET_MIN_MINUTES,
-  SERVER_CAPABILITIES,
-  serverHasCapability,
 } from "@yep-anywhere/shared";
 import { api } from "../../api/client";
 import { useActingPrincipal } from "../../hooks/useActingPrincipal";
 import { useProjects } from "../../hooks/useProjects";
 import { useProviders } from "../../hooks/useProviders";
 import { useServerSettings } from "../../hooks/useServerSettings";
-import { useVersion } from "../../hooks/useVersion";
 import { useI18n } from "../../i18n";
 import { toBrowserAppHref } from "../../lib/appHref";
 import { SettingsItem } from "./SettingsItem";
@@ -123,14 +120,6 @@ export function UsersSettings() {
     refresh: refreshPrincipal,
   } = useActingPrincipal();
 
-  const { version, loading: versionLoading } = useVersion();
-  // A server without limited users would 404 every request here and silently
-  // drop a limitedUsersEnabled write, so the pane asks it nothing.
-  const supported = serverHasCapability(
-    version,
-    SERVER_CAPABILITIES.limitedUsers.name,
-  );
-
   const [users, setUsers] = useState<LimitedUserSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [editor, setEditor] = useState<EditorTarget | null>(null);
@@ -147,7 +136,7 @@ export function UsersSettings() {
     // Until the server says who this client is, the hook reports the
     // superuser placeholder. Asking now would send one refused request on
     // every load for a switched superuser or a limited user.
-    if (!principalResolved || !supported) return;
+    if (!principalResolved) return;
     if (!canManage) {
       setLoaded(true);
       return;
@@ -160,7 +149,7 @@ export function UsersSettings() {
     } finally {
       setLoaded(true);
     }
-  }, [canManage, principalResolved, supported]);
+  }, [canManage, principalResolved]);
 
   useEffect(() => {
     void loadUsers();
@@ -169,13 +158,13 @@ export function UsersSettings() {
   // Usage is its own read: a server without the ledger 404s here while the
   // directory above still works, and the table simply does not appear.
   const loadUsage = useCallback(async () => {
-    if (!principalResolved || !canManage || !supported) return;
+    if (!principalResolved || !canManage) return;
     try {
       setUsage(await api.getUserUsage());
     } catch {
       setUsage(null);
     }
-  }, [canManage, principalResolved, supported]);
+  }, [canManage, principalResolved]);
 
   useEffect(() => {
     void loadUsage();
@@ -259,23 +248,12 @@ export function UsersSettings() {
 
   // Rendering the directory before the identity lands would flash the
   // superuser's pane at a limited user on every load.
-  if (!principalResolved || (!supported && versionLoading)) {
+  if (!principalResolved) {
     return <SettingsSection description={t("loading")} />;
   }
 
   if (!canManage) {
     return <LimitedUserView onLogout={() => void logout()} busy={busy} />;
-  }
-
-  if (!supported) {
-    return (
-      <SettingsSection
-        title={t("settingsUsersTitle")}
-        description={t("settingsUsersDescription")}
-      >
-        <p className="settings-hint">{t("usersUnsupportedServer")}</p>
-      </SettingsSection>
-    );
   }
 
   return (
