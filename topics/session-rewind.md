@@ -53,13 +53,18 @@ is one server-wide value).
   it never removes turns from the session's history.
 - **Turn index `N`.** The 1-based ordinal of a real user turn over that full
   sequence, cleared turns included. Tool-result user rows, compact rows,
-  injected context, and synthetic rows are not turns (same boundary rule as
-  [fork-from-turn](fork-from-turn.md)). `N` therefore never renumbers: after
-  `/clear 2` the cleared turns keep 3–5 and the next new turn is 6, and its
-  turn menu shows `[6]`. Server normalization stamps the ordinal on each
-  user turn (`turnIndex`), and both the tooltip and `/clear N` resolve
-  through that one stamp, which is the invariant. `N = 0` names the empty
-  prefix before turn 1.
+  injected context, and synthetic rows are not turns. One predicate decides
+  this for the turn index, the [fork-from-turn](fork-from-turn.md) and rewind
+  boundaries, and the client, so a row is a turn everywhere or nowhere. `N`
+  therefore never renumbers: after `/clear 2` the cleared turns keep 3–5 and
+  the next new turn is 6, and its turn menu shows `[6]`. Server
+  normalization stamps the ordinal on each user turn (`turnIndex`), and both
+  the tooltip and `/clear N` resolve through that one stamp, which is the
+  invariant. The stamp is authoritative: a persisted row the server left
+  unstamped has no `N`, and the client numbers only rows the server has not
+  yet normalized (the live stream tail), continuing after the last stamped
+  turn. A rewind whose source row has no stamp is refused rather than
+  recorded as turn 0. `N = 0` names the empty prefix before turn 1.
 - **Cut.** The last kept chain entry. *After turn N* keeps turn N's prompt
   and its complete response; *before turn N* keeps everything preceding
   turn N's prompt, which is the same cut as *after turn N−1*.
@@ -487,7 +492,8 @@ Durable pointers by symbol and module; grep for the symbol.
 - `app-types.ts` — `rewoundGroupId` on messages, `clearloop` on session
   summaries, `SessionQueuedClearloopProgress` on queue entries.
 - `capability-ids.ts` / `server-capabilities.ts` — `sessionRewind`.
-- `transcript/messageProjection.ts` — the `rewound_group` system item.
+- `transcript/messageProjection.ts` — the `rewound_group` system item;
+  `isRealUserTurn`, the one "is this a turn" predicate.
 
 **Server** (`packages/server/src`)
 - `routes/sessions.ts` — `runRewindCommand`, the one operation behind the
@@ -512,9 +518,10 @@ Durable pointers by symbol and module; grep for the symbol.
   membership, nesting); the `rewindRecords` option of
   `collectVisibleClaudeEntries`, threaded through `normalizeSession` in
   `sessions/normalization.ts`.
-- `sessions/turn-index.ts` — `isRealUserTurn`, `stampTurnIndexes` (the
-  `turnIndex` stamp applied by `normalizeSession` for every provider),
-  `turnIndexOf` (used by the rewind routes for the record's `N`).
+- `sessions/turn-index.ts` — `stampTurnIndexes` (the `turnIndex` stamp
+  applied by `normalizeSession` for every provider), `turnIndexOf` (used by
+  the rewind routes for the record's `N`); `routes/sessions.ts` fork and
+  rewind boundaries use the same shared predicate.
 - `sessions/pagination.ts` — the tail window backs up to a group header.
 - `metadata/SessionMetadataService.ts` — `rewindRecords`, `pendingRewind`,
   `clearloop` fields and their accessors.
@@ -533,12 +540,13 @@ Durable pointers by symbol and module; grep for the symbol.
 
 **Client** (`packages/client/src`)
 - `lib/slashCommands.ts` — `REWIND_SLASH_COMMANDS`, parser entries.
-- `pages/SessionPage.tsx` — `handleRewindCommand`, `rewindToCut`,
-  `startClearloop`, `handleCancelClearloop`, the `SessionRewindProvider`
-  value, command recall, draft restore/clear, the metadata-event rewind
-  application, the header badge.
-- `lib/sessionRewind.ts` — `getSessionTurnIndex`, `supportsSessionRewind`;
-  `contexts/SessionRewindContext.tsx`.
+- `hooks/useSessionRewindControls.ts` — `handleRewindCommand`,
+  `rewindToCut`, `startClearloop`, `cancelClearloop`, the
+  `SessionRewindProvider` value, draft restore/clear, the metadata-event
+  rewind application; `pages/SessionPage.tsx` keeps command recall and the
+  header badge.
+- `lib/sessionRewind.ts` — `getSessionTurnIndex` (server stamps, live-tail
+  numbering), `supportsSessionRewind`; `contexts/SessionRewindContext.tsx`.
 - `components/blocks/ForkTurnMenu.tsx` — Clear entries and the indexed
   tooltip; `components/RenderItemComponent.tsx` — `RewoundGroupHeader`
   (toggle, copy control) and the nested-row styling.

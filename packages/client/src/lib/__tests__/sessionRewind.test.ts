@@ -66,6 +66,59 @@ describe("getSessionTurnIndex", () => {
     expect(index.lastLiveIndex).toBe(2);
   });
 
+  it("never numbers a persisted row the server left unstamped", () => {
+    // A compacted Claude session: the compact summary and a skill body are
+    // user-role rows normalization deliberately left without `turnIndex`.
+    // Counting them would give the summary the next turn's N.
+    const index = getSessionTurnIndex([
+      userTurn("u1", { _source: "jsonl", turnIndex: 1 }),
+      assistantTurn("a1"),
+      userTurn("summary", {
+        _source: "jsonl",
+        message: {
+          role: "user",
+          content:
+            "This session is being continued from a previous conversation that ran out of context.",
+        },
+      }),
+      userTurn("u2", { _source: "jsonl", turnIndex: 2 }),
+      assistantTurn("a2"),
+      userTurn("skill", {
+        _source: "jsonl",
+        isMeta: true,
+        message: {
+          role: "user",
+          content: "Base directory for this skill: /skills/review\n\nBody",
+        },
+      }),
+    ]);
+
+    expect([...index.idByIndex.entries()]).toEqual([
+      [1, "u1"],
+      [2, "u2"],
+    ]);
+    expect(index.indexById.has("summary")).toBe(false);
+    expect(index.lastIndex).toBe(2);
+    expect(index.lastLiveIndex).toBe(2);
+  });
+
+  it("numbers live stream rows after the last stamped turn with the server's predicate", () => {
+    const index = getSessionTurnIndex([
+      userTurn("u1", { _source: "jsonl", turnIndex: 1 }),
+      assistantTurn("a1"),
+      userTurn("live", { _source: "sdk" }),
+      userTurn("live-summary", {
+        _source: "sdk",
+        isCompactSummary: true,
+      }),
+    ]);
+
+    expect([...index.idByIndex.entries()]).toEqual([
+      [1, "u1"],
+      [2, "live"],
+    ]);
+  });
+
   it("reports no live turn when every turn was dropped", () => {
     const index = getSessionTurnIndex([
       userTurn("dropped-1", { rewoundGroupId: "rw-1" }),

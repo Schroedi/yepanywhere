@@ -4,9 +4,9 @@ import {
   serverHasCapability,
 } from "@yep-anywhere/shared";
 import { getMessageId } from "@yep-anywhere/shared/transcript/message";
+import { isRealUserTurn } from "@yep-anywhere/shared/transcript/messageProjection";
 import type { DraftControls } from "../hooks/useDraftPersistence";
 import type { Message } from "../types";
-import { isPlainUserTurn } from "./linearMessageDedup";
 import {
   type ComposerTransferDraftControls,
   insertComposerTransferText,
@@ -52,12 +52,19 @@ export interface SessionTurnIndex {
   lastLiveIndex: number;
 }
 
+function stampedTurnIndex(message: Message): number | undefined {
+  const value = (message as { turnIndex?: unknown }).turnIndex;
+  return typeof value === "number" ? value : undefined;
+}
+
 /**
  * The stable turn index N for every user turn (topics/session-rewind.md
  * § Vocabulary). Server normalization stamps `turnIndex` over the full
- * sequence, cleared turns included; rows not yet stamped (live stream rows)
- * continue the count from the last stamped turn, so a partially loaded
- * window still numbers correctly as long as its first turn is stamped.
+ * sequence, cleared turns included, and its stamp is authoritative. A
+ * persisted row it left unstamped is not a turn. Only rows the server has
+ * not normalized yet (live stream rows) are numbered here, with the same
+ * `isRealUserTurn` predicate, continuing from the last stamped turn; a
+ * server too old to stamp gets that numbering for every row.
  */
 export function getSessionTurnIndex(
   messages: readonly Message[],
@@ -67,28 +74,25 @@ export function getSessionTurnIndex(
   const clearedIds = new Set<string>();
   let lastIndex = 0;
   let lastLiveIndex = 0;
+  const serverStamps = messages.some(
+    (message) => stampedTurnIndex(message) !== undefined,
+  );
   for (const message of messages) {
-    const extras = message as {
-      isSubagent?: unknown;
-      rewoundGroupId?: unknown;
-      isSynthetic?: unknown;
-      turnIndex?: unknown;
-    };
+    const stamped = stampedTurnIndex(message);
     if (
-      !isPlainUserTurn(message) ||
-      extras.isSubagent === true ||
-      extras.isSynthetic === true
+      stamped === undefined &&
+      (!isRealUserTurn(message) ||
+        (serverStamps && message._source === "jsonl"))
     ) {
       continue;
     }
     const id = getMessageId(message);
     if (!id || indexById.has(id)) continue;
-    const index =
-      typeof extras.turnIndex === "number" ? extras.turnIndex : lastIndex + 1;
+    const index = stamped ?? lastIndex + 1;
     lastIndex = Math.max(lastIndex, index);
     idByIndex.set(index, id);
     indexById.set(id, index);
-    if (typeof extras.rewoundGroupId === "string") clearedIds.add(id);
+    if (typeof message.rewoundGroupId === "string") clearedIds.add(id);
     else lastLiveIndex = Math.max(lastLiveIndex, index);
   }
   return { idByIndex, indexById, clearedIds, lastIndex, lastLiveIndex };

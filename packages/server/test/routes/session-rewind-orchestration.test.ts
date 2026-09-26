@@ -35,8 +35,26 @@ afterEach(async () => {
   );
 });
 
-/** A two-turn Claude session behind the real routes, reader and metadata. */
-async function createRewindFixture() {
+type FixtureEntry = (
+  type: "user" | "assistant",
+  uuid: string,
+  parentUuid: string | null,
+  text: string,
+  extra?: Record<string, unknown>,
+) => Record<string, unknown>;
+
+/**
+ * A Claude session behind the real routes, reader and metadata: two turns by
+ * default, or the transcript `lines` builds.
+ */
+async function createRewindFixture(
+  lines: (entry: FixtureEntry) => Record<string, unknown>[] = (entry) => [
+    entry("user", "u1", null, "first"),
+    entry("assistant", "a1", "u1", "one"),
+    entry("user", "u2", "a1", "second"),
+    entry("assistant", "a2", "u2", "two"),
+  ],
+) {
   const dir = await mkdtemp(join(tmpdir(), "rewind-orchestration-"));
   directories.push(dir);
   const sessionsDir = join(dir, "sessions");
@@ -55,12 +73,8 @@ async function createRewindFixture() {
     activeExternalCount: 0,
     lastActivity: null,
   };
-  const entry = (
-    type: "user" | "assistant",
-    uuid: string,
-    parentUuid: string | null,
-    text: string,
-  ) => ({
+  const entry: FixtureEntry = (type, uuid, parentUuid, text, extra = {}) => ({
+    ...extra,
     type,
     uuid,
     parentUuid,
@@ -80,12 +94,7 @@ async function createRewindFixture() {
   });
   await writeFile(
     join(sessionsDir, `${sessionId}.jsonl`),
-    `${[
-      entry("user", "u1", null, "first"),
-      entry("assistant", "a1", "u1", "one"),
-      entry("user", "u2", "a1", "second"),
-      entry("assistant", "a2", "u2", "two"),
-    ]
+    `${lines(entry)
       .map((line) => JSON.stringify(line))
       .join("\n")}\n`,
   );
@@ -208,6 +217,38 @@ describe("rewind orchestration", () => {
     expect(
       pick(interactive.metadata.getRewindRecords(interactive.sessionId)[0]!),
     ).toEqual(pick(queued.metadata.getRewindRecords(queued.sessionId)[0]!));
+  });
+
+  it("refuses a cut at a compact summary instead of recording /clear 0", async () => {
+    const fixture = await createRewindFixture((entry) => [
+      entry("user", "u1", null, "first"),
+      entry("assistant", "a1", "u1", "one"),
+      entry(
+        "user",
+        "summary",
+        "a1",
+        "This session is being continued from a previous conversation that ran out of context.",
+        { isCompactSummary: true },
+      ),
+      entry("user", "u2", "summary", "second"),
+      entry("assistant", "a2", "u2", "two"),
+    ]);
+
+    const response = await fixture.routes.request(
+      `/projects/${fixture.project.id}/sessions/${fixture.sessionId}/rewind`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cut: { kind: "before-user-turn", sourceMessageId: "summary" },
+        }),
+      },
+    );
+
+    // The boundary and the turn index share one predicate, so the summary
+    // is refused as a cut source rather than recorded as turn 0.
+    expect(response.status).toBe(400);
+    expect(fixture.metadata.getRewindRecords(fixture.sessionId)).toEqual([]);
   });
 
   it("a queued /clearloop starts a patient loop at the resolved cut", async () => {

@@ -32,13 +32,13 @@ import {
   isWorkstreamId,
   mainWorkstreamId,
   truncateSessionTitle,
-  isPostCompactReplayText,
   parseClearloopArguments,
   parseTurnIndexArgument,
   type SessionRewindReason,
   type SessionRewindRecord,
   type UpdateClearloopRequest,
 } from "@yep-anywhere/shared";
+import { isRealUserTurn } from "@yep-anywhere/shared/transcript/messageProjection";
 import { randomUUID } from "node:crypto";
 import {
   ClearloopConflictError,
@@ -983,38 +983,6 @@ function messageHasToolResult(message: Message): boolean {
   );
 }
 
-function messageTextContent(message: Message): string | undefined {
-  const content = messageContent(message);
-  if (typeof content === "string") {
-    return content;
-  }
-  if (!Array.isArray(content)) {
-    return undefined;
-  }
-  const textBlocks = content
-    .map((block) =>
-      block &&
-      typeof block === "object" &&
-      (block as ContentBlock).type === "text" &&
-      typeof (block as { text?: unknown }).text === "string"
-        ? (block as { text: string }).text
-        : "",
-    )
-    .filter(Boolean);
-  return textBlocks.length > 0 ? textBlocks.join("\n") : undefined;
-}
-
-function isSlashCommandSkillBodyUserMessage(message: Message): boolean {
-  if ((message as { isMeta?: unknown }).isMeta !== true) {
-    return false;
-  }
-  return (
-    messageTextContent(message)
-      ?.trimStart()
-      .startsWith("Base directory for this skill:") === true
-  );
-}
-
 function isRestartInternalCompactCommand(message: Message): boolean {
   if (messageRole(message) !== "user" || messageHasToolResult(message)) {
     return false;
@@ -1426,20 +1394,6 @@ function isHumanUserMessage(message: Message): boolean {
   return role === "user" && !messageHasToolResult(message);
 }
 
-function isCompactSummaryUserMessage(message: Message): boolean {
-  return (message as { isCompactSummary?: unknown }).isCompactSummary === true;
-}
-
-function isUserAuthoredRequest(message: Message): boolean {
-  return (
-    isHumanUserMessage(message) &&
-    message.isSynthetic !== true &&
-    !isCompactSummaryUserMessage(message) &&
-    !isSlashCommandSkillBodyUserMessage(message) &&
-    !isPostCompactReplayText(renderRestartContent(messageContent(message)))
-  );
-}
-
 function completedPublicShareMessageCount(options: {
   messages: Message[];
   process?: Process;
@@ -1480,7 +1434,7 @@ function completedPublicShareMessageCount(options: {
   // retaining everything before it captures every completed turn.
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message && isUserAuthoredRequest(message)) {
+    if (message && isRealUserTurn(message)) {
       return index;
     }
   }
@@ -1540,7 +1494,7 @@ function resolveForkAfterBoundary(
   if (sourceIndex < 0 || !sourceMessage) {
     return { error: "Selected source message was not found", status: 404 };
   }
-  if (!isUserAuthoredRequest(sourceMessage)) {
+  if (!isRealUserTurn(sourceMessage)) {
     return {
       error: "sourceMessageId must identify a user-authored request",
       status: 400,
@@ -1550,7 +1504,7 @@ function resolveForkAfterBoundary(
   let nextUserIndex = -1;
   for (let index = sourceIndex + 1; index < messages.length; index += 1) {
     const candidate = messages[index];
-    if (candidate && isUserAuthoredRequest(candidate)) {
+    if (candidate && isRealUserTurn(candidate)) {
       nextUserIndex = index;
       break;
     }
@@ -1639,7 +1593,7 @@ function resolveForkBeforeBoundary(
   if (sourceIndex < 0 || !sourceMessage) {
     return { error: "Selected source message was not found", status: 404 };
   }
-  if (!isUserAuthoredRequest(sourceMessage)) {
+  if (!isRealUserTurn(sourceMessage)) {
     return {
       error: "sourceMessageId must identify a user-authored request",
       status: 400,
@@ -1649,7 +1603,7 @@ function resolveForkBeforeBoundary(
   for (let index = sourceIndex - 1; index >= 0; index -= 1) {
     const candidate = messages[index];
     const candidateId = candidate ? messageId(candidate) : undefined;
-    if (candidate && candidateId && isUserAuthoredRequest(candidate)) {
+    if (candidate && candidateId && isRealUserTurn(candidate)) {
       return resolveForkAfterBoundary(
         messages,
         candidateId,
@@ -5974,7 +5928,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     for (let index = cutIndex + 1; index < session.messages.length; index++) {
       const message = session.messages[index];
       if (!message || message.rewoundGroupId) continue;
-      if (isUserAuthoredRequest(message)) {
+      if (isRealUserTurn(message)) {
         droppedTurnCount += 1;
         const id = messageId(message);
         if (id) {
@@ -6101,13 +6055,20 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
     // The kept turn's stamped ordinal is the record's N: the same number the
     // turn menu shows, so `/clear N` and the label agree by construction.
+    // The boundary above already refused non-turns; a source that still has
+    // no stamp came from an unnormalized history and has no N to record.
     const sourceIndex = turnIndexOf(sourceMessage);
+    if (sourceIndex === undefined) {
+      return {
+        ok: false,
+        error: "That message is not a user turn",
+        status: 409,
+      };
+    }
     const cutTurnIndex =
-      sourceIndex === undefined
-        ? 0
-        : cut.kind === "before-user-turn"
-          ? Math.max(0, sourceIndex - 1)
-          : sourceIndex;
+      cut.kind === "before-user-turn"
+        ? Math.max(0, sourceIndex - 1)
+        : sourceIndex;
     return {
       ok: true,
       cutMessageId: boundary.providerBoundary.messageId,
