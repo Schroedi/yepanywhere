@@ -25,9 +25,11 @@ runtime described below or unrelated metadata families.
   path as it is typed: the name is the path's last component and the code is
   the same allocation the server would make from that name against the
   projects already listed. Typing into either field detaches it from the
-  path; clearing it hands it back to the default. The defaults are visible
-  values, not placeholders, so a user who wants them submits without touching
-  them.
+  path. An emptied field stays empty while the user edits it, so a
+  replacement can be typed from scratch; left empty, it shows the default
+  again when focus leaves it and submits as the default. The defaults are
+  visible values, not placeholders, so a user who wants them submits without
+  touching them.
 - A name that still equals the path's last component is no override. Only a
   differing name is stored; renaming the directory later therefore changes
   the name of a project that was never explicitly named.

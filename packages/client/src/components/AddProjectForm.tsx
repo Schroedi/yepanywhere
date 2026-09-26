@@ -31,11 +31,17 @@ interface AddProjectFormProps {
   onCancel: () => void;
 }
 
+/** An empty or blank draft means "use the default", not a chosen value. */
+function chosenDraft(draft: string | null): string | null {
+  return draft?.trim() ? draft : null;
+}
+
 /**
  * Path entry for a new project, with the name and code the project will get.
- * Both follow the path until the user types into them; clearing a field
- * hands it back to the default, so the defaults stay visible and editable
- * rather than hidden behind an empty placeholder.
+ * Both follow the path until the user types into them. An emptied field stays
+ * empty while it is edited, so a replacement can be typed from scratch; it
+ * shows the default again on blur and submits as the default. The defaults
+ * stay visible and editable rather than hidden behind an empty placeholder.
  */
 export function AddProjectForm({
   projects,
@@ -54,7 +60,7 @@ export function AddProjectForm({
   const [codeError, setCodeError] = useState<string | null>(null);
 
   const defaultName = defaultProjectNameForPath(path);
-  const name = nameDraft ?? defaultName;
+  const name = chosenDraft(nameDraft) ?? defaultName;
   const defaultCode = useMemo(() => {
     if (!chooseCodeName || !name.trim()) return "";
     return allocateProjectCodeName(
@@ -65,7 +71,6 @@ export function AddProjectForm({
       projects.map((project) => project.name),
     );
   }, [chooseCodeName, name, projects]);
-  const code = codeDraft ?? defaultCode;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -76,9 +81,10 @@ export function AddProjectForm({
       const chosenName = name.trim();
       if (chosenName && chosenName !== defaultName) request.name = chosenName;
     }
-    if (chooseCodeName && codeDraft?.trim()) {
+    const chosenCode = chosenDraft(codeDraft);
+    if (chooseCodeName && chosenCode) {
       try {
-        request.codeName = normalizeProjectCodeName(codeDraft);
+        request.codeName = normalizeProjectCodeName(chosenCode);
       } catch (caught) {
         setCodeError(
           caught instanceof Error
@@ -114,12 +120,9 @@ export function AddProjectForm({
               className={`${styles.input} ${styles.text}`}
               aria-describedby={`${id}-name-hint`}
               maxLength={MAX_PROJECT_NAME_LENGTH}
-              value={name}
-              onChange={(event) =>
-                setNameDraft(
-                  event.target.value === "" ? null : event.target.value,
-                )
-              }
+              value={nameDraft ?? defaultName}
+              onChange={(event) => setNameDraft(event.target.value)}
+              onBlur={() => setNameDraft(chosenDraft)}
               disabled={adding}
             />
             <span id={`${id}-name-hint`} className={styles.hint}>
@@ -138,13 +141,12 @@ export function AddProjectForm({
                 aria-describedby={`${id}-code-hint`}
                 aria-invalid={codeError ? true : undefined}
                 maxLength={MAX_PROJECT_CODE_NAME_LENGTH}
-                value={code}
+                value={codeDraft ?? defaultCode}
                 onChange={(event) => {
                   setCodeError(null);
-                  setCodeDraft(
-                    event.target.value === "" ? null : event.target.value,
-                  );
+                  setCodeDraft(event.target.value);
                 }}
+                onBlur={() => setCodeDraft(chosenDraft)}
                 disabled={adding}
               />
               <span id={`${id}-code-hint`} className={styles.hint}>
