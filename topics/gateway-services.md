@@ -52,6 +52,12 @@ model serving.
   as it is operated, which is the convention everywhere else in settings. A
   Save at the foot of a list of endpoints is scrolled out of sight exactly when
   there is enough configured for it to matter.
+- Saving never costs a keystroke. Saves do not overlap: a write requested while
+  one is out waits for it, then sends the list as it stands by then. When a
+  save's answer arrives, an entry changed since that save was sent keeps what
+  was typed, and only entries untouched since then take the saved copy, which
+  may differ where the server normalized a value. A list changed elsewhere
+  replaces the editor's copy only where nothing here is unsaved.
 
 ### Lifecycle
 

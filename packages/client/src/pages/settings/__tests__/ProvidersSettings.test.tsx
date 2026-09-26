@@ -136,7 +136,12 @@ describe("ProvidersSettings additional models", () => {
     ];
     versionState.capabilities = [CLAUDE_ADDITIONAL_MODELS_CAPABILITY];
     mockUpdateSetting.mockResolvedValue(undefined);
-    mockUpdateSettings.mockResolvedValue(undefined);
+    mockUpdateSettings.mockImplementation(
+      async (updates: Partial<ServerSettings>) => ({
+        ...hookState.settings,
+        ...updates,
+      }),
+    );
     mockReloadProviders.mockResolvedValue(undefined);
   });
 

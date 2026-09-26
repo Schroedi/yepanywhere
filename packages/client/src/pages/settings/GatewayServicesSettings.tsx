@@ -22,7 +22,7 @@ import {
   type GatewayService,
 } from "@yep-anywhere/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../../api/client";
+import { api, type ServerSettings } from "../../api/client";
 import { useI18n } from "../../i18n";
 import { useServerSettings } from "../../hooks/useServerSettings";
 import styles from "./GatewayServicesSettings.module.css";
@@ -100,6 +100,44 @@ function sameServices(
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+interface ServicesDraft {
+  services: GatewayService[];
+  defaultId: string | undefined;
+}
+
+/**
+ * Fold a saved services list into the draft, entry by entry.
+ *
+ * `base` is what the draft agreed with when it was last in step with the
+ * server: the snapshot the latest save sent, or the saved list it last took.
+ * An entry untouched since then takes the saved copy; an entry changed since
+ * (typed into while its save was in flight) keeps the draft, so a save that
+ * did not contain a keystroke can never replace it. A draft with no change
+ * at all takes the saved list whole, including entries added or removed
+ * elsewhere.
+ */
+function mergeSavedServicesDraft(
+  draft: ServicesDraft,
+  base: ServicesDraft,
+  saved: ServicesDraft,
+): ServicesDraft {
+  const defaultId =
+    draft.defaultId === base.defaultId ? saved.defaultId : draft.defaultId;
+  if (sameServices(draft.services, base.services)) {
+    return { services: saved.services, defaultId };
+  }
+  const baseById = new Map(base.services.map((entry) => [entry.id, entry]));
+  const savedById = new Map(saved.services.map((entry) => [entry.id, entry]));
+  return {
+    services: draft.services.map((entry) => {
+      const before = baseById.get(entry.id);
+      const after = savedById.get(entry.id);
+      return before && after && sameServices([entry], [before]) ? after : entry;
+    }),
+    defaultId,
+  };
+}
+
 /** An optional positive integer field, kept as text while being typed. */
 function numberFieldValue(value: number | undefined): string {
   return value === undefined ? "" : String(value);
@@ -166,16 +204,42 @@ export function GatewayServicesSettings({
    * a render behind inside the same handler that changed it, which would make a
    * toggle save the value it just replaced.
    */
-  const draft = useRef({ services, defaultId });
+  const draft = useRef<ServicesDraft>({ services, defaultId });
   draft.current = { services, defaultId };
+  /** The latest saved list, which a save compares against to skip no-ops. */
+  const saved = useRef<ServicesDraft>({
+    services: savedServices,
+    defaultId: savedDefaultId,
+  });
+  /** What the draft last agreed with; see `mergeSavedServicesDraft`. */
+  const base = useRef<ServicesDraft>(saved.current);
+  /** The running save loop, which later requests join rather than overlap. */
+  const saving = useRef<Promise<void> | null>(null);
+  const saveAgain = useRef(false);
+  /** A saved list that changed after a save's own answer, for when it ends. */
+  const savedWhileSaving = useRef<ServicesDraft | null>(null);
+
+  /** Take a saved list into the draft without replacing anything typed. */
+  const reconcileDraft = useCallback((next: ServicesDraft) => {
+    saved.current = next;
+    const merged = mergeSavedServicesDraft(draft.current, base.current, next);
+    base.current = next;
+    draft.current = merged;
+    setServices(merged.services);
+    setDefaultId(merged.defaultId);
+  }, []);
 
   useEffect(() => {
-    setServices(savedServices);
-  }, [savedServices]);
-
-  useEffect(() => {
-    setDefaultId(savedDefaultId);
-  }, [savedDefaultId]);
+    const next = { services: savedServices, defaultId: savedDefaultId };
+    // While a save is in flight its own answer is the one to reconcile with;
+    // a settings change landing meanwhile may predate what it sent, so it
+    // waits for the save to end and is dropped if the answer comes first.
+    if (saving.current) {
+      savedWhileSaving.current = next;
+      return;
+    }
+    reconcileDraft(next);
+  }, [reconcileDraft, savedDefaultId, savedServices]);
 
   const hasChanges =
     !sameServices(services, savedServices) || defaultId !== savedDefaultId;
@@ -186,30 +250,65 @@ export function GatewayServicesSettings({
    * Every field saves itself, so the list is never left holding a change the
    * user believes is configured. Saving an unchanged draft is skipped rather
    * than sent, since a blur that changed nothing should not restart the
-   * providers.
+   * providers. Saves never overlap: a request made while one is running
+   * waits for it and then sends the draft as it stands by then.
    */
-  const save = useCallback(async () => {
-    const { services: next, defaultId: nextDefaultId } = draft.current;
-    if (sameServices(next, savedServices) && nextDefaultId === savedDefaultId) {
-      return;
+  const save = useCallback((): Promise<void> => {
+    if (saving.current) {
+      saveAgain.current = true;
+      return saving.current;
     }
-    setIsSaving(true);
-    try {
-      await updateSettings({
-        gatewayServices: next,
-        defaultGatewayServiceId: next.some(
-          (service) => service.id === nextDefaultId,
-        )
-          ? nextDefaultId
-          : next[0]?.id,
-      });
-      await reloadProviders();
-    } catch {
-      // Error handled by useServerSettings.
-    } finally {
+    const run = async () => {
+      do {
+        saveAgain.current = false;
+        const sent = draft.current;
+        if (
+          sameServices(sent.services, saved.current.services) &&
+          sent.defaultId === saved.current.defaultId
+        ) {
+          continue;
+        }
+        const unsentBase = base.current;
+        base.current = sent;
+        setIsSaving(true);
+        let accepted: ServerSettings;
+        try {
+          accepted = await updateSettings({
+            gatewayServices: sent.services,
+            defaultGatewayServiceId: sent.services.some(
+              (service) => service.id === sent.defaultId,
+            )
+              ? sent.defaultId
+              : sent.services[0]?.id,
+          });
+        } catch {
+          // Error handled by useServerSettings. Nothing was saved, so the
+          // draft still differs from the saved list where it did before.
+          base.current = unsentBase;
+          continue;
+        }
+        savedWhileSaving.current = null;
+        reconcileDraft({
+          services: accepted.gatewayServices ?? [],
+          defaultId: accepted.defaultGatewayServiceId,
+        });
+        try {
+          await reloadProviders();
+        } catch {
+          // useProviders records a failed reload in its own error state.
+        }
+      } while (saveAgain.current);
+    };
+    const running = run().finally(() => {
+      saving.current = null;
       setIsSaving(false);
-    }
-  }, [reloadProviders, savedDefaultId, savedServices, updateSettings]);
+      const missed = savedWhileSaving.current;
+      savedWhileSaving.current = null;
+      if (missed) reconcileDraft(missed);
+    });
+    saving.current = running;
+    return running;
+  }, [reconcileDraft, reloadProviders, updateSettings]);
 
   const updateService = useCallback(
     (
