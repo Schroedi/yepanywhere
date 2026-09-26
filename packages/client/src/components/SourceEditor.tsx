@@ -7,9 +7,10 @@ import { useArtifactGrant } from "../hooks/useArtifactGrant";
 import { useVersion } from "../hooks/useVersion";
 import { useI18n } from "../i18n";
 import {
+  type ArtifactEditPreview,
   artifactTargetPath,
   createArtifactEditDocument,
-  parseArtifactSourceTargets,
+  prepareArtifactEditPreview,
   type ArtifactSourceTarget,
 } from "../lib/artifactSourceTargets";
 import { useModalBackGesture, useModalLayer } from "./ui/Modal";
@@ -52,9 +53,39 @@ interface SourceSnapshot {
   regenerate?: RebuildStatus;
 }
 interface PreviewState {
-  html: string;
   path: string;
   regenerate?: RebuildStatus;
+  mapping:
+    | { value: ArtifactEditPreview; error: null }
+    | { value: null; error: string };
+}
+
+/**
+ * Parse received preview HTML once; the state keeps only the targets and the
+ * serialized selection view, so neither the HTML nor its DOM stays alive.
+ */
+function previewState(
+  html: string,
+  path: string,
+  nonce: string,
+  regenerate?: RebuildStatus,
+): PreviewState {
+  try {
+    return {
+      path,
+      regenerate,
+      mapping: { value: prepareArtifactEditPreview(html, nonce), error: null },
+    };
+  } catch (failure) {
+    return {
+      path,
+      regenerate,
+      mapping: {
+        value: null,
+        error: failure instanceof Error ? failure.message : String(failure),
+      },
+    };
+  }
 }
 
 const AUTO_REBUILD_KEY = "ya:source-editor:auto-rebuild";
@@ -204,18 +235,17 @@ export function SourceEditor({
           (/\r\n/.test(result.content) && /(?<!\r)\n/.test(result.content))
         )
           throw new Error(t("sourceEditorMixedNewlines"));
-        setSnapshot(result);
+        // Only an editable source needs its text again (draft and save).
+        setSnapshot(result.editable ? result : { ...result, content: "" });
         setDraft(
           result.editable ? result.content.replaceAll("\r\n", "\n") : "",
         );
         setLocation(position);
         setSaved(false);
         if (initial && artifact) {
-          setPreview({
-            html: result.content,
-            path: result.path,
-            regenerate: result.regenerate,
-          });
+          setPreview(
+            previewState(result.content, result.path, nonce, result.regenerate),
+          );
           setAutoRebuild(readAutoRebuild(result.path));
         } else setShowPreview(false);
       } catch (failure) {
@@ -227,7 +257,7 @@ export function SourceEditor({
         if (sequence === requestSequence.current) setBusy(false);
       }
     },
-    [runtime, artifact, t],
+    [runtime, artifact, t, nonce],
   );
   const sourceKey = JSON.stringify(source);
   useEffect(() => {
@@ -241,17 +271,7 @@ export function SourceEditor({
     };
   }, [sourceKey, line, column, load]);
 
-  const mapping = useMemo(() => {
-    if (!preview) return null;
-    try {
-      return { value: parseArtifactSourceTargets(preview.html), error: null };
-    } catch (failure) {
-      return {
-        value: null,
-        error: failure instanceof Error ? failure.message : String(failure),
-      };
-    }
-  }, [preview]);
+  const mapping = preview?.mapping ?? null;
   // Styled preview: an artifact grant lets the scriptless snapshot load the
   // page's own stylesheets, images, and fonts. Scripts stay stripped, so plain
   // click still selects a mapped item. Artifact-origin sources already have it.
@@ -268,9 +288,9 @@ export function SourceEditor({
   const previewDocument = useMemo(
     () =>
       mapping?.value
-        ? createArtifactEditDocument(mapping.value.document, nonce, assetBase)
+        ? createArtifactEditDocument(mapping.value, assetBase)
         : undefined,
-    [mapping, nonce, assetBase],
+    [mapping, assetBase],
   );
   useEffect(() => {
     if (mapping && (!mapping.value || mapping.value.targets.length === 0))
@@ -436,11 +456,14 @@ export function SourceEditor({
         return;
       }
       // Replace HTML and mapping together; the target list recomputes from it.
-      setPreview({
-        html: result.preview.content,
-        path: result.preview.path,
-        regenerate: result.regenerate ?? status,
-      });
+      setPreview(
+        previewState(
+          result.preview.content,
+          result.preview.path,
+          nonce,
+          result.regenerate ?? status,
+        ),
+      );
       setStale(false);
       setRebuilt(true);
     } catch (failure) {

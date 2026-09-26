@@ -4,26 +4,79 @@ export interface ArtifactSourceTarget {
   sourceRange: [[number, number], [number, number]];
 }
 
-/** Read producer-authored HTML comment targets; coordinates are zero-based. */
-export function parseArtifactSourceTargets(html: string) {
+/**
+ * A mapped HTML document reduced to what the selection view needs: its targets
+ * and one sanitized, target-annotated serialization. It holds no parsed
+ * document and no copy of the producer's HTML, so a large artifact costs one
+ * parse and one serialization however often the view is re-derived.
+ */
+export interface ArtifactEditPreview {
+  targets: ArtifactSourceTarget[];
+  mapUrl?: string;
+  /** Selection document with `nonce`-keyed slots for the asset-base parts. */
+  snapshot: string;
+  nonce: string;
+}
+
+const ACTIVE_CONTENT = new Set([
+  "SCRIPT",
+  "IFRAME",
+  "FRAME",
+  "OBJECT",
+  "EMBED",
+  "BASE",
+  "META",
+  "FORM",
+]);
+
+function policySlot(nonce: string): string {
+  return `ya-edit-policy-${nonce}`;
+}
+function baseSlot(nonce: string): string {
+  return `ya-edit-base-${nonce}`;
+}
+
+/**
+ * Read producer-authored HTML comment targets (zero-based coordinates) and
+ * build the isolated static selection view in the same pass over one parse.
+ */
+export function prepareArtifactEditPreview(
+  html: string,
+  nonce: string,
+): ArtifactEditPreview {
   const document = new DOMParser().parseFromString(html, "text/html");
-  for (const element of document.querySelectorAll("[data-ya-edit-target]"))
-    element.removeAttribute("data-ya-edit-target");
-  const walker = document.createTreeWalker(document, NodeFilter.SHOW_ALL);
-  const nodes: Node[] = [];
-  let next = walker.nextNode();
-  while (next) {
-    nodes.push(next);
-    next = walker.nextNode();
-  }
+  const walker = document.createTreeWalker(
+    document,
+    NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT,
+  );
   const targets: ArtifactSourceTarget[] = [];
   const stack: Array<{
     id: string;
     target?: ArtifactSourceTarget;
   }> = [];
   const ids = new Set<string>();
+  const activeContent: Element[] = [];
   let mapUrl: string | undefined;
-  for (const comment of nodes) {
+  // Advance before handling a node: wrapping a text node moves it into a new
+  // span, and the walk must continue from where that node used to be.
+  let next = walker.nextNode();
+  while (next) {
+    const comment = next;
+    next = walker.nextNode();
+    if (comment instanceof Element) {
+      if (ACTIVE_CONTENT.has(comment.tagName)) activeContent.push(comment);
+      const attributes = comment.attributes;
+      for (let index = attributes.length - 1; index >= 0; index--) {
+        const name = attributes[index]!.name;
+        if (
+          name.startsWith("on") ||
+          name === "nonce" ||
+          name === "srcdoc" ||
+          name === "data-ya-edit-target"
+        )
+          comment.removeAttribute(name);
+      }
+    }
     if (comment.nodeType !== Node.COMMENT_NODE) {
       const target = stack.at(-1)?.target;
       if (
@@ -32,6 +85,7 @@ export function parseArtifactSourceTargets(html: string) {
         !["HTML", "HEAD", "BODY", "SCRIPT", "STYLE"].includes(comment.tagName)
       ) {
         comment.setAttribute("data-ya-edit-target", target.id);
+        comment.setAttribute("tabindex", "0");
       } else if (
         target &&
         comment.nodeType === Node.TEXT_NODE &&
@@ -41,6 +95,7 @@ export function parseArtifactSourceTargets(html: string) {
       ) {
         const span = document.createElement("span");
         span.setAttribute("data-ya-edit-target", target.id);
+        span.setAttribute("tabindex", "0");
         comment.parentNode?.insertBefore(span, comment);
         span.append(comment);
       }
@@ -108,7 +163,26 @@ export function parseArtifactSourceTargets(html: string) {
     }
   }
   if (stack.length) throw new Error("Unclosed HTML source target marker");
-  return { document, targets, mapUrl };
+  for (const element of activeContent) element.remove();
+  const head = document.head;
+  const referrer = document.createElement("meta");
+  referrer.setAttribute("name", "referrer");
+  referrer.setAttribute("content", "no-referrer");
+  head.prepend(document.createComment(policySlot(nonce)), referrer);
+  const style = document.createElement("style");
+  style.textContent =
+    "[data-ya-edit-target]{cursor:text} [data-ya-edit-target]:hover,[data-ya-edit-target]:focus{outline:2px solid #5688dd;outline-offset:3px}";
+  head.append(document.createComment(baseSlot(nonce)), style);
+  const script = document.createElement("script");
+  script.setAttribute("nonce", nonce);
+  script.textContent = `document.addEventListener('click',select,true);document.addEventListener('keydown',function(e){if(e.key==='Enter')select(e)},true);function select(e){e.preventDefault();e.stopPropagation();var target=e.target.closest('[data-ya-edit-target]');if(target)parent.postMessage({type:'ya-source-target',nonce:${JSON.stringify(nonce)},id:target.getAttribute('data-ya-edit-target')},'*')}`;
+  document.body.append(script);
+  return {
+    targets,
+    mapUrl,
+    snapshot: `<!doctype html>${document.documentElement.outerHTML}`,
+    nonce,
+  };
 }
 
 /** Resolve source paths against the sidecar's directory without fetching URLs. */
@@ -124,49 +198,32 @@ export function artifactTargetPath(source: string, mapUrl?: string): string {
   return `${mapDirectory}${source}`;
 }
 
-/** Isolated static selection view: only our nonce-authorized bridge may run. */
+/**
+ * Isolated static selection view: only our nonce-authorized bridge may run.
+ * `assetBase` lets page assets load from an artifact origin; filling the two
+ * slots slices the prepared snapshot rather than parsing or copying a DOM.
+ */
 export function createArtifactEditDocument(
-  document: Document,
-  nonce: string,
+  preview: ArtifactEditPreview,
   assetBase?: string,
 ): string {
-  const copy = document.documentElement.cloneNode(true) as HTMLElement;
-  for (const element of copy.querySelectorAll(
-    "script, iframe, frame, object, embed, base, meta, form",
-  ))
-    element.remove();
-  for (const element of copy.querySelectorAll("*")) {
-    // oxlint-disable-next-line unicorn/no-useless-spread -- snapshot the live attributes before removing them
-    for (const attribute of [...element.attributes]) {
-      if (
-        attribute.name.startsWith("on") ||
-        attribute.name === "nonce" ||
-        attribute.name === "srcdoc"
-      )
-        element.removeAttribute(attribute.name);
-    }
-  }
   const origin = assetBase ? new URL(assetBase).origin : "";
-  const policy = `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline' ${origin}; img-src data: blob: ${origin}; font-src data: ${origin}; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri ${origin || "'none'"}`;
-  const head = copy.querySelector("head")!;
-  head.insertAdjacentHTML(
-    "afterbegin",
-    `<meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="referrer" content="no-referrer">`,
+  const policy = `default-src 'none'; script-src 'nonce-${preview.nonce}'; style-src 'unsafe-inline' ${origin}; img-src data: blob: ${origin}; font-src data: ${origin}; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri ${origin || "'none'"}`;
+  const base = assetBase
+    ? `<base href="${assetBase.replaceAll("&", "&amp;").replaceAll('"', "&quot;")}">`
+    : "";
+  const snapshot = preview.snapshot;
+  const policyMark = `<!--${policySlot(preview.nonce)}-->`;
+  const baseMark = `<!--${baseSlot(preview.nonce)}-->`;
+  const policyAt = snapshot.indexOf(policyMark);
+  const baseAt = snapshot.indexOf(baseMark, policyAt);
+  if (policyAt < 0 || baseAt < 0)
+    throw new Error("Selection snapshot is missing its policy slots");
+  return (
+    snapshot.slice(0, policyAt) +
+    `<meta http-equiv="Content-Security-Policy" content="${policy}">` +
+    snapshot.slice(policyAt + policyMark.length, baseAt) +
+    base +
+    snapshot.slice(baseAt + baseMark.length)
   );
-  if (assetBase) {
-    const base = document.createElement("base");
-    base.href = assetBase;
-    head.append(base);
-  }
-  const style = document.createElement("style");
-  style.textContent =
-    "[data-ya-edit-target]{cursor:text} [data-ya-edit-target]:hover,[data-ya-edit-target]:focus{outline:2px solid #5688dd;outline-offset:3px}";
-  head.append(style);
-  for (const element of copy.querySelectorAll("[data-ya-edit-target]"))
-    element.setAttribute("tabindex", "0");
-  const script = document.createElement("script");
-  script.setAttribute("nonce", nonce);
-  script.textContent = `document.addEventListener('click',select,true);document.addEventListener('keydown',function(e){if(e.key==='Enter')select(e)},true);function select(e){e.preventDefault();e.stopPropagation();var target=e.target.closest('[data-ya-edit-target]');if(target)parent.postMessage({type:'ya-source-target',nonce:${JSON.stringify(nonce)},id:target.getAttribute('data-ya-edit-target')},'*')}`;
-  copy.querySelector("body")!.append(script);
-  return `<!doctype html>${copy.outerHTML}`;
 }

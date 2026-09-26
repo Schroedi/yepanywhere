@@ -69,6 +69,11 @@ The first editor supports UTF-8 text up to 1 MiB, preserves uniform LF or CRLF
 line endings, and refuses mixed line endings, binary data, and hard-linked files.
 HTML up to 200 MiB can supply the selection preview, but editing a mapped source
 still uses the 1 MiB limit; large HTML itself is not put into a textarea.
+The editor parses a received preview once, into its target list and one
+sanitized selection snapshot, and keeps neither the received HTML nor the
+parsed document; switching the styled preview re-derives the frame document
+from that snapshot without parsing again. The remaining per-document cost is
+recorded in [the large-preview gap](../gaps/source-editor-large-html-preview-copies.md).
 
 ## Initial HTML target convention
 
@@ -173,7 +178,9 @@ editor re-reads the status so the next approval shows the new command. A
 superuser may approve or run a hook: the route
 itself answers 403 to any other principal before reading the artifact,
 independently of the limited-user route table, because the command runs as the
-host user outside any session sandbox. The run spawns the registered argv directly (no
+host user outside any session sandbox. The server reads the artifact before a
+run only to find its descriptor and keeps no copy of it while the command
+runs. The run spawns the registered argv directly (no
 shell) in the registered directory with the registered timeout, SIGTERM then
 SIGKILL on expiry, and keeps a 64 KiB log tail. Concurrent requests for one
 artifact and hook join the in-flight run. On success the response carries the

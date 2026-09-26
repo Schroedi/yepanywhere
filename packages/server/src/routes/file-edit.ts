@@ -128,6 +128,21 @@ export function createFileEditRoutes(deps: FileEditDeps) {
     }
   }
 
+  /**
+   * The artifact's canonical path and rebuild descriptor. Its content is read
+   * only to find the descriptor and is not kept while the command runs.
+   */
+  async function readRebuildTarget(path: string) {
+    const source = await readSource(path, true);
+    return {
+      path: source.path,
+      html: isHtmlPath(source.path),
+      descriptor: isHtmlPath(source.path)
+        ? parseArtifactRebuildDescriptor(source.content)
+        : undefined,
+    };
+  }
+
   routes.get("/file-edit", async (c) => {
     const parsed = referenceSchema.safeParse(c.req.query());
     if (!parsed.success)
@@ -190,10 +205,10 @@ export function createFileEditRoutes(deps: FileEditDeps) {
     const parsed = rebuildSchema.safeParse(body);
     if (!parsed.success)
       return c.json({ error: "Invalid rebuild request" }, 400);
-    const before = await readSource(expandHomePath(parsed.data.path), true);
-    if (!isHtmlPath(before.path))
+    const before = await readRebuildTarget(expandHomePath(parsed.data.path));
+    if (!before.html)
       return c.json({ error: "Only HTML artifacts can be rebuilt" }, 400);
-    const descriptor = parseArtifactRebuildDescriptor(before.content);
+    const descriptor = before.descriptor;
     if (!descriptor || descriptor.hook !== parsed.data.hook)
       return c.json(
         { error: "This artifact declares no matching rebuild hook" },
