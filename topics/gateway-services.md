@@ -285,9 +285,13 @@ selectable from a plain terminal session.
   against installed Pi 0.85.1). The export therefore merges into the user's own
   file: every provider named `ya-<service id>` belongs to YA and is rewritten or
   removed with the services list, every other key is preserved, and the file is
-  copied once to `models.json.ya-backup` before the first rewrite. A registry
-  YA cannot parse as plain JSON is left alone rather than rewritten from a
-  guess. The command is `pi --provider ya-<id>`.
+  copied once to `models.json.ya-backup` before the first rewrite. pi accepts
+  comments and trailing commas in that file; a registry YA cannot read, or
+  cannot parse as plain JSON, is left alone rather than rewritten from a guess,
+  with a logged warning when YA had providers to write or withdraw. That never
+  fails startup, a settings save, or a catalog read. With the export off, a
+  registry that names no `ya-` provider is not parsed at all, and no registry
+  is created where pi has none. The command is `pi --provider ya-<id>`.
 - pi's registry states each model outright, so it can only name what an
   endpoint has advertised: it is refreshed from each catalog read, and a
   service whose catalog has not been read yet keeps the models pi was last

@@ -862,7 +862,12 @@ export class ClaudeGatewayProvider extends ClaudeProvider {
     // which is known here and nowhere earlier.
     void refreshPiModelExport(
       ClaudeGatewayProvider.advertisedModelsByService(),
-    );
+    ).catch((error: unknown) => {
+      getLogger().warn(
+        { error },
+        "Could not refresh pi's model registry after a catalog read",
+      );
+    });
     return models;
   }
 
