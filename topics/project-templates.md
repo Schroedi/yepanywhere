@@ -61,6 +61,15 @@ its transitive dependencies is tracked in the
 The settings use an ordered list of GitHub and local sources. Each row has
 one **GitHub or local dir** field; append a GitHub content path to the repository
 URL, or enter an absolute/`~/` local directory. GitHub revision is separate.
+An edited field also accepts GitHub's own directory link,
+`…/tree/<ref>/<path>`, or a link to that directory's `library.json`,
+`…/blob/<ref>/<path>/library.json`; leaving the field or saving moves the ref
+into the revision field and keeps the repository plus path. GitHub's link does
+not delimit a ref containing `/`, so the revision already entered is used when
+the link continues with it, and otherwise the first segment. A link to any
+other file is refused with a message naming the directory form. A saved
+content directory whose first segment is `tree` or `blob` is left as it is
+until its field is edited; after an edit it must be entered as a `/tree/` link.
 The wire contract retains repository, relative content path (empty means root),
 revision and stable source ID. `graehl/agents/project-templates` is the default;
 vendoring it in YA later remains an option.

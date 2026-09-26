@@ -27,6 +27,10 @@ Open **Settings → Project templates**, enable templates, and choose
 **Fetch / update**. The **GitHub or local dir** field starts with
 `https://github.com/graehl/agents/project-templates`. Put a GitHub directory
 path directly after the repository URL; there is no separate subdirectory field.
+You can also paste the directory's address from GitHub
+(`https://github.com/<owner>/<repo>/tree/<branch>/<directory>`): YA moves the
+branch into the revision field. For a branch name containing `/`, enter the
+branch in the revision field first.
 GitHub sources also have a revision:
 
 - Use just the repository URL when `library.json` is at its root.

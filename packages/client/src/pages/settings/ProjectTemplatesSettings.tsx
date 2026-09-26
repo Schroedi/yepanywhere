@@ -24,13 +24,48 @@ function editConfig(config: ProjectTemplateSourcesConfig) {
   };
 }
 
+type EditedSource = ReturnType<typeof editConfig>["sources"][number];
+
 function isLocalLocation(location: string) {
   return /^(?:\/|~\/|[A-Za-z]:[\\/])/.test(location);
 }
 
-function sourceConfig(
-  source: ReturnType<typeof editConfig>["sources"][number],
-) {
+const GITHUB_REF_URL =
+  /^(?:https:\/\/)?github\.com\/([^/]+\/[^/]+)\/(tree|blob)\/(.+?)\/?$/;
+
+/**
+ * Splits a GitHub address-bar URL for a directory (`…/tree/<ref>/<path>`) or
+ * its `library.json` (`…/blob/<ref>/<path>/library.json`) into the location
+ * field and the revision field. GitHub's URL does not delimit a ref containing
+ * `/`, so the ref is the revision already entered when the URL continues with
+ * it, and otherwise the first segment. A link to any other file is left as
+ * typed; `githubFileLocation` reports it.
+ */
+function splitGitHubRefUrl(source: EditedSource): EditedSource {
+  const match = GITHUB_REF_URL.exec(source.location.trim());
+  if (!match) return source;
+  const [, repository, kind, rest = ""] = match;
+  const typed = source.revision.trim();
+  const revision =
+    typed && (rest === typed || rest.startsWith(`${typed}/`))
+      ? typed
+      : (rest.split("/")[0] ?? "");
+  const path = rest.slice(revision.length + 1);
+  const directory =
+    kind === "blob" ? path.replace(/(?:^|\/)library\.json$/, "") : path;
+  if (kind === "blob" && directory === path) return source;
+  return {
+    ...source,
+    location: `https://github.com/${repository}${directory ? `/${directory}` : ""}`,
+    revision,
+  };
+}
+
+function githubFileLocation(source: EditedSource) {
+  return GITHUB_REF_URL.exec(source.location.trim())?.[2] === "blob";
+}
+
+function sourceConfig(source: EditedSource) {
   const { location, ...config } = source;
   const value = location
     .trim()
@@ -99,19 +134,44 @@ export function ProjectTemplatesSettings() {
     };
   }, [allowed, state]);
 
+  // Only a location the user changed is read as a GitHub address-bar URL: a
+  // saved content directory named `tree` or `blob` displays like one.
+  const savedLocations = new Map(
+    (state ? editConfig(state.config).sources : []).map((source) => [
+      source.id,
+      source.location,
+    ]),
+  );
+  const locationEdited = (source: EditedSource) =>
+    savedLocations.get(source.id) !== source.location;
+
   const save = async (defaultTip?: string) => {
+    const split = {
+      ...draft,
+      sources: draft.sources.map((source) =>
+        locationEdited(source) ? splitGitHubRefUrl(source) : source,
+      ),
+    };
+    if (
+      split.sources.some(
+        (source) => locationEdited(source) && githubFileLocation(source),
+      )
+    ) {
+      setError(t("templatesFileLocation"));
+      return;
+    }
     setSaving(true);
     setError(null);
     const edited = defaultTip
       ? {
-          ...draft,
+          ...split,
           enabled: true,
-          sources: draft.sources.map((source) =>
+          sources: split.sources.map((source) =>
             source.id === defaultTip ? { ...source, revision: "HEAD" } : source,
           ),
         }
-      : draft;
-    if (defaultTip) setDraft(edited);
+      : split;
+    setDraft(edited);
     const config = {
       enabled: edited.enabled,
       sources: edited.sources.map(sourceConfig),
@@ -175,6 +235,19 @@ export function ProjectTemplatesSettings() {
                 <input
                   className="settings-input"
                   value={source[field]}
+                  onBlur={
+                    field === "location"
+                      ? () =>
+                          setDraft((previous) => ({
+                            ...previous,
+                            sources: previous.sources.map((entry) =>
+                              entry.id === source.id && locationEdited(entry)
+                                ? splitGitHubRefUrl(entry)
+                                : entry,
+                            ),
+                          }))
+                      : undefined
+                  }
                   onChange={(event) =>
                     setDraft((previous) => ({
                       ...previous,

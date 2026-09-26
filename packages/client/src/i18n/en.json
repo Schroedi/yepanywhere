@@ -3888,6 +3888,7 @@
   "templatesLocalHead": "Git HEAD:",
   "templatesLocalDirect": "Local files are used directly; Update revalidates them.",
   "templatesRevision": "Revision (branch, tag or commit)",
+  "templatesFileLocation": "A GitHub file link names a file, not a template directory. Use the directory's link (…/tree/<revision>/<directory>) or its library.json.",
   "templatesFetchHelp": "HEAD selects the default branch tip when you fetch. Disabled settings are saved without downloading. Fetching validates templates without running their setup commands.",
   "templatesFetch": "Fetch / update",
   "templatesSave": "Save",
