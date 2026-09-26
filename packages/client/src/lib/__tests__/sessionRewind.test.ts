@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Message } from "../../types";
 import {
   getSessionTurnIndex,
   providerSupportsSessionRewind,
+  rewindThenDraftPrompt,
 } from "../sessionRewind";
 
 function userTurn(uuid: string, extra: Record<string, unknown> = {}): Message {
@@ -73,6 +74,68 @@ describe("getSessionTurnIndex", () => {
 
     expect(index.lastIndex).toBe(1);
     expect(index.lastLiveIndex).toBe(0);
+  });
+});
+
+function draftControls(initial: string) {
+  const state = { draft: initial, flushed: 0, writes: 0 };
+  return {
+    state,
+    controls: {
+      getDraft: () => state.draft,
+      setDraft: (value: string) => {
+        state.draft = value;
+        state.writes += 1;
+      },
+      flushDraft: () => {
+        state.flushed += 1;
+      },
+    },
+  };
+}
+
+describe("rewindThenDraftPrompt", () => {
+  it("puts the prompt into an empty composer once the rewind succeeds", async () => {
+    const { state, controls } = draftControls("");
+    const rewind = vi.fn(async () => {
+      expect(state.writes).toBe(0);
+      return true;
+    });
+
+    await expect(
+      rewindThenDraftPrompt(rewind, "retry this", () => controls),
+    ).resolves.toBe(true);
+
+    expect(state.draft).toBe("retry this");
+    expect(state.flushed).toBe(1);
+  });
+
+  it("keeps a typed draft and adds the prompt after it", async () => {
+    const { state, controls } = draftControls("half-typed thought");
+
+    await rewindThenDraftPrompt(
+      async () => true,
+      "retry this",
+      () => controls,
+    );
+
+    expect(state.draft).toBe("half-typed thought\n\nretry this");
+  });
+
+  it("leaves the draft untouched when the rewind fails", async () => {
+    const { state, controls } = draftControls("half-typed thought");
+
+    await expect(
+      rewindThenDraftPrompt(
+        async () => false,
+        "retry this",
+        () => controls,
+      ),
+    ).resolves.toBe(false);
+
+    expect(state.draft).toBe("half-typed thought");
+    expect(state.writes).toBe(0);
+    expect(state.flushed).toBe(0);
   });
 });
 

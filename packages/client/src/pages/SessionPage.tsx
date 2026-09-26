@@ -236,8 +236,8 @@ import {
   appendSlashCommandDraft,
   collectComposerAttachmentsForSubmission as collectComposerAttachmentsForSubmissionHelper,
   createComposerDraftAttachmentState,
-  getComposerTransferReplacement,
   hasComposerDraftContent,
+  insertComposerTransferText,
   materializeComposerAttachmentsForSubmission,
   splitComposerAttachmentsForSubmission,
   type PreparedComposerSubmission,
@@ -277,6 +277,7 @@ import {
 } from "../contexts/SessionRewindContext";
 import {
   getSessionTurnIndex,
+  rewindThenDraftPrompt,
   supportsSessionRewind,
 } from "../lib/sessionRewind";
 import { isBtwAsideSession } from "../lib/btwAsideSessions";
@@ -4197,25 +4198,11 @@ function SessionPageContent({
         showToast(t("sessionQuoteComposerUnavailable"), "error");
         return null;
       }
-      const insertedText = quotedText.trimEnd();
-      const currentDraft = controls.getDraft();
-      const transfer = getComposerTransferReplacement(
-        currentDraft,
-        insertedText,
+      const finalDraft = insertComposerTransferText(
+        controls,
+        quotedText.trimEnd(),
+        quotedText.endsWith("\n") ? "\n" : "",
       );
-      const replacement = quotedText.endsWith("\n")
-        ? `${transfer.replacement}\n`
-        : transfer.replacement;
-      const nextDraft = `${currentDraft.slice(0, transfer.start)}${replacement}${currentDraft.slice(transfer.end)}`;
-      const undoableDraft = controls.replaceDraftRangeUndoably?.(
-        transfer.start,
-        transfer.end,
-        replacement,
-      );
-      const finalDraft = undoableDraft ?? nextDraft;
-      if (undoableDraft === null || !controls.replaceDraftRangeUndoably) {
-        controls.setDraft(nextDraft);
-      }
       requestAnimationFrame(() => {
         controls.focus?.();
         controls.setSelectionRange?.(finalDraft.length, finalDraft.length);
@@ -4455,14 +4442,14 @@ function SessionPageContent({
       }
       const source = messages.find((m) => (m.uuid ?? m.id) === messageId);
       const promptText = turnContentText(source?.message?.content).trim();
-      if (promptText) {
-        // Persist the draft before the reload that follows the rewind.
-        draftControlsRef.current?.setDraft(promptText);
-        draftControlsRef.current?.flushDraft();
-      }
-      void rewindToCut(
-        { kind: "before-user-turn", sourceMessageId: messageId },
-        index - 1,
+      void rewindThenDraftPrompt(
+        () =>
+          rewindToCut(
+            { kind: "before-user-turn", sourceMessageId: messageId },
+            index - 1,
+          ),
+        promptText,
+        () => draftControlsRef.current,
       );
     },
     [messages, rewindToCut, sessionTurnIndex, showToast, t],

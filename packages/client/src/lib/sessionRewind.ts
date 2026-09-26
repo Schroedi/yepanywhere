@@ -4,8 +4,13 @@ import {
   serverHasCapability,
 } from "@yep-anywhere/shared";
 import { getMessageId } from "@yep-anywhere/shared/transcript/message";
+import type { DraftControls } from "../hooks/useDraftPersistence";
 import type { Message } from "../types";
 import { isPlainUserTurn } from "./linearMessageDedup";
+import {
+  type ComposerTransferDraftControls,
+  insertComposerTransferText,
+} from "./sessionComposerSubmission";
 
 /** Providers whose sessions YA can rewind in place. See topics/session-rewind.md. */
 const REWIND_PROVIDERS = new Set(["claude", "claude-gateway", "claude-ollama"]);
@@ -87,4 +92,29 @@ export function getSessionTurnIndex(
     else lastLiveIndex = Math.max(lastLiveIndex, index);
   }
   return { idByIndex, indexById, clearedIds, lastIndex, lastLiveIndex };
+}
+
+/**
+ * Clear replacing this turn (topics/session-rewind.md § Turn menu): rewind to
+ * before the turn, then hand its prompt back to the composer. The draft is
+ * written only after the rewind succeeds, and never overwrites typed text —
+ * a nonempty draft keeps it and gains the prompt after it. Controls are read
+ * when the rewind settles, since the composer may have remounted meanwhile.
+ */
+export async function rewindThenDraftPrompt(
+  rewind: () => Promise<boolean>,
+  promptText: string,
+  getControls: () =>
+    | (ComposerTransferDraftControls & Pick<DraftControls, "flushDraft">)
+    | null
+    | undefined,
+): Promise<boolean> {
+  if (!(await rewind())) return false;
+  const controls = getControls();
+  if (promptText.trim() && controls) {
+    insertComposerTransferText(controls, promptText);
+    // Persist at once so a page reload keeps the handed-back prompt.
+    controls.flushDraft();
+  }
+  return true;
 }

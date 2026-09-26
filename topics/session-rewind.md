@@ -122,10 +122,14 @@ The existing per-prompt **Fork from this turn** menu
 entries on rewind-capable providers, after the fork entries:
 
 - **Clear after this turn** — `/clear N` for this turn.
-- **Clear replacing this turn** — `/clear N−1` for this turn, then put this
-  turn's prompt text into the composer as the draft (the Codex Esc-Esc
-  shape), replacing whatever draft was there. Turn 1 has no earlier
-  boundary, so the entry reports that `/clear 0` is the new-session Clear.
+- **Clear replacing this turn** — `/clear N−1` for this turn, then hand
+  this turn's prompt text back to the composer (the Codex Esc-Esc shape).
+  The composer changes only after the rewind succeeds; a refused or failed
+  rewind leaves the draft exactly as it was. An empty composer receives the
+  prompt as its draft. A nonempty draft is never overwritten: its text stays
+  and the prompt follows it after a blank line, as one undoable edit. Turn 1
+  has no earlier boundary, so the entry reports that `/clear 0` is the
+  new-session Clear.
 
 The menu's trigger tooltip becomes **Fork from this turn [N]** so the index a
 user types into `/clear N`, `/fork N`, and `/clearloop N …` is discoverable
