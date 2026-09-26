@@ -62,7 +62,7 @@ import {
   getActiveSessionIndexOptions,
   isSessionAutoArchived,
 } from "./session-list-options.js";
-import { clearloopBadgeFromJob } from "../services/ClearloopService.js";
+import type { ClearloopBadgeResolver } from "../services/ClearloopService.js";
 
 export interface GlobalSessionsDeps {
   retainedCollections?: RetainedSessionCollections;
@@ -73,6 +73,7 @@ export interface GlobalSessionsDeps {
   notificationService?: NotificationService;
   sessionIndexService?: SessionIndexService;
   sessionMetadataService?: SessionMetadataService;
+  getClearloopBadge?: ClearloopBadgeResolver;
   /** Codex scanner for checking if a project has Codex sessions */
   codexScanner?: CodexSessionScanner;
   /** Codex sessions directory (defaults to ~/.codex/sessions) */
@@ -764,7 +765,7 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
           parentSessionId,
           parentSessionKind,
           forkedFromSessionId,
-          clearloop: clearloopBadgeFromJob(metadata?.clearloop, true),
+          clearloop: deps.getClearloopBadge?.(overlaidSession.id),
           workstreamId: metadata?.workstreamId,
           initialPrompt: initialPrompt ?? undefined,
           executor,

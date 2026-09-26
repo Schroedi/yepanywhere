@@ -392,7 +392,11 @@ title in the session header, and its process card in the Agents view show
 a green badge with the remaining iteration count. It rides the session
 summaries and process list as a small `clearloop` object (remaining, total,
 cut turn, prompt, window) and the session metadata change event, so it
-updates live and clears when the loop ends. Its tooltip states the
+updates live and clears when the loop ends. Every surface takes the object
+from the clearloop service, so each shows the same window, and none shows a
+record a previous server process left `running`: only a loop this server is
+running has a badge, whether or not startup has yet closed that record out
+as interrupted. Its tooltip states the
 contract: Stop or a server reload aborts the loop; otherwise the window of
 inactivity rewinds to `/clear N` and relaunches the prompt. The header
 title lays out as a flex row so the badge survives a long ellipsized title.
@@ -562,8 +566,9 @@ Durable pointers by symbol and module; grep for the symbol.
   `SessionMetadataService.copyRewindState`.
 - `services/ClearloopService.ts` — the loop state machine and inactivity
   timer (`iterate`, `check`, `readQuietAnchor`), `getProgress` for the queue
-  entry, `getBadge`/`clearloopBadgeFromJob` for summaries,
-  `reconcileAfterRestart`, the durable notice.
+  entry, `getBadge` for every summary surface (injected into the Agents
+  and All Sessions routes as `getClearloopBadge`), `reconcileAfterRestart`,
+  the durable notice.
 - `sessions/claude-messages.ts` — `collectRewoundRows` (positional
   membership, nesting), `lastRewindableClaudeRowId` (the bound
   `rewindSessionToCut` records); the `rewindRecords` option of

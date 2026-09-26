@@ -157,7 +157,10 @@ import { createFilesRoutes } from "./routes/files.js";
 import { canonicalizeManagedAttachmentPath } from "./uploads/attachmentAccess.js";
 import { createBangCommandsRoutes } from "./routes/bang-commands.js";
 import { BangCommandService } from "./services/BangCommandService.js";
-import { ClearloopService } from "./services/ClearloopService.js";
+import {
+  type ClearloopBadgeResolver,
+  ClearloopService,
+} from "./services/ClearloopService.js";
 import { createGitBrowseRoutes } from "./routes/git-browse.js";
 import { createGitFileRevisionRoutes } from "./routes/git-file-revision.js";
 import { createGitFileProjectionRoutes } from "./routes/git-file-projections.js";
@@ -1567,6 +1570,9 @@ export function createApp(options: AppOptions): AppResult {
   // Session metadata is initialized before createApp; loops left running by
   // a previous server process are closed out here.
   void clearloopService?.reconcileAfterRestart();
+  const getClearloopBadge: ClearloopBadgeResolver | undefined = clearloopService
+    ? (sessionId) => clearloopService.getBadge(sessionId)
+    : undefined;
 
   // Every server surface names a project the same way: its chosen name, else
   // its path's (topics/project-names.md).
@@ -2289,6 +2295,7 @@ export function createApp(options: AppOptions): AppResult {
       },
       sessionIndexService: options.sessionIndexService,
       sessionMetadataService: options.sessionMetadataService,
+      getClearloopBadge,
       // Explicit Kill blocks YA's automatic resume gate while preserving the
       // provider transcript for history and deliberate manual continuation.
       blockSessionResume: async ({ sessionId }) => {
@@ -2575,6 +2582,7 @@ export function createApp(options: AppOptions): AppResult {
       notificationService: options.notificationService,
       sessionIndexService: options.sessionIndexService,
       sessionMetadataService: options.sessionMetadataService,
+      getClearloopBadge,
       codexScanner,
       codexSessionsDir,
       codexReaderFactory,

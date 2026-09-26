@@ -129,23 +129,26 @@ function liveBackgroundTaskCount(
 }
 
 /**
- * Remaining iterations for session summaries, from the durable job record
- * alone. A record left `running` by a previous server process is not shown:
- * the loop cannot advance, and `getRunningJob` reports it as not running.
+ * Looks up the clearloop badge for a session's summary row: present only
+ * while this server runs the session's loop. Surfaces without a clearloop
+ * service leave it absent, since no loop can run there.
  */
-export function clearloopBadgeFromJob(
-  job: SessionClearloopJob | undefined,
-  isLive: boolean,
-  windowSeconds?: number,
-): SessionClearloopBadge | undefined {
-  if (job?.state !== "running" || !isLive) return undefined;
+export type ClearloopBadgeResolver = (
+  sessionId: string,
+) => SessionClearloopBadge | undefined;
+
+/** Badge fields for a loop this server is running. */
+function badgeForLiveJob(
+  job: SessionClearloopJob,
+  windowSeconds: number,
+): SessionClearloopBadge {
   return {
     remaining: Math.max(0, job.total - job.completed),
     total: job.total,
     completed: job.completed,
     cutTurnIndex: job.cutTurnIndex,
     prompt: job.prompt,
-    ...(windowSeconds !== undefined ? { windowSeconds } : {}),
+    windowSeconds,
     ...(job.patient ? { patient: true } : {}),
   };
 }
@@ -198,8 +201,10 @@ export class ClearloopService {
   /**
    * Loop state does not survive a server restart: a record left `running`
    * belongs to a previous server process and can never advance. Mark each
-   * one interrupted with the usual durable notice so badges and history
-   * agree. Called once after session metadata has loaded.
+   * one interrupted with the usual durable notice so history says how it
+   * ended. Called once after session metadata has loaded. Never rejects: a
+   * record whose write fails is logged and left for the next start, and
+   * still shows no badge, since only a loop this server runs has one.
    */
   async reconcileAfterRestart(): Promise<void> {
     const sessionIds =
@@ -209,11 +214,22 @@ export class ClearloopService {
       if (this.contexts.has(sessionId)) continue;
       const job = this.options.sessionMetadataService.getClearloop(sessionId);
       if (job?.state !== "running") continue;
-      await this.finish(
-        sessionId,
-        "interrupted",
-        "Server restarted while the loop was running",
-      );
+      try {
+        await this.finish(
+          sessionId,
+          "interrupted",
+          "Server restarted while the loop was running",
+        );
+      } catch (error) {
+        getLogger().warn(
+          {
+            event: "clearloop_restart_reconcile_failed",
+            sessionId,
+            message: error instanceof Error ? error.message : String(error),
+          },
+          "Clearloop restart reconcile failed for a leftover running loop",
+        );
+      }
     }
   }
 
@@ -230,13 +246,15 @@ export class ClearloopService {
     return this.getRunningJob(sessionId) !== undefined;
   }
 
-  /** Badge data for the sidebar/title chip, or undefined when no loop runs. */
+  /**
+   * Badge data for every session-summary surface (title chip, sidebar,
+   * Agents), or undefined when this server runs no loop for the session.
+   */
   getBadge(sessionId: string): SessionClearloopBadge | undefined {
-    return clearloopBadgeFromJob(
-      this.options.sessionMetadataService.getClearloop(sessionId),
-      this.contexts.has(sessionId),
-      this.options.getInactivitySeconds(),
-    );
+    const job = this.getRunningJob(sessionId);
+    return job
+      ? badgeForLiveJob(job, this.options.getInactivitySeconds())
+      : undefined;
   }
 
   async start(
@@ -685,11 +703,7 @@ export class ClearloopService {
       ...(context ? { projectId: context.projectId } : {}),
       clearloop:
         job.state === "running" && context
-          ? clearloopBadgeFromJob(
-              job,
-              true,
-              this.options.getInactivitySeconds(),
-            )
+          ? badgeForLiveJob(job, this.options.getInactivitySeconds())
           : null,
       timestamp: new Date().toISOString(),
     });

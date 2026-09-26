@@ -570,3 +570,101 @@ describe("ClearloopService stop handling", () => {
     release();
   });
 });
+
+/** A running record written by a previous server process. */
+function leftoverJob(id: string): SessionClearloopJob {
+  return {
+    id,
+    cutMessageId: "cut-1",
+    cutTurnIndex: 3,
+    prompt: "keep going",
+    total: 4,
+    completed: 1,
+    state: "running",
+    startedAt: new Date(0).toISOString(),
+    commandText: "/clearloop 3 4: keep going",
+  };
+}
+
+/**
+ * Several sessions' clearloop records, as the metadata service holds them
+ * after loading; writes to a session in `failWrites` reject.
+ */
+function fakeRestartMetadata(
+  records: Record<string, SessionClearloopJob>,
+  failWrites: string[] = [],
+) {
+  const jobs = new Map(Object.entries(records));
+  const notices: string[] = [];
+  return {
+    notices,
+    getClearloop: (id: string) => jobs.get(id),
+    setClearloop: async (id: string, job: SessionClearloopJob) => {
+      if (failWrites.includes(id)) throw new Error("disk full");
+      jobs.set(id, job);
+    },
+    listSessionIdsWithRunningClearloop: () =>
+      [...jobs].filter(([, job]) => job.state === "running").map(([id]) => id),
+    addLocalCommandMessage: async (
+      _id: string,
+      notice: { content: string },
+    ) => {
+      notices.push(notice.content);
+    },
+  } as unknown as SessionMetadataService & { notices: string[] };
+}
+
+describe("ClearloopService restart", () => {
+  it("closes out every leftover loop even when one write fails", async () => {
+    const sessionMetadataService = fakeRestartMetadata(
+      { broken: leftoverJob("a"), healthy: leftoverJob("b") },
+      ["broken"],
+    );
+    const service = new ClearloopService({
+      sessionMetadataService,
+      getSupervisor: () =>
+        ({ getProcessForSession: () => undefined }) as unknown as Supervisor,
+      getInactivitySeconds: () => 30,
+    });
+
+    await expect(service.reconcileAfterRestart()).resolves.toBeUndefined();
+    expect(sessionMetadataService.getClearloop("healthy")?.state).toBe(
+      "interrupted",
+    );
+    expect(sessionMetadataService.notices).toEqual([
+      "/clearloop 3 4: keep going — interrupted after 1 of 4, 3 remaining",
+    ]);
+    // The record that could not be closed out still reads as running, and
+    // still has no badge: no loop on this server owns it.
+    expect(sessionMetadataService.getClearloop("broken")?.state).toBe(
+      "running",
+    );
+    expect(service.getBadge("broken")).toBeUndefined();
+  });
+
+  it("gives a leftover record no badge before startup closes it out", () => {
+    const service = new ClearloopService({
+      sessionMetadataService: fakeRestartMetadata({
+        [sessionId]: leftoverJob("a"),
+      }),
+      getSupervisor: () =>
+        ({ getProcessForSession: () => undefined }) as unknown as Supervisor,
+      getInactivitySeconds: () => 30,
+    });
+    expect(service.getBadge(sessionId)).toBeUndefined();
+  });
+
+  it("badges a loop it runs with the current inactivity window", async () => {
+    const { service, started, release } = startLoop();
+    await started;
+    expect(service.getBadge(sessionId)).toEqual({
+      remaining: 2,
+      total: 2,
+      completed: 0,
+      cutTurnIndex: 3,
+      prompt: "keep going",
+      windowSeconds: 30,
+    });
+    release();
+  });
+});
