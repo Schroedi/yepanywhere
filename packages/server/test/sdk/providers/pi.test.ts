@@ -22,8 +22,8 @@ function makeStream(terminalEvent: "agent_end" | "agent_settled") {
     currentAssistantId: null,
     text: "",
     thinking: "",
-    lastUsage: null,
-    lastCostUsd: null,
+    runUsage: null,
+    runCostUsd: null,
     terminalEvent,
     turnError: null,
     toolStates: new Map(),
@@ -102,6 +102,51 @@ describe("PiProvider event mapping", () => {
         },
         total_cost_usd: 0.012,
       },
+    ]);
+  });
+
+  it("reports every model request of the run on its result, not the last", () => {
+    const provider = new PiProvider();
+    const stream = makeStream("agent_settled");
+    const mapEvent = (event: PiEvent) =>
+      mapPiEvent(provider, event, "pi-session", stream);
+
+    // A tool round makes a second request; both are charged.
+    mapEvent({
+      type: "turn_end",
+      message: {
+        usage: { input: 11, output: 7, cacheRead: 5, cacheWrite: 3 },
+      },
+    });
+    mapEvent({
+      type: "turn_end",
+      message: {
+        usage: {
+          input: 2,
+          output: 4,
+          cacheRead: 19,
+          cacheWrite: 0,
+          cost: { total: 0.004 },
+        },
+      },
+    });
+
+    expect(mapEvent({ type: "agent_settled" })).toEqual([
+      {
+        type: "result",
+        session_id: "pi-session",
+        usage: {
+          input_tokens: 13,
+          output_tokens: 11,
+          cache_read_input_tokens: 24,
+          cache_creation_input_tokens: 3,
+        },
+        total_cost_usd: 0.004,
+      },
+    ]);
+    // The next run starts from nothing.
+    expect(mapEvent({ type: "agent_settled" })).toEqual([
+      { type: "result", session_id: "pi-session" },
     ]);
   });
 

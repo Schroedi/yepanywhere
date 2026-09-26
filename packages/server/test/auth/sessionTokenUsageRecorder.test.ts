@@ -231,6 +231,148 @@ describe("SessionTokenUsageRecorder", () => {
     expect(records[0]?.longContext).toBe(false);
   });
 
+  it("counts a subagent's requests, interleaved with the main thread's", () => {
+    const { recorder, records } = recorderWithLog();
+    const process = fakeProcess();
+    const main = claudeFrame({ responseId: "main", input: 1000, output: 50 });
+    const subagent = {
+      ...claudeFrame({ responseId: "task", input: 300, output: 20 }),
+      parent_tool_use_id: "toolu_task",
+    } as SDKMessage;
+
+    // The main response's later content block arrives after the subagent's
+    // frame, and still repeats a response already counted.
+    recorder.observeMessage(process, main);
+    recorder.observeMessage(process, subagent);
+    recorder.observeMessage(process, main);
+    recorder.observeMessage(process, subagent);
+    recorder.flush(process);
+
+    expect(records[0]).toMatchObject({
+      freshInputTokens: 1300,
+      outputTokens: 70,
+    });
+  });
+
+  it("does not count Claude's result, which restates its requests", () => {
+    const { recorder, records } = recorderWithLog();
+    const process = fakeProcess();
+
+    recorder.observeMessage(
+      process,
+      claudeFrame({ responseId: "r1", input: 1000, output: 50 }),
+    );
+    recorder.observeMessage(process, {
+      type: "result",
+      usage: { input_tokens: 1000, output_tokens: 50 },
+    } as unknown as SDKMessage);
+    recorder.flush(process);
+
+    expect(records[0]).toMatchObject({
+      freshInputTokens: 1000,
+      outputTokens: 50,
+    });
+  });
+
+  it("does not count Codex's turn_complete, which restates its requests", () => {
+    const { recorder, records } = recorderWithLog();
+    const process = fakeProcess({ provider: "codex" } as Partial<Process>);
+
+    recorder.observeMessage(process, codexFrame({ input: 500, output: 20 }));
+    recorder.observeMessage(process, {
+      type: "system",
+      subtype: "turn_complete",
+      usage: { input_tokens: 500, cached_input_tokens: 0, output_tokens: 20 },
+    } as unknown as SDKMessage);
+    recorder.flush(process);
+
+    expect(records[0]).toMatchObject({
+      freshInputTokens: 500,
+      outputTokens: 20,
+    });
+  });
+
+  it("reads a local Codex service's turn total, its cached reads inside input", () => {
+    const { recorder, records } = recorderWithLog();
+    const process = fakeProcess({ provider: "codex-oss" } as Partial<Process>);
+
+    recorder.observeMessage(process, {
+      type: "system",
+      subtype: "turn_complete",
+      usage: {
+        input_tokens: 400_000,
+        cached_input_tokens: 350_000,
+        output_tokens: 90,
+      },
+    } as unknown as SDKMessage);
+    recorder.flush(process);
+
+    // A turn total names no single request, so a sum past OpenAI's 272k does
+    // not put the turn in the long-context tier.
+    expect(records).toEqual([
+      expect.objectContaining({
+        provider: "codex-oss",
+        longContext: false,
+        freshInputTokens: 50_000,
+        cachedInputTokens: 350_000,
+        cacheWriteTokens: 0,
+        outputTokens: 90,
+      }),
+    ]);
+  });
+
+  it("reads pi's usage from its turn result", () => {
+    const { recorder, records } = recorderWithLog();
+    const process = fakeProcess({ provider: "pi" } as Partial<Process>);
+
+    recorder.observeMessage(process, {
+      type: "result",
+      usage: {
+        input_tokens: 13,
+        output_tokens: 11,
+        cache_read_input_tokens: 24,
+        cache_creation_input_tokens: 3,
+      },
+    } as unknown as SDKMessage);
+    recorder.flush(process);
+
+    expect(records).toEqual([
+      expect.objectContaining({
+        provider: "pi",
+        freshInputTokens: 13,
+        cachedInputTokens: 24,
+        cacheWriteTokens: 3,
+        outputTokens: 11,
+      }),
+    ]);
+  });
+
+  it("reads OpenCode's usage from its turn result", () => {
+    const { recorder, records } = recorderWithLog();
+    const process = fakeProcess({ provider: "opencode" } as Partial<Process>);
+
+    recorder.observeMessage(process, {
+      type: "result",
+      usage: {
+        input_tokens: 120,
+        output_tokens: 40,
+        cache_read_input_tokens: 800,
+        cache_creation_input_tokens: 60,
+      },
+    } as unknown as SDKMessage);
+    recorder.flush(process);
+
+    expect(records).toEqual([
+      expect.objectContaining({
+        provider: "opencode",
+        freshInputTokens: 120,
+        cachedInputTokens: 800,
+        cacheWriteTokens: 60,
+        outputTokens: 40,
+      }),
+    ]);
+  });
+
   it("leaves the username absent for the superuser", () => {
     const { recorder, records } = recorderWithLog();
     const process = fakeProcess({ sessionId: "unowned" });

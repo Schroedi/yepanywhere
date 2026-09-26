@@ -4,19 +4,22 @@
  *
  * Contract: topics/limited-users.md § Delivery v1 — Usage.
  *
- * Providers report usage per request, on an assistant frame or an out-of-band
- * `token_usage` frame, and a streaming Claude response repeats one request's
- * usage on every completed content block. So this accumulates per live process
- * and appends when the provider turn settles, rather than one line per frame:
- * a long turn costs a record or two, and the ledger keeps its per-turn
- * granularity.
+ * Which frame carries a provider's charge is `readBillableUsage`'s to say:
+ * per request for Claude and Codex, a turn total for the rest. A streaming
+ * Claude response repeats one request's usage on every completed content
+ * block, including a subagent's, whose frames interleave with the main
+ * thread's. So this accumulates per live process, counts each response id
+ * once per turn, and appends when the provider turn settles, rather than one
+ * line per frame: a long turn costs a record or two, and the ledger keeps its
+ * per-turn granularity.
  *
  * The four token classes stay apart, and requests are binned by context tier,
  * because a cache read is a tenth of a fresh prompt token and, on a provider
  * that has such a tier, a long request reprices the whole request. Only this
  * recorder sees a single request's prompt length, so the tier has to be decided
  * here — a sum cannot be un-summed later. The threshold is per provider, and
- * for a provider with no tier every request is standard.
+ * for a provider with no tier every request is standard. A turn total names no
+ * single request, so it is recorded at the standard tier.
  */
 
 import {
@@ -24,11 +27,8 @@ import {
   type UsageTokenClasses,
 } from "@yep-anywhere/shared";
 import { getProjectName } from "../projects/paths.js";
+import { readBillableUsage } from "../sdk/billableUsage.js";
 import type { SDKMessage } from "../sdk/types.js";
-import {
-  extractCacheMissBillingObservation,
-  usageObservationResponseId,
-} from "../services/CacheMissBillingMonitor.js";
 import type { Process } from "../supervisor/Process.js";
 
 /** What the recorder appends. Kept narrow so tests need no usage service. */
@@ -55,8 +55,8 @@ export interface SessionTokenUsageRecorderOptions {
 interface PendingTurn {
   /** One accumulator per context tier: `false` is the standard tier. */
   tiers: Map<boolean, UsageTokenClasses>;
-  /** Last response already counted, so repeated frames add nothing. */
-  lastResponseId?: string;
+  /** Responses already counted this turn, so repeated frames add nothing. */
+  countedResponseIds: Set<string>;
 }
 
 const emptyClasses = (): UsageTokenClasses => ({
@@ -72,45 +72,34 @@ export class SessionTokenUsageRecorder {
   constructor(private readonly options: SessionTokenUsageRecorderOptions) {}
 
   observeMessage(process: Process, message: SDKMessage): void {
-    const observation = extractCacheMissBillingObservation(
-      message,
-      process.provider,
-    );
-    if (!observation) return;
+    const usage = readBillableUsage(message, process.provider);
+    if (!usage) return;
 
     const pending: PendingTurn = this.pending.get(process.id) ?? {
       tiers: new Map(),
+      countedResponseIds: new Set(),
     };
-    const responseId = usageObservationResponseId(message);
-    if (responseId !== undefined && responseId === pending.lastResponseId) {
-      // A second frame of one response repeats its usage; counting it would
+    if (usage.responseId !== undefined) {
+      // A later frame of a counted response repeats its usage, even after
+      // another response's frames came between them; counting it again would
       // bill the same request twice.
-      return;
+      if (pending.countedResponseIds.has(usage.responseId)) return;
+      pending.countedResponseIds.add(usage.responseId);
     }
-    if (responseId !== undefined) pending.lastResponseId = responseId;
 
-    const usage = observation.usage;
-    const cachedInputTokens = usage.cacheReadTokens ?? 0;
-    const cacheWriteTokens = usage.cacheCreationTokens ?? 0;
-    // Both providers' totals are normalized to the whole prompt, so what the
-    // provider actually processed is the part neither read from nor wrote to
-    // its cache. Claude reports the three classes disjointly and Codex reports
-    // cached reads as a subset of input; this subtraction is right for both.
-    const freshInputTokens = Math.max(
-      0,
-      usage.totalContextTokens - cachedInputTokens - cacheWriteTokens,
-    );
     // The tier is the prompt this one request sent, not the turn's running sum,
     // and the threshold is the provider's own — 272k on OpenAI, none at all on
     // Anthropic, which prices its 1M window flat.
     const threshold = longContextThresholdTokens(process.provider);
     const longContext =
-      threshold !== null && usage.totalContextTokens > threshold;
+      threshold !== null &&
+      usage.requestPromptTokens !== undefined &&
+      usage.requestPromptTokens > threshold;
     const tier = pending.tiers.get(longContext) ?? emptyClasses();
-    tier.freshInputTokens += freshInputTokens;
-    tier.cachedInputTokens += cachedInputTokens;
-    tier.cacheWriteTokens += cacheWriteTokens;
-    tier.outputTokens += usage.outputTokens ?? 0;
+    tier.freshInputTokens += usage.freshInputTokens;
+    tier.cachedInputTokens += usage.cachedInputTokens;
+    tier.cacheWriteTokens += usage.cacheWriteTokens;
+    tier.outputTokens += usage.outputTokens;
     pending.tiers.set(longContext, tier);
     this.pending.set(process.id, pending);
   }

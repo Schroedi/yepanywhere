@@ -10,6 +10,10 @@ import {
 } from "@yep-anywhere/shared";
 import { getLogger } from "../logging/logger.js";
 import type { SessionMetadataService } from "../metadata/index.js";
+import {
+  cachedReadsCountedInInput,
+  usageResponseId,
+} from "../sdk/billableUsage.js";
 import type { SDKMessage } from "../sdk/types.js";
 import type { Process } from "../supervisor/Process.js";
 import type { EventBus } from "../watcher/EventBus.js";
@@ -123,33 +127,6 @@ function carriesUsage(message: SDKMessage): boolean {
 }
 
 /**
- * The provider's own id for the API response a frame belongs to. While a
- * Claude response streams, the SDK emits one assistant message per completed
- * content block, and every one of them repeats the same `message.usage`. A
- * second observation of one response has zero prompt growth, so judging it
- * would count the response's ordinary cache write as waste.
- */
-function responseId(message: SDKMessage): string | undefined {
-  const candidate = (message as { message?: { id?: unknown } }).message?.id;
-  return typeof candidate === "string" && candidate.trim()
-    ? candidate
-    : undefined;
-}
-
-/**
- * The id any other reader of these usage frames must dedupe on, so a second
- * observation of one response is not counted twice. Undefined means the
- * provider named no response — Codex's out-of-band `token_usage` frames — and
- * a caller must then take each frame as its own request rather than guessing
- * from equal counts, which two real requests can legitimately report.
- */
-export function usageObservationResponseId(
-  message: SDKMessage,
-): string | undefined {
-  return responseId(message);
-}
-
-/**
  * A boundary that rewrites the prompt prefix, so the next request pays for a
  * prefix the provider never cached and no earlier observation predicts it.
  * Microcompaction drops older content from the same prefix, which invalidates
@@ -176,11 +153,11 @@ export function extractCacheMissBillingObservation(
   }
 
   const inputTokens = numericField(rawUsage.input_tokens) ?? 0;
-  const cacheReadTokens =
-    provider === "codex"
-      ? numericField(rawUsage.cached_input_tokens)
-      : (numericField(rawUsage.cache_read_input_tokens) ??
-        numericField(rawUsage.cached_input_tokens));
+  const cachedReadsInInput = cachedReadsCountedInInput(provider);
+  const cacheReadTokens = cachedReadsInInput
+    ? numericField(rawUsage.cached_input_tokens)
+    : (numericField(rawUsage.cache_read_input_tokens) ??
+      numericField(rawUsage.cached_input_tokens));
   const cacheCreationTokens = numericField(
     rawUsage.cache_creation_input_tokens,
   );
@@ -192,10 +169,9 @@ export function extractCacheMissBillingObservation(
    * `input_tokens: 109340, cached_input_tokens: 108288`). Claude reports the
    * three classes disjointly, so its prompt total is their sum.
    */
-  const totalContextTokens =
-    provider === "codex"
-      ? Math.max(inputTokens, cacheReadTokens ?? 0)
-      : inputTokens + (cacheReadTokens ?? 0) + (cacheCreationTokens ?? 0);
+  const totalContextTokens = cachedReadsInInput
+    ? Math.max(inputTokens, cacheReadTokens ?? 0)
+    : inputTokens + (cacheReadTokens ?? 0) + (cacheCreationTokens ?? 0);
   const uncachedInputTokens = Math.max(
     0,
     totalContextTokens - (cacheReadTokens ?? 0),
@@ -278,7 +254,9 @@ export class CacheMissBillingMonitor {
     if (!observation) {
       return;
     }
-    const observedResponseId = responseId(message);
+    // A second observation of one response has zero prompt growth, so judging
+    // it would count the response's ordinary cache write as waste.
+    const observedResponseId = usageResponseId(message);
     if (
       observedResponseId !== undefined &&
       observedResponseId === state.lastObservedResponseId

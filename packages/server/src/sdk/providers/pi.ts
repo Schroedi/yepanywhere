@@ -104,8 +104,13 @@ interface PiStreamState {
   text: string;
   /** Cumulative assistant thinking so far (emitted whole each update). */
   thinking: string;
-  lastUsage: SdkUsage | null;
-  lastCostUsd: number | null;
+  /**
+   * Every model request of this YA turn, summed. One pi run makes a request per
+   * tool round, plus any retry, and each is charged; the `result` reports the
+   * total, as Claude's and OpenCode's do.
+   */
+  runUsage: SdkUsage | null;
+  runCostUsd: number | null;
   /** Version-selected event that ends one YA provider turn. */
   terminalEvent: "agent_end" | "agent_settled";
   /**
@@ -614,8 +619,8 @@ export class PiProvider implements AgentProvider {
       currentAssistantId: null,
       text: "",
       thinking: "",
-      lastUsage: null,
-      lastCostUsd: null,
+      runUsage: null,
+      runCostUsd: null,
       terminalEvent,
       turnError: null,
       toolStates: new Map(),
@@ -759,7 +764,7 @@ export class PiProvider implements AgentProvider {
    *
    * Streaming text/thinking are emitted as delta slices under a stable per-
    * message uuid (YA appends same-uuid assistant content). `agent_settled`
-   * becomes a `result` carrying the last turn's usage — the drain loop's turn
+   * becomes a `result` carrying the run's summed usage — the drain loop's turn
    * boundary. `agent_end` only ends one low-level run and may precede automatic
    * retry, compaction, or queued continuation.
    */
@@ -845,8 +850,22 @@ export class PiProvider implements AgentProvider {
         const message = event.message as { usage?: unknown } | undefined;
         const mapped = mapPiUsage(message?.usage);
         if (mapped) {
-          stream.lastUsage = mapped.usage;
-          stream.lastCostUsd = mapped.costUsd;
+          const run = stream.runUsage;
+          stream.runUsage = run
+            ? {
+                input_tokens: run.input_tokens + mapped.usage.input_tokens,
+                output_tokens: run.output_tokens + mapped.usage.output_tokens,
+                cache_read_input_tokens:
+                  run.cache_read_input_tokens +
+                  mapped.usage.cache_read_input_tokens,
+                cache_creation_input_tokens:
+                  run.cache_creation_input_tokens +
+                  mapped.usage.cache_creation_input_tokens,
+              }
+            : mapped.usage;
+          if (mapped.costUsd !== null) {
+            stream.runCostUsd = (stream.runCostUsd ?? 0) + mapped.costUsd;
+          }
         }
         return [];
       }
@@ -931,14 +950,14 @@ export class PiProvider implements AgentProvider {
           ...(stream.turnError ? { error: stream.turnError } : {}),
         } as SDKMessage;
         stream.turnError = null;
-        if (stream.lastUsage) {
-          result.usage = stream.lastUsage;
+        if (stream.runUsage) {
+          result.usage = stream.runUsage;
         }
-        if (stream.lastCostUsd !== null) {
-          result.total_cost_usd = stream.lastCostUsd;
+        if (stream.runCostUsd !== null) {
+          result.total_cost_usd = stream.runCostUsd;
         }
-        stream.lastUsage = null;
-        stream.lastCostUsd = null;
+        stream.runUsage = null;
+        stream.runCostUsd = null;
         return [result];
       }
 

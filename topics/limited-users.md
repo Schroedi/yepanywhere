@@ -421,11 +421,26 @@ this install and how much.
     price of those counts depends on. The recorder accumulates per live process
     and appends **once per settled provider turn and tier** — on the turn's
     `result` frame, on the next turn starting, or when the process goes away.
-    One streaming Claude response repeats its usage on every completed content
-    block, so frames are deduped by the provider's response id; a provider that
-    names no response, such as Codex's out-of-band `token_usage`, has each
-    frame taken as its own request, since two real requests may legitimately
-    report equal counts.
+  - **One billing frame per provider**, owned by `readBillableUsage`
+    (`packages/server/src/sdk/billableUsage.ts`) and separate from the
+    cache-miss monitor's growth filter. Claude's assistant frames and Codex's
+    out-of-band `token_usage` report each request; codex-oss's
+    `turn_complete` and the `result` of pi, OpenCode and Gemini report the
+    turn's total. Claude's `result` and Codex's `turn_complete` restate
+    requests already reported, so they are not read. **Subagent requests
+    count**: a Claude Task subagent's frames are billed to the session that
+    delegated to it. Grok and Gemini ACP report no usage YA can read and
+    record nothing.
+  - **Deduped per turn by response id.** One streaming Claude response repeats
+    its usage on every completed content block, and a subagent's frames
+    interleave with the main thread's, so each response id counts once per
+    turn. A provider that names no response, such as Codex's `token_usage`,
+    has each frame taken as its own request, since two real requests may
+    legitimately report equal counts.
+  - **Cached reads follow the provider's protocol.** OpenAI and Google report
+    cached reads inside `input_tokens`; Anthropic-protocol providers, pi and
+    OpenCode report them disjointly. The convention is declared per provider,
+    so codex-oss is read the OpenAI way like Codex.
   - **The tier is decided at record time**, from the prompt one request
     actually sent, because no later reader can recover a single request's
     length from a sum. **The threshold is the provider's own, and most
@@ -435,7 +450,10 @@ this install and how much.
     `sonnet[1m]`, `opus[1m]` and `fable[1m]` cost exactly what their short
     requests cost. A record carries the tier only when it is the long one, so an
     install on a provider without one pays nothing for the distinction, and a
-    long-context flag on such a provider changes no price.
+    long-context flag on such a provider changes no price. **A turn total is
+    recorded at the standard tier**, since its sum names no single request;
+    of the providers reporting totals, only codex-oss reads a price list with
+    a tier.
 - **Cost is reported two ways, from one calculation.** The headline is
   **standard-tier output tokens of the model itself**: the charge's dollars
   divided by the one constant that model charges per output token. It leads
