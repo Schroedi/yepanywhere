@@ -1,6 +1,12 @@
 # Clair: session awareness across shared and isolated checkouts
 
-Status: sketch; investigation recorded, implementation not authorized.
+Status: ideas-only candidate presently; implementation not authorized.
+
+The user places Clair in the ideas-only category given its small adoption
+signal and lack of recent pushes. GitHub metadata checked 2026-09-26 reports
+7 stars and last push 2026-07-09. Those are maturity/activity signals, not
+evidence against the mechanism. Historical code and live Git artifacts make
+it a concrete design reference, without establishing production readiness.
 
 ## Aim
 
@@ -29,16 +35,22 @@ proves unnecessary.
 
 Inspected Clair default-branch revision
 [`f97df841f749cd26a2cec7111189886dae8815a8`](https://github.com/JBJamesBrownJB/clair/tree/f97df841f749cd26a2cec7111189886dae8815a8)
-on 2026-09-26. This is a source/doc inspection, not a runtime evaluation.
+on 2026-09-26, then refreshed the clone and inspected remote refs and history
+after the user challenged the main-only assessment. This is source/artifact
+inspection, not a runtime evaluation.
 
 - Current [`plugin/README.md`](https://github.com/JBJamesBrownJB/clair/blob/f97df841f749cd26a2cec7111189886dae8815a8/plugin/README.md)
   explicitly says no commands, hooks, or MCP server are wired. The CLI prints
   a skeleton greeting; `clair-core` contains a placeholder test. It is not
-  currently an integration-ready Claude plugin.
+  currently an integration-ready Claude plugin on `main`. This is an
+  intentional reset, not evidence that the mechanism was never implemented.
 - The [archive notice](https://github.com/JBJamesBrownJB/clair/blob/f97df841f749cd26a2cec7111189886dae8815a8/docs/archive/README.md)
   identifies the old same-branch pairing implementation and its hook/MCP
   architecture as pre-reset provenance. Archived diagrams labelled SHIPPED
-  do not describe the current tree. Historical code was not evaluated here.
+  do not describe the current tree. The
+  [reset commit `a3eff5f`](https://github.com/JBJamesBrownJB/clair/commit/a3eff5fee3aed6a39c4885002f5ede6f69f16aaf)
+  explicitly removes the old implementation to rebuild around repo-level
+  awareness, preserving the implementation in history.
 - The current [data-model draft](https://github.com/JBJamesBrownJB/clair/blob/f97df841f749cd26a2cec7111189886dae8815a8/docs/architecture/data-model.md)
   proposes a latest-presence register per session plus expiring decision,
   incident, and finding events. Cheap headlines/path facets precede details.
@@ -49,6 +61,81 @@ on 2026-09-26. This is a source/doc inspection, not a runtime evaluation.
 - Collision detection is proposed as a consumer-derived view over presence
   and committed/pushed diffs. It is not a pre-write exclusion mechanism, and
   it cannot by itself attribute shared dirty-tree changes to their writers.
+
+### Implementation and artifacts beyond main
+
+- Pre-reset [revision `9282295`](https://github.com/JBJamesBrownJB/clair/tree/92822956271f0e880d91f9a4365f453c71e97bee)
+  contains the Rust core, CLI, MCP server, Claude prompt/stop hooks, and
+  unit/BDD/integration test sources. This is substantive proof-of-concept code,
+  not just archived design prose. Tests were not rerun during this inspection.
+- Its `crates/clair-core/src/git.rs`, especially `Repo::append_lines`,
+  implements the transport: fetch a shadow branch; append to `log.jsonl`;
+  create blob/tree/commit with `hash-object`, `mktree`, and `commit-tree`;
+  push the commit SHA to `refs/heads/clair/...`. The first commit has no
+  parent; subsequent messages extend that separate history. Non-fast-forward
+  rejection triggers bounded fetch/reappend/retry. Message writes avoid the
+  working index/HEAD; the separate old pairing command does switch branches,
+  so the whole historical plugin is not suitable unchanged here.
+- Remote `clair/main` at `2c6df73d8b294573b021e56948d8a09942ead639`
+  contains a `log.jsonl` tree and 317 commits descending from an orphan root.
+  `clair/ready` and multiple `clair/run/...` refs also remain. These are actual
+  persisted bus artifacts, not merely proposed ref names; message contents
+  need not be copied into this sketch.
+- `feat/benchmark-runner` at
+  [`c27c5d6`](https://github.com/JBJamesBrownJB/clair/tree/c27c5d62b786fe44b097ecdf2c61e90158fae251)
+  contains a TypeScript multi-agent benchmark runner, tests, and saved results;
+  `arena/base` and `arena/reference` hold the benchmark application. Its July 1
+  handoff reports CI provisioning failures and explicitly defers a valid
+  awareness-on/off comparison. That is author-reported experiment status,
+  not reproduced effectiveness evidence.
+
+The first assessment stopped at the default-branch snapshot and therefore
+understated the available implementation evidence. The corrected disposition
+is an ideas-only adoption candidate with an inspectable historical transport
+prototype and surviving message refs. Evaluate that prototype before designing
+a replacement bus from scratch; do not mistake it for the newer awareness
+model being complete or for measured superiority to a local registry.
+
+### Shared experiment conclusion and public coverage
+
+Read the actual append log on `clair/feat/benchmark-runner` at
+[`b32fa19`](https://github.com/JBJamesBrownJB/clair/blob/b32fa19831631a7e68338a1bbdede6bb079fef0d/log.jsonl):
+102 prompt records and 103 summary records, including subagent notifications
+among the prompts. Its June 30 discussion expands the question from whether
+independent changes collide to **total cost of successfully integrating all
+the work**, including a repair agent. Short summary records frequently retain
+only the final conversational sentence, so the saved result files and July 1
+handoff are necessary cross-checks rather than treating this as a full transcript.
+
+The shared result is an unfinished measurement effort:
+
+- The resolver could report local success while the held-out acceptance gate
+  failed. The saved `standard-L1-resolver-armA` result has
+  `resolution.reachedGreen: true` but `outcome: fail` and
+  `gate.allPass: false`. The log discusses a dropped branch and introduces
+  per-branch merge/test checks and test-integrity guards to prevent false
+  success. This motivated a benchmark redesign, not a demonstrated rejection
+  of awareness.
+- The latest saved PR-queue Arm-A run marks all three branches blocked by
+  `ci-fail` and the run incomplete. The log and final handoff attribute this
+  to incomplete worktree dependency installation; they report a separate
+  manual S1 checkout passing typecheck and 33 tests. That manual result is
+  reported, not independently reproduced here. The JSON's `envError: false`
+  shows why the aggregate label alone cannot establish an agent failure.
+- The final recorded next step is fixing provisioning and rerunning, followed
+  by a valid awareness-on/off comparison. The final human prompt asks to
+  record state before shutting down; it does not announce abandonment or a
+  private successor. No valid completed on/off result was found in the
+  inspected public artifacts.
+
+Public inspection covered all 22 advertised branch heads, no advertised tags,
+all four PRs (merged), the one open issue (arena tag publication), and empty
+release/fork listings on 2026-09-26. Main is incomplete as an inventory of the
+repository's work: the runner and arena are deliberately elsewhere. The
+public refs examined do not reveal a completed post-reset awareness product.
+The June 26 reset also predates the June 30 experiments, so those experiments
+cannot explain that reset. A later private or employer-owned development line
+is possible but unsupported by this public evidence.
 
 The originating [interview](https://www.youtube.com/watch?v=JCPrxKse4YQ) is
 human context only; neither video nor transcript was retrieved.
