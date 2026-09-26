@@ -866,6 +866,16 @@ export function createApp(options: AppOptions): AppResult {
         ...(options.userUsageService
           ? { userUsage: options.userUsageService }
           : {}),
+        revokeUserLogins: async (username) => {
+          await authService.invalidateUserSessions(username);
+          // Relay sessions are keyed by SRP identity, and a limited name equal
+          // to the superuser's relay identity logs in as the superuser.
+          if (username === options.remoteAccessService?.getUsername()) return;
+          await options.remoteSessionService?.invalidateUserSessions(username);
+        },
+        revokeRelaySession: async (sessionId) => {
+          await options.remoteSessionService?.deleteSession(sessionId);
+        },
       }),
     );
   }

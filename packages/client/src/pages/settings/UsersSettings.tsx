@@ -14,6 +14,7 @@ import { useProjects } from "../../hooks/useProjects";
 import { useProviders } from "../../hooks/useProviders";
 import { useServerSettings } from "../../hooks/useServerSettings";
 import { useI18n } from "../../i18n";
+import { toBrowserAppHref } from "../../lib/appHref";
 import { SettingsItem } from "./SettingsItem";
 import { useSettingsPaneTitle } from "./SettingsPaneTitleContext";
 import { SettingsSection } from "./SettingsSection";
@@ -243,9 +244,9 @@ export function UsersSettings() {
     try {
       const result = await api.logoutUser();
       if (result.redirect === "relay-login")
-        window.location.href = "/login/relay";
+        window.location.href = toBrowserAppHref("/login/relay");
       else if (result.redirect === "direct-login")
-        window.location.href = "/login";
+        window.location.href = toBrowserAppHref("/login");
       else window.location.reload();
     } catch (logoutError) {
       setError((logoutError as Error).message);

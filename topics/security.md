@@ -76,7 +76,10 @@ superuser name has a per-identity limiter. Turning the feature off also
 refuses every limited login already in progress, including cookies, relay
 sessions, and sockets; none falls back to superuser authority. A superuser
 using **Act as** remains the superuser underneath and regains full access on
-logout.
+logout. A limited user's logout ends the cookie or relay session it used, and
+changing that user's password or deleting the user ends all of them,
+including saved relay resume credentials; an already open connection is cut
+off at once only by disabling the user.
 
 **API.** One server-side middleware ahead of every route judges a limited
 principal and denies by default: an unlisted path answers 403, and an

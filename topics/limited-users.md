@@ -165,7 +165,12 @@ way, because it is where the switch and the first user both live.
 - `srp` — `{ salt, verifier }` generated from the same password with the
   username as SRP identity, so the relay path verifies without a second
   credential. Changing the password rewrites both forms; neither form is
-  ever returned by an API.
+  ever returned by an API. It also ends every login the user holds: their
+  direct cookie sessions, and their relay sessions, whose saved resume
+  credentials stop working. Deleting the user ends them too, and a new user
+  starts with none, even one reusing a deleted user's name. A connection
+  already open keeps acting until it reconnects; disabling the user refuses
+  it at once.
 - `newSessionProjects: string[]` — projects where the user may start
   sessions. Every session they start is forced to `sandboxLevel:
   "project-write"`; the request cannot select `none`.
@@ -307,8 +312,11 @@ therefore gets exactly the 403/404 answers above, never superuser authority.
   browser.
 - **Logout.** In Settings → Users. For a switched superuser it clears the
   acting-user cookie and returns them to full access. For a limited user it
-  invalidates their session and returns them to the login they arrived by:
-  the relay login page for a relay session, the direct login page otherwise.
+  ends the session they logged in with — the relay session, including the
+  resume credential their browser saved, or the direct cookie session — and
+  returns them to the login they arrived by: the relay login page for a relay
+  session, the direct login page otherwise, under the client's application
+  base path.
 
 ### Settings → Users
 
