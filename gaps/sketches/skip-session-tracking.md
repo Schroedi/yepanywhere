@@ -8,6 +8,10 @@ performance measurement has been run for this sketch.
 
 Evaluate [SkipLabs/skip](https://github.com/SkipLabs/skip) as the incremental
 computation owner for provider-session tracking and derived server views.
+The main quantity of interest is whether maintaining state this way enables
+clients to selectively hold an authoritative view of their active sessions,
+project worktrees, and related state. Routing overhead is the first feasibility
+check; backend speed alone is not the principal outcome.
 Consider embedding its TypeScript API in the provider service, in the YA
 server, or running a separate reactive process. A provider-side graph could
 survive Hono reloads; a YA-side graph is closer to catalog queries and rendering
@@ -29,6 +33,56 @@ canonical YA session identity, provider-native history, source revisions,
 field fidelity, and exact watcher invalidation. Skip should replace an owning
 derivation mechanism where useful, not become another cache layered over the
 same invalidation problem.
+
+## Main evaluation: selective authoritative client views
+
+Here, an **authoritative view** means a client-held projection with a declared
+scope, completeness, and source revision that the server can establish. The
+provider transcript, filesystem, Git state, and YA-owned ancillary stores retain
+their respective write authority. The client can answer covered queries locally
+without a round trip while distinguishing synchronized, stale, incomplete, and
+disconnected views. This is the proposed meaning to test, not an existing Skip
+or YA guarantee of instantaneous agreement with external files.
+
+The desired selectable scopes include:
+
+- **Active sessions:** provider JSONL records and their interpreted transcript
+  state, with explicit retained history coverage and correct append,
+  truncation/replacement, and resubscription behavior.
+- **Project worktrees:** subscribed filesystem paths, directory membership,
+  and requested file contents. Selection must not imply copying an entire
+  worktree or watching every historical project.
+- **Ancillary state:** pending asynchronous-question counts and their underlying
+  question identities/state, source-control status and requested diff views,
+  and other summaries that depend on session or worktree changes.
+- **Rendering inputs and open viewers:** substring highlighting and auto-linking
+  facts that remain current as their dependencies change, plus optional automatic
+  refresh of open file viewers without a manual refresh action. Preserve the
+  user's position/selection where possible and distinguish changed, deleted,
+  and replaced files; refreshing a viewer must not overwrite unsaved edits.
+
+Evaluate whether these consumers can share a small set of maintained inputs
+and derived subscriptions, with small immutable updates propagating only to
+affected views. The client selects sessions, paths, and projections of interest;
+closing or changing that interest should release unnecessary observation and
+delivery work. A lazy query can populate a requested scope, while a subscription
+keeps an active scope current. This distinction should be explicit in the API.
+
+After the overhead stage, demonstrate a narrow end-to-end slice: a selected
+session, its pending-question count, and one open worktree file with auto-refresh
+enabled. Exercise transcript appends, question creation/resolution, file edits,
+interest changes, and reconnect. Then extend to source-control and recognition
+projections. Verify local query results against the selected authoritative
+source revisions and measure update-to-visible latency, stale intervals,
+round trips avoided, initial/delta bytes, client/server memory, and work done
+outside the subscribed scope. Mixed filesystem/provider/Git inputs need an
+explicit consistency boundary; a graph alone cannot make their observations
+one atomic snapshot.
+
+The principal success criterion is useful, correctly scoped client views with
+bounded freshness and resource costs, and less bespoke synchronization logic.
+The experiment must establish which guarantees come from Skip and which still
+require YA source adapters, reconciliation, and client lifecycle management.
 
 ## Selection criterion: maintained computed state
 
@@ -175,7 +229,7 @@ the product decision, performance assessment, and exact SQLite-compatibility
 scope were not independently verified here. The inspected repository still
 contains SKDB source, which does not establish continued commercial focus.
 
-**Client replicas are a candidate extension.** The maintainer reports that a
+**Client replicas motivate the main evaluation.** The maintainer reports that a
 common use is keeping a client replica of server state for snappy incremental
 search and edits whose immediate UI response needs no round trip. The
 [client protocol](https://github.com/SkipLabs/skip/blob/56e6a3bed3f4e804cbf4f705f8a9f0c9d1533e10/www/docs/client.md)
@@ -200,8 +254,9 @@ ordering, reconnect, or reconciliation with pending local edits. A later client
 POC should exercise those cases, initial replica size, subset/search coverage,
 and authorization changes. Compare a lightweight client projection with a
 client-side Skip graph before adding runtime or memory costs to mobile clients.
-Keep this extension behind the initial backend POC rather than expanding its
-first implementation into a client state rewrite.
+The initial backend POC remains an overhead check. Follow it with the selective
+client-view slice above to evaluate the main objective, without requiring a
+wholesale client state rewrite.
 
 ## Initial performance simulation POC
 
@@ -248,12 +303,12 @@ first implementation into a client state rewrite.
    consumer check must include real sequential typing under concurrent updates.
 
 An overhead-only result is a valid first POC outcome, with derived-state value
-explicitly untested. Proceed to production adoption only when the POC shows a
-useful measured trade-off and names which existing cache/invalidation owner it
+and selective authoritative client views explicitly untested. Proceed to
+production adoption only when the POC shows a useful measured trade-off and
+names which existing cache/invalidation owner it
 can replace. Keeping the current mechanism, using Skip only for one projection,
-or adopting bounded SQL
-storage without Skip are all valid outcomes. This sketch changes no roadmap
-priority and authorizes no production migration.
+or adopting bounded SQL storage without Skip are all valid outcomes. This sketch
+changes no roadmap priority and authorizes no production migration.
 
 Captured 2026-09-26 at the maintainer's request.
 Contributing-model: 6-Astra
