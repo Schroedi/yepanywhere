@@ -686,7 +686,10 @@ Durable pointers by symbol and module; grep for the symbol.
   no rewind request for a typed `/clear N`.
 - A pending rewind is applied by every Claude launch path, and it wins over
   a caller-supplied `resumeSessionAt`; a non-Claude provider or a new
-  session gets no truncation (`resumeTruncation.test.ts`).
+  session gets no truncation (`resumeTruncation.test.ts`). The real-SDK
+  launchers, used when no provider is resolved, truncate and disarm like
+  the provider launchers (`supervisor.test.ts` § a pending rewind on the
+  real SDK launch path).
 - A `Resume rejected by --resume-drops-turn:` result deletes the record and
   ends a running clearloop as `interrupted`; an idle-reap abort leaves the
   loop running (`ClearloopService.test.ts`).

@@ -3891,6 +3891,91 @@ describe("Supervisor", () => {
       await supervisorWithRealSdk.abortProcess(process.id);
     });
 
+    describe("a pending rewind on the real SDK launch path", () => {
+      const pending = {
+        recordId: "rewind-1",
+        cutMessageId: "assistant-1",
+        dropsTurnPromptId: "user-2",
+      };
+
+      function createRewindingSupervisor() {
+        let aborted = false;
+        let armed: typeof pending | undefined = pending;
+        const startSession = vi.fn<RealClaudeSDKInterface["startSession"]>(
+          async (options) => {
+            async function* iterator() {
+              yield {
+                type: "system",
+                subtype: "init",
+                session_id: options.resumeSessionId ?? "fresh",
+              };
+              while (!aborted) {
+                await new Promise((resolve) => setTimeout(resolve, 10));
+              }
+            }
+            return {
+              iterator: iterator(),
+              queue: new MessageQueue(),
+              abort: () => {
+                aborted = true;
+              },
+            };
+          },
+        );
+        const clearPendingRewind = vi.fn(async () => {
+          armed = undefined;
+        });
+        const metadata = createLaunchSettingsMetadata();
+        const service = {
+          ...metadata.service,
+          getPendingRewind: () => armed,
+          clearPendingRewind,
+        } as unknown as SessionMetadataService;
+        const supervisor = new Supervisor({
+          realSdk: { startSession },
+          sessionMetadataService: service,
+          idleTimeoutMs: 100,
+        });
+        return { supervisor, startSession, clearPendingRewind };
+      }
+
+      const truncated = expect.objectContaining({
+        resumeSessionId: "rewound-session",
+        resumeSessionAt: "assistant-1",
+        resumeDropsTurn: "user-2",
+      });
+
+      it("truncates a resume and disarms the rewind", async () => {
+        const { supervisor, startSession, clearPendingRewind } =
+          createRewindingSupervisor();
+        const process = await supervisor.resumeSession(
+          "rewound-session",
+          "/tmp/test",
+          { text: "next" },
+        );
+        if (!("id" in process)) throw new Error("resume was queued");
+
+        expect(startSession).toHaveBeenCalledWith(truncated);
+        expect(clearPendingRewind).toHaveBeenCalledWith("rewound-session");
+        expect(process.appliedRewindRecordId).toBe("rewind-1");
+        await supervisor.abortProcess(process.id);
+      });
+
+      it("truncates a reactivation and disarms the rewind", async () => {
+        const { supervisor, startSession, clearPendingRewind } =
+          createRewindingSupervisor();
+        const process = await supervisor.reactivateSession(
+          "/tmp/test",
+          "rewound-session",
+        );
+
+        expect(startSession).toHaveBeenCalledWith(truncated);
+        expect(clearPendingRewind).toHaveBeenCalledWith("rewound-session");
+        expect(process.appliedRewindRecordId).toBe("rewind-1");
+        await supervisor.abortProcess(process.id);
+      });
+    });
+
     it("keeps one canonical row when the same session is restarted", async () => {
       mockSdk.addScenario(createMockScenario("sess-restarted", "First run"));
       const first = await supervisor.resumeSession(

@@ -28,6 +28,7 @@ import type { ClaudeGoalSnapshot } from "../sdk/providers/claude-goal.js";
 import { registerForkedSessionFile } from "../sessions/fork-discovery.js";
 import {
   isResumeDropsTurnRefusal,
+  type ResumeTruncation,
   resolveResumeTruncation,
 } from "./resume-truncation.js";
 import type { AgentActivity, PendingInputType } from "@yep-anywhere/shared";
@@ -1290,11 +1291,18 @@ export class Supervisor {
         stateRoot: this.sandboxStateRoot,
       }),
     );
+    const truncation = this.resolveLaunchTruncation(
+      resumeSessionId,
+      "claude",
+      modelSettings,
+    );
     // Start session WITHOUT an initial message - agent will wait
     const result = await this.realSdk.startSession({
       cwd: projectPath,
       // No initialMessage - queue will block until one is pushed
       resumeSessionId,
+      resumeSessionAt: truncation.resumeSessionAt,
+      resumeDropsTurn: truncation.resumeDropsTurn,
       permissionMode: effectiveMode,
       model: modelSettings?.model,
       thinking: modelSettings?.thinking,
@@ -1409,6 +1417,7 @@ export class Supervisor {
     const process = new Process(iterator, options);
     processHolder.process = process;
     this.observeProcessEvents(process);
+    await this.consumePendingRewind(process, resumeSessionId, truncation);
 
     // Wait for the real session ID from the SDK
     if (!resumeSessionId) {
@@ -2114,9 +2123,16 @@ export class Supervisor {
         stateRoot: this.sandboxStateRoot,
       }),
     );
+    const truncation = this.resolveLaunchTruncation(
+      resumeSessionId,
+      "claude",
+      modelSettings,
+    );
     const result = await this.realSdk.startSession({
       cwd: projectPath,
       resumeSessionId,
+      resumeSessionAt: truncation.resumeSessionAt,
+      resumeDropsTurn: truncation.resumeDropsTurn,
       permissionMode: effectiveMode,
       model: modelSettings?.model,
       thinking: modelSettings?.thinking,
@@ -2233,6 +2249,7 @@ export class Supervisor {
     const process = new Process(iterator, options);
     processHolder.process = process;
     this.observeProcessEvents(process);
+    await this.consumePendingRewind(process, resumeSessionId, truncation);
 
     // Wait for the real session ID from the SDK before registering
     // This ensures the client gets the correct ID to use for persistence
@@ -2345,14 +2362,11 @@ export class Supervisor {
       modelSettings,
       activeProvider,
     );
-    const truncation = resolveResumeTruncation({
+    const truncation = this.resolveLaunchTruncation(
       resumeSessionId,
-      providerName: activeProvider.name,
-      pendingRewind: resumeSessionId
-        ? this.sessionMetadataService?.getPendingRewind?.(resumeSessionId)
-        : undefined,
-      requested: modelSettings,
-    });
+      activeProvider.name,
+      modelSettings,
+    );
     const start = activeProvider.startSession({
       computerControl,
       cwd: projectPath,
@@ -2623,14 +2637,11 @@ export class Supervisor {
       modelSettings,
       activeProvider,
     );
-    const truncation = resolveResumeTruncation({
+    const truncation = this.resolveLaunchTruncation(
       resumeSessionId,
-      providerName: activeProvider.name,
-      pendingRewind: resumeSessionId
-        ? this.sessionMetadataService?.getPendingRewind?.(resumeSessionId)
-        : undefined,
-      requested: modelSettings,
-    });
+      activeProvider.name,
+      modelSettings,
+    );
     const start = activeProvider.startSession({
       computerControl,
       cwd: projectPath,
@@ -4818,6 +4829,26 @@ export class Supervisor {
         : `Session abort verified: ${result.sessionId} (PID ${result.pid})`,
     );
     return result;
+  }
+
+  /**
+   * The resume truncation every launcher passes to its provider: the
+   * session's pending rewind, else the caller's own cut. Paired with
+   * `consumePendingRewind` once the process exists.
+   */
+  private resolveLaunchTruncation(
+    resumeSessionId: string | undefined,
+    providerName: ProviderName,
+    modelSettings: ModelSettings | undefined,
+  ): ResumeTruncation {
+    return resolveResumeTruncation({
+      resumeSessionId,
+      providerName,
+      pendingRewind: resumeSessionId
+        ? this.sessionMetadataService?.getPendingRewind?.(resumeSessionId)
+        : undefined,
+      requested: modelSettings,
+    });
   }
 
   /**
