@@ -3625,15 +3625,18 @@ describe("Supervisor", () => {
           requestedModel: "haiku",
         }),
       ).rejects.toThrow("metadata unavailable");
-      const callsAfterFailedSave =
-        recordEffectiveLaunchSettings.mock.calls.length;
+      expect(durable?.requestedModel).toBe("opus");
 
+      // Stopping retries the applied-but-unsaved change before it returns.
+      persistenceAvailable = true;
       await serialized.abortProcess(process.id);
+      expect(durable?.requestedModel).toBe("haiku");
+      const callsAfterStop = recordEffectiveLaunchSettings.mock.calls.length;
 
       process.setPermissionMode("plan");
       await Promise.resolve();
       expect(recordEffectiveLaunchSettings).toHaveBeenCalledTimes(
-        callsAfterFailedSave,
+        callsAfterStop,
       );
     });
 

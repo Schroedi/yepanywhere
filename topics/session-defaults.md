@@ -186,6 +186,15 @@ conservative server/provider default. Existing YA requested-model metadata
 precedes provider transcript inference because it records the user's exact YA
 selection token.
 
+A live change is saved to that record as it is applied. When the process stops
+before that save has run — Stop, a rewind, an idle reap, a turn interrupt that
+falls back to aborting, a provider exit — the stop completes the save, so the
+next replacement process starts from the settings last applied rather than
+the ones saved before the change. A requested abort (Stop, a rewind, the
+interrupt fallback) waits for the save before returning; a failed save is logged and does not fail the stop. A save for a
+stopped process never overwrites a successor process that already owns the
+session.
+
 For a Codex session that predates the complete snapshot, the first later cold
 launch lazily reads the latest valid transcript `turn_context`. Its non-empty
 model and supported effort are recoverable. `none` recovers disabled thinking;

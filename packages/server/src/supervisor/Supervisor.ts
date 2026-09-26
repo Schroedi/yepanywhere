@@ -4801,6 +4801,9 @@ export class Supervisor {
     this.emitSessionAborted(process.sessionId, process.projectId);
 
     const result = await process.abort();
+    await this.activationCoordinator.settleStoppingProcessLaunchSettings(
+      process,
+    );
     this.unregisterProcess(process);
     log.info(
       {
@@ -4863,13 +4866,6 @@ export class Supervisor {
       rewindRecordRemoved: recordId,
       timestamp: new Date().toISOString(),
     });
-  }
-
-  /** Persist the live process's current settings before a planned restart. */
-  async persistLiveLaunchSettings(sessionId: string): Promise<void> {
-    const process = this.getProcessForSession(sessionId);
-    if (!process || process.isTerminated) return;
-    await this.activationCoordinator.persistLiveProcessLaunchSettings(process);
   }
 
   async abortSessionWithVerification(
@@ -4948,6 +4944,9 @@ export class Supervisor {
     const deferredMessages = await process.drainPendingUserMessages("promoted");
     this.emitSessionAborted(process.sessionId, process.projectId);
     await process.terminateAndWait("interrupt fallback abort");
+    await this.activationCoordinator.settleStoppingProcessLaunchSettings(
+      process,
+    );
     this.unregisterProcess(process);
     this.recoverDeferredMessagesAfterHardAbort(process, deferredMessages);
     return { success: false, supported: true, hardAborted: true };
@@ -5282,6 +5281,9 @@ export class Supervisor {
         );
       } else if (event.type === "complete") {
         this.dirtyFileEditorService?.forgetProcess(process.id);
+        void this.activationCoordinator.settleStoppingProcessLaunchSettings(
+          process,
+        );
         this.unregisterProcess(process);
       } else if (event.type === "message") {
         this.dirtyFileEditorService?.observeMessage(process, event.message);

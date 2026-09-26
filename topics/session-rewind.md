@@ -433,11 +433,12 @@ impatient and Project Queue purple while patient, so the wait the loop is in
 is legible without opening the menu. The sidebar and Agents chips stay
 passive and carry the same color.
 
-**Settings changes take effect on the next iteration.** Before a rewind
-stops the live process it persists that process's current effort, thinking,
-model, and permission mode as the session's launch settings, so the resume
-that sends the next prompt (a clearloop iteration or the user's next send)
-uses what was last applied mid-session rather than the original launch
+**Settings changes take effect on the next iteration.** A rewind's stop,
+like every stop, completes the save of any effort, thinking, model, or
+permission mode applied to the live process before it returns
+([session defaults](session-defaults.md) § Per-session live picks), so the
+resume that sends the next prompt (a clearloop iteration or the user's next
+send) uses what was last applied mid-session rather than the original launch
 values. An iteration's resume is assembled by the same code as the `/resume`
 route, with those saved launch settings standing in for a client's request:
 the session's saved model, executor, recap mode and timing, prompt-suggestion
@@ -584,8 +585,8 @@ Durable pointers by symbol and module; grep for the symbol.
 - `routes/session-queue-summaries.ts` — the clearloop queue entry, always
   last.
 - `supervisor/SessionActivationCoordinator.ts`
-  `persistLiveProcessLaunchSettings` and `Supervisor.persistLiveLaunchSettings`
-  — live settings snapshot before the rewind stops the process.
+  `settleStoppingProcessLaunchSettings` — the rewind's abort, like every
+  stop, saves settings applied since the last save.
 - `sdk/providers/types.ts` / `sdk/providers/claude.ts` — `resumeDropsTurn`.
 - `routes/version.ts` `BASE_CAPABILITIES`; `routes/settings.ts` and
   `services/ServerSettingsService.ts` `clearloopInactivitySeconds`.
