@@ -123,6 +123,54 @@ user metadata from disposable derived caches and provider-owned transcripts.
 Compare an in-memory graph with durable-source variants; do not infer that Skip
 requires a database or that adding one improves performance.
 
+## PostgreSQL, product history, and client replicas
+
+**PostgreSQL change subscriptions are real, with a narrower adapter contract
+than arbitrary SQL-query subscriptions.** The inspected
+[PostgreSQL adapter](https://github.com/SkipLabs/skip/blob/56e6a3bed3f4e804cbf4f705f8a9f0c9d1533e10/skipruntime-ts/adapters/postgres/src/index.ts)
+initially reads a table, installs row triggers calling `pg_notify`, and listens
+with `LISTEN`. A notification carries a key; the adapter queries that key's
+current rows and updates the reactive collection. Skip can then maintain
+derived query results and stream their changes. This is not evidence of a
+general PostgreSQL arbitrary-query change-feed API. The maintainer notes that
+YA does not use PostgreSQL yet; this integration is useful precedent, not a
+reason to add a PostgreSQL deployment requirement to the first POC.
+
+**Reported SKDB product history.** The maintainer reports that SkipLabs built
+a SQLite reimplementation with acceptable performance, then abandoned it as a
+product because it was hard to sell. Preserve this as attributed background;
+the product decision, performance assessment, and exact SQLite-compatibility
+scope were not independently verified here. The inspected repository still
+contains SKDB source, which does not establish continued commercial focus.
+
+**Client replicas are a candidate extension.** The maintainer reports that a
+common use is keeping a client replica of server state for snappy incremental
+search and edits whose immediate UI response needs no round trip. The
+[client protocol](https://github.com/SkipLabs/skip/blob/56e6a3bed3f4e804cbf4f705f8a9f0c9d1533e10/www/docs/client.md)
+does document a complete resource `init` followed by keyed `update` events over
+server-sent events. Clients can maintain a local projection from that stream
+without importing the Skip runtime. Local filtering/search over the replicated
+subset is a plausible YA use; prevalence and turnkey optimistic-edit support
+are not established by those docs.
+
+The proposed end-to-end model puts the relevant server projection under Skip's
+reactive collections and treats mapper-visible values as immutable or tracked,
+so changes flow through declared dependencies. For Skip to keep that projection
+current, every relevant source change must reach its inputs or external-source
+adapter. This does not require the authoritative database or all server state
+to be implemented in Skip: PostgreSQL integration is a counterexample. Nor is
+Skip a general prerequisite for synchronizing replicas; the requirement is
+specific to using its maintained graph and update stream for this purpose.
+
+Separate local draft/optimistic edits from accepted server state. Snapshot and
+update delivery alone do not settle write acknowledgement, rejection, conflicts,
+ordering, reconnect, or reconciliation with pending local edits. A later client
+POC should exercise those cases, initial replica size, subset/search coverage,
+and authorization changes. Compare a lightweight client projection with a
+client-side Skip graph before adding runtime or memory costs to mobile clients.
+Keep this extension behind the initial backend POC rather than expanding its
+first implementation into a client state rewrite.
+
 ## Initial performance simulation POC
 
 1. **Choose the backend seam and retain a baseline.** Prefer mocked provider
