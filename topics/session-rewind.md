@@ -165,9 +165,12 @@ server-side), then:
    cut is not a completed human-turn boundary. The client never substitutes
    a partial boundary.
 2. Records a **rewind record** in session metadata before touching the
-   provider: `{ id, at, cutMessageId, droppedFromMessageId, droppedTurnCount,
-   reason: "clear" | "clearloop" (+ loop id and iteration) }`. It is a
-   display object: never model context, survives restart and device change.
+   provider: `{ id, at, cutMessageId, droppedFromMessageId,
+   droppedThroughMessageId, droppedTurnCount, reason: "clear" | "clearloop"
+   (+ loop id and iteration) }`. `droppedThroughMessageId` is the
+   transcript's last row, read after the live process stopped (the next
+   step), so it bounds the dropped span by file position. It is a display
+   object: never model context, survives restart and device change.
 3. Stops the live process, if any, and arms the record as the session's
    **pending rewind**. Claude's truncation is a resume option, so the rewind
    takes effect when the next process for the session launches, whichever
@@ -240,13 +243,21 @@ per [claude](claude.md) § Transcript Structure. With rewind records as an
 input, the reader instead emits the dropped rows as a **rewound group**:
 
 - Group membership is positional: every row after the cut's line in file
-  order that was written before the record's `at` and not already claimed by
-  an earlier rewind (a row keeps its first claim). Rows the session writes
-  after the rewind are the live branch and are never grouped, even before
-  the next turn exists (the record, not tip selection, decides the cut;
-  until a new turn is written the displayed tail is the cut itself).
-  Positional membership means a compaction inside a cleared span cannot
-  split it and clock skew between transcript and server cannot move rows.
+  order through the record's `droppedThroughMessageId` row, not already
+  claimed by an earlier rewind (a row keeps its first claim). Rows the
+  session writes after the rewind are the live branch and are never grouped,
+  even before the next turn exists (the record, not tip selection, decides
+  the cut; until a new turn is written the displayed tail is the cut
+  itself). Positional membership means a compaction inside a cleared span
+  cannot split it, and no timestamp is compared, so a transcript writer
+  whose clock differs from the server's cannot move rows. Every row in that
+  span is claimed, including one on a sibling branch of the dropped chain.
+  A record without the bound — written before the field existed, or when
+  no transcript file could be read at rewind time — instead claims the rows
+  after the cut stamped no later than its `at`. Those records do depend on
+  clock skew: a writer behind the server's clock stamps the next live turn
+  early enough to be claimed. A record whose bound row is missing from the
+  read transcript groups nothing.
 - Membership is by position, not by whether the provider stamped the row with
   a uuid. A queued message delivered into a cleared iteration is a transcript
   row with no uuid, and it joins that iteration's group; leaving it live
@@ -551,7 +562,8 @@ Durable pointers by symbol and module; grep for the symbol.
   entry, `getBadge`/`clearloopBadgeFromJob` for summaries,
   `reconcileAfterRestart`, the durable notice.
 - `sessions/claude-messages.ts` — `collectRewoundRows` (positional
-  membership, nesting); the `rewindRecords` option of
+  membership, nesting), `lastRewindableClaudeRowId` (the bound
+  `rewindSessionToCut` records); the `rewindRecords` option of
   `collectVisibleClaudeEntries`, threaded through `normalizeSession` in
   `sessions/normalization.ts`.
 - `sessions/turn-index.ts` — `stampTurnIndexes` (the `turnIndex` stamp
@@ -660,6 +672,11 @@ Durable pointers by symbol and module; grep for the symbol.
   (`claude-messages.test.ts`).
 - Two rewinds to the same live cut produce two sibling groups in order, with
   no `rewoundParentGroupId` on either (`claude-messages.test.ts`).
+- A continuation stamped behind the server's clock stays live under a
+  bounded record, and a clear whose cut precedes an earlier group encloses
+  it with each row in its own group (`claude-messages.test.ts`); the
+  rewind route records the transcript's last row as the bound
+  (`session-rewind-orchestration.test.ts`).
 - A rewind, whether issued here or seen on the metadata event, replaces the
   loaded window with the server's bounded tail projection without unmounting
   the view, fetching once per record; a failed refetch reloads

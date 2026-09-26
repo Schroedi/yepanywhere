@@ -56,6 +56,13 @@ export interface SessionRewindRecord {
   cutTurnIndex: number;
   /** First dropped user request, when the tail had one. */
   droppedFromMessageId?: string;
+  /**
+   * Last transcript row present when the rewind was recorded: the dropped span
+   * is the file lines after the cut through this row. Absent on records made
+   * before the field existed or when no transcript file could be read at
+   * rewind time; those fall back to comparing row timestamps with `at`.
+   */
+  droppedThroughMessageId?: string;
   droppedTurnCount: number;
   reason: SessionRewindReason;
   /** For clearloop rewinds: the loop, the iteration, and its M and prompt. */

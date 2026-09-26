@@ -1,3 +1,4 @@
+import type { SessionRewindRecord } from "@yep-anywhere/shared";
 import { describe, expect, it } from "vitest";
 import { collectVisibleClaudeEntries } from "../../src/sessions/claude-messages.js";
 
@@ -166,6 +167,127 @@ describe("collectVisibleClaudeEntries with rewind records", () => {
       "a1",
       "u3",
       "a3",
+    ]);
+  });
+
+  it("keeps a continuation stamped behind the server's clock live", () => {
+    // A transcript writer whose clock runs behind YA's (a remote executor)
+    // stamps the turn after the rewind earlier than the record's `at`.
+    const skewed: RawSessionMessage[] = [
+      ...messages,
+      {
+        type: "user",
+        uuid: "u3",
+        parentUuid: "a1",
+        timestamp: "2026-09-18T10:01:30.000Z",
+      },
+      {
+        type: "assistant",
+        uuid: "a3",
+        parentUuid: "u3",
+        timestamp: "2026-09-18T10:01:35.000Z",
+      },
+    ];
+    const liveUuids = (records: SessionRewindRecord[]) =>
+      collectVisibleClaudeEntries(skewed, { rewindRecords: records })
+        .entries.filter(
+          (entry) => !(entry as { rewoundGroupId?: string }).rewoundGroupId,
+        )
+        .map((entry) => (entry as { uuid?: string }).uuid);
+
+    expect(liveUuids([{ ...record, droppedThroughMessageId: "a2" }])).toEqual([
+      "u1",
+      "a1",
+      "u3",
+      "a3",
+    ]);
+    // A record from before the bound existed still compares timestamps, so
+    // the skewed continuation is claimed with it.
+    expect(liveUuids([record])).toEqual(["u1", "a1"]);
+  });
+
+  it("nests an earlier group inside a clear whose cut precedes it", () => {
+    const rows: RawSessionMessage[] = [
+      ...messages,
+      {
+        type: "user",
+        uuid: "u3",
+        parentUuid: "a2",
+        timestamp: "2026-09-18T10:02:00.000Z",
+      },
+      {
+        type: "assistant",
+        uuid: "a3",
+        parentUuid: "u3",
+        timestamp: "2026-09-18T10:02:05.000Z",
+      },
+      // Continuation of the first rewind, which kept a2.
+      {
+        type: "user",
+        uuid: "u4",
+        parentUuid: "a2",
+        timestamp: "2026-09-18T10:03:00.000Z",
+      },
+      {
+        type: "assistant",
+        uuid: "a4",
+        parentUuid: "u4",
+        timestamp: "2026-09-18T10:03:05.000Z",
+      },
+      // Continuation of the second rewind, which kept a1, stamped by a clock
+      // behind the server's.
+      {
+        type: "user",
+        uuid: "u5",
+        parentUuid: "a1",
+        timestamp: "2026-09-18T10:03:30.000Z",
+      },
+      {
+        type: "assistant",
+        uuid: "a5",
+        parentUuid: "u5",
+        timestamp: "2026-09-18T10:03:35.000Z",
+      },
+    ];
+    const inner = {
+      ...record,
+      id: "rw-inner",
+      at: "2026-09-18T10:02:30.000Z",
+      cutMessageId: "a2",
+      cutTurnIndex: 2,
+      droppedFromMessageId: "u3",
+      droppedThroughMessageId: "a3",
+    };
+    const outer = {
+      ...record,
+      id: "rw-outer",
+      at: "2026-09-18T10:04:00.000Z",
+      droppedThroughMessageId: "a4",
+    };
+    const { entries } = collectVisibleClaudeEntries(rows, {
+      rewindRecords: [outer, inner],
+    });
+    const rendered = entries.map((entry) => {
+      const row = entry as {
+        uuid?: string;
+        rewoundGroupId?: string;
+        rewoundParentGroupId?: string;
+      };
+      return [row.uuid, row.rewoundGroupId, row.rewoundParentGroupId];
+    });
+    expect(rendered).toEqual([
+      ["u1", undefined, undefined],
+      ["a1", undefined, undefined],
+      ["rewound-group-rw-outer", "rw-outer", undefined],
+      ["u2", "rw-outer", undefined],
+      ["a2", "rw-outer", undefined],
+      ["rewound-group-rw-inner", "rw-inner", "rw-outer"],
+      ["u3", "rw-inner", "rw-outer"],
+      ["a3", "rw-inner", "rw-outer"],
+      ["u4", "rw-outer", undefined],
+      ["a4", "rw-outer", undefined],
+      ["u5", undefined, undefined],
+      ["a5", undefined, undefined],
     ]);
   });
 

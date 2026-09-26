@@ -91,6 +91,7 @@ import {
   readerForProviderChildren,
   resolveProviderChildSessions,
 } from "../sessions/provider-child-sessions.js";
+import { lastRewindableClaudeRowId } from "../sessions/claude-messages.js";
 import {
   detachSessionMessageProjection,
   getCodexMessageSourceByteCursor,
@@ -2546,6 +2547,41 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
 
     return null;
+  };
+
+  /**
+   * The transcript's last row on disk, read once the session's process has
+   * stopped: every row up to it belongs to a rewind recorded now, and the
+   * resumed continuation is written after it.
+   */
+  const readRewindBoundRowId = async (
+    project: Project,
+    sessionId: string,
+    projectId: UrlProjectId,
+    providerName: ProviderName,
+  ): Promise<string | undefined> => {
+    const resolved = await findSessionListSummaryAcrossProviders(
+      project,
+      sessionId,
+      projectId,
+      providerResolutionDeps(deps),
+      providerName,
+    );
+    const loaded = await resolved?.source.reader.getSession(
+      sessionId,
+      projectId,
+      undefined,
+      { includeOrphans: false },
+    );
+    const data = loaded?.data;
+    switch (data?.provider) {
+      case "claude":
+      case "claude-gateway":
+      case "claude-ollama":
+        return lastRewindableClaudeRowId(data.session.messages);
+      default:
+        return undefined;
+    }
   };
 
   const interruptOldProcessForHandoff = async (
@@ -6007,12 +6043,24 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       await deps.supervisor.abortSessionWithVerification(sessionId);
       processAborted = true;
     }
+    const droppedThroughMessageId = await readRewindBoundRowId(
+      project,
+      sessionId,
+      projectId,
+      providerName,
+    );
+    if (!droppedThroughMessageId) {
+      console.warn(
+        `Rewind of ${sessionId} found no transcript rows on disk; its group falls back to timestamps`,
+      );
+    }
     const record: SessionRewindRecord = {
       id: randomUUID(),
       at: new Date().toISOString(),
       cutMessageId: input.cutMessageId,
       cutTurnIndex: input.cutTurnIndex,
       ...(droppedFromMessageId ? { droppedFromMessageId } : {}),
+      ...(droppedThroughMessageId ? { droppedThroughMessageId } : {}),
       droppedTurnCount,
       reason: input.reason,
       ...(input.clearloopId ? { clearloopId: input.clearloopId } : {}),

@@ -317,6 +317,15 @@ type, so a settings file saved before the removal and a hosted client still
 sending it both keep working; the status no longer reports it, and a client
 that read it sees the field absent, which it already had to tolerate.
 
+2026-09-26 session metadata `rewindRecords[].droppedThroughMessageId` — add
+the transcript's last row at rewind time as an optional record field, and
+group a bounded record's rows by file position alone. Records already on disk
+lack it and keep the old rule, rows stamped no later than the record's `at`,
+because no read of today's transcript can recover which rows existed when
+they were made; they keep that rule's clock-skew exposure. The client no
+longer computes membership, so no capability gates it: an older client sees
+the grouping the server serves and ignores the field.
+
 2026-09-26 `POST /api/artifacts` borrowed-grant reuse — a borrowing request
 may now return an existing live grant for the same entry file, with an
 additive `reused: true`, rather than a new grant; no capability gates it. Older

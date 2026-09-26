@@ -195,7 +195,7 @@ async function createClearedTurnFixture() {
 }
 
 describe("rewind orchestration", () => {
-  it("a queued /clear N rewinds through one transcript read", async () => {
+  it("a queued /clear N resolves through one transcript read and bounds the drop after stopping", async () => {
     const fixture = await createRewindFixture();
     fixture.getSession.mockClear();
 
@@ -210,10 +210,13 @@ describe("rewind orchestration", () => {
     const [record] = fixture.metadata.getRewindRecords(fixture.sessionId);
     expect(record).toMatchObject({
       cutMessageId: "a1",
+      droppedThroughMessageId: "a2",
       droppedTurnCount: 1,
       reason: "clear",
     });
-    expect(fixture.getSession).toHaveBeenCalledTimes(1);
+    // One read resolves the cut; one after the process stops finds the last
+    // row the rewind drops.
+    expect(fixture.getSession).toHaveBeenCalledTimes(2);
   });
 
   it("an interactive rewind records what the queued command records", async () => {
@@ -239,18 +242,20 @@ describe("rewind orchestration", () => {
       },
     );
     expect(response.status).toBe(200);
-    expect(interactive.getSession).toHaveBeenCalledTimes(1);
+    expect(interactive.getSession).toHaveBeenCalledTimes(2);
 
     const pick = ({
       cutMessageId,
       cutTurnIndex,
       droppedTurnCount,
       droppedFromMessageId,
+      droppedThroughMessageId,
     }: SessionRewindRecord) => ({
       cutMessageId,
       cutTurnIndex,
       droppedTurnCount,
       droppedFromMessageId,
+      droppedThroughMessageId,
     });
     expect(
       pick(interactive.metadata.getRewindRecords(interactive.sessionId)[0]!),

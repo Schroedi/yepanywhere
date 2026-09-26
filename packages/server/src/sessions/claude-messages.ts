@@ -36,12 +36,33 @@ interface RewoundGroupHeader {
   lineIndex: number;
 }
 
+/** Rows a rewind can claim; progress rows are neither claimed nor rendered. */
+function isRewindableRow(raw: ClaudeSessionEntry | undefined): boolean {
+  return Boolean(raw) && raw?.type !== "progress";
+}
+
+/**
+ * The transcript's last row a rewind recorded now would drop: the bound
+ * stored as `SessionRewindRecord.droppedThroughMessageId`.
+ */
+export function lastRewindableClaudeRowId(
+  rawMessages: readonly ClaudeSessionEntry[],
+): string | undefined {
+  for (let lineIndex = rawMessages.length - 1; lineIndex >= 0; lineIndex--) {
+    const raw = rawMessages[lineIndex];
+    if (!raw || !isRewindableRow(raw)) continue;
+    const uuid = getEntryUuid(raw);
+    if (uuid) return uuid;
+  }
+  return undefined;
+}
+
 /**
  * Rows a rewind record dropped. The session is the full sequence of rows in
  * file order (topics/session-rewind.md): a rewind at a cut groups every row
- * after the cut's line that was written before the rewind and not already
- * claimed by an earlier rewind. Membership is positional, not by parent
- * chain, so a compaction inside the cleared span cannot split it.
+ * after the cut's line through the last row present when it was recorded,
+ * not already claimed by an earlier rewind. Membership is positional, not by
+ * parent chain, so a compaction inside the cleared span cannot split it.
  */
 function collectRewoundRows(
   rawMessages: ClaudeSessionEntry[],
@@ -71,7 +92,7 @@ function collectRewoundRows(
   const timestampByUuid = new Map<string, string>();
   for (let lineIndex = 0; lineIndex < rawMessages.length; lineIndex++) {
     const raw = rawMessages[lineIndex];
-    if (!raw || raw.type === "progress") continue;
+    if (!raw || !isRewindableRow(raw)) continue;
     const uuid = getEntryUuid(raw);
     const timestamp =
       "timestamp" in raw && typeof raw.timestamp === "string"
@@ -95,12 +116,27 @@ function collectRewoundRows(
   for (const record of sorted) {
     const cutLine = lineByUuid.get(record.cutMessageId);
     if (cutLine === undefined) continue;
+    // A record without the bound predates it; its rows are those stamped no
+    // later than the rewind, which a writer clock behind the server's skews.
+    const throughLine =
+      record.droppedThroughMessageId === undefined
+        ? undefined
+        : lineByUuid.get(record.droppedThroughMessageId);
+    if (
+      record.droppedThroughMessageId !== undefined &&
+      throughLine === undefined
+    )
+      continue;
     let firstLineIndex = Number.POSITIVE_INFINITY;
     let count = 0;
     for (const row of rows) {
       if (row.lineIndex <= cutLine) continue;
       if (rewoundGroupByLine.has(row.lineIndex)) continue;
-      if (row.timestamp !== undefined && row.timestamp > record.at) continue;
+      if (throughLine !== undefined) {
+        if (row.lineIndex > throughLine) break;
+      } else if (row.timestamp !== undefined && row.timestamp > record.at) {
+        continue;
+      }
       rewoundGroupByLine.set(row.lineIndex, record.id);
       if (row.uuid) rewoundGroupByUuid.set(row.uuid, record.id);
       if (!row.countable) continue;
