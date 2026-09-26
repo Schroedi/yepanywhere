@@ -787,8 +787,8 @@ sandbox or be refused for limited users.
 
 Sessions of different users on one host share YA's process, event bus, and
 data dir. The isolation claim is authorization plus per-session filesystem
-confinement, not process-level tenancy; [[security]] should say so in its
-trust-boundary section when this lands.
+confinement, not process-level tenancy; [[security]] § Limited Users states
+that boundary and its exclusions.
 
 ## App access for members and the public
 
