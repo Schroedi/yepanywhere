@@ -36,8 +36,6 @@ import {
   SERVER_CAPABILITIES,
   isTurnEffort,
   isRewindSlashCommand,
-  parseClearloopArguments,
-  parseTurnIndexArgument,
   REWIND_SLASH_COMMANDS,
 } from "@yep-anywhere/shared";
 import {
@@ -63,10 +61,7 @@ import {
 import sessionHeaderStyles from "../components/SessionHeader.module.css";
 import styles from "./SessionPage.module.css";
 import { GoalFlag } from "../components/GoalNotice";
-import {
-  type ClearloopBadgeControls,
-  ClearloopRemainingBadge,
-} from "../components/ClearloopRemainingBadge";
+import { ClearloopRemainingBadge } from "../components/ClearloopRemainingBadge";
 import {
   applyBangCommandReceipt,
   buildBangEchoText,
@@ -271,15 +266,9 @@ import {
 } from "../lib/sessionNavigationState";
 import { getPublicShareInitialPrompt } from "../lib/sessionPublicSharePrompt";
 import { getUnifiedSessionForkAvailability } from "../lib/sessionForkAvailability";
-import {
-  SessionRewindProvider,
-  type SessionRewindContextValue,
-} from "../contexts/SessionRewindContext";
-import {
-  getSessionTurnIndex,
-  rewindThenDraftPrompt,
-  supportsSessionRewind,
-} from "../lib/sessionRewind";
+import { SessionRewindProvider } from "../contexts/SessionRewindContext";
+import { supportsSessionRewind } from "../lib/sessionRewind";
+import { useSessionRewindControls } from "../hooks/useSessionRewindControls";
 import { isBtwAsideSession } from "../lib/btwAsideSessions";
 import {
   composeGeneratedRetitle,
@@ -4356,321 +4345,24 @@ function SessionPageContent({
     [applyMotherComposerTransfer, mainComposerForAside, setFocusedBtwAsideId],
   );
 
-  // Same-session rewind (topics/session-rewind.md): the stable turn index N,
-  // the turn-menu Clear entries, /clear N, /fork N, and /clearloop.
-  const sessionTurnIndex = useMemo(
-    () => getSessionTurnIndex(messages),
-    [messages],
-  );
-  const [expandedRewoundGroups, setExpandedRewoundGroups] = useState<
-    ReadonlySet<string>
-  >(() => new Set());
-  const toggleRewoundGroup = useCallback((groupId: string) => {
-    setExpandedRewoundGroups((previous) => {
-      const next = new Set(previous);
-      if (next.has(groupId)) next.delete(groupId);
-      else next.add(groupId);
-      return next;
-    });
-  }, []);
-  const rewindToCut = useCallback(
-    async (
-      cut: {
-        kind: "after-user-turn" | "before-user-turn";
-        sourceMessageId: string;
-      },
-      cutTurnIndex: number,
-    ): Promise<boolean> => {
-      try {
-        const result = await api.rewindSession(projectId, actualSessionId, {
-          cut,
-          cutTurnIndex,
-        });
-        if (result.noop) {
-          showToast(t("rewindNoop"), "success");
-          return true;
-        }
-        showToast(
-          t("rewindDone", {
-            count: String(result.record?.droppedTurnCount ?? 0),
-          }),
-          "success",
-        );
-        // Restructure the loaded transcript in place; only a cut older than
-        // the loaded window needs the server's projection refetched.
-        if (!result.record || !applyRewindLocally(result.record)) {
-          reloadSession();
-        }
-        return true;
-      } catch (error) {
-        showToast(
-          t("rewindFailed", {
-            message: error instanceof Error ? error.message : String(error),
-          }),
-          "error",
-        );
-        return false;
-      }
-    },
-    [
-      actualSessionId,
-      applyRewindLocally,
-      projectId,
-      reloadSession,
-      showToast,
-      t,
-    ],
-  );
-  const clearAfterUserMessage = useCallback(
-    (messageId: string) => {
-      const index = sessionTurnIndex.indexById.get(messageId) ?? 0;
-      void rewindToCut(
-        { kind: "after-user-turn", sourceMessageId: messageId },
-        index,
-      );
-    },
-    [rewindToCut, sessionTurnIndex],
-  );
-  const clearReplacingUserMessage = useCallback(
-    (messageId: string) => {
-      const index = sessionTurnIndex.indexById.get(messageId) ?? 1;
-      if (index <= 1) {
-        // Turn 1 has no earlier boundary; an empty prefix is the
-        // new-session Clear (topics/session-rewind.md § Commands).
-        showToast(t("rewindClearZero"), "error");
-        return;
-      }
-      const source = messages.find((m) => (m.uuid ?? m.id) === messageId);
-      const promptText = turnContentText(source?.message?.content).trim();
-      void rewindThenDraftPrompt(
-        () =>
-          rewindToCut(
-            { kind: "before-user-turn", sourceMessageId: messageId },
-            index - 1,
-          ),
-        promptText,
-        () => draftControlsRef.current,
-      );
-    },
-    [messages, rewindToCut, sessionTurnIndex, showToast, t],
-  );
-  const startClearloop = useCallback(
-    async (
-      sourceMessageId: string,
-      cutTurnIndex: number,
-      parsed: { total: number; prompt: string },
-      commandText: string,
-    ) => {
-      try {
-        await api.startClearloop(projectId, actualSessionId, {
-          cut: { kind: "after-user-turn", sourceMessageId },
-          cutTurnIndex,
-          prompt: parsed.prompt,
-          total: parsed.total,
-          commandText,
-        });
-        showToast(
-          t("clearloopStarted", {
-            total: String(parsed.total),
-            index: String(cutTurnIndex),
-          }),
-          "success",
-        );
-      } catch (error) {
-        showToast(
-          t("clearloopFailed", {
-            message: error instanceof Error ? error.message : String(error),
-          }),
-          "error",
-        );
-      }
-    },
-    [actualSessionId, projectId, showToast, t],
-  );
-  // A rewind performed elsewhere (a clearloop iteration, another tab) arrives
-  // on the metadata event; apply it to the loaded transcript in place.
-  useEffect(
-    () =>
-      activityBus.on("session-metadata-changed", (data) => {
-        if (data.sessionId !== actualSessionId) return;
-        // A refused rewind deletes its record; the grouped rows are live
-        // again and only the server projection knows the result.
-        if (data.rewindRecordRemoved) {
-          reloadSession();
-          return;
-        }
-        if (!data.rewindRecord) return;
-        if (!applyRewindLocally(data.rewindRecord)) reloadSession();
-      }),
-    [actualSessionId, applyRewindLocally, reloadSession],
-  );
-  const handleCancelClearloop = useCallback(async () => {
-    try {
-      await api.cancelClearloop(projectId, actualSessionId);
-    } catch (error) {
-      showToast(
-        t("clearloopCancelFailed", {
-          message: error instanceof Error ? error.message : String(error),
-        }),
-        "error",
-      );
-    }
-  }, [actualSessionId, projectId, showToast, t]);
-  const clearloopControls = useMemo<ClearloopBadgeControls>(
-    () => ({
-      onCancel: () => {
-        if (window.confirm(t("clearloopCancelConfirm"))) {
-          void handleCancelClearloop();
-        }
-      },
-      onSetPatient: (patient: boolean) => {
-        void (async () => {
-          try {
-            await api.updateClearloop(projectId, actualSessionId, { patient });
-          } catch (error) {
-            showToast(
-              t("clearloopPatienceFailed", {
-                message: error instanceof Error ? error.message : String(error),
-              }),
-              "error",
-            );
-          }
-        })();
-      },
-      onStartNow: () => {
-        void (async () => {
-          try {
-            await api.updateClearloop(projectId, actualSessionId, {
-              startNow: true,
-            });
-          } catch (error) {
-            showToast(
-              t("clearloopStartNowFailed", {
-                message: error instanceof Error ? error.message : String(error),
-              }),
-              "error",
-            );
-          }
-        })();
-      },
-    }),
-    [actualSessionId, handleCancelClearloop, projectId, showToast, t],
-  );
-  const clearToNewSession = useCallback(() => {
-    const params = new URLSearchParams({ projectId });
-    if (effectiveProvider) params.set("provider", effectiveProvider);
-    if (session?.model) params.set("model", session.model);
-    navigate(`${basePath}/new-session?${params.toString()}`);
-  }, [basePath, effectiveProvider, navigate, projectId, session?.model]);
-  const sessionRewindContextValue = useMemo<SessionRewindContextValue>(
-    () => ({
-      turnIndexById: sessionTurnIndex.indexById,
-      onClearAfter: supportsRewind ? clearAfterUserMessage : undefined,
-      onClearReplacing: supportsRewind ? clearReplacingUserMessage : undefined,
-      expandedRewoundGroups,
-      toggleRewoundGroup,
-    }),
-    [
-      clearAfterUserMessage,
-      clearReplacingUserMessage,
-      expandedRewoundGroups,
-      sessionTurnIndex,
-      supportsRewind,
-      toggleRewoundGroup,
-    ],
-  );
-  const handleRewindCommand = useCallback(
-    (command: "clear" | "fork" | "clearloop", argument: string): boolean => {
-      const { idByIndex, clearedIds, lastLiveIndex } = sessionTurnIndex;
-      const turnMissing = (index: number) => {
-        showToast(
-          lastLiveIndex === 0
-            ? t("rewindNoTurns")
-            : t("rewindTurnNotFound", { index: String(index) }),
-          "error",
-        );
-      };
-      // Turn N over the full sequence; a turn inside a cleared span is not
-      // a rewind target yet (tree hops are unspecified).
-      const resolveTurn = (index: number): string | null => {
-        const id = idByIndex.get(index);
-        if (index < 1 || !id) {
-          turnMissing(index);
-          return null;
-        }
-        if (command !== "fork" && clearedIds.has(id)) {
-          showToast(t("rewindTurnCleared", { index: String(index) }), "error");
-          return null;
-        }
-        return id;
-      };
-      // A malformed command is handed back to the composer rather than lost.
-      const restoreDraft = () => {
-        draftControlsRef.current?.setDraft(
-          `/${command}${argument ? ` ${argument}` : ""}`,
-        );
-        showToast(t("rewindCommandSyntax"), "error");
-      };
-      const commandText = `/${command}${argument ? ` ${argument.trim()}` : ""}`;
-      if (command === "clearloop") {
-        const parsed = parseClearloopArguments(argument);
-        if (!parsed) {
-          restoreDraft();
-          return true;
-        }
-        // No N means "loop from here": the last turn still in the
-        // conversation, which is the N its own Clear-after entry offers. A
-        // dropped turn holds a higher ordinal and is not a rewind target.
-        const index = parsed.turnIndex ?? lastLiveIndex;
-        const sourceMessageId = resolveTurn(index);
-        if (!sourceMessageId) return true;
-        recordCommandRecall(commandText);
-        draftControlsRef.current?.confirmInputClear();
-        void startClearloop(
-          sourceMessageId,
-          index,
-          parsed,
-          `/clearloop ${argument.trim()}`,
-        );
-        return true;
-      }
-      const index = parseTurnIndexArgument(argument, {
-        allowEmpty: command === "clear",
-      });
-      if (index === null) {
-        restoreDraft();
-        return true;
-      }
-      if (command === "clear" && index === 0) {
-        recordCommandRecall(commandText);
-        draftControlsRef.current?.confirmInputClear();
-        clearToNewSession();
-        return true;
-      }
-      const sourceMessageId = resolveTurn(index);
-      if (!sourceMessageId) return true;
-      recordCommandRecall(commandText);
-      // The command was consumed here, so the persisted draft is cleared as
-      // a sent message would be; otherwise a reload restores it.
-      draftControlsRef.current?.confirmInputClear();
-      if (command === "fork") {
-        void createDirectTurnFork(sourceMessageId, "after-user-turn");
-        return true;
-      }
-      void rewindToCut({ kind: "after-user-turn", sourceMessageId }, index);
-      return true;
-    },
-    [
-      clearToNewSession,
-      createDirectTurnFork,
-      recordCommandRecall,
-      rewindToCut,
-      sessionTurnIndex,
-      showToast,
-      startClearloop,
-      t,
-    ],
-  );
+  const {
+    contextValue: sessionRewindContextValue,
+    handleRewindCommand,
+    clearloopControls,
+    cancelClearloop: handleCancelClearloop,
+  } = useSessionRewindControls({
+    projectId,
+    sessionId: actualSessionId,
+    messages,
+    supportsRewind,
+    provider: effectiveProvider,
+    model: session?.model,
+    applyRewindLocally,
+    reloadSession,
+    draftControlsRef,
+    recordCommandRecall,
+    createDirectTurnFork,
+  });
 
   const handleCustomCommand = useCallback(
     (command: string, argument = "") => {
