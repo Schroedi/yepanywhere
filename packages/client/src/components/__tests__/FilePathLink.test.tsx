@@ -79,6 +79,9 @@ describe("FilePathLink", () => {
     sessionStorage.clear();
     window.history.replaceState({}, "", "/");
     vi.unstubAllGlobals();
+    // A spy on a shared prototype, such as the download tests' anchor click,
+    // would otherwise carry its calls into the next test that spies on it.
+    vi.restoreAllMocks();
     window.localStorage.removeItem(UI_KEYS.tooltipMode);
   });
 
