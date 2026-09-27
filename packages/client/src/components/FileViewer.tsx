@@ -62,10 +62,10 @@ import { SourceEditAction } from "./SourceEditor";
 import { ViewerFindField } from "./ViewerFindField";
 import { ViewerWindowActions } from "./ViewerWindowActions";
 import {
-  annotateShikiSourceOffsets,
-  compactShikiLineBreaks,
+  prepareShikiHtml,
   splitHighlightedSourceAfterLine,
 } from "../lib/shikiHtml";
+import { ShikiHtml } from "./ShikiHtml";
 import {
   SESSION_FILE_COMMENT_MODE_ATTR,
   sessionFileCommentDraftKey,
@@ -1098,18 +1098,16 @@ export const FileViewer = memo(function FileViewer({
         : null,
     [fileData, filePath, renderedMarkdownHtml],
   );
-  const highlightedHtml = useMemo(() => {
-    const annotated = annotateHighlightedHtmlLines(
-      fileData?.highlightedHtml,
-      getContentStartLine(fileData),
-      effectiveLineNumber,
-      effectiveLineEnd,
-    );
-    return annotateShikiSourceOffsets(
-      compactShikiLineBreaks(annotated),
-      fileData?.content,
-    );
-  }, [effectiveLineEnd, effectiveLineNumber, fileData]);
+  const highlightedHtml = useMemo(
+    () =>
+      annotateHighlightedHtmlLines(
+        fileData?.highlightedHtml,
+        getContentStartLine(fileData),
+        effectiveLineNumber,
+        effectiveLineEnd,
+      ),
+    [effectiveLineEnd, effectiveLineNumber, fileData],
+  );
   useLocalMediaInlinePreviews(
     markdownPreviewRef,
     !diffActive && showPreview ? renderedMarkdownHtml : null,
@@ -1731,22 +1729,22 @@ export const FileViewer = memo(function FileViewer({
       // Server-rendered syntax highlighting (preferred)
       if (highlightedHtml) {
         const contentWindowLabel = getContentWindowLabel(fileData);
+        // Offsets are carried before splitting, since they count from the
+        // start of the whole file.
         const commentSplit =
           splitCommentAfterLine !== undefined
             ? splitHighlightedSourceAfterLine(
-                highlightedHtml,
+                prepareShikiHtml(highlightedHtml, fileData.content),
                 splitCommentAfterLine,
               )
             : null;
-        const highlightedPart = (html: string) => (
-          // biome-ignore lint/a11y/noStaticElementInteractions: delegation target for anchors in server-rendered HTML
-          <div
-            className="shiki-container"
+        const highlightedPart = (html: string, source?: string) => (
+          <ShikiHtml
+            html={html}
+            source={source}
             onClick={handleLocalResourceClick}
             onContextMenu={handleLocalResourceContextMenu}
             onKeyDown={handleLocalResourceKeyDown}
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered HTML
-            dangerouslySetInnerHTML={{ __html: html }}
           />
         );
         return (
@@ -1766,7 +1764,7 @@ export const FileViewer = memo(function FileViewer({
                 after={highlightedPart(commentSplit.after)}
               />
             ) : (
-              highlightedPart(highlightedHtml)
+              highlightedPart(highlightedHtml, fileData.content)
             )}
             {fileData.highlightedTruncated && (
               <div className="file-viewer-truncated">

@@ -4101,7 +4101,6 @@ details[open] .collapsible__icon {
   padding: 0;
   background: transparent !important;
   overflow: visible;
-  white-space: pre-wrap;
 }
 
 .file-viewer-code-highlighted .shiki-container code {
@@ -4154,12 +4153,11 @@ details[open] .collapsible__icon {
   right: 0;
 }
 
+/* ShikiHtml makes each line a pre-wrapped block; this adds the wrap gutter. */
 .file-viewer-code-highlighted .shiki-container code .line {
-  display: block;
   min-height: var(--file-viewer-code-line-box, 1.24em);
   padding-left: var(--file-viewer-wrap-gutter, 1.15rem);
   text-indent: calc(-1 * var(--file-viewer-wrap-gutter, 1.15rem));
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
   border-left: 1px solid rgba(148, 163, 184, 0.28);
 }
