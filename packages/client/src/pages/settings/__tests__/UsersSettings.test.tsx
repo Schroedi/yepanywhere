@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import type { ActingPrincipal, LimitedUserSummary } from "@yep-anywhere/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import english from "../../../i18n/en.json";
 import { UsersSettings } from "../UsersSettings";
 
 /** Contract: topics/limited-users.md § Delivery v1 — Settings → Users. */
@@ -173,6 +174,15 @@ describe("Settings → Users", () => {
     await waitFor(() => {
       expect(screen.getByText("usersEmpty")).toBeTruthy();
     });
+    expect(screen.getByText("usersTrustWarning")).toBeTruthy();
+    expect(english.settingsUsersDescription).toBe(
+      "Preview accounts for trusted sharing",
+    );
+    expect(english.advancedLimitedUsersTitle).toBe("Limited users (preview)");
+    expect(english.advancedLimitedUsersDescription).toContain(
+      "not hardened isolation for hostile or untrusted users",
+    );
+    expect(english.usersTrustWarning).toContain("only with people you trust");
     // The toggle is present and off, and adding a user does not wait for it.
     const toggle = screen.getByRole("checkbox") as HTMLInputElement;
     expect(toggle.checked).toBe(false);

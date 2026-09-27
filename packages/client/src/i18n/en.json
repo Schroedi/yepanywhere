@@ -3913,7 +3913,7 @@
   "usersCreateUser": "Create user",
   "usersSaveUser": "Save user",
   "settingsUsersTitle": "Users",
-  "settingsUsersDescription": "Accounts and project access",
+  "settingsUsersDescription": "Preview accounts for trusted sharing",
   "settingsComputerDescription": "Windows control for Codex",
   "usersEmpty": "No users yet. Add one to let someone else use this server with their own password and limited access.",
   "usersAddUser": "Add user",
@@ -3960,7 +3960,8 @@
   "relayLoginLimitedUsername": "Log in as",
   "relayLoginLimitedUsernamePlaceholder": "Leave blank for the server's owner",
   "relayLoginLimitedUsernameHint": "A limited user the server's owner created for you. The server name above stays the same \u2014 it says which machine to reach, not who you are.",
-  "advancedLimitedUsersTitle": "Limited users",
-  "advancedLimitedUsersDescription": "Let named users log in with their own password and reach only the projects you grant them. Their sessions always run sandboxed.",
+  "advancedLimitedUsersTitle": "Limited users (preview)",
+  "advancedLimitedUsersDescription": "Create password-protected accounts for trusted family or collaborators and grant them selected projects. This preview helps prevent accidental access; it is not hardened isolation for hostile or untrusted users. Their agent sessions always run sandboxed.",
+  "usersTrustWarning": "Use limited users only with people you trust. Do not rely on this preview as a security boundary between mutually untrusted users.",
   "loginUsernameOptional": "Username (leave blank for owner)"
 }

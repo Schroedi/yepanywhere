@@ -301,6 +301,7 @@ export function UsersSettings() {
       </SettingsItem>
 
       <div className="settings-group">
+        <p className="settings-hint">{t("usersTrustWarning")}</p>
         {loaded && users.length === 0 ? (
           <p className="settings-hint">{t("usersEmpty")}</p>
         ) : (
