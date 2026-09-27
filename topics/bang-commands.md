@@ -107,7 +107,19 @@ project directory:
   whole pipeline. Command resolution: PATH first, then the project
   directory as an implicit final PATH entry, applied after login startup
   along with the project working directory (a project-root executable
-  `foo` runs as `./foo`; no subdirectory search).
+  `foo` runs as `./foo`; no subdirectory search). Login startup is not an
+  interactive shell: aliases and functions a `.bashrc` defines after the
+  usual interactive guard (`[[ $- == *i* ]] || return`) do not load, even
+  when `.bash_profile` sources that `.bashrc`.
+- **Login startup is not part of the run.** What login startup writes — a
+  banner, `fortune`, a warning — is dropped from the run's output and
+  previews; the run records only what follows it. A run whose login startup
+  never hands control to the command, because a login file replaces the
+  shell (`exec zsh`) or exits, settles as an error saying so, even when the
+  shell exited 0, and keeps startup's output as its only evidence. Startup
+  that has not returned within 30 seconds (an auto-attaching `tmux`, a
+  prompt waiting on input) is killed with that reason. Side effects of
+  login startup still happen on every run.
 - **Trust boundary.** No new one: YA already executes arbitrary code as the
   server user via agent sessions. Bang exec is gated by the same
   authentication as sending a turn (owner clients over direct or E2E relay
