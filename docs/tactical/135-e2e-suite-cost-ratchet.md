@@ -4,8 +4,11 @@ Status: reduction underway 2026-09-27. The test-level policy lives in
 [E2E testing](../../topics/e2e-testing.md); this file tracks the reduction
 sequence and measured evidence. The first reduction slice passed local
 verification and one full CI job. The second slice also passed one full CI
-job; a comparable CI window remains pending. A two-shard CI experiment passed
-on isolated runners, while a local two-worker run stopped at its failure limit.
+job; a comparable CI window remains pending. Three two-shard E2E CI pairs
+passed on isolated runners, while a local two-worker run stopped at its failure
+limit.
+Shared-server isolation is now the first reliability priority; further suite
+speed work follows it.
 
 The blanket local `pnpm test:e2e` rule first appeared in contributor guidance
 on 2025-12-29, when the suite had about seven specs. Focused Playwright wording
@@ -14,10 +17,10 @@ boundary and cost decision while retaining the full CI gate.
 
 ## Goal and baseline
 
-Reduce browser-suite wall time and retry burden while retaining the unique
-browser, server, transport, security, and real typing regressions it catches.
-Start with the slowest specs, then move short checks that belong to another
-test level. Keep the full suite in CI throughout the migration.
+First make the full-app cases independent of shared mutable server state and
+execution order. Then reduce browser-suite wall time and retry burden while
+retaining the unique browser, server, transport, security, and real typing
+regressions it catches. Keep the full suite in CI throughout the migration.
 
 At the 2026-09-27 audit, the client suite had 109 spec files and 334 listed
 cases. The [CI cost ledger](../testing/e2e-ci-cost-ledger.md) records the latest
@@ -103,9 +106,44 @@ same 327 listed cases on one runner and two isolated shards. Both shards
 passed with no retries. The E2E gate fell from 20m17s to 12m36s in this
 pair, while combined runner time rose from 20m17s to 23m29s. A local
 `--workers=2` full-suite trial stopped after five failures and 186 passes,
-so the local default remains one worker. Keep the CI shards for now and
-compare a fixed window before treating this single-run gain as durable or
-changing shard balance.
+so the local default remains one worker. Two more full E2E shard pairs passed
+without retries on the same test source; their gate times from first shard
+start were 15m17s and 12m22s, with the slower second pair affected by a
+3m07s runner-start skew. Keep the CI shards for now and compare a longer fixed
+window before treating the gain as durable or changing shard balance. The
+[ledger](../testing/e2e-ci-cost-ledger.md) records each run and the unrelated
+Windows persistence failure that passed on a targeted rerun.
+
+### Repair shared-server isolation before further reductions
+
+The [isolation gap](../../gaps/e2e-shared-server-isolation.md) is more urgent
+than another worker or a few seconds of spec time. `global-setup.ts` creates
+one server and data directory per invocation, not per case. The fixed serial
+order and cleanup in some specs have allowed the full suite to pass, but they
+do not prove independence. The local two-worker run failed, so ordinary
+Playwright worker parallelism needs diagnosis before it is enabled. Two CI
+shards are a useful bounded interim configuration: each runner starts its own
+services and uses one worker, while tests inside each shard still share state.
+
+1. Inventory specs that mutate remote-access credentials, relay settings,
+   global defaults, session files, and shared project data. Start with the
+   remote-login and relay pair and the earlier `!! Commands` contamination.
+   Record the state each case assumes, changes, and restores.
+2. Reproduce candidate interactions with each spec alone, in a focused pair,
+   and in reversed order. Capture first-attempt failures and traces; do not
+   treat a CI retry pass as an independent passing case.
+3. Make setup and cleanup idempotent for cases that can share a server. Give
+   cases with unavoidable global mutation a separate server fixture or a
+   reliable reset. Avoid a server per test for read-only cases unless evidence
+   requires it.
+4. Verify the repaired cases alone, in the changed-order pair, and in a full
+   sharded CI run. Once the known interactions are clean, repeat a local
+   two-worker probe to see whether ordinary worker parallelism is viable.
+
+Do not enable more workers or claim order independence based only on passing
+shards. Continue cost reductions after the mutating-state inventory and first
+pairwise diagnoses are recorded; retain the existing full CI gate meanwhile.
+The numbered cost work below remains in the plan after this immediate priority.
 
 ### 1 — establish a comparable measurement ledger
 
@@ -170,7 +208,8 @@ Each slice passes its focused lower-level and browser checks, then the full CI
 browser gate. It records the unique contract retained and before/after cost;
 no tests are skipped or weakened to claim improvement. After the first two
 slowest CI specs, review the measurements and reorder the remaining list by
-observed removable cost. Close the plan only when the suite has a stable
-measurement ledger, the high-time specs have been reviewed, and a comparable
-CI window shows lower median and high-percentile job time without a higher
-retry-pass rate or lost boundary coverage.
+observed removable cost. Close the plan only when the shared-state interactions
+have been diagnosed and repaired, the suite has a stable measurement ledger,
+the high-time specs have been reviewed, and a comparable CI window shows lower
+median and high-percentile job time without a higher retry-pass rate or lost
+boundary coverage.

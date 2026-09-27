@@ -5,10 +5,10 @@ Topic: e2e-testing
 ## Purpose and boundaries
 
 The default client Playwright suite builds the local and remote clients and
-starts an isolated YA server, relay, and browser. A test in that suite should
-exercise a failure that a smaller boundary cannot observe. Running an existing
-browser test after a change and adding a permanent browser test are separate
-decisions.
+starts one YA server and relay per run, isolated from the developer's data. A
+test in that suite should exercise a failure that a smaller boundary cannot
+observe. Running an existing browser test after a change and adding a
+permanent browser test are separate decisions.
 
 Choose the smallest boundary that can falsify the observable contract:
 
@@ -25,6 +25,39 @@ one-time design capture follows [UI testing](ui-testing.md); it does not by
 itself justify a permanent regression case. Keep the real key-by-key typing
 coverage required by [AGENTS.md](../AGENTS.md) for affected input paths, at
 their expected data volume and concurrent-update conditions.
+
+## Current full-app isolation debt
+
+The full-app suite has 109 spec files and 327 listed cases as of 2026-09-27.
+Playwright's default page fixture gives each test a fresh browser context,
+but `global-setup.ts` starts one YA server, relay, and data directory for the
+entire invocation.
+Those services and their settings, sessions, and files are shared by every
+case in that invocation. The temporary directory isolates a *run* from the
+developer's data and from other runs; it does not isolate one test from the
+next. There is no suite-wide server reset between cases.
+
+This is a significant reliability gap. With one worker, files run serially
+and alphabetically, so cleanup can make the usual order pass while concealing
+an order dependency. With two workers, files can overlap on the same server.
+The local two-worker full-suite trial stopped after five failures; remote and
+relay specs interleaved while both mutating the same remote-access
+configuration, although the trial has not established the cause of each
+failure. A green serial or sharded run establishes that its particular
+schedule passed, not that its cases are independent. CI retries can also
+conceal a first-attempt failure.
+
+Before expanding the full-app suite or optimizing its execution further,
+prioritize test independence. For each mutating spec, identify shared server
+settings, auth state, session files, and relay state; run it alone and beside
+the specs that touch the same state, including a changed order. Make setup and
+cleanup own that state explicitly, then verify the test passes without relying
+on a preceding case. Use a separate server fixture where reliable reset is
+impractical. Keep shared startup for read-only checks when it remains safe;
+do not pay for a server per case without evidence that the boundary needs it.
+The [E2E suite plan](../docs/tactical/135-e2e-suite-cost-ratchet.md) tracks the
+isolation work and the [open gap](../gaps/e2e-shared-server-isolation.md) records
+the observed failure.
 
 ## Adding or expanding a case
 
@@ -68,6 +101,8 @@ intermittent assertion healthy. Visual verification and capture remain owned by
 The full-app Playwright configuration uses one worker because local workers
 share its test services. For CI parallelism, separate shards can each start
 their own services on isolated runners while keeping one worker per shard.
+This isolates shards from one another, but cases *within* a shard still share
+its server and must not depend on their execution order.
 Compare the slower shard's wall time with the single-job gate and also report
 the sum of shard job times as runner cost. A partial local run stopped by the
 failure limit is not a valid speed comparison; the current measurements are in

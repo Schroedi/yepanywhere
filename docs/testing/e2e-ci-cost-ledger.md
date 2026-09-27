@@ -201,6 +201,29 @@ remote-login checks. The incomplete run cannot establish a local speed gain,
 and the failures do not by themselves identify a common cause. Keep the local
 full-app default at one worker unless a complete parallel run becomes reliable.
 
+### Repeated two-shard CI checks
+
+The workflow-only run above and subsequent runs used the same test source and
+the same 327 listed cases. The later source revision changed only E2E guidance
+and this ledger. Each row reports an entire required pair of shards; "gate
+from first start" includes any delay before the second shard acquired a
+runner.
+
+| Run | Shard 1 job | Shard 2 job | Start skew | Gate from first start | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| [36328686139](https://github.com/kzahel/yepanywhere/actions/runs/36328686139) | 12m36s | 10m53s | 1s | 12m36s | 319 passed, 8 skipped, 0 retries |
+| [36329637452, attempt 1](https://github.com/kzahel/yepanywhere/actions/runs/36329637452/attempts/1) | 12m10s | 10m29s | 3m07s | 15m17s | 319 passed, 8 skipped, 0 retries |
+| [36329637452, attempt 2](https://github.com/kzahel/yepanywhere/actions/runs/36329637452/attempts/2) | 12m22s | 10m46s | 47s | 12m22s | 319 passed, 8 skipped, 0 retries |
+
+All three E2E pairs passed. Runner queuing consumed part of the wall-time gain
+in the second pair. The third workflow attempt initially failed outside E2E:
+the Windows `persistence-native` job hit an `EBUSY` temporary-directory error
+in `ReviewCaptureService.test.ts`. That failed job passed on a targeted rerun;
+the workflow is green. The E2E shards were not rerun in that attempt. These
+green E2E runs show that the shard layout can complete; they do not prove case
+independence inside either shard or establish a stable failure rate. The
+[shared-server gap](../../gaps/e2e-shared-server-isolation.md) remains open.
+
 ### Collection method and next comparison
 
 Run selection used `gh run list --workflow ci.yml --branch main --limit 35`.
