@@ -250,6 +250,11 @@ equality is graded by whether the live item has a durable counterpart:
   progress, and other provider events that are never persisted may appear and
   disappear near the live tail when they are useful. They are not evidence
   that YA should invent a parallel persisted transcript.
+- **Persisted terminal errors stay visible.** When Codex records an error on a
+  `task_complete` rollout event, durable normalization emits the same
+  `codex-error-<turn id>` row as the live adapter in addition to the ordinary
+  turn-completion boundary. A completion without `error` remains only a
+  boundary; YA does not copy provider errors into a shadow transcript.
 
 The practical stability boundary is therefore `settled transcript | recently
 completed turn | active live tail`: the left side should be very stable; some
