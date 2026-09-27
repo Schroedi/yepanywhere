@@ -69,6 +69,7 @@ import { useSessionToolbarPresence } from "../hooks/useSessionToolbarPresence";
 import { useI18n } from "../i18n";
 import { formatFileSize } from "../lib/formatFileSize";
 import { parseComposerSlashCommand } from "../lib/slashCommands";
+import { takePrebootComposer } from "../lib/prebootComposer";
 import {
   getEffortLevelLabel,
   getEffortLevelOptions,
@@ -511,6 +512,9 @@ export function NewSessionForm({
   const hasSeededMessageRef = useRef(false);
   const seedBaselineRef = useRef<string | null>(null);
   const autoFocusRef = useRef(autoFocus);
+  // Only the page's own form stands in for the pre-boot composer; a launch
+  // (fork, handoff) composer is a different field.
+  const adoptsPrebootRef = useRef(!launch);
 
   // Thinking toggle state
   const {
@@ -1869,16 +1873,37 @@ export function NewSessionForm({
   // effect after paint: this form is reached by a navigation whose point is
   // that the user can type, so a key struck in that gap must not fall through
   // to the page behind it. The caret goes after any seeded text.
+  //
+  // A tab opened on this page was already typeable before the app loaded
+  // (lib/prebootComposer), so the page's form takes over that text and caret
+  // in this same commit: nothing can be struck between the two fields. The
+  // text was typed without seeing a restored draft, so it follows the draft
+  // as its own paragraph.
   const attachComposerTextarea = useCallback(
     (textarea: HTMLTextAreaElement | null) => {
       textareaRef.current = textarea;
-      if (!textarea || !autoFocusRef.current) return;
+      if (!textarea) return;
+      const preboot = adoptsPrebootRef.current ? takePrebootComposer() : null;
+      adoptsPrebootRef.current = false;
+      if (!autoFocusRef.current && !preboot) return;
       autoFocusRef.current = false;
+      let selectionStart = textarea.value.length;
+      let selectionEnd = selectionStart;
+      if (preboot?.text) {
+        const draft = textarea.value;
+        const separator =
+          !draft || /\s$/.test(draft) || /^\s/.test(preboot.text) ? "" : "\n\n";
+        const offset = draft.length + separator.length;
+        const combined = `${draft}${separator}${preboot.text}`;
+        textarea.value = combined;
+        setMessage(combined);
+        selectionStart = offset + preboot.selectionStart;
+        selectionEnd = offset + preboot.selectionEnd;
+      }
       textarea.focus();
-      const caret = textarea.value.length;
-      textarea.setSelectionRange(caret, caret);
+      textarea.setSelectionRange(selectionStart, selectionEnd);
     },
-    [],
+    [setMessage],
   );
 
   useLayoutEffect(() => {

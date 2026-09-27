@@ -10,7 +10,9 @@
 Topic: early-typing-handoff
 
 Status: implemented for reverse search, session entry with a prefilled or
-focused composer, both rename fields, and the new-session prompt (2026-09-19).
+focused composer, both rename fields, and the new-session prompt
+(2026-09-19), and for a tab opened on the new-session page before the app
+loads (2026-09-27, § Pre-boot composer).
 
 ## Why
 
@@ -90,6 +92,47 @@ or from `handleDraftControlsReady`), `NewSessionForm`, `SessionListItem` and
 `SessionPage`'s title rename, and the Projects card's `ProjectCaptionEditor`
 and `ProjectCodeNameEditor` (focus only — those fields mount with their row,
 so there is no window to hold; the two Projects editors also follow rule 8).
+
+## Pre-boot composer
+
+A tab opened directly on `/new-session` has no app yet: loading it takes
+seconds (about 2–3 s against the dev server, 2026-09-27), so neither a ref
+callback nor a key buffer inside the app can help. The HTML therefore carries
+its own composer.
+
+1. **Typeable from the document alone.** On `/new-session` (local or relay
+   path, without a `prefillToken`) an inline script shows a focused textarea
+   during HTML parse, before any module is requested. Measured on the local
+   dev server, it holds focus 28–34 ms after navigation starts; the rest of
+   the tab's startup does not delay it.
+2. **Adopted in one commit.** The page's `NewSessionForm` takes the text and
+   selection in the ref callback that creates its own textarea and focuses
+   it there, so no key falls between the two fields. Text typed there follows
+   a restored draft as its own paragraph (rule 7), since it was typed without
+   seeing it. Launch composers (fork, handoff) never adopt it.
+3. **Never covers another page.** When routing settles anywhere other than
+   the new-session route (a login redirect) or the error boundary catches,
+   the overlay is removed and non-empty text is kept in `sessionStorage` for
+   the next adoption in that tab. It sits below the app's modals, so a
+   blocking dialog raised at the same URL (host offline) shows over it.
+4. **Enter does not send yet.** On a fine pointer, plain Enter is swallowed
+   rather than becoming a newline, because the app's Enter would have sent;
+   Shift+Enter still adds a newline. On a coarse pointer, Enter is a newline,
+   as in the app.
+5. **The tab starts with the sidebar minimized** (unsaved; see
+   [UI architecture](ui-architecture.md#desktop-sidebar-display-modes)), so
+   loading the sidebar neither competes with the composer nor moves it.
+6. **Geometry follows the page.** The pre-boot textarea sits where the form's
+   textarea will be at each width, including the reader's content width, so
+   the handoff does not visibly move the text. Its copy is English only: the
+   app's catalog is not loaded yet.
+
+`packages/client/preboot/new-session-composer.js` is the inline source,
+injected into both entry documents by `vite-plugin-preboot-composer.ts`
+ahead of the CSP pass, which hashes it for the production policy.
+`src/lib/prebootComposer.ts` owns adoption and retirement;
+`e2e/new-session-preboot-composer.spec.ts` holds the app's scripts, types,
+releases them, and checks the handoff.
 
 ## What does not need it
 

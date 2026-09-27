@@ -26,6 +26,7 @@ const STRICT_MODE = false;
 const Wrapper = STRICT_MODE ? StrictMode : Fragment;
 
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { PrebootComposerRetirement } from "./components/PrebootComposerRetirement";
 import { RouteModule, routeModule } from "./components/RouteModule";
 import { TooltipLayer } from "./components/ui/TooltipLayer";
 import { initializeContentMaxWidth } from "./hooks/useContentMaxWidth";
@@ -418,6 +419,7 @@ createRoot(rootElement).render(
   <Wrapper>
     <TooltipLayer />
     <BrowserRouter basename={basename}>
+      <PrebootComposerRetirement />
       <I18nProvider>
         <Routes>
           <Route

@@ -13,6 +13,7 @@ import {
   useLocation,
 } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { PrebootComposerRetirement } from "./components/PrebootComposerRetirement";
 import { RouteModule, routeModule } from "./components/RouteModule";
 import { TooltipLayer } from "./components/ui/TooltipLayer";
 import { initializeFontSize } from "./hooks/useFontSize";
@@ -274,13 +275,19 @@ if (import.meta.env.DEV && window.location.port === String(__VITE_DEV_PORT__)) {
   const initialPath = basename
     ? window.location.pathname.slice(basename.length)
     : window.location.pathname;
+  // Start independent downloads before lazy ancestors can serialize them.
+  // React.lazy retains ownership of any import failure's route error UI.
   if (/^\/settings(?:\/|$)/.test(initialPath)) {
-    // Start independent downloads before lazy ancestors can serialize them.
-    // React.lazy retains ownership of any import failure's route error UI.
     void Promise.allSettled([
       import("./App"),
       import("./layouts"),
       import("./pages/settings"),
+    ]);
+  } else if (/^\/new-session\/?$/.test(initialPath)) {
+    void Promise.allSettled([
+      import("./App"),
+      import("./layouts"),
+      import("./pages/NewSessionPage"),
     ]);
   }
 
@@ -289,6 +296,7 @@ if (import.meta.env.DEV && window.location.port === String(__VITE_DEV_PORT__)) {
       <ErrorBoundary>
         <TooltipLayer />
         <BrowserRouter basename={basename}>
+          <PrebootComposerRetirement />
           <I18nProvider>
             <RouteModule>
               <LocalAppShell>
