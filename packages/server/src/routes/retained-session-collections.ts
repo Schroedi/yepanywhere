@@ -5,8 +5,8 @@ import type { RetainedSessionCollections } from "../services/RetainedSessionColl
 import {
   getEffectiveProviderUpdatedAt,
   latestRecapMessage,
-  sessionRowRuntimeOverlay,
 } from "../sessions/recap-overlays.js";
+import { sessionRowRuntimeOverlay } from "../sessions/session-runtime-overlay.js";
 import type {
   GlobalSessionItem,
   GlobalSessionStats,

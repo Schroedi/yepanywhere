@@ -69,6 +69,10 @@ import {
   messageTimestampMs,
   toDurableRecapMessage,
 } from "../sessions/recap-overlays.js";
+import {
+  sessionActivityEventFromProcess,
+  sessionOwnershipFromProcess,
+} from "../sessions/session-runtime-overlay.js";
 import type {
   GetSessionSummaryOptions,
   RecoveredSessionLaunchSettings,
@@ -3838,14 +3842,11 @@ export class Supervisor {
       throw new Error(sandboxError);
     }
     process.setRecapConfig(config);
-    this.emitOwnershipChange(process.sessionId, process.projectId, {
-      owner: "self",
-      processId: process.id,
-      permissionMode: process.permissionMode,
-      appliedPermissionMode: process.appliedPermissionMode,
-      modeVersion: process.modeVersion,
-      recapAfterSeconds: process.recapAfterSeconds,
-    });
+    this.emitOwnershipChange(
+      process.sessionId,
+      process.projectId,
+      sessionOwnershipFromProcess(process),
+    );
     return process;
   }
 
@@ -5465,18 +5466,10 @@ export class Supervisor {
         }
 
         // Emit ownership change for new session ID so clients can update
-        const ownership: SessionOwnership = {
-          owner: "self",
-          processId: process.id,
-          permissionMode: process.permissionMode,
-          appliedPermissionMode: process.appliedPermissionMode,
-          modeVersion: process.modeVersion,
-          recapAfterSeconds: process.recapAfterSeconds,
-        };
         this.emitOwnershipChange(
           event.newSessionId,
           process.projectId,
-          ownership,
+          sessionOwnershipFromProcess(process),
         );
 
         // Retry early metadata reconciliation with authoritative session ID.
@@ -5492,28 +5485,7 @@ export class Supervisor {
           event.state.type === "waiting-input" ||
           event.state.type === "idle"
         ) {
-          // Convert InputRequest.type to PendingInputType when waiting for input
-          // "tool-approval" stays as-is, "question" or "choice" becomes "user-question"
-          let pendingInputType: PendingInputType | undefined;
-          if (event.state.type === "waiting-input") {
-            const requestType = event.state.request.type;
-            pendingInputType =
-              requestType === "tool-approval"
-                ? "tool-approval"
-                : "user-question";
-          }
-          // A turn that settles to idle while the provider still has background
-          // work retained should report as active, not idle.
-          const activity: AgentActivity =
-            event.state.type === "idle" && process.isRetainingProviderWork()
-              ? "in-turn"
-              : event.state.type;
-          this.emitAgentActivityChange(
-            process.sessionId,
-            process.projectId,
-            activity,
-            pendingInputType,
-          );
+          this.emitProcessActivity(process);
         }
         // Emit worker activity on any state change (affects hasActiveWork)
         this.emitWorkerActivity();
@@ -5611,14 +5583,7 @@ export class Supervisor {
     this.sessionDone.recoverPendingDone(process);
     this.onProcessInventoryChanged?.();
 
-    const ownership: SessionOwnership = {
-      owner: "self",
-      processId: process.id,
-      permissionMode: process.permissionMode,
-      appliedPermissionMode: process.appliedPermissionMode,
-      modeVersion: process.modeVersion,
-      recapAfterSeconds: process.recapAfterSeconds,
-    };
+    const ownership = sessionOwnershipFromProcess(process);
 
     // Emit session created event for new sessions
     if (isNewSession) {
@@ -5633,24 +5598,11 @@ export class Supervisor {
     this.emitOwnershipChange(process.sessionId, process.projectId, ownership);
 
     // Emit initial agent activity (process starts in in-turn state)
-    const initialState = process.state;
     if (
-      initialState.type === "in-turn" ||
-      initialState.type === "waiting-input"
+      process.state.type === "in-turn" ||
+      process.state.type === "waiting-input"
     ) {
-      // Convert InputRequest.type to PendingInputType if waiting for input at start
-      let pendingInputType: PendingInputType | undefined;
-      if (initialState.type === "waiting-input") {
-        const requestType = initialState.request.type;
-        pendingInputType =
-          requestType === "tool-approval" ? "tool-approval" : "user-question";
-      }
-      this.emitAgentActivityChange(
-        process.sessionId,
-        process.projectId,
-        initialState.type,
-        pendingInputType,
-      );
+      this.emitProcessActivity(process);
     }
 
     // Emit worker activity after registering (new worker added)
@@ -5784,9 +5736,11 @@ export class Supervisor {
     }
 
     // Emit ownership change event (back to none)
-    this.emitOwnershipChange(process.sessionId, process.projectId, {
-      owner: "none",
-    });
+    this.emitOwnershipChange(
+      process.sessionId,
+      process.projectId,
+      sessionOwnershipFromProcess(undefined),
+    );
 
     // Emit agent activity change to notify clients that this session is no longer running
     // This is needed for real-time updates (e.g., AgentsNavItem indicator)
@@ -5982,6 +5936,18 @@ export class Supervisor {
     this.eventBus.emit(event);
   }
 
+  /** Publish a live process's activity exactly as its session rows show it. */
+  private emitProcessActivity(process: Process): void {
+    const { activity, pendingInputType } =
+      sessionActivityEventFromProcess(process);
+    this.emitAgentActivityChange(
+      process.sessionId,
+      process.projectId,
+      activity,
+      pendingInputType,
+    );
+  }
+
   private emitProcessTerminated(
     sessionId: string,
     projectId: UrlProjectId,
@@ -6030,11 +5996,7 @@ export class Supervisor {
     // and truly idle without a state-change event. Surface that so inbox/sidebar
     // activity indicators update live rather than only on the next refresh.
     if (process && process.state.type === "idle") {
-      this.emitAgentActivityChange(
-        process.sessionId,
-        process.projectId,
-        process.isRetainingProviderWork() ? "in-turn" : "idle",
-      );
+      this.emitProcessActivity(process);
       if (!process.isRetainingProviderWork()) {
         void this.finalizePendingDone(process);
         void this.maybeCompactAfterIdle(process);

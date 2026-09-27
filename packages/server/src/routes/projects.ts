@@ -51,9 +51,11 @@ import type { EventBus } from "../watcher/index.js";
 import {
   applyRecapOverlayToSummary,
   getEffectiveProviderUpdatedAt,
+} from "../sessions/recap-overlays.js";
+import {
   sessionOwnershipFromProcess,
   sessionRowRuntimeOverlay,
-} from "../sessions/recap-overlays.js";
+} from "../sessions/session-runtime-overlay.js";
 import type { ExternalSessionTracker } from "../supervisor/ExternalSessionTracker.js";
 import type { Process } from "../supervisor/Process.js";
 import type { Supervisor } from "../supervisor/Supervisor.js";

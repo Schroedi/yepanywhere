@@ -33,6 +33,7 @@ import {
   encodeProjectId,
 } from "../src/supervisor/types.js";
 import { type BusEvent, EventBus } from "../src/watcher/EventBus.js";
+import { sessionRowRuntimeOverlay } from "../src/sessions/session-runtime-overlay.js";
 
 function createLaunchSettingsMetadata(
   initial?: EffectiveSessionLaunchSettings,
@@ -7100,6 +7101,59 @@ describe("Supervisor", () => {
         type: "session-status-changed",
         ownership: { owner: "self" },
       });
+    });
+
+    it("reports live ownership and activity exactly as the session rows do", async () => {
+      const eventBus = new EventBus();
+      const events: BusEvent[] = [];
+      eventBus.subscribe((event) => events.push(event));
+      const controller = createControllableIterator();
+      let retentionChanged: (() => void) | undefined;
+      const supervisorWithBus = new Supervisor({
+        provider: testProvider(async (options) => {
+          retentionChanged = options.onProviderRetentionChange;
+          return {
+            iterator: controller.iterator,
+            queue: new MessageQueue(),
+            abort: () => controller.finish(),
+          };
+        }),
+        eventBus,
+      });
+      const starting = supervisorWithBus.startSession("/tmp/test", {
+        text: "hi",
+      });
+      controller.push({
+        type: "system",
+        subtype: "init",
+        session_id: "sess-rows",
+      });
+      const process = await starting;
+      if ("queued" in process || "error" in process) {
+        throw new Error("expected a started process");
+      }
+      controller.push({ type: "result", session_id: "sess-rows" });
+      await waitFor(() => expect(process.state.type).toBe("idle"));
+      vi.spyOn(process, "isRetainingProviderWork").mockReturnValue(true);
+      retentionChanged?.();
+
+      const row = sessionRowRuntimeOverlay(process, {
+        sessionId: process.sessionId,
+        providerUpdatedAt: new Date().toISOString(),
+      });
+      const lastOf = <T extends BusEvent["type"]>(type: T) =>
+        events.findLast(
+          (event): event is Extract<BusEvent, { type: T }> =>
+            event.type === type,
+        );
+      expect(row.activity).toBe("in-turn");
+      expect(lastOf("process-state-changed")).toMatchObject({
+        activity: row.activity,
+        pendingInputType: row.pendingInputType,
+      });
+      expect(lastOf("session-status-changed")?.ownership).toEqual(
+        row.ownership,
+      );
     });
 
     it("emits optimistic title/messageCount in session-created for real SDK sessions", async () => {

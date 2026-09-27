@@ -32,10 +32,8 @@ import { SessionCollectionGeneration } from "../sessions/sessionCollectionGenera
 import type { GrokSessionReader } from "../sessions/grok-reader.js";
 import type { PiSessionReader } from "../sessions/pi-reader.js";
 import type { ISessionReader, SessionListSummary } from "../sessions/types.js";
-import {
-  getEffectiveProviderUpdatedAt,
-  sessionRowRuntimeOverlay,
-} from "../sessions/recap-overlays.js";
+import { getEffectiveProviderUpdatedAt } from "../sessions/recap-overlays.js";
+import { sessionRowRuntimeOverlay } from "../sessions/session-runtime-overlay.js";
 import type { ProjectQueueService } from "../services/ProjectQueueService.js";
 import type { Supervisor } from "../supervisor/Supervisor.js";
 import type {

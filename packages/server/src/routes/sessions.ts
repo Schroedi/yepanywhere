@@ -109,8 +109,8 @@ import {
   latestRecapMessage,
   mergeSessionOverlayMessages,
   mergeLocalCommandMessages,
-  sessionOwnershipFromProcess,
 } from "../sessions/recap-overlays.js";
+import { sessionOwnershipFromProcess } from "../sessions/session-runtime-overlay.js";
 import { isAutomaticSessionResumeAllowed } from "../sessions/resume-exemption.js";
 import {
   type PaginationInfo,

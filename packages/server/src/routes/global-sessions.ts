@@ -43,8 +43,8 @@ import {
   applyRecapOverlayToSummary,
   getEffectiveProviderUpdatedAt,
   hasUnreadProviderContent,
-  sessionRowRuntimeOverlay,
 } from "../sessions/recap-overlays.js";
+import { sessionRowRuntimeOverlay } from "../sessions/session-runtime-overlay.js";
 import type { ExternalSessionTracker } from "../supervisor/ExternalSessionTracker.js";
 import type { Supervisor } from "../supervisor/Supervisor.js";
 import type {
