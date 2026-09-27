@@ -2670,10 +2670,11 @@ export class Process {
   }
 
   /**
-   * An unrequested provider death tears down the running turn, and some
-   * providers (Codex) then persist it as an ordinary interrupt. Publish a
-   * notice row so the transcript attributes the stop; Supervisor persists it
-   * with the session's local-command rows from the terminated event.
+   * An unrequested provider death during a turn tears that turn down, and
+   * some providers (Codex) then persist it as an ordinary interrupt. Publish
+   * a notice row so the transcript attributes the stop; Supervisor persists it
+   * with the session's local-command rows from the terminated event. A death
+   * between turns interrupted nothing, so its caller publishes no notice.
    */
   private publishProviderFailureNotice(
     error: Error,
@@ -5179,10 +5180,13 @@ export class Process {
       // to prevent race where queueMessage is called before state changes to terminated
       if (this.isProcessTerminationError(err)) {
         this.transportFailed = true;
+        const turnWasRunning =
+          this._state.type === "in-turn" ||
+          this._state.type === "waiting-input";
         const failureNotice =
-          this._state.type === "terminated" || this.abortInFlight
-            ? undefined
-            : await this.publishProviderFailureNotice(err);
+          turnWasRunning && !this.abortInFlight
+            ? await this.publishProviderFailureNotice(err)
+            : undefined;
         this.markTerminated("underlying process terminated", err, {
           failureNotice,
         });

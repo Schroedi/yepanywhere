@@ -261,7 +261,9 @@ provider such as Codex persists it as an ordinary `interrupted` abort. YA
 publishes a `local_command` notice ("Provider process ended unexpectedly; this
 turn was not interrupted by you", with the error as detail) after the latest
 turn content, and stores it with the session's local-command rows, so the
-attribution survives reload. A requested stop or abort publishes no notice.
+attribution survives reload. A requested stop or abort publishes no notice,
+and neither does a death between turns (the process idle, no turn running or
+waiting on the user), since no turn was interrupted.
 When the exit is Claude refusing a guarded rewind
 ([session-rewind](session-rewind.md#server-rewind-operation)), the notice says
 so instead ("Claude refused the rewind and exited; the dropped turns were

@@ -257,6 +257,53 @@ describe("Process", () => {
       );
     });
 
+    it("publishes no failure notice when the provider dies between turns", async () => {
+      vi.spyOn(getLogger(), "error").mockImplementation(() => undefined);
+      vi.spyOn(getLogger(), "warn").mockImplementation(() => undefined);
+      const error = new Error("Provider worker process exited: signal 9");
+      let failProvider!: () => void;
+      const delivered: SDKMessage[] = [
+        { type: "system", subtype: "init", session_id: "sess-1" },
+        { type: "result", subtype: "success", session_id: "sess-1" },
+      ];
+      const iterator: AsyncIterator<SDKMessage> = {
+        next: () => {
+          const value = delivered.shift();
+          if (value) return Promise.resolve({ done: false, value });
+          return new Promise((_resolve, reject) => {
+            failProvider = () => reject(error);
+          });
+        },
+      };
+      const process = new Process(iterator, {
+        projectPath: "/test",
+        projectId: "proj-1" as UrlProjectId,
+        sessionId: "sess-1",
+        provider: "codex",
+        idleTimeoutMs: 60_000,
+      });
+      const events: ProcessEvent[] = [];
+      process.subscribe((event) => {
+        events.push(event);
+      });
+      await vi.waitFor(() => expect(failProvider).toBeTypeOf("function"));
+      expect(process.state.type).toBe("idle");
+
+      failProvider();
+      await vi.waitFor(() => expect(process.isTerminated).toBe(true));
+
+      const terminated = events.find((event) => event.type === "terminated");
+      expect(terminated).toBeDefined();
+      expect(terminated).not.toHaveProperty("failureNotice");
+      expect(
+        events.some(
+          (event) =>
+            event.type === "message" &&
+            event.message.subtype === "local_command",
+        ),
+      ).toBe(false);
+    });
+
     it("publishes a failure notice after a command notice still saving", async () => {
       vi.spyOn(getLogger(), "error").mockImplementation(() => undefined);
       vi.spyOn(getLogger(), "warn").mockImplementation(() => undefined);
