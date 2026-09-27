@@ -1,5 +1,9 @@
 import type { IssueSettings } from "@yep-anywhere/shared";
-import type { IssueStore, PendingConfirmation } from "./IssueStore.js";
+import type {
+  ConfirmationVerdict,
+  IssueStore,
+  PendingConfirmation,
+} from "./IssueStore.js";
 import type { IssueCredentials } from "./credentials.js";
 
 /**
@@ -17,18 +21,6 @@ import type { IssueCredentials } from "./credentials.js";
 /** Bounds one drain so a large first import cannot become a request storm. */
 const BATCH = 20;
 const TIMEOUT_MS = 10_000;
-
-export type ConfirmationState =
-  | "pending"
-  | "confirmed"
-  | "rejected"
-  | "unreachable";
-
-export interface ConfirmationVerdict {
-  state: Exclude<ConfirmationState, "pending">;
-  title?: string;
-  detail?: string;
-}
 
 export interface IssueConfirmerDeps {
   settings: () => IssueSettings;
