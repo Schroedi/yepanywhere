@@ -408,9 +408,10 @@ export class CodexOSSProvider implements AgentProvider {
           (typeof row.max_model_len === "number" && row.max_model_len > 0
             ? row.max_model_len
             : undefined);
+        const modelProbe = probed.get(id);
         const effort = this.serviceModelEffort(service, id, {
           advertisedLevels: advertisedGatewayEffortLevels(row),
-          ...(probed ? { probed } : {}),
+          ...(modelProbe ? { probed: modelProbe } : {}),
         });
         models.push({
           id,

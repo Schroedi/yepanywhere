@@ -195,13 +195,25 @@ model serving.
   that fails. A template that *accepts* the highest schema level is not
   narrowing from the top, so the schema answer stands — at the cost of one
   prefill and one token, which is the second stage's whole price and the one
-  case where asking is not free.
+  case where asking is not free. A template stage that fails, most likely by
+  outlasting its deadline behind real work after accepting, also leaves the
+  schema answer standing.
+- The template is a property of each model, not of the endpoint: one server can
+  front several models with different templates. The schema stage is asked once
+  per endpoint; the template stage is asked of each listed model whose levels
+  the answer would supply — one that no configuration, catalog row, or known
+  family describes — a few at a time, and each such model gets its own answer.
+  Any other listed model gets the schema answer, which can still say whether
+  thinking can be turned off.
 - An entry stating its own `effortLevels` is never asked: configuration wins for
   every model of that service, so no answer could change the outcome.
-- Answers are cached per endpoint URL and shared between the two providers, 30
-  minutes for an answer and one minute for a silence, since the usual silence is
-  an endpoint that is not up yet. A reconfigured services list drops the cache,
-  because the same address may now front a different server.
+- Answers are shared between the two providers. Schema answers are cached per
+  endpoint URL, 30 minutes for an answer and one minute for a silence, since the
+  usual silence is an endpoint that is not up yet. Template answers are cached
+  per endpoint URL and model for 30 minutes whatever they said, so a failed or
+  accepting template is not asked, and paid for, again on the next catalog
+  read. A reconfigured services list drops the cache, because the same address
+  may now front a different server.
 - The setting governs every process that reads a catalog, not only the server's
   own reads. A hosted session runs in a provider worker with its own module
   state, so the launch snapshot carries the setting and the worker applies it
@@ -209,7 +221,8 @@ model serving.
   while the user had switched asking off.
 - A 2xx to the probe means the endpoint validates nothing and has therefore said
   nothing; it is not read as accepting every level.
-- `POST /api/settings/gateway-services/effort` asks one endpoint on demand. It
+- `POST /api/settings/gateway-services/effort` asks one endpoint on demand,
+  about the first model its catalog lists, and reports that model's id. It
   bypasses both the cache and the setting, and its URL must be loopback or
   already configured: unlike catalog discovery it sends a chat request, so it
   stays pointed at endpoints the server already talks to. The requested URL is

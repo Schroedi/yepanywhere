@@ -239,6 +239,7 @@ export {
 export {
   advertisedGatewayEffortLevels,
   builtInGatewayModelEffort,
+  describedGatewayModelLevels,
   gatewayModelEffort,
   isEffortLevel,
   nearestGatewayEffortLevel,
