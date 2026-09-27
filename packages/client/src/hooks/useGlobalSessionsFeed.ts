@@ -523,29 +523,31 @@ export function useGlobalSessionsFeed(
           },
         });
         // Retained rows carry their own stats, so only a complete read needs
-        // the separate stats request.
-        const statsMode =
+        // the separate stats request. Its mode is chained, not awaited here:
+        // a source change rejects both reads, and awaiting this one first
+        // would leave the sessions read's rejection unobserved.
+        const statsPromise =
           includeStats && !projectId
-            ? await resolveCollectionRequestMode(requestSourceKey, {
+            ? resolveCollectionRequestMode(requestSourceKey, {
                 searchQuery,
                 currentSourceKey: () => sourceKeyRef.current,
-              })
-            : null;
-        const statsPromise =
-          statsMode === "complete"
-            ? ensureClientQuery<{ stats: GlobalSessionStats }>({
-                sourceKey: requestSourceKey,
-                key: GLOBAL_SESSION_STATS_QUERY_KEY,
-                coverage: { includeStats: true },
-                staleTimeMs: GLOBAL_SESSION_STATS_STALE_TIME_MS,
-                force: fetchOptions.force,
-                fetcher: () => api.getGlobalSessionStats(),
-                applySnapshot: (data, context) => {
-                  updateGlobalSessionsAuxiliary(context.sourceKey, {
-                    stats: data.stats,
-                  });
-                },
-              })
+              }).then((statsMode) =>
+                statsMode === "complete"
+                  ? ensureClientQuery<{ stats: GlobalSessionStats }>({
+                      sourceKey: requestSourceKey,
+                      key: GLOBAL_SESSION_STATS_QUERY_KEY,
+                      coverage: { includeStats: true },
+                      staleTimeMs: GLOBAL_SESSION_STATS_STALE_TIME_MS,
+                      force: fetchOptions.force,
+                      fetcher: () => api.getGlobalSessionStats(),
+                      applySnapshot: (data, context) => {
+                        updateGlobalSessionsAuxiliary(context.sourceKey, {
+                          stats: data.stats,
+                        });
+                      },
+                    })
+                  : undefined,
+              )
             : Promise.resolve();
 
         await Promise.all([sessionsPromise, statsPromise]);

@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   getGlobalSessionStats: vi.fn(),
   useFileActivity: vi.fn(),
   versionInfo: vi.fn(),
+  ensureVersionInfo: vi.fn(),
 }));
 
 vi.mock("../../api/client", () => ({
@@ -49,7 +50,7 @@ vi.mock("../useFileActivity", () => ({
 
 vi.mock("../useVersion", () => ({
   useRetainedVersionInfo: () => mocks.versionInfo(),
-  ensureVersionInfo: async () => mocks.versionInfo(),
+  ensureVersionInfo: (...args: unknown[]) => mocks.ensureVersionInfo(...args),
 }));
 
 interface Deferred<T> {
@@ -133,6 +134,8 @@ beforeEach(() => {
   mocks.useFileActivity.mockClear();
   mocks.versionInfo.mockReset();
   mocks.versionInfo.mockReturnValue(null);
+  mocks.ensureVersionInfo.mockReset();
+  mocks.ensureVersionInfo.mockImplementation(async () => mocks.versionInfo());
 });
 
 afterEach(() => {
@@ -312,6 +315,44 @@ describe("useGlobalSessionsFeed", () => {
       "summaryMode",
     );
   });
+
+  it("observes both abandoned reads when the source changes during the version read", async () => {
+    // The client tsconfig has no Node types; vitest runs it under Node.
+    type RejectionListener = (reason: unknown) => void;
+    const nodeProcess = (
+      globalThis as unknown as {
+        process: {
+          on(event: "unhandledRejection", listener: RejectionListener): void;
+          off(event: "unhandledRejection", listener: RejectionListener): void;
+        };
+      }
+    ).process;
+    const unhandled: unknown[] = [];
+    const recordUnhandled: RejectionListener = (reason) =>
+      unhandled.push(reason);
+    nodeProcess.on("unhandledRejection", recordUnhandled);
+    try {
+      mocks.ensureVersionInfo.mockRejectedValue(
+        new Error("Session source changed"),
+      );
+      const { result } = renderHook(() =>
+        useFeedWithRecords({ includeStats: true }),
+      );
+      await waitFor(() =>
+        expect(result.current.feed.error?.message).toBe(
+          "Session source changed",
+        ),
+      );
+      // Unhandled rejections are reported after a macrotask turn.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(unhandled).toEqual([]);
+      expect(mocks.getGlobalSessions).not.toHaveBeenCalled();
+      expect(mocks.getGlobalSessionStats).not.toHaveBeenCalled();
+    } finally {
+      nodeProcess.off("unhandledRejection", recordUnhandled);
+    }
+  });
+
   it("releases query and activity work while disabled", () => {
     const { result } = renderHook(() =>
       useGlobalSessionsFeed({ enabled: false, limit: 50 }),
