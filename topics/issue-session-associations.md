@@ -166,8 +166,13 @@ order. Expand loads further mentions through session-filtered
 `GET /api/issues/evidence`, in bounded pages. Collapsing preserves loaded mentions,
 and so does a refresh: a confirm, dismiss, title save, or the Refresh button
 reloads the rows in place, leaving every row expanded over the mentions it has
-already loaded, with the initial mention replaced by the reloaded one. Only
-choosing a different issue empties the pane back to its loading state.
+already loaded, with the initial mention replaced by the reloaded one. Each
+reloaded answer, including one for a changed dismissed filter, re-fetches as
+many further mentions as the row had loaded, under that answer's filter and
+ordering, so loaded pages never mix two lists; a page requested before the
+reload is discarded, and an expanded row still waiting for its first page asks
+again. Only choosing a different issue empties the pane back to
+its loading state.
 Dismissed evidence stays hidden unless the filter includes it. Unavailable source
 sessions keep historical excerpts but have no navigation or preview request.
 Selections, expansions and asynchronous responses belong to the selected source;
