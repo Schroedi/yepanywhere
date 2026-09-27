@@ -2,6 +2,7 @@ import {
   appendFile,
   mkdir,
   mkdtemp,
+  readdir,
   rm,
   stat,
   writeFile,
@@ -622,6 +623,55 @@ it("reads a row an older build stored for an unchanged file once more", async ()
       ?.title,
   ).toBe(long);
 });
+
+it("rebuilds at once after an ordinary read finds its shard unreadable", async () => {
+  dataDir = await mkdtemp(join(tmpdir(), "retained-reset-"));
+  // Past the 8 MiB hot-set budget, so every list read streams the shard from
+  // disk instead of answering from memory.
+  const rows: SessionCatalogRow[] = Array.from({ length: 540 }, (_, index) => ({
+    ...catalogProjectIdentity(join(dataDir, "project")),
+    catalogFamily: "claude",
+    storeKey: "store",
+    sessionId: `saved-${index}`,
+    updatedAt: new Date().toISOString(),
+    title: "t".repeat(16_384),
+    fidelity: "head",
+    sourceVersion: "v1",
+    location: { kind: "provider", recordId: `saved-${index}` },
+  }));
+  const adapters = vi.fn(
+    async (): Promise<NativeSessionCatalogAdapter[]> => [
+      {
+        catalogFamily: "claude",
+        storeKey: "store",
+        scan: async () => ({ sourceVersion: "v1", rows }),
+      },
+    ],
+  );
+  collections = new RetainedSessionCollections({
+    dataDir,
+    eventBus: new EventBus(),
+    adapters,
+  });
+  await collections.refresh();
+  expect((await collections.read()).rows).toHaveLength(rows.length);
+  adapters.mockClear();
+
+  // No session file changes after this: only the reset itself can ask for
+  // the rebuild.
+  const generations = join(dataDir, "session-catalog", "generations");
+  const [generation] = await readdir(generations);
+  const [shard] = await readdir(join(generations, generation!));
+  await writeFile(join(generations, generation!, shard!), "{ torn", "utf-8");
+  expect((await collections.read()).rows).toEqual([]);
+
+  await vi.waitFor(() => expect(adapters).toHaveBeenCalled(), {
+    timeout: 3_000,
+    interval: 20,
+  });
+  await collections.refresh();
+  expect((await collections.read()).rows).toHaveLength(rows.length);
+}, 20_000);
 
 it("keeps the last accepted rows on failure and stops publication after disposal", async () => {
   dataDir = await mkdtemp(join(tmpdir(), "retained-failure-"));

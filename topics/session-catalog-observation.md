@@ -493,6 +493,8 @@ relocated session visibly grouped under its former project.
 - Unreadable or layout-incompatible durable catalog state starts a new epoch
   and still serves requests, rather than failing initialization.
 - A missing or corrupt shard in the current generation starts a new epoch on
-  the read that finds it, and the next reconciliation rebuilds the catalog.
+  the read that finds it, and that reset itself schedules a full
+  reconciliation that rebuilds the catalog; no session file change or restart
+  is needed to trigger it.
 - Loss/eviction of browser persistence changes only cold-fetch cost, not visible
   correctness or the ability to reconnect.

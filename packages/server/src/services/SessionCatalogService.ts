@@ -169,6 +169,12 @@ export interface SessionCatalogServiceOptions {
   retainedGenerations?: number;
   now?: () => number;
   createEpoch?: () => string;
+  /**
+   * Called when a read finds the current generation unreadable and ends the
+   * lineage. The catalog is then empty until its owner reconciles, and
+   * nothing else will ask it to.
+   */
+  onLineageReset?: () => void;
 }
 
 interface ProjectRowsValue {
@@ -345,6 +351,7 @@ export class SessionCatalogService {
   private readonly pinnedGenerations = new Map<string, number>();
   private readonly now: () => number;
   private readonly createEpoch: () => string;
+  private readonly onLineageReset?: () => void;
   private readonly projectRowsOwner: SourceVersionedSingleFlight<
     string,
     ProjectRowsValue
@@ -405,6 +412,7 @@ export class SessionCatalogService {
     );
     this.now = options.now ?? Date.now;
     this.createEpoch = options.createEpoch ?? randomUUID;
+    this.onLineageReset = options.onLineageReset;
     this.projectRowsOwner = new SourceVersionedSingleFlight({
       maxRetainedBytes: nonNegativeInteger(
         options.maxHotBytes ?? DEFAULT_HOT_BYTES,
@@ -483,7 +491,12 @@ export class SessionCatalogService {
     // Concurrent readers of one generation fail together; one reset serves all.
     if (this.manifest !== manifest) return true;
     this.recordReset(error);
-    await this.startLineage();
+    try {
+      await this.startLineage();
+    } finally {
+      // The empty generation is already current even if persisting it failed.
+      this.onLineageReset?.();
+    }
     return true;
   }
 
