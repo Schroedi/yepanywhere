@@ -172,13 +172,13 @@ claims general hostile-code, confidentiality, credential-isolation, or
 exfiltration protection. Unsupported providers, non-Linux hosts, and SSH
 executors cannot use it.
 
-YA advertises and launches **Project writes only** only while local operator
-authentication is enforced: password or desktop authentication must be
-present, `--auth-disable` must be off, and localhost-open access must be off.
-This remains required because a user may explicitly disable the network
-firewall and because authentication is independent defense in depth. While a
-project-write sandbox is launching or active, the auth routes reject disabling
-authentication or opening localhost access.
+Local operator authentication is not a prerequisite for **Project writes
+only** (maintainer direction, 2026-09-27; it previously was, and blocked
+relaxing auth while a sandbox ran). With password or desktop authentication
+absent, `--auth-disable` on, or localhost-open access on, New Session shows a
+standing warning on the enabled sandbox: an agent that reaches YA — readily
+so with the network firewall off — can drive it and escape. Authentication
+remains independent defense in depth, now the operator's choice.
 
 Browser bearer tokens never appear in `auth.json`; it stores domain-separated
 SHA-256 verifiers of the random tokens instead. Provider environments omit the

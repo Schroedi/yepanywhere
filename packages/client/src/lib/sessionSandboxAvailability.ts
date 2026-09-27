@@ -61,6 +61,7 @@ export function describeUnavailableSessionSandbox(
         packages: "bubblewrap",
       });
     case "auth-required":
+      // Only older servers refuse the sandbox without local auth.
       return t("newSessionSandboxUnavailableAuthRequired");
     case "untrusted-bubblewrap":
       return t("newSessionSandboxUnavailableUntrusted");

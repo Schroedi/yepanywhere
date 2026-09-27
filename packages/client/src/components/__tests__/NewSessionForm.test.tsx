@@ -219,6 +219,7 @@ const {
         platform: string;
         backend?: "bubblewrap";
         version?: string;
+        localAuthEnforced?: boolean;
         blocker?: SessionSandboxBlocker;
       };
       voiceBackends?: string[];
@@ -1681,6 +1682,47 @@ describe("NewSessionForm", () => {
         sandboxNetworkFirewall: true,
       }),
     );
+    // Local auth enforced (or unreported): no warning.
+    expect(
+      document.querySelector("[data-new-session-sandbox-local-auth-warning]"),
+    ).toBeNull();
+  });
+
+  it("warns, without blocking, when local access needs no authentication", () => {
+    versionState.version = {
+      capabilities: [
+        SESSION_SANDBOX_NETWORK_FIREWALL_CAPABILITY,
+        SESSION_SANDBOXING_CAPABILITY,
+        SESSION_SANDBOXING_STATUS_CAPABILITY,
+      ],
+      sessionSandboxing: {
+        state: "available",
+        platform: "linux",
+        backend: "bubblewrap",
+        localAuthEnforced: false,
+      },
+    };
+    serverSettingsState.settings = {
+      newSessionDefaults: { provider: "claude", sandboxLevel: "project-write" },
+    };
+    serverSettingsState.isLoading = false;
+
+    render(
+      <NewSessionForm
+        projectId="project-1"
+        selectedProject={chooserProjects[0]}
+        projects={[...chooserProjects]}
+      />,
+    );
+
+    openAdvancedOptions();
+    expect(selectedDropdownValue("newSessionSandboxTitle")).toBe(
+      "project-write",
+    );
+    expect(
+      document.querySelector("[data-new-session-sandbox-local-auth-warning]")
+        ?.textContent,
+    ).toBe("newSessionSandboxLocalAuthWarning");
   });
 
   describe("a limited user's locked launch fields", () => {

@@ -1035,6 +1035,7 @@
   "newSessionSandboxAvailability": "Requires Linux + Bubblewrap.",
   "newSessionSandboxUnavailableMissingPackages": "Unavailable: install {packages} on the server to enable sandboxed sessions.",
   "newSessionSandboxUnavailableUsernsRestricted": "Unavailable: the server's AppArmor policy denies user namespaces to unshare. Allow them to enable sandboxed sessions: kernel.apparmor_restrict_unprivileged_userns",
+  "newSessionSandboxLocalAuthWarning": "Local requests to YA do not require authentication. A sandboxed agent that reaches YA can drive it and escape the sandbox; the network firewall keeps it out.",
   "newSessionSandboxUnavailableAuthRequired": "Unavailable: requires password or desktop authentication, with localhost access and --auth-disable both off.",
   "newSessionSandboxUnavailableUntrusted": "Unavailable: Bubblewrap must be a root-owned /usr/bin/bwrap that is not group- or world-writable.",
   "newSessionSandboxUnavailableVersion": "Unavailable: requires Bubblewrap 0.4.0 or newer (found {version}).",

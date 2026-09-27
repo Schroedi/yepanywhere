@@ -140,6 +140,13 @@ permitted`. The availability result reports this as the `userns-restricted`
 blocker (see [session-sandboxing](session-sandboxing.md#status-and-evidence)).
 Observed 2026-09-27 on an Ubuntu host with every package installed.
 
+The private resolver file is mounted at the resolved target of
+`/etc/resolv.conf`, not at the link itself. systemd-resolved hosts point it
+into `/run/systemd/resolve/`, and the sandbox's fresh `/run` tmpfs lacks that
+directory, so the launch creates it first. Mounting at the link failed every
+Ubuntu launch while the availability probe, which omits this mount, still
+passed ([gap](../gaps/sandbox-availability-probe-omits-launch-mounts.md)).
+
 ## Implementation
 
 `prepareSessionSandbox` remains the single server-side policy owner. For an

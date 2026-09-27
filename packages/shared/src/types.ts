@@ -593,6 +593,7 @@ export interface SessionSandboxEnforcement {
 
 export type SessionSandboxAvailabilityState =
   | "available"
+  /** Older servers only: they refused the sandbox without local auth. */
   | "auth-required"
   | "unsupported-platform"
   | "missing-bubblewrap"
@@ -609,6 +610,14 @@ export interface SessionSandboxAvailability {
   platform: string;
   backend?: "bubblewrap";
   version?: string;
+  /**
+   * Whether local YA requests require authentication: password or desktop
+   * auth on, localhost-open and --auth-disable off. When false, a sandboxed
+   * agent that can reach YA (e.g. with the network firewall off) can drive
+   * it and escape, so clients warn; it never blocks a launch. Older servers
+   * omit it.
+   */
+  localAuthEnforced?: boolean;
   /**
    * Host fix that would clear a failed preflight, when the server can name
    * one. Fixed vocabulary only: never raw probe output, which can carry host

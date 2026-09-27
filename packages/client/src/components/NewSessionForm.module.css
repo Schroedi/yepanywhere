@@ -234,6 +234,12 @@
   overflow-wrap: anywhere;
 }
 
+/* A risk the selected option carries; shown whether or not captions are. */
+.optionWarning {
+  composes: optionCaption;
+  color: var(--warning-color);
+}
+
 .captionedRecapDuration {
   grid-template-columns: minmax(0, 1fr);
 }

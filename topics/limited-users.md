@@ -675,8 +675,8 @@ effort changes made by the superuser.
   operator credential never travels as a header. Basic is refused on plain
   HTTP except loopback.
 - **Localhost-open and auth-disabled** are superuser-only modes; enabling a
-  limited user requires enforced authentication, the same interlock
-  [[session-sandboxing]] already applies.
+  limited user requires enforced authentication. (Session sandboxing once
+  shared this interlock; since 2026-09-27 it only warns.)
 
 ## Authorization
 

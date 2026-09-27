@@ -24,18 +24,15 @@ import { AuthService } from "../src/auth/AuthService.js";
 import { SESSION_COOKIE_NAME } from "../src/auth/routes.js";
 import { createAuthMiddleware } from "../src/middleware/auth.js";
 import {
-  applySessionSandboxAuthRequirement,
   getClaudeSandboxProjectDir,
   getCodexSandboxSessionsDir,
   getSessionSandboxSettingsError,
-  prepareSessionSandbox as prepareSessionSandboxWithoutAuth,
+  prepareSessionSandbox,
   probeSessionSandboxAvailability,
   type SessionSandboxSpawn,
 } from "../src/session-sandbox.js";
 import { ClaudeSessionReader } from "../src/sessions/reader.js";
 import { ClaudeProvider } from "../src/sdk/providers/claude.js";
-import type { AgentProvider } from "../src/sdk/providers/types.js";
-import { Supervisor } from "../src/supervisor/Supervisor.js";
 import type { UrlProjectId } from "@yep-anywhere/shared";
 
 const hostSandboxAvailable =
@@ -49,12 +46,6 @@ async function isTrustedSystemFile(path: string): Promise<boolean> {
 }
 const trustedSystemFalseAvailable = await isTrustedSystemFile("/usr/bin/false");
 const trustedBwrapAvailable = await isTrustedSystemFile("/usr/bin/bwrap");
-
-function prepareSessionSandbox(
-  options: Parameters<typeof prepareSessionSandboxWithoutAuth>[0],
-) {
-  return prepareSessionSandboxWithoutAuth({ ...options, authEnforced: true });
-}
 
 async function runSandboxed(spawnOptions: SessionSandboxSpawn): Promise<void> {
   await new Promise<void>((resolve, reject) => {
@@ -89,7 +80,10 @@ async function runSandboxed(spawnOptions: SessionSandboxSpawn): Promise<void> {
   });
 }
 
-describe("session sandbox", () => {
+// Real-sandbox cases spawn bwrap, unshare, and slirp4netns per launch.
+// Measured 2026-09-27 on an Ubuntu dev host: 0.6-2.2s idle, and two cases
+// timed out at the 5000ms default at load average ~8.7; 4x that limit.
+describe("session sandbox", { timeout: 20_000 }, () => {
   const roots: string[] = [];
   const linuxIt = process.platform === "linux" ? it : it.skip;
   const trustedFalseIt = trustedSystemFalseAvailable ? linuxIt : it.skip;
@@ -125,85 +119,20 @@ describe("session sandbox", () => {
     });
   });
 
-  it("reports and enforces the local authentication prerequisite", async () => {
-    expect(
-      applySessionSandboxAuthRequirement(
-        {
-          state: "available",
-          platform: "linux",
-          backend: "bubblewrap",
-          version: "0.4.0",
-        },
-        false,
-      ),
-    ).toEqual({
-      state: "auth-required",
-      platform: "linux",
-      backend: "bubblewrap",
-      version: "0.4.0",
-    });
-
+  t("launches without local authentication, which only warns", async () => {
     const root = await fixtureRoot();
     const projectPath = join(root, "project");
     await mkdir(projectPath);
-    await expect(
-      prepareSessionSandboxWithoutAuth({
-        level: "project-write",
-        provider: "codex",
-        projectPath,
-      }),
-    ).rejects.toThrow(/requires password or desktop authentication/);
-  });
-
-  t("blocks auth relaxation throughout a pending sandbox launch", async () => {
-    const root = await fixtureRoot();
-    const projectPath = join(root, "project");
-    await mkdir(projectPath);
-    let rejectProviderStart!: (error: Error) => void;
-    let markProviderStartEntered!: () => void;
-    const providerStartEntered = new Promise<void>((resolve) => {
-      markProviderStartEntered = resolve;
-    });
-    const provider = {
-      name: "claude",
-      displayName: "Claude",
-      supportsPermissionMode: true,
-      supportsThinkingToggle: true,
-      supportsSlashCommands: true,
-      supportsSteering: false,
-      isInstalled: async () => true,
-      isAuthenticated: async () => true,
-      getAuthStatus: async () => ({
-        installed: true,
-        authenticated: true,
-        enabled: true,
-      }),
-      getAvailableModels: async () => [],
-      startSession: () => {
-        markProviderStartEntered();
-        return new Promise((_, reject) => {
-          rejectProviderStart = reject;
-        });
-      },
-    } as AgentProvider;
-    const supervisor = new Supervisor({
-      provider,
-      isSessionSandboxAuthEnforced: () => true,
-      sandboxStateRoot: join(root, "state"),
-    });
-
-    const launch = supervisor.startSession(
+    const runtime = await prepareSessionSandbox({
+      level: "project-write",
+      provider: "codex",
       projectPath,
-      { text: "test" },
-      undefined,
-      { sandboxLevel: "project-write" },
-    );
-    await providerStartEntered;
-    expect(supervisor.isAuthenticationRelaxationBlocked()).toBe(true);
-
-    rejectProviderStart(new Error("test provider launch failure"));
-    await expect(launch).rejects.toThrow("test provider launch failure");
-    expect(supervisor.isAuthenticationRelaxationBlocked()).toBe(false);
+      stateRoot: join(root, "state"),
+    });
+    expect(runtime?.enforcement).toMatchObject({
+      effective: "project-write",
+      state: "enforced",
+    });
   });
 
   it("distinguishes missing and untrusted Linux backends", async () => {

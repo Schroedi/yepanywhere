@@ -572,6 +572,10 @@ export function NewSessionForm({
       : "none";
   const effectiveSandboxNetworkFirewall =
     effectiveSandboxLevel === "project-write" && sandboxNetworkFirewall;
+  // Open local access does not block the sandbox; it earns a standing warning.
+  const sandboxLocalAuthOpen =
+    effectiveSandboxLevel === "project-write" &&
+    versionInfo?.sessionSandboxing?.localAuthEnforced === false;
   // Whether this form may offer computer control and send the launch field.
   // The server's select() still decides; this only keeps the offer and the
   // request from disagreeing.
@@ -4182,6 +4186,14 @@ export function NewSessionForm({
             fullWidth
             triggerClassName={styles.leftAlignedTrigger}
           />
+          {sandboxLocalAuthOpen && (
+            <p
+              className={styles.optionWarning}
+              data-new-session-sandbox-local-auth-warning="true"
+            >
+              {t("newSessionSandboxLocalAuthWarning")}
+            </p>
+          )}
         </NewSessionOptionSection>
       )}
       {effectiveSandboxLevel === "project-write" && (

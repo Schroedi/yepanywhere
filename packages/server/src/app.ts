@@ -89,7 +89,6 @@ import type {
 } from "./metadata/index.js";
 import { ToolResultMediaStore } from "./media/ToolResultMediaStore.js";
 import {
-  applySessionSandboxAuthRequirement,
   getClaudeSandboxProjectDir,
   getCodexSandboxSessionsDir,
   getSessionSandboxAvailability,
@@ -619,14 +618,12 @@ function getPreservedRestartWork(
 export function createApp(options: AppOptions): AppResult {
   let artifactServer: ArtifactServer;
   let supervisor!: Supervisor;
-  const isSessionSandboxAuthEnforced = (): boolean =>
+  const isLocalAuthEnforced = (): boolean =>
     options.authDisabled !== true &&
     options.authService !== undefined &&
     !options.authService.isLocalhostOpen() &&
     (options.authService.isEnabled() ||
       Boolean(options.desktopAuthToken || options.desktopBootstrapService));
-  const isAuthenticationRelaxationBlocked = (): boolean =>
-    supervisor.isAuthenticationRelaxationBlocked();
   const getConfiguredSubagentMaxDepth = () => {
     const configured =
       options.serverSettingsService?.getSetting("subagentMaxDepth");
@@ -900,7 +897,6 @@ export function createApp(options: AppOptions): AppResult {
         authDisabled: options.authDisabled,
         desktopAuthToken: options.desktopAuthToken,
         desktopBootstrapService: options.desktopBootstrapService,
-        isAuthenticationRelaxationBlocked,
         limitedUsers: limitedUsersService,
         isLimitedUsersEnabled,
       }),
@@ -1629,7 +1625,6 @@ export function createApp(options: AppOptions): AppResult {
     toolResultMediaStore,
     dirtyFileEditorService: options.dirtyFileEditorService,
     sandboxStateRoot: join(effectiveDataDir, "session-sandboxes"),
-    isSessionSandboxAuthEnforced,
     // Save executor for remote sessions to support resume
     onSessionExecutor: options.sessionMetadataService
       ? (sessionId, executor) =>
@@ -1977,11 +1972,10 @@ export function createApp(options: AppOptions): AppResult {
         options.speechBackendRegistry?.enabledCapabilities() ?? {},
       getClientDefaults: () =>
         options.serverSettingsService?.getSetting("clientDefaults"),
-      getSessionSandboxAvailability: async (availabilityOptions) =>
-        applySessionSandboxAuthRequirement(
-          await getSessionSandboxAvailability(availabilityOptions),
-          isSessionSandboxAuthEnforced(),
-        ),
+      getSessionSandboxAvailability: async (availabilityOptions) => ({
+        ...(await getSessionSandboxAvailability(availabilityOptions)),
+        localAuthEnforced: isLocalAuthEnforced(),
+      }),
       desktopRuntime: options.desktopRuntime,
       providerHostControlAvailable: isProviderRuntimeHostAvailable(),
       isLiveWorktreeMonitoringEnabled: () =>

@@ -10,6 +10,7 @@ import {
   mkdir,
   open,
   readFile,
+  readlink,
   realpath,
   stat,
   writeFile,
@@ -107,7 +108,7 @@ const APPARMOR_USERNS_RESTRICTION_PATH =
 
 type SessionSandboxSetupFailureState = Exclude<
   SessionSandboxAvailabilityState,
-  "available" | "unsupported-platform"
+  "available" | "unsupported-platform" | "auth-required"
 >;
 
 class SessionSandboxSetupError extends Error {
@@ -171,8 +172,6 @@ export interface PrepareSessionSandboxOptions {
   /** Restores the project-private state selected by persisted metadata. */
   stateKey?: string;
   resumeSessionId?: string;
-  /** Whether the local YA control plane requires non-readable credentials. */
-  authEnforced?: boolean;
   /** Test-only override; production intentionally uses trusted system paths. */
   bwrapPath?: string;
   /** Test-only overrides; production intentionally uses trusted system paths. */
@@ -575,15 +574,6 @@ export interface ProbeSessionSandboxAvailabilityOptions {
   usernsRestrictionPath?: string;
 }
 
-export function applySessionSandboxAuthRequirement(
-  availability: SessionSandboxAvailability,
-  authEnforced: boolean,
-): SessionSandboxAvailability {
-  return availability.state === "available" && !authEnforced
-    ? { ...availability, state: "auth-required" }
-    : availability;
-}
-
 /**
  * A host missing Bubblewrap often lacks the network helpers too; name them
  * together so a single install makes the sandbox available.
@@ -905,6 +895,33 @@ function openProjectDirectoryAnchor(
   }
 }
 
+/**
+ * Where the sandbox's private resolver file must be mounted. Hosts that manage
+ * DNS (systemd-resolved on Ubuntu) make /etc/resolv.conf a symlink into /run,
+ * which the sandbox replaces with a fresh tmpfs; mounting at the link would
+ * follow it into a directory that no longer exists. The final target need not
+ * exist on the host either, since the mount creates it.
+ */
+async function resolvConfMountPoint(
+  path = "/etc/resolv.conf",
+): Promise<string> {
+  let current = path;
+  for (let hop = 0; hop < 8; hop++) {
+    let target: string;
+    try {
+      target = await readlink(current);
+    } catch (error) {
+      // EINVAL: not a symlink. ENOENT: a dangling final target.
+      if (hasErrorCode(error, "EINVAL") || hasErrorCode(error, "ENOENT")) {
+        return current;
+      }
+      throw error;
+    }
+    current = resolve(dirname(current), target);
+  }
+  throw sandboxNetworkRuntimeError(`${path} has too many symlink hops`);
+}
+
 function buildBwrapBaseArgs(options: {
   projectPath: string;
   projectSourcePath: string;
@@ -914,7 +931,7 @@ function buildBwrapBaseArgs(options: {
   varTempDir: string;
   privateClaudeJson?: string;
   providerHostRuntimeDir?: string;
-  networkResolvConf?: string;
+  networkResolvConf?: { source: string; mountPoint: string };
 }): string[] {
   const args = [
     "--unshare-all",
@@ -959,7 +976,12 @@ function buildBwrapBaseArgs(options: {
     args.push("--tmpfs", options.providerHostRuntimeDir);
   }
   if (options.networkResolvConf) {
-    args.push("--ro-bind", options.networkResolvConf, "/etc/resolv.conf");
+    const { source, mountPoint } = options.networkResolvConf;
+    // Inside the fresh /run tmpfs the target's directory must be made first.
+    if (isWithin("/run", dirname(mountPoint))) {
+      args.push("--dir", dirname(mountPoint));
+    }
+    args.push("--ro-bind", source, mountPoint);
   }
   args.push(
     "--chdir",
@@ -1063,12 +1085,6 @@ export async function prepareSessionSandbox(
   if (level !== "project-write") {
     throw new Error(`Invalid session sandbox level: ${String(level)}`);
   }
-  if (!options.authEnforced) {
-    throw new SessionSandboxSetupError(
-      "auth-required",
-      "Project-write session sandboxing requires password or desktop authentication, with localhost access and --auth-disable both off.",
-    );
-  }
   if (options.executor) {
     throw new Error(
       "Project-write session sandboxing is not supported for remote executors.",
@@ -1165,7 +1181,9 @@ export async function prepareSessionSandbox(
     varTempDir,
     privateClaudeJson: mountPrivateClaudeJson ? privateClaudeJson : undefined,
     providerHostRuntimeDir,
-    networkResolvConf: networkFirewall ? networkResolvConf : undefined,
+    networkResolvConf: networkFirewall
+      ? { source: networkResolvConf, mountPoint: await resolvConfMountPoint() }
+      : undefined,
   });
   try {
     if (networkTools && blockedDestinations) {
