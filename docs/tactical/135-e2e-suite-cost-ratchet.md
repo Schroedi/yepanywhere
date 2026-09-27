@@ -1,9 +1,9 @@
 # Ratchet down client E2E suite cost
 
-Status: measurement underway 2026-09-27. The test-level policy lives in
+Status: reduction underway 2026-09-27. The test-level policy lives in
 [E2E testing](../../topics/e2e-testing.md); this file tracks the reduction
-sequence and measured evidence. The first reduction slice is under local
-verification; its CI comparison is pending.
+sequence and measured evidence. The first reduction slice passed local
+verification and one full CI job; a comparable CI window remains pending.
 
 The blanket local `pnpm test:e2e` rule first appeared in contributor guidance
 on 2025-12-29, when the suite had about seven specs. Focused Playwright wording
@@ -62,8 +62,27 @@ data, settings link, and route cases each exercise a different relay boundary.
 No relay case was removed in this slice. The correlated route failure was
 addressed through test isolation and a route-specific assertion.
 
-The full CI gate and a comparable post-change CI window remain outstanding.
-Do not infer a job-time or flake-rate improvement from these local runs.
+The first post-change CI job passed 324 cases with no retries in 19m19s, about
+1m20s below the baseline passing-job median. This single run is not a
+steady-state job-time or flake-rate measurement; a comparable window remains
+outstanding. The [ledger](../testing/e2e-ci-cost-ledger.md) records its setup,
+case, and spec timings.
+
+### Second reduction slice — 2026-09-27
+
+| Change | Browser coverage retained | Local evidence |
+| --- | --- | --- |
+| Start the three-host relay harness once for both transport modes. The legacy disconnect case waits for the stopped server to exit, then the mux setup restarts only that host. | All 14 secure coexistence cases still run against real hosts and relay transport in both modes. | Focused run passed 14/14 in 1.1m including the shared E2E build. The historical setup timeout occurred only under full-suite load, so [the gap](../../gaps/multi-host-e2e-setup-timeout.md) remains open for CI evidence. |
+| Share one Vite server across the three slash-completion cases, closing it after the spec. | Provider-owned completion, process restart, and goal toggling retain separate fresh pages. | Focused run passed 3/3 in 50.8s including the shared E2E build; reported case attempts totaled 17.8s. A comparable CI run is needed to quantify the setup savings. |
+| Add named Playwright steps around the async-question scroll, Inbox menu, and older-server fallback checkpoints. | Its live stream, focus, scroll, transport, responsive, and real typing checks remain intact. | The final focused run passed in 33.2s. The edit keeps only useful checkpoints to avoid a thousand-line formatting diff. Splitting into independent cases would duplicate stateful setup and likely make this spec slower. |
+| Remove five request-only Files browser cases. Existing server route tests already covered text content, download headers, traversal rejection, and missing files; a server test now covers the JSON MIME assertion. | The two actual browser cases still verify large HTML iframe behavior and active-content downloads. | This removes five listed browser cases with little expected wall-time gain: their baseline case attempts were about 0.01–0.31s each. |
+
+The [artifact-grant protected-path alias gap](../../topics/active-content-security.md)
+was also a real product defect exposed by local tests: a lexical comparison
+could misclassify an owned path when an ancestor had a filesystem alias.
+Ownership now compares resolved paths and the server regression covers an
+existing alias and a future child. This is a correctness fix, not a suite
+speed change.
 
 ### 1 — establish a comparable measurement ledger
 

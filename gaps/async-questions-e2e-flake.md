@@ -24,3 +24,10 @@ The first reduced local run passed in 35.2s; three further focused repeats
 passed in 29.6s, 29.7s, and 30.2s. The intermittent final capability fallback
 failure has not been isolated, and a CI retry trend is not yet available; keep
 this gap open until those are checked.
+
+The follow-up reduction labels the scroll, Inbox menu, and older-server
+fallback checkpoints with Playwright steps, so failures at those known weak
+points identify the phase in the report. The flow still shares the same test
+server and page; this diagnostic change does not itself resolve the timing
+dependency. The final focused run passed in 33.2s; CI retry history remains
+the closure condition.

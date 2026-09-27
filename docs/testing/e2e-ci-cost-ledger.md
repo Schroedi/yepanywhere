@@ -118,8 +118,26 @@ fix waits for the receipt and draft clearance, removes this test's commands
 after each attempt, and checks the destination heading in the two route
 cases. A focused component test keeps the empty-history assertion. Two
 focused repeats of each of the three affected cases passed on one shared
-test server after the cleanup correction. A full CI run after the change is
-still needed to confirm the retry trend.
+test server after the cleanup correction. The first full CI run after the
+change passed without retries; more runs are needed to assess the trend.
+
+### First post-change CI sample
+
+[Run 36324063569](https://github.com/kzahel/yepanywhere/actions/runs/36324063569)
+on the first reduction slice (`f7193eee7`) passed on 2026-09-27. The job
+listed 332 cases: 324 passed, eight skipped, and none retried. The E2E job
+took 19m19s; its test step took 18m46s, including 1m37s before Playwright
+began cases and 17m09s thereafter. The baseline passing-job medians were
+20m39s, 20m06s, 1m49s, and 18m16s respectively. The async-question case
+reported about 1.1m versus its 72s baseline median; the slash-completion spec
+reported 43.1s versus 48.7s; multi-host reported 36.2s versus 47.0s.
+
+This is one passing job at a different revision and case count, so the
+differences are observations, not a measured steady-state gain or flake-rate
+change. The second slice shares startup in slash completion and multi-host,
+labels async-question phases, and removes five API-only Files cases. Compare
+its CI job with this run and with another fixed passing-job window after the
+second slice lands.
 
 ### Collection method and next comparison
 

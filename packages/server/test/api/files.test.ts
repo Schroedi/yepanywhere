@@ -901,6 +901,21 @@ describe("Files API", () => {
       expect(text).toBe('console.log("Hello, world!");');
     });
 
+    it("returns raw JSON with its content-type", async () => {
+      const { app } = createApp({
+        sdk: mockSdk,
+        projectsDir: join(testDir, "sessions"),
+      });
+
+      const res = await app.request(
+        `/api/projects/${projectId}/files/raw?path=data.json`,
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("application/json");
+      expect(await res.text()).toBe('{"key": "value"}');
+    });
+
     it("returns raw binary file with correct content-type", async () => {
       const { app } = createApp({
         sdk: mockSdk,

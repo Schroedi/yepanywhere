@@ -268,13 +268,15 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
         .click();
       await expect(composer).toBeFocused();
       await expect(composer).toHaveValue("Keep my main draft");
-      await expect
-        .poll(() =>
-          scroller.evaluate(
-            (el) => el.scrollHeight - el.scrollTop - el.clientHeight,
-          ),
-        )
-        .toBeLessThan(3);
+      await test.step(`${viewport.name}: reply keeps the transcript pinned`, async () => {
+        await expect
+          .poll(() =>
+            scroller.evaluate(
+              (el) => el.scrollHeight - el.scrollTop - el.clientHeight,
+            ),
+          )
+          .toBeLessThan(3);
+      });
       expect(sends.at(-1)).toMatchObject({
         message: `> ${questions[0]!.title}\n\n${questions[0]!.options![1]}`,
         messageMetadata: { deliveryIntent: "steer" },
@@ -651,7 +653,9 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
       await alpha
         .getByRole("button", { name: /^3 questions/ })
         .click({ button: "right" });
-      await expect(menu).toBeVisible();
+      await test.step(`${viewport.name}: Inbox question menu opens`, async () => {
+        await expect(menu).toBeVisible();
+      });
       await menu
         .getByRole("button", { name: questions[1]!.title, exact: true })
         .click();
@@ -783,18 +787,22 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
     ).toHaveCount(0);
     await page.goto(`${origin}/projects/${projectId}/sessions/${sessionId}`);
     await expect(composer).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator("[data-async-question-reply]")).not.toHaveCount(
-      0,
-    );
+    await test.step("Older server keeps structured replies without the capability", async () => {
+      await expect(page.locator("[data-async-question-reply]")).not.toHaveCount(
+        0,
+      );
+    });
 
     // Plain Markdown from an older server never acquires guessed controls.
     structured = false;
     await page.goto(`${origin}/projects/${projectId}/sessions/${sessionId}`);
     await expect(composer).toBeVisible();
-    await expect(page.locator("[data-async-question-reply]")).toHaveCount(0);
-    await expect(
-      toolbar.getByRole("button", { name: /question/i }),
-    ).toHaveCount(0);
+    await test.step("Older server leaves plain Markdown without reply controls", async () => {
+      await expect(page.locator("[data-async-question-reply]")).toHaveCount(0);
+      await expect(
+        toolbar.getByRole("button", { name: /question/i }),
+      ).toHaveCount(0);
+    });
     expect(browserErrors).toEqual([]);
   } finally {
     replyGate.release?.();

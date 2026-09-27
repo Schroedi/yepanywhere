@@ -12,3 +12,13 @@ contended startup step or establish an evidence-backed setup deadline that is
 stable under the supported full-suite workload.
 
 Found 2026-09-04 while running full-suite verification.
+
+## Follow-up 2026-09-27
+
+The two transport modes now share one three-host startup. The legacy
+disconnect test waits for the stopped host to exit, and mux setup restarts
+only that host. An isolated run passed all 14 cases in 1.1 minutes including
+the shared E2E build. This removes one full startup from the spec, but does
+not establish that the remaining startup meets its deadline under full-suite
+load. Keep this gap open until a full CI run exercises the new setup and the
+contended stage is measured if it still times out.
