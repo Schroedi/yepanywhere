@@ -432,7 +432,10 @@ describe("GlobalSessionsPage", () => {
     ).toBeUndefined();
   });
 
-  it("acknowledges sequential search typing while provenance filtering and the catalog update", () => {
+  // The browser test in e2e/all-sessions-search.spec.ts measures key-to-frame
+  // latency. fireEvent also flushes deferred React work, so its return time
+  // cannot measure when the input acknowledged the key.
+  it("preserves sequential search typing while provenance filtering and the catalog update", () => {
     versionState.version = {
       capabilities: [SESSION_CREATION_PROVENANCE_CAPABILITY],
     };
@@ -454,11 +457,9 @@ describe("GlobalSessionsPage", () => {
     let typed = "";
     for (const char of "source") {
       typed += char;
-      const started = performance.now();
       fireEvent.keyDown(input, { key: char });
       fireEvent.change(input, { target: { value: typed } });
       expect(input.value).toBe(typed);
-      expect(performance.now() - started).toBeLessThan(100);
       sessionCollectionState.records = [
         ...sessionCollectionState.records,
         makeSessionRecord(`desktop-${typed}`, {
