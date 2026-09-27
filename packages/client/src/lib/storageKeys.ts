@@ -100,6 +100,8 @@ export const UI_KEYS = {
   sessionThinkingVisible: "yep-anywhere-session-thinking-visible",
   cacheMissEventOutcomeFilter: "yep-anywhere-cache-miss-event-outcome-filter",
   settingsSearchMatchValues: "yep-anywhere-settings-search-match-values",
+  newSessionAdvancedOptionsExpanded:
+    "yep-anywhere-new-session-advanced-options-expanded",
   sessionThinkingLatestOnly: "yep-anywhere-session-thinking-latest-only",
   sessionLoadingProgress: "yep-anywhere-session-loading-progress-enabled",
   sessionDomLinger: "yep-anywhere-session-dom-linger-enabled",

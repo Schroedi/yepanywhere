@@ -70,6 +70,7 @@ import { useI18n } from "../i18n";
 import { formatFileSize } from "../lib/formatFileSize";
 import { parseComposerSlashCommand } from "../lib/slashCommands";
 import { takePrebootComposer } from "../lib/prebootComposer";
+import { UI_KEYS } from "../lib/storageKeys";
 import {
   getEffortLevelLabel,
   getEffortLevelOptions,
@@ -232,10 +233,6 @@ import { ModelSubscriptionUsage } from "./ModelSubscriptionUsage";
 import { RecapAfterSecondsControl } from "./RecapAfterSecondsControl";
 import { SpeechControlMenu } from "./SpeechControlMenu";
 import {
-  ShowThinkingControls,
-  ThinkingControlsPanel,
-} from "./ThinkingControls";
-import {
   VoiceInputButton,
   type SpeechCycleSettlement,
   type SpeechPendingKind,
@@ -365,10 +362,10 @@ function NewSessionOptionSection({
   return (
     <div className={className} title={showCaption ? undefined : caption}>
       <h3>{title}</h3>
+      {children}
       {showCaption && caption && (
         <p className={styles.optionCaption}>{caption}</p>
       )}
-      {children}
     </div>
   );
 }
@@ -443,6 +440,11 @@ export function NewSessionForm({
   const [fullPane, setFullPane] = useState(false);
   const [fullPaneWide, setFullPaneWide] = useState(false);
   const [showOptionCaptions, setShowOptionCaptions] = useState(false);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(
+    () =>
+      localStorage.getItem(UI_KEYS.newSessionAdvancedOptionsExpanded) ===
+      "true",
+  );
   const [fullPaneBaseWidth, setFullPaneBaseWidth] = useState<number | null>(
     null,
   );
@@ -1003,7 +1005,6 @@ export function NewSessionForm({
   // Fetch remote executors
   const { executors: remoteExecutors, loading: executorsLoading } =
     useRemoteExecutors();
-  const launchableProviders = getLaunchableProviders(providers);
   const resolvedPlaceholder = placeholder ?? t("newSessionPlaceholder");
   const modeLabels: Record<PermissionMode, string> = {
     default: t("modeDefaultLabel"),
@@ -1028,6 +1029,18 @@ export function NewSessionForm({
   const promptSuggestionModeLabels: Record<PromptSuggestionMode, string> = {
     off: t("promptSuggestionModeOff"),
     native: t("promptSuggestionModeNative"),
+  };
+  const providerDescriptions: Record<ProviderName, string> = {
+    claude: t("newSessionProviderDescriptionClaude"),
+    "claude-gateway": t("newSessionProviderDescriptionClaudeGateway"),
+    "claude-ollama": t("newSessionProviderDescriptionClaudeOllama"),
+    codex: t("newSessionProviderDescriptionCodex"),
+    "codex-oss": t("newSessionProviderDescriptionCodexOss"),
+    gemini: t("newSessionProviderDescriptionGemini"),
+    "gemini-acp": t("newSessionProviderDescriptionGeminiAcp"),
+    grok: t("newSessionProviderDescriptionGrok"),
+    opencode: t("newSessionProviderDescriptionOpenCode"),
+    pi: t("newSessionProviderDescriptionPi"),
   };
   const promptSuggestionModeDescriptions: Record<PromptSuggestionMode, string> =
     {
@@ -3494,34 +3507,6 @@ export function NewSessionForm({
               />
             }
           />
-          {/* A locked model keeps the chip's badge and loses its menu, so the
-              composer still says what will run without offering a switch. */}
-          {selectedProvider &&
-            (launchLock.model ? (
-              <ProviderBadge
-                provider={selectedProvider}
-                model={selectedModel ?? undefined}
-              />
-            ) : (
-              modelOptions.length > 0 && (
-                <FilterDropdown
-                  triggerVariant="chip"
-                  panelVariant="model"
-                  label={t("newSessionModelTitle")}
-                  options={modelOptions}
-                  selected={selectedModel ? [selectedModel] : []}
-                  onChange={handleModelSelect}
-                  multiSelect={false}
-                  triggerContent={
-                    <ProviderBadge
-                      provider={selectedProvider}
-                      model={selectedModel ?? undefined}
-                    />
-                  }
-                  triggerTitle={t("composerModelChipTitle")}
-                />
-              )
-            ))}
           {!compact && !composerMuted && (
             <FullPaneComposerToggle
               expanded={fullPane}
@@ -3749,53 +3734,65 @@ export function NewSessionForm({
     ) : null;
 
   const providerSection =
-    launchableProviders.length > 1 ? (
+    providers.length > 1 ? (
       <NewSessionOptionSection
-        className="new-session-provider-section"
+        className={`new-session-provider-section ${styles.compactProviderSection}`}
         title={sessionDefaultCopy.provider.title}
         caption={sessionDefaultCopy.provider.description}
         showCaption={showOptionCaptions}
       >
-        <div className="provider-options" aria-busy={providersStale}>
-          {providers.map((p) => {
-            const isLaunchable = p.installed;
-            const isSelected = selectedProvider === p.name;
-            return (
-              <button
-                key={p.name}
-                type="button"
-                className={`provider-option ${isSelected ? "selected" : ""} ${!isLaunchable ? "disabled" : ""}`}
-                onClick={() => isLaunchable && handleProviderSelect(p.name)}
-                disabled={isStarting || !isLaunchable}
-                title={
-                  !isLaunchable
-                    ? t("newSessionProviderUnavailable", {
-                        provider: p.displayName,
-                        reason: t("newSessionProviderNotInstalled"),
-                      })
-                    : !p.authenticated && !p.enabled
-                      ? t("newSessionProviderAuthenticationPending", {
-                          provider: p.displayName,
-                        })
-                      : undefined
-                }
-              >
-                <span className={`provider-option-dot provider-${p.name}`} />
-                <div className="provider-option-content">
-                  <span className="provider-option-label">{p.displayName}</span>
-                  {!isLaunchable ? (
-                    <span className="provider-option-status">
-                      {t("newSessionProviderStatusNotInstalled")}
+        <div aria-busy={providersStale}>
+          <FilterDropdown<ProviderName>
+            label={sessionDefaultCopy.provider.title}
+            options={providers.map((provider) => ({
+              value: provider.name,
+              label: provider.displayName,
+              icon: (
+                <span
+                  className={`provider-option-dot provider-${provider.name}`}
+                />
+              ),
+              description: [
+                providerDescriptions[provider.name],
+                !provider.installed
+                  ? t("newSessionProviderStatusNotInstalled")
+                  : !provider.authenticated && !provider.enabled
+                    ? t("newSessionProviderStatusAuthenticationNeeded")
+                    : null,
+              ]
+                .filter(Boolean)
+                .join(" · "),
+              disabled: !provider.installed,
+            }))}
+            selected={selectedProvider ? [selectedProvider] : []}
+            onChange={([provider]) => {
+              if (provider && !isStarting) handleProviderSelect(provider);
+            }}
+            multiSelect={false}
+            fullWidth
+            triggerContent={
+              selectedProvider ? (
+                <span className={styles.selectedChoice}>
+                  <span
+                    className={`provider-option-dot provider-${selectedProvider}`}
+                    aria-hidden="true"
+                  />
+                  <span className={styles.selectedChoiceText}>
+                    <span>
+                      {selectedProviderInfo?.displayName ?? selectedProvider}
                     </span>
-                  ) : !p.authenticated && !p.enabled ? (
-                    <span className="provider-option-status">
-                      {t("newSessionProviderStatusAuthenticationNeeded")}
-                    </span>
-                  ) : null}
-                </div>
-              </button>
-            );
-          })}
+                    {selectedProviderInfo &&
+                      !selectedProviderInfo.authenticated &&
+                      !selectedProviderInfo.enabled && (
+                        <span className={styles.choiceStatus}>
+                          {t("newSessionProviderStatusAuthenticationNeeded")}
+                        </span>
+                      )}
+                  </span>
+                </span>
+              ) : undefined
+            }
+          />
         </div>
       </NewSessionOptionSection>
     ) : null;
@@ -3816,6 +3813,21 @@ export function NewSessionForm({
           multiSelect={false}
           placeholder={t("newSessionModelPlaceholder")}
           fullWidth
+          triggerClassName={styles.leftAlignedTrigger}
+          triggerContent={
+            selectedProvider && selectedModel ? (
+              <span className={styles.selectedChoice}>
+                <ProviderBadge
+                  provider={selectedProvider}
+                  model={selectedModel}
+                />
+                <span className={styles.selectedChoiceText}>
+                  {modelOptions.find((option) => option.value === selectedModel)
+                    ?.label ?? selectedModel}
+                </span>
+              </span>
+            ) : undefined
+          }
         />
       </NewSessionOptionSection>
     ) : null;
@@ -3859,43 +3871,101 @@ export function NewSessionForm({
       caption={sessionDefaultCopy.showThinking.description}
       showCaption={showOptionCaptions}
     >
-      <ShowThinkingControls
-        value={showThinking}
-        onChange={(value) => setShowThinking(value)}
-        t={t}
-        showLabel={false}
+      <FilterDropdown<"default" | "on" | "off">
+        label={sessionDefaultCopy.showThinking.title}
+        options={[
+          { value: "default", label: t("showThinkingDefault") },
+          { value: "on", label: t("showThinkingOn") },
+          { value: "off", label: t("showThinkingOff") },
+        ]}
+        selected={[showThinking]}
+        onChange={([value]) => setShowThinking(value ?? "default")}
+        multiSelect={false}
+        fullWidth
+        triggerClassName={styles.leftAlignedTrigger}
       />
     </NewSessionOptionSection>
   );
-  const thinkingSection = showThinkingControls ? (
+  const effortSection = showThinkingControls ? (
     <NewSessionOptionSection
-      className="new-session-helper-section new-session-thinking-section"
-      title={sessionDefaultCopy.thinking.title}
+      className={`new-session-helper-section ${styles.effortSection}`}
+      title={t("newSessionThinkingEffortTitle")}
       caption={sessionDefaultCopy.thinking.description}
       showCaption={showOptionCaptions}
     >
-      <ThinkingControlsPanel
-        mode={effectiveThinkingMode}
-        modeOptions={thinkingModeOptions}
-        onSetMode={(nextMode) => {
+      <FilterDropdown<string>
+        label={t("newSessionThinkingEffortTitle")}
+        options={[
+          ...thinkingModeOptions
+            .filter((option) => option !== "on")
+            .map((option) => ({
+              value: option,
+              label: t(
+                option === "off"
+                  ? "modelSettingsThinkingOffLabel"
+                  : "modelSettingsThinkingAutoLabel",
+              ),
+              icon: <span className={`mode-option-dot thinking-${option}`} />,
+            })),
+          ...(thinkingModeOptions.includes("on")
+            ? effortOptions.map((option) => ({
+                value: `on:${option.value}`,
+                label: option.label,
+                icon: (
+                  <span
+                    className={`model-switch-indicator-dot tone-${option.value}`}
+                  />
+                ),
+                description: showOptionCaptions
+                  ? option.description
+                  : undefined,
+              }))
+            : []),
+        ]}
+        selected={[
+          effectiveThinkingMode === "on"
+            ? `on:${effectiveEffortLevel}`
+            : effectiveThinkingMode,
+        ]}
+        onChange={([selection]) => {
+          if (!selection || isStarting) return;
           hasUserCustomizedDefaultsRef.current = true;
-          setSelectedThinkingMode(nextMode);
-        }}
-        level={effectiveEffortLevel}
-        effortOptions={effortOptions}
-        onSetEffort={(nextEffort) => {
-          hasUserCustomizedDefaultsRef.current = true;
-          setSelectedEffortLevel(nextEffort);
-        }}
-        onSetEffortMode={(nextEffort) => {
-          hasUserCustomizedDefaultsRef.current = true;
-          setSelectedEffortLevel(nextEffort);
+          if (selection === "off" || selection === "auto") {
+            setSelectedThinkingMode(selection);
+            return;
+          }
+          const nextEffort = effortOptions.find(
+            (option) => selection === `on:${option.value}`,
+          );
+          if (!nextEffort) return;
+          setSelectedEffortLevel(nextEffort.value);
           setSelectedThinkingMode("on");
         }}
-        showThinkingControl={false}
-        provider={selectedProvider ?? undefined}
-        t={t}
-        className="thinking-controls-panel--inline new-session-thinking-controls"
+        multiSelect={false}
+        fullWidth
+        triggerContent={
+          <span className={styles.selectedChoice}>
+            <span
+              className={
+                effectiveThinkingMode === "on"
+                  ? `model-switch-indicator-dot tone-${effectiveEffortLevel}`
+                  : `mode-option-dot thinking-${effectiveThinkingMode}`
+              }
+              aria-hidden="true"
+            />
+            <span className={styles.selectedChoiceText}>
+              {effectiveThinkingMode === "on"
+                ? (effortOptions.find(
+                    (option) => option.value === effectiveEffortLevel,
+                  )?.label ?? effectiveEffortLevel)
+                : t(
+                    effectiveThinkingMode === "off"
+                      ? "modelSettingsThinkingOffLabel"
+                      : "modelSettingsThinkingAutoLabel",
+                  )}
+            </span>
+          </span>
+        }
       />
     </NewSessionOptionSection>
   ) : null;
@@ -3906,30 +3976,40 @@ export function NewSessionForm({
       caption={getRecapModeDescription(selectedRecapMode, t, recapAfterSeconds)}
       showCaption={showOptionCaptions}
     >
-      <div className="new-session-helper-options">
-        {availableRecapModes.map((modeValue) => (
-          <button
-            key={modeValue}
-            type="button"
-            className={`new-session-helper-option ${
-              selectedRecapMode === modeValue ? "selected" : ""
-            }`}
-            onClick={() => {
-              hasUserCustomizedDefaultsRef.current = true;
-              setSelectedRecapMode(modeValue);
-            }}
-            disabled={
-              isStarting ||
-              (effectiveSandboxLevel === "project-write" &&
-                modeValue === "side-session")
-            }
-            title={getRecapModeDescription(modeValue, t, recapAfterSeconds)}
-          >
-            <span className={`mode-option-dot recap-${modeValue}`} />
-            <span>{recapModeLabels[modeValue]}</span>
-          </button>
-        ))}
-      </div>
+      <FilterDropdown<RecapMode>
+        label={sessionDefaultCopy.recap.title}
+        options={availableRecapModes.map((modeValue) => ({
+          value: modeValue,
+          label: recapModeLabels[modeValue],
+          icon: <span className={`mode-option-dot recap-${modeValue}`} />,
+          description: showOptionCaptions
+            ? getRecapModeDescription(modeValue, t, recapAfterSeconds)
+            : undefined,
+          disabled:
+            isStarting ||
+            (effectiveSandboxLevel === "project-write" &&
+              modeValue === "side-session"),
+        }))}
+        selected={[selectedRecapMode]}
+        onChange={([value]) => {
+          if (isStarting) return;
+          hasUserCustomizedDefaultsRef.current = true;
+          setSelectedRecapMode(value ?? "off");
+        }}
+        multiSelect={false}
+        fullWidth
+        triggerContent={
+          <span className={styles.selectedChoice}>
+            <span
+              className={`mode-option-dot recap-${selectedRecapMode}`}
+              aria-hidden="true"
+            />
+            <span className={styles.selectedChoiceText}>
+              {recapModeLabels[selectedRecapMode]}
+            </span>
+          </span>
+        }
+      />
       {selectedRecapMode !== "off" && (
         <RecapAfterSecondsControl
           value={recapAfterSeconds}
@@ -3969,6 +4049,7 @@ export function NewSessionForm({
         multiSelect={false}
         placeholder={t("helperSideModelCheapest")}
         fullWidth
+        triggerClassName={styles.leftAlignedTrigger}
       />
     </NewSessionOptionSection>
   ) : null;
@@ -3979,26 +4060,37 @@ export function NewSessionForm({
       caption={promptSuggestionModeDescriptions[selectedPromptSuggestionMode]}
       showCaption={showOptionCaptions}
     >
-      <div className="new-session-helper-options">
-        {availablePromptSuggestionModes.map((modeValue) => (
-          <button
-            key={modeValue}
-            type="button"
-            className={`new-session-helper-option ${
-              selectedPromptSuggestionMode === modeValue ? "selected" : ""
-            }`}
-            onClick={() => {
-              hasUserCustomizedDefaultsRef.current = true;
-              setSelectedPromptSuggestionMode(modeValue);
-            }}
-            disabled={isStarting}
-            title={promptSuggestionModeDescriptions[modeValue]}
-          >
-            <span className={`mode-option-dot suggestion-${modeValue}`} />
-            <span>{promptSuggestionModeLabels[modeValue]}</span>
-          </button>
-        ))}
-      </div>
+      <FilterDropdown<PromptSuggestionMode>
+        label={sessionDefaultCopy.suggestions.title}
+        options={availablePromptSuggestionModes.map((modeValue) => ({
+          value: modeValue,
+          label: promptSuggestionModeLabels[modeValue],
+          icon: <span className={`mode-option-dot suggestion-${modeValue}`} />,
+          description: showOptionCaptions
+            ? promptSuggestionModeDescriptions[modeValue]
+            : undefined,
+          disabled: isStarting,
+        }))}
+        selected={[selectedPromptSuggestionMode]}
+        onChange={([value]) => {
+          if (isStarting) return;
+          hasUserCustomizedDefaultsRef.current = true;
+          setSelectedPromptSuggestionMode(value ?? "off");
+        }}
+        multiSelect={false}
+        fullWidth
+        triggerContent={
+          <span className={styles.selectedChoice}>
+            <span
+              className={`mode-option-dot suggestion-${selectedPromptSuggestionMode}`}
+              aria-hidden="true"
+            />
+            <span className={styles.selectedChoiceText}>
+              {promptSuggestionModeLabels[selectedPromptSuggestionMode]}
+            </span>
+          </span>
+        }
+      />
     </NewSessionOptionSection>
   ) : null;
   const permissionSection = supportsPermissionMode ? (
@@ -4007,50 +4099,62 @@ export function NewSessionForm({
       title={sessionDefaultCopy.permission.title}
       showCaption={showOptionCaptions}
     >
-      <div className="mode-options">
-        {permissionModeOptions.map((m) => (
-          <button
-            key={m}
-            type="button"
-            className={`mode-option ${effectivePermissionMode === m ? "selected" : ""}`}
-            onClick={() => handleModeSelect(m)}
-            disabled={isStarting}
-          >
-            <span className={`mode-option-dot mode-${m}`} />
-            <div className="mode-option-content">
-              <span className="mode-option-label">{modeLabels[m]}</span>
-              <span className="mode-option-desc">{modeDescriptions[m]}</span>
-            </div>
-          </button>
-        ))}
-      </div>
+      <FilterDropdown<PermissionMode>
+        label={sessionDefaultCopy.permission.title}
+        options={permissionModeOptions.map((permissionMode) => ({
+          value: permissionMode,
+          label: modeLabels[permissionMode],
+          icon: <span className={`mode-option-dot mode-${permissionMode}`} />,
+          description: modeDescriptions[permissionMode],
+          disabled: isStarting,
+        }))}
+        selected={[effectivePermissionMode]}
+        onChange={([value]) => {
+          if (value && !isStarting) handleModeSelect(value);
+        }}
+        multiSelect={false}
+        fullWidth
+        triggerContent={
+          <span className={styles.selectedChoice}>
+            <span
+              className={`mode-option-dot mode-${effectivePermissionMode}`}
+              aria-hidden="true"
+            />
+            <span className={styles.selectedChoiceText}>
+              {modeLabels[effectivePermissionMode]}
+            </span>
+          </span>
+        }
+      />
     </NewSessionOptionSection>
   ) : null;
   const sandboxSection = canConfigureSessionSandbox ? (
-    <NewSessionOptionSection
-      className="new-session-helper-section new-session-sandbox-section"
-      title={sessionDefaultCopy.sandbox.title}
-      caption={[
-        sessionDefaultCopy.sandbox.description,
-        sessionDefaultCopy.sandboxFirewall.description,
-      ].join(" ")}
-      showCaption={showOptionCaptions}
-    >
-      {/* A limited user cannot clear the sandbox, so the toggle is withheld;
-          the fixed-launch caption states that it is always on. The firewall
-          below stays theirs, because the launch route still honors it. */}
+    <>
       {!launchLock.limited && (
-        <label className="settings-item">
-          <div className="settings-item-info">
-            <strong>{t("newSessionSandboxLabel")}</strong>
-          </div>
-          <input
-            type="checkbox"
-            checked={sandboxLevel === "project-write"}
-            disabled={isStarting}
-            onChange={(event) => {
+        <NewSessionOptionSection
+          className="new-session-helper-section new-session-sandbox-section"
+          title={sessionDefaultCopy.sandbox.title}
+          caption={sessionDefaultCopy.sandbox.description}
+          showCaption={showOptionCaptions}
+        >
+          <FilterDropdown<SessionSandboxLevel>
+            label={sessionDefaultCopy.sandbox.title}
+            options={[
+              { value: "none", label: t("recapModeOff"), disabled: isStarting },
+              {
+                value: "project-write",
+                label: t("newSessionSandboxLabel"),
+                description: showOptionCaptions
+                  ? sessionDefaultCopy.sandbox.description
+                  : undefined,
+                disabled: isStarting,
+              },
+            ]}
+            selected={[sandboxLevel]}
+            onChange={([value]) => {
+              if (isStarting) return;
+              const enabled = value === "project-write";
               hasUserCustomizedDefaultsRef.current = true;
-              const enabled = event.currentTarget.checked;
               setSandboxLevel(enabled ? "project-write" : "none");
               if (enabled) {
                 setSandboxNetworkFirewall(true);
@@ -4059,28 +4163,45 @@ export function NewSessionForm({
                 setSelectedRecapMode("off");
               }
             }}
-            aria-label={t("newSessionSandboxLabel")}
+            multiSelect={false}
+            fullWidth
+            triggerClassName={styles.leftAlignedTrigger}
           />
-        </label>
+        </NewSessionOptionSection>
       )}
-      <label className="settings-item">
-        <div className="settings-item-info">
-          <strong>{sessionDefaultCopy.sandboxFirewall.title}</strong>
-        </div>
-        <input
-          type="checkbox"
-          checked={
-            effectiveSandboxLevel === "project-write" && sandboxNetworkFirewall
-          }
-          disabled={isStarting || effectiveSandboxLevel !== "project-write"}
-          onChange={(event) => {
-            hasUserCustomizedDefaultsRef.current = true;
-            setSandboxNetworkFirewall(event.currentTarget.checked);
-          }}
-          aria-label={sessionDefaultCopy.sandboxFirewall.title}
-        />
-      </label>
-    </NewSessionOptionSection>
+      {effectiveSandboxLevel === "project-write" && (
+        <NewSessionOptionSection
+          className="new-session-helper-section new-session-sandbox-firewall-section"
+          title={sessionDefaultCopy.sandboxFirewall.title}
+          caption={sessionDefaultCopy.sandboxFirewall.description}
+          showCaption={showOptionCaptions}
+        >
+          <FilterDropdown<"on" | "off">
+            label={sessionDefaultCopy.sandboxFirewall.title}
+            options={[
+              { value: "on", label: t("showThinkingOn"), disabled: isStarting },
+              {
+                value: "off",
+                label: t("showThinkingOff"),
+                description: showOptionCaptions
+                  ? sessionDefaultCopy.sandboxFirewall.description
+                  : undefined,
+                disabled: isStarting,
+              },
+            ]}
+            selected={[sandboxNetworkFirewall ? "on" : "off"]}
+            onChange={([value]) => {
+              if (isStarting) return;
+              hasUserCustomizedDefaultsRef.current = true;
+              setSandboxNetworkFirewall(value === "on");
+            }}
+            multiSelect={false}
+            fullWidth
+            triggerClassName={styles.leftAlignedTrigger}
+          />
+        </NewSessionOptionSection>
+      )}
+    </>
   ) : null;
   // What this account settles, stated where the withheld pickers would sit.
   // An effort this client cannot name is stated as stored.
@@ -4108,9 +4229,29 @@ export function NewSessionForm({
     fixedLaunchSection ||
       (showProviderPicker && providerSection) ||
       (showModelPicker && modelSection) ||
-      thinkingSection ||
-      permissionSection,
+      effortSection,
   );
+  const activeAdvancedOptions = [
+    effectivePermissionMode !== "default"
+      ? `${sessionDefaultCopy.permission.title}: ${modeLabels[effectivePermissionMode]}`
+      : null,
+    showThinking !== "default"
+      ? `${sessionDefaultCopy.showThinking.title}: ${showThinking === "on" ? t("showThinkingOn") : t("showThinkingOff")}`
+      : null,
+    selectedRecapMode !== "off"
+      ? `${sessionDefaultCopy.recap.title}: ${recapModeLabels[selectedRecapMode]}`
+      : null,
+    selectedPromptSuggestionMode !== "off"
+      ? `${sessionDefaultCopy.suggestions.title}: ${promptSuggestionModeLabels[selectedPromptSuggestionMode]}`
+      : null,
+    effectiveSandboxLevel === "project-write"
+      ? sessionDefaultCopy.sandbox.title
+      : null,
+    computerSelected ? t("computerSessionOptIn") : null,
+    effectiveExecutor
+      ? `${t("newSessionRunOnTitle")}: ${effectiveExecutor}`
+      : null,
+  ].filter((label): label is string => label !== null);
 
   // Compact mode: just the input area, no header or mode selector
   if (compact) {
@@ -4188,16 +4329,38 @@ export function NewSessionForm({
             {fixedLaunchSection}
             {showProviderPicker && providerSection}
             {showModelPicker && modelSection}
-            {thinkingSection}
-            {permissionSection}
+            {effortSection}
           </div>
         )}
-        <div
-          className={`${styles.secondaryOptions} ${styles.optionsWithCaptionToggle}${
-            isProjectChooserExpanded ? ` ${styles.secondaryOptionsHidden}` : ""
-          }`}
-          data-new-session-secondary-options="true"
-        >
+        <div className={styles.advancedSection}>
+          <button
+            type="button"
+            className={styles.advancedToggle}
+            aria-expanded={showAdvancedOptions}
+            aria-controls="new-session-advanced-options"
+            onClick={() => {
+              const expanded = !showAdvancedOptions;
+              setShowAdvancedOptions(expanded);
+              localStorage.setItem(
+                UI_KEYS.newSessionAdvancedOptionsExpanded,
+                String(expanded),
+              );
+            }}
+          >
+            <span>
+              {t(
+                showAdvancedOptions
+                  ? "newSessionHideAdvancedOptions"
+                  : "newSessionShowAdvancedOptions",
+              )}
+            </span>
+            <span aria-hidden="true">{showAdvancedOptions ? "▴" : "▾"}</span>
+          </button>
+          {!showAdvancedOptions && activeAdvancedOptions.length > 0 && (
+            <span className={styles.advancedSummary}>
+              {activeAdvancedOptions.join(" · ")}
+            </span>
+          )}
           <button
             type="button"
             className={styles.captionToggle}
@@ -4216,6 +4379,16 @@ export function NewSessionForm({
           >
             <span aria-hidden="true">?</span>
           </button>
+        </div>
+        <div
+          id="new-session-advanced-options"
+          className={`${styles.secondaryOptions}${
+            isProjectChooserExpanded ? ` ${styles.secondaryOptionsHidden}` : ""
+          }`}
+          data-new-session-secondary-options="true"
+          hidden={!showAdvancedOptions}
+        >
+          {permissionSection}
           {showThinkingSection}
           {recapSection}
           {helperSideModelSection}
@@ -4225,54 +4398,67 @@ export function NewSessionForm({
             eligible={computerControlEligible}
             selected={computerSelected}
             onChange={setComputerSelected}
+            disabled={isStarting}
+            showCaption={showOptionCaptions}
           />
+          {/* Executor Selection - only show for providers whose adapter uses it. */}
+          {supportsRemoteExecutors &&
+            !executorsLoading &&
+            remoteExecutors.length > 0 && (
+              <NewSessionOptionSection
+                className="new-session-helper-section"
+                title={t("newSessionRunOnTitle")}
+                showCaption={showOptionCaptions}
+              >
+                <FilterDropdown<string>
+                  label={t("newSessionRunOnTitle")}
+                  options={[
+                    {
+                      value: "local",
+                      label: t("newSessionRunOnLocal"),
+                      icon: (
+                        <span className="executor-option-dot executor-local" />
+                      ),
+                      description: t("newSessionRunOnLocalDesc"),
+                      disabled: isStarting,
+                    },
+                    ...remoteExecutors.map((host) => ({
+                      value: `remote:${host}`,
+                      label: host,
+                      icon: (
+                        <span className="executor-option-dot executor-remote" />
+                      ),
+                      description: t("newSessionRunOnRemoteDesc"),
+                      disabled: isStarting,
+                    })),
+                  ]}
+                  selected={[
+                    selectedExecutor ? `remote:${selectedExecutor}` : "local",
+                  ]}
+                  onChange={([value]) => {
+                    if (isStarting) return;
+                    setSelectedExecutor(
+                      value?.startsWith("remote:") ? value.slice(7) : null,
+                    );
+                  }}
+                  multiSelect={false}
+                  fullWidth
+                  triggerContent={
+                    <span className={styles.selectedChoice}>
+                      <span
+                        className={`executor-option-dot executor-${selectedExecutor ? "remote" : "local"}`}
+                        aria-hidden="true"
+                      />
+                      <span className={styles.selectedChoiceText}>
+                        {selectedExecutor ?? t("newSessionRunOnLocal")}
+                      </span>
+                    </span>
+                  }
+                />
+              </NewSessionOptionSection>
+            )}
         </div>
       </div>
-
-      {/* Executor Selection - only show for providers whose adapter uses it. */}
-      {supportsRemoteExecutors &&
-        !executorsLoading &&
-        remoteExecutors.length > 0 && (
-          <div className="new-session-executor-section">
-            <h3>{t("newSessionRunOnTitle")}</h3>
-            <div className="executor-options">
-              <button
-                key="local"
-                type="button"
-                className={`executor-option ${selectedExecutor === null ? "selected" : ""}`}
-                onClick={() => setSelectedExecutor(null)}
-                disabled={isStarting}
-              >
-                <span className="executor-option-dot executor-local" />
-                <div className="executor-option-content">
-                  <span className="executor-option-label">
-                    {t("newSessionRunOnLocal")}
-                  </span>
-                  <span className="executor-option-desc">
-                    {t("newSessionRunOnLocalDesc")}
-                  </span>
-                </div>
-              </button>
-              {remoteExecutors.map((host) => (
-                <button
-                  key={host}
-                  type="button"
-                  className={`executor-option ${selectedExecutor === host ? "selected" : ""}`}
-                  onClick={() => setSelectedExecutor(host)}
-                  disabled={isStarting}
-                >
-                  <span className="executor-option-dot executor-remote" />
-                  <div className="executor-option-content">
-                    <span className="executor-option-label">{host}</span>
-                    <span className="executor-option-desc">
-                      {t("newSessionRunOnRemoteDesc")}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
     </div>
   );
 }

@@ -135,21 +135,27 @@ test.describe("New Session provider readiness", () => {
     await capture(page, "desktop-provider-readiness-375x812.png");
 
     await page.goto(`${baseURL}/new-session?provider=codex&detached=1`);
-    const codexOption = page
-      .locator(".provider-option")
-      .filter({ hasText: "Codex" });
-    await expect(codexOption).toBeEnabled();
-    await expect(codexOption.getByText("Authentication needed")).toBeVisible();
+    const providerPicker = page.locator(
+      '.new-session-provider-section button[aria-haspopup="listbox"]',
+    );
+    await expect(providerPicker).toBeEnabled();
+    await expect(providerPicker).toContainText("Codex");
+    await expect(providerPicker).toContainText("Authentication needed");
+    await providerPicker.click();
+    await expect(
+      page.getByRole("dialog").getByRole("button", { name: /Codex/ }),
+    ).toContainText("Authentication needed");
+    await page.keyboard.press("Escape");
     await page
       .getByPlaceholder("Describe what you'd like help with...")
       .fill("Verify provider authentication at launch");
     await expect(page.locator(".new-session-submit-button")).toBeEnabled();
 
     await page.setViewportSize({ width: 1000, height: 600 });
-    await codexOption.scrollIntoViewIfNeeded();
+    await providerPicker.scrollIntoViewIfNeeded();
     await capture(page, "new-session-auth-needed-1000x600.png");
     await page.setViewportSize({ width: 375, height: 812 });
-    await codexOption.scrollIntoViewIfNeeded();
+    await providerPicker.scrollIntoViewIfNeeded();
     await capture(page, "new-session-auth-needed-375x812.png");
   });
 
