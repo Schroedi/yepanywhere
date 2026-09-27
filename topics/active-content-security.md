@@ -672,6 +672,9 @@ YA's state. `~/Downloads` is the case that decides that rule. A working tree
 counts as that distinguishing context only when its root lies strictly inside
 the home directory or YA's state: a dotfiles repository at `~/.git` encloses
 everything in the home directory and leaves `~/Downloads` protected.
+These boundaries compare filesystem-resolved paths, including aliases such as
+macOS `/tmp` and `/private/tmp`; a protected path that has not been created
+yet is resolved through its nearest existing ancestor.
 
 Inside a working tree, location is not the evidence: a capture written to
 `<checkout>/.artifacts/` is still the caller's to clean up. There the frozen

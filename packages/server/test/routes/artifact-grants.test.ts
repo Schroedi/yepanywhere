@@ -4,6 +4,7 @@ import {
   readFile,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { execFile } from "node:child_process";
@@ -248,6 +249,26 @@ describe("durable artifact grants", () => {
     await server.settleExpired();
     expect(await exists(join(bundle, "index.html"))).toBe(true);
     await server.close();
+  });
+
+  it("protects a directory reached through an alias, including a future child", async () => {
+    const { base, bundle, entry } = await workspace();
+    const alias = join(base, "home-alias");
+    await symlink(
+      bundle,
+      alias,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+
+    const direct = serverFor(base, {}, alias);
+    expect((await direct.createGrant(entry, "local", true)).owned).toBe(false);
+    await direct.close();
+
+    const futureChild = serverFor(base, {}, join(alias, "future"));
+    expect((await futureChild.createGrant(entry, "local", true)).owned).toBe(
+      false,
+    );
+    await futureChild.close();
   });
 
   it("does not let a repository rooted at the home directory own what is under it", async () => {

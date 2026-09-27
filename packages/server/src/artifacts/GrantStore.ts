@@ -1,12 +1,22 @@
 import {
+  lstat,
   mkdir,
   readdir,
   readFile,
+  realpath,
   rmdir,
   stat,
   unlink,
 } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import { runGit } from "../git/gitExec.js";
 import { writeFileAtomically } from "../utils/writeFileAtomically.js";
 
@@ -160,19 +170,57 @@ export async function deletableDirectory(
   root: string,
   forbidden: readonly (string | undefined)[],
 ): Promise<boolean> {
-  const path = resolve(root);
+  const path = await realpath(root).catch(() => null);
+  if (!path) return false;
   if (path === dirname(path)) return false;
   // The root of a checkout is the checkout, not a bundle inside one.
   if (await has(join(path, ".git"))) return false;
   const tree = await enclosingWorkingTree(path);
   for (const other of forbidden) {
     if (!other) continue;
-    const compare = resolve(other);
-    if (path === compare || compare.startsWith(`${path}/`)) return false;
-    const treeInside = tree?.startsWith(`${compare}/`) === true;
-    if (!treeInside && path.startsWith(`${compare}/`)) return false;
+    const compare = await canonicalProtectedPath(other);
+    if (!compare) return false;
+    if (isWithin(path, compare)) return false;
+    const treeInside =
+      tree !== null && tree !== compare && isWithin(compare, tree);
+    if (!treeInside && isWithin(compare, path)) return false;
   }
   return true;
+}
+
+function isWithin(parent: string, child: string): boolean {
+  const fromParent = relative(parent, child);
+  return (
+    fromParent === "" ||
+    (fromParent !== ".." &&
+      !fromParent.startsWith(`..${sep}`) &&
+      !isAbsolute(fromParent))
+  );
+}
+
+/** Resolve existing ancestors so a not-yet-created protected path still blocks ownership. */
+async function canonicalProtectedPath(input: string): Promise<string | null> {
+  const missing: string[] = [];
+  let current = resolve(input);
+  for (;;) {
+    try {
+      return resolve(await realpath(current), ...missing.reverse());
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") return null;
+      // A dangling symlink is not a missing directory we can safely append.
+      if (
+        await lstat(current).then(
+          () => true,
+          () => false,
+        )
+      )
+        return null;
+      const parent = dirname(current);
+      if (parent === current) return null;
+      missing.push(basename(current));
+      current = parent;
+    }
+  }
 }
 
 export class GrantStore {
