@@ -4259,8 +4259,13 @@ function SessionPageContent({
   // its tab may be gone before its own confirm ever runs.
   const reconcilePendingSendDraftRef = useRef<() => void>(() => {});
   const reconcilePendingSendDraft = useCallback(() => {
-    draftControlsRef.current?.discardPendingSendDraft((draftText) =>
-      draftTextIsAccountedFor({ draftText, messages, deferredMessages }),
+    draftControlsRef.current?.discardPendingSendDraft(({ text, sentAtMs }) =>
+      draftTextIsAccountedFor({
+        draftText: text,
+        sentAtMs,
+        messages,
+        deferredMessages,
+      }),
     );
   }, [deferredMessages, messages]);
   reconcilePendingSendDraftRef.current = reconcilePendingSendDraft;

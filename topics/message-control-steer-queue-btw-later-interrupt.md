@@ -103,13 +103,18 @@ text and its recovery copy; it must never clear the newer turn.
 
 The recovery copy stays visible like any other draft — a reload or a second tab
 on the same session shows it in the composer, because a send that never landed
-must remain recoverable. It carries a `pendingSend` marker in the stored draft
-envelope, which distinguishes it from text the user typed or recalled. Only a
-marked copy is eligible for automatic discard, and only once the session proves
-that exact text is already accounted for: a durable (non-optimistic) user turn
-in the recent transcript tail, or a message the server reports as queued.
-Comparison is exact after trimming and queued-turn-marker removal, so anything
-YA appended on the way out simply fails to match and the draft stays.
+must remain recoverable. It carries a `pendingSendAt` marker in the stored draft
+envelope — the submit time on the client's estimate of the server clock — which
+distinguishes it from text the user typed or recalled. Only a marked copy is
+eligible for automatic discard, and only once the session proves that this send
+is accounted for: a durable (non-optimistic) user turn in the recent transcript
+tail, or a message the server reports as queued, with the same text and a
+timestamp no more than five seconds before the recorded submit. Short prompts
+repeat, so an earlier identical turn or queued message is not proof, and
+evidence without a readable timestamp proves nothing. Comparison is exact after
+trimming and queued-turn-marker removal, so anything YA appended on the way out
+simply fails to match and the draft stays. A marker without a send time, as
+written by an older client, reads as an ordinary draft.
 
 A draft the user typed or recalled carries no marker and is never discarded
 automatically. Restoring an untouched recovery copy after a request failure

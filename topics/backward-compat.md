@@ -7,6 +7,15 @@ Topic: backward-compat
 
 ## Decisions
 
+2026-09-27 draft envelope `pendingSend: true` — replaced by `pendingSendAt`,
+the submit's server-clock time, so a recovery copy can be discarded only on
+proof dated from its own send. A stored or sibling-tab marker without a time
+reads as an ordinary draft and is never discarded automatically; the worst
+case is one stale draft left visible. An older client ignores `pendingSendAt`
+the same way. Browser-local state only; no server contract changes. See
+[message control](message-control-steer-queue-btw-later-interrupt.md)
+§ Composer acknowledgement safety.
+
 2026-09-26 limited users — gate Settings → Users behind the new
 version-implied `limited-users` capability (ID 83, from 0.9.0) instead of
 probing `/api/users` for a 404. Released v0.9.0 and v0.9.1 carry the feature
