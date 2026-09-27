@@ -6096,6 +6096,7 @@ function SessionPageContent({
                       onAnnounceApp={rightPane.announce}
                       appConfig={rightPane.config}
                       rightPaneTarget={rightPaneTarget}
+                      rightPaneWide={isWideScreen}
                     >
                       <MessageList
                         messages={messages}

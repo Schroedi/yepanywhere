@@ -10,7 +10,6 @@ import {
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
-import { useI18n } from "../i18n";
 import { QUOTE_SELECTION_ROOT_ATTRIBUTES } from "../lib/markdownSelectionCopy";
 import styles from "./SessionManagedViewer.module.css";
 import headerStyles from "./ViewerHeader.module.css";
@@ -34,7 +33,7 @@ import {
   type SessionViewerControllerState,
   useSessionViewerController,
 } from "../lib/sessionViewerController";
-import { Modal, useModalLayer } from "./ui/Modal";
+import { Modal, ModalChrome, useModalLayer } from "./ui/Modal";
 import { SessionAppLinkContext } from "./SessionAppLinks";
 import {
   publicSessionLocalhostHref,
@@ -60,6 +59,12 @@ const SessionViewerContext = createContext<string | null>(null);
 const SessionFileViewerHostContext = createContext<{
   target: HTMLElement | null;
   inactive: boolean;
+  /**
+   * The viewer is a column beside the live session (the wide right pane), not
+   * a layer over it, so it must not take document-level Escape or the scroll
+   * lock from the session's own controls.
+   */
+  docked: boolean;
 } | null>(null);
 
 export function useSessionFileViewerHost() {
@@ -139,6 +144,7 @@ export function SessionViewerProvider({
   onAnnounceApp,
   appConfig,
   rightPaneTarget,
+  rightPaneWide = false,
   children,
 }: {
   sessionId: string;
@@ -148,6 +154,8 @@ export function SessionViewerProvider({
   onAnnounceApp?: (url: string, label: string) => void;
   appConfig?: SessionAppConfig;
   rightPaneTarget?: HTMLElement | null;
+  /** The right pane is a side-by-side column rather than a drawer over the session. */
+  rightPaneWide?: boolean;
   children: ReactNode;
 }) {
   const runtime = useCurrentSourceRuntime();
@@ -206,6 +214,7 @@ export function SessionViewerProvider({
               sessionId={sessionId}
               inactive={inactive}
               rightPaneTarget={rightPaneTarget}
+              rightPaneWide={rightPaneWide}
             />
           </SessionAppLinkContext.Provider>
         </SessionViewerCommentProvider>
@@ -238,10 +247,12 @@ export function SessionManagedViewerHost({
   sessionId,
   inactive = false,
   rightPaneTarget,
+  rightPaneWide = false,
 }: {
   sessionId: string;
   inactive?: boolean;
   rightPaneTarget?: HTMLElement | null;
+  rightPaneWide?: boolean;
 }) {
   const controller = useSessionViewerController();
   const { sessionRightPaneEnabled } = useSessionRightPaneSetting();
@@ -298,6 +309,7 @@ export function SessionManagedViewerHost({
               ? (rightPaneTarget ?? null)
               : null,
             inactive: inactive || file.minimized || controller?.id !== file.id,
+            docked: sessionViewerUsesRightPane(file) && rightPaneWide,
           }}
         >
           {file.renderContent(inactive, sessionViewerUsesRightPane(file))}
@@ -322,7 +334,11 @@ export function SessionManagedViewerHost({
   if (sessionViewerUsesRightPane(panel)) {
     if (!rightPaneTarget) return null;
     return createPortal(
-      <SessionPanelPane panel={panel} inactive={inactive} />,
+      <SessionPanelPane
+        panel={panel}
+        inactive={inactive}
+        docked={rightPaneWide}
+      />,
       rightPaneTarget,
     );
   }
@@ -341,56 +357,52 @@ export function SessionManagedViewerHost({
 }
 
 /**
- * The session's detail panel as a right-pane column.
- *
- * Chrome reuses the modal header/content classes so a panel written for the
- * covering modal needs no knowledge of where it is shown.
+ * The session's detail panel as a right-pane column, in the covering modal's
+ * chrome so a panel written for the modal needs no knowledge of where it is
+ * shown. Docked beside the session it answers Escape only from inside itself;
+ * as the narrow drawer over the session it is a modal layer.
  */
 function SessionPanelPane({
   panel,
   inactive,
+  docked,
 }: {
   panel: Extract<SessionViewerControllerState, { kind: "panel" }>;
   inactive: boolean;
+  docked: boolean;
 }) {
-  const { t } = useI18n();
   const hidden = panel.minimized || inactive;
-  useModalLayer(panel.close, !hidden);
+  useModalLayer(panel.close, !hidden && !docked);
   return (
     <section
       className={styles.panePanel}
       role="dialog"
       aria-label={panel.label}
       hidden={hidden}
+      onKeyDown={
+        docked
+          ? (event) => {
+              if (event.key !== "Escape" || event.defaultPrevented) return;
+              event.preventDefault();
+              event.stopPropagation();
+              panel.close();
+            }
+          : undefined
+      }
       {...QUOTE_SELECTION_ROOT_ATTRIBUTES}
     >
-      <div className={`modal-header ${headerStyles.header}`}>
-        <span className={headerStyles.identity}>
-          <span className="modal-title">{panel.title}</span>
-        </span>
-        <span className={`modal-header-actions ${headerStyles.actions}`}>
-          {panel.actions}
-          <button
-            type="button"
-            className="modal-close"
-            onClick={panel.minimize}
-            aria-label={t("modalMinimize")}
-          >
-            −
-          </button>
-          <button
-            type="button"
-            className="modal-close"
-            onClick={panel.close}
-            aria-label={t("modalClose")}
-          >
-            ×
-          </button>
-        </span>
-      </div>
-      <div className="modal-content" ref={panel.contentRef}>
+      <ModalChrome
+        title={panel.title}
+        actions={panel.actions}
+        headerClassName={headerStyles.header}
+        identityClassName={headerStyles.identity}
+        headerActionsClassName={headerStyles.actions}
+        onMinimize={panel.minimize}
+        onClose={panel.close}
+        contentRef={panel.contentRef}
+      >
         {panel.content}
-      </div>
+      </ModalChrome>
     </section>
   );
 }

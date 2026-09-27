@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
@@ -226,17 +226,34 @@ describe("managed panel placement", () => {
     });
   });
 
-  function PanelSession({ target }: { target: HTMLElement | null }) {
+  function PanelSession({
+    target,
+    wide = false,
+    onComposerEscape,
+  }: {
+    target: HTMLElement | null;
+    wide?: boolean;
+    onComposerEscape?: () => void;
+  }) {
     return (
       <I18nProvider>
-        <SessionViewerProvider sessionId="session-1" rightPaneTarget={target}>
-          <span />
+        <SessionViewerProvider
+          sessionId="session-1"
+          rightPaneTarget={target}
+          rightPaneWide={wide}
+        >
+          <input
+            aria-label="Composer"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") onComposerEscape?.();
+            }}
+          />
         </SessionViewerProvider>
       </I18nProvider>
     );
   }
 
-  function presentPanel() {
+  function presentPanel(onClose: () => void = () => {}) {
     act(() => {
       presentSessionViewer({
         id: "panel-1",
@@ -244,8 +261,12 @@ describe("managed panel placement", () => {
         sessionId: "session-1",
         label: "Edit",
         title: "Edit detail",
-        content: <div data-testid="panel-content">diff</div>,
-        onClose: () => {},
+        content: (
+          <button type="button" data-testid="panel-content">
+            diff
+          </button>
+        ),
+        onClose,
       });
     });
   }
@@ -277,6 +298,48 @@ describe("managed panel placement", () => {
     expect(
       screen.getByRole("dialog", { name: "Edit" }).hasAttribute("hidden"),
     ).toBe(false);
+    target.remove();
+  });
+
+  it("leaves Escape outside a panel docked in the wide pane to its target", () => {
+    sessionRightPaneSetting.set(true);
+    const target = document.createElement("div");
+    document.body.append(target);
+    const onComposerEscape = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <PanelSession target={target} wide onComposerEscape={onComposerEscape} />,
+    );
+    presentPanel(onClose);
+
+    expect(document.body.style.overflow).toBe("");
+    const composer = screen.getByRole("textbox", { name: "Composer" });
+    composer.focus();
+    fireEvent.keyDown(composer, { key: "Escape" });
+    expect(onComposerEscape).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(screen.getByTestId("panel-content"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    target.remove();
+  });
+
+  it("dismisses a panel in the narrow drawer on Escape from anywhere", () => {
+    sessionRightPaneSetting.set(true);
+    const target = document.createElement("div");
+    document.body.append(target);
+    const onComposerEscape = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <PanelSession target={target} onComposerEscape={onComposerEscape} />,
+    );
+    presentPanel(onClose);
+
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Composer" }), {
+      key: "Escape",
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onComposerEscape).not.toHaveBeenCalled();
     target.remove();
   });
 });

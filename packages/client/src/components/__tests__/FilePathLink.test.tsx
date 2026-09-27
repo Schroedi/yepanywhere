@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -15,6 +16,7 @@ import { I18nProvider } from "../../i18n";
 import { LOCAL_CLIENT_SUMMARY_SOURCE_KEY } from "../../lib/clientSummaryStore";
 import { getNewSessionPrefill } from "../../lib/newSessionPrefill";
 import { useFileViewerController } from "../../lib/fileViewerController";
+import { sessionRightPaneSetting } from "../../lib/sessionViewerPlacement";
 import { UI_KEYS } from "../../lib/storageKeys";
 import type { FileViewerSource } from "../FileViewer";
 import { FilePathLink, FileViewerModal } from "../FilePathLink";
@@ -262,6 +264,62 @@ describe("FilePathLink", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Close docs/guide.md" }),
     );
+  });
+
+  it("leaves Escape outside a viewer docked in the wide pane to its target", () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+    sessionRightPaneSetting.set(true);
+    const target = document.createElement("div");
+    document.body.append(target);
+    const onComposerEscape = vi.fn();
+    try {
+      render(
+        <I18nProvider>
+          <SessionViewerProvider
+            sessionId="session-1"
+            rightPaneTarget={target}
+            rightPaneWide
+          >
+            <input
+              aria-label="Composer"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") onComposerEscape();
+              }}
+            />
+            <FilePathLink
+              projectId="project-id"
+              filePath="docs/guide.md"
+              displayText="guide.md"
+            />
+            <FileViewerControllerProbe />
+          </SessionViewerProvider>
+        </I18nProvider>,
+      );
+
+      fireEvent.click(screen.getByRole("link", { name: "guide.md" }));
+      const viewer = target.firstElementChild;
+      expect(viewer).not.toBeNull();
+      expect(document.body.style.overflow).toBe("");
+
+      fireEvent.keyDown(screen.getByRole("textbox", { name: "Composer" }), {
+        key: "Escape",
+      });
+      expect(onComposerEscape).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByRole("button", { name: "Close docs/guide.md" }),
+      ).toBeTruthy();
+
+      fireEvent.keyDown(viewer as Element, { key: "Escape" });
+      expect(
+        screen.queryByRole("button", { name: "Close docs/guide.md" }),
+      ).toBeNull();
+    } finally {
+      act(() => sessionRightPaneSetting.set(false));
+      target.remove();
+    }
   });
 
   it("replaces a hosted file viewer when another file opens", () => {

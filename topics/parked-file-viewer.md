@@ -70,7 +70,10 @@ the same topmost-only rule. Backspace never dismisses a viewer while its event
 target is an input, textarea, select, editable region, or textbox. Each child
 file or resource modal owns its own browser-history entry so browser Back does
 not skip from a nested file past its parent. Escape likewise dismisses only the
-topmost visible modal. Every visible modal shares one reference-counted document
+topmost visible modal; a viewer docked in the wide session right pane is not a
+modal and answers Escape only from inside itself
+([session right pane](session-right-pane.md#file-viewers-and-detail-panels)).
+Every visible modal shares one reference-counted document
 scroll lock: dismissing a child keeps scrolling locked for its parent, and the
 last dismissal restores the body overflow value that preceded the stack.
 

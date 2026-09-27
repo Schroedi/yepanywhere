@@ -621,9 +621,12 @@ export function FileViewerModal({
     !publishToHost &&
     !minimized &&
     (!inRightPane || nested || publishedViewer?.id === minimizedViewerId);
+  // Beside the session, Escape belongs to whatever has focus there; only a
+  // key pressed inside this viewer dismisses it.
+  const docked = inRightPane && parentHost?.docked === true;
   useModalBackGesture(close, interactive, "__fileViewerModal");
   useModalBackspace(close, interactive);
-  useModalLayer(close, interactive);
+  useModalLayer(close, interactive && !docked);
 
   if (publishToHost) return null;
 
@@ -654,6 +657,18 @@ export function FileViewerModal({
       <GlossaryProjectBoundary projectId={projectId}>
         <div
           className={`${styles.paneViewer} ${nested ? styles.nestedPaneViewer : ""}`}
+          role="dialog"
+          aria-label={filePath}
+          onKeyDown={
+            docked && interactive
+              ? (event) => {
+                  if (event.key !== "Escape" || event.defaultPrevented) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  close();
+                }
+              : undefined
+          }
           {...QUOTE_SELECTION_ROOT_ATTRIBUTES}
         >
           {viewer}

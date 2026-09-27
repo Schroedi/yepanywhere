@@ -281,10 +281,20 @@ The file viewer retains its file-specific header controls and shares the final
 link, move-out, minimize, and close group with App viewers. Its header adapts
 to the allocated viewer width, including a narrow pane on a wide screen.
 
-A tool-detail panel takes the same pane on the same terms, keeping the modal's
-header — its own actions, select-all, minimize, close — and the modal content
-chrome, so the panel body renders identically in either placement. Escape
-dismisses it as it does in the covering modal.
+A tool-detail panel takes the same pane on the same terms, rendering the
+covering modal's own header — its own actions, select-all, minimize, close —
+and content chrome (`ModalChrome`), so the panel body renders identically in
+either placement.
+
+Escape follows the placement, for panels and file viewers alike. The narrow
+drawer covers the session, so it is a modal layer: Escape pressed anywhere
+dismisses the topmost viewer, and it holds a share of the document scroll lock
+([parked file viewer](parked-file-viewer.md) owns that stack). The wide pane is
+a column beside a live session, not a layer over it: Escape dismisses its
+viewer only when pressed inside the viewer, after the viewer's own controls
+have had it, and it takes no scroll lock. An Escape pressed in the composer or
+transcript reaches that control — dismissing a composer menu, for example —
+and leaves the pane open.
 
 ## Slide animations
 
