@@ -46,6 +46,12 @@ export const docsNavigation: DocsNavSection[] = [
           "Control any host from anything with a modern web browser.",
       },
       {
+        path: "/docs/local-access",
+        title: "Local access and passwords",
+        description:
+          "Require a password, add limited users, and recover a lost password.",
+      },
+      {
         path: "/docs/security-and-privacy",
         title: "Security and privacy",
         description:
