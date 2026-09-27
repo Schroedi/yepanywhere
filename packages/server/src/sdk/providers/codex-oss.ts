@@ -344,20 +344,46 @@ export class CodexOSSProvider implements AgentProvider {
         : []),
     ]);
 
-    const { models, routes } = unionModelCatalogs(perSource);
+    const read = perSource.filter(
+      (
+        source,
+      ): source is { serviceId: string | undefined; models: ModelInfo[] } =>
+        source.models !== undefined,
+    );
+    const { models, routes } = unionModelCatalogs(read);
+
+    // An endpoint that could not be read this time keeps its last good routes,
+    // as it does for Claude Gateway: a slow or restarting server must not send
+    // a live session's next turn to the local provider, or leave it counted
+    // against no endpoint so auto-stop kills the one it is using. Only a
+    // successful read publishes a change.
+    const refreshed = new Set(read.map((source) => source.serviceId));
+    for (const [exposedId, route] of this.modelRoutes) {
+      if (
+        route.serviceId !== undefined &&
+        !refreshed.has(route.serviceId) &&
+        services.some((service) => service.id === route.serviceId) &&
+        !routes.has(exposedId)
+      ) {
+        routes.set(exposedId, route);
+      }
+    }
     this.modelRoutes = routes;
     return models;
   }
 
-  /** Read one endpoint's OpenAI-compatible catalog. */
+  /**
+   * Read one endpoint's OpenAI-compatible catalog, or undefined when it cannot
+   * be read now. An empty list is a real answer: the endpoint serves nothing.
+   */
   private async readServiceModels(
     service: GatewayService,
-  ): Promise<ModelInfo[]> {
+  ): Promise<ModelInfo[] | undefined> {
     try {
       const response = await fetch(`${service.url}/v1/models`, {
         signal: AbortSignal.timeout(5000),
       });
-      if (!response.ok) return [];
+      if (!response.ok) return undefined;
       const payload = (await response.json()) as {
         data?: {
           id?: unknown;
@@ -366,7 +392,7 @@ export class CodexOSSProvider implements AgentProvider {
           capabilities?: { supports?: { reasoning_effort?: unknown } };
         }[];
       };
-      if (!Array.isArray(payload.data)) return [];
+      if (!Array.isArray(payload.data)) return undefined;
       // The same sources Claude Gateway resolves from. A model reached over
       // the Responses API offers the same thinking effort it offers over the
       // Anthropic wire; only "none" differs, and that is expressed below.
@@ -435,7 +461,7 @@ export class CodexOSSProvider implements AgentProvider {
         { error, serviceId: service.id, url: service.url },
         "Failed to read CodexOSS service models",
       );
-      return [];
+      return undefined;
     }
   }
 

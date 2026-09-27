@@ -102,6 +102,31 @@ describe("gateway service usage", () => {
     expect(counts.get("vllm")).toBe(2);
   });
 
+  it("keeps counting a CodexOSS session after a catalog read that times out", async () => {
+    const services = [service()];
+    await ClaudeGatewayProvider.configureGatewayServices({
+      services,
+      defaultServiceId: "vllm",
+    });
+    await readCodexCatalog(services);
+
+    // A busy or restarting vLLM answering /v1/models slower than the read
+    // allows: the model picker's refresh learns nothing about the endpoint.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new DOMException("The operation timed out.", "TimeoutError");
+      }),
+    );
+    await codexOSSProvider.getAvailableModels();
+
+    const counts = gatewayServiceUsage(
+      supervisorWith([liveProcess("codex-oss", "deepseek-v4-flash")]),
+    );
+
+    expect(counts.get("vllm")).toBe(1);
+  });
+
   it("leaves a local CodexOSS session out of every endpoint's count", async () => {
     const services = [service()];
     await ClaudeGatewayProvider.configureGatewayServices({

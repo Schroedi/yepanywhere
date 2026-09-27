@@ -114,8 +114,9 @@ model serving.
 - A catalog read may start only the default service. A non-default service that
   is not already listening contributes nothing until one of its models is
   selected, and that selection is what authorizes its start.
-- A service that could not be read keeps its last good catalog and routes;
-  only a successful read publishes a change.
+- A service that could not be read — a timeout or an error status — keeps its
+  last good catalog and routes, for CodexOSS as for Claude Gateway; only a
+  successful read publishes a change.
 - `maxModels` truncates one service's contribution in catalog order, defaulting
   to 100.
 

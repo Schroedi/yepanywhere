@@ -177,6 +177,38 @@ describe("CodexOSS gateway services", () => {
     ]);
   });
 
+  it("keeps an endpoint's routes when a later catalog read fails", async () => {
+    const fetchMock = vi.fn(async () => vllmCatalog(["deepseek-v4-flash"]));
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = new ExposedCodexOSSProvider();
+    provider.setGatewayServices([service()]);
+    await provider.getAvailableModels();
+
+    // Unreadable answers teach nothing; the session's next turn still goes to
+    // the endpoint it was using rather than to the local provider.
+    for (const unreadable of [
+      async () => new Response("overloaded", { status: 503 }),
+      async () => new Response(JSON.stringify({ object: "list" })),
+      async () => {
+        throw new DOMException("The operation timed out.", "TimeoutError");
+      },
+    ]) {
+      fetchMock.mockImplementationOnce(unreadable);
+      await expect(provider.getAvailableModels()).resolves.toEqual([]);
+      expect(
+        provider.resumeTurnArgs("deepseek-v4-flash", "thread-1"),
+      ).toContain('model_provider="ya_vllm"');
+    }
+
+    // A successful read is authoritative, including one that no longer lists
+    // the model.
+    fetchMock.mockImplementationOnce(async () => vllmCatalog(["other-model"]));
+    await provider.getAvailableModels();
+    expect(provider.resumeTurnArgs("deepseek-v4-flash", "thread-1")).toContain(
+      'model_provider="ollama"',
+    );
+  });
+
   it("underscores a hyphenated service id into the provider key", async () => {
     vi.stubGlobal(
       "fetch",
