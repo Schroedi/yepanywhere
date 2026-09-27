@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { useI18n } from "../i18n";
 import { writeClipboardTextLater } from "../lib/clipboard";
+import { publicSharePlayUrlFromFileShareUrl } from "../lib/publicSharePlay";
 import {
   PublicShareFeedback,
   PublicShareInventoryCount,
@@ -23,10 +24,10 @@ interface PublicFileShareModalProps {
   projectId: string;
   title?: string | null;
   /**
-   * Rewrites a grant URL before it is copied or shown, for a viewer whose
-   * current mode has its own link form. The grant itself is unchanged.
+   * Copy and show each link in its play form, which opens the document
+   * running, and say so. The grant itself is unchanged.
    */
-  transformUrl?: (url: string) => string;
+  playLinks?: boolean;
   onClose: () => void;
 }
 
@@ -35,10 +36,12 @@ export function PublicFileShareModal({
   filePath,
   projectId,
   title,
-  transformUrl = (url) => url,
+  playLinks = false,
   onClose,
 }: PublicFileShareModalProps) {
   const { t } = useI18n();
+  const transformUrl = (url: string) =>
+    (playLinks && publicSharePlayUrlFromFileShareUrl(url)) || url;
   const [items, setItems] = useState<PublicFileShareManagementItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState<string | null>(null);
@@ -158,7 +161,7 @@ export function PublicFileShareModal({
           <span className={styles.liveBadge}>{t("publicShareLiveBadge")}</span>
         </div>
         <p className={styles.description}>{t("publicFileShareDescription")}</p>
-        {transformUrl("x") !== "x" && (
+        {playLinks && (
           <p className={styles.description}>{t("publicFileSharePlayLinks")}</p>
         )}
         <div className={styles.warning} role="note">

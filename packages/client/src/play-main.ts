@@ -14,13 +14,14 @@ import {
 } from "@yep-anywhere/shared";
 import enMessages from "./i18n/en.json";
 import {
+  buildPublicShareFileRoutePath,
+  fetchPublicShareRawFileBlob,
+} from "./lib/publicShareFiles";
+import {
   buildPlayableHtml,
   parsePublicSharePlayUrl,
 } from "./lib/publicSharePlay";
-import {
-  fetchPublicShareBlobViaRelay,
-  fetchPublicShareJsonViaRelay,
-} from "./lib/publicShareRelay";
+import { fetchPublicShareJsonViaRelay } from "./lib/publicShareRelay";
 
 /**
  * `allow-forms` lets the document's scripted forms receive their submit
@@ -52,23 +53,21 @@ async function main(): Promise<void> {
   }
   dropFragmentFromBaseUrl();
   notice.textContent = enMessages.publicSharePlayWaiting;
-  const relayUrl = normalizeRelayUrl(target.relayUrl ?? DEFAULT_RELAY_URL);
-  const relayUsername = target.relayUsername;
-  const sharePath = (route: string, path: string) =>
-    `/public-api/shares/${encodeURIComponent(target.secret)}/files${route}?${new URLSearchParams({ path })}`;
+  const grant = {
+    relayUrl: normalizeRelayUrl(target.relayUrl ?? DEFAULT_RELAY_URL),
+    relayUsername: target.relayUsername,
+    secret: target.secret,
+    projectId: target.projectId,
+  };
   const root = await fetchPublicShareJsonViaRelay<FileContentResponse>({
-    relayUrl,
-    relayUsername,
-    path: sharePath("", target.path),
+    relayUrl: grant.relayUrl,
+    relayUsername: grant.relayUsername,
+    path: buildPublicShareFileRoutePath(grant, "content", target.path),
   });
   if (typeof root.content !== "string")
     throw new Error(enMessages.publicSharePlayNoContent);
   const html = await buildPlayableHtml(root.content, target.path, (path) =>
-    fetchPublicShareBlobViaRelay({
-      relayUrl,
-      relayUsername,
-      path: sharePath("/raw", path),
-    }),
+    fetchPublicShareRawFileBlob(grant, root, path),
   );
   const title = target.path.split("/").at(-1) ?? target.path;
   document.title = title;

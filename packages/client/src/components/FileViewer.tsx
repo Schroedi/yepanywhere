@@ -57,10 +57,7 @@ import { toSourceTransportApiPath } from "../lib/sourceTransportPaths";
 import type { ViewerFindSource } from "../lib/viewerFind";
 import { ArtifactPreview } from "./ArtifactPreview";
 import { ViewerModeToggle } from "./ViewerModeToggle";
-import {
-  buildPublicSharePlayUrl,
-  publicSharePlayUrlFromFileShareUrl,
-} from "../lib/publicSharePlay";
+import { buildPublicSharePlayUrl } from "../lib/publicSharePlay";
 import { SourceEditAction } from "./SourceEditor";
 import { ViewerFindField } from "./ViewerFindField";
 import { ViewerWindowActions } from "./ViewerWindowActions";
@@ -2167,11 +2164,7 @@ export const FileViewer = memo(function FileViewer({
           projectId={projectId}
           title={fileName}
           // While the interactive preview runs, copied links open play mode.
-          transformUrl={
-            interactivePreviewIdentity === viewIdentity
-              ? (url) => publicSharePlayUrlFromFileShareUrl(url) ?? url
-              : undefined
-          }
+          playLinks={interactivePreviewIdentity === viewIdentity}
           onClose={() => setFileShareAnchor(null)}
         />
       )}
