@@ -1616,15 +1616,26 @@ export function MessageInput({
           return;
         }
         if (bangDraft.kind === "bang" && !disabled) {
+          // Empty the composer before the request, as Send does, so keys typed
+          // while the command starts begin the next draft instead of being
+          // cleared with the command. Storage keeps the command until the
+          // outcome is known.
+          if (!preserveComposer) {
+            controls.clearInput();
+            resetCompositionMetadata();
+            setInterimTranscript("");
+          }
           try {
             await bangSupport.onRun(bangDraft.command);
             if (!preserveComposer) {
-              controls.clearDraft();
-              resetCompositionMetadata();
-              setInterimTranscript("");
+              controls.confirmInputClear();
             }
           } catch {
-            // The owner surfaces the run failure; retain the draft for retry.
+            // The owner surfaces the run failure. Bring the command back for
+            // retry unless a newer draft has taken its place.
+            if (!preserveComposer) {
+              controls.restoreFromStorage();
+            }
           }
           if (focusAfterSubmit) {
             textareaRef.current?.focus();

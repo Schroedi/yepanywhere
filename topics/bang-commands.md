@@ -90,10 +90,16 @@ project directory:
   deliberately no further escape — a turn whose literal text must begin
   with space-then-`!!` cannot be sent, an accepted non-case. A bare `!!`
   with no command is a silent no-op (the chip already explains the mode).
-- **Successful submission clears the durable draft.** A completed bang-run
-  request removes its composer text from browser draft storage before reload.
-  A failed request keeps the submitted draft intact so the user can correct or
-  retry it.
+- **Submission empties the composer; its outcome settles the draft.** As
+  with Send, submitting a bang command empties the composer at once, so
+  keys typed while the run request is in flight start the next draft and
+  are never cleared with the command; browser draft storage keeps the
+  command as the recovery copy meanwhile. A completed bang-run request
+  removes that copy only while the composer is still empty. A failed request
+  puts the submitted command back so the user can correct or retry it, unless
+  the user has already begun a newer draft, which is kept; the failure toast
+  then remains the only record of the command. See
+  [composer acknowledgement safety](message-control-steer-queue-btw-later-interrupt.md#composer-acknowledgement-safety).
 - **Execution.** Server-side `bash -lc` loads the user's login startup,
   including functions and aliases (pipes, globs, redirects work — the
   acli composition story assumes pipeable verbs), `cwd` = the session's

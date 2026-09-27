@@ -139,13 +139,18 @@ vi.mock("../../hooks/useDraftPersistence", () => ({
   useDraftPersistence: () => {
     const [value, setValueInternal] = useState("");
     const valueRef = useRef("");
+    // Stands in for the stored copy: kept by clearInput for recovery,
+    // replaced by any edit, dropped by clearDraft and confirmInputClear.
+    const storedRef = useRef("");
     const setValue = useCallback((nextValue: string) => {
       valueRef.current = nextValue;
+      storedRef.current = nextValue;
       setValueInternal(nextValue);
     }, []);
     const getDraft = useCallback(() => valueRef.current, []);
     const setDraft = useCallback((nextValue: string) => {
       valueRef.current = nextValue;
+      storedRef.current = nextValue;
       setValueInternal(nextValue);
     }, []);
     const flushDraft = useCallback(() => {}, []);
@@ -153,11 +158,18 @@ vi.mock("../../hooks/useDraftPersistence", () => ({
       valueRef.current = "";
       setValueInternal("");
     }, []);
+    const confirmInputClear = useCallback(() => {
+      if (valueRef.current === "") storedRef.current = "";
+    }, []);
     const clearDraft = useCallback(() => {
       valueRef.current = "";
+      storedRef.current = "";
       setValueInternal("");
     }, []);
-    const restoreFromStorage = useCallback(() => {}, []);
+    const restoreFromStorage = useCallback(() => {
+      valueRef.current = storedRef.current;
+      setValueInternal(storedRef.current);
+    }, []);
 
     const controls = useMemo(
       () => ({
@@ -165,6 +177,7 @@ vi.mock("../../hooks/useDraftPersistence", () => ({
         setDraft,
         flushDraft,
         clearInput,
+        confirmInputClear,
         clearDraft,
         restoreFromStorage,
       }),
@@ -173,6 +186,7 @@ vi.mock("../../hooks/useDraftPersistence", () => ({
         setDraft,
         flushDraft,
         clearInput,
+        confirmInputClear,
         clearDraft,
         restoreFromStorage,
       ],
