@@ -206,7 +206,11 @@ again by itself. Nothing polls. `POST /api/issues/confirm` is the only second
 question and belongs to an explicit user action. It also asks the first
 question for a reference that has no row, because it was captured while
 confirmation was off: the automatic path leaves that backlog alone, and the
-explicit request is what authorizes the one lookup. Overlapping drains coalesce:
+explicit request is what authorizes the one lookup. It asks only about a
+reference YA captured: when no evidence in that project holds that provider and
+key, it answers 404, writes no row and sends nothing to a tracker, so a typo or
+a stale client cannot spend the user's credentials on a key YA never saw.
+Overlapping drains coalesce:
 a recheck arriving while a capture-triggered lookup is still out joins that
 work instead of starting a second pass over the same pending references, so
 one reference costs one request however many drains overlap, and the recheck

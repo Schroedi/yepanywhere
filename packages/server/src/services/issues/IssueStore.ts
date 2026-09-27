@@ -103,10 +103,10 @@ export class IssueStore {
       s.finalize();
     }
   }
-  private run(sql: string, ...values: SqliteValue[]): void {
+  private run(sql: string, ...values: SqliteValue[]): number {
     const s = this.database.prepare(sql);
     try {
-      s.run(...values);
+      return s.run(...values).changes;
     } finally {
       s.finalize();
     }
@@ -300,21 +300,30 @@ export class IssueStore {
     ).map((row) => ({ state: String(row.state), count: Number(row.count) }));
   }
   /**
-   * Queue one reference to be asked about again. A reference first seen while
-   * confirmation was off holds no row, and the explicit request is what
-   * authorizes its first lookup, so this writes the row when none exists.
+   * Queue one captured reference to be asked about again, returning false when
+   * no evidence in that project holds that provider and key. A reference first
+   * seen while confirmation was off holds no row, and the explicit request is
+   * what authorizes its first lookup, so this writes the row when none exists;
+   * a key YA never captured writes nothing and is never sent to a tracker.
    */
   requeueConfirmation(
     projectId: string,
     provider: string,
     refKey: string,
-  ): void {
-    this.run(
-      `INSERT INTO issue_confirmations(project_id,provider,ref_key,state,checked_at) VALUES (?,?,?,'pending',0)
+  ): boolean {
+    return (
+      this.run(
+        `INSERT INTO issue_confirmations(project_id,provider,ref_key,state,checked_at)
+        SELECT ?,?,?,'pending',0 WHERE EXISTS (SELECT 1 FROM session_issue_evidence
+          WHERE project_id=? AND provider=? AND ref_key=?)
         ON CONFLICT(project_id,provider,ref_key) DO UPDATE SET state='pending'`,
-      projectId,
-      provider,
-      refKey,
+        projectId,
+        provider,
+        refKey,
+        projectId,
+        provider,
+        refKey,
+      ) > 0
     );
   }
   /** References still awaiting their one query, oldest key first. */

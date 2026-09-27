@@ -130,9 +130,12 @@ export class IssueConfirmer {
     };
   }
 
-  /** Queue one reference to be asked about again, by explicit request only. */
-  recheck(projectId: string, provider: string, refKey: string): void {
-    this.store.requeueConfirmation(projectId, provider, refKey);
+  /**
+   * Queue one captured reference to be asked about again, by explicit request
+   * only. False means YA holds no such reference and nothing was queued.
+   */
+  recheck(projectId: string, provider: string, refKey: string): boolean {
+    return this.store.requeueConfirmation(projectId, provider, refKey);
   }
 
   /** Run a drain, coalescing concurrent callers into one pass. */
