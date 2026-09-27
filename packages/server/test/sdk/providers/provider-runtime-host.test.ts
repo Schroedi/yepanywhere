@@ -439,6 +439,22 @@ describe.skipIf(!nativeHostSupported)("ProviderRuntimeHost", () => {
     expect(isProviderHostDegraded()).toBe(false);
   });
 
+  it("stays in-process without the degraded notice when it ships no host scripts", async () => {
+    const runtimeRoot = await mkdtemp(
+      join(runtimeTmpDir, "scriptless-provider-host-"),
+    );
+    temporaryPaths.push(runtimeRoot);
+    vi.stubEnv("VITEST", undefined);
+    vi.stubEnv("USE_MOCK_SDK", undefined);
+    vi.stubEnv("YEP_PROVIDER_HOST_RUNTIME_DIR", runtimeRoot);
+    vi.stubEnv("YEP_PROVIDER_RUNTIME_SOCKET", undefined);
+    vi.stubEnv("YEP_PROVIDER_RUNTIME_TOKEN", undefined);
+
+    expect(await ensureProviderRuntimeHost(null)).toBe(false);
+    expect(existsSync(join(runtimeRoot, "host.json"))).toBe(false);
+    expect(isProviderHostDegraded()).toBe(false);
+  });
+
   it("does not bootstrap an ambient host for a standalone mock server", async () => {
     const runtimeRoot = await mkdtemp(
       join(runtimeTmpDir, "mock-provider-host-"),

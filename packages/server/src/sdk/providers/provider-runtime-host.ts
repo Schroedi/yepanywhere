@@ -218,7 +218,11 @@ export function isProviderRuntimeHostAvailable(): boolean {
   return getEnvironment() !== null && registered;
 }
 
-function resolveProviderHostProjectRoot(): string {
+/**
+ * The checkout whose `scripts/` start and discover the provider host, or
+ * null for a distribution that ships none, such as the npm bundle.
+ */
+function resolveProviderHostProjectRoot(): string | null {
   let dir = dirname(fileURLToPath(import.meta.url));
   for (let i = 0; i < 8; i += 1) {
     if (existsSync(join(dir, "scripts/provider-runtime-host.mjs"))) return dir;
@@ -226,7 +230,7 @@ function resolveProviderHostProjectRoot(): string {
     if (parent === dir) break;
     dir = parent;
   }
-  return process.cwd();
+  return null;
 }
 
 function applyProviderHostConnection(connection: {
@@ -260,9 +264,12 @@ function applyProviderHostConnection(connection: {
  * When enabled, attach to a live provider host or start one when absent.
  * Remote SSH executor sessions stay allowed either way: they still launch
  * from this YA server. A failed ensure continues in-process and sets the
- * provider-host degraded notice.
+ * provider-host degraded notice. A distribution without the host scripts
+ * cannot run a host, so it stays in-process without that notice.
  */
-export async function ensureProviderRuntimeHost(): Promise<boolean> {
+export async function ensureProviderRuntimeHost(
+  projectRoot = resolveProviderHostProjectRoot(),
+): Promise<boolean> {
   if (!providerHostEnabled()) {
     setProviderHostDegraded(false);
     return false;
@@ -271,7 +278,7 @@ export async function ensureProviderRuntimeHost(): Promise<boolean> {
     setProviderHostDegraded(false);
     return true;
   }
-  if (!supportsProviderHostRuntimeAsLaunched()) return false;
+  if (!projectRoot || !supportsProviderHostRuntimeAsLaunched()) return false;
   // Mock servers must not discover or bootstrap an ambient real-provider host.
   // A wrapper may still supply an explicit simulated host for lifecycle tests.
   if (process.env.VITEST || process.env.USE_MOCK_SDK === "true") {
@@ -286,7 +293,6 @@ export async function ensureProviderRuntimeHost(): Promise<boolean> {
   }
 
   try {
-    const projectRoot = resolveProviderHostProjectRoot();
     const moduleUrl = pathToFileURL(
       join(projectRoot, "scripts/attach-or-start-provider-host.mjs"),
     ).href;

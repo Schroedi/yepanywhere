@@ -419,7 +419,9 @@ still launch from this YA server and are not a reason to skip the local host.
 If an enabled supported launch still has no host after that attempt, local
 sessions continue in-process and the UI shows a non-dismissible warning banner.
 Intentional disablement, unsupported platforms, and unsupported runtime
-distributions keep ordinary in-Hono ownership without that banner; headless
+distributions keep ordinary in-Hono ownership without that banner. An install
+that ships no host scripts, such as the npm package, is such a distribution:
+the server never looks for them outside its own install. Headless
 session control then reports unavailable.
 
 The `codexReloadSafeSessions` setting remains in the server schema and storage
