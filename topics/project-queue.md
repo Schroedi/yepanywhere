@@ -112,6 +112,12 @@ project's scheduler state (`blocked`, `waiting-quiet`, `ready`, `dispatching`,
 raw blocker strings, and resolved display titles for blocker sessions when
 available. The client may format that state as "waiting for quiet" or "blocked
 by ..." copy, but it must not infer idleness from stale local session rows.
+Blocker strings keep their wire form (`<sessionId>:<reason>`, `readiness:…`,
+`worker-queue`, …); shared `parseProjectQueueBlocker` is their one reader and
+`PROJECT_QUEUE_SESSION_BLOCKER_REASONS` their one list of session reasons, so
+every reason, `automation-paused` included, renders as words. The UI names the
+first `PROJECT_QUEUE_NAMED_BLOCKER_COUNT` (three) blockers and counts the rest;
+the server resolves titles only for sessions among those named blockers.
 
 Blocked automatic attempts must stay live. If a quiet-window timer fires while
 absolute blockers remain, the scheduler keeps a bounded retry armed while

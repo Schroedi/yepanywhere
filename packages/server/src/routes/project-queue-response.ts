@@ -1,4 +1,5 @@
 import {
+  PROJECT_QUEUE_NAMED_BLOCKER_COUNT,
   type ProjectQueueDispatchState,
   type ProjectQueueItemSummary,
   type ProjectQueueListResponse,
@@ -7,6 +8,7 @@ import {
   type ProjectQueueResponse,
   getSessionDisplayTitle,
   isUrlProjectId,
+  parseProjectQueueBlocker,
 } from "@yep-anywhere/shared";
 import type { UserUsageService } from "../auth/UserUsageService.js";
 import type { SessionMetadataService } from "../metadata/index.js";
@@ -282,74 +284,73 @@ async function projectStatusesForIds(
 ): Promise<Record<string, ProjectQueueProjectStatus> | undefined> {
   const scheduler = deps.projectQueueScheduler;
   if (!scheduler) return undefined;
-  const statuses: Record<string, ProjectQueueProjectStatus> = {};
   const projectCache = new Map<string, Promise<Project | null>>();
-  for (const projectId of new Set(projectIds)) {
-    if (!isUrlProjectId(projectId)) continue;
-    const status = await scheduler.getProjectStatus(projectId);
-    const sessionIds = new Set(
-      status.blockers.flatMap((blocker) => {
-        const separator = blocker.indexOf(":");
-        if (separator <= 0) return [];
-        const reason = blocker.slice(separator + 1);
-        return reason === "in-turn" ||
-          reason === "waiting-input" ||
-          reason === "provider-retained" ||
-          reason === "direct-queue" ||
-          reason === "deferred-queue" ||
-          reason === "pending-input" ||
-          reason === "user-starting" ||
-          reason === "automation-paused" ||
-          reason === "external" ||
-          reason.startsWith("liveness-")
-          ? [blocker.slice(0, separator)]
-          : [];
-      }),
-    );
-    if (sessionIds.size > 0 && hasDisplayMetadataDeps(deps)) {
-      const project =
-        deps.scanner && hasTitleResolutionDeps(deps)
-          ? await resolveProjectById(projectId, deps, projectCache)
-          : null;
-      const blockerSessionTitles: Record<string, string> = {};
-      await Promise.all(
-        [...sessionIds].map(async (sessionId) => {
-          let summary: {
-            title?: string | null;
-            fullTitle?: string | null;
-          } | null = null;
-          if (project && hasTitleResolutionDeps(deps)) {
-            try {
-              summary =
-                (
-                  await findSessionListSummaryAcrossProviders(
-                    project,
-                    sessionId,
-                    project.id,
-                    buildProviderResolutionDeps(deps),
-                  )
-                )?.summary ?? null;
-            } catch {
-              // Persisted custom titles still provide a useful fallback.
-            }
-          }
-          const title = resolveTargetTitles(
-            sessionId,
-            summary,
-            deps,
-          ).targetTitle;
-          if (title) {
-            blockerSessionTitles[sessionId] = title;
-          }
-        }),
-      );
-      if (Object.keys(blockerSessionTitles).length > 0) {
-        status.blockerSessionTitles = blockerSessionTitles;
-      }
+  const resolved = await Promise.all(
+    [...new Set(projectIds)].filter(isUrlProjectId).map(async (projectId) => {
+      const status = await scheduler.getProjectStatus(projectId);
+      await addBlockerSessionTitles(status, deps, projectCache);
+      return status;
+    }),
+  );
+  return Object.fromEntries(
+    resolved.map((status) => [status.projectId, status]),
+  );
+}
+
+/** Sessions the queue UI names among a project's blockers. */
+function namedBlockerSessionIds(blockers: readonly string[]): Set<string> {
+  const sessionIds = new Set<string>();
+  for (const blocker of blockers.slice(0, PROJECT_QUEUE_NAMED_BLOCKER_COUNT)) {
+    const parsed = parseProjectQueueBlocker(blocker);
+    if (parsed.kind === "session" || parsed.kind === "session-liveness") {
+      sessionIds.add(parsed.sessionId);
     }
-    statuses[projectId] = status;
   }
-  return statuses;
+  return sessionIds;
+}
+
+async function addBlockerSessionTitles(
+  status: ProjectQueueProjectStatus,
+  deps: GlobalProjectQueueRoutesDeps | ProjectQueueRoutesDeps,
+  projectCache: Map<string, Promise<Project | null>>,
+): Promise<void> {
+  const sessionIds = namedBlockerSessionIds(status.blockers);
+  if (sessionIds.size === 0 || !hasDisplayMetadataDeps(deps)) return;
+  const project =
+    deps.scanner && hasTitleResolutionDeps(deps)
+      ? await resolveProjectById(status.projectId, deps, projectCache)
+      : null;
+  const blockerSessionTitles: Record<string, string> = {};
+  await Promise.all(
+    [...sessionIds].map(async (sessionId) => {
+      let summary: {
+        title?: string | null;
+        fullTitle?: string | null;
+      } | null = null;
+      if (project && hasTitleResolutionDeps(deps)) {
+        try {
+          summary =
+            (
+              await findSessionListSummaryAcrossProviders(
+                project,
+                sessionId,
+                project.id,
+                buildProviderResolutionDeps(deps),
+              )
+            )?.summary ?? null;
+        } catch {
+          // Persisted custom titles still provide a useful fallback.
+        }
+      }
+      const title = resolveTargetTitles(sessionId, summary, deps).targetTitle;
+      if (title) {
+        blockerSessionTitles[sessionId] = title;
+      }
+    }),
+  );
+  if (Object.keys(blockerSessionTitles).length > 0) {
+    status.blockerSessionTitles = blockerSessionTitles;
+  }
 }
 
 export async function projectQueueResponse(

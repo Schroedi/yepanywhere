@@ -326,6 +326,52 @@ describe("Project Queue Routes", () => {
     });
   });
 
+  it("looks up titles only for the blocker sessions the queue names", async () => {
+    await service.createItem({
+      projectId,
+      projectPath: project.path,
+      request: {
+        target: { type: "new-session" },
+        message: { text: "blocked queued item" },
+      },
+    });
+    const projectQueueScheduler = {
+      getProjectStatus: vi.fn(async (id: UrlProjectId) => ({
+        projectId: id,
+        state: "blocked" as const,
+        idle: false,
+        blockers: [
+          "session-1:in-turn",
+          "worker-queue",
+          "session-2:automation-paused",
+          "session-3:liveness-verified-progressing",
+        ],
+        dispatchPaused: false,
+        inFlight: false,
+        quietWindowMs: 30_000,
+        itemCount: 1,
+      })),
+      promoteNow: vi.fn(),
+    };
+    const getMetadata = vi.fn((sessionId: string) => ({
+      customTitle: `Title of ${sessionId}`,
+    }));
+
+    const routes = createGlobalRoutes({
+      projectQueueScheduler,
+      sessionMetadataService: {
+        getMetadata,
+      } as unknown as SessionMetadataService,
+    });
+    const body = await (await routes.request("/")).json();
+
+    expect(body.projectStatuses[projectId].blockerSessionTitles).toEqual({
+      "session-1": "Title of session-1",
+      "session-2": "Title of session-2",
+    });
+    expect(getMetadata).not.toHaveBeenCalledWith("session-3");
+  });
+
   it("enriches existing-session targets with cached session titles", async () => {
     await service.createItem({
       projectId,

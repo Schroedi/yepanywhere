@@ -685,7 +685,14 @@ export {
 export {
   DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
   MAX_PROJECT_QUEUE_QUIET_SECONDS,
+  PROJECT_QUEUE_NAMED_BLOCKER_COUNT,
+  PROJECT_QUEUE_SESSION_BLOCKER_REASONS,
+  type ProjectQueueBlocker,
+  type ProjectQueueSessionBlockerReason,
   clampProjectQueueQuietSeconds,
+  parseProjectQueueBlocker,
+  projectQueueLivenessBlocker,
+  projectQueueSessionBlocker,
 } from "./project-queue.js";
 export {
   COMPOSER_ONLY_YA_COMMANDS,

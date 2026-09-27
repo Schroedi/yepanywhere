@@ -1,9 +1,13 @@
-import type {
-  ProjectQueueDispatchState,
-  ProjectQueueItemSummary,
-  ProjectQueueMessage,
-  ProjectQueueProjectStatus,
-  ProjectQueueRecoveredSessionQueueSummary,
+import {
+  PROJECT_QUEUE_NAMED_BLOCKER_COUNT,
+  type ProjectQueueBlocker,
+  type ProjectQueueDispatchState,
+  type ProjectQueueItemSummary,
+  type ProjectQueueMessage,
+  type ProjectQueueProjectStatus,
+  type ProjectQueueRecoveredSessionQueueSummary,
+  type ProjectQueueSessionBlockerReason,
+  parseProjectQueueBlocker,
 } from "@yep-anywhere/shared";
 import {
   type FormEvent,
@@ -13,7 +17,7 @@ import {
   useState,
 } from "react";
 import { Link } from "react-router-dom";
-import { useI18n } from "../i18n";
+import { type MessageKey, useI18n } from "../i18n";
 import type { Project } from "../types";
 import { ProjectQueueAttachmentEditor } from "./ProjectQueueAttachmentEditor";
 import { ProviderBadge } from "./ProviderBadge";
@@ -121,52 +125,110 @@ function shortSessionId(sessionId: string): string {
   return sessionId.slice(0, 8);
 }
 
-function formatProjectQueueBlocker(blocker: string, t: Translate): string {
-  if (blocker.startsWith("readiness:"))
-    return blocker.slice("readiness:".length);
-  if (blocker === "worker-queue") return t("projectQueueBlockerWorkerQueue");
-  if (blocker === "project-queue:first-failed") {
-    return t("projectQueueBlockerFirstFailed");
-  }
-  if (blocker.startsWith("recovered-session-queue:")) {
-    const count = blocker.split(":")[1] ?? "?";
-    return t("projectQueueBlockerRecoveredSessionQueue", { count });
-  }
+/**
+ * Copy for each session blocker reason: with the session named, and alone
+ * after a session already named. Exhaustive, so a reason the server adds
+ * fails the build here rather than rendering its raw token.
+ */
+const SESSION_BLOCKER_COPY: Record<
+  ProjectQueueSessionBlockerReason,
+  { withSession: MessageKey; alone: MessageKey }
+> = {
+  "in-turn": {
+    withSession: "projectQueueBlockerInTurn",
+    alone: "projectQueueBlockerReasonInTurn",
+  },
+  "waiting-input": {
+    withSession: "projectQueueBlockerWaitingInput",
+    alone: "projectQueueBlockerReasonWaitingInput",
+  },
+  "provider-retained": {
+    withSession: "projectQueueBlockerProviderRetained",
+    alone: "projectQueueBlockerReasonProviderRetained",
+  },
+  "direct-queue": {
+    withSession: "projectQueueBlockerDirectQueue",
+    alone: "projectQueueBlockerReasonDirectQueue",
+  },
+  "deferred-queue": {
+    withSession: "projectQueueBlockerDeferredQueue",
+    alone: "projectQueueBlockerReasonDeferredQueue",
+  },
+  "pending-input": {
+    withSession: "projectQueueBlockerPendingInput",
+    alone: "projectQueueBlockerReasonPendingInput",
+  },
+  "user-starting": {
+    withSession: "projectQueueBlockerUserStarting",
+    alone: "projectQueueBlockerReasonUserStarting",
+  },
+  "automation-paused": {
+    withSession: "projectQueueBlockerAutomationPaused",
+    alone: "projectQueueBlockerReasonAutomationPaused",
+  },
+  external: {
+    withSession: "projectQueueBlockerExternal",
+    alone: "projectQueueBlockerReasonExternal",
+  },
+};
 
-  const [sessionId, reason] = blocker.split(":");
-  const session = shortSessionId(sessionId ?? "");
-  switch (reason) {
-    case "in-turn":
-      return t("projectQueueBlockerInTurn", { session });
-    case "waiting-input":
-      return t("projectQueueBlockerWaitingInput", { session });
-    case "provider-retained":
-      return t("projectQueueBlockerProviderRetained", { session });
-    case "direct-queue":
-      return t("projectQueueBlockerDirectQueue", { session });
-    case "deferred-queue":
-      return t("projectQueueBlockerDeferredQueue", { session });
-    case "pending-input":
-      return t("projectQueueBlockerPendingInput", { session });
-    case "user-starting":
-      return t("projectQueueBlockerUserStarting", { session });
-    case "external":
-      return t("projectQueueBlockerExternal", { session });
-    default:
-      if (reason?.startsWith("liveness-")) {
-        return t("projectQueueBlockerLiveness", {
-          session,
-          status: reason.slice("liveness-".length),
-        });
-      }
-      return t("projectQueueBlockerUnknown", { blocker });
+type SessionBlocker = Extract<
+  ProjectQueueBlocker,
+  { kind: "session" | "session-liveness" }
+>;
+
+function isSessionBlocker(
+  blocker: ProjectQueueBlocker,
+): blocker is SessionBlocker {
+  return blocker.kind === "session" || blocker.kind === "session-liveness";
+}
+
+/** A session blocker's reason, for a session already named beside it. */
+function sessionBlockerReason(blocker: SessionBlocker, t: Translate): string {
+  return blocker.kind === "session-liveness"
+    ? t("projectQueueBlockerReasonLiveness", { status: blocker.status })
+    : t(SESSION_BLOCKER_COPY[blocker.reason].alone);
+}
+
+function formatProjectQueueBlocker(
+  blocker: ProjectQueueBlocker,
+  t: Translate,
+): string {
+  switch (blocker.kind) {
+    case "readiness":
+      return blocker.detail;
+    case "worker-queue":
+      return t("projectQueueBlockerWorkerQueue");
+    case "first-item-failed":
+      return t("projectQueueBlockerFirstFailed");
+    case "recovered-session-queue":
+      return t("projectQueueBlockerRecoveredSessionQueue", {
+        count: blocker.count,
+      });
+    case "session":
+      return t(SESSION_BLOCKER_COPY[blocker.reason].withSession, {
+        session: shortSessionId(blocker.sessionId),
+      });
+    case "session-liveness":
+      return t("projectQueueBlockerLiveness", {
+        session: shortSessionId(blocker.sessionId),
+        status: blocker.status,
+      });
+    case "other":
+      return t("projectQueueBlockerUnknown", { blocker: blocker.blocker });
   }
 }
 
+function namedBlockers(blockers: readonly string[]): ProjectQueueBlocker[] {
+  return blockers
+    .slice(0, PROJECT_QUEUE_NAMED_BLOCKER_COUNT)
+    .map(parseProjectQueueBlocker);
+}
+
 function summarizeBlockers(blockers: readonly string[], t: Translate): string {
-  const formatted = blockers
-    .slice(0, 3)
-    .map((blocker) => formatProjectQueueBlocker(blocker, t));
+  const formatted = namedBlockers(blockers).map((blocker) =>
+    formatProjectQueueBlocker(blocker, t),
+  );
   if (blockers.length > formatted.length) {
     formatted.push(
       t("projectQueueBlockerMore", {
@@ -177,63 +239,33 @@ function summarizeBlockers(blockers: readonly string[], t: Translate): string {
   return formatted.join("; ");
 }
 
-function sessionBlockerReason(reason: string, t: Translate): string {
-  switch (reason) {
-    case "in-turn":
-      return t("projectQueueBlockerReasonInTurn");
-    case "waiting-input":
-      return t("projectQueueBlockerReasonWaitingInput");
-    case "provider-retained":
-      return t("projectQueueBlockerReasonProviderRetained");
-    case "direct-queue":
-      return t("projectQueueBlockerReasonDirectQueue");
-    case "deferred-queue":
-      return t("projectQueueBlockerReasonDeferredQueue");
-    case "pending-input":
-      return t("projectQueueBlockerReasonPendingInput");
-    case "user-starting":
-      return t("projectQueueBlockerReasonUserStarting");
-    case "external":
-      return t("projectQueueBlockerReasonExternal");
-    default:
-      return reason.startsWith("liveness-")
-        ? t("projectQueueBlockerReasonLiveness", {
-            status: reason.slice("liveness-".length),
-          })
-        : reason;
-  }
-}
-
 function blockerNodes(
   status: ProjectQueueProjectStatus,
   basePath: string,
   t: Translate,
 ): ReactNode[] {
   const result: ReactNode[] = [];
-  const sessions = new Map<string, string[]>();
-  for (const blocker of status.blockers.slice(0, 3)) {
-    const separator = blocker.indexOf(":");
-    const sessionId = separator > 0 ? blocker.slice(0, separator) : "";
-    const reason = separator > 0 ? blocker.slice(separator + 1) : "";
-    if (
-      sessionId &&
-      (status.blockerSessionTitles?.[sessionId] ||
-        reason === "in-turn" ||
-        reason === "waiting-input" ||
-        reason.startsWith("liveness-"))
-    ) {
-      const reasons = sessions.get(sessionId) ?? [];
-      reasons.push(sessionBlockerReason(reason, t));
-      sessions.set(sessionId, reasons);
+  const sessions = new Map<string, SessionBlocker[]>();
+  for (const blocker of namedBlockers(status.blockers)) {
+    if (isSessionBlocker(blocker)) {
+      const held = sessions.get(blocker.sessionId) ?? [];
+      held.push(blocker);
+      sessions.set(blocker.sessionId, held);
     } else {
       result.push(formatProjectQueueBlocker(blocker, t));
     }
   }
-  for (const [sessionId, reasons] of sessions) {
+  for (const [sessionId, held] of sessions) {
     const title = status.blockerSessionTitles?.[sessionId];
+    const [only] = held;
+    if (held.length === 1 && only && !title) {
+      result.push(formatProjectQueueBlocker(only, t));
+      continue;
+    }
     result.push(
       <span key={sessionId}>
-        {shortSessionId(sessionId)} {reasons.join("; ")}
+        {shortSessionId(sessionId)}{" "}
+        {held.map((blocker) => sessionBlockerReason(blocker, t)).join("; ")}
         {title && (
           <>
             {"; "}
@@ -247,9 +279,11 @@ function blockerNodes(
       </span>,
     );
   }
-  if (status.blockers.length > 3) {
+  if (status.blockers.length > PROJECT_QUEUE_NAMED_BLOCKER_COUNT) {
     result.push(
-      t("projectQueueBlockerMore", { count: status.blockers.length - 3 }),
+      t("projectQueueBlockerMore", {
+        count: status.blockers.length - PROJECT_QUEUE_NAMED_BLOCKER_COUNT,
+      }),
     );
   }
   return result;

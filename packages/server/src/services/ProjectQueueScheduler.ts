@@ -12,6 +12,7 @@ import {
   type UrlProjectId,
   thinkingOptionToConfig,
   fromUrlProjectId,
+  projectQueueSessionBlocker,
 } from "@yep-anywhere/shared";
 import {
   limitExistingSessionLaunch,
@@ -370,7 +371,9 @@ export class ProjectQueueScheduler {
     const reservations = this.userSessionStartReservations.get(projectId);
     if (reservations) {
       for (const sessionId of reservations.keys()) {
-        status.blockers.push(`${sessionId}:user-starting`);
+        status.blockers.push(
+          projectQueueSessionBlocker(sessionId, "user-starting"),
+        );
       }
     }
     return { idle: status.blockers.length === 0, blockers: status.blockers };
@@ -459,7 +462,9 @@ export class ProjectQueueScheduler {
       first.target.type === "existing-session" &&
       this.options.isSessionAutomationPaused?.(first.target.sessionId)
     ) {
-      blockers.push(`${first.target.sessionId}:automation-paused`);
+      blockers.push(
+        projectQueueSessionBlocker(first.target.sessionId, "automation-paused"),
+      );
     }
 
     const now = Date.now();

@@ -534,6 +534,33 @@ describe("ProjectQueueSection", () => {
     ).toBe(`/projects/${PROJECT_ID}/sessions/01a0c5c3-full-session-id`);
   });
 
+  it("says in words that a session's automation is paused, titled or not", () => {
+    renderSection(
+      [makeItem("1")],
+      undefined,
+      undefined,
+      { status: "running" },
+      [],
+      {
+        [PROJECT_ID]: makeProjectStatus("blocked", {
+          blockers: [
+            "01a0c5c3-full-session-id:automation-paused",
+            "99887766-other-session-id:automation-paused",
+          ],
+          blockerSessionTitles: {
+            "01a0c5c3-full-session-id": "Repair publish verification",
+          },
+        }),
+      },
+    );
+
+    expect(
+      document.querySelector(`.${styles.itemReadiness}`)?.textContent,
+    ).toBe(
+      "Waiting because: 01a0c5c3 automation paused until your next turn; Repair publish verification; 99887766 automation paused until your next turn",
+    );
+  });
+
   it("shows the external readiness caption without interpreting its colons", () => {
     renderSection(
       [makeItem("1")],
