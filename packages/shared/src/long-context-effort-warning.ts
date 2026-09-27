@@ -1,3 +1,5 @@
+import { isRecord } from "./plain-record.js";
+import { effortOfThinkingOption } from "./turn-effort.js";
 import {
   ALL_PROVIDERS,
   type ProviderName,
@@ -37,10 +39,6 @@ export const DEFAULT_LONG_CONTEXT_EFFORT_WARNING_SETTINGS: LongContextEffortWarn
     providers: { claude: true, codex: true },
     thresholdTokens: DEFAULT_LONG_CONTEXT_EFFORT_WARNING_TOKENS,
   };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 /**
  * Parse a stored or submitted setting. `undefined`/`null`/`""` yields the
@@ -85,20 +83,6 @@ export function parseLongContextEffortWarningSettings(
   }
 
   return { providers, thresholdTokens };
-}
-
-/**
- * The effort a thinking option asks for, or `undefined` when the option lets
- * the provider choose (`auto`) or disables thinking (`off`). Two options with
- * different results here are an effort change for the warning's purposes.
- */
-export function effortOfThinkingOption(
-  option: ThinkingOption | undefined,
-): string | undefined {
-  if (option === undefined || option === "off" || option === "auto") {
-    return undefined;
-  }
-  return option.startsWith("on:") ? option.slice(3) : option;
 }
 
 /**

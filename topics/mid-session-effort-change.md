@@ -76,7 +76,11 @@ after the fact. This topic surfaces it before.
 - **Fork launch settings.** The fork route accepts an optional `thinking`
   option and, when present, records it as the fork's effective launch
   settings with the inherited model and the source's permission mode and
-  service tier. The fork's composer therefore sends that effort on its first
+  service tier, by the same source-plus-overrides inheritance a restart or
+  handoff uses (`inheritSuccessorLaunchSettings`); `thinking` accepts the
+  same wire options as any other launch (`isThinkingOption`), and anything
+  else is refused before a fork is created. The fork's composer therefore
+  sends that effort on its first
   turn instead of the browser's per-model default, and server-side turns use
   it too. A fork without `thinking` keeps today's behavior.
 - **Setting.** `longContextEffortWarning` is a server-persisted setting

@@ -4829,6 +4829,73 @@ describe("Sessions metadata route", () => {
     });
   });
 
+  it("forks at a requested effort keeping the source's other launch settings", async () => {
+    const project = createProject();
+    const forkSession = vi.fn(async () => ({ sessionId: "sess-fork" }));
+    const recordEffectiveLaunchSettings = vi.fn(async () => undefined);
+    const routes = createSessionsRoutes({
+      supervisor: {
+        getProcessForSession: vi.fn(() => undefined),
+        supportsForkSession: vi.fn(() => true),
+        forkSession,
+        resumeSession: vi.fn(),
+        startSession: vi.fn(),
+      } as unknown as SessionsDeps["supervisor"],
+      scanner: {
+        getOrCreateProject: vi.fn(async () => project),
+      } as unknown as SessionsDeps["scanner"],
+      readerFactory: vi.fn(
+        () =>
+          ({
+            getSessionSummary: vi.fn(async () => null),
+          }) as unknown as ISessionReader,
+      ),
+      sessionMetadataService: {
+        getProvider: vi.fn(() => "claude"),
+        getRequestedModel: vi.fn(() => "opus"),
+        setRequestedModel: vi.fn(async () => undefined),
+        getExecutor: vi.fn(() => undefined),
+        nextForkOrdinal: vi.fn(async () => undefined),
+        forkLineageRoot: vi.fn(() => undefined),
+        getMetadata: vi.fn(() => ({
+          effectiveLaunchSettings: {
+            schemaVersion: 1,
+            revision: 3,
+            permissionMode: "acceptEdits",
+            requestedModel: "opus",
+            serviceTier: "priority",
+            thinking: { type: "adaptive", display: "summarized" },
+            effort: "low",
+          },
+        })),
+        setProvider: vi.fn(async () => undefined),
+        setSessionSandbox: vi.fn(async () => undefined),
+        updateMetadata: vi.fn(async () => undefined),
+        recordEffectiveLaunchSettings,
+      } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
+    });
+    const fork = (thinking: unknown) =>
+      routes.request(`/projects/${project.id}/sessions/sess-1/fork`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ thinking }),
+      });
+
+    for (const invalid of ["on:ultra", "on:", null]) {
+      expect((await fork(invalid)).status).toBe(400);
+    }
+    expect(forkSession).not.toHaveBeenCalled();
+
+    expect((await fork("on:high")).status).toBe(200);
+    expect(recordEffectiveLaunchSettings).toHaveBeenCalledWith("sess-fork", {
+      permissionMode: "acceptEdits",
+      requestedModel: "opus",
+      serviceTier: "priority",
+      thinking: { type: "adaptive", display: "summarized" },
+      effort: "high",
+    });
+  });
+
   it("numbers repeated forks of one session after the first", async () => {
     const project = createProject();
     const forkSession = vi.fn(async () => ({ sessionId: "sess-fork" }));

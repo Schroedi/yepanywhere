@@ -71,7 +71,6 @@ export {
   LONG_CONTEXT_EFFORT_WARNING_SLIDER_MAX_TOKENS,
   LONG_CONTEXT_EFFORT_WARNING_SLIDER_STEP_TOKENS,
   effortChangeKeepsPromptCache,
-  effortOfThinkingOption,
   parseLongContextEffortWarningSettings,
   shouldWarnLongContextEffortChange,
   type LongContextEffortChangeQuery,
@@ -80,6 +79,8 @@ export {
 
 export {
   EFFORT_LEVEL_ORDER,
+  effortOfThinkingOption,
+  isThinkingOption,
   getModelEffortLevels,
   nativeModelEffort,
   resolveTurnEffort,

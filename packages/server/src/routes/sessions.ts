@@ -20,14 +20,13 @@ import {
   type UserMessageMetadata,
   type UrlProjectId,
   type WorkstreamId,
-  type EffortLevel,
-  EFFORT_LEVEL_ORDER,
   GOAL_COMMAND_NAME,
   SESSION_UNREAD_TIMESTAMP,
   agentHarness,
   buildEffectiveAgentContext,
   getModelContextWindow,
   readGoalDetails,
+  isThinkingOption,
   isUrlProjectId,
   isWorkstreamId,
   mainWorkstreamId,
@@ -194,6 +193,7 @@ import {
   resolveRecoveredGroupForDelivery,
   resumeRecoveredGroup,
 } from "./session-recovered-queue.js";
+import { inheritSuccessorLaunchSettings } from "./session-launch-inheritance.js";
 import { buildThinkingOptions } from "./session-thinking-options.js";
 import {
   actingUsername,
@@ -219,14 +219,6 @@ function effectiveModelSettingsFromMetadata(
     thinking: settings.thinking,
     effort: settings.effort,
   };
-}
-
-/** A fork body's optional launch thinking: `off`, `auto`, or `on:<level>`. */
-function isForkThinkingOption(value: unknown): value is ThinkingOption {
-  if (typeof value !== "string") return false;
-  if (value === "off" || value === "auto") return true;
-  const level = value.startsWith("on:") ? value.slice(3) : value;
-  return EFFORT_LEVEL_ORDER.includes(level as EffortLevel);
 }
 
 function permissionModeError(mode: unknown): string | undefined {
@@ -674,20 +666,6 @@ function parseOptionalJsonObjectBody(
   return { body: parsed as Record<string, unknown> };
 }
 
-const REACTIVATE_THINKING_OPTIONS: ReadonlySet<unknown> = new Set([
-  "off",
-  "auto",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-  "on:low",
-  "on:medium",
-  "on:high",
-  "on:xhigh",
-  "on:max",
-]);
 const REACTIVATE_SHOW_THINKING_OPTIONS: ReadonlySet<unknown> = new Set([
   "default",
   "on",
@@ -735,10 +713,7 @@ function parseOptionalReactivateSessionBody(
   ) {
     return { error: "serviceTier must be a valid tier name" };
   }
-  if (
-    Object.hasOwn(body, "thinking") &&
-    !REACTIVATE_THINKING_OPTIONS.has(body.thinking)
-  ) {
+  if (Object.hasOwn(body, "thinking") && !isThinkingOption(body.thinking)) {
     return { error: "Invalid thinking option" };
   }
   if (
@@ -5548,35 +5523,33 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     const providerName = body.provider ?? sourceProvider;
     const inheritsSourceProviderSettings = providerName === sourceProvider;
 
-    const sourceLaunchSettings = originalMetadata?.effectiveLaunchSettings;
-    const sourceProviderLaunchSettings = inheritsSourceProviderSettings
-      ? sourceLaunchSettings
-      : undefined;
-    const requestedModel =
-      body.model ??
-      sourceProviderLaunchSettings?.requestedModel ??
-      (inheritsSourceProviderSettings
-        ? deps.sessionMetadataService?.getRequestedModel(sessionId)
-        : undefined);
-    const parsedThinking = buildThinkingOptions(body);
-    const thinking =
-      body.thinking !== undefined
-        ? parsedThinking.thinking
-        : (sourceProviderLaunchSettings?.thinking ?? undefined);
-    const effort =
-      body.thinking !== undefined
-        ? parsedThinking.effort
-        : (sourceProviderLaunchSettings?.effort ?? undefined);
+    const {
+      requestedModel,
+      thinking,
+      effort,
+      serviceTier,
+      permissionMode: restartPermissionMode,
+    } = inheritSuccessorLaunchSettings(
+      originalMetadata?.effectiveLaunchSettings,
+      {
+        sameProvider: inheritsSourceProviderSettings,
+        legacyRequestedModel: () =>
+          deps.sessionMetadataService?.getRequestedModel(sessionId),
+      },
+      {
+        requestedModel: body.model,
+        thinking: body.thinking,
+        serviceTier:
+          body.serviceTier !== undefined
+            ? (normalizeOptionalServiceTier(body.serviceTier) ?? null)
+            : undefined,
+        permissionMode: body.mode,
+      },
+    );
     const model =
       requestedModel && requestedModel !== "default"
         ? requestedModel
         : undefined;
-    const serviceTier =
-      body.serviceTier !== undefined
-        ? normalizeOptionalServiceTier(body.serviceTier)
-        : (sourceProviderLaunchSettings?.serviceTier ?? undefined);
-    const restartPermissionMode =
-      body.mode ?? sourceLaunchSettings?.permissionMode;
 
     if (restartMode === "fork") {
       const claimed =
@@ -6663,7 +6636,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
     let forkThinking: ThinkingOption | undefined;
     if (body.thinking !== undefined) {
-      if (!isForkThinkingOption(body.thinking)) {
+      if (!isThinkingOption(body.thinking)) {
         return c.json(
           { error: "thinking must be off, auto, or on:<effort level>" },
           400,
@@ -6910,18 +6883,19 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       // the fork's launch settings, so its first send and every later
       // server-side turn use it rather than the browser's per-model default.
       // See topics/mid-session-effort-change.md.
-      const sourceLaunch = originalMetadata?.effectiveLaunchSettings;
-      const { thinking, effort } = buildThinkingOptions({
-        thinking: forkThinking,
-      });
+      const launch = inheritSuccessorLaunchSettings(
+        originalMetadata?.effectiveLaunchSettings,
+        { sameProvider: true },
+        { requestedModel: inheritedModel, thinking: forkThinking },
+      );
       await deps.sessionMetadataService.recordEffectiveLaunchSettings(
         fork.sessionId,
         {
-          permissionMode: sourceLaunch?.permissionMode ?? "default",
-          requestedModel: inheritedModel ?? null,
-          serviceTier: sourceLaunch?.serviceTier ?? null,
-          thinking: thinking ?? null,
-          effort: effort ?? null,
+          permissionMode: launch.permissionMode ?? "default",
+          requestedModel: launch.requestedModel ?? null,
+          serviceTier: launch.serviceTier ?? null,
+          thinking: launch.thinking ?? null,
+          effort: launch.effort ?? null,
         },
       );
     }

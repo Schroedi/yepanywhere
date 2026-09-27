@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_LONG_CONTEXT_EFFORT_WARNING_TOKENS,
-  effortOfThinkingOption,
   parseLongContextEffortWarningSettings,
   shouldWarnLongContextEffortChange,
 } from "../long-context-effort-warning.js";
@@ -38,16 +37,6 @@ describe("parseLongContextEffortWarningSettings", () => {
     expect(
       parseLongContextEffortWarningSettings({ thresholdTokens: 750_000 }),
     ).toEqual({ providers: {}, thresholdTokens: 750_000 });
-  });
-});
-
-describe("effortOfThinkingOption", () => {
-  it("reads the effort component and treats auto/off as none", () => {
-    expect(effortOfThinkingOption("on:high")).toBe("high");
-    expect(effortOfThinkingOption("max")).toBe("max");
-    expect(effortOfThinkingOption("auto")).toBeUndefined();
-    expect(effortOfThinkingOption("off")).toBeUndefined();
-    expect(effortOfThinkingOption(undefined)).toBeUndefined();
   });
 });
 
