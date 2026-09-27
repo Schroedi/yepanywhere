@@ -37,6 +37,12 @@ import type {
   ProviderLivenessProbeResult,
   SDKMessage,
 } from "../types.js";
+import {
+  PI_EFFORT_RETRY_COMMAND,
+  type PiEffortRetryRecord,
+  piEffortRetryNoticeText,
+  yepAnywherePiExtensionPath,
+} from "./pi-effort-retry.js";
 import { PiRpcClient } from "./pi-rpc-client.js";
 import { stripYaControlPlaneCredentials } from "./env-filter.js";
 import {
@@ -162,9 +168,8 @@ export function piVersionUsesAgentSettled(rawVersion: string): boolean | null {
  *
  * Every level YA names is one of pi's own: its `THINKING_LEVELS` are off,
  * minimal, low, medium, high, xhigh and max (verified against installed Pi
- * 0.85.1, whose `--thinking` help states the same set). "max" used to be folded
- * onto "xhigh", from when xhigh was pi's top level; that quietly delivered one
- * level less thinking than the user chose.
+ * 0.85.1, whose `--thinking` help states the same set), so each passes through
+ * unchanged.
  */
 function effortToThinkingLevel(effort: EffortLevel): string {
   return effort;
@@ -373,7 +378,7 @@ export class PiProvider implements AgentProvider {
       );
     }
 
-    const args = ["--mode", "rpc"];
+    const args = ["--mode", "rpc", "--extension", yepAnywherePiExtensionPath()];
     if (options.model && options.model !== "default") {
       args.push("--model", options.model);
     }
@@ -635,6 +640,9 @@ export class PiProvider implements AgentProvider {
      */
     let effort = options.effort;
 
+    /** Whether this pi loaded YA's extension command; asked on first need. */
+    let effortRetryCommandLoaded: Promise<boolean> | undefined;
+
     const unsubscribe = client.subscribe((event) => {
       runtime.lastRawProviderEventAt = new Date();
       runtime.lastRawProviderEventSource = `pi:event:${event.type}`;
@@ -712,22 +720,31 @@ export class PiProvider implements AgentProvider {
                 sdk.error && effortRetries < MAX_EFFORT_RETRIES_PER_TURN
                   ? loweredEffortForRejection(String(sdk.error), effort)
                   : undefined;
-              if (lowered) {
+              if (effort && lowered) {
                 effortRetries += 1;
+                const record: PiEffortRetryRecord = {
+                  refusedLevel: effort,
+                  retryLevel: lowered,
+                  error: String(sdk.error),
+                };
+                effortRetryCommandLoaded ??= this.hasEffortRetryCommand(client);
+                // Set aside before changing the level: pi records the level
+                // change on its active branch, which the set-aside moves.
+                const setAside =
+                  (await effortRetryCommandLoaded) &&
+                  (await this.setAsideRefusedTurn(client, record, sessionId));
                 effort = lowered;
                 await client
                   .request({ type: "set_thinking_level", level: lowered })
                   .catch(() => {});
-                yield this.effortDowngradeNotice(
-                  sessionId,
-                  String(sdk.error),
-                  lowered,
-                );
-                stream.currentAssistantId = null;
-                stream.text = "";
-                stream.thinking = "";
-                sendPrompt();
-                continue;
+                yield this.effortRetryNotice(sessionId, record, setAside);
+                if (setAside) {
+                  stream.currentAssistantId = null;
+                  stream.text = "";
+                  stream.thinking = "";
+                  sendPrompt();
+                  continue;
+                }
               }
               turnComplete = true;
             }
@@ -966,17 +983,80 @@ export class PiProvider implements AgentProvider {
     }
   }
 
+  /** Whether pi loaded YA's extension, so its command will not reach the model. */
+  private async hasEffortRetryCommand(client: PiRpcClient): Promise<boolean> {
+    try {
+      const response = await client.request({ type: "get_commands" });
+      const commands =
+        (response.data as { commands?: { name?: unknown; source?: unknown }[] })
+          ?.commands ?? [];
+      return (
+        response.success &&
+        commands.some(
+          (command) =>
+            command.name === PI_EFFORT_RETRY_COMMAND &&
+            command.source === "extension",
+        )
+      );
+    } catch {
+      return false;
+    }
+  }
+
   /**
-   * Say that the turn is being retried lower, and why.
+   * Move pi's session back to before the refused prompt, recording the refusal.
+   *
+   * Sending the prompt again without this leaves it in the model context and
+   * the session file twice: pi keeps the refused prompt and drops only its
+   * error reply from what it sends. True only when the extension command ran
+   * without an `extension_error`.
+   */
+  private async setAsideRefusedTurn(
+    client: PiRpcClient,
+    record: PiEffortRetryRecord,
+    sessionId: string,
+  ): Promise<boolean> {
+    const failures: string[] = [];
+    const stopObserving = client.onExtensionError((event) => {
+      if (event.extensionPath === `command:${PI_EFFORT_RETRY_COMMAND}`) {
+        failures.push(event.error ?? "unknown error");
+      }
+    });
+    try {
+      const response = await client.request({
+        type: "prompt",
+        message: `/${PI_EFFORT_RETRY_COMMAND} ${JSON.stringify(record)}`,
+      });
+      if (response.success && failures.length === 0) return true;
+      getLogger().warn(
+        { sessionId, failures, error: response.error },
+        "pi: refused turn could not be set aside; not resending it",
+      );
+      return false;
+    } catch (error) {
+      getLogger().warn(
+        { sessionId, error },
+        "pi: refused turn could not be set aside; not resending it",
+      );
+      return false;
+    } finally {
+      stopObserving();
+    }
+  }
+
+  /**
+   * Say that the model refused the thinking level, and what happens next.
    *
    * An assistant message rather than a transient status: the user chose a level
    * the picker offered, and the record of the model refusing it belongs in the
-   * transcript beside the answer that level did not produce.
+   * transcript beside the answer that level did not produce. When the turn was
+   * set aside, pi's session also holds the record, and the reader shows the
+   * same text from it.
    */
-  private effortDowngradeNotice(
+  private effortRetryNotice(
     sessionId: string,
-    errorMessage: string,
-    lowered: EffortLevel,
+    record: PiEffortRetryRecord,
+    resent: boolean,
   ): SDKMessage {
     return {
       type: "assistant",
@@ -984,9 +1064,7 @@ export class PiProvider implements AgentProvider {
       uuid: `pi-effort-retry-${Date.now()}`,
       message: {
         role: "assistant",
-        content:
-          `_This model refused the requested thinking level, so the turn is ` +
-          `being retried at **${lowered}**._\n\n> ${errorMessage.trim()}`,
+        content: piEffortRetryNoticeText(record, resent),
       },
     } as SDKMessage;
   }
