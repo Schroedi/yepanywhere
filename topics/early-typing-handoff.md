@@ -55,14 +55,21 @@ The observed shapes, all of which existed at once:
    focus alone retires the handoff after `attempts` (focus plus one key), and
    that escape puts the caret after whatever the field shows: at most the last
    character is out of order.
-5. **Bound the hold.** An unclaimed handoff expires rather than intercepting
-   for the rest of the page's life.
+5. **Bound the hold.** An unclaimed handoff stops intercepting after 15 s
+   rather than for the rest of the page's life. Expiry ends interception only:
+   keys it already took were kept from the page, so it still delivers them
+   to a field that claims later, such as a composer behind a slow session
+   load. Keys struck after expiry reach the page as usual. Only an abandoned
+   request (a new navigation, leaving the page) forgets the held keys.
 6. **Take printable keys and Backspace only**, and only for the span of one
    request. This is not a general keystroke recorder, and modified or named
    keys keep reaching the shortcuts they belong to.
 7. **Respect the caret the action intends.** Held characters go where the
    request meant them to go relative to any prefilled text — after it for a
-   prefilled composer — and the caret ends after them.
+   prefilled composer — and the caret ends after them. Where the text arrives
+   after the keys and was never shown while they were typed (a new-session
+   launch seed that is still being fetched), the typed text follows it as its
+   own paragraph unless the seed already ends in whitespace.
 8. **A refused commit keeps its field rather than refocusing it.** Enter
    commits in place, and the field stays focusable while a save is in flight
    (read-only, not disabled), so a refusal leaves the user typing in it with

@@ -600,8 +600,11 @@ export function NewSessionForm({
     // The composer is focused and typeable while the seed is still being
     // fetched, so keys can land before it arrives. They belong after the
     // seeded text rather than instead of it — dropping the seed because
-    // someone typed one character lost the whole handoff.
-    const combined = `${launch.initialMessage}${message}`;
+    // someone typed one character lost the whole handoff. They were written
+    // without seeing the seed, so they start their own paragraph.
+    const separator =
+      /\s$/.test(launch.initialMessage) || /^\s/.test(message) ? "" : "\n\n";
+    const combined = `${launch.initialMessage}${separator}${message}`;
     pendingTextareaSelectionRef.current = {
       value: combined,
       restore: (textarea) => {

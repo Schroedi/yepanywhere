@@ -1050,10 +1050,47 @@ describe("NewSessionForm", () => {
       />,
     );
 
-    const merged = await screen.findByDisplayValue(
-      "Prepared handoffand also this",
+    // The typed text was written without seeing the seed, so it starts its
+    // own paragraph instead of running into the seed's last word.
+    await waitFor(() =>
+      expect(composer.value).toBe("Prepared handoff\n\nand also this"),
     );
-    expect(merged).toBe(composer);
+  });
+
+  it("does not add a separator after a seed that already ends in whitespace", async () => {
+    const submit = vi.fn(async () => {});
+    const launch = (initialMessage: string) => ({
+      draftKey: "draft-handoff:session-late-spaced",
+      initialMessage,
+      fixedProject: true,
+      allowAttachments: false,
+      allowProjectQueue: false,
+      submit,
+    });
+    const { rerender } = render(
+      <NewSessionForm
+        projectId="project-1"
+        selectedProject={chooserProjects[0]}
+        launch={launch("")}
+      />,
+    );
+    const composer = document.querySelector<HTMLTextAreaElement>(
+      "textarea.new-session-form-textarea",
+    );
+    if (!composer) throw new Error("expected the new-session composer");
+    fireEvent.change(composer, { target: { value: "and also this" } });
+
+    rerender(
+      <NewSessionForm
+        projectId="project-1"
+        selectedProject={chooserProjects[0]}
+        launch={launch("Prepared handoff\n")}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(composer.value).toBe("Prepared handoff\nand also this"),
+    );
   });
 
   it("reuses new-session selection semantics for a seeded launch", async () => {
