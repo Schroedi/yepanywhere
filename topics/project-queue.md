@@ -337,11 +337,25 @@ queue. The active-session action inherits that session's selected provider,
 model, executor, permission mode, and thinking settings for the future session.
 
 Right-click (long-press on touch) on the active-session new-session action
-opens quick options instead of queueing: project, provider, and model, each
-starting at the current session's value. Confirming queues the composer draft
-exactly as a plain click would, but as a new-session item in the chosen
-project with the chosen provider and model; the draft clears only after the
-server accepts the item, and the toast names the project when it differs.
+opens a purple-tinted dock below the editable composer instead of queueing.
+Right-click on the ordinary Send action opens the same dock with green tint.
+It has no modal backdrop or explanatory caption. Project is first and widest,
+model second, provider third; each starts at the current session's value.
+The model dropdown lists the selected provider's catalog. Typing searches
+launchable providers, with provider names in parentheses; choosing a completion
+also changes the provider. Providers requiring an advertised model retain that
+restriction. The composer remains editable while the dock is open.
+
+Green starts a new session immediately through the ordinary session-start
+API and navigates to it. Purple creates a new-session Project Queue item;
+the toast names its project when it differs. Desktop Enter in the draft invokes
+the entry point's action: green from Send, purple from Project Queue.
+Shift+Enter and touch-keyboard Enter retain newline behavior. Model-completion
+Enter chooses the highlighted model before a subsequent Enter can submit.
+An explicit × beside “New session” or Escape exits the mode without changing
+the draft; Escape first closes an open model completion list. Normal sending
+resumes on exit. New-session delivery reuses draft recovery on failure and
+only confirms draft removal after the server accepts the request.
 Permission mode still follows the session. Its executor and its implicit
 effort carry over only when the provider is unchanged, since another
 provider's catalog may reject them; an effort typed in the draft itself still

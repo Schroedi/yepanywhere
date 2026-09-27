@@ -5452,6 +5452,38 @@ describe("MessageInput", () => {
     ).toBeNull();
   });
 
+  it("exits new-session mode without losing the draft or stopping the active turn", () => {
+    const onStop = vi.fn();
+    const onSend = vi.fn();
+    const textarea = renderMessageInput(onSend, {
+      onProjectQueueNewSession: vi.fn(),
+      projectQueueNewSessionTarget: {
+        projectId: "project-1",
+        provider: "claude",
+        model: "test-model",
+      },
+      isRunning: true,
+      isThinking: true,
+      onStop,
+    });
+    fireEvent.change(textarea, { target: { value: "keep this draft" } });
+    const send = document.querySelector(".send-button-with-help");
+    expect(send).not.toBeNull();
+    fireEvent.contextMenu(send!);
+    fireEvent.keyDown(textarea, { key: "Escape" });
+    expect(onStop).not.toHaveBeenCalled();
+    expect((textarea as HTMLTextAreaElement).value).toBe("keep this draft");
+    expect(
+      screen.queryByRole("button", { name: "newSessionQueueExit" }),
+    ).toBeNull();
+    fireEvent.contextMenu(document.querySelector(".send-button-with-help")!);
+    fireEvent.click(
+      screen.getByRole("button", { name: "newSessionQueueExit" }),
+    );
+    expect((textarea as HTMLTextAreaElement).value).toBe("keep this draft");
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it("shows only the Project Queue new-session action when current-session queueing is unavailable", () => {
     const onProjectQueueNewSession = vi.fn();
     const textarea = renderMessageInput(vi.fn(), {

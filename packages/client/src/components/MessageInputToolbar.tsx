@@ -339,6 +339,7 @@ export interface MessageInputToolbarProps {
   onProjectQueueNewSession?: () => void;
   /** Right-click/long-press on the new-session action: choose its target. */
   onProjectQueueNewSessionOptions?: () => void;
+  onSendOptions?: () => void;
   /** Steer the current turn. Used as the alternate action when Enter queues. */
   onSteer?: () => void;
   primaryActionKind?: "send" | "steer" | "queue";
@@ -685,6 +686,7 @@ interface ToolbarQueueControl {
 
 interface ToolbarSendControl {
   onSend?: () => void;
+  onSendOptions?: () => void;
   onSteer?: () => void;
   canSend?: boolean;
   primaryActionKind: "send" | "steer" | "queue";
@@ -3081,6 +3083,14 @@ export function MessageInputToolbarView({
               <button
                 type="button"
                 onClick={actionsControl.send?.onSend}
+                onContextMenu={
+                  actionsControl.send.onSendOptions
+                    ? (event) => {
+                        event.preventDefault();
+                        actionsControl.send?.onSendOptions?.();
+                      }
+                    : undefined
+                }
                 disabled={
                   actionsControl.disabled || !actionsControl.send.canSend
                 }
@@ -3187,6 +3197,7 @@ export function MessageInputToolbar({
   onProjectQueue,
   onProjectQueueNewSession,
   onProjectQueueNewSessionOptions,
+  onSendOptions,
   onSteer,
   primaryActionKind,
   sendOverride,
@@ -4092,6 +4103,7 @@ export function MessageInputToolbar({
         send: showSendButton
           ? {
               onSend,
+              onSendOptions,
               onSteer,
               canSend,
               primaryActionKind: effectivePrimaryActionKind,

@@ -2,7 +2,7 @@ import { NewSessionQueueMark } from "./NewSessionQueueMark";
 import {
   type ChosenNewSessionQueueTarget,
   type NewSessionQueueTarget,
-  NewSessionQueueOptionsModal,
+  NewSessionQueueOptions,
 } from "./NewSessionQueueOptions";
 import {
   DEFAULT_PATIENT_QUEUE_PATIENCE_SECONDS,
@@ -534,7 +534,10 @@ export function MessageInput({
   // User-controlled collapse state (independent of external collapse from approval panel)
   const [userCollapsed, setUserCollapsed] = useState(false);
   const [fullPane, setFullPane] = useState(false);
-  const [newSessionOptionsOpen, setNewSessionOptionsOpen] = useState(false);
+  const [newSessionOptionsMode, setNewSessionOptionsMode] = useState<
+    "now" | "patient" | null
+  >(null);
+  const newSessionOptionsFormRef = useRef<HTMLFormElement>(null);
   const [interimTranscript, setInterimTranscript] = useState("");
   const interimTranscriptRef = useRef(interimTranscript);
   interimTranscriptRef.current = interimTranscript;
@@ -2122,16 +2125,20 @@ export function MessageInput({
     runComposerPointerDelivery(handleProjectQueueNewSession);
   }, [handleProjectQueueNewSession, runComposerPointerDelivery]);
   const openNewSessionOptions = useCallback(
-    () => setNewSessionOptionsOpen(true),
+    () => setNewSessionOptionsMode("patient"),
     [],
   );
-  const closeNewSessionOptions = useCallback(
-    () => setNewSessionOptionsOpen(false),
+  const openImmediateNewSessionOptions = useCallback(
+    () => setNewSessionOptionsMode("now"),
     [],
   );
+  const closeNewSessionOptions = useCallback(() => {
+    setNewSessionOptionsMode(null);
+    textareaRef.current?.focus();
+  }, []);
   const queueNewSessionAtChosenTarget = useCallback(
     (target: ChosenNewSessionQueueTarget) => {
-      setNewSessionOptionsOpen(false);
+      setNewSessionOptionsMode(null);
       runComposerPointerDelivery((focusAfterSubmit) =>
         handleProjectQueueNewSession(focusAfterSubmit, target),
       );
@@ -3497,6 +3504,36 @@ export function MessageInput({
 
   const handleComposerKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
+      if (newSessionOptionsMode && !event.nativeEvent.isComposing) {
+        if (
+          event.key === "Escape" &&
+          !(
+            event.target instanceof Element &&
+            event.target.closest(
+              '[role="combobox"][aria-expanded="true"], [role="listbox"]',
+            )
+          )
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          closeNewSessionOptions();
+          return;
+        }
+        if (
+          event.key === "Enter" &&
+          event.target === textareaRef.current &&
+          !event.shiftKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          !hasCoarsePointer()
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          newSessionOptionsFormRef.current?.requestSubmit();
+          return;
+        }
+      }
       if (!isVoiceInputShortcut(event)) return;
       event.preventDefault();
       event.stopPropagation();
@@ -3504,7 +3541,7 @@ export function MessageInput({
       if (!voice?.isAvailable) return;
       voice.toggle();
     },
-    [],
+    [newSessionOptionsMode, closeNewSessionOptions],
   );
 
   const toolbarProps: MessageInputToolbarProps = {
@@ -3562,13 +3599,20 @@ export function MessageInput({
     onDone,
     doneTitle,
     onSend: handlePrimaryPointerDelivery,
+    onSendOptions:
+      onProjectQueueNewSession &&
+      projectQueueNewSessionTarget &&
+      !forkSummaryMode
+        ? openImmediateNewSessionOptions
+        : undefined,
+    hidePrimaryDeliveryActions: newSessionOptionsMode !== null,
     onQueue: onQueue ? handleQueuePointerDelivery : undefined,
     onProjectQueue:
-      onProjectQueue && !forkSummaryMode
+      onProjectQueue && !forkSummaryMode && !newSessionOptionsMode
         ? handleProjectQueuePointerDelivery
         : undefined,
     onProjectQueueNewSession:
-      onProjectQueueNewSession && !forkSummaryMode
+      onProjectQueueNewSession && !forkSummaryMode && !newSessionOptionsMode
         ? handleProjectQueueNewSessionPointerDelivery
         : undefined,
     onProjectQueueNewSessionOptions:
@@ -4214,7 +4258,7 @@ export function MessageInput({
           </div>
         )}
 
-        {!collapsed && showMobileKeyboardCompact && (
+        {!collapsed && showMobileKeyboardCompact && !newSessionOptionsMode && (
           <div className="message-input-keyboard-compact">
             {mobileKeyboardMoreOpen && (
               <div
@@ -4445,6 +4489,14 @@ export function MessageInput({
                 }`}
                 onPointerDown={(event) => event.preventDefault()}
                 onClick={handlePrimaryPointerDelivery}
+                onContextMenu={
+                  toolbarProps.onSendOptions
+                    ? (event) => {
+                        event.preventDefault();
+                        toolbarProps.onSendOptions?.();
+                      }
+                    : undefined
+                }
                 disabled={disabled}
                 aria-label={describePrefixedDelivery(
                   mobileKeyboardActionLabel,
@@ -4474,6 +4526,18 @@ export function MessageInput({
         {!collapsed && !showMobileKeyboardCompact && (
           <MessageInputToolbar {...toolbarProps} />
         )}
+        {!collapsed &&
+          newSessionOptionsMode &&
+          projectQueueNewSessionTarget && (
+            <NewSessionQueueOptions
+              initial={projectQueueNewSessionTarget}
+              primaryDelivery={newSessionOptionsMode}
+              formRef={newSessionOptionsFormRef}
+              disabled={!canSubmit || disabled}
+              onSubmit={queueNewSessionAtChosenTarget}
+              onClose={closeNewSessionOptions}
+            />
+          )}
       </div>
     </div>
   );
@@ -4483,13 +4547,6 @@ export function MessageInput({
         <QuestionAsideHint mobile={hasCoarsePointer()} />
       )}
       {composer}
-      {newSessionOptionsOpen && projectQueueNewSessionTarget && (
-        <NewSessionQueueOptionsModal
-          initial={projectQueueNewSessionTarget}
-          onSubmit={queueNewSessionAtChosenTarget}
-          onClose={closeNewSessionOptions}
-        />
-      )}
     </>
   );
 }

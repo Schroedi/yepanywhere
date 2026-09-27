@@ -3471,6 +3471,78 @@ function SessionPageContent({
 
     try {
       currentAttachments = await collectComposerAttachmentsForSubmission();
+      if (
+        targetType === "new-session" &&
+        newSessionTarget?.delivery === "now"
+      ) {
+        const options = {
+          mode: permissionMode,
+          model: newSessionModel,
+          thinking: keepsProvider ? thinking : prepared.thinking,
+          showThinking,
+          provider: newSessionProvider,
+          executor: keepsProvider ? session?.executor : undefined,
+        };
+        const messageMetadata = {
+          ...metadata,
+          deliveryIntent: "direct" as const,
+          clientTimestamp,
+        };
+        const started =
+          currentAttachments.length > 0
+            ? await api.createSession(queueProjectId, options)
+            : await api.startSession(
+                queueProjectId,
+                outgoingText,
+                options,
+                undefined,
+                clientTimestamp,
+                messageMetadata,
+              );
+        if (currentAttachments.length > 0) {
+          const files = await materializeComposerAttachmentsForSubmission({
+            attachments: currentAttachments,
+            sourceTransport,
+            projectId: started.projectId,
+            sessionId: started.sessionId,
+          });
+          await api.queueMessage(
+            started.sessionId,
+            outgoingText,
+            permissionMode,
+            files,
+            undefined,
+            options.thinking,
+            undefined,
+            clientTimestamp,
+            messageMetadata,
+            undefined,
+            showThinking,
+          );
+        }
+        draftControlsRef.current?.confirmInputClear();
+        revokeAttachmentPreviewUrls(currentAttachments);
+        setCorrectionDraft(null);
+        clearQuoteAnchors();
+        navigate(
+          `${basePath}/projects/${started.projectId}/sessions/${started.sessionId}`,
+          {
+            state: createSessionNavigationState({
+              initialStatus: {
+                owner: "self",
+                processId: started.processId,
+                permissionMode: started.permissionMode,
+                appliedPermissionMode: started.appliedPermissionMode,
+                modeVersion: started.modeVersion,
+              },
+              initialTitle: outgoingText,
+              initialModel: newSessionModel,
+              initialProvider: newSessionProvider,
+            }),
+          },
+        );
+        return;
+      }
       if (targetType === "new-session") {
         const splitAttachments =
           splitComposerAttachmentsForSubmission(currentAttachments);
@@ -3569,7 +3641,12 @@ function SessionPageContent({
       draftControlsRef.current?.restoreFromStorage();
       setComposerAttachments(currentAttachments, { persistDraft: false });
       const errorMsg = err instanceof Error ? err.message : String(err);
-      showToast(t("projectQueueSubmitFailed", { message: errorMsg }), "error");
+      showToast(
+        newSessionTarget?.delivery === "now"
+          ? `${t("newSessionStartError")}: ${errorMsg}`
+          : t("projectQueueSubmitFailed", { message: errorMsg }),
+        "error",
+      );
     }
   };
 
