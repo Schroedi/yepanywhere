@@ -292,7 +292,9 @@ these constraints before it ships:
   own frame and names a file of that frame's grant, plain or with
   `?download=true`. The browser still requires the click in the frame that
   sent it. The page also shows its own address for a parent that does not
-  answer.
+  answer. It takes that address from the browser's location, never from the
+  request URL the server saw, which behind a TLS-terminating tunnel is plain
+  `http://`.
 - **Brokered host communication.** `postMessage` is schema-validated,
   capability-scoped, and tied to the expected child window. With an opaque
   origin, `event.origin` is `"null"`, so the parent must verify `event.source`

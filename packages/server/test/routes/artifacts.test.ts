@@ -157,6 +157,9 @@ it("serves an authorized HTML directory with executable bytes and revocable acce
   expect(handoff).not.toContain('target="_blank"');
   expect(handoff).toContain("paper.pdf");
   expect(handoff).not.toContain("%PDF");
+  // The page takes its address from the browser's location: behind a
+  // TLS-terminating tunnel the request URL the server saw is plain http.
+  expect(handoff).not.toContain(new URL(grant.url).origin);
   const topLevel = await server.app.request(new URL("paper.pdf", grant.url), {
     headers: { "Sec-Fetch-Dest": "document" },
   });
