@@ -186,7 +186,8 @@ host user outside any session sandbox. The server reads the artifact before a
 run only to find its descriptor and keeps no copy of it while the command
 runs. The run spawns the registered argv directly (no
 shell) in the registered directory with the registered timeout and keeps a
-64 KiB log tail. The command leads its own process group, so on expiry
+64 KiB log tail. Its environment is the server's without YA's control-plane
+credentials ([subprocess environment](subprocess-environment.md)). The command leads its own process group, so on expiry
 SIGTERM and then, five seconds later, SIGKILL reach every process it started
 (a producer's compilers, `pandoc`, LaTeX) as well as the command; on Windows
 the whole tree is force-terminated at expiry. A process that left that tree

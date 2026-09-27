@@ -149,6 +149,28 @@ describe("artifact rebuild hooks", () => {
     expect(result.timedOut).toBe(true);
   }, 20000);
 
+  it("runs the command without YA's control-plane credentials", async () => {
+    const service = new ArtifactRebuildService(join(root, "state"));
+    const probe = parseArtifactRebuildDescriptor(
+      descriptor([
+        process.execPath,
+        "-e",
+        "console.log('token=' + (process.env.YEP_PROVIDER_RUNTIME_TOKEN ?? 'absent'))",
+      ]),
+    )!;
+    await service.register(artifact, probe, approval(probe));
+    const previous = process.env.YEP_PROVIDER_RUNTIME_TOKEN;
+    process.env.YEP_PROVIDER_RUNTIME_TOKEN = "host-secret";
+    try {
+      expect((await service.run(artifact, probe)).log).toContain(
+        "token=absent",
+      );
+    } finally {
+      if (previous === undefined) delete process.env.YEP_PROVIDER_RUNTIME_TOKEN;
+      else process.env.YEP_PROVIDER_RUNTIME_TOKEN = previous;
+    }
+  });
+
   function slowDescriptor(hook: string, script: string) {
     return parseArtifactRebuildDescriptor(
       `<!-- ya-artifact:v1 ${JSON.stringify({

@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdir, readFile, rename } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { z } from "zod";
+import { stripYaControlPlaneCredentials } from "../sdk/providers/env-filter.js";
 import {
   processTreeSpawnOptions,
   signalProcessTree,
@@ -305,7 +306,7 @@ function execute(
       child = spawn(command!, args, {
         cwd: registration.cwd,
         stdio: ["ignore", "pipe", "pipe"],
-        env: process.env,
+        env: stripYaControlPlaneCredentials(process.env),
         ...processTreeSpawnOptions,
       });
     } catch (error) {
