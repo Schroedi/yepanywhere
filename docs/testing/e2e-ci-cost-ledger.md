@@ -167,6 +167,40 @@ These two post-change jobs have different case counts and are insufficient
 to establish a median or retry trend. Keep the full CI gate and collect a
 comparable window before closing the cost objective.
 
+### Two-shard CI experiment
+
+[Run 36327293044](https://github.com/kzahel/yepanywhere/actions/runs/36327293044)
+is the single-worker control at the same test source revision as the sharding
+change. It passed 319 cases, skipped eight, and had no retries. Its E2E job
+took 20m17s, including a 19m43s test step.
+
+The workflow-only change in
+[run 36328686139](https://github.com/kzahel/yepanywhere/actions/runs/36328686139)
+split the same 327 listed cases across two isolated CI runners. Each shard
+kept Playwright at one worker and built and started its own test services.
+Both shards passed without retries:
+
+| CI run | Listed cases | Result | Job wall time | Test step |
+| --- | ---: | --- | ---: | ---: |
+| Single-job control | 327 | 319 passed, 8 skipped | 20m17s | 19m43s |
+| Shard 1/2 | 165 | 157 passed, 8 skipped | 12m36s | 12m05s |
+| Shard 2/2 | 162 | 162 passed | 10m53s | 10m16s |
+
+The two shards started one second apart, so the slower shard set the E2E gate
+at 12m36s: 7m41s (38%) shorter than the control. Their combined job time was
+23m29s, 3m12s (16%) more runner time than the control because setup and builds
+ran twice. The shard time difference was 1m43s. These are one paired CI
+observation, not a steady-state speed or retry-rate estimate. Shard timing
+should be compared over a fixed window before rebalancing files.
+
+A separate local full-suite trial with `--workers=2` shared one test server.
+It stopped at the five-failure limit after 186 passes, eight skips, and 127
+cases not run; it took 4m48s before stopping. The failures included async
+question scroll, file-viewer pointer targeting, relay transfer, and two
+remote-login checks. The incomplete run cannot establish a local speed gain,
+and the failures do not by themselves identify a common cause. Keep the local
+full-app default at one worker unless a complete parallel run becomes reliable.
+
 ### Collection method and next comparison
 
 Run selection used `gh run list --workflow ci.yml --branch main --limit 35`.

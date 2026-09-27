@@ -4,7 +4,8 @@ Status: reduction underway 2026-09-27. The test-level policy lives in
 [E2E testing](../../topics/e2e-testing.md); this file tracks the reduction
 sequence and measured evidence. The first reduction slice passed local
 verification and one full CI job. The second slice also passed one full CI
-job; a comparable CI window remains pending.
+job; a comparable CI window remains pending. A two-shard CI experiment passed
+on isolated runners, while a local two-worker run stopped at its failure limit.
 
 The blanket local `pnpm test:e2e` rule first appeared in contributor guidance
 on 2025-12-29, when the suite had about seven specs. Focused Playwright wording
@@ -94,6 +95,17 @@ about 72s. The five request-only Files cases had too little execution time
 to matter to the job total. These are single-run observations, so this slice
 does not yet demonstrate a suite-wide speed reduction. The [ledger](../testing/e2e-ci-cost-ledger.md)
 records the setup and case totals for both runs.
+
+### Parallel execution experiment — 2026-09-27
+
+The [paired CI measurement](../testing/e2e-ci-cost-ledger.md) compared the
+same 327 listed cases on one runner and two isolated shards. Both shards
+passed with no retries. The E2E gate fell from 20m17s to 12m36s in this
+pair, while combined runner time rose from 20m17s to 23m29s. A local
+`--workers=2` full-suite trial stopped after five failures and 186 passes,
+so the local default remains one worker. Keep the CI shards for now and
+compare a fixed window before treating this single-run gain as durable or
+changing shard balance.
 
 ### 1 — establish a comparable measurement ledger
 

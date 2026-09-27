@@ -65,6 +65,14 @@ turn a failing full CI run into a pass, and CI retries do not make an
 intermittent assertion healthy. Visual verification and capture remain owned by
 [UI testing](ui-testing.md), including a user's explicit visual-QA handoff.
 
+The full-app Playwright configuration uses one worker because local workers
+share its test services. For CI parallelism, separate shards can each start
+their own services on isolated runners while keeping one worker per shard.
+Compare the slower shard's wall time with the single-job gate and also report
+the sum of shard job times as runner cost. A partial local run stopped by the
+failure limit is not a valid speed comparison; the current measurements are in
+[the E2E cost ledger](../docs/testing/e2e-ci-cost-ledger.md).
+
 ## Measuring value, time, and instability
 
 For each reduction pass, record a fixed source revision, the cases changed,
