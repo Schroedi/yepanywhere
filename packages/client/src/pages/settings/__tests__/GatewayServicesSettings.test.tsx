@@ -183,6 +183,80 @@ describe("GatewayServicesSettings saving", () => {
     expect(screen.getByText("providersGatewayServiceAutoSaved")).toBeTruthy();
   });
 
+  it("saves an added service only once its endpoint has been entered", async () => {
+    render(<GatewayServicesSettings reloadProviders={reloadProviders} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "providersGatewayServiceAdd" }),
+    );
+    const url = screen.getAllByRole("textbox", {
+      name: "providersGatewayServiceUrlAria",
+    })[1]!;
+    expect(url).toHaveProperty("value", "");
+    expect(store.pending).toHaveLength(0);
+
+    // Operating the new entry, or another one, does not publish it yet.
+    fireEvent.click(
+      screen.getAllByRole("checkbox", {
+        name: "providersGatewayServiceCodex",
+      })[1]!,
+    );
+    expect(store.pending).toHaveLength(0);
+    const shortName = screen.getAllByRole("textbox", {
+      name: "providersGatewayServiceShortNameAria",
+    })[0]!;
+    typeSequentially(shortName, "gpu");
+    fireEvent.blur(shortName);
+    expect(store.pending).toHaveLength(1);
+    expect(store.pending[0]!.updates.gatewayServices).toEqual([
+      expect.objectContaining({ id: "vllm", shortName: "gpu" }),
+    ]);
+    await answerNextSave();
+    fireEvent.blur(url);
+    expect(store.pending).toHaveLength(0);
+
+    fireEvent.change(url, { target: { value: "http://127.0.0.1:9000" } });
+    fireEvent.blur(url);
+
+    expect(store.pending).toHaveLength(1);
+    expect(store.pending[0]!.updates.gatewayServices).toEqual([
+      expect.objectContaining({ id: "vllm" }),
+      expect.objectContaining({
+        id: "127-0-0-1-9000",
+        url: "http://127.0.0.1:9000",
+        codexEnabled: false,
+      }),
+    ]);
+    await answerNextSave();
+    expect(screen.getByText("providersGatewayServiceAutoSaved")).toBeTruthy();
+  });
+
+  it("drops an added service removed before its endpoint was entered", async () => {
+    render(<GatewayServicesSettings reloadProviders={reloadProviders} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "providersGatewayServiceAdd" }),
+    );
+    const id = screen.getAllByRole("textbox", {
+      name: "providersGatewayServiceIdAria",
+    })[1]!;
+    fireEvent.change(id, { target: { value: "spare" } });
+    fireEvent.blur(id);
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "providersGatewayServiceRemove",
+      })[1]!,
+    );
+
+    expect(store.pending).toHaveLength(0);
+    expect(
+      screen.getAllByRole("textbox", {
+        name: "providersGatewayServiceUrlAria",
+      }),
+    ).toHaveLength(1);
+    expect(screen.getByText("providersGatewayServiceAutoSaved")).toBeTruthy();
+  });
+
   it("takes a list saved elsewhere when nothing here is unsaved", async () => {
     render(<GatewayServicesSettings reloadProviders={reloadProviders} />);
 

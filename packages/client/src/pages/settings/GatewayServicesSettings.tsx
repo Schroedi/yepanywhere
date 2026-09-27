@@ -50,12 +50,18 @@ function suggestServiceId(url: string, taken: ReadonlySet<string>): string {
   }
 }
 
+/**
+ * A new entry, with no endpoint until the user enters one.
+ *
+ * It is not saved until then (see `unsavedAdditions` below), so its defaults
+ * cannot reach the providers as an endpoint nobody chose.
+ */
 function newService(taken: ReadonlySet<string>): GatewayService {
   return {
-    id: suggestServiceId(EXAMPLE_URL, taken),
+    id: suggestServiceId("", taken),
     label: "",
     shortName: "",
-    url: EXAMPLE_URL,
+    url: "",
     enabled: true,
     autoStop: false,
     autoStopAfterSeconds: DEFAULT_GATEWAY_AUTO_STOP_SECONDS,
@@ -218,6 +224,21 @@ export function GatewayServicesSettings({
   const saveAgain = useRef(false);
   /** A saved list that changed after a save's own answer, for when it ends. */
   const savedWhileSaving = useRef<ServicesDraft | null>(null);
+  /**
+   * Added entries whose endpoint has not been entered yet, each mapped to
+   * whether its id is still the suggested one.
+   *
+   * Saves leave them out: an added entry is enabled for both providers, so
+   * saving it before it names an endpoint would reconfigure the providers and
+   * probe an address nobody chose. Keyed by entry object, which every draft
+   * edit carries forward, so renaming another entry cannot alias one.
+   */
+  const unsavedAdditions = useRef(new WeakMap<GatewayService, boolean>());
+  const publishableServices = useCallback(
+    (list: readonly GatewayService[]) =>
+      list.filter((service) => !unsavedAdditions.current.has(service)),
+    [],
+  );
 
   /** Take a saved list into the draft without replacing anything typed. */
   const reconcileDraft = useCallback((next: ServicesDraft) => {
@@ -254,20 +275,30 @@ export function GatewayServicesSettings({
    * waits for it and then sends the draft as it stands by then.
    */
   const save = useCallback((): Promise<void> => {
+    /** The draft as a save would send it, or undefined when it matches. */
+    const unsentDraft = (): ServicesDraft | undefined => {
+      const sent = {
+        ...draft.current,
+        services: publishableServices(draft.current.services),
+      };
+      return sameServices(sent.services, saved.current.services) &&
+        sent.defaultId === saved.current.defaultId
+        ? undefined
+        : sent;
+    };
     if (saving.current) {
       saveAgain.current = true;
       return saving.current;
     }
+    // Settled here rather than inside the loop, which releases only after a
+    // few microtasks: a request landing in between would be counted as joining
+    // a save that has already finished, and never sent.
+    if (!unsentDraft()) return Promise.resolve();
     const run = async () => {
       do {
         saveAgain.current = false;
-        const sent = draft.current;
-        if (
-          sameServices(sent.services, saved.current.services) &&
-          sent.defaultId === saved.current.defaultId
-        ) {
-          continue;
-        }
+        const sent = unsentDraft();
+        if (!sent) continue;
         const unsentBase = base.current;
         base.current = sent;
         setIsSaving(true);
@@ -308,7 +339,7 @@ export function GatewayServicesSettings({
     });
     saving.current = running;
     return running;
-  }, [reconcileDraft, reloadProviders, updateSettings]);
+  }, [publishableServices, reconcileDraft, reloadProviders, updateSettings]);
 
   const updateService = useCallback(
     (
@@ -316,14 +347,49 @@ export function GatewayServicesSettings({
       changes: Partial<GatewayService>,
       options?: { save?: boolean },
     ) => {
-      const next = draft.current.services.map((service, position) =>
-        position === index ? { ...service, ...changes } : service,
-      );
+      const next = draft.current.services.map((service, position) => {
+        if (position !== index) return service;
+        const changed = { ...service, ...changes };
+        const keepsSuggestedId = unsavedAdditions.current.get(service);
+        if (keepsSuggestedId !== undefined) {
+          unsavedAdditions.current.set(
+            changed,
+            keepsSuggestedId && changes.id === undefined,
+          );
+        }
+        return changed;
+      });
       draft.current = { ...draft.current, services: next };
       setServices(next);
       if (options?.save) void save();
     },
     [save],
+  );
+
+  /**
+   * Save on leaving an endpoint field, which is what admits an added entry.
+   *
+   * An added entry joins the saved list once it holds an endpoint, taking an
+   * id derived from that endpoint unless the user has already named it.
+   */
+  const leaveEndpointField = useCallback(
+    (index: number) => {
+      const service = draft.current.services[index];
+      const keepsSuggestedId = service && unsavedAdditions.current.get(service);
+      if (service && keepsSuggestedId !== undefined && service.url.trim()) {
+        unsavedAdditions.current.delete(service);
+        if (keepsSuggestedId) {
+          const taken = new Set(
+            draft.current.services
+              .filter((other) => other !== service)
+              .map((other) => other.id),
+          );
+          updateService(index, { id: suggestServiceId(service.url, taken) });
+        }
+      }
+      void save();
+    },
+    [save, updateService],
   );
 
   /** Replace the whole list — adding, removing, or reordering — and save it. */
@@ -531,13 +597,14 @@ export function GatewayServicesSettings({
       >
         {services.map((service, index) => {
           const loopback = isLoopbackGatewayUrl(service.url);
+          const unsaved = unsavedAdditions.current.has(service);
           const detection = detections[service.id];
           // A stated list is exactly what makes this service's own levels
           // authoritative, so the radio reads off the list rather than out of
           // a separate stored mode that could disagree with it.
           const statesEffortLevels = !!service.effortLevels?.length;
           const invocations =
-            exportEnabled && exportPaths && service.enabled
+            exportEnabled && exportPaths && service.enabled && !unsaved
               ? gatewayServiceCliInvocations(service, exportPaths)
               : undefined;
           return (
@@ -594,7 +661,7 @@ export function GatewayServicesSettings({
                   onChange={(event) =>
                     updateService(index, { url: event.target.value })
                   }
-                  onBlur={() => void save()}
+                  onBlur={() => leaveEndpointField(index)}
                   aria-label={t("providersGatewayServiceUrlAria")}
                 />
               </label>
@@ -628,6 +695,9 @@ export function GatewayServicesSettings({
                   <input
                     type="radio"
                     name="gateway-default-service"
+                    // Only a saved entry can be the default; a save naming an
+                    // unsaved one falls back to the first saved entry.
+                    disabled={unsaved}
                     checked={defaultId === service.id}
                     onChange={() => chooseDefault(service.id)}
                   />{" "}
@@ -1031,14 +1101,13 @@ export function GatewayServicesSettings({
             type="button"
             className="settings-button"
             disabled={services.length >= MAX_GATEWAY_SERVICES}
-            onClick={() =>
-              replaceServices([
-                ...draft.current.services,
-                newService(
-                  new Set(draft.current.services.map((service) => service.id)),
-                ),
-              ])
-            }
+            onClick={() => {
+              const added = newService(
+                new Set(draft.current.services.map((service) => service.id)),
+              );
+              unsavedAdditions.current.set(added, true);
+              replaceServices([...draft.current.services, added]);
+            }}
           >
             {t("providersGatewayServiceAdd")}
           </button>

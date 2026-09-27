@@ -875,6 +875,13 @@ describe("ProvidersSettings additional models", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "providersGatewayServiceAdd" }),
     );
+    // Nothing is saved until the new entry names an endpoint.
+    expect(mockUpdateSettings).not.toHaveBeenCalled();
+    const url = screen.getByRole("textbox", {
+      name: "providersGatewayServiceUrlAria",
+    });
+    fireEvent.change(url, { target: { value: "http://127.0.0.1:8001" } });
+    fireEvent.blur(url);
 
     await waitFor(() => {
       expect(mockUpdateSettings).toHaveBeenCalledWith({

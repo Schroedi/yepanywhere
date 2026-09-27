@@ -48,10 +48,18 @@ model serving.
 - A `serviceCommand` is accepted only for a loopback URL. A non-loopback entry
   is an endpoint YA merely talks to: never started, stopped, or signalled.
 - The editor has no Save button. A typed field writes the whole list when it
-  loses focus and a checkbox, radio, select, reorder, add, or remove writes it
+  loses focus and a checkbox, radio, select, reorder, or remove writes it
   as it is operated, which is the convention everywhere else in settings. A
   Save at the foot of a list of endpoints is scrolled out of sight exactly when
   there is enough configured for it to matter.
+- An added entry is the exception: it starts with no endpoint and stays out of
+  every save until its endpoint field loses focus holding one. It is enabled
+  for both providers, so saving it at once would reload the providers and send
+  catalog and effort probes, and with the export on write terminal files, for
+  an address nobody chose. Until then it can be edited, including its
+  checkboxes, or removed without anything being written, but not made the
+  default. When admitted it takes an id derived from its endpoint unless it
+  was already named.
 - Saving never costs a keystroke. Saves do not overlap: a write requested while
   one is out waits for it, then sends the list as it stands by then. When a
   save's answer arrives, an entry changed since that save was sent keeps what
@@ -281,7 +289,8 @@ model serving.
   characters and a model id is whatever the endpoint's catalog row says, so a
   `"` or `\` in either reaches Codex as written instead of ending the string
   early and failing the launch.
-- The services editor checks `codexEnabled` by default on a newly added entry:
+- The services editor checks `codexEnabled` by default on a newly added entry
+  (saved once it names an endpoint; see § Configuration):
   an endpoint added to the list is usually the reason CodexOSS is being turned
   on at all. Existing entries keep whatever was saved, and the single-gateway
   legacy paths still default to off.
