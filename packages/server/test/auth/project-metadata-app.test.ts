@@ -23,6 +23,7 @@ describe("a limited user's edits to shared project metadata through the app", ()
   let testDir: string;
   let root: string;
   let instance: AppResult;
+  let authService: AuthService;
   let projectMetadataService: ProjectMetadataService;
   let limitedCookie: string;
   let superuserCookie: string;
@@ -38,7 +39,7 @@ describe("a limited user's edits to shared project metadata through the app", ()
     await mkdir(dataDir, { recursive: true });
     await mkdir(root);
 
-    const authService = new AuthService({
+    authService = new AuthService({
       dataDir,
       cookieSecret: "project-metadata-app-secret",
     });
@@ -82,6 +83,7 @@ describe("a limited user's edits to shared project metadata through the app", ()
 
   afterEach(async () => {
     await instance.disposeSessionReaders();
+    await authService.flushPendingWrites();
     await rm(testDir, { recursive: true, force: true });
   });
 
