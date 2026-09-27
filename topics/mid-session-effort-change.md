@@ -66,7 +66,10 @@ after the fact. This topic surfaces it before.
   option and navigates to it, leaving the source session untouched at its old
   effort; **Cancel** applies nothing. The fork choice is hidden when the
   session cannot be forked now (provider without fork support, session owned
-  elsewhere, or a turn in flight). Fork eligibility remains live while the
+  elsewhere, or a turn in flight). It is also hidden when the same model-panel
+  save switches the model: the fork carries only the thinking option and
+  would keep the source's model, so the choices are Change anyway (both
+  changes) or Cancel. Fork eligibility remains live while the
   dialog is open and is checked again on selection, including when initial
   metadata reconciliation establishes that the session is idle. Dismissing
   the dialog is Cancel.
