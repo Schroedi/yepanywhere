@@ -28,18 +28,20 @@ their expected data volume and concurrent-update conditions.
 
 ## Current full-app isolation debt
 
-The full-app suite has 109 spec files and 327 listed cases as of 2026-09-27.
+The full-app suite has 109 spec files and 329 listed cases as of the
+2026-09-27 full local run.
 Playwright's default page fixture gives each test a fresh browser context,
 but `global-setup.ts` starts one YA server, relay, and data directory for the
-entire invocation.
-Those services and their settings, sessions, and files are shared by every
-case in that invocation. The temporary directory isolates a *run* from the
-developer's data and from other runs; it does not isolate one test from the
-next. There is no suite-wide server reset between cases.
+entire invocation. Most cases share those services and their settings,
+sessions, and files. `remote-login.spec.ts` now starts a separate worker-scoped
+YA process and data directory for its credential-mutating cases. The run's
+temporary directory isolates the default services from the developer's data
+and from other runs; it does not isolate cases using those default services
+from one another. There is no suite-wide server reset between cases.
 
-This is a significant reliability gap. With one worker, files run serially
-and alphabetically, so cleanup can make the usual order pass while concealing
-an order dependency. With two workers, files can overlap on the same server.
+This is a significant reliability gap. With one worker, files run serially;
+cleanup can make the usual order pass while concealing an order dependency.
+With two workers, files can overlap on the same server.
 The local two-worker full-suite trial stopped after five failures; remote and
 relay specs interleaved while both mutating the same remote-access
 configuration, although the trial has not established the cause of each
@@ -55,6 +57,9 @@ cleanup own that state explicitly, then verify the test passes without relying
 on a preceding case. Use a separate server fixture where reliable reset is
 impractical. Keep shared startup for read-only checks when it remains safe;
 do not pay for a server per case without evidence that the boundary needs it.
+When probing a pair with two workers, use one copy of each file per invocation.
+`--repeat-each` can schedule two copies of the same file concurrently on the
+shared server, so it does not repeat the same pairwise experiment safely.
 The [E2E suite plan](../docs/tactical/135-e2e-suite-cost-ratchet.md) tracks the
 isolation work and the [open gap](../gaps/e2e-shared-server-isolation.md) records
 the observed failure.

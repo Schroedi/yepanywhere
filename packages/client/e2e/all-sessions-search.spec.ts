@@ -437,13 +437,45 @@ for (const viewport of [
     page,
     baseURL,
   }) => {
+    // Catalog discovery has reached the 30s fixture wait on CI; leave twice
+    // that observed ceiling for discovery and the browser assertions.
+    test.setTimeout(60_000);
     saveSession(`coverage-valid-${viewport.name}`, "coverage valid");
     saveSession(
       `coverage-error-${viewport.name}`,
       "A transcript with a malformed record",
     );
+    const fixtureIds = [
+      `coverage-valid-${viewport.name}`,
+      `coverage-error-${viewport.name}`,
+    ];
+    await expect
+      .poll(
+        async () => {
+          const response = await fetch(
+            `${baseURL}/api/sessions?summaryMode=retained&limit=500&includeArchived=true`,
+            { headers: { "X-Yep-Anywhere": "true" } },
+          );
+          if (!response.ok) return [];
+          const data = (await response.json()) as {
+            sessions: Array<{ id: string }>;
+          };
+          return fixtureIds.filter((id) =>
+            data.sessions.some((session) => session.id === id),
+          );
+        },
+        { timeout: 30_000 },
+      )
+      .toEqual(fixtureIds);
     const requested = new Set<string>();
     await page.route(/\/api\/sessions\?/, async (route) => {
+      // The sidebar's starred feed uses this endpoint too. It has no seed
+      // session and does not need the injected unsupported-provider row.
+      if (
+        new URL(route.request().url()).searchParams.get("starred") === "true"
+      ) {
+        return route.continue();
+      }
       const response = await route.fetch();
       const data = await response.json();
       const seed = data.sessions?.find(
