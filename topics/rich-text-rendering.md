@@ -538,7 +538,10 @@ schema or raw inspection, never a success parser. A failure schema whose shape
 is not the success shape reaches its own `renderFailure`, with an optional
 `getFailureSummary` for the collapsed row; the registration type requires that
 renderer, so failure data can never arrive at a result callback that cannot
-describe it. One `PlainFailureSchema` owns the shape most tools reject with —
+describe it. A collapsed preview likewise receives a checked rejection only
+through an optional `renderCollapsedFailure`; the ordinary collapsed, inline
+and interactive callbacks get `isError` with no result, so a rejection's
+message in a collapsed row comes from that callback (Write uses it). One `PlainFailureSchema` owns the shape most tools reject with —
 a bare message string or a `{content}` envelope — so no renderer re-derives
 that extraction. The effective error flag is
 `isError ?? status === "error"` for every operation; pending, incomplete and
