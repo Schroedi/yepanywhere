@@ -135,9 +135,37 @@ reported 43.1s versus 48.7s; multi-host reported 36.2s versus 47.0s.
 This is one passing job at a different revision and case count, so the
 differences are observations, not a measured steady-state gain or flake-rate
 change. The second slice shares startup in slash completion and multi-host,
-labels async-question phases, and removes five API-only Files cases. Compare
-its CI job with this run and with another fixed passing-job window after the
-second slice lands.
+labels async-question checkpoints, and removes five API-only Files cases. The
+following sample compares its CI job with this run; a fixed passing-job window is
+still needed for a trend.
+
+### Second post-change CI sample
+
+[Run 36325789955](https://github.com/kzahel/yepanywhere/actions/runs/36325789955)
+on the second slice (`12485f1c4`) passed on 2026-09-27. It listed 327 cases:
+319 passed, eight skipped, and none retried. The E2E job took 20m49s; its
+test step took 20m13s, including 1m50s before cases and 18m22s thereafter.
+That is 1m30s slower than the preceding single run and 10s above the
+35-job baseline median. The sum of list-reporter case durations was about
+17m53s, versus 16m43s in the preceding run. Most of this observed difference
+is in case execution, not setup.
+
+| Spec | Baseline passing-job median | First sample | Second sample |
+| --- | ---: | ---: | ---: |
+| `async-questions.spec.ts` | 72.0s | about 66s | about 72s |
+| `slash-command-argument-completions.spec.ts` | 48.7s | 43.1s | 40.0s |
+| `multi-host-secure-coexistence.spec.ts` | 47.0s | 36.2s | 38.9s |
+
+The five removed Files cases were almost free in reported execution time;
+the Files spec took 2.5s across seven cases in the first sample and 2.8s
+across two browser cases in the second. Moving them makes the test boundary
+clearer but should not be credited with a wall-time saving. Shared startup
+did not produce a measurable full-job gain in this one run. The slash spec's
+reported case time improved, while multi-host and async-question times moved
+upward from the preceding run.
+These two post-change jobs have different case counts and are insufficient
+to establish a median or retry trend. Keep the full CI gate and collect a
+comparable window before closing the cost objective.
 
 ### Collection method and next comparison
 

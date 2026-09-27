@@ -31,3 +31,8 @@ points identify the phase in the report. The flow still shares the same test
 server and page; this diagnostic change does not itself resolve the timing
 dependency. The final focused run passed in 33.2s; CI retry history remains
 the closure condition.
+
+The first full-suite CI run with these checkpoints passed the case without a
+retry ([run 36325789955](https://github.com/kzahel/yepanywhere/actions/runs/36325789955)).
+The historical failure was intermittent, so this single run is not enough to
+close the gap.

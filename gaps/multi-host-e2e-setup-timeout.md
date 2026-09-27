@@ -20,5 +20,10 @@ disconnect test waits for the stopped host to exit, and mux setup restarts
 only that host. An isolated run passed all 14 cases in 1.1 minutes including
 the shared E2E build. This removes one full startup from the spec, but does
 not establish that the remaining startup meets its deadline under full-suite
-load. Keep this gap open until a full CI run exercises the new setup and the
-contended stage is measured if it still times out.
+load. A full CI run and, if it still times out, a measurement of the contended
+stage are needed.
+
+The first full-suite CI run with the shared setup passed all 14 cases in both
+modes without retries ([run 36325789955](https://github.com/kzahel/yepanywhere/actions/runs/36325789955)).
+One run does not establish that the historical load-dependent timeout is gone;
+keep this gap open while collecting a comparable CI window.

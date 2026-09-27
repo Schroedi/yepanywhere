@@ -3,7 +3,8 @@
 Status: reduction underway 2026-09-27. The test-level policy lives in
 [E2E testing](../../topics/e2e-testing.md); this file tracks the reduction
 sequence and measured evidence. The first reduction slice passed local
-verification and one full CI job; a comparable CI window remains pending.
+verification and one full CI job. The second slice also passed one full CI
+job; a comparable CI window remains pending.
 
 The blanket local `pnpm test:e2e` rule first appeared in contributor guidance
 on 2025-12-29, when the suite had about seven specs. Focused Playwright wording
@@ -83,6 +84,16 @@ could misclassify an owned path when an ancestor had a filesystem alias.
 Ownership now compares resolved paths and the server regression covers an
 existing alias and a future child. This is a correctness fix, not a suite
 speed change.
+
+The second slice's [full CI run](https://github.com/kzahel/yepanywhere/actions/runs/36325789955)
+passed 319 cases with eight skipped and no retries. Its E2E job took 20m49s:
+1m30s slower than the first slice's single run and 10s above the baseline
+median. The slash spec's reported case time fell from 43.1s to 40.0s, while
+multi-host rose from 36.2s to 38.9s and async questions from about 66s to
+about 72s. The five request-only Files cases had too little execution time
+to matter to the job total. These are single-run observations, so this slice
+does not yet demonstrate a suite-wide speed reduction. The [ledger](../testing/e2e-ci-cost-ledger.md)
+records the setup and case totals for both runs.
 
 ### 1 — establish a comparable measurement ledger
 
