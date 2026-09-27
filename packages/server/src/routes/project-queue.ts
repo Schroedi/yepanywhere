@@ -6,7 +6,9 @@ import {
   type UpdateProjectQueueItemRequest,
   isUrlProjectId,
 } from "@yep-anywhere/shared";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
+import { levelFor } from "../auth/limitedUserPolicy.js";
+import { PRINCIPAL_VARIABLE, type Principal } from "../auth/principal.js";
 import type {
   GlobalProjectQueueRoutesDeps,
   ProjectQueueRoutesDeps,
@@ -22,19 +24,41 @@ function validationError(message: string) {
   return { error: "Invalid project queue request", reason: message };
 }
 
+/**
+ * The projects a request's principal may see in the global queue: every
+ * project for the superuser, only granted ones for a limited user
+ * (topics/limited-users.md § Delivery v1).
+ */
+function projectVisibilityFor(
+  c: Context,
+): ((projectId: string) => boolean) | undefined {
+  const principal = c.get(PRINCIPAL_VARIABLE) as Principal | undefined;
+  if (!principal || principal.kind === "superuser") return undefined;
+  return (projectId) => levelFor(principal.grants, projectId) !== "none";
+}
+
 export function createGlobalProjectQueueRoutes(
   deps: GlobalProjectQueueRoutesDeps,
 ): Hono {
   const routes = new Hono();
 
   routes.get("/", async (c) => {
-    return c.json(await globalQueueResponse(deps));
+    return c.json(
+      await globalQueueResponse(deps, {
+        isProjectVisible: projectVisibilityFor(c),
+      }),
+    );
   });
 
   routes.post("/pause", async (c) => {
     try {
       const dispatchState = await deps.projectQueueService.pauseDispatch();
-      return c.json(await globalQueueResponse(deps, dispatchState));
+      return c.json(
+        await globalQueueResponse(deps, {
+          dispatchState,
+          isProjectVisible: projectVisibilityFor(c),
+        }),
+      );
     } catch (error) {
       if (error instanceof ProjectQueueValidationError) {
         return c.json(validationError(error.message), 400);
@@ -45,7 +69,12 @@ export function createGlobalProjectQueueRoutes(
 
   routes.post("/resume", async (c) => {
     const dispatchState = await deps.projectQueueService.resumeDispatch();
-    return c.json(await globalQueueResponse(deps, dispatchState));
+    return c.json(
+      await globalQueueResponse(deps, {
+        dispatchState,
+        isProjectVisible: projectVisibilityFor(c),
+      }),
+    );
   });
 
   routes.post("/:projectId/promote-now", async (c) => {
@@ -79,7 +108,9 @@ export function createGlobalProjectQueueRoutes(
       options,
     );
     const response: ProjectQueuePromoteNowResponse = {
-      ...(await globalQueueResponse(deps)),
+      ...(await globalQueueResponse(deps, {
+        isProjectVisible: projectVisibilityFor(c),
+      })),
       promoteResult,
     };
     return c.json(response);

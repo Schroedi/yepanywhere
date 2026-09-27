@@ -332,6 +332,10 @@ export function decideLimitedRoute(
   // every connected tab and browser profile, host inventory that carries no
   // project to filter by. The activity channel itself runs over /api/ws.
   if (path === "/api/project-queue") {
+    // The route already builds the global queue from the caller's granted
+    // projects (routes/project-queue.ts), so other projects' statuses and
+    // titles are never computed for them; this allowlist projection is the
+    // fail-closed backstop for any response field added later.
     return isRead
       ? { kind: "allow-filtered", filter: "project-queue" }
       : { kind: "deny" };

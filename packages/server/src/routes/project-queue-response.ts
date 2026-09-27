@@ -1,4 +1,5 @@
 import {
+  type ProjectQueueDispatchState,
   type ProjectQueueItemSummary,
   type ProjectQueueListResponse,
   type ProjectQueueProjectStatus,
@@ -362,12 +363,29 @@ export async function projectQueueResponse(
   };
 }
 
+export interface GlobalQueueResponseOptions {
+  dispatchState?: ProjectQueueDispatchState;
+  /**
+   * Which projects the caller may see; absent means every project. Applied
+   * before titles are resolved, so another project's items, recovered
+   * queues, statuses, and blocker session titles are never read for them.
+   */
+  isProjectVisible?: (projectId: string) => boolean;
+}
+
 export async function globalQueueResponse(
   deps: GlobalProjectQueueRoutesDeps,
-  dispatchState = deps.projectQueueService.getDispatchState(),
+  options: GlobalQueueResponseOptions = {},
 ): Promise<ProjectQueueListResponse> {
-  const items = deps.projectQueueService.listAll();
-  const recoveredSessionQueues = listRecoveredSessionQueues(deps);
+  const dispatchState =
+    options.dispatchState ?? deps.projectQueueService.getDispatchState();
+  const isVisible = options.isProjectVisible ?? (() => true);
+  const items = deps.projectQueueService
+    .listAll()
+    .filter((item) => isVisible(item.projectId));
+  const recoveredSessionQueues = listRecoveredSessionQueues(deps).filter(
+    (item) => isVisible(item.projectId),
+  );
   const projectStatuses = await projectStatusesForIds(
     [
       ...items.map((item) => item.projectId),

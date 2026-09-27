@@ -1,13 +1,19 @@
 import {
   type ProjectQueueItemSummary,
+  type ProjectQueueListResponse,
   type ProjectQueuePromoteNowRequest,
   toUrlProjectId,
   type UrlProjectId,
 } from "@yep-anywhere/shared";
+import { Hono } from "hono";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  PRINCIPAL_VARIABLE,
+  type Principal,
+} from "../../src/auth/principal.js";
 import type { ProjectScanner } from "../../src/projects/scanner.js";
 import {
   createGlobalProjectQueueRoutes,
@@ -511,6 +517,117 @@ describe("Project Queue Routes", () => {
         content: "second recovered",
       },
     ]);
+  });
+
+  it("shows a limited user only their granted projects' queue", async () => {
+    const otherProjectId = toUrlProjectId("/tmp/project-queue-route-other");
+    const grantedItem = await service.createItem({
+      projectId,
+      projectPath: project.path,
+      request: {
+        target: { type: "existing-session", sessionId: "session-1" },
+        message: { text: "granted prompt" },
+      },
+    });
+    await service.createItem({
+      projectId: otherProjectId,
+      projectPath: "/tmp/project-queue-route-other",
+      request: {
+        target: { type: "existing-session", sessionId: "other-session" },
+        message: { text: "someone else's prompt" },
+      },
+    });
+    const sessionQueuePersistenceService = new SessionQueuePersistenceService({
+      dataDir: testDir,
+    });
+    await sessionQueuePersistenceService.initialize();
+    await sessionQueuePersistenceService.replaceAll([
+      makePersistedSessionQueueItem({ id: "granted-recovered" }),
+      makePersistedSessionQueueItem({
+        id: "other-recovered",
+        sessionId: "other-session",
+        projectId: otherProjectId,
+        projectPath: "/tmp/project-queue-route-other",
+        message: { text: "someone else's recovered prompt" },
+      }),
+    ]);
+    const statusFor = (id: UrlProjectId, sessionId: string) => ({
+      projectId: id,
+      state: "blocked" as const,
+      idle: false,
+      blockers: [`${sessionId}:in-turn`],
+      dispatchPaused: false,
+      inFlight: false,
+      quietWindowMs: 30_000,
+      itemCount: 1,
+    });
+    const projectQueueScheduler = {
+      getProjectStatus: vi.fn(async (id: UrlProjectId) =>
+        statusFor(id, id === projectId ? "session-1" : "other-session"),
+      ),
+      promoteNow: vi.fn(async (id: UrlProjectId) => ({
+        promoted: false,
+        reason: "blocked" as const,
+        status: statusFor(id, "session-1"),
+      })),
+    };
+    const global = createGlobalRoutes({
+      projectQueueScheduler,
+      sessionQueuePersistenceService,
+      sessionMetadataService: {
+        getMetadata: vi.fn((sessionId: string) => ({
+          customTitle:
+            sessionId === "session-1" ? "Granted session" : "Private title",
+        })),
+      } as unknown as SessionMetadataService,
+    });
+    const limited: Principal = {
+      kind: "limited",
+      username: "alice",
+      grants: {
+        newSessionProjects: [projectId],
+        joinProjects: [],
+        viewProjects: [],
+        joinStaleOffsetMinutes: 0,
+        lock: {},
+      },
+      switched: false,
+      locked: true,
+      via: "direct",
+    };
+    const app = new Hono<{
+      Variables: Record<typeof PRINCIPAL_VARIABLE, Principal>;
+    }>();
+    app.use("*", async (c, next) => {
+      c.set(PRINCIPAL_VARIABLE, limited);
+      await next();
+    });
+    app.route("/", global);
+
+    const expectScoped = (body: ProjectQueueListResponse) => {
+      expect(body.items.map((item) => item.id)).toEqual([grantedItem.id]);
+      expect(body.recoveredSessionQueues?.map((item) => item.id)).toEqual([
+        "granted-recovered",
+      ]);
+      expect(Object.keys(body.projectStatuses ?? {})).toEqual([projectId]);
+      expect(JSON.stringify(body)).not.toContain("Private title");
+      expect(JSON.stringify(body)).not.toContain("someone else's");
+    };
+
+    const listResponse = await app.request("/");
+    expect(listResponse.status).toBe(200);
+    expectScoped(await listResponse.json());
+
+    const promoteResponse = await app.request(`/${projectId}/promote-now`, {
+      method: "POST",
+    });
+    expect(promoteResponse.status).toBe(200);
+    expectScoped(await promoteResponse.json());
+
+    // The superuser still sees every project.
+    const superuserBody = await (await global.request("/")).json();
+    expect(superuserBody.items).toHaveLength(2);
+    expect(Object.keys(superuserBody.projectStatuses)).toHaveLength(2);
   });
 
   it("pauses and resumes project queue dispatch globally", async () => {
