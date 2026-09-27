@@ -227,6 +227,60 @@ describe("FileViewer", () => {
     );
   });
 
+  it("drops a reload that answers after the viewer moved to another file", async () => {
+    const file = (path: string, title: string) => ({
+      metadata: {
+        path,
+        size: title.length + 3,
+        mimeType: "text/markdown",
+        isText: true,
+      },
+      rawUrl: "",
+      content: `# ${title}\n`,
+      renderedMarkdownHtml: `<h1>${title}</h1>`,
+    });
+    let answerReload: (data: FileContentResponse) => void = () => {};
+    const source: FileViewerSource = {
+      loadFile: vi
+        .fn()
+        .mockResolvedValueOnce(file("a.md", "A before"))
+        .mockReturnValueOnce(
+          new Promise<FileContentResponse>((resolve) => {
+            answerReload = resolve;
+          }),
+        )
+        .mockResolvedValueOnce(file("b.md", "B")),
+    };
+    const viewer = (filePath: string) => (
+      <I18nProvider>
+        <FileViewer
+          projectId="project-id"
+          filePath={filePath}
+          source={source}
+        />
+      </I18nProvider>
+    );
+    const { rerender } = render(viewer("a.md"));
+    expect(
+      await screen.findByRole("heading", { name: "A before" }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reload from disk" }));
+    // The copy on screen stays while the fresh one is fetched.
+    expect(screen.getByRole("heading", { name: "A before" })).toBeTruthy();
+    expect(screen.queryByText("Loading a.md...")).toBeNull();
+
+    rerender(viewer("b.md"));
+    expect(await screen.findByRole("heading", { name: "B" })).toBeTruthy();
+    await act(async () => {
+      answerReload(file("a.md", "A after"));
+    });
+
+    expect(screen.getByRole("heading", { name: "B" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "A after" })).toBeNull();
+    expect(source.loadFile).toHaveBeenCalledTimes(3);
+  });
+
   it("returns from a diff to the retained raw source without loading", async () => {
     mocks.useFileVersionControl.mockReturnValue({
       cumulativeFile: null,

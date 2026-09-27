@@ -263,6 +263,9 @@ vocabulary even though their authorization routes remain distinct:
   view changes. A **Reload from disk** refresh button beside the mode toggles
   refetches the file in source and preview modes and remounts a running
   interactive frame on its existing grant so the document is fetched again.
+  The loaded copy stays on screen until the fresh read arrives; a read that
+  answers after the viewer has moved to another file, line range or view, or
+  after a later reload, is discarded rather than shown under the new name.
   The session-opened artifact viewer and the session right pane carry the
   same reload among their window actions; the artifact origin serves from
   disk per request, so a remount is a fresh read and nothing refreshes

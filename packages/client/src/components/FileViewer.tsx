@@ -674,6 +674,7 @@ export const FileViewer = memo(function FileViewer({
   const loadedSourceRef = useRef<{
     identity: string;
     source: FileViewerSource;
+    reloadRequest: number;
   } | null>(null);
   const [commentMode, setCommentMode] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -1129,6 +1130,9 @@ export const FileViewer = memo(function FileViewer({
   // explicit act. A running interactive frame remounts on the same grant so
   // its document is fetched again from disk.
   const [frameReloadKey, setFrameReloadKey] = useState(0);
+  // Reload runs through the load effect, so a response for a file the viewer
+  // has since left is cancelled like any other superseded load.
+  const [reloadRequest, setReloadRequest] = useState(0);
   // Hovering the reload button probes the file's metadata and says whether
   // the loaded copy is behind the disk; absent times (older servers) say
   // nothing rather than guessing.
@@ -1154,25 +1158,8 @@ export const FileViewer = memo(function FileViewer({
   const reloadFromDisk = useCallback(() => {
     setFreshness(null);
     setFrameReloadKey((value) => value + 1);
-    void source
-      .loadFile(
-        projectId,
-        filePath,
-        true,
-        effectiveLineNumber,
-        effectiveLineEnd,
-        effectiveViewMode,
-      )
-      .then(setFileData)
-      .catch((error) => setError(String(error)));
-  }, [
-    source,
-    projectId,
-    filePath,
-    effectiveLineNumber,
-    effectiveLineEnd,
-    effectiveViewMode,
-  ]);
+    setReloadRequest((value) => value + 1);
+  }, []);
 
   useEffect(() => {
     if (activeView === "source" || fileVersionControl.loading) return;
@@ -1192,18 +1179,22 @@ export const FileViewer = memo(function FileViewer({
       setHighlightedLineRef(null);
       return;
     }
-    if (
-      fileData &&
-      loadedSourceRef.current?.identity === sourceIdentity &&
-      loadedSourceRef.current.source === source
-    ) {
+    const loaded = loadedSourceRef.current;
+    const showingSource =
+      fileData !== null &&
+      loaded?.identity === sourceIdentity &&
+      loaded.source === source;
+    if (showingSource && loaded.reloadRequest === reloadRequest) {
       setLoading(false);
       setError(null);
       return;
     }
-    setLoading(true);
-    setError(null);
-    setHighlightedLineRef(null);
+    // A reload keeps the loaded copy on screen until the fresh one arrives.
+    if (!showingSource) {
+      setLoading(true);
+      setError(null);
+      setHighlightedLineRef(null);
+    }
 
     // Request highlighting for code files
     source
@@ -1217,8 +1208,16 @@ export const FileViewer = memo(function FileViewer({
       )
       .then((data) => {
         if (!cancelled) {
-          loadedSourceRef.current = { identity: sourceIdentity, source };
+          loadedSourceRef.current = {
+            identity: sourceIdentity,
+            source,
+            reloadRequest,
+          };
           setFileData(data);
+          if (showingSource) {
+            setLoading(false);
+            return;
+          }
           const markdownPreviewAvailable =
             isMarkdownLikeFile(filePath) && Boolean(data.renderedMarkdownHtml);
           const htmlPreviewAvailable =
@@ -1253,6 +1252,7 @@ export const FileViewer = memo(function FileViewer({
     effectiveViewMode,
     filePath,
     initialPresentation,
+    reloadRequest,
     source,
     sourceIdentity,
     t,
