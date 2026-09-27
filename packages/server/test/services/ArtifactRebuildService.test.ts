@@ -1,7 +1,14 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ArtifactRebuildService,
   parseArtifactRebuildDescriptor,
@@ -141,4 +148,113 @@ describe("artifact rebuild hooks", () => {
     expect(result.ok).toBe(false);
     expect(result.timedOut).toBe(true);
   }, 20000);
+
+  function slowDescriptor(hook: string, script: string) {
+    return parseArtifactRebuildDescriptor(
+      `<!-- ya-artifact:v1 ${JSON.stringify({
+        regenerate: {
+          hook,
+          registrationVersion: 1,
+          proposedRegistration: {
+            cwd: root,
+            argv: [process.execPath, "-e", script],
+            timeoutSeconds: 1,
+          },
+        },
+      })} -->`,
+    )!;
+  }
+
+  it("stops the processes a timed-out command started, not only the command", async () => {
+    const service = new ArtifactRebuildService(join(root, "state"));
+    const late = join(root, "late.txt");
+    // A producer such as `quarto` runs pandoc and LaTeX as its own children.
+    const helper = `setTimeout(() => require("node:fs").writeFileSync(${JSON.stringify(late)}, "late"), 2500)`;
+    const slow = slowDescriptor(
+      "tree",
+      `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(helper)}], { stdio: "ignore" }); setTimeout(() => {}, 60000)`,
+    );
+    await service.register(artifact, slow, approval(slow));
+    const started = Date.now();
+    expect(await service.run(artifact, slow)).toMatchObject({
+      ok: false,
+      timedOut: true,
+    });
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.max(0, started + 4000 - Date.now())),
+    );
+    await expect(readFile(late, "utf8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  }, 20000);
+
+  it("finishes a timed-out run whose output a process outside its group still holds", async () => {
+    const service = new ArtifactRebuildService(join(root, "state"), {
+      killGraceMs: 200,
+    });
+    const pidFile = join(root, "escaped.pid");
+    // Detached, the helper leads its own process group and keeps the
+    // command's output pipes open after the command is gone.
+    const helper = `require("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setTimeout(() => {}, 30000)`;
+    const slow = slowDescriptor(
+      "escaped",
+      `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(helper)}], { stdio: "inherit", detached: true }); setTimeout(() => {}, 60000)`,
+    );
+    await service.register(artifact, slow, approval(slow));
+    try {
+      const started = Date.now();
+      expect(await service.run(artifact, slow)).toMatchObject({
+        ok: false,
+        timedOut: true,
+      });
+      expect(Date.now() - started).toBeLessThan(10000);
+      expect(service.isRunning(artifact, "escaped")).toBe(false);
+    } finally {
+      const pid = Number(await readFile(pidFile, "utf8").catch(() => ""));
+      if (pid > 0) {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {
+          // Already stopped with the command's tree.
+        }
+      }
+    }
+  }, 20000);
+
+  it("sets an unreadable registry aside and starts without registrations", async () => {
+    const stateDir = join(root, "state");
+    await mkdir(stateDir, { recursive: true });
+    await writeFile(join(stateDir, "rebuild-hooks.json"), '{"torn": ');
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const service = new ArtifactRebuildService(stateDir);
+      const parsed = parseArtifactRebuildDescriptor(
+        descriptor([process.execPath, "-e", "1"]),
+      )!;
+      expect(await service.status(artifact, parsed)).toMatchObject({
+        registered: false,
+        matches: false,
+      });
+      const aside = (await readdir(stateDir)).filter((name) =>
+        name.startsWith("rebuild-hooks.unreadable-"),
+      );
+      expect(aside).toHaveLength(1);
+      expect(await readFile(join(stateDir, aside[0]!), "utf8")).toBe(
+        '{"torn": ',
+      );
+      expect(logged).toHaveBeenCalledWith(
+        expect.stringContaining("[ArtifactRebuild] Unreadable registrations"),
+        expect.anything(),
+      );
+
+      await service.register(artifact, parsed, approval(parsed));
+      const reloaded = new ArtifactRebuildService(stateDir);
+      expect(await reloaded.status(artifact, parsed)).toMatchObject({
+        registered: true,
+        matches: true,
+      });
+    } finally {
+      logged.mockRestore();
+    }
+  });
 });

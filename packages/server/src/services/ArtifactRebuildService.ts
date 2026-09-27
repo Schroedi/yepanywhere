@@ -1,7 +1,11 @@
 import { spawn } from "node:child_process";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, rename } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { z } from "zod";
+import {
+  processTreeSpawnOptions,
+  signalProcessTree,
+} from "../utils/processTree.js";
 import { writeFileAtomically } from "../utils/writeFileAtomically.js";
 
 /**
@@ -100,12 +104,26 @@ function sameRegistration(
   );
 }
 
+export interface ArtifactRebuildServiceOptions {
+  /**
+   * Wait after SIGTERM before SIGKILL, and again after SIGKILL before a run
+   * stops waiting for output pipes held outside the command's process group.
+   */
+  killGraceMs?: number;
+}
+
 export class ArtifactRebuildService {
-  private registrations: Map<string, StoredRegistration> | undefined;
+  private registrations: Promise<Map<string, StoredRegistration>> | undefined;
   private readonly running = new Map<string, Promise<RebuildResult>>();
   private persisting: Promise<void> = Promise.resolve();
+  private readonly killGraceMs: number;
 
-  constructor(private readonly stateDir: string) {}
+  constructor(
+    private readonly stateDir: string,
+    options: ArtifactRebuildServiceOptions = {},
+  ) {
+    this.killGraceMs = options.killGraceMs ?? KILL_GRACE_MS;
+  }
 
   private get file(): string {
     return join(this.stateDir, "rebuild-hooks.json");
@@ -115,29 +133,61 @@ export class ArtifactRebuildService {
     return `${artifactPath}\n${hook}`;
   }
 
-  private async load(): Promise<Map<string, StoredRegistration>> {
-    if (this.registrations) return this.registrations;
+  private load(): Promise<Map<string, StoredRegistration>> {
+    this.registrations ??= this.readRegistrations();
+    return this.registrations;
+  }
+
+  private async readRegistrations(): Promise<Map<string, StoredRegistration>> {
     const map = new Map<string, StoredRegistration>();
+    let raw: unknown;
     try {
-      const raw = JSON.parse(await readFile(this.file, "utf8")) as unknown;
-      if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-        for (const [key, value] of Object.entries(raw)) {
-          const parsed = rebuildApprovalSchema
-            .extend({ approvedAt: z.string() })
-            .safeParse(value);
-          if (parsed.success) map.set(key, parsed.data);
-        }
-      }
+      raw = JSON.parse(await readFile(this.file, "utf8"));
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+        await this.setAsideUnreadableRegistrations(error);
+      return map;
     }
-    this.registrations = map;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      await this.setAsideUnreadableRegistrations(
+        new Error("rebuild-hooks.json does not hold an object"),
+      );
+      return map;
+    }
+    for (const [key, value] of Object.entries(raw)) {
+      const parsed = rebuildApprovalSchema
+        .extend({ approvedAt: z.string() })
+        .safeParse(value);
+      if (parsed.success) map.set(key, parsed.data);
+    }
     return map;
   }
 
+  /**
+   * A torn or hand-edited registry must not make every artifact carrying a
+   * descriptor unreadable. Move it aside for inspection and start with no
+   * approvals: each hook asks to be approved again.
+   */
+  private async setAsideUnreadableRegistrations(cause: unknown): Promise<void> {
+    const aside = `rebuild-hooks.unreadable-${new Date().toISOString().replaceAll(":", "-")}.json`;
+    try {
+      await rename(this.file, join(this.stateDir, aside));
+      console.error(
+        `[ArtifactRebuild] Unreadable registrations set aside as ${aside}; approvals start empty:`,
+        cause,
+      );
+    } catch (renameError) {
+      console.error(
+        "[ArtifactRebuild] Unreadable registrations could not be set aside; approvals start empty:",
+        cause,
+        renameError,
+      );
+    }
+  }
+
   private persist(): Promise<void> {
-    const snapshot = Object.fromEntries(this.registrations ?? []);
     this.persisting = this.persisting.then(async () => {
+      const snapshot = Object.fromEntries(await this.load());
       await mkdir(this.stateDir, { recursive: true, mode: 0o700 });
       await writeFileAtomically(
         this.file,
@@ -211,7 +261,7 @@ export class ArtifactRebuildService {
       );
     const inFlight = this.running.get(key);
     if (inFlight) return inFlight;
-    const job = execute(stored).finally(() => {
+    const job = execute(stored, this.killGraceMs).finally(() => {
       this.running.delete(key);
     });
     this.running.set(key, job);
@@ -219,7 +269,16 @@ export class ArtifactRebuildService {
   }
 }
 
-function execute(registration: StoredRegistration): Promise<RebuildResult> {
+/**
+ * Run a registration's argv with its timeout. On expiry the command's whole
+ * process tree gets SIGTERM, then SIGKILL after the grace; a run then stops
+ * waiting for output still held by a process that left the tree, so the
+ * timeout bounds the run even when a helper daemonized itself.
+ */
+function execute(
+  registration: StoredRegistration,
+  killGraceMs: number,
+): Promise<RebuildResult> {
   return new Promise((resolvePromise) => {
     const started = Date.now();
     const [command, ...args] = registration.argv;
@@ -230,11 +289,15 @@ function execute(registration: StoredRegistration): Promise<RebuildResult> {
       log += chunk.toString("utf8");
       if (log.length > LOG_LIMIT) log = log.slice(log.length - LOG_LIMIT);
     };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let killTimer: ReturnType<typeof setTimeout> | undefined;
+    let abandonTimer: ReturnType<typeof setTimeout> | undefined;
     const finish = (result: Omit<RebuildResult, "durationMs" | "log">) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       clearTimeout(killTimer);
+      clearTimeout(abandonTimer);
       resolvePromise({ ...result, durationMs: Date.now() - started, log });
     };
     let child: ReturnType<typeof spawn>;
@@ -243,6 +306,7 @@ function execute(registration: StoredRegistration): Promise<RebuildResult> {
         cwd: registration.cwd,
         stdio: ["ignore", "pipe", "pipe"],
         env: process.env,
+        ...processTreeSpawnOptions,
       });
     } catch (error) {
       log = error instanceof Error ? error.message : String(error);
@@ -256,11 +320,27 @@ function execute(registration: StoredRegistration): Promise<RebuildResult> {
       });
       return;
     }
-    let killTimer: ReturnType<typeof setTimeout> | undefined;
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGTERM");
-      killTimer = setTimeout(() => child.kill("SIGKILL"), KILL_GRACE_MS);
+      signalProcessTree(child, "SIGTERM");
+      killTimer = setTimeout(() => {
+        signalProcessTree(child, "SIGKILL");
+        abandonTimer = setTimeout(() => {
+          append(
+            Buffer.from(
+              "\n[rebuild] Stopped waiting for output held by a process outside the command's process tree\n",
+            ),
+          );
+          child.stdout?.destroy();
+          child.stderr?.destroy();
+          finish({
+            ok: false,
+            exitCode: child.exitCode,
+            signal: child.signalCode,
+            timedOut,
+          });
+        }, killGraceMs);
+      }, killGraceMs);
     }, registration.timeoutSeconds * 1000);
     child.stdout?.on("data", append);
     child.stderr?.on("data", append);
@@ -269,6 +349,8 @@ function execute(registration: StoredRegistration): Promise<RebuildResult> {
       finish({ ok: false, exitCode: null, signal: null, timedOut });
     });
     child.on("close", (exitCode, signal) => {
+      // A descendant that ignored SIGTERM must not outlive a timed-out run.
+      if (timedOut) signalProcessTree(child, "SIGKILL");
       finish({
         ok: exitCode === 0 && !timedOut,
         exitCode,

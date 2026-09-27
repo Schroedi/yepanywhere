@@ -163,7 +163,11 @@ parses the first `ya-artifact:v1` comment of an HTML artifact and returns a
 exists for this artifact path and hook, and whether it still matches the
 proposal. Registrations live in app data
 (`{dataDir}/artifact-rebuild/rebuild-hooks.json`), keyed by canonical
-artifact path and hook id, never inside the project. The editor shows
+artifact path and hook id, never inside the project. A registry file that
+cannot be read or parsed is renamed to
+`rebuild-hooks.unreadable-<time>.json` beside it and logged, and the server
+continues with no approvals, so every hook asks to be approved again rather
+than the preview failing. The editor shows
 **Rebuild** for an approved hook, or **Approve and rebuild…** otherwise, which
 displays the working directory and argument vector and, on confirmation, sends
 `register: true` with the run together with `approved`, the exact proposal and
@@ -181,8 +185,14 @@ independently of the limited-user route table, because the command runs as the
 host user outside any session sandbox. The server reads the artifact before a
 run only to find its descriptor and keeps no copy of it while the command
 runs. The run spawns the registered argv directly (no
-shell) in the registered directory with the registered timeout, SIGTERM then
-SIGKILL on expiry, and keeps a 64 KiB log tail. Concurrent requests for one
+shell) in the registered directory with the registered timeout and keeps a
+64 KiB log tail. The command leads its own process group, so on expiry
+SIGTERM and then, five seconds later, SIGKILL reach every process it started
+(a producer's compilers, `pandoc`, LaTeX) as well as the command; on Windows
+the whole tree is force-terminated at expiry. A process that left that tree
+by starting its own group is not stopped, but the run still ends five seconds
+after SIGKILL even if such a process holds the output open, reported as
+timed out. Concurrent requests for one
 artifact and hook join the in-flight run. On success the response carries the
 re-read HTML, which the editor swaps in together with its recomputed target
 list and clears the stale label; on failure the saved source and the old
