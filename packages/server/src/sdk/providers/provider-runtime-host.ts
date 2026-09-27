@@ -191,19 +191,6 @@ export function supportsProviderHostRuntimeAsLaunched(): boolean {
   );
 }
 
-export function providerHostEnabled(
-  env: NodeJS.ProcessEnv = process.env,
-  platform: NodeJS.Platform = process.platform,
-): boolean {
-  const configured = env.YEP_PROVIDER_HOST_ENABLED?.trim().toLowerCase();
-  if (configured === "true") return true;
-  if (configured === "false") return false;
-  if (configured) {
-    throw new Error("YEP_PROVIDER_HOST_ENABLED must be true or false");
-  }
-  return platform === "linux";
-}
-
 function getEnvironment(): RuntimeHostEnvironment | null {
   if (!supportsProviderHostRuntimeAsLaunched()) return null;
   const runtimeEnv = getModuleEnv("provider-runtime");
@@ -231,6 +218,15 @@ function resolveProviderHostProjectRoot(): string | null {
     dir = parent;
   }
   return null;
+}
+
+async function importProviderHostScript<T>(
+  projectRoot: string,
+  script: string,
+): Promise<T> {
+  return (await import(
+    pathToFileURL(join(projectRoot, "scripts", script)).href
+  )) as T;
 }
 
 function applyProviderHostConnection(connection: {
@@ -265,11 +261,17 @@ function applyProviderHostConnection(connection: {
  * Remote SSH executor sessions stay allowed either way: they still launch
  * from this YA server. A failed ensure continues in-process and sets the
  * provider-host degraded notice. A distribution without the host scripts
- * cannot run a host, so it stays in-process without that notice.
+ * cannot run a host, so it stays in-process without that notice. Whether
+ * hosting is enabled is `providerHostEnabled` in those scripts, the rule the
+ * dev wrapper also applies when it decides to start a host.
  */
 export async function ensureProviderRuntimeHost(
   projectRoot = resolveProviderHostProjectRoot(),
 ): Promise<boolean> {
+  if (!projectRoot) return false;
+  const { providerHostEnabled } = await importProviderHostScript<{
+    providerHostEnabled: () => boolean;
+  }>(projectRoot, "provider-process-identity.mjs");
   if (!providerHostEnabled()) {
     setProviderHostDegraded(false);
     return false;
@@ -278,7 +280,7 @@ export async function ensureProviderRuntimeHost(
     setProviderHostDegraded(false);
     return true;
   }
-  if (!projectRoot || !supportsProviderHostRuntimeAsLaunched()) return false;
+  if (!supportsProviderHostRuntimeAsLaunched()) return false;
   // Mock servers must not discover or bootstrap an ambient real-provider host.
   // A wrapper may still supply an explicit simulated host for lifecycle tests.
   if (process.env.VITEST || process.env.USE_MOCK_SDK === "true") {
@@ -293,10 +295,7 @@ export async function ensureProviderRuntimeHost(
   }
 
   try {
-    const moduleUrl = pathToFileURL(
-      join(projectRoot, "scripts/attach-or-start-provider-host.mjs"),
-    ).href;
-    const { attachOrStartProviderHost } = (await import(moduleUrl)) as {
+    const { attachOrStartProviderHost } = await importProviderHostScript<{
       attachOrStartProviderHost: (options: {
         env?: NodeJS.ProcessEnv;
         projectRoot?: string;
@@ -315,7 +314,7 @@ export async function ensureProviderRuntimeHost(
         };
         error?: string;
       }>;
-    };
+    }>(projectRoot, "attach-or-start-provider-host.mjs");
     const result = await attachOrStartProviderHost({
       env: process.env,
       projectRoot,

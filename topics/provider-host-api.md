@@ -412,7 +412,10 @@ must not equate `Server changed` or `Reload` with provider-runtime refresh.
 
 Shared provider hosting requires both launch capability and operator policy.
 `YEP_PROVIDER_HOST_ENABLED=true|false` is authoritative; when unset, Linux
-defaults enabled and macOS defaults disabled. Enabled supported server boot
+defaults enabled and macOS defaults disabled. One rule,
+`providerHostEnabled` in `scripts/provider-process-identity.mjs`, applies
+this for both the dev wrapper and server boot, so the wrapper never starts a
+host that the server declines, or the reverse. Enabled supported server boot
 attaches to a compatible host or starts one
 (`scripts/attach-or-start-provider-host.mjs`). SSH remote executor sessions
 still launch from this YA server and are not a reason to skip the local host.

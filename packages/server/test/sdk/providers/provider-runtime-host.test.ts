@@ -32,7 +32,6 @@ import {
   closeProviderRuntimeHostRegistration,
   ensureProviderRuntimeHost,
   initializeProviderRuntimeHost,
-  providerHostEnabled,
   startHostedProviderSession,
 } from "../../../src/sdk/providers/provider-runtime-host.js";
 import { isProviderHostDegraded } from "../../../src/sdk/providers/provider-host-status.js";
@@ -71,26 +70,6 @@ describe("resolveProviderRuntimeWorkerPath", () => {
     expect(resolveProviderRuntimeWorkerPath({})).toMatch(
       /provider-runtime-worker\.ts$/,
     );
-  });
-});
-
-describe("providerHostEnabled", () => {
-  it("defaults off on Mac and on for Linux", () => {
-    expect(providerHostEnabled({}, "darwin")).toBe(false);
-    expect(providerHostEnabled({}, "linux")).toBe(true);
-    expect(providerHostEnabled({}, "win32")).toBe(false);
-  });
-
-  it("honors explicit booleans and rejects invalid values", () => {
-    expect(
-      providerHostEnabled({ YEP_PROVIDER_HOST_ENABLED: "true" }, "darwin"),
-    ).toBe(true);
-    expect(
-      providerHostEnabled({ YEP_PROVIDER_HOST_ENABLED: "false" }, "linux"),
-    ).toBe(false);
-    expect(() =>
-      providerHostEnabled({ YEP_PROVIDER_HOST_ENABLED: "sometimes" }, "linux"),
-    ).toThrow("must be true or false");
   });
 });
 
