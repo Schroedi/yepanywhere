@@ -93,12 +93,10 @@ describe("YA's pi extension", () => {
       [prompt, toolResult, afterTool],
     ]) {
       await expect(
-        commands
-          .get(PI_EFFORT_RETRY_COMMAND)
-          ?.handler(JSON.stringify(record), {
-            sessionManager: sessionEndingIn(entries),
-            navigateTree,
-          }),
+        commands.get(PI_EFFORT_RETRY_COMMAND)?.handler(JSON.stringify(record), {
+          sessionManager: sessionEndingIn(entries),
+          navigateTree,
+        }),
       ).rejects.toThrow(/^Yep Anywhere effort retry:/);
     }
     expect(navigateTree).not.toHaveBeenCalled();
