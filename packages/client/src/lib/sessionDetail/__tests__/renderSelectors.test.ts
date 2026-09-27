@@ -222,12 +222,14 @@ describe("session detail render selectors", () => {
     };
     const untimestamped: RenderItem = {
       type: "text",
+      sourceBlockIndex: 0,
       id: "assistant-untimed",
       text: "No timestamp",
       sourceMessages: [],
     };
     const answer: RenderItem = {
       type: "text",
+      sourceBlockIndex: 0,
       id: "assistant-1",
       text: "Answer",
       sourceMessages: [
@@ -266,6 +268,7 @@ describe("session detail render selectors", () => {
     const displayRenderItems: RenderItem[] = [
       {
         type: "text",
+        sourceBlockIndex: 0,
         id: "assistant-1",
         text: "Earlier answer",
         sourceMessages: [
@@ -274,6 +277,7 @@ describe("session detail render selectors", () => {
       },
       {
         type: "text",
+        sourceBlockIndex: 0,
         id: "assistant-2",
         text: "Later answer",
         sourceMessages: [
@@ -687,6 +691,7 @@ describe("session detail render selectors", () => {
       },
       {
         type: "text",
+        sourceBlockIndex: 0,
         id: "assistant-1",
         text: "The answer is stable",
         sourceMessages: [assistantMessage],
@@ -754,6 +759,7 @@ describe("session detail render selectors", () => {
     };
     const thinking: RenderItem = {
       type: "thinking",
+      sourceBlockIndex: 0,
       id: "thinking-1",
       thinking: "Checking the answer",
       status: "complete",
@@ -938,6 +944,7 @@ describe("session detail render selectors", () => {
     };
     const thinking: RenderItem = {
       type: "thinking",
+      sourceBlockIndex: 0,
       id: "thinking-1",
       thinking: "Checking the answer",
       status: "complete",
@@ -947,6 +954,7 @@ describe("session detail render selectors", () => {
     };
     const answer: RenderItem = {
       type: "text",
+      sourceBlockIndex: 0,
       id: "answer-1",
       text: "Done",
       sourceMessages: [sourceMessage("answer-msg", "2026-07-02T12:04:00.000Z")],
@@ -1034,6 +1042,7 @@ describe("session detail render selectors", () => {
     };
     const assistant: RenderItem = {
       type: "text",
+      sourceBlockIndex: 0,
       id: "assistant-1",
       text: "Done",
       sourceMessages: [
@@ -1212,6 +1221,7 @@ describe("session detail render selectors", () => {
     };
     const assistant1: RenderItem = {
       type: "text",
+      sourceBlockIndex: 0,
       id: "assistant-1",
       text: "First answer",
       sourceMessages: [
@@ -1302,6 +1312,7 @@ describe("session detail render selectors", () => {
     };
     const assistantWithoutTimestamp: RenderItem = {
       type: "text",
+      sourceBlockIndex: 0,
       id: "assistant-1",
       text: "No timestamp yet",
       sourceMessages: [],
@@ -1513,6 +1524,7 @@ describe("session detail render selectors", () => {
   it("derives thinking duration from surrounding render item timestamps", () => {
     const thinking: RenderItem = {
       type: "thinking",
+      sourceBlockIndex: 0,
       id: "thinking-1",
       thinking: "Checking",
       status: "complete",
@@ -1523,6 +1535,7 @@ describe("session detail render selectors", () => {
     };
     const answer: RenderItem = {
       type: "text",
+      sourceBlockIndex: 0,
       id: "answer-1",
       text: "Done",
       sourceMessages: [sourceMessage("answer", "2026-07-02T12:00:10.000Z")],
@@ -1535,6 +1548,7 @@ describe("session detail render selectors", () => {
   it("derives thinking duration from own latest timestamp or streaming now", () => {
     const completeThinking: RenderItem = {
       type: "thinking",
+      sourceBlockIndex: 0,
       id: "thinking-complete",
       thinking: "Done thinking",
       status: "complete",
@@ -1545,6 +1559,7 @@ describe("session detail render selectors", () => {
     };
     const streamingThinking: RenderItem = {
       type: "thinking",
+      sourceBlockIndex: 0,
       id: "thinking-streaming",
       thinking: "Still thinking",
       status: "streaming",
@@ -1569,12 +1584,14 @@ describe("session detail render selectors", () => {
   it("returns undefined for non-thinking and invalid thinking durations", () => {
     const text: RenderItem = {
       type: "text",
+      sourceBlockIndex: 0,
       id: "text-1",
       text: "Answer",
       sourceMessages: [sourceMessage("answer", "2026-07-02T12:00:00.000Z")],
     };
     const tooShort: RenderItem = {
       type: "thinking",
+      sourceBlockIndex: 0,
       id: "thinking-short",
       thinking: "Fast",
       status: "streaming",
@@ -1584,6 +1601,7 @@ describe("session detail render selectors", () => {
     };
     const tooLong: RenderItem = {
       type: "thinking",
+      sourceBlockIndex: 0,
       id: "thinking-long",
       thinking: "Long",
       status: "streaming",
@@ -1614,12 +1632,14 @@ describe("session detail render selectors", () => {
   it("derives thinking item count and latest thinking item id", () => {
     const text: RenderItem = {
       type: "text",
+      sourceBlockIndex: 0,
       id: "text-1",
       text: "Answer",
       sourceMessages: [],
     };
     const thinking1: RenderItem = {
       type: "thinking",
+      sourceBlockIndex: 0,
       id: "thinking-1",
       thinking: "First",
       status: "complete",
@@ -1627,6 +1647,7 @@ describe("session detail render selectors", () => {
     };
     const thinking2: RenderItem = {
       type: "thinking",
+      sourceBlockIndex: 0,
       id: "thinking-2",
       thinking: "Second",
       status: "streaming",
@@ -1643,12 +1664,14 @@ describe("session detail render selectors", () => {
   it("filters display render items by thinking visibility", () => {
     const text: RenderItem = {
       type: "text",
+      sourceBlockIndex: 0,
       id: "text-1",
       text: "Answer",
       sourceMessages: [],
     };
     const thinking: RenderItem = {
       type: "thinking",
+      sourceBlockIndex: 0,
       id: "thinking-1",
       thinking: "Hidden when disabled",
       status: "complete",
@@ -1667,12 +1690,14 @@ describe("session detail render selectors", () => {
   it("derives thinking id and text-length summaries", () => {
     const text: RenderItem = {
       type: "text",
+      sourceBlockIndex: 0,
       id: "text-1",
       text: "Answer",
       sourceMessages: [],
     };
     const thinking1: RenderItem = {
       type: "thinking",
+      sourceBlockIndex: 0,
       id: "thinking-1",
       thinking: "First",
       status: "complete",
@@ -1680,6 +1705,7 @@ describe("session detail render selectors", () => {
     };
     const thinking2: RenderItem = {
       type: "thinking",
+      sourceBlockIndex: 0,
       id: "thinking-2",
       thinking: "Second thought",
       status: "streaming",
@@ -1822,7 +1848,13 @@ describe("session detail render selectors", () => {
     expect(getSearchReady({ active: true, query: " prompt " })).toBe(true);
     expect(
       hasSearchableUserTurn([
-        { type: "text", id: "text-1", text: "answer", sourceMessages: [] },
+        {
+          type: "text",
+          sourceBlockIndex: 0,
+          id: "text-1",
+          text: "answer",
+          sourceMessages: [],
+        },
       ]),
     ).toBe(false);
     expect(
@@ -2038,6 +2070,7 @@ describe("session detail render selectors", () => {
       },
       {
         type: "text",
+        sourceBlockIndex: 0,
         id: "assistant-1",
         text: "answer",
         sourceMessages: [],
@@ -2115,6 +2148,7 @@ describe("getLinkSearchAnchors", () => {
         items: [
           {
             type: "text",
+            sourceBlockIndex: 0,
             id: "rendered",
             text: "[Design notes](topics/design.md) about the relay",
             augmentHtml:
@@ -2123,12 +2157,14 @@ describe("getLinkSearchAnchors", () => {
           },
           {
             type: "text",
+            sourceBlockIndex: 0,
             id: "streaming",
             text: "Read [the spec](https://example.com/spec) now",
             sourceMessages: [at],
           },
           {
             type: "text",
+            sourceBlockIndex: 0,
             id: "plain",
             text: "no links here",
             sourceMessages: [at],

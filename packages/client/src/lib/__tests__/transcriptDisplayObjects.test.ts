@@ -24,6 +24,7 @@ describe("insertTranscriptDisplayObjects", () => {
     const items: RenderItem[] = [
       {
         type: "text",
+        sourceBlockIndex: 0,
         id: "answer",
         text: "done",
         sourceMessages: [
@@ -67,6 +68,7 @@ describe("insertTranscriptDisplayObjects", () => {
     const items: RenderItem[] = [
       {
         type: "thinking",
+        sourceBlockIndex: 0,
         id: "thinking-1",
         thinking: "working",
         status: "complete",
@@ -74,6 +76,7 @@ describe("insertTranscriptDisplayObjects", () => {
       },
       {
         type: "text",
+        sourceBlockIndex: 0,
         id: "text-1",
         text: "done",
         sourceMessages: [anchor],
