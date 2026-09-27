@@ -30,9 +30,10 @@ export const LONG_CONTEXT_EFFORT_WARNING_SLIDER_STEP_TOKENS = 1_000;
 
 /**
  * Providers whose effort change is known to miss the prompt cache: Claude
- * (the cache is keyed by effort; measured in topics/mid-session-effort-change.md
- * § Claude cache measurement) and Codex (request-level reasoning effort; see
- * gaps/codex-cache-features.md for the Astra exception that is not yet usable).
+ * (the cache is keyed by effort; measured in
+ * topics/mid-session-effort-change.evidence.md) and Codex (request-level
+ * reasoning effort; see gaps/codex-cache-features.md for the Astra exception
+ * that is not yet usable).
  */
 export const DEFAULT_LONG_CONTEXT_EFFORT_WARNING_SETTINGS: LongContextEffortWarningSettings =
   {
@@ -87,9 +88,10 @@ export function parseLongContextEffortWarningSettings(
 
 /**
  * Concrete Claude model ids whose prompt cache survives an effort change,
- * each confirmed by a warm-session measurement (topics/mid-session-effort-change.md
- * § Claude cache measurement). A bare alias such as `opus` is not listed: it
- * can resolve to a later version that has not been measured.
+ * each confirmed by a warm-session measurement recorded in
+ * topics/mid-session-effort-change.evidence.md. A bare alias such as `opus`
+ * is not listed: it can resolve to a later version that has not been
+ * measured.
  */
 const CLAUDE_EFFORT_CACHE_SAFE_MODELS: readonly string[] = ["claude-opus-5-5"];
 
