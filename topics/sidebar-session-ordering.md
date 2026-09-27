@@ -55,7 +55,10 @@ or collapsing the sidebar, or switching connected sources, clears the hold.
 `sessionInteractionOrder.ts` keeps up to 1,000 latest distinct session
 submissions per connected source in browser-local storage. Same-tab consumers
 share the existing local-storage store; other tabs receive storage events.
-Invalid persisted entries are ignored. If persistence is unavailable, the
+Invalid persisted entries are ignored. Records kept under the former
+`yep-sidebar-interactions:*` key, which also held visits, are discarded when
+the source's store is first opened, so a pre-change visit cannot keep a row
+above later sends. If persistence is unavailable, the
 existing storage helper retains coherent in-memory state. Clearing browser
 storage or eviction of an old entry restores that row's creation-time fallback.
 

@@ -142,7 +142,7 @@ test("sidebar follows user sends while visits and background work stay put", asy
       // Sends from the previous viewport persist; start each from the
       // creation-time order the assertions below expect.
       await page.evaluate(() =>
-        localStorage.removeItem("yep-sidebar-interactions:local"),
+        localStorage.removeItem("yep-sidebar-submissions:local"),
       );
       await page.reload();
       await expect(composer).toBeVisible({ timeout: 30_000 });
@@ -164,7 +164,7 @@ test("sidebar follows user sends while visits and background work stay put", asy
       await target.hover();
       const before = await target.boundingBox();
       const visitsBeforeActivity = await page.evaluate(() =>
-        localStorage.getItem("yep-sidebar-interactions:local"),
+        localStorage.getItem("yep-sidebar-submissions:local"),
       );
       await expect.poll(() => activityListeners.length).toBeGreaterThan(0);
       const updatedRow = rows.find((row) => row.id === "sidebar-c");
@@ -196,7 +196,7 @@ test("sidebar follows user sends while visits and background work stay put", asy
       expect(await target.boundingBox()).toEqual(before);
       expect(
         await page.evaluate(() =>
-          localStorage.getItem("yep-sidebar-interactions:local"),
+          localStorage.getItem("yep-sidebar-submissions:local"),
         ),
       ).toBe(visitsBeforeActivity);
       // Opening a session is reading, not activity: the row stays where it
@@ -216,7 +216,7 @@ test("sidebar follows user sends while visits and background work stay put", asy
       ]);
       expect(
         await page.evaluate(() =>
-          localStorage.getItem("yep-sidebar-interactions:local"),
+          localStorage.getItem("yep-sidebar-submissions:local"),
         ),
       ).toBe(visitsBeforeActivity);
       await expect(
@@ -243,9 +243,7 @@ test("sidebar follows user sends while visits and background work stay put", asy
       await expect
         .poll(() =>
           page.evaluate(() => {
-            const value = localStorage.getItem(
-              "yep-sidebar-interactions:local",
-            );
+            const value = localStorage.getItem("yep-sidebar-submissions:local");
             return value ? JSON.parse(value)[0][0] : null;
           }),
         )

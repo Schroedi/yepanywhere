@@ -7,6 +7,15 @@ Topic: backward-compat
 
 ## Decisions
 
+2026-09-27 `yep-sidebar-interactions:*` — replaced by
+`yep-sidebar-submissions:*`; the old key is removed, not migrated. It mixed
+session visits with sends, and the two cannot be told apart, so carrying it
+forward would keep a pre-change visit pinning its row. Losing old sends costs
+nothing lasting: the server's last human turn orders those sessions.
+Browser-local state only. See
+[sidebar session ordering](sidebar-session-ordering.md) § Storage and
+ownership.
+
 2026-09-27 draft envelope `pendingSend: true` — replaced by `pendingSendAt`,
 the submit's server-clock time, so a recovery copy can be discarded only on
 proof dated from its own send. A stored or sibling-tab marker without a time
