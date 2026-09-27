@@ -2,7 +2,7 @@ import {
   MAX_PROJECT_CODE_NAME_LENGTH,
   normalizeProjectCodeName,
 } from "@yep-anywhere/shared";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useI18n } from "../i18n";
 import type { Project } from "../types";
 import styles from "./ProjectCodeNameEditor.module.css";
@@ -31,32 +31,42 @@ export function ProjectCodeNameEditor({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(project.codeName ?? "");
   const [saving, setSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  // Set while this edit is being saved or once it is left, so a later blur
+  // (the field keeps focus through Enter and may blur as it unmounts) cannot
+  // start a second save.
+  const closingRef = useRef(false);
 
-  useEffect(() => {
-    if (!editing) return;
-    inputRef.current?.focus();
-    inputRef.current?.select();
-  }, [editing]);
+  // Focus in the commit that creates the field: opening the editor means the
+  // next keystroke belongs to it (topics/early-typing-handoff.md).
+  const attachInput = useCallback((input: HTMLInputElement | null) => {
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, []);
 
   const startEdit = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
     setDraft(project.codeName ?? "");
     setError(null);
+    closingRef.current = false;
     setEditing(true);
   };
 
   const cancelEdit = (event: React.SyntheticEvent) => {
     event.preventDefault();
     event.stopPropagation();
+    closingRef.current = true;
     setDraft(project.codeName ?? "");
     setError(null);
     setEditing(false);
   };
 
+  // Enter commits without moving focus, so a refused code leaves the user
+  // typing in the field; a commit started by leaving the field does not take
+  // focus back.
   const commitEdit = async () => {
-    if (!onUpdateCodeName || saving) return;
+    if (!onUpdateCodeName || closingRef.current) return;
     let codeName: string;
     try {
       codeName = normalizeProjectCodeName(draft);
@@ -64,9 +74,9 @@ export function ProjectCodeNameEditor({
       setError(
         caught instanceof Error ? caught.message : t("projectCodeNameInvalid"),
       );
-      requestAnimationFrame(() => inputRef.current?.focus());
       return;
     }
+    closingRef.current = true;
     if (codeName === project.codeName) {
       setEditing(false);
       return;
@@ -78,12 +88,12 @@ export function ProjectCodeNameEditor({
       await onUpdateCodeName(project, codeName);
       setEditing(false);
     } catch (caught) {
+      closingRef.current = false;
       setError(
         caught instanceof Error
           ? caught.message
           : t("projectCodeNameSaveFailed"),
       );
-      requestAnimationFrame(() => inputRef.current?.focus());
     } finally {
       setSaving(false);
     }
@@ -96,12 +106,12 @@ export function ProjectCodeNameEditor({
       {editing && onUpdateCodeName ? (
         <div className={styles.editor}>
           <input
-            ref={inputRef}
+            ref={attachInput}
             aria-label={t("projectCodeNameLabel")}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? errorId : undefined}
             className={styles.input}
-            disabled={saving}
+            readOnly={saving}
             maxLength={MAX_PROJECT_CODE_NAME_LENGTH}
             value={draft}
             onClick={(event) => {
@@ -116,7 +126,7 @@ export function ProjectCodeNameEditor({
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
-                event.currentTarget.blur();
+                void commitEdit();
               } else if (event.key === "Escape") {
                 cancelEdit(event);
               }

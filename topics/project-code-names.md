@@ -18,7 +18,9 @@ Status: **implemented.**
   vanilla presentation for fresh browser profiles.
 - Enabling **Short Project Code Names** displays the code on Projects as a
   small outlined chip beside the full name, on the same line. Clicking it opens
-  an inline editor, leaving the field commits, and the adjacent × cancels. The
+  an inline editor; Enter or leaving the field commits, and the adjacent ×
+  cancels. After Enter the field keeps focus, so a refused code is corrected
+  at once; a commit started by leaving the field does not take focus back. The
   name yields space before the chip does, so the code stays readable on a
   narrow card. A code the naming rule or the server refuses keeps the field
   open and states the reason in full on its own line under the title line,

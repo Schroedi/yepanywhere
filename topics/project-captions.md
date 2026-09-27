@@ -22,7 +22,10 @@ later human edits is approved but not implemented; see
 - With a capable server, clicking the caption on a project card (or the
   "Add a caption" placeholder when none is derived) opens an inline editor.
   Enter, blur, or ✓ saves; Escape or × cancels. Saving an empty field clears
-  the override, so the derived caption returns.
+  the override, so the derived caption returns. A refused save keeps the
+  editor open with the reason; after Enter or ✓ the field keeps focus, so the
+  user corrects it at once, while a save started by leaving the field does not
+  take focus back.
 - A caption reports its source. The tooltip names it: README, manifest, or
   custom. A custom caption wins over any derived text until cleared.
 - The project card also gains a gear button that opens Project Settings

@@ -29,7 +29,10 @@ The observed shapes, all of which existed at once:
   replaced it. CI caught it as `"ho"` typed and `"o"` read.
 - **A timer.** Both rename fields focused from `setTimeout(…, 0)`.
 - **A passive effect.** The new-session prompt focused from a mount effect,
-  which React runs after paint.
+  which React runs after paint. React does flush the effects of an update a
+  click or key handler made before the next event, but the same effect run
+  after a navigation or an asynchronous load waits for paint, so rule 1 does
+  not lean on that distinction.
 - **A whole load.** Entering a session with `composerPrefill` or
   `focusComposer` could only reach the composer once the session had loaded,
   because that is when the composer exists.
@@ -60,6 +63,11 @@ The observed shapes, all of which existed at once:
 7. **Respect the caret the action intends.** Held characters go where the
    request meant them to go relative to any prefilled text — after it for a
    prefilled composer — and the caret ends after them.
+8. **A refused commit keeps its field rather than refocusing it.** Enter
+   commits in place, and the field stays focusable while a save is in flight
+   (read-only, not disabled), so a refusal leaves the user typing in it with
+   no later focus call. A commit started by leaving the field does not pull
+   focus back from where the user moved it.
 
 ## Where it lives
 
@@ -72,8 +80,9 @@ and buffers internally when it does not, replaying in order on `claim`.
 Call sites: `useMessageListIsearch` (reverse search),
 `SessionPage` (`flushEarlyComposerTyping`, claimed from the navigation effect
 or from `handleDraftControlsReady`), `NewSessionForm`, `SessionListItem` and
-`SessionPage`'s title rename (focus only — those fields mount with their row,
-so there is no window to hold).
+`SessionPage`'s title rename, and the Projects card's `ProjectCaptionEditor`
+and `ProjectCodeNameEditor` (focus only — those fields mount with their row,
+so there is no window to hold; the two Projects editors also follow rule 8).
 
 ## What does not need it
 
