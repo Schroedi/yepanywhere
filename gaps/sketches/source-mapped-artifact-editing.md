@@ -5,7 +5,7 @@ design below is future work. The maintainer accepted approximate original-source
 locations and no reliable rebuild trigger for initial delivery. Current behavior
 and the supported comment format live in [file source editing](../../topics/file-source-editing.md).
 Known defects: [stale line references](../artifact-source-map-staleness.md) and
-[no rebuild trigger](../artifact-source-edit-rebuild.md), including the unresolved
+[rebuild remainder](../artifact-source-edit-rebuild.md), including the unresolved
 Plannotator wrapper lifecycle. Regular sanitized HTML defaults to rendered
 content and offers Edit mode; without mappings it edits the HTML itself.
 

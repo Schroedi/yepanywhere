@@ -225,7 +225,7 @@ hashes and older build completions instead of guessing a source location.
 
 ## Open implementation work
 
-- [No artifact rebuild trigger](../gaps/artifact-source-edit-rebuild.md).
+- [Rebuild output snapshot, reading position, and cancellation](../gaps/artifact-source-edit-rebuild.md).
 - [Source-map positions become stale](../gaps/artifact-source-map-staleness.md).
 - [Further text editing and optional session notice](../gaps/sketches/direct-text-edit-in-viewer.md).
 

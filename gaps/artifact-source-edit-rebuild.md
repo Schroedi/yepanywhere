@@ -1,40 +1,30 @@
-# Saving artifact source does not rebuild the rendered artifact
+# Artifact rebuilds can leave partial outputs, lose the reading position, and cannot be cancelled
 
-The [source editor](../topics/file-source-editing.md) saves original files, but
-the displayed HTML remains its pre-rebuild snapshot. This applies to regular
-sanitized HTML and artifact views. There is no reliable rebuild action in the
-initial delivery, by explicit user acceptance. The editor labels the stale view.
-
-Proposed artifact discovery convention:
-
-The paper producer now supplies an anchored command proposal; its descriptor
-and save/scroll-restoration design are specified in
+The approved rebuild hook, `POST /api/file-edit/rebuild`, and the preview swap
+are implemented; their contract is
 [Rebuild after source save](../topics/file-source-editing.md#rebuild-after-source-save).
+Three parts of that contract remain unbuilt:
 
-**2026-09-23 (Contributing-model: fable-5.1):** the trigger landed: approved
-per-artifact hook registrations in app data, `POST /api/file-edit/rebuild`,
-Rebuild / Approve and rebuild in the editor, opt-in auto-rebuild after save,
-and a preview swap on success. Still open here: snapshotting the last
-successful outputs before a run (a failed producer can leave partial files),
-reading-position restoration after the swap, and cancellation of a running
-build from the editor.
+- **No snapshot of the last good outputs.** `ArtifactRebuildService` runs the
+  registered command against the live output paths. A producer that fails
+  partway leaves partially written HTML, assets or map on disk, and the next
+  preview read shows them. Fix sketch: copy the registration's `outputs` aside
+  before the run, restore them when the run fails or times out, and publish
+  HTML, assets and map together only after success.
+- **The swap loses the reading position.** `SourceEditor` replaces the preview
+  with the re-read HTML and does not capture or restore where the reader was.
+  Fix sketch: the scroll-fraction first delivery, then the map-anchored
+  restoration, both described in the topic section above.
+- **A running build cannot be cancelled from the editor.** Neither the route
+  nor the service accepts a cancel; a run ends only on exit or its registered
+  timeout. Fix sketch: a cancel request for the in-flight artifact/hook run
+  that reuses the timeout's process-tree stop, with a Cancel control beside
+  the running state.
 
-```html
-<!-- ya-artifact:v1 {"regenerate":{"hook":"report-build","registrationVersion":1}} -->
-```
+Also unresolved: how a Plannotator-wrapped artifact discovers its hook and
+refreshes the right embedded revision. The ordinary `ya-artifact:v1`
+convention does not cover that wrapper's lifecycle.
 
-Resolve the id through a project-scoped, explicitly approved script registration
-with argv, working directory, output paths and execution limits. A comment alone
-must not authorize a command. Reuse `ya-mockup.json` regeneration metadata as
-discovery where applicable, rather than maintaining two script definitions.
-Run a server-owned bounded job without a provider turn; publish HTML, assets and
-map together after success, retain the previous artifact on failure, and reject
-late results from older inputs. See the
-[round-trip sketch](sketches/source-mapped-artifact-editing.md#optional-round-trip-through-a-registered-regeneration-hook).
-
-How Plannotator-wrapped artifacts discover the hook and refresh the correct
-embedded revision remains open. Do not claim the ordinary artifact convention
-solves that wrapper lifecycle.
-
-Found 2026-09-22 while implementing source editing with accepted rebuild deferral.
-Contributing-model: 6-Astra
+Found 2026-09-22 while implementing source editing with accepted rebuild
+deferral; narrowed 2026-09-27 to the remainder after the rebuild trigger
+landed.
