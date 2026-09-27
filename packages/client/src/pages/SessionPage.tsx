@@ -91,6 +91,10 @@ import type {
   UploadProgress,
 } from "../components/MessageInput";
 import { MessageInputToolbar } from "../components/MessageInputToolbar";
+import type {
+  ChosenNewSessionQueueTarget,
+  NewSessionQueueTarget,
+} from "../components/NewSessionQueueOptions";
 import { ModelSwitchModal } from "../components/ModelSwitchModal";
 import { ProcessInfoBody } from "../components/ProcessInfoModal";
 import { ProjectSessionDefaultsModal } from "../components/ProjectSessionDefaultsModal";
@@ -3365,6 +3369,7 @@ function SessionPageContent({
     text: string,
     targetType: "existing-session" | "new-session",
     metadata?: MessageSubmissionMetadata,
+    newSessionTarget?: ChosenNewSessionQueueTarget,
   ) => {
     // Project Queue is a delayed lane, so a YA-emulated command must be
     // carried to the scheduler rather than run now the way the composer's
@@ -3438,6 +3443,20 @@ function SessionPageContent({
     const actionAtMs = Date.now();
     const clientTimestamp = getServerClockTimestamp(actionAtMs);
 
+    // A new session chosen from the options may go to another project or
+    // provider. This session's settings still apply where they can: its
+    // executor and implicit effort only to the same provider, since another
+    // provider's catalog may not accept them.
+    const queueProjectId =
+      targetType === "new-session"
+        ? (newSessionTarget?.projectId ?? projectId)
+        : projectId;
+    const newSessionProvider = newSessionTarget?.provider ?? effectiveProvider;
+    const keepsProvider = newSessionProvider === effectiveProvider;
+    const newSessionModel =
+      newSessionTarget?.model ??
+      (keepsProvider ? (session?.model ?? getModelSetting()) : undefined);
+
     let currentAttachments = [...attachmentsRef.current];
     let uploadedAttachments: UploadedFile[] = [];
     let stagedAttachments: ProjectQueueStagedAttachments | undefined;
@@ -3455,7 +3474,7 @@ function SessionPageContent({
       }
       logSessionUiTrace("composer-project-queue-start", {
         sessionId,
-        projectId,
+        projectId: queueProjectId,
         targetType,
         permissionMode,
         thinking,
@@ -3466,17 +3485,17 @@ function SessionPageContent({
         serverOffsetMs: getEstimatedServerOffsetMs(),
       });
       const requestSentAtMs = Date.now();
-      const response = await api.createProjectQueueItem(projectId, {
+      const response = await api.createProjectQueueItem(queueProjectId, {
         target:
           targetType === "new-session"
             ? {
                 type: "new-session",
                 mode: permissionMode,
-                model: session?.model ?? getModelSetting(),
-                thinking,
+                model: newSessionModel,
+                thinking: keepsProvider ? thinking : prepared.thinking,
                 showThinking,
-                provider: effectiveProvider,
-                executor: session?.executor,
+                provider: newSessionProvider,
+                executor: keepsProvider ? session?.executor : undefined,
                 title: outgoingText,
               }
             : {
@@ -3511,7 +3530,7 @@ function SessionPageContent({
       sourceSummary.reportProjectQueueCollectionSnapshot(response.queue);
       logSessionUiTrace("composer-project-queue-result", {
         sessionId,
-        projectId,
+        projectId: queueProjectId,
         targetType,
         uploadWaitMs: requestSentAtMs - actionAtMs,
       });
@@ -3520,11 +3539,15 @@ function SessionPageContent({
       setCorrectionDraft(null);
       clearQuoteAnchors();
       showToast(
-        t(
-          targetType === "new-session"
-            ? "projectQueueNewSessionQueuedToast"
-            : "projectQueueSessionQueuedToast",
-        ),
+        targetType === "new-session" && queueProjectId !== projectId
+          ? t("projectQueueNewSessionQueuedInProjectToast", {
+              project: newSessionTarget?.projectName ?? queueProjectId,
+            })
+          : t(
+              targetType === "new-session"
+                ? "projectQueueNewSessionQueuedToast"
+                : "projectQueueSessionQueuedToast",
+            ),
         "success",
       );
     } catch (err) {
@@ -3550,7 +3573,14 @@ function SessionPageContent({
   const handleProjectQueueNewSession = (
     text: string,
     metadata?: MessageSubmissionMetadata,
-  ) => queueComposerForProject(text, "new-session", metadata);
+    target?: ChosenNewSessionQueueTarget,
+  ) => queueComposerForProject(text, "new-session", metadata, target);
+
+  const projectQueueNewSessionTarget: NewSessionQueueTarget = {
+    projectId,
+    provider: effectiveProvider,
+    model: session?.model ?? getModelSetting(),
+  };
 
   const handleResumeProjectQueueDispatch = useCallback(async () => {
     try {
@@ -6446,6 +6476,7 @@ function SessionPageContent({
                       ? handleProjectQueueNewSession
                       : undefined
                   }
+                  projectQueueNewSessionTarget={projectQueueNewSessionTarget}
                   primaryActionKind={
                     mainComposerForAside ? "send" : primaryComposerAction
                   }

@@ -336,6 +336,18 @@ shape (`target.type === "new-session"`); neither uses a client-held draft
 queue. The active-session action inherits that session's selected provider,
 model, executor, permission mode, and thinking settings for the future session.
 
+Right-click (long-press on touch) on the active-session new-session action
+opens quick options instead of queueing: project, provider, and model, each
+starting at the current session's value. Confirming queues the composer draft
+exactly as a plain click would, but as a new-session item in the chosen
+project with the chosen provider and model; the draft clears only after the
+server accepts the item, and the toast names the project when it differs.
+Permission mode still follows the session. Its executor and its implicit
+effort carry over only when the provider is unchanged, since another
+provider's catalog may reject them; an effort typed in the draft itself still
+applies. Cancelling leaves the draft and queues nothing. A click that ends a
+long-press never also queues.
+
 Current-session Project Queue action visibility should use both exact active
 session ids, when available, and project-level Project Queue blocking-count
 summaries. The count fallback covers cases such as a fresh client after server

@@ -264,15 +264,34 @@ vi.mock("../../hooks/useVersion", () => ({
   }),
 }));
 
-vi.mock("../../hooks/useProviders", () => ({
-  useProviders: () => ({
-    providers: [
-      {
-        name: "claude",
-        displayName: "Claude",
-        models: [{ id: "test-model", name: "Test Model" }],
-      },
+vi.mock("../../hooks/useProviders", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../hooks/useProviders")
+  >("../../hooks/useProviders");
+  return {
+    ...actual,
+    useProviders: () => ({
+      providers: [
+        {
+          name: "claude",
+          displayName: "Claude",
+          installed: true,
+          models: [{ id: "test-model", name: "Test Model" }],
+        },
+      ],
+    }),
+  };
+});
+
+vi.mock("../../hooks/useProjects", () => ({
+  useProjects: () => ({
+    projects: [
+      { id: "project-1", name: "Here", path: "/work/here" },
+      { id: "project-2", name: "Elsewhere", path: "/work/elsewhere" },
     ],
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
   }),
 }));
 
@@ -5394,6 +5413,43 @@ describe("MessageInput", () => {
       "deferred",
     );
     expect(onProjectQueue).not.toHaveBeenCalled();
+  });
+
+  it("queues the draft as a new session in another project chosen by right-click", () => {
+    const onProjectQueueNewSession = vi.fn();
+    const textarea = renderMessageInput(vi.fn(), {
+      onProjectQueueNewSession,
+      projectQueueNewSessionTarget: {
+        projectId: "project-1",
+        provider: "claude",
+        model: "test-model",
+      },
+    });
+
+    fireEvent.change(textarea, { target: { value: "work over there" } });
+    const button = screen.getByRole("button", {
+      name: "Queue as new session for Project Queue",
+    });
+    fireEvent.contextMenu(button);
+
+    expect(onProjectQueueNewSession).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("newSessionQueueOptionsProject"), {
+      target: { value: "project-2" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "newSessionQueueOptionsSubmit" }),
+    );
+
+    expectSubmission(onProjectQueueNewSession, "work over there", "deferred");
+    expect(onProjectQueueNewSession.mock.calls.at(-1)?.[2]).toEqual({
+      projectId: "project-2",
+      provider: "claude",
+      model: "test-model",
+      projectName: "Elsewhere",
+    });
+    expect(
+      screen.queryByRole("button", { name: "newSessionQueueOptionsSubmit" }),
+    ).toBeNull();
   });
 
   it("shows only the Project Queue new-session action when current-session queueing is unavailable", () => {

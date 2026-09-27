@@ -1,5 +1,10 @@
 import { NewSessionQueueMark } from "./NewSessionQueueMark";
 import {
+  type ChosenNewSessionQueueTarget,
+  type NewSessionQueueTarget,
+  NewSessionQueueOptionsModal,
+} from "./NewSessionQueueOptions";
+import {
   DEFAULT_PATIENT_QUEUE_PATIENCE_SECONDS,
   DEFAULT_PROJECT_QUEUE_CTRL_ENTER_ENABLED,
   DEFAULT_STEER_NOW_ENABLED,
@@ -181,6 +186,7 @@ type PendingSpeechDeliveryIntent =
   | {
       kind: "project-queue";
       newSession: boolean;
+      newSessionTarget?: ChosenNewSessionQueueTarget;
       focusAfterSubmit: boolean;
     }
   | {
@@ -240,11 +246,20 @@ interface Props {
   onQueue?: (text: string, metadata?: MessageSubmissionMetadata) => void;
   /** Queue through the project-level idle gate. Hidden unless opted in. */
   onProjectQueue?: (text: string, metadata?: MessageSubmissionMetadata) => void;
-  /** Queue this draft as the opening turn of a new session in the project. */
+  /**
+   * Queue this draft as the opening turn of a new session: in this project
+   * with this session's settings, or at a target chosen from its options.
+   */
   onProjectQueueNewSession?: (
     text: string,
     metadata?: MessageSubmissionMetadata,
+    target?: ChosenNewSessionQueueTarget,
   ) => void;
+  /**
+   * What the new-session options start from. Present enables choosing another
+   * project, provider or model by right-click or long-press.
+   */
+  projectQueueNewSessionTarget?: NewSessionQueueTarget;
   disabled?: boolean;
   placeholder?: string;
   mode?: PermissionMode;
@@ -420,6 +435,7 @@ export function MessageInput({
   onQueue,
   onProjectQueue,
   onProjectQueueNewSession,
+  projectQueueNewSessionTarget,
   disabled,
   placeholder,
   mode = "default",
@@ -518,6 +534,7 @@ export function MessageInput({
   // User-controlled collapse state (independent of external collapse from approval panel)
   const [userCollapsed, setUserCollapsed] = useState(false);
   const [fullPane, setFullPane] = useState(false);
+  const [newSessionOptionsOpen, setNewSessionOptionsOpen] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState("");
   const interimTranscriptRef = useRef(interimTranscript);
   interimTranscriptRef.current = interimTranscript;
@@ -1874,26 +1891,36 @@ export function MessageInput({
     [deferSpeechDelivery, onProjectQueue, submitToProjectQueue],
   );
 
+  const queueNewSessionAt = useCallback(
+    (target: ChosenNewSessionQueueTarget | undefined) =>
+      onProjectQueueNewSession && target
+        ? (text: string, metadata?: MessageSubmissionMetadata) =>
+            onProjectQueueNewSession(text, metadata, target)
+        : onProjectQueueNewSession,
+    [onProjectQueueNewSession],
+  );
+
   const handleProjectQueueNewSession = useCallback(
-    (focusAfterSubmit = true) => {
+    (focusAfterSubmit = true, target?: ChosenNewSessionQueueTarget) => {
       if (
         deferSpeechDelivery({
           kind: "project-queue",
           newSession: true,
+          newSessionTarget: target,
           focusAfterSubmit,
         })
       ) {
         return;
       }
       submitToProjectQueue(
-        onProjectQueueNewSession,
+        queueNewSessionAt(target),
         undefined,
         undefined,
         false,
         focusAfterSubmit,
       );
     },
-    [deferSpeechDelivery, onProjectQueueNewSession, submitToProjectQueue],
+    [deferSpeechDelivery, queueNewSessionAt, submitToProjectQueue],
   );
 
   const restorePendingSpeechDeliveryDraft = useCallback(() => {
@@ -1942,7 +1969,9 @@ export function MessageInput({
       }
       if (pending.intent.kind === "project-queue") {
         submitToProjectQueue(
-          pending.intent.newSession ? onProjectQueueNewSession : onProjectQueue,
+          pending.intent.newSession
+            ? queueNewSessionAt(pending.intent.newSessionTarget)
+            : onProjectQueue,
           pending.visibleTextSnapshot,
           pending.composition,
           true,
@@ -1991,7 +2020,7 @@ export function MessageInput({
     handleQueue,
     handleSubmit,
     onProjectQueue,
-    onProjectQueueNewSession,
+    queueNewSessionAt,
     restorePendingSpeechDeliveryDraft,
     submitToProjectQueue,
   ]);
@@ -2092,6 +2121,23 @@ export function MessageInput({
   const handleProjectQueueNewSessionPointerDelivery = useCallback(() => {
     runComposerPointerDelivery(handleProjectQueueNewSession);
   }, [handleProjectQueueNewSession, runComposerPointerDelivery]);
+  const openNewSessionOptions = useCallback(
+    () => setNewSessionOptionsOpen(true),
+    [],
+  );
+  const closeNewSessionOptions = useCallback(
+    () => setNewSessionOptionsOpen(false),
+    [],
+  );
+  const queueNewSessionAtChosenTarget = useCallback(
+    (target: ChosenNewSessionQueueTarget) => {
+      setNewSessionOptionsOpen(false);
+      runComposerPointerDelivery((focusAfterSubmit) =>
+        handleProjectQueueNewSession(focusAfterSubmit, target),
+      );
+    },
+    [handleProjectQueueNewSession, runComposerPointerDelivery],
+  );
   const handleForkWithoutSummaryPointerDelivery = useCallback(() => {
     runComposerPointerDelivery((focusAfterSubmit) => {
       handleForkWithoutSummary(undefined, focusAfterSubmit);
@@ -3525,6 +3571,12 @@ export function MessageInput({
       onProjectQueueNewSession && !forkSummaryMode
         ? handleProjectQueueNewSessionPointerDelivery
         : undefined,
+    onProjectQueueNewSessionOptions:
+      onProjectQueueNewSession &&
+      projectQueueNewSessionTarget &&
+      !forkSummaryMode
+        ? openNewSessionOptions
+        : undefined,
     onSteer: hasActiveDualActions ? handleSteerPointerDelivery : undefined,
     primaryActionKind: effectivePrimaryActionKind,
     sendOverride: questionActionLabel
@@ -4431,6 +4483,13 @@ export function MessageInput({
         <QuestionAsideHint mobile={hasCoarsePointer()} />
       )}
       {composer}
+      {newSessionOptionsOpen && projectQueueNewSessionTarget && (
+        <NewSessionQueueOptionsModal
+          initial={projectQueueNewSessionTarget}
+          onSubmit={queueNewSessionAtChosenTarget}
+          onClose={closeNewSessionOptions}
+        />
+      )}
     </>
   );
 }

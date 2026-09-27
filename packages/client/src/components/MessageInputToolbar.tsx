@@ -337,6 +337,8 @@ export interface MessageInputToolbarProps {
   onProjectQueue?: () => void;
   /** Queue the draft as a new session after the project becomes idle. */
   onProjectQueueNewSession?: () => void;
+  /** Right-click/long-press on the new-session action: choose its target. */
+  onProjectQueueNewSessionOptions?: () => void;
   /** Steer the current turn. Used as the alternate action when Enter queues. */
   onSteer?: () => void;
   primaryActionKind?: "send" | "steer" | "queue";
@@ -706,6 +708,7 @@ interface ToolbarSendControl {
 interface ToolbarProjectQueueControl {
   onProjectQueue?: () => void;
   onProjectQueueNewSession?: () => void;
+  onProjectQueueNewSessionOptions?: () => void;
   canSend?: boolean;
   tooltip?: string;
   newSessionTooltip?: string;
@@ -1681,6 +1684,7 @@ export function MessageInputToolbarView({
     }
     const projectQueue = actionsControl.projectQueue;
     const disabled = actionsControl.disabled || !projectQueue.canSend;
+    const openNewSessionOptions = projectQueue.onProjectQueueNewSessionOptions;
     const speechPrefix = actionsControl.send.speechMessagePrefix;
     const deliveryLabel = (label: string) =>
       speechPrefix
@@ -1729,8 +1733,35 @@ export function MessageInputToolbarView({
             isPriorityCollapsible("projectQueueNewSessionShortcut")) && (
             <button
               type="button"
-              {...toolbarControlMarker("projectQueueNewSessionShortcut")}
-              onClick={projectQueue.onProjectQueueNewSession}
+              {...toolbarControlMarker(
+                "projectQueueNewSessionShortcut",
+                !!openNewSessionOptions,
+              )}
+              onClick={() => {
+                if (suppressNewSessionQueueClickRef.current) {
+                  suppressNewSessionQueueClickRef.current = false;
+                  return;
+                }
+                projectQueue.onProjectQueueNewSession?.();
+              }}
+              onContextMenu={
+                openNewSessionOptions
+                  ? (event) => {
+                      event.preventDefault();
+                      clearNewSessionOptionsLongPress();
+                      openNewSessionOptions();
+                    }
+                  : undefined
+              }
+              onTouchStart={
+                openNewSessionOptions
+                  ? () => startNewSessionOptionsLongPress(openNewSessionOptions)
+                  : undefined
+              }
+              onTouchEnd={clearNewSessionOptionsLongPress}
+              onTouchCancel={clearNewSessionOptionsLongPress}
+              onTouchMove={clearNewSessionOptionsLongPress}
+              aria-haspopup={openNewSessionOptions ? "dialog" : undefined}
               disabled={disabled}
               className={classNameFor(
                 "projectQueueNewSessionShortcut",
@@ -1895,6 +1926,26 @@ export function MessageInputToolbarView({
   const shortcutsLongPressTimerRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
+  const newSessionOptionsLongPressTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  // A long-press that opened the options must not also queue on release.
+  const suppressNewSessionQueueClickRef = useRef(false);
+  const clearNewSessionOptionsLongPress = () => {
+    if (newSessionOptionsLongPressTimerRef.current) {
+      clearTimeout(newSessionOptionsLongPressTimerRef.current);
+      newSessionOptionsLongPressTimerRef.current = null;
+    }
+  };
+  const startNewSessionOptionsLongPress = (open: () => void) => {
+    clearNewSessionOptionsLongPress();
+    suppressNewSessionQueueClickRef.current = false;
+    newSessionOptionsLongPressTimerRef.current = setTimeout(() => {
+      newSessionOptionsLongPressTimerRef.current = null;
+      suppressNewSessionQueueClickRef.current = true;
+      open();
+    }, 520);
+  };
 
   const openShortcutSettings = () => {
     shortcutsControl.setOpen(true);
@@ -3135,6 +3186,7 @@ export function MessageInputToolbar({
   onQueue,
   onProjectQueue,
   onProjectQueueNewSession,
+  onProjectQueueNewSessionOptions,
   onSteer,
   primaryActionKind,
   sendOverride,
@@ -4068,6 +4120,7 @@ export function MessageInputToolbar({
             ? {
                 onProjectQueue,
                 onProjectQueueNewSession,
+                onProjectQueueNewSessionOptions,
                 canSend,
                 tooltip: onProjectQueue
                   ? showProjectQueueShortcut
@@ -4075,7 +4128,9 @@ export function MessageInputToolbar({
                     : t("toolbarProjectQueueTooltip")
                   : undefined,
                 newSessionTooltip: onProjectQueueNewSession
-                  ? t("toolbarProjectQueueNewSessionTooltip")
+                  ? onProjectQueueNewSessionOptions
+                    ? t("toolbarProjectQueueNewSessionOptionsTooltip")
+                    : t("toolbarProjectQueueNewSessionTooltip")
                   : undefined,
               }
             : null,
