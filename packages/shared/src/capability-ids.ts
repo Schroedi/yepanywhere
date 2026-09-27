@@ -522,6 +522,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "limited-users",
     introducedIn: "0.9.0",
   },
+  sessionCreationProvenance: {
+    id: 84,
+    direction: "server",
+    name: "session-creation-provenance",
+    introducedIn: "0.9.3",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

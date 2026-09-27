@@ -253,6 +253,64 @@ for (const viewport of [
   { name: "desktop", width: 1000, height: 600 },
   { name: "phone", width: 375, height: 812 },
 ]) {
+  test(`All Sessions filters creation provenance on ${viewport.name}`, async ({
+    page,
+    baseURL,
+  }) => {
+    saveSession(`provenance-${viewport.name}`, `provenance ${viewport.name}`);
+    await page.setViewportSize(viewport);
+    await page.route(/\/api\/sessions\?/, async (route) => {
+      const response = await route.fetch();
+      const data = await response.json();
+      const seed = data.sessions?.find(
+        (session: { id: string }) =>
+          session.id === `provenance-${viewport.name}`,
+      );
+      if (!seed) return route.fulfill({ response });
+      await route.fulfill({
+        response,
+        json: {
+          ...data,
+          hasMore: false,
+          sessions: [
+            {
+              ...seed,
+              id: `provenance-web-${viewport.name}`,
+              title: "Web provenance fixture",
+              fullTitle: "Web provenance fixture",
+              creationProvenance: { surface: "web" },
+            },
+            {
+              ...seed,
+              id: `provenance-desktop-${viewport.name}`,
+              title: "Desktop provenance fixture",
+              fullTitle: "Desktop provenance fixture",
+              creationProvenance: { surface: "desktop" },
+            },
+            {
+              ...seed,
+              id: `provenance-unmarked-${viewport.name}`,
+              title: "Unmarked provenance fixture",
+              fullTitle: "Unmarked provenance fixture",
+            },
+          ],
+        },
+      });
+    });
+    await page.goto(`${baseURL}/sessions?status=&created=web`);
+    await expect(page.getByText("Web provenance fixture")).toBeVisible();
+    await expect(page.getByText("Desktop provenance fixture")).toHaveCount(0);
+    await expect(page.getByText("Unmarked provenance fixture")).toHaveCount(0);
+    await page.getByRole("button", { name: "Filter by Created from" }).click();
+    await expect(page.getByText("Desktop app", { exact: true })).toBeVisible();
+    await expect(page.getByText("Unspecified", { exact: true })).toBeVisible();
+    await recordUiCapture(
+      page,
+      `session-creation-provenance-${viewport.name}`,
+      viewport,
+    );
+  });
+
   test(`All Sessions fans out, retains both roles, and refines cached turns on ${viewport.name}`, async ({
     page,
     baseURL,

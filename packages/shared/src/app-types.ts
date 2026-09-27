@@ -558,10 +558,18 @@ export interface DurableSyntheticDoneMessage extends AppMessageExtensions {
   yaSyntheticSource: "done";
 }
 
-/**
- * Session summary for list views.
- * Contains metadata without full message content.
- */
+/** Client-declared UI that first created a YA-owned session. */
+export interface SessionCreationProvenance {
+  surface: "web" | "desktop";
+  /** Browser page origin, which may be a hosted UI rather than the server. */
+  clientOrigin?: string;
+  /** Version of the frontend bundle that submitted the create request. */
+  clientVersion?: string;
+  /** Desktop application's source commit, when its runtime reports one. */
+  clientCommit?: string;
+}
+
+/** Session summary for list views, without full message content. */
 export interface AppSessionSummary {
   /** null clears a known receipt; omission preserves unknown older-server state. */
   nonHumanUserTurn?: NonHumanUserTurn | null;
@@ -604,6 +612,8 @@ export interface AppSessionSummary {
   parentSessionKind?: "btw-aside";
   /** Source session whose provider transcript was cloned or forked. */
   forkedFromSessionId?: string;
+  /** Client-declared creation provenance; absent for older or external sessions. */
+  creationProvenance?: SessionCreationProvenance;
   /** Iterations a running `/clearloop` still has to do; absent when none runs. */
   clearloop?: SessionClearloopBadge;
   /**

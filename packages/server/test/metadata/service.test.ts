@@ -64,6 +64,24 @@ describe("SessionMetadataService", () => {
     await rm(testDir, { recursive: true, force: true });
   });
 
+  it("persists the first UI creation provenance across reloads", async () => {
+    await service.initialize();
+    const provenance = {
+      surface: "desktop" as const,
+      clientOrigin: "http://localhost:3400",
+      clientVersion: "0.9.3-test",
+      clientCommit: "abc123",
+    };
+    await service.recordCreationProvenance("session-1", provenance);
+    await service.recordCreationProvenance("session-1", { surface: "web" });
+
+    const restored = new SessionMetadataService({ dataDir: testDir });
+    await restored.initialize();
+    expect(restored.getMetadata("session-1")?.creationProvenance).toEqual(
+      provenance,
+    );
+  });
+
   describe("initialization", () => {
     it("retries an unchanged goal after a failed save", async () => {
       await service.initialize();

@@ -72,6 +72,7 @@ export interface InboxDeps {
 }
 
 export interface InboxItem {
+  creationProvenance?: import("@yep-anywhere/shared").SessionCreationProvenance;
   nonHumanUserTurn?: import("@yep-anywhere/shared").NonHumanUserTurn | null;
   asyncQuestions?: SessionListSummary["asyncQuestions"];
   sessionId: string;
@@ -107,6 +108,7 @@ const INBOX_RETENTION_BYTES = 8 * 1024 * 1024;
 
 /** One session, walked and enriched, before any tier decision is made. */
 interface EnrichedInboxSession {
+  creationProvenance?: InboxItem["creationProvenance"];
   session: SessionListSummary;
   projectName: string;
   pendingInputType?: PendingInputType;
@@ -249,6 +251,7 @@ export function createInboxRoutes(deps: InboxDeps): Hono {
           activity,
           hasUnread,
           customTitle: metadata?.customTitle ?? session.customTitle,
+          creationProvenance: metadata?.creationProvenance,
           isStarred: metadata?.isStarred ?? session.isStarred ?? false,
         });
       }
@@ -312,6 +315,7 @@ export function createInboxRoutes(deps: InboxDeps): Hono {
             activity: item.activity,
             hasUnread: item.hasUnread,
             customTitle: item.customTitle,
+            creationProvenance: item.creationProvenance,
             isStarred: item.isStarred,
           }))
       : await readInbox(filterProjectId);
@@ -350,6 +354,7 @@ export function createInboxRoutes(deps: InboxDeps): Hono {
             }),
       updatedAt: item.session.updatedAt,
       customTitle: item.customTitle,
+      creationProvenance: item.creationProvenance,
       isStarred: item.isStarred,
       pendingInputType: item.pendingInputType,
       activity: item.activity,

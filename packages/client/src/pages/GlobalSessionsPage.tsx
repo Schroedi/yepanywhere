@@ -2,6 +2,7 @@ import {
   ALL_PROVIDERS,
   PUBLIC_SHARE_MANAGEMENT_CAPABILITY,
   SESSION_CONTENT_SEARCH_CAPABILITY,
+  SESSION_CREATION_PROVENANCE_CAPABILITY,
   serverHasCapability,
   providerSupportsBoundedTurnSearch,
   type ProviderName,
@@ -129,6 +130,10 @@ function SessionSearchPage() {
     version,
     SESSION_CONTENT_SEARCH_CAPABILITY,
   );
+  const creationProvenanceAvailable = serverHasCapability(
+    version,
+    SESSION_CREATION_PROVENANCE_CAPABILITY,
+  );
   const publicShareManagementAvailable = serverHasCapability(
     version,
     PUBLIC_SHARE_MANAGEMENT_CAPABILITY,
@@ -150,6 +155,7 @@ function SessionSearchPage() {
   const project = params.get("project") ?? "";
   const providerParam = params.get("provider") ?? "";
   const executorParam = params.get("executor") ?? "";
+  const createdParam = params.get("created") ?? "";
   const statusParam = params.get("status") ?? "unarchived";
   const providers = useMemo(
     () =>
@@ -163,6 +169,13 @@ function SessionSearchPage() {
   const executors = useMemo(
     () => executorParam.split(",").filter(Boolean),
     [executorParam],
+  );
+  const created = useMemo(
+    () =>
+      createdParam
+        .split(",")
+        .filter((value) => ["web", "desktop", "unspecified"].includes(value)),
+    [createdParam],
   );
   const filters = useMemo(
     () =>
@@ -288,6 +301,12 @@ function SessionSearchPage() {
             reasons.push(t("sessionSearchOutsideProvider"));
           if (executors.length && !executors.includes(s.executor ?? "local"))
             reasons.push(t("sessionSearchOutsideExecutor"));
+          if (
+            creationProvenanceAvailable &&
+            created.length &&
+            !created.includes(s.creationProvenance?.surface ?? "unspecified")
+          )
+            reasons.push(t("sessionSearchOutsideCreation"));
           for (const status of filters) {
             if (!matchesStatus(s, status))
               reasons.push(
@@ -315,6 +334,8 @@ function SessionSearchPage() {
       project,
       providers,
       executors,
+      created,
+      creationProvenanceAvailable,
       filters,
       basis,
       bounds,
@@ -715,6 +736,27 @@ function SessionSearchPage() {
                 )}
                 selected={executors}
                 onChange={(value) => changeParam("executor", value.join(","))}
+              />
+            )}
+            {creationProvenanceAvailable && (
+              <FilterDropdown
+                label={t("sessionSearchCreatedFrom")}
+                placeholder={t("sessionSearchCreatedFromPlaceholder")}
+                align="right"
+                triggerClassName={styles.dropdown}
+                options={[
+                  { value: "web", label: t("sessionSearchCreatedWeb") },
+                  {
+                    value: "desktop",
+                    label: t("sessionSearchCreatedDesktop"),
+                  },
+                  {
+                    value: "unspecified",
+                    label: t("sessionSearchCreatedUnspecified"),
+                  },
+                ]}
+                selected={created}
+                onChange={(value) => changeParam("created", value.join(","))}
               />
             )}
           </SearchFilters>

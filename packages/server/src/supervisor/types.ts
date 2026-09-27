@@ -118,6 +118,8 @@ export interface SessionSummary {
   parentSessionKind?: "btw-aside";
   /** Source session whose provider transcript was cloned or forked. */
   forkedFromSessionId?: string;
+  /** Client-declared creation source for a YA-owned session. */
+  creationProvenance?: import("@yep-anywhere/shared").SessionCreationProvenance;
   /** Initial prompt text accepted by YA for new-session recovery/copy. */
   initialPrompt?: string;
   /** Whether this session is opted in to heartbeat turns */

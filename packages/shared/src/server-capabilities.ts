@@ -204,6 +204,43 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  sessionCreationProvenance: {
+    id: CAPABILITY_ID_ALLOCATIONS.sessionCreationProvenance.id,
+    name: "session-creation-provenance",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.3",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Persist client-declared web or desktop creation provenance and return it in session summaries.",
+    clientFallback:
+      "Omit creationProvenance from create requests and hide creation-source filters.",
+    serverContract: {
+      routes: [
+        "POST /api/projects/:projectId/sessions",
+        "POST /api/projects/:projectId/sessions/create",
+        "POST /api/sessions",
+        "POST /api/sessions/create",
+        "POST /api/projects/:projectId/sessions/:sessionId/restart",
+        "POST /api/projects/:projectId/sessions/:sessionId/fork",
+        "GET /api/sessions",
+        "GET /api/projects/:projectId/sessions",
+        "GET /api/projects/:projectId/sessions/:sessionId",
+        "GET /api/projects/:projectId/sessions/:sessionId/metadata",
+        "GET /api/inbox",
+      ],
+      requestFields: ["creationProvenance"],
+      responseFields: [
+        "sessions[].creationProvenance",
+        "session.creationProvenance",
+      ],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers accept but discard unknown create fields and do not return provenance.",
+    },
+  },
   fileSourceEditing: {
     id: CAPABILITY_ID_ALLOCATIONS.fileSourceEditing.id,
     name: "file-source-editing",
@@ -2995,6 +3032,8 @@ export const NON_HUMAN_USER_TURN_CAPABILITY =
   SERVER_CAPABILITIES.nonHumanUserTurn.name;
 export const SESSION_CONTENT_SEARCH_CAPABILITY =
   SERVER_CAPABILITIES.sessionContentSearch.name;
+export const SESSION_CREATION_PROVENANCE_CAPABILITY =
+  SERVER_CAPABILITIES.sessionCreationProvenance.name;
 export const ACLI_COMMENTARY_RENDERING_CAPABILITY =
   SERVER_CAPABILITIES.acliCommentaryRendering.name;
 export const PROJECT_QUEUE_CAPABILITY = SERVER_CAPABILITIES.projectQueue.name;

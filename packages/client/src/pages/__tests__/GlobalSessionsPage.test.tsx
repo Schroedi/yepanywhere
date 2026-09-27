@@ -11,6 +11,7 @@ import {
 } from "@testing-library/react";
 import {
   SESSION_CONTENT_SEARCH_CAPABILITY,
+  SESSION_CREATION_PROVENANCE_CAPABILITY,
   type ProviderInfo,
 } from "@yep-anywhere/shared";
 import type { ReactNode } from "react";
@@ -312,6 +313,14 @@ describe("GlobalSessionsPage", () => {
       },
     );
     vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    vi.stubGlobal(
       "matchMedia",
       vi.fn(() => ({ matches: true })),
     );
@@ -345,7 +354,7 @@ describe("GlobalSessionsPage", () => {
   });
 
   function renderPage(initialEntry: string) {
-    render(
+    return render(
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/sessions" element={<GlobalSessionsPage />} />
@@ -378,6 +387,87 @@ describe("GlobalSessionsPage", () => {
     renderPage("/sessions?status=archived");
     expect(screen.getByTestId("session-archived")).toBeDefined();
     expect(screen.queryByTestId("session-active")).toBeNull();
+  });
+
+  it("filters recorded web sessions and keeps unmarked sessions distinct", () => {
+    versionState.version = {
+      capabilities: [SESSION_CREATION_PROVENANCE_CAPABILITY],
+    };
+    sessionCollectionState.records = [
+      makeSessionRecord("web", { creationProvenance: { surface: "web" } }),
+      makeSessionRecord("desktop", {
+        creationProvenance: { surface: "desktop" },
+      }),
+      makeSessionRecord("unmarked"),
+    ];
+    filterDropdowns.length = 0;
+    renderPage("/sessions?created=web&status=");
+
+    expect(screen.getByTestId("session-web")).toBeDefined();
+    expect(screen.queryByTestId("session-desktop")).toBeNull();
+    expect(screen.queryByTestId("session-unmarked")).toBeNull();
+    expect(
+      filterDropdowns.find((dropdown) => dropdown.label === "Created from")
+        ?.options,
+    ).toMatchObject([
+      { value: "web" },
+      { value: "desktop" },
+      { value: "unspecified" },
+    ]);
+  });
+
+  it("hides creation filtering and ignores its URL parameter on older servers", () => {
+    versionState.version = { current: "0.9.2" };
+    sessionCollectionState.records = [
+      makeSessionRecord("web", { creationProvenance: { surface: "web" } }),
+      makeSessionRecord("unmarked"),
+    ];
+    filterDropdowns.length = 0;
+    renderPage("/sessions?created=web&status=");
+
+    expect(screen.getByTestId("session-web")).toBeDefined();
+    expect(screen.getByTestId("session-unmarked")).toBeDefined();
+    expect(
+      filterDropdowns.find((dropdown) => dropdown.label === "Created from"),
+    ).toBeUndefined();
+  });
+
+  it("acknowledges sequential search typing while provenance filtering and the catalog update", () => {
+    versionState.version = {
+      capabilities: [SESSION_CREATION_PROVENANCE_CAPABILITY],
+    };
+    sessionCollectionState.records = Array.from({ length: 300 }, (_, index) =>
+      makeSessionRecord(`web-${index}`, {
+        creationProvenance: { surface: "web" },
+      }),
+    );
+    const page = () => (
+      <MemoryRouter initialEntries={["/sessions?created=web&status="]}>
+        <Routes>
+          <Route path="/sessions" element={<GlobalSessionsPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    const view = render(page());
+    const input = screen.getByRole("searchbox") as HTMLInputElement;
+    input.focus();
+    let typed = "";
+    for (const char of "source") {
+      typed += char;
+      const started = performance.now();
+      fireEvent.keyDown(input, { key: char });
+      fireEvent.change(input, { target: { value: typed } });
+      expect(input.value).toBe(typed);
+      expect(performance.now() - started).toBeLessThan(100);
+      sessionCollectionState.records = [
+        ...sessionCollectionState.records,
+        makeSessionRecord(`desktop-${typed}`, {
+          creationProvenance: { surface: "desktop" },
+        }),
+      ];
+      view.rerender(page());
+      expect(input.value).toBe(typed);
+    }
   });
 
   for (const release of ["0.8.0", "0.8.1"]) {

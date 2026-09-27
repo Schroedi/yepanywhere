@@ -11,6 +11,7 @@ import {
   type ProviderChildSessionSummary,
   type ProviderName,
   type NonHumanUserTurn,
+  type SessionCreationProvenance,
   type WorkstreamId,
 } from "@yep-anywhere/shared";
 import { Hono } from "hono";
@@ -131,6 +132,7 @@ export interface GlobalSessionItem {
   parentSessionKind?: "btw-aside";
   /** Source session whose provider transcript was cloned or forked. */
   forkedFromSessionId?: string;
+  creationProvenance?: SessionCreationProvenance;
   /** YA workstream lane for this session. Missing means the implicit main lane. */
   workstreamId?: WorkstreamId;
   /** Initial prompt text accepted by YA for new-session recovery/copy. */
@@ -765,6 +767,7 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
           parentSessionId,
           parentSessionKind,
           forkedFromSessionId,
+          creationProvenance: metadata?.creationProvenance,
           clearloop: deps.getClearloopBadge?.(overlaidSession.id),
           workstreamId: metadata?.workstreamId,
           initialPrompt: initialPrompt ?? undefined,

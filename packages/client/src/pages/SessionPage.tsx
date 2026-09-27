@@ -52,6 +52,7 @@ import {
 } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import { getUiCreationProvenance } from "../lib/sessionCreationProvenance";
 import { createSessionApi } from "../api/sessionClient";
 import type { BangCommandHandlers } from "../components/BangCommandDisplayObject";
 import {
@@ -1353,6 +1354,7 @@ function SessionPageContent({
           projectId,
           actualSessionId,
           thinking,
+          getUiCreationProvenance(versionInfo),
         );
         showToast(t("forkFromTurnStarted"), "success");
         navigate(
@@ -1367,7 +1369,7 @@ function SessionPageContent({
         );
       }
     },
-    [actualSessionId, basePath, navigate, projectId, showToast, t],
+    [actualSessionId, basePath, navigate, projectId, showToast, t, versionInfo],
   );
   const {
     guardEffortChange,
@@ -1457,6 +1459,7 @@ function SessionPageContent({
         const result = await api.forkSession(projectId, actualSessionId, {
           forkKind: "after-user-turn",
           sourceMessageId,
+          creationProvenance: getUiCreationProvenance(versionInfo),
         });
         if (nextTurnText.trim()) {
           await api.queueMessage(
@@ -1487,6 +1490,7 @@ function SessionPageContent({
       showToast,
       t,
       uploadProgress.length,
+      versionInfo,
     ],
   );
   const createDirectTurnFork = useCallback(
@@ -1502,6 +1506,7 @@ function SessionPageContent({
         const result = await api.forkSession(projectId, actualSessionId, {
           forkKind,
           sourceMessageId,
+          creationProvenance: getUiCreationProvenance(versionInfo),
         });
         showToast(t("forkFromTurnStarted"), "success");
         navigate(
@@ -1522,6 +1527,7 @@ function SessionPageContent({
       projectId,
       showToast,
       t,
+      versionInfo,
     ],
   );
   const cloneSession = useCallback(async () => {
@@ -1532,6 +1538,7 @@ function SessionPageContent({
     try {
       const result = await api.forkSession(projectId, actualSessionId, {
         forkKind: "clone-latest-complete",
+        creationProvenance: getUiCreationProvenance(versionInfo),
       });
       showToast(t("sessionCloneCreated"), "success");
       navigate(
@@ -1551,6 +1558,7 @@ function SessionPageContent({
     projectId,
     showToast,
     t,
+    versionInfo,
   ]);
   const cancelForkSummaryJob = useCallback(
     async (objectId: string) => {

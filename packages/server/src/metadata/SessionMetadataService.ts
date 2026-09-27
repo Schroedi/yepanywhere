@@ -20,6 +20,7 @@ import {
   type PromptSuggestionMode,
   type RecapMode,
   type SessionClearloopJob,
+  type SessionCreationProvenance,
   type SessionPendingRewind,
   type SessionRewindRecord,
   type SessionSandboxLevel,
@@ -64,6 +65,8 @@ export interface ForkOrdinalClaim {
 }
 
 export interface SessionMetadata {
+  /** Client-declared UI that first created this YA-owned session. */
+  creationProvenance?: SessionCreationProvenance;
   /**
    * Limited user who started this session, when one did. Absent means the
    * superuser started it (or it predates limited users). A limited user can
@@ -1103,6 +1106,19 @@ export class SessionMetadataService {
     await this.save();
   }
 
+  /** Preserve the first client-declared creation source across later writes. */
+  async recordCreationProvenance(
+    sessionId: string,
+    provenance: SessionCreationProvenance,
+  ): Promise<void> {
+    if (this.getMetadata(sessionId)?.creationProvenance) return;
+    this.updateSessionMetadata(sessionId, (metadata) => ({
+      ...metadata,
+      creationProvenance: metadata.creationProvenance ?? provenance,
+    }));
+    await this.flushPendingWrites();
+  }
+
   /** Record the limited user who started a session, at creation time. */
   async recordSessionCreator(
     sessionId: string,
@@ -1268,6 +1284,9 @@ export class SessionMetadataService {
 
     // Remove undefined values and check if entry should be deleted
     const cleaned: SessionMetadata = {};
+    if (updated.creationProvenance) {
+      cleaned.creationProvenance = updated.creationProvenance;
+    }
     if (updated.nonHumanUserTurn) {
       cleaned.nonHumanUserTurn = updated.nonHumanUserTurn;
     }

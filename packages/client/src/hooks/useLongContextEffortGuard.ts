@@ -5,6 +5,7 @@ import {
   type LongContextEffortWarningSettings,
   type ProviderInfo,
   type ProviderName,
+  type SessionCreationProvenance,
   type ThinkingOption,
 } from "@yep-anywhere/shared";
 import { useCallback, useRef, useState } from "react";
@@ -174,9 +175,11 @@ export function forkSessionAtEffort(
   projectId: string,
   sessionId: string,
   thinking: ThinkingOption,
+  creationProvenance?: SessionCreationProvenance,
 ) {
   return api.forkSession(projectId, sessionId, {
     forkKind: "clone-latest-complete",
     thinking,
+    creationProvenance,
   });
 }

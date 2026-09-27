@@ -10,6 +10,12 @@ Topic: server-capabilities
 
 ## Source Of Truth
 
+`session-creation-provenance` (permanent ID 84, version-implied from v0.9.3)
+owns the optional `creationProvenance` field on session starts, restarts, and
+forks, plus its session summary/detail projections. Hosted clients omit the
+request field and hide creation-source filtering without it. See
+[session creation provenance](session-creation-provenance.md).
+
 `file-source-editing` (permanent ID 82, version-implied from 0.9.1) owns
 authenticated GET/PUT `/api/file-edit`, source revisions and conditional saves,
 and artifact source-target resolution. The maintainer approved this additive

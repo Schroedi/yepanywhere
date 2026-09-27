@@ -68,6 +68,7 @@ import { useServerSettings } from "../hooks/useServerSettings";
 import { useSessionToolbarPresence } from "../hooks/useSessionToolbarPresence";
 import { useI18n } from "../i18n";
 import { formatFileSize } from "../lib/formatFileSize";
+import { getUiCreationProvenance } from "../lib/sessionCreationProvenance";
 import { parseComposerSlashCommand } from "../lib/slashCommands";
 import { takePrebootComposer } from "../lib/prebootComposer";
 import { UI_KEYS } from "../lib/storageKeys";
@@ -2345,7 +2346,9 @@ export function NewSessionForm({
         // Display preference for thinking rows; sent for compatibility while the
         // server requests provider summaries independently.
         const showThinking = getShowThinkingSetting();
+        const creationProvenance = getUiCreationProvenance(versionInfo);
         const sessionOptions = {
+          creationProvenance,
           ...(computerSelected && computerControlEligible
             ? { computerControl: true }
             : {}),

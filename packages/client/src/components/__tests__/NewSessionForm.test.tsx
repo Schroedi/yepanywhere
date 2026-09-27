@@ -12,6 +12,7 @@ import {
 import {
   PROJECT_QUEUE_CAPABILITY,
   SERVER_CAPABILITIES,
+  SESSION_CREATION_PROVENANCE_CAPABILITY,
   SESSION_SANDBOX_NETWORK_FIREWALL_CAPABILITY,
   SESSION_SANDBOXING_CAPABILITY,
   SESSION_SANDBOXING_STATUS_CAPABILITY,
@@ -1496,6 +1497,47 @@ describe("NewSessionForm", () => {
       }),
     );
   });
+
+  it.each(["web", "desktop"] as const)(
+    "marks a %s launch when the server supports provenance",
+    async (surface) => {
+      versionState.version = {
+        capabilities: [SESSION_CREATION_PROVENANCE_CAPABILITY],
+      };
+      if (surface === "desktop") {
+        window.__YEP_DESKTOP_RUNTIME__ = {
+          desktopVersion: "0.3.22",
+          commit: "abc123",
+        };
+      }
+      try {
+        render(
+          <NewSessionForm
+            projectId="project-1"
+            selectedProject={chooserProjects[0]}
+            projects={[...chooserProjects]}
+          />,
+        );
+        fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
+          target: { value: "hello" },
+        });
+        fireEvent.click(
+          screen.getByRole("button", { name: "newSessionStartAction" }),
+        );
+        await waitFor(() => expect(mockStartSession).toHaveBeenCalledTimes(1));
+        expect(mockStartSession.mock.calls[0]?.[2]?.creationProvenance).toEqual(
+          {
+            surface,
+            clientOrigin: window.location.origin,
+            clientVersion: "unknown",
+            ...(surface === "desktop" ? { clientCommit: "abc123" } : {}),
+          },
+        );
+      } finally {
+        delete window.__YEP_DESKTOP_RUNTIME__;
+      }
+    },
+  );
 
   it("submits a one-turn modifier as metadata without changing normal thinking", async () => {
     versionState.version = { capabilities: ["turn-effort-modifiers"] };

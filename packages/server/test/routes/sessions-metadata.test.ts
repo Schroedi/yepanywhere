@@ -4386,6 +4386,7 @@ describe("Sessions metadata route", () => {
       supported: true,
     }));
     const updateMetadata = vi.fn(async () => undefined);
+    const recordCreationProvenance = vi.fn(async () => undefined);
     const emit = vi.fn();
 
     const routes = createSessionsRoutes({
@@ -4441,6 +4442,7 @@ describe("Sessions metadata route", () => {
           },
         })),
         setProvider: vi.fn(async () => undefined),
+        recordCreationProvenance,
         updateMetadata,
       } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
       eventBus: { emit } as unknown as SessionsDeps["eventBus"],
@@ -4455,11 +4457,16 @@ describe("Sessions metadata route", () => {
           provider: "codex",
           model: "gpt-5.4",
           reason: "test restart",
+          creationProvenance: { surface: "desktop", clientCommit: "abc123" },
         }),
       },
     );
 
     expect(response.status).toBe(200);
+    expect(recordCreationProvenance).toHaveBeenCalledWith("sess-new", {
+      surface: "desktop",
+      clientCommit: "abc123",
+    });
     const body = await response.json();
     expect(body).toMatchObject({
       sessionId: "sess-new",
@@ -4741,6 +4748,7 @@ describe("Sessions metadata route", () => {
     const setProvider = vi.fn(async () => undefined);
     const setSessionSandbox = vi.fn(async () => undefined);
     const updateMetadata = vi.fn(async () => undefined);
+    const recordCreationProvenance = vi.fn(async () => undefined);
     const emit = vi.fn();
 
     const routes = createSessionsRoutes({
@@ -4777,6 +4785,7 @@ describe("Sessions metadata route", () => {
         })),
         setProvider,
         setSessionSandbox,
+        recordCreationProvenance,
         updateMetadata,
       } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
       eventBus: { emit } as unknown as SessionsDeps["eventBus"],
@@ -4787,7 +4796,10 @@ describe("Sessions metadata route", () => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ upToMessageId: "msg-uuid-3" }),
+        body: JSON.stringify({
+          upToMessageId: "msg-uuid-3",
+          creationProvenance: { surface: "web", clientVersion: "0.9.3" },
+        }),
       },
     );
 
@@ -4815,6 +4827,10 @@ describe("Sessions metadata route", () => {
     expect(resumeSession).not.toHaveBeenCalled();
     expect(startSession).not.toHaveBeenCalled();
     expect(setProvider).toHaveBeenCalledWith("sess-fork", "claude");
+    expect(recordCreationProvenance).toHaveBeenCalledWith("sess-fork", {
+      surface: "web",
+      clientVersion: "0.9.3",
+    });
     expect(setSessionSandbox).toHaveBeenCalledWith("sess-fork", {
       level: "project-write",
       networkFirewall: true,

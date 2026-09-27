@@ -8,6 +8,7 @@ import {
   type PromptSuggestionMode,
   type ProviderName,
   type RecapMode,
+  type SessionCreationProvenance,
   type SessionMetadataResponse,
   type SessionEffectiveModelSettings,
   type SessionOwnership,
@@ -434,6 +435,7 @@ async function resolveSessionReader({
 }
 
 interface StartSessionBody {
+  creationProvenance?: SessionCreationProvenance;
   computerControl?: boolean;
   message: string;
   images?: string[];
@@ -483,6 +485,7 @@ function hasSessionMessageContent(body: StartSessionBody): boolean {
 }
 
 interface CreateSessionBody {
+  creationProvenance?: SessionCreationProvenance;
   computerControl?: boolean;
   mode?: PermissionMode;
   model?: string;
@@ -509,6 +512,47 @@ interface CreateSessionBody {
   helperSideModel?: string;
   /** Experimental workstream lane target for new project sessions. */
   workstreamId?: string;
+}
+
+function parseCreationProvenance(
+  value: unknown,
+): SessionCreationProvenance | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const input = value as Record<string, unknown>;
+  if (input.surface !== "web" && input.surface !== "desktop") {
+    return undefined;
+  }
+  const boundedString = (field: unknown): string | undefined => {
+    if (typeof field !== "string") return undefined;
+    const trimmed = field.trim();
+    return trimmed && trimmed.length <= 120 ? trimmed : undefined;
+  };
+  let clientOrigin: string | undefined;
+  if (
+    typeof input.clientOrigin === "string" &&
+    input.clientOrigin.length <= 512
+  ) {
+    try {
+      const url = new URL(input.clientOrigin);
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        clientOrigin = url.origin;
+      }
+    } catch {
+      // Provenance is an optional hint; a malformed origin must not block launch.
+    }
+  }
+  return {
+    surface: input.surface,
+    ...(clientOrigin ? { clientOrigin } : {}),
+    ...(boundedString(input.clientVersion)
+      ? { clientVersion: boundedString(input.clientVersion) }
+      : {}),
+    ...(boundedString(input.clientCommit)
+      ? { clientCommit: boundedString(input.clientCommit) }
+      : {}),
+  };
 }
 
 interface InputResponseBody {
@@ -2050,6 +2094,23 @@ function extractContextUsageFromSDKMessages(
 
 export function createSessionsRoutes(deps: SessionsDeps): Hono {
   const routes = new Hono();
+  const recordCreationProvenance = async (
+    sessionId: string,
+    value: unknown,
+  ): Promise<void> => {
+    const provenance = parseCreationProvenance(value);
+    if (!provenance || !deps.sessionMetadataService) return;
+    await deps.sessionMetadataService.recordCreationProvenance(
+      sessionId,
+      provenance,
+    );
+    deps.eventBus?.emit({
+      type: "session-metadata-changed",
+      sessionId,
+      creationProvenance: provenance,
+      timestamp: new Date().toISOString(),
+    });
+  };
   const activeForkSummaryJobs = new Map<
     string,
     { objectId: string; abortController: AbortController }
@@ -2909,6 +2970,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           metadata?.parentSessionKind ?? sessionSummary?.parentSessionKind,
         forkedFromSessionId:
           metadata?.forkedFromSessionId ?? sessionSummary?.forkedFromSessionId,
+        creationProvenance: metadata?.creationProvenance,
         initialPrompt:
           metadata?.initialPrompt ?? sessionSummary?.fullTitle ?? undefined,
         heartbeatTurnsEnabled: metadata?.heartbeatTurnsEnabled,
@@ -3420,6 +3482,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             parentSessionId: metadata?.parentSessionId,
             parentSessionKind: metadata?.parentSessionKind,
             forkedFromSessionId: metadata?.forkedFromSessionId,
+            creationProvenance: metadata?.creationProvenance,
             initialPrompt: metadata?.initialPrompt,
             heartbeatTurnsEnabled: metadata?.heartbeatTurnsEnabled,
             wakeTurnsEnabled: metadata?.wakeTurnsEnabled,
@@ -3849,6 +3912,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           metadata?.parentSessionKind ?? session.parentSessionKind,
         forkedFromSessionId:
           metadata?.forkedFromSessionId ?? session.forkedFromSessionId,
+        creationProvenance: metadata?.creationProvenance,
         initialPrompt: metadata?.initialPrompt ?? session.fullTitle,
         heartbeatTurnsEnabled: metadata?.heartbeatTurnsEnabled,
         wakeTurnsEnabled: metadata?.wakeTurnsEnabled,
@@ -4015,8 +4079,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       {
         projectId: project.id,
         workstreamId: workstreamTarget.workstreamId,
-        onStarted: (sessionId) =>
-          initializeProjectHeartbeatDefaults(sessionId, project.id),
+        onStarted: async (sessionId) => {
+          await initializeProjectHeartbeatDefaults(sessionId, project.id);
+          await recordCreationProvenance(sessionId, body.creationProvenance);
+        },
       },
     );
 
@@ -4179,8 +4245,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       {
         projectId: project.id,
         workstreamId: workstreamTarget.workstreamId,
-        onStarted: (sessionId) =>
-          initializeProjectHeartbeatDefaults(sessionId, project.id),
+        onStarted: async (sessionId) => {
+          await initializeProjectHeartbeatDefaults(sessionId, project.id);
+          await recordCreationProvenance(sessionId, body.creationProvenance);
+        },
       },
     );
 
@@ -4201,6 +4269,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
 
     await initializeProjectHeartbeatDefaults(result.sessionId, project.id);
+    await recordCreationProvenance(result.sessionId, body.creationProvenance);
 
     if (limitedLaunch.kind === "applied") {
       // Ownership survives a later grant change: a limited user can always
@@ -4328,6 +4397,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         promptSuggestionMode: helperSettings.promptSuggestionMode,
         helperSideModel: helperSettings.helperSideModel,
       },
+      {
+        onStarted: (sessionId) =>
+          recordCreationProvenance(sessionId, body.creationProvenance),
+      },
     );
 
     if (isQueueFullResponse(result)) {
@@ -4421,24 +4494,32 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       body.model && body.model !== "default" ? body.model : undefined;
     const serviceTier = normalizeOptionalServiceTier(body.serviceTier);
 
-    const result = await deps.supervisor.createSession(projectPath, body.mode, {
-      model,
-      requestedModel: body.model,
-      serviceTier,
-      thinking,
-      effort,
-      providerName: body.provider,
-      computerControl: body.computerControl,
-      executor,
-      sandboxLevel: sandboxSelection.sandboxLevel,
-      sandboxNetworkFirewall: sandboxSelection.sandboxNetworkFirewall,
-      globalInstructions: getGlobalInstructions(),
-      permissions: body.permissions,
-      recapMode: helperSettings.recapMode,
-      recapAfterSeconds: helperSettings.recapAfterSeconds,
-      promptSuggestionMode: helperSettings.promptSuggestionMode,
-      helperSideModel: helperSettings.helperSideModel,
-    });
+    const result = await deps.supervisor.createSession(
+      projectPath,
+      body.mode,
+      {
+        model,
+        requestedModel: body.model,
+        serviceTier,
+        thinking,
+        effort,
+        providerName: body.provider,
+        computerControl: body.computerControl,
+        executor,
+        sandboxLevel: sandboxSelection.sandboxLevel,
+        sandboxNetworkFirewall: sandboxSelection.sandboxNetworkFirewall,
+        globalInstructions: getGlobalInstructions(),
+        permissions: body.permissions,
+        recapMode: helperSettings.recapMode,
+        recapAfterSeconds: helperSettings.recapAfterSeconds,
+        promptSuggestionMode: helperSettings.promptSuggestionMode,
+        helperSideModel: helperSettings.helperSideModel,
+      },
+      {
+        onStarted: (sessionId) =>
+          recordCreationProvenance(sessionId, body.creationProvenance),
+      },
+    );
 
     if (isQueueFullResponse(result)) {
       return c.json(
@@ -4453,6 +4534,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     if (isQueuedResponse(result)) {
       return c.json({ ...result, serverTimestamp: Date.now() }, 202);
     }
+
+    await recordCreationProvenance(result.sessionId, body.creationProvenance);
 
     await persistLaunchMetadata(
       result.sessionId,
@@ -5657,6 +5740,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       }
 
       void deps.userUsageService?.recordSession(actingUsername(c));
+      await recordCreationProvenance(result.sessionId, body.creationProvenance);
       await persistLaunchMetadata(
         result.sessionId,
         sourceProvider,
@@ -5798,6 +5882,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
 
     void deps.userUsageService?.recordSession(actingUsername(c));
+    await recordCreationProvenance(result.sessionId, body.creationProvenance);
     await persistLaunchMetadata(
       result.sessionId,
       providerName,
@@ -6624,6 +6709,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       sourceMessageId?: unknown;
       upToMessageId?: unknown;
       thinking?: unknown;
+      creationProvenance?: unknown;
     } = {};
     try {
       const parsed = await c.req.json<unknown>();
@@ -6877,6 +6963,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           originalMetadata?.workingProjectId ?? (projectId as UrlProjectId),
       },
     );
+    await recordCreationProvenance(fork.sessionId, body.creationProvenance);
     if (deps.sessionMetadataService && forkThinking !== undefined) {
       // A fork asked to start at a different effort (the long-context
       // effort-change warning's "fork instead" path) records that choice as
