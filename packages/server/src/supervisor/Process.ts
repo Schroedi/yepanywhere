@@ -1203,6 +1203,8 @@ export class Process {
   private _forceYaOrchestratedCompaction: boolean;
   readonly compactAtContextTokenLimit: number | undefined;
   readonly launchCompactPercentOverride: number | undefined;
+  /** Configured model endpoint the provider bound this session to at launch. */
+  readonly gatewayServiceId: string | undefined;
 
   /** Deferred message queue — messages queued while agent is in-turn, auto-sent when turn ends */
   private deferredQueue: DeferredQueueEntry[] = [];
@@ -1259,6 +1261,7 @@ export class Process {
       options.forceYaOrchestratedCompaction === true;
     this.compactAtContextTokenLimit = options.compactAtContextTokenLimit;
     this.launchCompactPercentOverride = options.launchCompactPercentOverride;
+    this.gatewayServiceId = options.gatewayServiceId;
     this.serviceTier = options.serviceTier;
     this.executor = options.executor;
     this.execution =
@@ -2882,6 +2885,9 @@ export class Process {
       // model above. Keys per-model settings; the route enrichment fills the
       // persisted/helper fallback when this is absent (non-YA-started sessions).
       requestedModel: this.requestedModel,
+      ...(this.gatewayServiceId
+        ? { gatewayServiceId: this.gatewayServiceId }
+        : {}),
       serviceTier: this.serviceTier,
       thinking: this._thinking,
       effort: this.effort,

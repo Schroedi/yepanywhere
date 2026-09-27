@@ -2493,6 +2493,7 @@ export class Supervisor {
       provider: activeProvider.name,
       model: modelSettings?.model,
       requestedModel: modelSettings?.requestedModel,
+      gatewayServiceId: result.gatewayServiceId,
       compactAtContextPercent: modelSettings?.compactAtContextPercent,
       compactAtContextWindow: modelSettings?.compactAtContextWindow,
       forceYaOrchestratedCompaction:
@@ -2766,6 +2767,7 @@ export class Supervisor {
       provider: activeProvider.name,
       model: modelSettings?.model,
       requestedModel: modelSettings?.requestedModel,
+      gatewayServiceId: result.gatewayServiceId,
       compactAtContextPercent: modelSettings?.compactAtContextPercent,
       compactAtContextWindow: modelSettings?.compactAtContextWindow,
       forceYaOrchestratedCompaction:

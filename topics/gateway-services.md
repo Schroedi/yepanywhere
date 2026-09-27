@@ -80,12 +80,16 @@ model serving.
   a unique, same-user listener that is never YA or one of its ancestors.
 - `autoStop` schedules that stop request once no live session uses the service,
   after the entry's idle delay; any later use cancels it. Use counts live
-  processes from both providers that reach these endpoints, each attributed to
-  the service its launch model resolves to, so a CodexOSS session holds its
-  endpoint open exactly as a Claude Gateway one does. The two differ where a
-  model resolves to nothing: a Claude Gateway session is attributed to the
-  default service, since it must be using some service, while a CodexOSS
-  session launched against the local provider holds no service open at all.
+  processes from both providers that reach these endpoints, so a CodexOSS
+  session holds its endpoint open exactly as a Claude Gateway one does. A
+  CodexOSS session counts against the endpoint its launch was bound to (see
+  § Catalogs and model identity), which no later catalog read or server reload
+  changes; a Claude Gateway session, and a CodexOSS process that carries no
+  binding, counts against the service its launch model resolves to now. The
+  two differ where a model resolves to nothing: a Claude Gateway session is
+  attributed to the default service, since it must be using some service,
+  while a CodexOSS session launched against the local provider holds no
+  service open at all.
 - Each service owns its own launcher: reconfiguring or removing one never
   disturbs another's process, and a removed entry's child and pending stop
   check are torn down with it.
@@ -111,6 +115,15 @@ model serving.
   unusable as a separator because a vLLM server with no `--served-model-name`
   advertises a Hugging Face repo id that already contains one. A launch always
   reaches the owning service under the plain name that service knows.
+- A CodexOSS session is bound to one endpoint when it launches, because each of
+  its turns is a separate `codex exec`. The server process resolves the model
+  against the catalog it holds, reading that catalog first when the model is
+  not in it (nothing has read it yet after a server restart), and every turn
+  uses the result — under the provider host too, whose worker reads no catalog
+  and is handed the endpoint with the launch. A model no endpoint serves is
+  bound to the local provider. When the bound endpoint is later removed or
+  stops offering CodexOSS, the next turn fails with an error naming it rather
+  than moving to the local provider.
 - A catalog read may start only the default service. A non-default service that
   is not already listening contributes nothing until one of its models is
   selected, and that selection is what authorizes its start.

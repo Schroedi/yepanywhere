@@ -90,6 +90,12 @@ export interface HostedProviderReattachSpec {
     : never;
   sandboxNetworkFirewall?: boolean;
   sandboxStateKey?: string;
+  /**
+   * Configured model endpoint the worker was launched against. Kept here so a
+   * replacement server still knows it after a reload; a host that predates the
+   * field returns no value, and usage falls back to resolving the model.
+   */
+  gatewayServiceId?: string;
 }
 
 export interface HostedProviderRuntimeInfo {
@@ -642,6 +648,9 @@ function reattachSpec(
         ? options.sessionSandboxOptions?.networkFirewall !== false
         : undefined,
     sandboxStateKey: options.sessionSandboxOptions?.stateKey,
+    ...(options.gatewayRoute
+      ? { gatewayServiceId: options.gatewayRoute.serviceId }
+      : {}),
   };
 }
 
@@ -1243,6 +1252,9 @@ class HostedAgentSession {
       isProcessAlive: () => this.providerAlive,
       pid: this.runtime.pid,
       sessionId: this.runtime.worker.sessionId,
+      ...(this.runtime.reattach.gatewayServiceId
+        ? { gatewayServiceId: this.runtime.reattach.gatewayServiceId }
+        : {}),
       initializedSessionId: this.initializedSessionId,
       initialTurnState: this.activeProviderTurn ? "in-turn" : "idle",
       ...(capabilities.probeLiveness

@@ -1938,9 +1938,13 @@ describe.skipIf(!nativeHostSupported)("ProviderRuntimeHost", () => {
 
     const first = await startHostedProviderSession(
       "claude",
-      { cwd: runtimeRoot },
+      {
+        cwd: runtimeRoot,
+        gatewayRoute: { serviceId: "vllm", modelId: "deepseek-v4-flash" },
+      },
       {},
     );
+    expect(first.gatewayServiceId).toBe("vllm");
     const firstEvent = await first.iterator.next();
     expect(firstEvent.value?.session_id).toBe("fake-session-1");
     expect(first.initializedSessionId).toBeUndefined();
@@ -1980,6 +1984,9 @@ describe.skipIf(!nativeHostSupported)("ProviderRuntimeHost", () => {
     // The retained worker acknowledged the first generation's init, so the
     // reattached proxy reports provider identity without a replayed init.
     expect(second.initializedSessionId).toBe("canonical-session");
+    // The replacement server resolved no endpoint of its own for this resume;
+    // the worker is still bound to the one it launched against.
+    expect(second.gatewayServiceId).toBe("vllm");
     const secondEvent = await second.iterator.next();
     expect(secondEvent.value?.session_id).toBe("fake-session-2");
     const environmentEvent = await second.iterator.next();

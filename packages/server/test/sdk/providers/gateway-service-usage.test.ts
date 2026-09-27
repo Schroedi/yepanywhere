@@ -42,9 +42,11 @@ let processCount = 0;
 function liveProcess(
   provider: ProcessInfo["provider"],
   requestedModel: string,
+  launch: Pick<ProcessInfo, "gatewayServiceId"> = {},
 ): ProcessInfo {
   processCount += 1;
   return {
+    ...launch,
     id: `process-${processCount}`,
     sessionId: `session-${processCount}`,
     projectId: "project" as UrlProjectId,
@@ -122,6 +124,29 @@ describe("gateway service usage", () => {
 
     const counts = gatewayServiceUsage(
       supervisorWith([liveProcess("codex-oss", "deepseek-v4-flash")]),
+    );
+
+    expect(counts.get("vllm")).toBe(1);
+  });
+
+  it("counts a CodexOSS session against the endpoint its launch recorded", async () => {
+    await ClaudeGatewayProvider.configureGatewayServices({
+      services: [service()],
+      defaultServiceId: "vllm",
+    });
+    // No catalog in this process places the model — as after a server reload
+    // that reattached a worker — so only the launch record says where it runs.
+    codexOSSProvider.setGatewayServices([service()]);
+    expect(
+      codexOSSProvider.resolveServiceForModel("never-listed-here"),
+    ).toBeUndefined();
+
+    const counts = gatewayServiceUsage(
+      supervisorWith([
+        liveProcess("codex-oss", "never-listed-here", {
+          gatewayServiceId: "vllm",
+        }),
+      ]),
     );
 
     expect(counts.get("vllm")).toBe(1);

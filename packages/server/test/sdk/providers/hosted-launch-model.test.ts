@@ -8,7 +8,7 @@ vi.mock("../../../src/sdk/providers/provider-runtime-host.js", () => ({
   startHostedProviderSession,
 }));
 
-const { claudeProvider, getProvider } = await import(
+const { claudeProvider, codexOSSProvider, getProvider } = await import(
   "../../../src/sdk/providers/index.js"
 );
 
@@ -31,6 +31,41 @@ describe("hosted provider launch model", () => {
         model: "opus",
         launchModel: "claude-opus-5-5",
       }),
+      expect.anything(),
+    );
+  });
+
+  it("hands the host the endpoint this server resolved a CodexOSS model to", async () => {
+    vi.spyOn(codexOSSProvider, "resolveLaunchGatewayRoute").mockImplementation(
+      async (model) =>
+        model === "deepseek-v4-flash"
+          ? { serviceId: "vllm", modelId: "deepseek-v4-flash" }
+          : null,
+    );
+
+    await getProvider("codex-oss")?.startSession({
+      cwd: "/tmp",
+      model: "deepseek-v4-flash",
+    });
+    await getProvider("codex-oss")?.startSession({
+      cwd: "/tmp",
+      model: "llama3.2",
+    });
+
+    // The worker reads no catalog, so both answers travel with the launch,
+    // including the one binding a model to the local provider.
+    expect(startHostedProviderSession).toHaveBeenNthCalledWith(
+      1,
+      "codex-oss",
+      expect.objectContaining({
+        gatewayRoute: { serviceId: "vllm", modelId: "deepseek-v4-flash" },
+      }),
+      expect.anything(),
+    );
+    expect(startHostedProviderSession).toHaveBeenNthCalledWith(
+      2,
+      "codex-oss",
+      expect.objectContaining({ gatewayRoute: null }),
       expect.anything(),
     );
   });
