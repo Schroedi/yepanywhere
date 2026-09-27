@@ -16,6 +16,7 @@ import {
   SESSION_SANDBOX_NETWORK_FIREWALL_CAPABILITY,
   SESSION_SANDBOXING_CAPABILITY,
   SESSION_SANDBOXING_STATUS_CAPABILITY,
+  type SessionSandboxBlocker,
 } from "@yep-anywhere/shared";
 import {
   Fragment,
@@ -218,6 +219,7 @@ const {
         platform: string;
         backend?: "bubblewrap";
         version?: string;
+        blocker?: SessionSandboxBlocker;
       };
       voiceBackends?: string[];
       voiceBackendCapabilities?: Record<
@@ -590,6 +592,8 @@ vi.mock("../../i18n", () => ({
         speechPrefixDeliveryTooltip: "{tooltip} Prepends {prefix}.",
         newSessionFixedTitle: "Set by your account",
         newSessionFixedSandboxValue: "Always on",
+        newSessionSandboxUnavailableMissingPackages:
+          "Unavailable: install {packages} on the server to enable sandboxed sessions.",
       };
       let translated = text[key] ?? key;
       if (!vars) return translated;
@@ -2051,6 +2055,43 @@ describe("NewSessionForm", () => {
 
     expect(
       screen.queryByRole("checkbox", { name: "newSessionSandboxLabel" }),
+    ).toBeNull();
+    expect(
+      document.querySelector("[data-new-session-sandbox-unavailable]"),
+    ).toBeNull();
+  });
+
+  it("explains why a supported host cannot offer sandboxing", () => {
+    versionState.version = {
+      capabilities: [SESSION_SANDBOXING_STATUS_CAPABILITY],
+      sessionSandboxing: {
+        state: "probe-failed",
+        platform: "linux",
+        backend: "bubblewrap",
+        blocker: { kind: "missing-packages", packages: ["slirp4netns"] },
+      },
+    };
+    serverSettingsState.settings = {
+      newSessionDefaults: { provider: "claude", sandboxLevel: "project-write" },
+    };
+    serverSettingsState.isLoading = false;
+
+    render(
+      <NewSessionForm
+        projectId="project-1"
+        selectedProject={chooserProjects[0]}
+        projects={[...chooserProjects]}
+      />,
+    );
+
+    expect(
+      document.querySelector("[data-new-session-sandbox-unavailable]")
+        ?.textContent,
+    ).toBe(
+      "Unavailable: install slirp4netns on the server to enable sandboxed sessions.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "newSessionSandboxTitle" }),
     ).toBeNull();
   });
 

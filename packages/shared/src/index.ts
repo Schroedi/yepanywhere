@@ -421,6 +421,8 @@ export type {
   SessionSandboxEnforcement,
   SessionSandboxAvailability,
   SessionSandboxAvailabilityState,
+  SessionSandboxBlocker,
+  SessionSandboxHostPackage,
   ProviderSessionDefaults,
   NewSessionDefaults,
   BusyComposerDefaultAction,

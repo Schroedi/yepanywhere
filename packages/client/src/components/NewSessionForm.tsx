@@ -100,7 +100,10 @@ import {
   providerSupportsLocalSessionSandbox,
   providerSupportsRemoteExecutors,
 } from "../lib/providerCapabilities";
-import { serverHasAvailableSessionSandbox } from "../lib/sessionSandboxAvailability";
+import {
+  describeUnavailableSessionSandbox,
+  serverHasAvailableSessionSandbox,
+} from "../lib/sessionSandboxAvailability";
 import {
   type PendingFile,
   type PendingLocalFile,
@@ -553,6 +556,15 @@ export function NewSessionForm({
     supportsSessionSandboxing &&
     effectiveExecutor === null &&
     providerSupportsLocalSessionSandbox(selectedProvider);
+  // Where the toggle would sit, say what keeps a supported host from offering
+  // it; a limited user cannot change the host, and its fixed launch says so.
+  const sessionSandboxUnavailableReason =
+    !supportsSessionSandboxing &&
+    !launchLock.limited &&
+    effectiveExecutor === null &&
+    providerSupportsLocalSessionSandbox(selectedProvider)
+      ? describeUnavailableSessionSandbox(versionInfo, t)
+      : null;
   const effectiveSandboxLevel: SessionSandboxLevel = launchLock.limited
     ? "project-write"
     : canConfigureSessionSandbox
@@ -4205,6 +4217,19 @@ export function NewSessionForm({
         </NewSessionOptionSection>
       )}
     </>
+  ) : sessionSandboxUnavailableReason ? (
+    <NewSessionOptionSection
+      className="new-session-helper-section new-session-sandbox-section"
+      title={sessionDefaultCopy.sandbox.title}
+      showCaption={showOptionCaptions}
+    >
+      <p
+        className={styles.optionCaption}
+        data-new-session-sandbox-unavailable="true"
+      >
+        {sessionSandboxUnavailableReason}
+      </p>
+    </NewSessionOptionSection>
   ) : null;
   // What this account settles, stated where the withheld pickers would sit.
   // An effort this client cannot name is stated as stored.

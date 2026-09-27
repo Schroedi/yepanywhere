@@ -9,6 +9,7 @@ import {
   lstat,
   mkdir,
   open,
+  readFile,
   realpath,
   stat,
   writeFile,
@@ -30,7 +31,9 @@ import type {
   RecapMode,
   SessionSandboxAvailability,
   SessionSandboxAvailabilityState,
+  SessionSandboxBlocker,
   SessionSandboxEnforcement,
+  SessionSandboxHostPackage,
   SessionSandboxLevel,
 } from "@yep-anywhere/shared";
 import { getDefaultCodexHomeDir } from "./projects/codex-scanner.js";
@@ -98,6 +101,9 @@ const SANDBOX_STATE_KEY_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/;
 const MINIMUM_BWRAP_VERSION = [0, 4, 0] as const;
 const SESSION_SANDBOX_AVAILABILITY_TTL_MS = 60_000;
 const PROJECT_DIRECTORY_CHILD_FD = 3;
+/** Ubuntu 23.10+ sets this to 1, denying user namespaces to unprofiled tools. */
+const APPARMOR_USERNS_RESTRICTION_PATH =
+  "/proc/sys/kernel/apparmor_restrict_unprivileged_userns";
 
 type SessionSandboxSetupFailureState = Exclude<
   SessionSandboxAvailabilityState,
@@ -109,6 +115,7 @@ class SessionSandboxSetupError extends Error {
     readonly state: SessionSandboxSetupFailureState,
     message: string,
     readonly version?: string,
+    readonly blocker?: SessionSandboxBlocker,
   ) {
     super(message);
     this.name = "SessionSandboxSetupError";
@@ -196,6 +203,8 @@ function sandboxInstallError(detail?: string): SessionSandboxSetupError {
     `Sandboxed sessions require Bubblewrap (bwrap)${suffix}. ` +
       "Install it with `sudo dnf install bubblewrap` on Rocky/RHEL/Fedora " +
       "or `sudo apt install bubblewrap` on Debian/Ubuntu.",
+    undefined,
+    { kind: "missing-packages", packages: ["bubblewrap"] },
   );
 }
 
@@ -215,12 +224,24 @@ function sandboxRuntimeError(detail: string): SessionSandboxSetupError {
   );
 }
 
-function sandboxNetworkInstallError(tool: string): SessionSandboxSetupError {
+function sandboxNetworkInstallError(
+  packages: readonly SessionSandboxHostPackage[],
+): SessionSandboxSetupError {
+  const list = packages.join(", ");
   return new SessionSandboxSetupError(
     "probe-failed",
-    `Network-firewalled sandboxed sessions require a trusted ${tool} binary. ` +
-      "Install slirp4netns, util-linux, and iproute2 before starting this session.",
+    `Network-firewalled sandboxed sessions require trusted helpers from ${list}. ` +
+      `Install ${list} before starting this session.`,
+    undefined,
+    { kind: "missing-packages", packages: [...packages] },
   );
+}
+
+function missingPackagesOf(error: unknown): SessionSandboxHostPackage[] {
+  return error instanceof SessionSandboxSetupError &&
+    error.blocker?.kind === "missing-packages"
+    ? error.blocker.packages
+    : [];
 }
 
 function sandboxNetworkTrustError(tool: string): SessionSandboxSetupError {
@@ -285,6 +306,7 @@ async function resolveTrustedBwrap(explicit?: string): Promise<string> {
 
 async function resolveTrustedNetworkHelper(
   tool: string,
+  hostPackage: SessionSandboxHostPackage,
   candidates: readonly string[],
   explicit?: string,
 ): Promise<string> {
@@ -293,7 +315,7 @@ async function resolveTrustedNetworkHelper(
   );
   if (result.path) return result.path;
   if (result.found) throw sandboxNetworkTrustError(tool);
-  throw sandboxNetworkInstallError(tool);
+  throw sandboxNetworkInstallError([hostPackage]);
 }
 
 async function runBwrapProbe(
@@ -381,20 +403,59 @@ async function resolveSessionSandboxNetworkTools(options: {
   if (!launcher?.isFile()) {
     throw sandboxNetworkRuntimeError("the YA network launcher is missing");
   }
-  const [unsharePath, slirp4netnsPath, ipPath] = await Promise.all([
+  const [unshare, slirp4netns, ip] = await Promise.allSettled([
     resolveTrustedNetworkHelper(
       "unshare",
+      "util-linux",
       UNSHARE_CANDIDATES,
       options.unsharePath,
     ),
     resolveTrustedNetworkHelper(
       "slirp4netns",
+      "slirp4netns",
       SLIRP4NETNS_CANDIDATES,
       options.slirp4netnsPath,
     ),
-    resolveTrustedNetworkHelper("ip", IP_CANDIDATES, options.ipPath),
+    resolveTrustedNetworkHelper(
+      "ip",
+      "iproute2",
+      IP_CANDIDATES,
+      options.ipPath,
+    ),
   ]);
-  return { unsharePath, slirp4netnsPath, ipPath };
+  if (
+    unshare.status === "fulfilled" &&
+    slirp4netns.status === "fulfilled" &&
+    ip.status === "fulfilled"
+  ) {
+    return {
+      unsharePath: unshare.value,
+      slirp4netnsPath: slirp4netns.value,
+      ipPath: ip.value,
+    };
+  }
+  // Name every absent package at once, so one install clears the preflight;
+  // an untrusted helper is a different fix and takes precedence.
+  const failures = [unshare, slirp4netns, ip].flatMap((result) =>
+    result.status === "rejected" ? [result.reason] : [],
+  );
+  const untrusted = failures.find(
+    (failure) => missingPackagesOf(failure).length === 0,
+  );
+  if (untrusted) throw untrusted;
+  throw sandboxNetworkInstallError(failures.flatMap(missingPackagesOf));
+}
+
+async function isUnprivilegedUsernsRestricted(
+  path = APPARMOR_USERNS_RESTRICTION_PATH,
+): Promise<boolean> {
+  try {
+    return (await readFile(path, "utf8")).trim() === "1";
+  } catch (error) {
+    // Kernels without the AppArmor knob impose no such restriction.
+    if (hasErrorCode(error, "ENOENT")) return false;
+    throw error;
+  }
 }
 
 async function runNetworkSandboxProbe(options: {
@@ -510,6 +571,8 @@ export interface ProbeSessionSandboxAvailabilityOptions {
   unsharePath?: string;
   slirp4netnsPath?: string;
   ipPath?: string;
+  /** Test-only override for the AppArmor user-namespace restriction knob. */
+  usernsRestrictionPath?: string;
 }
 
 export function applySessionSandboxAuthRequirement(
@@ -519,6 +582,24 @@ export function applySessionSandboxAuthRequirement(
   return availability.state === "available" && !authEnforced
     ? { ...availability, state: "auth-required" }
     : availability;
+}
+
+/**
+ * A host missing Bubblewrap often lacks the network helpers too; name them
+ * together so a single install makes the sandbox available.
+ */
+async function withMissingNetworkPackages(
+  error: SessionSandboxSetupError,
+  options: ProbeSessionSandboxAvailabilityOptions,
+): Promise<SessionSandboxBlocker | undefined> {
+  const network = await resolveSessionSandboxNetworkTools(options).then(
+    () => [],
+    missingPackagesOf,
+  );
+  return {
+    kind: "missing-packages",
+    packages: [...missingPackagesOf(error), ...network],
+  };
 }
 
 /**
@@ -540,12 +621,29 @@ export async function probeSessionSandboxAvailability(
     const bwrapPath = await resolveTrustedBwrap(options.bwrapPath);
     const version = await requireSupportedBwrapVersion(bwrapPath);
     const tools = await resolveSessionSandboxNetworkTools(options);
-    await runNetworkSandboxProbe({
-      tools,
-      bwrapPath,
-      bwrapArgs: BWRAP_PREFLIGHT_ARGS,
-      blockedDestinations: blockedIpv4Destinations(),
-    });
+    try {
+      await runNetworkSandboxProbe({
+        tools,
+        bwrapPath,
+        bwrapArgs: BWRAP_PREFLIGHT_ARGS,
+        blockedDestinations: blockedIpv4Destinations(),
+      });
+    } catch (error) {
+      // Bubblewrap ships its own AppArmor exemption; the namespace helper
+      // does not, so this knob is the likely cause of a failed setup.
+      if (
+        error instanceof SessionSandboxSetupError &&
+        (await isUnprivilegedUsernsRestricted(options.usernsRestrictionPath))
+      ) {
+        throw new SessionSandboxSetupError(
+          error.state,
+          error.message,
+          version,
+          { kind: "userns-restricted" },
+        );
+      }
+      throw error;
+    }
     return {
       state: "available",
       platform,
@@ -554,11 +652,16 @@ export async function probeSessionSandboxAvailability(
     };
   } catch (error) {
     if (error instanceof SessionSandboxSetupError) {
+      const blocker =
+        error.state === "missing-bubblewrap"
+          ? await withMissingNetworkPackages(error, options)
+          : error.blocker;
       return {
         state: error.state,
         platform,
         backend: "bubblewrap",
         ...(error.version ? { version: error.version } : {}),
+        ...(blocker ? { blocker } : {}),
       };
     }
     return {

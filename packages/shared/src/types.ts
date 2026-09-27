@@ -609,7 +609,34 @@ export interface SessionSandboxAvailability {
   platform: string;
   backend?: "bubblewrap";
   version?: string;
+  /**
+   * Host fix that would clear a failed preflight, when the server can name
+   * one. Fixed vocabulary only: never raw probe output, which can carry host
+   * detail this pre-auth route must not publish. Older servers omit it.
+   */
+  blocker?: SessionSandboxBlocker;
 }
+
+/** Actionable cause of an unavailable Linux session sandbox. */
+export type SessionSandboxBlocker =
+  | {
+      /** Required host packages are absent (distribution package names). */
+      kind: "missing-packages";
+      packages: SessionSandboxHostPackage[];
+    }
+  | {
+      /**
+       * The kernel's AppArmor policy denies unprivileged user namespaces to
+       * the `unshare` helper (Ubuntu 23.10+ default).
+       */
+      kind: "userns-restricted";
+    };
+
+export type SessionSandboxHostPackage =
+  | "bubblewrap"
+  | "slirp4netns"
+  | "util-linux"
+  | "iproute2";
 
 /**
  * Saved defaults for the new session form.

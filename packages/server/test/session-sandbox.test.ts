@@ -40,9 +40,15 @@ import type { UrlProjectId } from "@yep-anywhere/shared";
 
 const hostSandboxAvailable =
   (await probeSessionSandboxAvailability()).state === "available";
-const trustedSystemFalseAvailable = await stat("/usr/bin/false")
-  .then((info) => info.isFile() && info.uid === 0 && (info.mode & 0o022) === 0)
-  .catch(() => false);
+async function isTrustedSystemFile(path: string): Promise<boolean> {
+  return stat(path)
+    .then(
+      (info) => info.isFile() && info.uid === 0 && (info.mode & 0o022) === 0,
+    )
+    .catch(() => false);
+}
+const trustedSystemFalseAvailable = await isTrustedSystemFile("/usr/bin/false");
+const trustedBwrapAvailable = await isTrustedSystemFile("/usr/bin/bwrap");
 
 function prepareSessionSandbox(
   options: Parameters<typeof prepareSessionSandboxWithoutAuth>[0],
@@ -87,6 +93,8 @@ describe("session sandbox", () => {
   const roots: string[] = [];
   const linuxIt = process.platform === "linux" ? it : it.skip;
   const trustedFalseIt = trustedSystemFalseAvailable ? linuxIt : it.skip;
+  const trustedBwrapIt =
+    trustedSystemFalseAvailable && trustedBwrapAvailable ? linuxIt : it.skip;
   const t = hostSandboxAvailable ? it : it.skip;
 
   afterEach(async () => {
@@ -225,6 +233,59 @@ describe("session sandbox", () => {
       backend: "bubblewrap",
     });
   });
+
+  it("names every missing host package in one blocker", async () => {
+    const root = await fixtureRoot();
+    const availability = await probeSessionSandboxAvailability({
+      platform: "linux",
+      bwrapPath: join(root, "missing-bwrap"),
+      slirp4netnsPath: join(root, "missing-slirp4netns"),
+    });
+    expect(availability).toMatchObject({
+      state: "missing-bubblewrap",
+      blocker: { kind: "missing-packages" },
+    });
+    const packages =
+      availability.blocker?.kind === "missing-packages"
+        ? availability.blocker.packages
+        : [];
+    expect(packages.slice(0, 2)).toEqual(["bubblewrap", "slirp4netns"]);
+  });
+
+  trustedBwrapIt(
+    "attributes a failed namespace setup to the AppArmor restriction",
+    async () => {
+      const root = await fixtureRoot();
+      const restricted = join(root, "restricted");
+      const unrestricted = join(root, "unrestricted");
+      await writeFile(restricted, "1\n");
+      await writeFile(unrestricted, "0\n");
+      // Trusted stand-ins; `unshare` fails first, as the restricted one does,
+      // so the others are never run and need not be installed.
+      const failingHelpers = {
+        platform: "linux" as const,
+        unsharePath: "/usr/bin/false",
+        slirp4netnsPath: "/usr/bin/false",
+        ipPath: "/usr/bin/false",
+      };
+
+      await expect(
+        probeSessionSandboxAvailability({
+          ...failingHelpers,
+          usernsRestrictionPath: restricted,
+        }),
+      ).resolves.toMatchObject({
+        state: "probe-failed",
+        blocker: { kind: "userns-restricted" },
+      });
+      const unexplained = await probeSessionSandboxAvailability({
+        ...failingHelpers,
+        usernsRestrictionPath: unrestricted,
+      });
+      expect(unexplained.state).toBe("probe-failed");
+      expect(unexplained.blocker).toBeUndefined();
+    },
+  );
 
   trustedFalseIt("reports a trusted but unusable Linux backend", async () => {
     await expect(

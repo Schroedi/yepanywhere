@@ -62,10 +62,19 @@ new sessions** toggle. Both are off by default.
 The toggle appears only when the server advertises an actively available
 session-sandbox backend, local operator authentication is enforced, and the
 selected execution target is an implemented local Claude-family or standard
-Codex backend. New Session hides it on macOS, Windows, Linux hosts whose trusted
-Bubblewrap preflight fails, while local auth is open or disabled, and while a
-remote executor is selected. Unsupported hosts, providers, and executors do
-not get explanatory placeholder copy.
+Codex backend. New Session hides it on macOS, Windows, and other unsupported
+platforms, for unimplemented providers, and while a remote executor is
+selected; those cases get no explanatory placeholder copy.
+
+On Linux, where the operator can fix the host, a failed preflight or open local
+auth instead shows the **Sandbox session** heading in Advanced options with a
+one-line reason in place of the toggle. When the server names a
+[blocker](#status-and-evidence) the reason is actionable: the missing packages
+to install, or the AppArmor user-namespace restriction to lift. Otherwise it
+states the availability state (auth prerequisite, untrusted or outdated
+Bubblewrap, or a failed namespace probe). A limited user sees no reason, since
+their fixed launch already states the sandbox, and neither case sends a sandbox
+field.
 
 The toggle has short informational text:
 
@@ -522,8 +531,21 @@ interface SessionSandboxAvailability {
   platform: string;
   backend?: "bubblewrap";
   version?: string;
+  blocker?:
+    | { kind: "missing-packages"; packages: SessionSandboxHostPackage[] }
+    | { kind: "userns-restricted" };
 }
 ```
+
+`blocker` names the host fix when the probe can identify one, from a fixed
+vocabulary only: the version route is readable before authentication, so raw
+probe output never crosses it. `missing-packages` lists every absent package
+(`bubblewrap`, `slirp4netns`, `util-linux`, `iproute2`) at once, so one install
+clears it. `userns-restricted` means the namespace probe failed while
+`kernel.apparmor_restrict_unprivileged_userns` is `1` (the Ubuntu 23.10+
+default). Bubblewrap ships its own AppArmor exemption there; the network
+firewall's `unshare` helper does not. Older servers omit the field, and a
+client then names Bubblewrap for `missing-bubblewrap`.
 
 Only `available` permits the `session-sandboxing` capability. `auth-required`
 means the host backend passed but local password or desktop authentication is
