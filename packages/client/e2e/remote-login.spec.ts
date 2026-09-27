@@ -503,7 +503,7 @@ test.describe("Encrypted Data Flow", () => {
       await expect(page).toHaveURL(/\/bang-commands$/);
       await expect(bangHistoryLink).toHaveClass(/\bactive\b/);
       await expect(
-        page.getByText("No local commands have been run yet."),
+        page.getByText("!! Command History", { exact: true }),
       ).toBeVisible({ timeout: 10_000 });
     } finally {
       await setBangHistoryVisibility(baseURL, false);

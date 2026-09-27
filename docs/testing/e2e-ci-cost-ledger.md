@@ -69,11 +69,12 @@ checks include focus and scroll preservation during a live message, reply
 failure and retry through the server, cross-session counts delivered over the
 activity stream, phone overflow controls, a 200-character real sequential
 typing sequence, and an older-server capability fallback. Existing
-`asyncQuestions.test.ts`, `QuestionAnswerPanel.test.tsx`,
-`AsyncQuestionsButton.test.tsx`, and `useDrafts.test.ts` already cover some
-reminder aging, answer-panel behavior, compact button text, and draft source
-isolation. Compare each repeated state assertion with these tests before
-moving it. The [known timing gap](../../gaps/async-questions-e2e-flake.md)
+`asyncQuestions.test.ts`, `AsyncQuestionsButton.test.tsx`, and
+`useDrafts.test.ts` already cover some reminder aging, compact button text,
+and draft source isolation. `QuestionAnswerPanel.test.tsx` covers blocking
+provider interviews, not async questions, so it is not replacement coverage.
+Compare each repeated state assertion with the relevant tests before moving
+it. The [known timing gap](../../gaps/async-questions-e2e-flake.md)
 reported two failures in four unchanged local runs on 2026-09-24.
 
 `relay-integration.spec.ts` has 13 cases around real encrypted relay login,
@@ -104,6 +105,21 @@ persistent case failures. Retry attempts added 43s of reported case time to
 passing jobs and 289s to failed jobs across this window. These are observed
 replays, not an estimated flake rate: source revisions and case counts changed
 throughout the window.
+
+### First follow-up diagnosis
+
+The latest failed job's `!!` local-command attempt reached a completed command
+before its held POST receipt settled. The test reloaded immediately, so the
+recovery draft remained in local storage and its reload assertion failed.
+Retries then encountered a command left in the shared server. The relay and
+remote route cases were asserting that the global history was empty, so they
+failed after the local test even though their own navigation worked. The
+fix waits for the receipt and draft clearance, removes this test's commands
+after each attempt, and checks the destination heading in the two route
+cases. A focused component test keeps the empty-history assertion. Two
+focused repeats of each of the three affected cases passed on one shared
+test server after the cleanup correction. A full CI run after the change is
+still needed to confirm the retry trend.
 
 ### Collection method and next comparison
 

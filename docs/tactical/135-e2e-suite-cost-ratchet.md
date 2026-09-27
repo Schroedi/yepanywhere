@@ -2,7 +2,8 @@
 
 Status: measurement underway 2026-09-27. The test-level policy lives in
 [E2E testing](../../topics/e2e-testing.md); this file tracks the reduction
-sequence and measured evidence. No cases are removed by this plan alone.
+sequence and measured evidence. The first reduction slice is under local
+verification; its CI comparison is pending.
 
 The blanket local `pnpm test:e2e` rule first appeared in contributor guidance
 on 2025-12-29, when the suite had about seven specs. Focused Playwright wording
@@ -43,6 +44,26 @@ jobs; they supersede the local run for prioritizing cost.
 | `file-viewer-comment.spec.ts` | 29.9s / 11 | Pointer, selection, and iframe behavior may need Chromium. Inventory viewport and content variants before consolidating. |
 
 ## Sequence
+
+### First reduction slice — 2026-09-27
+
+| Change | Browser coverage retained | Local evidence |
+| --- | --- | --- |
+| Wait for the `!!` POST receipt and cleared recovery draft before reloading; remove this test's commands after each attempt. Route cases assert their destination rather than an empty shared history, with the empty state checked in a page component test. | Command execution, reload persistence, local/remote/relay navigation, and the empty-history message. | Two repeats of each affected case passed on one shared server (6/6), including after correcting the cleanup to read `session.transcriptDisplayObjects`. The latest failed CI job showed the command completing before its held receipt, followed by a recovery draft on reload and shared history in later route cases. |
+| Move creation-age presence/absence from two All Sessions browser cases into `SessionListItem.test.tsx`. | Real sequential typing against a large catalog, search updates, selection, scroll, and desktop/phone geometry remain in 13 browser cases. | Focused component and age-format tests passed (42/42). All 13 remaining browser cases passed. The removed cases took about 0.5s each in the earlier local baseline; one after run is insufficient to establish a spec-time gain. |
+| Run the async reply failure/retry and persisted dismissal flow once on desktop. Retain a phone touch reply, focus, and viewport check. Wait for the emitted live message to render before testing scroll pinning. | Live question arrival, phone input behavior, failure/retry, draft and scroll preservation, 200 real sequential keystrokes, cross-session activity, and old-server fallback. | Two baseline repeats took 39.3s and 44.1s locally. Four reduced runs passed: 35.2s, 29.6s, 29.7s, and 30.2s. CI history is still needed to assess the known intermittent failure. |
+
+Relay integration was also audited. Its three largest cases total about 27s
+of the 57s CI median: large frozen public share (11.25s), large assistant
+content (10.4s), and large user upload (5.55s). Each checks an actual bounded
+encrypted transfer and its delivered content or upload, so a component test
+cannot replace it. The remaining login, resume, stale URL, error, project
+data, settings link, and route cases each exercise a different relay boundary.
+No relay case was removed in this slice. The correlated route failure was
+addressed through test isolation and a route-specific assertion.
+
+The full CI gate and a comparable post-change CI window remain outstanding.
+Do not infer a job-time or flake-rate improvement from these local runs.
 
 ### 1 — establish a comparable measurement ledger
 
