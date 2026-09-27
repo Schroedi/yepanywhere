@@ -166,10 +166,15 @@ describe("limited-user route policy", () => {
   it("scopes a queue operation by the project in its path", () => {
     expect(
       decide("POST", "/api/project-queue/other/promote-now?projectId=granted"),
-    ).toEqual({ kind: "project", projectId: "other", required: "new-session" });
+    ).toEqual({
+      kind: "project",
+      projectId: "other",
+      required: "new-session",
+      filter: "project-queue",
+    });
     expect(decide("GET", "/api/project-queue")).toEqual({
       kind: "allow-filtered",
-      filter: "projects",
+      filter: "project-queue",
     });
     // Pausing or resuming dispatch is host-wide.
     expect(
@@ -383,6 +388,56 @@ describe("limited-user middleware", () => {
           { id: "a", projectId: "view-project" },
           { id: "b", projectId: "secret-project" },
         ],
+        projects: [
+          { id: "view-project", name: "Visible" },
+          { id: "secret-project", name: "Secret" },
+        ],
+      }),
+    );
+    const queueResponse = {
+      items: [
+        {
+          id: "visible-q",
+          projectId: "view-project",
+          message: { text: "Visible work" },
+        },
+        {
+          id: "hidden-q",
+          projectId: "secret-project",
+          message: {
+            text: "Secret owner instruction",
+            attachments: [{ path: "/secret/upload.txt" }],
+          },
+        },
+      ],
+      recoveredSessionQueues: [
+        {
+          id: "visible-r",
+          projectId: "view-project",
+          content: "Visible recovered work",
+        },
+        {
+          id: "hidden-r",
+          projectId: "secret-project",
+          content: "Secret recovered work",
+        },
+      ],
+      projectStatuses: {
+        "view-project": { projectId: "view-project", state: "ready" },
+        "secret-project": { projectId: "secret-project", state: "blocked" },
+      },
+      dispatchState: { status: "paused", reason: "manual" },
+      futureHostField: { secret: true },
+    };
+    app.get("/api/project-queue", (c) => c.json(queueResponse));
+    app.post("/api/project-queue/:projectId/promote-now", (c) =>
+      c.json({
+        ...queueResponse,
+        promoteResult: {
+          promoted: true,
+          reason: "promoted",
+          status: { projectId: c.req.param("projectId"), state: "empty" },
+        },
       }),
     );
     app.get("/api/projects/:projectId/files", (c) => c.json({ ok: true }));
@@ -398,7 +453,7 @@ describe("limited-user middleware", () => {
     await service.create({
       username: "alice",
       password: "correct-horse",
-      viewProjects: ["view-project"],
+      newSessionProjects: ["view-project"],
       joinProjects: ["join-project"],
       joinStaleOffsetMinutes: 0,
     });
@@ -428,6 +483,58 @@ describe("limited-user middleware", () => {
       sessions: Array<{ id: string }>;
     };
     expect(sessions.sessions.map((s) => s.id)).toEqual(["a"]);
+    expect(
+      (sessions as unknown as { projects: Array<{ id: string }> }).projects.map(
+        (project) => project.id,
+      ),
+    ).toEqual(["view-project"]);
+  });
+
+  it.each(["direct", "relay"] as const)(
+    "projects the global queue for a %s limited login",
+    async (via) => {
+      const app = await buildApp();
+      const env =
+        via === "relay"
+          ? {
+              [AUTHENTICATED_SRP_TRANSPORT]: {
+                kind: "srp" as const,
+                username: "alice",
+              },
+            }
+          : {};
+      const response = await app.request("/api/project-queue", {}, env);
+      const body = (await response.json()) as Record<string, unknown> & {
+        items: Array<{ id: string }>;
+        recoveredSessionQueues: Array<{ id: string }>;
+        projectStatuses: Record<string, unknown>;
+      };
+      expect(body.items.map((item) => item.id)).toEqual(["visible-q"]);
+      expect(body.recoveredSessionQueues.map((item) => item.id)).toEqual([
+        "visible-r",
+      ]);
+      expect(Object.keys(body.projectStatuses)).toEqual(["view-project"]);
+      expect(body.dispatchState).toEqual({
+        status: "paused",
+        reason: "manual",
+      });
+      expect(body).not.toHaveProperty("futureHostField");
+    },
+  );
+
+  it("projects the global snapshot returned by promote-now", async () => {
+    const app = await buildApp();
+    const response = await app.request(
+      "/api/project-queue/view-project/promote-now",
+      { method: "POST" },
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      items: Array<{ id: string }>;
+      promoteResult?: { status?: { projectId?: string } };
+    };
+    expect(body.items.map((item) => item.id)).toEqual(["visible-q"]);
+    expect(body.promoteResult?.status?.projectId).toBe("view-project");
   });
 
   it("refuses Issues & PRs at the operation, not only in the nav", async () => {

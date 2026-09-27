@@ -33,7 +33,13 @@ export type LimitedRouteDecision =
   /** Allowed with no project scope (identity, version, catalogs). */
   | { kind: "allow" }
   /** Allowed when the named project grants at least `required`. */
-  | { kind: "project"; projectId: string; required: RequiredAccess }
+  | {
+      kind: "project";
+      projectId: string;
+      required: RequiredAccess;
+      /** Optional projection for a successful project-scoped response. */
+      filter?: FilteredListKind;
+    }
   /**
    * Allowed when the session's project grants at least `required`. A `join`
    * requirement additionally needs the session to be fresh unless the user
@@ -45,6 +51,7 @@ export type LimitedRouteDecision =
 
 export type FilteredListKind =
   | "projects"
+  | "project-queue"
   | "sessions"
   | "inbox"
   | "recents"
@@ -326,14 +333,19 @@ export function decideLimitedRoute(
   // project to filter by. The activity channel itself runs over /api/ws.
   if (path === "/api/project-queue") {
     return isRead
-      ? { kind: "allow-filtered", filter: "projects" }
+      ? { kind: "allow-filtered", filter: "project-queue" }
       : { kind: "deny" };
   }
   const promoteNow = path.match(/^\/api\/project-queue\/([^/]+)\/promote-now$/);
   if (promoteNow && method === "POST") {
     const projectId = decodeSegment(promoteNow[1] as string);
     if (projectId === null) return { kind: "deny" };
-    return { kind: "project", projectId, required: "new-session" };
+    return {
+      kind: "project",
+      projectId,
+      required: "new-session",
+      filter: "project-queue",
+    };
   }
   // Pausing and resuming dispatch are host-wide, and nothing else under
   // /api/project-queue is listed.

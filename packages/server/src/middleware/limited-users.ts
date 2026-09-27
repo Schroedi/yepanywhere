@@ -202,6 +202,94 @@ function pruneProjectsList(
   };
 }
 
+/** Session rows use `projectId`, while their filter options use project `id`. */
+function pruneSessionsList(
+  body: unknown,
+  isAccessible: (projectId: string) => boolean,
+): unknown {
+  const pruned = pruneInaccessible(body, isAccessible);
+  if (pruned === DROP || !pruned || typeof pruned !== "object") return {};
+  const record = pruned as Record<string, unknown>;
+  const projects = record.projects;
+  if (!Array.isArray(projects)) return record;
+  return {
+    ...record,
+    projects: projects.filter(
+      (project) =>
+        typeof (project as { id?: unknown }).id === "string" &&
+        isAccessible((project as { id: string }).id),
+    ),
+  };
+}
+
+function projectScopedRows(
+  value: unknown,
+  isAccessible: (projectId: string) => boolean,
+): unknown[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry) => {
+    if (!entry || typeof entry !== "object") return false;
+    const projectId = (entry as { projectId?: unknown }).projectId;
+    return typeof projectId === "string" && isAccessible(projectId);
+  });
+}
+
+/**
+ * Project Queue is a global response made of several project-keyed fields.
+ * Build an allowlist projection so a future field cannot silently bypass the
+ * grants merely because it has a new response shape.
+ */
+function pruneProjectQueueResponse(
+  body: unknown,
+  isAccessible: (projectId: string) => boolean,
+): unknown {
+  if (!body || typeof body !== "object") return {};
+  const record = body as Record<string, unknown>;
+  const projected: Record<string, unknown> = {
+    items: projectScopedRows(record.items, isAccessible),
+  };
+
+  if (record.dispatchState !== undefined) {
+    // The global pause gates this user's own queue too, so it remains visible.
+    projected.dispatchState = record.dispatchState;
+  }
+  if (record.recoveredSessionQueues !== undefined) {
+    projected.recoveredSessionQueues = projectScopedRows(
+      record.recoveredSessionQueues,
+      isAccessible,
+    );
+  }
+  if (record.projectStatuses !== undefined) {
+    const statuses: Record<string, unknown> = {};
+    if (record.projectStatuses && typeof record.projectStatuses === "object") {
+      for (const [projectId, status] of Object.entries(
+        record.projectStatuses as Record<string, unknown>,
+      )) {
+        if (!isAccessible(projectId) || !status || typeof status !== "object") {
+          continue;
+        }
+        if ((status as { projectId?: unknown }).projectId !== projectId) {
+          continue;
+        }
+        statuses[projectId] = status;
+      }
+    }
+    projected.projectStatuses = statuses;
+  }
+  if (record.promoteResult && typeof record.promoteResult === "object") {
+    const status = (record.promoteResult as { status?: unknown }).status;
+    const projectId =
+      status && typeof status === "object"
+        ? (status as { projectId?: unknown }).projectId
+        : undefined;
+    if (typeof projectId === "string" && isAccessible(projectId)) {
+      projected.promoteResult = record.promoteResult;
+    }
+  }
+
+  return projected;
+}
+
 async function filterResponse(
   response: Response,
   filter: FilteredListKind,
@@ -217,10 +305,20 @@ async function filterResponse(
   } catch {
     return response;
   }
-  const filtered =
-    filter === "projects"
-      ? pruneProjectsList(body, isAccessible)
-      : pruneInaccessible(body, isAccessible);
+  let filtered: unknown | typeof DROP;
+  switch (filter) {
+    case "projects":
+      filtered = pruneProjectsList(body, isAccessible);
+      break;
+    case "project-queue":
+      filtered = pruneProjectQueueResponse(body, isAccessible);
+      break;
+    case "sessions":
+      filtered = pruneSessionsList(body, isAccessible);
+      break;
+    default:
+      filtered = pruneInaccessible(body, isAccessible);
+  }
   const payload = filtered === DROP ? {} : filtered;
   const headers = new Headers(response.headers);
   headers.delete("Content-Length");
@@ -279,6 +377,9 @@ export function createLimitedUsersMiddleware(
           return c.json({ error: "Not permitted for this user" }, 403);
         }
         await next();
+        if (decision.filter && c.res) {
+          c.res = await filterResponse(c.res, decision.filter, isAccessible);
+        }
         return;
       }
       case "session": {

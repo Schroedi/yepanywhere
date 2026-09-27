@@ -117,6 +117,13 @@ metadata; unresolved titles remain nullable while one exact background repair
 runs. Repeated queue reads with unchanged state perform no provider,
 session-index miss, transcript, or all-project work.
 
+A limited user's global queue collection and promote-now response project
+ordinary items, recovered session-queue items, and project-status entries to
+that user's granted projects. The global dispatch pause remains visible because
+it gates promotion of their own items too. This projection is an explicit
+response-field allowlist: a field added to the global response is withheld from
+limited users until its project scope is defined.
+
 Item, dispatch, blocker, quiet-window, external-ownership, and recovery
 transitions update one server-owned project-status projection and publish a
 versioned delta. Client components share one source/query revalidation owner.

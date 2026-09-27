@@ -14,6 +14,7 @@ import {
   type WorkstreamId,
 } from "@yep-anywhere/shared";
 import { Hono } from "hono";
+import { type Principal, PRINCIPAL_VARIABLE } from "../auth/principal.js";
 import { nonHumanUserTurnField } from "../metadata/SessionMetadataService.js";
 import type { RetainedSessionCollectionState } from "@yep-anywhere/shared";
 import type { RetainedSessionCollections } from "../services/RetainedSessionCollections.js";
@@ -206,8 +207,44 @@ interface CollectionRequest {
   starredOnly: boolean;
   includeStats: boolean;
   limit: number;
+  /** Sorted project ids visible to a limited principal; absent for superuser. */
+  accessibleProjectIds?: string[];
   /** The generation observed before the walk; stamped on the response. */
   generation: number;
+}
+
+function accessibleProjectIdsForRequest(c: {
+  get: (key: string) => unknown;
+}): string[] | undefined {
+  const principal = c.get(PRINCIPAL_VARIABLE) as Principal | undefined;
+  if (!principal || principal.kind === "superuser") return undefined;
+  return [
+    ...new Set([
+      ...principal.grants.newSessionProjects,
+      ...principal.grants.joinProjects,
+      ...principal.grants.viewProjects,
+    ]),
+  ].sort();
+}
+
+function statsForSessionItems(
+  sessions: readonly GlobalSessionItem[],
+): GlobalSessionStats {
+  const stats = createEmptyStats();
+  for (const session of sessions) {
+    if (session.isStarred) stats.starredCount += 1;
+    if (session.isArchived) {
+      stats.archivedCount += 1;
+      continue;
+    }
+    stats.totalCount += 1;
+    if (session.hasUnread) stats.unreadCount += 1;
+    stats.providerCounts[session.provider] =
+      (stats.providerCounts[session.provider] ?? 0) + 1;
+    const executor = session.executor ?? "local";
+    stats.executorCounts[executor] = (stats.executorCounts[executor] ?? 0) + 1;
+  }
+  return stats;
 }
 
 /**
@@ -338,7 +375,9 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
     );
   };
 
-  const computeGlobalStats = async (): Promise<GlobalSessionStats> => {
+  const computeGlobalStats = async (
+    accessibleProjectIds?: ReadonlySet<string>,
+  ): Promise<GlobalSessionStats> => {
     const projects = await deps.scanner.listProjects();
     const stats: GlobalSessionStats = createEmptyStats();
     const providerCatalog = await buildProviderProjectCatalog({
@@ -358,6 +397,14 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
       );
       for (const session of sessions) {
         const metadata = deps.sessionMetadataService?.getMetadata(session.id);
+        const effectiveProjectId =
+          metadata?.workingProjectId ?? session.projectId;
+        if (
+          accessibleProjectIds &&
+          !accessibleProjectIds.has(effectiveProjectId)
+        ) {
+          continue;
+        }
         const overlaidSession = deps.sessionMetadataService
           ? applyRecapOverlayToSummary(
               session,
@@ -403,7 +450,15 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
     return stats;
   };
 
-  const getCachedGlobalStats = async (): Promise<GlobalSessionStats> => {
+  const getCachedGlobalStats = async (
+    accessibleProjectIds?: readonly string[],
+  ): Promise<GlobalSessionStats> => {
+    // Limited-user grant sets are small and mutable. Compute their scoped
+    // view directly rather than sharing the superuser's host-wide cache or
+    // adding principal state to that cache's lifecycle.
+    if (accessibleProjectIds) {
+      return computeGlobalStats(new Set(accessibleProjectIds));
+    }
     const now = Date.now();
     const isFresh =
       cachedStats &&
@@ -440,7 +495,7 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
       return c.json({ stats: createEmptyStats() });
     }
 
-    const stats = await getCachedGlobalStats();
+    const stats = await getCachedGlobalStats(accessibleProjectIdsForRequest(c));
     return c.json({ stats });
   });
 
@@ -458,6 +513,10 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
       Math.max(1, Number.parseInt(limitParam || "", 10) || DEFAULT_LIMIT),
       MAX_LIMIT,
     );
+    const accessibleProjectIds = accessibleProjectIdsForRequest(c);
+    const accessibleProjectIdSet = accessibleProjectIds
+      ? new Set(accessibleProjectIds)
+      : undefined;
 
     // Read before the walk, never after: a change landing mid-walk must leave
     // the client's token behind the current generation, so its next
@@ -469,7 +528,11 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
         deps.retainedCollections,
         deps,
       );
-      const rows = retained.sessions.filter(
+      const accessibleSessions = retained.sessions.filter(
+        (row) =>
+          !accessibleProjectIdSet || accessibleProjectIdSet.has(row.projectId),
+      );
+      const rows = accessibleSessions.filter(
         (row) =>
           matchesGlobalSessionQuery(row, {
             filterProjectId,
@@ -482,6 +545,13 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
         ...retained,
         sessions: rows.slice(0, limit),
         hasMore: rows.length > limit,
+        stats: accessibleProjectIdSet
+          ? statsForSessionItems(accessibleSessions)
+          : retained.stats,
+        projects: retained.projects.filter(
+          (project) =>
+            !accessibleProjectIdSet || accessibleProjectIdSet.has(project.id),
+        ),
       });
     }
     // A cursor page is not a whole-collection read, so it never short-circuits;
@@ -509,6 +579,7 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
         starredOnly,
         includeStats,
         limit,
+        accessibleProjectIds,
         generation,
       }),
     );
@@ -543,6 +614,7 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
         request.starredOnly,
         request.includeStats,
         request.limit,
+        request.accessibleProjectIds ?? null,
       ]),
       sourceVersion: String(request.generation),
       compute: () => walkCollection(request),
@@ -565,8 +637,12 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
       includeArchived,
       includeStats,
       limit,
+      accessibleProjectIds,
       generation,
     } = request;
+    const accessibleProjectIdSet = accessibleProjectIds
+      ? new Set(accessibleProjectIds)
+      : undefined;
 
     // Get all projects
     const allProjects = await deps.scanner.listProjects();
@@ -578,7 +654,11 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
 
     // Build project options for filter dropdown (from all projects, sorted by name)
     const projectOptions: ProjectOption[] = allProjects
-      .filter((project) => !isDetachedProjectPath(project.path))
+      .filter(
+        (project) =>
+          !isDetachedProjectPath(project.path) &&
+          (!accessibleProjectIdSet || accessibleProjectIdSet.has(project.id)),
+      )
       .map((p) => ({ id: p.id, name: p.name }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -692,6 +772,12 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
           ),
         };
 
+        if (
+          accessibleProjectIdSet &&
+          !accessibleProjectIdSet.has(item.projectId)
+        ) {
+          continue;
+        }
         if (!matchesGlobalSessionQuery(item, request)) continue;
         allSessions.push(item);
       }
@@ -746,7 +832,7 @@ export function createGlobalSessionsRoutes(deps: GlobalSessionsDeps): Hono {
     const sessions = sessionsWithExtra.slice(0, limit);
     const stats =
       includeStats && !filterProjectId
-        ? await getCachedGlobalStats()
+        ? await getCachedGlobalStats(accessibleProjectIds)
         : createEmptyStats();
 
     const response: GlobalSessionsResponse = {
