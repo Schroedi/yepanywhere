@@ -9,7 +9,7 @@ Usage for what the prices are used for.
 
 | | |
 |---|---|
-| Upstream | `pi` (Mario Zechner), local checkout `~/pi` |
+| Upstream | `pi` (Mario Zechner), <https://github.com/earendil-works/pi> |
 | Revision | `371adcf37130629ffb9bbeed9f5548ce08ffa93b` |
 | Upstream date | 2026-06-24 |
 | Upstream version | `0.0.3` |
@@ -32,8 +32,8 @@ and `cacheWrite`, in US dollars per million tokens — from these upstream files
 | `packages/ai/src/providers/xai.models.ts` | `0ae1c7d5610d6276` | 7 |
 | `packages/ai/src/providers/opencode.models.ts` | `6f435505c847f1e2` | 45 |
 
-`prices.generated.ts`, 139 models:
-`d07376f1e8647a6650be2ec90fa8d138c4e1fe74256e5ca52a9e908bed6035d6`.
+`prices.generated.ts`, 139 models, as committed (formatted):
+`fbd55eb1875af884dfbbfdf2c36bf11ce062859dd47f2b7ee970ddfb9a64c73c`.
 
 Upstream carries more providers than these six; the extract covers the ones a
 YA provider can reach.
@@ -60,11 +60,16 @@ YA provider can reach.
 
 ## Regenerating
 
+From a clone of the upstream repository checked out at the wanted revision:
+
 ```bash
-node scripts/generate-vendored-model-prices.mjs ~/pi \
+node scripts/generate-vendored-model-prices.mjs <pi-checkout> \
   packages/shared/src/vendor/pi-model-prices/prices.generated.ts
 ```
 
-Then update the revision, dates, hashes and model counts above. The script
-prints a model count per provider: a count that drops to zero means upstream
-changed the shape the extract matches on, not that the models went away.
+The script formats its output with the repository's Biome wrapper, so
+rerunning it at the recorded revision reproduces the committed file with no
+diff. It prints the model count per provider and the hashes recorded above;
+update the revision, dates, hashes and model counts from that output. A count
+that drops to zero means upstream changed the shape the extract matches on,
+not that the models went away.

@@ -3,7 +3,8 @@
  *
  * Reads pi's generated provider model modules and keeps only each model's id
  * and its four per-class prices — the data YA prices usage with. Run it when
- * the prices should be refreshed, then record the new upstream revision in
+ * the prices should be refreshed, then record the new upstream revision and
+ * the hashes it prints in
  * packages/shared/src/vendor/pi-model-prices/VENDORED.md.
  *
  *   node scripts/generate-vendored-model-prices.mjs ~/pi \
@@ -14,6 +15,8 @@
  * shape change upstream shows up as a provider whose model count drops, which
  * is why the count is printed per provider.
  */
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -34,13 +37,12 @@ const providers = [
   "opencode",
 ];
 
+const upstreamFile = (provider) =>
+  `packages/ai/src/providers/${provider}.models.ts`;
+
 const rows = [];
 for (const provider of providers) {
-  const file = path.join(
-    piRoot,
-    "packages/ai/src/providers",
-    `${provider}.models.ts`,
-  );
+  const file = path.join(piRoot, upstreamFile(provider));
   const source = fs.readFileSync(file, "utf-8");
   const entry =
     /id: "([^"]+)",[\s\S]*?cost: \{\s*input: ([\d.]+),\s*output: ([\d.]+),\s*cacheRead: ([\d.]+),\s*cacheWrite: ([\d.]+),\s*\}/g;
@@ -92,4 +94,25 @@ for (const [provider, list] of [...byProvider.entries()].sort()) {
 out += "} as const;\n";
 
 fs.writeFileSync(outPath, out);
+
+// Format with the repository's formatter so the file VENDORED.md hashes is the
+// file that gets committed, and a rerun at the same revision leaves no diff.
+const biome = spawnSync(
+  process.execPath,
+  [path.join(import.meta.dirname, "biome.cjs"), "format", "--write", outPath],
+  { stdio: ["ignore", "ignore", "inherit"] },
+);
+if (biome.status !== 0) {
+  console.error(`biome format failed for ${outPath}`);
+  process.exit(1);
+}
+
+const sha256 = (file) =>
+  createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+for (const provider of providers) {
+  console.error(
+    `sha256 ${upstreamFile(provider)}: ${sha256(path.join(piRoot, upstreamFile(provider))).slice(0, 16)}`,
+  );
+}
 console.error(`wrote ${rows.length} models to ${outPath}`);
+console.error(`sha256 ${outPath}: ${sha256(outPath)}`);
