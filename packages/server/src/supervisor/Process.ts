@@ -67,6 +67,7 @@ import type {
   PromptCacheRefreshResult,
   SessionExecution,
 } from "../sdk/providers/types.js";
+import { coalesceStreamingSnapshots } from "../sdk/providers/streaming-snapshot-coalescing.js";
 import { expandSlashCommandEmulation } from "../sdk/slashCommandEmulation.js";
 import type {
   PermissionMode,
@@ -1218,10 +1219,13 @@ export class Process {
   /** Registry release is one event, regardless of which terminal path finishes. */
   private completionEmitted = false;
 
+  private readonly sdkIterator: AsyncIterator<SDKMessage>;
+
   constructor(
-    private sdkIterator: AsyncIterator<SDKMessage>,
+    sdkIterator: AsyncIterator<SDKMessage>,
     options: ProcessConstructorOptions,
   ) {
+    this.sdkIterator = coalesceStreamingSnapshots(sdkIterator);
     this.id = randomUUID();
     this._sessionId = options.sessionId;
     this.projectPath = options.projectPath;

@@ -48,3 +48,49 @@ it("keeps one current snapshot for late subscribers and clears it on completion"
     await process.abort();
   }
 });
+
+it("publishes and keeps a burst's latest snapshot, not every delta", async () => {
+  const controller = createControllableIterator();
+  const process = new Process(controller.iterator, {
+    projectPath: "/test",
+    projectId: "proj-1" as UrlProjectId,
+    sessionId: "sess-1",
+    provider: "opencode",
+    idleTimeoutMs: 100,
+  });
+  const published: SDKMessage[] = [];
+  const unsubscribe = process.subscribe((event) => {
+    if (event.type === "message") published.push(event.message);
+  });
+  try {
+    let text = "";
+    for (let delta = 0; delta < 200; delta += 1) {
+      text += "word ";
+      controller.push({
+        type: "assistant",
+        uuid: "reply",
+        _isStreaming: true,
+        message: { role: "assistant", content: text },
+      } as SDKMessage);
+    }
+    controller.push({
+      type: "assistant",
+      uuid: "reply",
+      message: { role: "assistant", content: text },
+    } as SDKMessage);
+    const replies = (messages: SDKMessage[]) =>
+      messages.filter((message) => message.uuid === "reply");
+    await waitFor(() =>
+      expect(replies(published).some((message) => !message._isStreaming)).toBe(
+        true,
+      ),
+    );
+    expect(replies(published).at(-1)?.message?.content).toBe(text);
+    expect(replies(published).length).toBeLessThanOrEqual(3);
+    expect(replies(process.getMessageHistory()).length).toBeLessThanOrEqual(3);
+  } finally {
+    unsubscribe();
+    controller.finish();
+    await process.abort();
+  }
+});

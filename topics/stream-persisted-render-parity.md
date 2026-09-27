@@ -230,6 +230,16 @@ equality is graded by whether the live item has a durable counterpart:
   command/file-change output keeps its first and last 32 Ki characters with an
   inline `… N characters omitted from the live preview …` marker; the completed
   item carries the full output and settles the row.
+- **Streaming snapshots are rate-limited at the provider boundary.** Every
+  `_isStreaming` message with an id (assistant text and reasoning, tool
+  output, from any provider) passes through one coalescer before YA buffers,
+  fans out, or relays it: a snapshot arriving while its stream is quiet
+  publishes at once, and under a burst each message publishes at most one
+  snapshot per 100 ms, always its latest. Any other provider message first
+  publishes the held snapshots in arrival order; a message's own commit
+  replaces its held snapshot. The provider host's worker and the backend's
+  `Process` both apply it (`sdk/providers/streaming-snapshot-coalescing.ts`),
+  so live bytes grow with a message's duration, not its delta count.
 - **Reload-safe snapshots are reconciliation, not replay.** A native provider
   snapshot may contain the whole completed active-turn prefix. Reattaching YA
   must not publish that prefix as freshly observed live activity. Browser

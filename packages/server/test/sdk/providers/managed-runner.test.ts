@@ -171,14 +171,15 @@ describe("ProviderSessionOwner", () => {
     await owner.shutdown("test cleanup");
   });
 
-  it("replays only the latest unacknowledged streaming snapshot per message", async () => {
+  it("publishes and replays only the latest streaming snapshot per message", async () => {
     let terminal: string | undefined;
     const owner = startFakeOwner({
       onTerminal: (reason) => {
         terminal = reason;
       },
     });
-    // Unpruned, these snapshots exceed the 64 MiB unacknowledged-byte bound.
+    // Published one by one, these snapshots exceed the 64 MiB
+    // unacknowledged-byte bound.
     const snapshotText = "y".repeat(512 * 1024);
     const snapshotCount = 140;
     await owner.start(async (hooks) => {
@@ -226,7 +227,7 @@ describe("ProviderSessionOwner", () => {
           message.type === "event" &&
           (message.message as { _isStreaming?: boolean })._isStreaming,
       ),
-    ).toHaveLength(snapshotCount);
+    ).toHaveLength(1);
 
     owner.detach("controller-one");
     const replayed: Record<string, unknown>[] = [];

@@ -118,7 +118,10 @@ interface OpenCodeStreamState {
   // replaces a same-id message rather than appending to it.
   textPartIdsByMessageId: Map<string, string[]>;
   completedMessageIds: Set<string>;
-  lastSnapshotByMessageId: Map<string, string>;
+  // Messages whose text changed since they were last published, and whether
+  // that publication was still streaming.
+  changedMessageIds: Set<string>;
+  publishedStreamingByMessageId: Map<string, boolean>;
   // Unified tool parts stream pending->running->completed; dedupe the tool_use
   // and tool_result emissions per callID so they appear exactly once.
   toolUseEmitted: Set<string>;
@@ -856,7 +859,8 @@ export class OpenCodeProvider implements AgentProvider {
       partTextById: new Map(),
       textPartIdsByMessageId: new Map(),
       completedMessageIds: new Set(),
-      lastSnapshotByMessageId: new Map(),
+      changedMessageIds: new Set(),
+      publishedStreamingByMessageId: new Map(),
       toolUseEmitted: new Set(),
       toolResultEmitted: new Set(),
       stepUsageByPartId: new Map(),
@@ -1348,6 +1352,9 @@ export class OpenCodeProvider implements AgentProvider {
         ? previousText + part.delta
         : (part.fullText ?? previousText);
     streamState.partTextById.set(part.partId, nextText);
+    if (nextText !== previousText) {
+      streamState.changedMessageIds.add(part.messageId);
+    }
 
     const partIds = streamState.textPartIdsByMessageId.get(part.messageId);
     if (!partIds) {
@@ -1393,6 +1400,13 @@ export class OpenCodeProvider implements AgentProvider {
     sessionId: string,
     streamState: OpenCodeStreamState,
   ): SDKMessage | null {
+    const streaming = !streamState.completedMessageIds.has(messageId);
+    if (
+      !streamState.changedMessageIds.has(messageId) &&
+      streamState.publishedStreamingByMessageId.get(messageId) === streaming
+    ) {
+      return null;
+    }
     const partIds = streamState.textPartIdsByMessageId.get(messageId) ?? [];
     const blocks: ContentBlock[] = [];
     for (const partId of partIds) {
@@ -1405,17 +1419,13 @@ export class OpenCodeProvider implements AgentProvider {
       );
     }
     if (blocks.length === 0) return null;
+    streamState.changedMessageIds.delete(messageId);
+    streamState.publishedStreamingByMessageId.set(messageId, streaming);
 
-    const streaming = !streamState.completedMessageIds.has(messageId);
     const content =
       blocks.length === 1 && blocks[0]?.type === "text"
         ? (blocks[0].text ?? "")
         : blocks;
-    const snapshotKey = JSON.stringify([streaming, content]);
-    if (streamState.lastSnapshotByMessageId.get(messageId) === snapshotKey) {
-      return null;
-    }
-    streamState.lastSnapshotByMessageId.set(messageId, snapshotKey);
 
     return {
       type: "assistant",

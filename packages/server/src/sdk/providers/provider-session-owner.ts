@@ -16,6 +16,7 @@ import {
   pickStaticAgentEnvironment,
   type AgentctlSessionEnvBridge,
 } from "./agentctl-session-env.js";
+import { coalesceStreamingSnapshots } from "./streaming-snapshot-coalescing.js";
 import type {
   AgentSession,
   ProviderSessionOptions,
@@ -417,7 +418,9 @@ export class ProviderSessionOwner {
 
   private async drainProviderIterator(session: AgentSession): Promise<void> {
     try {
-      for await (const message of session.iterator) {
+      for await (const message of coalesceStreamingSnapshots(
+        session.iterator,
+      )) {
         if (this.shuttingDown) return;
         this.providerActivity = session.getProviderActivity?.() ?? {};
         this.providerRetention = session.getProviderRetention?.() ?? {
