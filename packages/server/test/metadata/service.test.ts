@@ -7,6 +7,7 @@ import type {
   CacheMissBillingRecord,
   DurableLocalCommandMessage,
   SlashCommand,
+  UrlProjectId,
   WorkstreamId,
 } from "@yep-anywhere/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

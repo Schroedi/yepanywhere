@@ -58,8 +58,12 @@ retains its validated bytes, allocates the directory exclusively, executes setup
 as argv with bounded output, verifies the built starter, initializes Git using
 the existing project-creation identity policy, and calls the normal project and
 session routes. The selected provider/model and launch policies therefore use
-the normal session boundary. Local execution without attachments is the current
-creation boundary; the form explains incompatible selections before submission.
+the normal session boundary, and those routes act as the creating login: a
+limited user's preparation session is sandboxed with its network firewall on,
+held to their lock, and recorded as a session they started (`createdByUser`),
+while the superuser's records no creator. Local execution without attachments
+is the current creation boundary; the form explains incompatible selections
+before submission.
 
 Operations persist beneath `dataDir/project-template-operations`. Repeating an
 identical UUID returns its existing outcome; changing its request is refused.

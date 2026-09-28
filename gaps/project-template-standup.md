@@ -89,11 +89,7 @@ project; the grant UI is not useful before creation exists.
   it is not implemented merely because `*.graehl.org` exists.
 - Template boilerplate becomes the session title; provide a meaningful
   title/preview from the user's intent without hiding the actual setup
-  instructions from the transcript. The preparation session a template
-  creation launches for a limited user records no `createdByUser`, so it is
-  not "a session the user started": it stays readable only through the
-  project grant, and the user loses it if that grant is removed. Record the
-  creating principal at that launch.
+  instructions from the transcript.
 - The App canvas preparation prompt serves the starter only on "an available
   loopback port" for its own checks, so no app host is registered and the
   session's App action has nothing to open. A limited user is also refused
