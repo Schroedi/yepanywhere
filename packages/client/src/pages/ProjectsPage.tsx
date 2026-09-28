@@ -12,6 +12,7 @@ import {
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
+import { projectAccessApi } from "../api/projectAccess";
 import { TemplateProjectForm } from "../components/TemplateProjectForm";
 import { useProjectTemplateChoices } from "../hooks/useProjectTemplateChoices";
 import {
@@ -191,6 +192,37 @@ export function ProjectsPage() {
       setAddError(err instanceof Error ? err.message : t("projectsAddFailed"));
     } finally {
       setAdding(false);
+    }
+  };
+
+  // A limited user copies into their own project directory, so only
+  // projects not already theirs; the superuser copies a limited user's.
+  const supportsProjectCopy = serverHasCapability(
+    version,
+    SERVER_CAPABILITIES.projectCopy.name,
+  );
+  const mayCopy = (project: Project) =>
+    supportsProjectCopy &&
+    (principal.username === null
+      ? !!project.ownerUsername
+      : !!principal.grants?.projectRoot &&
+        project.ownerUsername !== principal.username);
+
+  const handleCopyProject = async (project: Project) => {
+    const name = prompt(t("projectCopyPrompt"), `${project.name}-copy`);
+    if (!name?.trim()) return;
+    setDeleteError(null);
+    try {
+      const { path } = await projectAccessApi.copy(project.id, name.trim());
+      const { project: copy } = await api.addProject(path);
+      await refetch();
+      navigate(
+        `${basePath}/new-session?projectId=${encodeURIComponent(copy.id)}`,
+      );
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : t("projectCopyFailed"),
+      );
     }
   };
 
@@ -530,6 +562,11 @@ export function ProjectsPage() {
                   onOpenSettings={
                     supportsProjectSessionDefaults
                       ? setSettingsProject
+                      : undefined
+                  }
+                  onCopy={
+                    mayCopy(project)
+                      ? (copied) => void handleCopyProject(copied)
                       : undefined
                   }
                   onUpdateCodeName={

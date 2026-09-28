@@ -15,4 +15,10 @@ export const projectAccessApi = {
       path(projectId),
       { method: "PUT", body: JSON.stringify({ username, level }) },
     ),
+  /** Copy the working tree; the caller then adds the returned directory. */
+  copy: (projectId: string, name: string) =>
+    fetchJSON<{ path: string }>(
+      `/projects/${encodeURIComponent(projectId)}/copy`,
+      { method: "POST", body: JSON.stringify({ name }) },
+    ),
 };

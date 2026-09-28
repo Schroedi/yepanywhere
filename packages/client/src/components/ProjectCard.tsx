@@ -27,6 +27,8 @@ interface ProjectCardProps {
   deleteLabel?: string;
   /** Called when the user opens this project's defaults */
   onOpenSettings?: (project: Project) => void;
+  /** Present when this user may make their own copy of the project. */
+  onCopy?: (project: Project) => void;
   /** Persists an inline edit to this project's short code name. */
   onUpdateCodeName?: (project: Project, codeName: string) => Promise<void>;
   /** Persists an inline caption override; `null` restores the derived caption. */
@@ -68,6 +70,7 @@ export function ProjectCard({
   onDeleteProject,
   deleteLabel,
   onOpenSettings,
+  onCopy,
   onUpdateCodeName,
   onUpdateCaption,
   isDeleting = false,
@@ -116,6 +119,21 @@ export function ProjectCard({
               }}
             >
               {t("projectAppLabel")}
+            </button>
+          )}
+          {onCopy && (
+            <button
+              type="button"
+              className={styles.newSession}
+              aria-label={t("projectCopyTitle")}
+              title={t("projectCopyTitle")}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onCopy(project);
+              }}
+            >
+              {t("projectCopyLabel")}
             </button>
           )}
           {onOpenSettings && (
