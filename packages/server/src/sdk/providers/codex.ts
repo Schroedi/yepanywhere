@@ -178,7 +178,10 @@ import type {
   SummaryGenerationResult,
 } from "./types.js";
 import { inactiveProviderSessionOptionsResult } from "./types.js";
-import type { SessionSandboxRuntime } from "../../session-sandbox.js";
+import {
+  type SessionSandboxRuntime,
+  withSessionSandboxAgentContext,
+} from "../../session-sandbox.js";
 
 const log = {
   debug(bindings: Record<string, unknown>, message: string): void {
@@ -3277,6 +3280,10 @@ export class CodexProvider implements AgentProvider {
       };
       signal.addEventListener("abort", stopMessageWait, { once: true });
       let isFirstMessage = !options.resumeSessionId;
+      const globalContext = withSessionSandboxAgentContext(
+        options.globalInstructions,
+        options.sessionSandbox,
+      );
 
       try {
         while (!signal.aborted) {
@@ -3353,8 +3360,8 @@ export class CodexProvider implements AgentProvider {
           }
 
           // Prepend global instructions to the first message of new sessions
-          if (isFirstMessage && options.globalInstructions) {
-            userPrompt = `[Global context]\n${options.globalInstructions}\n\n---\n\n${userPrompt}`;
+          if (isFirstMessage && globalContext) {
+            userPrompt = `[Global context]\n${globalContext}\n\n---\n\n${userPrompt}`;
             isFirstMessage = false;
           } else {
             isFirstMessage = false;

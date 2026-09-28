@@ -211,11 +211,42 @@ Prompt instructions, approval callbacks, tool-name deny rules, and setting the
 provider `cwd` are cooperative controls. None satisfies `project-write` on its
 own.
 
-The first version also does not inject an informational message about the
-restriction into the provider conversation. Ordinary denied operations expose
-the boundary through normal command/tool failures. A later opt-in notification
-could avoid wasted attempts, but it must be weighed against encouraging an
-agent to search for a surprising bypass and against changing provider context.
+### Boundary statement in launch context
+
+A sandboxed session's launch context carries a short `[Session sandbox]`
+statement of today's boundary, appended to YA's effective agent context
+([placement](agent-context-injection.md#current-ya-placement)): the Claude
+system-prompt append on every provider process, and Codex's hidden
+first-message `[Global context]` prefix. An unsandboxed session gets none. It
+states that:
+
+- the sandbox encloses the entire provider process and everything it runs, so
+  provider-native "disable sandbox" tool options (Claude's Bash
+  `dangerouslyDisableSandbox`) do not leave it, and host-side previews are not
+  to be offered;
+- writes outside the project fail and `/tmp` is private; and
+- with the network firewall, loopback is private, the YA server and other host
+  services are unreachable, and a server the agent starts is not yet reachable
+  from the user's browser or an SSH forward, so it must not present
+  `127.0.0.1`/`localhost` URLs as viewable or claim to verify host
+  reachability from inside. Without the firewall it says only that networking
+  is shared with the host.
+
+It states facts, not policy: it does not discourage serving inside the
+sandbox, which is the intended way to show a built app once YA can reach it
+(see the [root artifact sketch](../gaps/sketches/project-root-artifact-and-publish.md)),
+and it promises no serving mechanism. Motivation: an agent in a firewalled
+session (2026-09-28) offered to run a preview "outside the sandbox" with
+Claude's Bash option, planned to confirm it with `ss` from inside its own
+namespace, and wrote that model into project instructions. The OS boundary
+held; only the agent's account of it was wrong.
+
+The statement belongs to the sandbox the user already chose, which is
+default-off, so it adds no default behavior under
+[vanilla defaults](vanilla-defaults.md). It describes that choice's effect
+rather than adding a feature, and it reaches Codex only through the hidden
+prefix YA already uses for global instructions. Ordinary denied operations
+still surface through normal command/tool failures.
 
 ## Existing Sandbox Vocabulary
 
@@ -824,8 +855,5 @@ Project writes only.
   outside the project, nested mounts, and pre-existing hard links behave?
 - Which temporary/cache locations can be made project-local without changing
   provider semantics?
-- Would an optional provider-context notification about the active boundary
-  save enough failed attempts to outweigh context churn and bypass-seeking
-  behavior?
 - What exact admission, approval, and audit contract should the future locked
   share use?

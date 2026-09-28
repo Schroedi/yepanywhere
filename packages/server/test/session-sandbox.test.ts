@@ -24,12 +24,14 @@ import { AuthService } from "../src/auth/AuthService.js";
 import { SESSION_COOKIE_NAME } from "../src/auth/routes.js";
 import { createAuthMiddleware } from "../src/middleware/auth.js";
 import {
+  describeSessionSandboxForAgent,
   getClaudeSandboxProjectDir,
   getCodexSandboxSessionsDir,
   getSessionSandboxSettingsError,
   prepareSessionSandbox,
   probeSessionSandboxAvailability,
   type SessionSandboxSpawn,
+  withSessionSandboxAgentContext,
 } from "../src/session-sandbox.js";
 import { ClaudeSessionReader } from "../src/sessions/reader.js";
 import { ClaudeProvider } from "../src/sdk/providers/claude.js";
@@ -791,6 +793,58 @@ describe("session sandbox", { timeout: 20_000 }, () => {
         stateRoot: join(root, "state-remote"),
       }),
     ).rejects.toThrow(/not supported for remote executors/);
+  });
+
+  it("states the enforced boundary for the agent's launch context", () => {
+    const enforced = {
+      requested: "project-write",
+      effective: "project-write",
+      state: "enforced",
+      hostBackend: "bubblewrap:bwrap",
+    } as const;
+    const firewalled = describeSessionSandboxForAgent({
+      ...enforced,
+      networkFirewall: true,
+    });
+    expect(firewalled).toMatch(/^\[Session sandbox\]\n/);
+    for (const fact of [
+      /entire provider process/,
+      /dangerouslyDisableSandbox, do not leave this one/,
+      /do not offer host-side previews/,
+      /\/tmp is private/,
+      /loopback is private/,
+      /YA server .* unreachable/,
+      /not yet reachable from the user's browser or an SSH forward/,
+      /do not present 127\.0\.0\.1 or localhost URLs as viewable/,
+    ]) {
+      expect(firewalled).toMatch(fact);
+    }
+    // Serving inside the sandbox is the intended design; do not steer away.
+    expect(firewalled).not.toMatch(/(avoid|do not|don't) (start|run|serv)/i);
+
+    // Without the firewall the network is the host's; claim nothing private.
+    const shared = describeSessionSandboxForAgent({
+      ...enforced,
+      networkFirewall: false,
+    });
+    expect(shared).toMatch(/Networking is shared with the host/);
+    expect(shared).not.toMatch(/loopback|unreachable/);
+
+    expect(
+      describeSessionSandboxForAgent({
+        requested: "project-write",
+        effective: "none",
+        state: "setup-failed",
+      }),
+    ).toBeUndefined();
+    expect(withSessionSandboxAgentContext("Be terse.", undefined)).toBe(
+      "Be terse.",
+    );
+    expect(
+      withSessionSandboxAgentContext("Be terse.", {
+        enforcement: { ...enforced, networkFirewall: true },
+      }),
+    ).toBe(`Be terse.\n\n${firewalled}`);
   });
 
   it("allows sandboxed fork helpers but rejects side-session helpers", () => {

@@ -1977,6 +1977,10 @@ describe("CodexProvider app-server lifecycle", () => {
           (request) => request.method === "turn/start",
         );
         expect(turnStartRequest?.agentctlSessionId).toBe("thread-agentctl");
+        // An unsandboxed launch gets no sandbox statement.
+        expect(JSON.stringify(turnStartRequest?.params?.input)).not.toContain(
+          "[Session sandbox]",
+        );
       } finally {
         session?.abort();
         await consume?.catch(() => undefined);
@@ -2031,6 +2035,9 @@ describe("CodexProvider app-server lifecycle", () => {
           (request) => request.method === "turn/start",
         );
         expect(turnStartRequest?.agentctlSessionId).toBe("thread-agentctl");
+        expect(JSON.stringify(turnStartRequest?.params?.input)).toMatch(
+          /\[Global context\]\\n\[Session sandbox\]\\n.*dangerouslyDisableSandbox.*check the agentctl env/,
+        );
       } finally {
         await session?.abort();
         await consume?.catch(() => undefined);

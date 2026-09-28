@@ -97,7 +97,10 @@ import {
   PROVIDER_SESSION_OPTION_KEYS,
   resolveProviderSessionOptions,
 } from "./types.js";
-import type { SessionSandboxRuntime } from "../../session-sandbox.js";
+import {
+  type SessionSandboxRuntime,
+  withSessionSandboxAgentContext,
+} from "../../session-sandbox.js";
 
 type ClaudeSdkModelInfo = Awaited<ReturnType<Query["supportedModels"]>>[number];
 type ClaudeSdkSlashCommand = Awaited<
@@ -1801,7 +1804,13 @@ export class ClaudeProvider implements AgentProvider {
             message: "Prompt-cache keepalive does not run tools",
             interrupt: true,
           }),
-          systemPrompt: this.getSystemPrompt(options.globalInstructions),
+          // Must match the session's own system prompt to reuse its cache.
+          systemPrompt: this.getSystemPrompt(
+            withSessionSandboxAgentContext(
+              options.globalInstructions,
+              options.sessionSandbox,
+            ),
+          ),
           settingSources: ["user", "project", "local"],
           includePartialMessages: false,
           persistSession: false,
@@ -2216,7 +2225,12 @@ export class ClaudeProvider implements AgentProvider {
               ? "default"
               : (options.permissionMode ?? "default"),
           canUseTool,
-          systemPrompt: this.getSystemPrompt(options.globalInstructions),
+          systemPrompt: this.getSystemPrompt(
+            withSessionSandboxAgentContext(
+              options.globalInstructions,
+              sessionSandbox,
+            ),
+          ),
           settingSources: ["user", "project", "local"],
           includePartialMessages: true,
           title: providerSessionOptions.sdk.title,

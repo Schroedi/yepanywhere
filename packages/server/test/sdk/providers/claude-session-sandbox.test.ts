@@ -136,4 +136,57 @@ describe("Claude sandboxed launch", { timeout: 20_000 }, () => {
       expect(seen).toEqual([before, "sess-claude"]);
     },
   );
+
+  async function launchSystemPrompt(
+    options: Pick<
+      Parameters<ClaudeProvider["startSession"]>[0],
+      "cwd" | "globalInstructions" | "sessionSandbox"
+    >,
+  ): Promise<unknown> {
+    let systemPrompt: unknown;
+    query.mockImplementation(({ options: queryOptions }) =>
+      (async function* () {
+        systemPrompt = queryOptions.systemPrompt;
+        yield { type: "result", session_id: "sess-claude", subtype: "success" };
+      })(),
+    );
+    const session = await new ClaudeProvider().startSession(options);
+    try {
+      for await (const _message of session.iterator) {
+        // drain the single result
+      }
+    } finally {
+      await session.abort();
+    }
+    return systemPrompt;
+  }
+
+  t("appends the sandbox boundary to a sandboxed launch", async () => {
+    const { projectPath, sessionSandbox } = await prepare();
+    const systemPrompt = await launchSystemPrompt({
+      cwd: projectPath,
+      globalInstructions: "Be terse.",
+      sessionSandbox,
+    });
+    expect(systemPrompt).toMatchObject({
+      type: "preset",
+      preset: "claude_code",
+      append: expect.stringMatching(
+        /^Be terse\.\n\n\[Session sandbox\]\n.*dangerouslyDisableSandbox/s,
+      ),
+    });
+  });
+
+  it("adds no sandbox boundary to an unsandboxed launch", async () => {
+    vi.stubEnv("BASH_ENV", undefined);
+    const systemPrompt = await launchSystemPrompt({
+      cwd: scratch,
+      globalInstructions: "Be terse.",
+    });
+    expect(systemPrompt).toEqual({
+      type: "preset",
+      preset: "claude_code",
+      append: "Be terse.",
+    });
+  });
 });
