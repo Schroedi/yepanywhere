@@ -91,12 +91,14 @@ project; the grant UI is not useful before creation exists.
   title/preview from the user's intent without hiding the actual setup
   instructions from the transcript.
 - The App canvas preparation prompt serves the starter only on "an available
-  loopback port" for its own checks, so no app host is registered and the
-  session's App action has nothing to open. A limited user is also refused
-  app links outright (v1), so the session page offers them no app at all.
-  The user-directed shape — a project's persistently associated root artifact
-  for in-session display, and a separate manual Publish for hostname serving —
-  is [sketched](sketches/project-root-artifact-and-publish.md).
+  loopback port" for its own checks and then stops it. A sandboxed session's
+  loopback server is now offered in the App pane, a limited user's included,
+  once its URL appears in command output
+  ([sandboxed session apps](../topics/session-right-pane.md#sandboxed-session-apps)),
+  so the prompt should leave the preview running and echo its
+  `http://127.0.0.1:<port>/` URL. The app still dies with the provider
+  process; the persistent root artifact, a YA-owned runner and Publish are
+  [sketched](sketches/project-root-artifact-and-publish.md).
 - Approved administrator controls, 2026-09-28: a per-limited-user choice of
   whether standard harness-global instructions are imported into its isolated
   harness home, and administrator-editable instructions before and after

@@ -32,36 +32,43 @@ name, and true vhost serving is enabled per project, subject to that setting.
 
 **The served app runs sandboxed, and YA's proxy reaches it there.** User
 direction, 2026-09-28: running a vhost-served app inside the project sandbox
-is the more secure arrangement, so the vhost design must reach an app
-launched in a sandbox rather than require a host process. Today it cannot:
-with the network firewall the session has its own loopback
-([network boundary](../../topics/session-sandbox-network-boundary.md#network-enforcement)),
-so a server it binds is invisible to the host and to YA's proxy. Observed
-2026-09-28: archer's session reported its preview at `http://127.0.0.1:3400`,
-which on the host is YA itself, and an SSH forward to its later port was
-refused.
+is the more secure arrangement, and a specific hole the YA server proxies is
+acceptable. Observed 2026-09-28: archer's session reported its preview at
+`http://127.0.0.1:3400`, which on the host is YA itself, because its loopback
+is private to the firewall's namespace.
 
-The preferred shape, at parity with the session sandbox: YA starts the app's
-serve command in the project's (or the user's) sandbox and hands it one
-listening socket YA opened beforehand, as an inherited descriptor in the
-socket-activation style, while YA's vhost proxy holds the other end. The app
-gets no host port and no route to host loopback; the firewall stays on; the
-descriptor is exactly the narrowly accounted inherited file descriptor the
-[OS enforcement contract](../../topics/session-sandboxing.md#os-enforcement-contract)
-allows, alongside the project-directory descriptor the launcher already
-passes. A Unix socket in a directory bind-mounted for this one app is an
-equivalent carrier. Static output (for example `dist/`) may instead be served
-by YA directly, needing no process at all. An agent session may ask YA to
-(re)start the project's app, but the process is YA's, not a child of the
-session, so it survives the session and is stopped through
-[app lifecycle](app-lifecycle.md).
+Implemented 2026-09-28, the session half:
 
-TBD: where the root artifact is recorded and how a template declares it (its
-serve command, or static root); how
-it relates to a registered entry-point list
-([project app entry points](project-app-entry-points.md)); the Publish control's
-placement; and how a limited user reaches a private app they own without the
-general app-link route v1 refuses. Lifecycle rules stay with
-[app lifecycle](app-lifecycle.md).
+- A firewalled launch runs a port broker inside the sandbox's network
+  namespace that only YA can reach
+  ([network boundary § Inbound](../../topics/session-sandbox-network-boundary.md#inbound-the-loopback-port-broker)),
+  so a server the session binds on loopback is reachable without a host
+  port or a firewall change.
+- A loopback URL in such a session's tool output becomes a private minted
+  app host shown to the logged-in principal, a limited user included,
+  locally or through the public root
+  ([sandboxed session apps](../../topics/session-right-pane.md#sandboxed-session-apps)).
+- Files and interactive previews a sandboxed session writes under its private
+  `/tmp` are read as the session sees them through session-scoped doors
+  ([session sandboxing](../../topics/session-sandboxing.md)); the client's use
+  of those doors waits on a capability.
+
+Still sketch:
+
+- **A YA-owned app runner** so the project's app survives provider restarts
+  and idle shutdown (user-directed, not essential): YA starts the project's
+  serve command in its own instance of the project sandbox, not as a child of
+  the session, and reaches it through the same broker; hosted in the
+  provider-host process where possible so it can also outlive a YA server
+  restart. A sandboxed session cannot launch a user service or other escape
+  (the private `/run` and IPC unsharing deny it), so persistence has to be
+  YA's. Static output (for example `dist/`) may instead be served by YA with
+  no process at all. Stopped through [app lifecycle](app-lifecycle.md).
+- **The persistent root artifact record**: where it lives, how a template
+  declares its serve command or static root, and how it relates to a
+  registered entry-point list
+  ([project app entry points](project-app-entry-points.md)).
+- **Publish**, above, built on the runner, including the Publish control's
+  placement.
 
 Found 2026-09-28 while fixing limited-user session lists and images.
