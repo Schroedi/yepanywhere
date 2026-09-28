@@ -27,6 +27,7 @@ import {
 } from "@yep-anywhere/shared";
 import { deriveDecoySalt, generateVerifier } from "../crypto/srp-server.js";
 import { createCoalescingSaver } from "../lib/coalescingSaver.js";
+import { writeFileAtomically } from "../utils/writeFileAtomically.js";
 import {
   OWNER_READ_WRITE_FILE_MODE,
   enforceOwnerReadWriteFilePermissions,
@@ -190,9 +191,13 @@ export class LimitedUsersService {
       if (parsed.version < CURRENT_VERSION) await this.save();
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        console.warn(
-          "[LimitedUsersService] Failed to load state, starting fresh:",
-          error,
+        // Fail closed rather than start with no users, which would silently
+        // delete every account and grant (topics/security.md; auth.json has
+        // the same rule). The file is left as it is.
+        throw new Error(
+          `[LimitedUsersService] ${this.filePath} is unreadable (${error instanceof Error ? error.message : String(error)}). ` +
+            "Refusing to start without its limited users. Restore the file, " +
+            "or delete it to deliberately remove them all.",
         );
       }
       this.state = { version: CURRENT_VERSION, users: {} };
@@ -413,8 +418,8 @@ export class LimitedUsersService {
 
   private async doSave(): Promise<void> {
     const content = JSON.stringify(this.state, null, 2);
-    await fs.writeFile(this.filePath, content, {
-      encoding: "utf-8",
+    // Atomic: an in-place write interrupted by shutdown leaves an empty file.
+    await writeFileAtomically(this.filePath, content, {
       mode: OWNER_READ_WRITE_FILE_MODE,
     });
     await enforceOwnerReadWriteFilePermissions(

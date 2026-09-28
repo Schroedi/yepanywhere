@@ -179,10 +179,14 @@ standing warning on the enabled sandbox: an agent that reaches YA — readily
 so with the network firewall off — can drive it and escape. Authentication
 remains independent defense in depth, now the operator's choice.
 
-`auth.json` fails closed. It is saved by atomic replacement, never rewritten
-in place, and a file that exists but cannot be read, or carries an
-unrecognized version, stops startup with an error naming it; the file is left
-as it is. Only a missing file means local access was never configured.
+`auth.json` fails closed, and so do `limited-users.json` and
+`remote-access.json`. Each is saved by atomic replacement, never rewritten in
+place, and shutdown waits for their pending saves (and the relay session
+cache's) before exiting. A file that exists but cannot be read, or an
+`auth.json` with an unrecognized version, stops startup with an error naming
+it; the file is left as it is. Only a missing file means never configured.
+The relay session cache (`remote-sessions.json`) alone still starts fresh
+when unreadable, since losing it only asks relay clients to sign in again.
 Observed 2026-09-28: a restart interrupted an in-place save, the server
 treated the empty file as a fresh install, and with no password left, a
 browser holding the owner's desktop session was the owner again even while a

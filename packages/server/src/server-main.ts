@@ -382,6 +382,24 @@ async function gracefulShutdown(signal: string): Promise<void> {
     }
   }
 
+  // Let credential state finish its last save before exiting. An exit during
+  // an in-place save once left auth.json empty, and the next start came up
+  // with no password (topics/security.md). Saves are atomic now too.
+  const credentialStores = [
+    ["auth", authService],
+    ["limited users", limitedUsersService],
+    ["remote access", remoteAccessService],
+    ["remote sessions", remoteSessionService],
+  ] as const;
+  for (const [name, store] of credentialStores) {
+    try {
+      await store.flushPendingWrites();
+    } catch (error) {
+      console.error(`[Shutdown] Error flushing ${name} state:`, error);
+    }
+  }
+  console.log("[Shutdown] Credential state flushed");
+
   closeCodexCorrelationDebugLogger();
   console.log("[Shutdown] Cleanup complete, exiting");
   process.exit(0);
