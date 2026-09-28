@@ -1802,11 +1802,11 @@ describe("NewSessionForm", () => {
       ).toBeNull();
       expect(screen.queryByTestId("filter-newSessionSandboxTitle")).toBeNull();
       expect(screen.getByText("Always on")).toBeTruthy();
-      // The firewall is still theirs — the launch route honors it.
+      // The firewall is part of that sandbox, so it loses its picker too.
       openAdvancedOptions();
       expect(
-        selectedDropdownValue("newSessionSandboxNetworkFirewallLabel"),
-      ).toBe("on");
+        screen.queryByTestId("filter-newSessionSandboxNetworkFirewallLabel"),
+      ).toBeNull();
     });
 
     it("launches with the locked values and a forced sandbox", async () => {
@@ -1832,6 +1832,8 @@ describe("NewSessionForm", () => {
           model: "gpt-5.4",
           thinking: "on:medium",
           sandboxLevel: "project-write",
+          // Saved defaults select no sandbox, which would leave it off.
+          sandboxNetworkFirewall: true,
         }),
       );
     });

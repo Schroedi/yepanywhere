@@ -3478,6 +3478,7 @@ describe("Sessions metadata route", () => {
       modeVersion: 0,
     }));
     let sandboxLevel: "none" | "project-write" = "none";
+    let sandboxNetworkFirewall: boolean | undefined;
     const routes = createSessionsRoutes({
       supervisor: {
         resumeSession,
@@ -3496,7 +3497,7 @@ describe("Sessions metadata route", () => {
           }) as unknown as ISessionReader,
       ),
       sessionMetadataService: {
-        getMetadata: vi.fn(() => ({ sandboxLevel })),
+        getMetadata: vi.fn(() => ({ sandboxLevel, sandboxNetworkFirewall })),
         getProvider: vi.fn(() => "codex"),
         getRequestedModel: vi.fn(() => "gpt-4"),
         setRequestedModel: vi.fn(async () => undefined),
@@ -3537,6 +3538,15 @@ describe("Sessions metadata route", () => {
     expect(resumeSession).not.toHaveBeenCalled();
 
     sandboxLevel = "project-write";
+    sandboxNetworkFirewall = false;
+    const firewallOff = await resume();
+    expect(firewallOff.status).toBe(403);
+    expect((await firewallOff.json()).error).toContain(
+      "without the sandbox network firewall",
+    );
+    expect(resumeSession).not.toHaveBeenCalled();
+
+    sandboxNetworkFirewall = undefined;
     const resumed = await resume();
     expect(resumed.status).toBe(200);
     expect(resumeSession).toHaveBeenCalledWith(
@@ -3550,6 +3560,76 @@ describe("Sessions metadata route", () => {
         requestedModel: "gpt-5",
       }),
       { requireProviderSessionId: true },
+    );
+  });
+
+  it("starts a limited user's session behind the firewall and refuses an opt-out", async () => {
+    const project = createProject();
+    const startSession = vi.fn(async () => ({
+      id: "proc-1",
+      sessionId: "sess-new",
+      projectId: project.id,
+      projectPath: project.path,
+      permissionMode: "default",
+      modeVersion: 0,
+    }));
+    const routes = createSessionsRoutes({
+      supervisor: {
+        startSession,
+      } as unknown as SessionsDeps["supervisor"],
+      scanner: {
+        getOrCreateProject: vi.fn(async () => project),
+      } as unknown as SessionsDeps["scanner"],
+      readerFactory: vi.fn(() => ({}) as unknown as ISessionReader),
+    });
+    const app = new Hono<{
+      Variables: Record<typeof PRINCIPAL_VARIABLE, Principal>;
+    }>();
+    app.use("*", async (c, next) => {
+      c.set(PRINCIPAL_VARIABLE, {
+        kind: "limited",
+        username: "alice",
+        grants: {
+          newSessionProjects: [project.id],
+          joinProjects: [],
+          viewProjects: [],
+          joinStaleOffsetMinutes: 0,
+          lock: {},
+        },
+        switched: false,
+        locked: true,
+        via: "direct",
+      });
+      await next();
+    });
+    app.route("/", routes);
+    const start = (body: Record<string, unknown>) =>
+      app.request(`/projects/${project.id}/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "hello", ...body }),
+      });
+
+    const refused = await start({
+      sandboxLevel: "project-write",
+      sandboxNetworkFirewall: false,
+    });
+    expect(refused.status).toBe(403);
+    expect((await refused.json()).error).toContain("network firewall");
+    expect(startSession).not.toHaveBeenCalled();
+
+    // An unsandboxed request is forced into the sandbox, firewall included.
+    const started = await start({ sandboxLevel: "none" });
+    expect(started.status).toBe(200);
+    expect(startSession).toHaveBeenCalledWith(
+      project.path,
+      expect.objectContaining({ text: "hello" }),
+      undefined,
+      expect.objectContaining({
+        sandboxLevel: "project-write",
+        sandboxNetworkFirewall: true,
+      }),
+      expect.anything(),
     );
   });
 

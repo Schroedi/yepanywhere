@@ -300,6 +300,7 @@ it("enforces source-qualified grants, owner-only operations and real sandboxed l
           provider: "claude",
           model: "locked-model",
           sandboxLevel: "project-write",
+          sandboxNetworkFirewall: true,
         });
         return Response.json({ sessionId: "prepared" });
       },
@@ -334,6 +335,12 @@ it("enforces source-qualified grants, owner-only operations and real sandboxed l
   expect(
     (await post({ ...request, session: { model: "different" } })).status,
   ).toBe(409);
+  const firewallOff = await post({
+    ...request,
+    session: { sandboxNetworkFirewall: false },
+  });
+  expect(firewallOff.status).toBe(409);
+  expect((await firewallOff.json()).error).toContain("network firewall");
   await users.update("archer", {
     templateCreation: { mode: "selected", templates: [] },
   });

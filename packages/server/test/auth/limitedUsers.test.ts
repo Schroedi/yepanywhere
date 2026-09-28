@@ -12,6 +12,7 @@ import {
   actingUsername,
   applyLimitedLaunchPolicy,
   applyLimitedResumePolicy,
+  limitQueuedLaunch,
 } from "../../src/auth/limitedLaunchPolicy.js";
 import type { ModelSettings } from "../../src/supervisor/Supervisor.js";
 import { buildUserMessageMetadata } from "../../src/routes/session-request-helpers.js";
@@ -452,6 +453,47 @@ describe("limited-user launch policy", () => {
     expect(body.model).toBe("gpt-5");
   });
 
+  it("turns the network firewall on when the request names none", () => {
+    const body: { sandboxNetworkFirewall?: boolean } = {};
+    expect(applyLimitedLaunchPolicy(contextFor(alice), body).kind).toBe(
+      "applied",
+    );
+    expect(body.sandboxNetworkFirewall).toBe(true);
+  });
+
+  it("refuses a request that turns the network firewall off", () => {
+    const body = {
+      sandboxLevel: "project-write",
+      sandboxNetworkFirewall: false,
+    };
+    expect(applyLimitedLaunchPolicy(contextFor(alice), body)).toEqual({
+      kind: "error",
+      error:
+        "This user's sessions always run with the sandbox network firewall on",
+    });
+    expect(body.sandboxNetworkFirewall).toBe(false);
+  });
+
+  it("holds a queued new-session target to the same firewall rule", () => {
+    const refused = limitQueuedLaunch(alice.grants, {
+      target: {
+        type: "new-session",
+        sandboxLevel: "project-write",
+        sandboxNetworkFirewall: false,
+      },
+      message: { text: "go" },
+    });
+    expect(refused?.error).toContain("network firewall");
+    const target = { type: "new-session" as const };
+    expect(
+      limitQueuedLaunch(alice.grants, { target, message: { text: "go" } }),
+    ).toBeNull();
+    expect(target).toMatchObject({
+      sandboxLevel: "project-write",
+      sandboxNetworkFirewall: true,
+    });
+  });
+
   it("refuses a request that names a value outside the lock", () => {
     const outcome = applyLimitedLaunchPolicy(contextFor(alice), {
       provider: "claude",
@@ -502,6 +544,22 @@ describe("limited-user launch policy", () => {
         );
         expect(outcome.kind, String(sandboxLevel)).toBe("error");
       }
+    });
+
+    it("refuses a sandboxed session whose network firewall is off", () => {
+      const outcome = applyLimitedResumePolicy(
+        contextFor(alice),
+        { ...sandboxed(), sandboxNetworkFirewall: false },
+        {},
+      );
+      expect(outcome).toMatchObject({
+        kind: "error",
+        error: expect.stringContaining("without the sandbox network firewall"),
+      });
+      // Absent is on, as at every launch.
+      expect(
+        applyLimitedResumePolicy(contextFor(alice), sandboxed(), {}).kind,
+      ).toBe("applied");
     });
 
     it("refuses a session on a remote executor", () => {

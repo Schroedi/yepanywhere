@@ -600,8 +600,11 @@ export function NewSessionForm({
     : canConfigureSessionSandbox
       ? sandboxLevel
       : "none";
+  // The firewall is part of the sandbox a limited user cannot clear; the server
+  // refuses a limited launch that turns it off.
   const effectiveSandboxNetworkFirewall =
-    effectiveSandboxLevel === "project-write" && sandboxNetworkFirewall;
+    effectiveSandboxLevel === "project-write" &&
+    (launchLock.limited || sandboxNetworkFirewall);
   // Open local access does not block the sandbox; it earns a standing warning.
   const sandboxLocalAuthOpen =
     effectiveSandboxLevel === "project-write" &&
@@ -4361,7 +4364,7 @@ export function NewSessionForm({
           )}
         </NewSessionOptionSection>
       )}
-      {effectiveSandboxLevel === "project-write" && (
+      {effectiveSandboxLevel === "project-write" && !launchLock.limited && (
         <NewSessionOptionSection
           className="new-session-helper-section new-session-sandbox-firewall-section"
           title={sessionDefaultCopy.sandboxFirewall.title}

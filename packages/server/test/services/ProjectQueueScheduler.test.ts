@@ -868,6 +868,46 @@ describe("ProjectQueueScheduler", () => {
       expect(await failedError()).toMatch(/outside the sandbox/);
       expect(supervisor.resumeCalls).toHaveLength(0);
     });
+
+    it("fails a turn to a sandboxed session whose firewall is off", async () => {
+      await schedulerWith(grantsFor("new-session"), {
+        sandboxLevel: "project-write",
+        sandboxNetworkFirewall: false,
+        workingProjectId: projectId,
+        provider: "codex",
+      });
+      await service.createItem({
+        projectId,
+        projectPath: PROJECT_PATH,
+        createdByUser: "alice",
+        request: {
+          target: { type: "existing-session", sessionId: "session-1" },
+          message: { text: "continue as alice" },
+        },
+      });
+
+      expect(await failedError()).toMatch(/network firewall/);
+      expect(supervisor.resumeCalls).toHaveLength(0);
+    });
+
+    it("launches a new session with the firewall on", async () => {
+      await schedulerWith(grantsFor("new-session"));
+      await service.createItem({
+        projectId,
+        projectPath: PROJECT_PATH,
+        createdByUser: "alice",
+        request: {
+          target: { type: "new-session", provider: "codex" },
+          message: { text: "start as alice" },
+        },
+      });
+
+      await waitFor(() => expect(supervisor.startCalls).toHaveLength(1));
+      expect(supervisor.startModelSettings[0]).toMatchObject({
+        sandboxLevel: "project-write",
+        sandboxNetworkFirewall: true,
+      });
+    });
   });
 
   it("defaults queued project sandboxes to the network firewall", async () => {

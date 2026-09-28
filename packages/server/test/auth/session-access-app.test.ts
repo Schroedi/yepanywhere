@@ -43,6 +43,12 @@ describe("limited-user session access through the app's session catalog", () => 
       lastActivity: minutesAgo(1),
       sandboxed: false,
     },
+    {
+      sessionId: "fresh-firewall-off",
+      lastActivity: minutesAgo(1),
+      sandboxed: true,
+      networkFirewall: false,
+    },
   ];
 
   let testDir: string;
@@ -79,6 +85,7 @@ describe("limited-user session access through the app's session catalog", () => 
       if (seeded.sandboxed) {
         await sessionMetadataService.setSessionSandbox(seeded.sessionId, {
           level: "project-write",
+          networkFirewall: seeded.networkFirewall,
           projectPath,
           projectId,
         });
@@ -150,6 +157,14 @@ describe("limited-user session access through the app's session catalog", () => 
 
   it("refuses a turn to a fresh session that runs outside the sandbox", async () => {
     const response = await postTurn("fresh-unsandboxed");
+    expect(response.status).toBe(403);
+    expect(((await response.json()) as { reason?: string }).reason).toBe(
+      "unsandboxed-session",
+    );
+  });
+
+  it("refuses a turn to a fresh sandboxed session whose firewall is off", async () => {
+    const response = await postTurn("fresh-firewall-off");
     expect(response.status).toBe(403);
     expect(((await response.json()) as { reason?: string }).reason).toBe(
       "unsandboxed-session",

@@ -182,7 +182,8 @@ way, because it is where the switch and the first user both live.
   it at once.
 - `newSessionProjects: string[]` — projects where the user may start
   sessions. Every session they start is forced to `sandboxLevel:
-  "project-write"`; the request cannot select `none`.
+  "project-write"` with its network firewall on; the request cannot select
+  `none`, and a request that sets `sandboxNetworkFirewall: false` is refused.
 - `joinProjects: string[]` — projects where the user may act in a
   **fresh**, **sandboxed** existing session started by anyone: send and
   shape turns, attach files, answer and approve tool requests, interrupt,
@@ -236,16 +237,16 @@ percent-encoding is refused.
 | any API path not on the v1 allowlist | 403 |
 | `GET` of a project-scoped path | allowed when the project is in any of the three lists, else 404 |
 | rename, caption, code name, or remove a project | only a project the user owns, which also needs its `newSessionProjects` grant, else 403: these are one value every principal sees, so a grant to start sessions in someone else's project is no say in how it is presented. For every principal, an id naming no listed project is 404 and nothing is stored |
-| session create in a project | `newSessionProjects` only; sandbox forced; lock applied; a remote executor or computer control is refused |
-| resume or reactivate a session | `newSessionProjects` on its project; the session must already run sandboxed and on this host, else 403; the lock applies as at create, replacing the session's model and effort with locked ones |
+| session create in a project | `newSessionProjects` only; sandbox forced, with its network firewall on when the request names none; a request with `sandboxNetworkFirewall: false` 403, stating that the firewall stays on; lock applied; a remote executor or computer control is refused |
+| resume or reactivate a session | `newSessionProjects` on its project; the session must already run sandboxed with its network firewall on, and on this host, else 403; the lock applies as at create, replacing the session's model and effort with locked ones |
 | fork or clone a session | `newSessionProjects` on its project; the copy is recorded as the user's own; running it is a resume, under the row above |
 | any other session action that starts a provider process (restart, recap, retitle, fork-after-summary, rewind, clearloop, resuming or steering a restart-paused queued message, session bang commands) and moving a session to another project | 403: only listed session actions are open, and each listed one that launches applies this launch policy |
-| turn/approval/interrupt/permission-mode change on a session | the session's project in `newSessionProjects` or `joinProjects`, **and** the session runs sandboxed (its live process enforces project-write, or with no process its last launch recorded it), else 403 with reason `unsandboxed-session`, **and** it is fresh or started by this user, else 403 with reason `stale-session` |
+| turn/approval/interrupt/permission-mode change on a session | the session's project in `newSessionProjects` or `joinProjects`, **and** the session runs sandboxed with its network firewall on (its live process enforces both, or with no process its last launch recorded both), else 403 with reason `unsandboxed-session`, **and** it is fresh or started by this user, else 403 with reason `stale-session` |
 | any session the user started | always at least readable, including after its project grant is removed |
 | Issues & PRs (`/api/issues*`) | 403, and the nav entry is hidden: it spends the host's ticket-system credentials |
 | Inbox, Projects, Source Control, All Sessions | served, with every project and session outside the user's grants removed before pagination; All Sessions project options and aggregate statistics use the same scope |
 | Project Queue | global list and promote-now responses include only ordinary items, recovered items and project statuses (including blocker session titles) in granted projects; the route builds them from the user's grants so other projects' entries are never read for them, and a response-field allowlist backs that up. The global dispatch pause remains visible because it gates the user's own items. Promote-now needs `newSessionProjects` on the project in its path; pausing or resuming dispatch 403 |
-| Project Queue items | queuing needs `newSessionProjects`; a new-session target is held to the create rule (sandbox forced, lock applied, remote executor refused) and an existing-session target may name neither a remote executor nor a value outside the lock; a queued YA command 403. The item records the user, who alone may edit, retry, reorder, or delete it (404 otherwise). At dispatch their grants are read again: without `newSessionProjects` the item fails, an existing-session target must run sandboxed and be in the item's project or one they started, and the turn and any new session are attributed to them. Staged attachments are taken only from their own draft store and stay in it through restart, dispatch and cleanup; a reference from another account's store is refused (400), and a superuser edit of their item cannot add the superuser's drafts to it ([Project Queue § Attachments](project-queue.md#attachments)) |
+| Project Queue items | queuing needs `newSessionProjects`; a new-session target is held to the create rule (sandbox and its firewall forced, a firewall opt-out refused, lock applied, remote executor refused) and an existing-session target may name neither a remote executor nor a value outside the lock; a queued YA command 403. The item records the user, who alone may edit, retry, reorder, or delete it (404 otherwise). At dispatch their grants are read again: without `newSessionProjects` the item fails, an existing-session target must run sandboxed with its firewall on and be in the item's project or one they started, and the turn and any new session are attributed to them. Staged attachments are taken only from their own draft store and stay in it through restart, dispatch and cleanup; a reference from another account's store is refused (400), and a superuser edit of their item cannot add the superuser's drafts to it ([Project Queue § Attachments](project-queue.md#attachments)) |
 | settings | `GET /api/settings` only, answered with a projection holding the fields their client reads to render and default their own work; secrets and host inventory (webhook URL and token, remote executors, gateway and Ollama endpoints and start commands, file-access rules, the readiness command, global instructions) are withheld, and a field added later is withheld until listed. Every write and every settings subpath (browser-settings backup, remote executors, cache-billing events, file-access and host-awake status) 403 |
 | recents | the install's shared list, read filtered; clearing 403; `POST /api/recents/visit` answers `{recorded: false}` and records nothing |
 | activity REST (`/api/activity/*`) | 403: watcher status and every connected tab and browser profile are host inventory with no project to filter by |
@@ -373,7 +374,8 @@ for, so nothing about limited users appears anywhere else until one exists.
 - **New Session, acting as a limited user.** The form offers only what the
   user can actually affect. A locked provider, model, or effort loses its
   picker — provider buttons, the model dropdown and its composer chip menu,
-  and the thinking/effort panel — and the sandbox loses its toggle. What was
+  and the thinking/effort panel — and the sandbox and its network firewall
+  lose their toggles; the form launches with both on. What was
   withheld is stated instead, as a non-interactive "Set by your account"
   caption carrying the same abbreviated indicators the rest of YA uses (the
   provider badge for provider and model), plus the locked effort and

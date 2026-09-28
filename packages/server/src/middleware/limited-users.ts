@@ -403,10 +403,11 @@ export function createLimitedUsersMiddleware(
           // Driving a process that runs outside the sandbox — sending turns,
           // approving tools, changing its permission mode — is the server
           // account's authority, whoever started it and however fresh it is.
+          // Its network firewall is part of that sandbox.
           return c.json(
             {
               error:
-                "This session runs outside the sandbox, so this user cannot act in it; start a new session instead",
+                "This session runs outside the sandbox or without its network firewall, so this user cannot act in it; start a new session instead",
               reason: "unsandboxed-session",
             },
             403,

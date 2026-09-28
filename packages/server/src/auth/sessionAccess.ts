@@ -19,8 +19,10 @@ export interface SessionAccessFacts {
   lastActivityMs: number | null;
   createdByUser: string | undefined;
   /**
-   * Whether the session runs in the project-write sandbox: the live
-   * process's enforced level, else the level its last launch recorded.
+   * Whether the session runs in the project-write sandbox with its network
+   * firewall on: what the live process enforces, else what its last launch
+   * recorded. A firewall-off session is as far outside a limited user's
+   * boundary as an unsandboxed one.
    */
   sandboxed: boolean;
 }
@@ -33,7 +35,7 @@ export interface SessionAccessResolverDeps {
         provider?: string;
         /** Last provider message; null before the process has seen one. */
         lastActivityMs?: number | null;
-        /** The process enforces the project-write sandbox. */
+        /** The process enforces the project-write sandbox and its firewall. */
         sandboxed?: boolean;
       }
     | undefined;
@@ -52,6 +54,8 @@ export interface SessionAccessResolverDeps {
         createdByUser?: string;
         workingProjectId?: string;
         sandboxLevel?: string;
+        /** Absent means on for a project-write session. */
+        sandboxNetworkFirewall?: boolean;
       }
     | undefined;
   now?: () => number;
@@ -183,7 +187,9 @@ export class SessionAccessResolver {
       };
     }
 
-    const sandboxed = metadata?.sandboxLevel === "project-write";
+    const sandboxed =
+      metadata?.sandboxLevel === "project-write" &&
+      metadata.sandboxNetworkFirewall !== false;
     if (!row) {
       // A pinned project still identifies an otherwise unknown session.
       if (metadata?.workingProjectId) {

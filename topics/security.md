@@ -105,11 +105,16 @@ names a project the user may read. Hiding a control in the client is cosmetic.
 **Execution.** Every provider process a limited user starts or resumes runs
 in the project-write sandbox on this host, under the user's
 provider/model/effort lock. This covers create, resume, reactivate, a fork or
-clone copy once it runs, and Project Queue dispatch. A new session is forced
-to project-write, and an existing session must already be sandboxed. The same
-holds for acting in a session someone else started: a join grant sends turns,
-approves tools, interrupts, and changes the permission mode only of a session
-whose process runs sandboxed, never of the superuser's unsandboxed ones. Remote
+clone copy once it runs, Project Queue dispatch, and a template creation's
+preparation session. The sandbox includes its network firewall, so the agent
+cannot reach the YA listener, local-network services, or unauthenticated
+localhost services such as the maintenance server. A new session is forced to
+project-write with the firewall on, and a request that turns the firewall off
+is refused; an existing session must already run sandboxed with its firewall
+on. The same holds for acting in a session someone else started: a join grant
+sends turns, approves tools, interrupts, and changes the permission mode only
+of a session whose process runs that way, never of the superuser's unsandboxed
+or firewall-off ones. Remote
 executors and computer control are refused, as is every other session action
 that launches a process, such as restart, recap, rewind, and clearloop. The
 sandbox keeps its own preconditions: enforced authentication, Linux, and a
@@ -127,12 +132,6 @@ new-session access to it, as an ordinary grant the superuser can revoke.
 
 **Outside the boundary.**
 
-- **The network firewall is not forced.** A limited user's create request may
-  turn off the sandbox's network firewall. The session then shares host
-  networking and can reach the YA listener, local-network services, and
-  unauthenticated localhost services such as the maintenance server when it
-  runs. Tracked in
-  [`gaps/limited-user-sandbox-firewall-opt-out.md`](../gaps/limited-user-sandbox-firewall-opt-out.md).
 - **The sandbox confines writes, not reads.** Files the server account can
   read remain readable to a limited user's agent, including other users'
   projects. The layer claims no confidentiality, credential-isolation, or
