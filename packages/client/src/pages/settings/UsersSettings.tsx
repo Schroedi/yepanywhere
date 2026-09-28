@@ -683,7 +683,6 @@ function DirectoryAccessList({
         <ul className={styles.projectList}>
           {grants.map((grant, index) => (
             // Rows have no identity beyond their position while edited.
-            // biome-ignore lint/suspicious/noArrayIndexKey: see above.
             <li key={index} className={styles.directoryRow}>
               <input
                 className={styles.input}
@@ -949,6 +948,8 @@ function UserEditor({
     <div
       className={`settings-group ${styles.editor}`}
       onBlur={() => persist(draftRef.current)}
+      role="group"
+      aria-label={t("usersEditUserTitle", { username: user.username })}
     >
       <div className={styles.editorHeader}>
         <div className={styles.editorHeading}>
