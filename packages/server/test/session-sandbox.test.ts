@@ -33,6 +33,10 @@ import {
 } from "../src/session-sandbox.js";
 import { ClaudeSessionReader } from "../src/sessions/reader.js";
 import { ClaudeProvider } from "../src/sdk/providers/claude.js";
+import {
+  createAgentctlSessionEnvBridge,
+  createLaunchAgentctlSessionEnvBridge,
+} from "../src/sdk/providers/agentctl-session-env.js";
 import type { UrlProjectId } from "@yep-anywhere/shared";
 
 // The availability probe mounts throwaway state under its state root; keep
@@ -828,6 +832,135 @@ describe("session sandbox", { timeout: 20_000 }, () => {
     expect(claude?.stateKey).toMatch(/^project-[0-9a-f]{32}$/);
     expect(codex?.stateKey).toBe(claude?.stateKey);
     expect(codex?.projectPath).toBe(projectPath);
+  });
+
+  t(
+    "shows sandboxed shells only their own live session-env bridge",
+    async () => {
+      const root = await fixtureRoot();
+      const projectPath = join(root, "project");
+      await mkdir(projectPath);
+      // Another launch's bridge and an unrelated file, both in host temp.
+      const otherBridge = createAgentctlSessionEnvBridge("other-session");
+      const hostTemp = await fixtureRoot();
+      await writeFile(join(hostTemp, "unrelated.txt"), "host only\n");
+      const runtime = await prepareSessionSandbox({
+        level: "project-write",
+        provider: "codex",
+        projectPath,
+        stateRoot: join(root, "state"),
+      });
+      if (!runtime) throw new Error("sandbox runtime was not prepared");
+      const { bridge, sessionSandbox } = createLaunchAgentctlSessionEnvBridge({
+        sessionSandbox: runtime,
+      });
+      if (!sessionSandbox) throw new Error("bridge runtime was not derived");
+
+      const marker = (name: string) => join(projectPath, name);
+      const waitForMarker = async (name: string) => {
+        const deadline = Date.now() + 10_000;
+        while (!existsSync(marker(name))) {
+          if (Date.now() > deadline) throw new Error(`${name} never appeared`);
+          await new Promise((resolveWait) => setTimeout(resolveWait, 20));
+        }
+      };
+      // One long-lived sandboxed process runs a fresh Bash tool shell at each
+      // stage, so publication after spawn must reach it through the mount.
+      const script = `
+        set -eu
+        report() {
+          bash -c 'printf "%s" "\${AGENTCTL_SESSION_ID-}"' > "$PROJECT_PATH/$1.tmp"
+          mv "$PROJECT_PATH/$1.tmp" "$PROJECT_PATH/$1"
+        }
+        wait_for() {
+          while [ ! -e "$PROJECT_PATH/$1" ]; do sleep 0.02; done
+        }
+        report before
+        wait_for go-publish
+        report published
+        wait_for go-replace
+        report replaced
+        if [ -e "$OTHER_BRIDGE" ] || [ -e "$HOST_TEMP/unrelated.txt" ]; then
+          exit 20
+        fi
+        ls -A "$BRIDGE_DIR" > "$PROJECT_PATH/bridge-listing"
+        if touch "$BRIDGE_DIR/agent-write" 2>/dev/null; then
+          exit 21
+        fi
+      `;
+      const env = bridge.extendEnv({
+        ...process.env,
+        BASH_ENV: undefined,
+        PROJECT_PATH: projectPath,
+        OTHER_BRIDGE: otherBridge.directory,
+        HOST_TEMP: hostTemp,
+        BRIDGE_DIR: sessionSandbox.sessionEnvBridgeDirectory,
+      });
+      try {
+        const finished = runSandboxed(
+          sessionSandbox.wrapSpawn("/bin/sh", ["-c", script], env),
+        );
+        const stages = (async () => {
+          await waitForMarker("before");
+          bridge.publishSessionId("sess-first");
+          await writeFile(marker("go-publish"), "");
+          await waitForMarker("published");
+          bridge.publishSessionId("sess-second");
+          await writeFile(marker("go-replace"), "");
+        })();
+        await Promise.all([finished, stages]);
+        expect(await readFile(marker("before"), "utf8")).toBe("");
+        expect(await readFile(marker("published"), "utf8")).toBe("sess-first");
+        expect(await readFile(marker("replaced"), "utf8")).toBe("sess-second");
+        expect(
+          (await readFile(marker("bridge-listing"), "utf8")).split("\n"),
+        ).toEqual(["agentctl-session.env", "bash-env.sh", ""]);
+        expect(existsSync(join(bridge.directory, "agent-write"))).toBe(false);
+      } finally {
+        bridge.cleanup();
+        otherBridge.cleanup();
+      }
+    },
+  );
+
+  t("gives a resumed sandboxed launch its session id at once", async () => {
+    const root = await fixtureRoot();
+    const projectPath = join(root, "project");
+    await mkdir(projectPath);
+    const runtime = await prepareSessionSandbox({
+      level: "project-write",
+      provider: "claude",
+      projectPath,
+      stateRoot: join(root, "state"),
+    });
+    if (!runtime) throw new Error("sandbox runtime was not prepared");
+    const { bridge, sessionSandbox } = createLaunchAgentctlSessionEnvBridge({
+      initialSessionId: "sess-resumed",
+      sessionSandbox: runtime,
+    });
+    if (!sessionSandbox) throw new Error("bridge runtime was not derived");
+    try {
+      const script = `bash -c 'printf "%s" "\${AGENTCTL_SESSION_ID-}"' > "$PROJECT_PATH/resumed"`;
+      await runSandboxed(
+        sessionSandbox.wrapSpawn(
+          "/bin/sh",
+          ["-c", script],
+          bridge.extendEnv({
+            ...process.env,
+            BASH_ENV: undefined,
+            PROJECT_PATH: projectPath,
+          }),
+        ),
+      );
+      expect(await readFile(join(projectPath, "resumed"), "utf8")).toBe(
+        "sess-resumed",
+      );
+      expect(() =>
+        sessionSandbox.withSessionEnvBridge(bridge.directory),
+      ).toThrow(/already mounts/);
+    } finally {
+      bridge.cleanup();
+    }
   });
 
   t(

@@ -42,6 +42,10 @@ import {
   formatCodexLoginCommand,
 } from "../../../src/sdk/providers/codex.js";
 import {
+  prepareSessionSandbox,
+  probeSessionSandboxAvailability,
+} from "../../../src/session-sandbox.js";
+import {
   codexAgentMessageDeltaFixtures,
   codexContextCompactionFixtures,
   codexInterruptedTurnFixtures,
@@ -121,6 +125,13 @@ function isBashAvailable(): boolean {
 }
 
 const bashIt = process.platform !== "win32" && isBashAvailable() ? it : it.skip;
+const sandboxProbeRoot = mkdtempSync(join(tmpdir(), "codex-sandbox-probe-"));
+const hostSandboxAvailable =
+  (await probeSessionSandboxAvailability({ stateRoot: sandboxProbeRoot }))
+    .state === "available";
+rmSync(sandboxProbeRoot, { recursive: true });
+// Real Bubblewrap launches; see session-sandbox.test.ts.
+const sandboxIt = hostSandboxAvailable ? bashIt : it.skip;
 const unixIt = process.platform !== "win32" ? it : it.skip;
 
 describe("CodexProvider", () => {
@@ -1972,6 +1983,62 @@ describe("CodexProvider app-server lifecycle", () => {
         rmSync(tempDir, { recursive: true, force: true });
       }
     },
+  );
+
+  sandboxIt(
+    "publishes the Codex thread id to tool shells inside a session sandbox",
+    async () => {
+      const tempDir = mkdtempSync(join(tmpdir(), "codex-sandbox-agentctl-"));
+      // The sandbox hides host /tmp but binds the project, so the fake
+      // app-server and its request log live there.
+      const projectPath = join(tempDir, "project");
+      const codexHome = join(tempDir, "codex-home");
+      mkdirSync(projectPath);
+      mkdirSync(codexHome);
+      const logPath = join(projectPath, "fake-codex-requests.jsonl");
+      const codexPath = createFakeCodexCommand(
+        projectPath,
+        "fake-codex-sandbox",
+        buildFakeCodexAppServerWithAgentctlShellProbe(logPath),
+      );
+      vi.stubEnv("CODEX_HOME", codexHome);
+
+      let session:
+        | Awaited<ReturnType<CodexProvider["startSession"]>>
+        | undefined;
+      let consume: Promise<void> | undefined;
+      try {
+        const sessionSandbox = await prepareSessionSandbox({
+          level: "project-write",
+          provider: "codex",
+          projectPath,
+          stateRoot: join(tempDir, "state"),
+        });
+        session = await new CodexProvider({ codexPath }).startSession({
+          cwd: projectPath,
+          initialMessage: { text: "check the agentctl env" },
+          effort: "low",
+          sessionSandbox,
+        });
+        consume = (async () => {
+          for await (const _message of session?.iterator ?? []) {
+            // drain until abort below
+          }
+        })();
+
+        await waitForFakeCodexRequest(logPath, "turn/start", 10_000);
+        const turnStartRequest = readFakeCodexRequests(logPath).find(
+          (request) => request.method === "turn/start",
+        );
+        expect(turnStartRequest?.agentctlSessionId).toBe("thread-agentctl");
+      } finally {
+        await session?.abort();
+        await consume?.catch(() => undefined);
+        vi.unstubAllEnvs();
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    },
+    20_000,
   );
 
   bashIt(
@@ -4640,9 +4707,10 @@ async function consumeCodexTurn(
 async function waitForFakeCodexRequest(
   logPath: string,
   method: string,
+  timeoutMs = 2000,
 ): Promise<void> {
   const startedAt = Date.now();
-  while (Date.now() - startedAt < 2000) {
+  while (Date.now() - startedAt < timeoutMs) {
     if (
       readFakeCodexRequests(logPath).some((entry) => entry.method === method)
     ) {

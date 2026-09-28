@@ -77,7 +77,7 @@ import type {
   ProviderLivenessProbeResult,
   SDKMessage,
 } from "../types.js";
-import { createAgentctlSessionEnvBridge } from "./agentctl-session-env.js";
+import { createLaunchAgentctlSessionEnvBridge } from "./agentctl-session-env.js";
 import { filterEnvForChildProcess } from "./env-filter.js";
 import { normalizeClaudeSubscriptionUsage } from "./provider-subscription-usage.js";
 import type {
@@ -1897,12 +1897,18 @@ export class ClaudeProvider implements AgentProvider {
     const providerSessionOptions = getClaudeSessionLaunchOptions(
       options.sessionOptions,
     );
-    const agentctlSessionEnvBridge = options.executor
+    const launchBridge = options.executor
       ? null
-      : createAgentctlSessionEnvBridge(
-          options.resumeSessionId,
-          options.getSessionChildEnv,
-        );
+      : createLaunchAgentctlSessionEnvBridge({
+          initialSessionId: options.resumeSessionId,
+          getSessionEnv: options.getSessionChildEnv,
+          sessionSandbox: options.sessionSandbox,
+        });
+    const agentctlSessionEnvBridge = launchBridge?.bridge ?? null;
+    // Spawns must use this runtime: it also mounts the bridge directory.
+    const sessionSandbox = launchBridge
+      ? launchBridge.sessionSandbox
+      : options.sessionSandbox;
     const autoCompactOverrideEnv = getClaudeAutoCompactOverrideEnv(
       options.launchCompactPercentOverride,
     );
@@ -2036,12 +2042,12 @@ export class ClaudeProvider implements AgentProvider {
         host: options.executor,
         remoteEnv,
       });
-    } else if (USE_SPAWN_WRAPPER || options.sessionSandbox) {
+    } else if (USE_SPAWN_WRAPPER || sessionSandbox) {
       // Local spawn wrapper: delegates to child_process.spawn but captures the
       // SpawnedProcess reference so we can check liveness (exitCode) later.
       spawnClaudeCodeProcess = (spawnOpts) => {
         const stderrTail: string[] = [];
-        const sandboxed = options.sessionSandbox?.wrapSpawn(
+        const sandboxed = sessionSandbox?.wrapSpawn(
           spawnOpts.command,
           spawnOpts.args,
           spawnOpts.env as NodeJS.ProcessEnv,
@@ -2368,7 +2374,7 @@ export class ClaudeProvider implements AgentProvider {
           remoteEnv,
           pathToClaudeCodeExecutable,
           env: claudeEnv,
-          sessionSandbox: options.sessionSandbox,
+          sessionSandbox,
         }),
       publishAgentctlSessionId: (
         sessionId: string,

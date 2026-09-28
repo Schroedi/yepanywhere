@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, fstatSync, openSync } from "node:fs";
+import { closeSync, fstatSync, lstatSync, openSync } from "node:fs";
 import {
   constants as fsConstants,
   chmod,
@@ -73,6 +73,11 @@ const NETWORK_BLOCKED_IPV4_DESTINATIONS = [
   "224.0.0.0/4",
   "240.0.0.0/4",
 ] as const;
+/**
+ * Mount point for one launch's session-environment bridge, inside the
+ * sandbox's fresh /run tmpfs, where no other session's bridge can appear.
+ */
+const SESSION_ENV_BRIDGE_MOUNT_POINT = "/run/ya-agentctl-session";
 /** Prefix of the availability probe's throwaway state; never a state key. */
 const AVAILABILITY_PROBE_STATE_PREFIX = ".availability-probe-";
 const SUPPORTED_PROVIDERS = new Set<ProviderName>([
@@ -138,6 +143,14 @@ export interface SessionSandboxRuntime {
    * Host-side fork helpers must not resolve agent-controlled symlinks.
    */
   openTranscriptDirectory(): Promise<FileHandle>;
+  /** Where a launch's session-environment bridge appears inside the sandbox. */
+  readonly sessionEnvBridgeDirectory: string;
+  /**
+   * A runtime whose spawns also mount this one launch's bridge directory
+   * read-only at `sessionEnvBridgeDirectory`. It is a directory bind, so the
+   * server's later atomic replacements inside it stay visible.
+   */
+  withSessionEnvBridge(hostDirectory: string): SessionSandboxRuntime;
   wrapSpawn(
     command: string,
     args: readonly string[],
@@ -1310,7 +1323,10 @@ export async function prepareSessionSandbox(
     sandboxEnv.CLAUDE_SESSIONS_DIR = join(providerStateDir, "projects");
   }
 
-  return {
+  const runtimeWithArgs = (
+    launchArgs: readonly string[],
+    sessionEnvBridgeMounted: boolean,
+  ): SessionSandboxRuntime => ({
     stateKey,
     projectPath,
     transcriptDir,
@@ -1322,6 +1338,31 @@ export async function prepareSessionSandbox(
       state: "enforced",
       hostBackend: `bubblewrap:${basename(bwrapPath)}`,
       networkFirewall,
+    },
+    sessionEnvBridgeDirectory: SESSION_ENV_BRIDGE_MOUNT_POINT,
+    withSessionEnvBridge(hostDirectory) {
+      if (sessionEnvBridgeMounted) {
+        throw new Error(
+          "Session sandbox already mounts a session environment bridge.",
+        );
+      }
+      if (!isAbsolute(hostDirectory)) {
+        throw new Error(
+          "Session sandbox bridge directory must be an absolute path.",
+        );
+      }
+      if (!lstatSync(hostDirectory).isDirectory()) {
+        throw new Error("Session sandbox bridge path must be a directory.");
+      }
+      return runtimeWithArgs(
+        [
+          ...launchArgs,
+          "--ro-bind",
+          hostDirectory,
+          SESSION_ENV_BRIDGE_MOUNT_POINT,
+        ],
+        true,
+      );
     },
     wrapSpawn(command, args, env) {
       const projectAnchor = openProjectDirectoryAnchor(
@@ -1335,13 +1376,13 @@ export async function prepareSessionSandbox(
             ? buildNetworkLauncherArgs({
                 tools: networkTools,
                 bwrapPath,
-                bwrapArgs: baseArgs,
+                bwrapArgs: launchArgs,
                 blockedDestinations,
                 passProjectFd: true,
                 command,
                 commandArgs: args,
               })
-            : [...baseArgs, "--", command, ...args],
+            : [...launchArgs, "--", command, ...args],
         // Bubblewrap changes to the project only after installing the
         // descriptor-backed bind. Its host-side cwd must not follow a
         // pathname replacement between wrapSpawn() and spawn().
@@ -1354,5 +1395,6 @@ export async function prepareSessionSandbox(
         release: () => projectAnchor.release(),
       };
     },
-  };
+  });
+  return runtimeWithArgs(baseArgs, false);
 }

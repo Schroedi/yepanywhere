@@ -403,6 +403,20 @@ shape, it is unsupported for this level until the boundary is redesigned.
 Project-local temporary/cache directories may be used when doing so preserves
 provider behavior and does not rewrite unrelated user configuration.
 
+### Session environment bridge
+
+A sandboxed session's Bash tool shells read `AGENTCTL_SESSION_ID` and the
+other session-scoped outputs from YA's `BASH_ENV` bridge
+([subprocess environment](subprocess-environment.md#shell-startup-contracts)),
+the same as an unsandboxed session. The bridge lives in host temp, which the
+private `/tmp` hides, so each Claude or Codex launch mounts its own bridge
+directory, and no other, read-only at `/run/ya-agentctl-session` inside the
+sandbox's private `/run`. It is a directory mount, so an id the server
+publishes after the provider started, or a later replacement of it, reaches
+the next shell. A resumed launch's shells see its id at once. The sandbox
+cannot write the bridge, and other launches' bridges and host temp files stay
+hidden.
+
 ### Future global transcript integration
 
 V1 keeps Claude and Codex transcripts in their project-private provider-state
@@ -725,6 +739,10 @@ verifier receives 401 rather than operator authority. Network cases verify
 public IPv4 DNS and routing; deny private and IPv6 routes, loopback, the slirp
 host alias, and the host's concrete IPv4 address; isolate host abstract
 sockets; and mask an explicitly configured provider-host runtime directory.
+Bridge cases run Bash inside one long-lived sandboxed process before and after
+publication and after a replaced id, for fresh and resumed launches, including
+through the Claude and Codex adapters' own spawn paths, and verify that
+another bridge and unrelated host temp files stay hidden.
 
 ## Linux Backend Evidence
 

@@ -121,7 +121,7 @@ import type {
 } from "./codex-protocol/index.js";
 import type { SandboxPolicy as CodexSandboxPolicy } from "./codex-protocol/generated/v2/SandboxPolicy.js";
 import {
-  createAgentctlSessionEnvBridge,
+  createLaunchAgentctlSessionEnvBridge,
   type AgentctlSessionEnvBridge,
 } from "./agentctl-session-env.js";
 import {
@@ -2721,10 +2721,15 @@ export class CodexProvider implements AgentProvider {
     skillInventory: CodexSessionSkillInventory,
   ): AsyncIterableIterator<SDKMessage> {
     const codexCommand = await this.resolveCodexCommand();
-    const agentctlSessionEnvBridge = createAgentctlSessionEnvBridge(
-      options.resumeSessionId,
-      options.getSessionChildEnv,
-    );
+    const {
+      bridge: agentctlSessionEnvBridge,
+      // Spawns must use this runtime: it also mounts the bridge directory.
+      sessionSandbox,
+    } = createLaunchAgentctlSessionEnvBridge({
+      initialSessionId: options.resumeSessionId,
+      getSessionEnv: options.getSessionChildEnv,
+      sessionSandbox: options.sessionSandbox,
+    });
     setAgentctlSessionEnvBridge(agentctlSessionEnvBridge);
     const codexEnv = agentctlSessionEnvBridge.extendEnv({
       ...this.getCodexEnv(),
@@ -2748,7 +2753,7 @@ export class CodexProvider implements AgentProvider {
       codexEnv,
       (notification) =>
         this.shouldSuppressLiveDeltaNotification(notification, options),
-      options.sessionSandbox,
+      sessionSandbox,
     );
     setActiveClient(appServer);
 
