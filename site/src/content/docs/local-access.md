@@ -1,6 +1,6 @@
 ---
 title: Local access and passwords
-description: Require a password for direct browser access, let this device in without one, add limited users, and recover a lost password.
+description: Require a password for direct browser access, see what it changes, add limited users, and recover a lost password.
 ---
 
 Local access is how a browser reaches the server directly, on the same machine
@@ -10,10 +10,21 @@ or across a LAN or private network. It has its own password, separate from the
 
 ## Require a password
 
-In **Settings → Local Access**, turn on **Require Password**, enter a password
-of at least 6 characters, confirm it, and choose **Apply Changes**. Browsers
-then sign in at the login page and stay signed in on that device until they
-sign out or the session expires.
+1. Open **Settings → Local Access**.
+2. Turn on **Require Password**. **Password** and **Confirm Password** fields
+   appear.
+3. Enter a password of at least 6 characters in both, then choose **Apply
+   Changes**.
+
+The page you are on immediately sends you to the login screen: the Yep
+Anywhere logo, **Enter your password to continue**, a single **Password**
+field and a **Login** button. There is no username. Sign in with the password you just set.
+That browser then stays signed in for 30 days (`AUTH_SESSION_TTL_DAYS`) or
+until you sign out.
+
+The password applies to every browser, including one on the host itself at
+`http://localhost:3400`. Reloading there after your session expires shows the
+same login screen.
 
 For a headless machine, set the password from the command line before starting
 the server:
@@ -28,19 +39,36 @@ afterwards.
 Leave **Require Password** on whenever the server listens beyond localhost,
 such as with **Local Network Access** or behind your own reverse proxy.
 
-## Let this device in without a password
+## What a password changes
 
-**Allow Localhost Access** lets browsers on the host itself connect without
-signing in, while other devices still need the password. Anything running on
-the host, including agent sessions, can then reach the server without a
-password. When you start a sandboxed session in that state, New Session shows
-a warning under the sandbox option.
+- **Remote Access** is unaffected. The relay keeps using its own username and
+  password.
+- **Ports** do not change. The server, artifact viewer and app hosts keep
+  their ports.
+- **Artifact and app links** keep working. Each link carries its own access
+  token, so opening one needs no YA login, and existing links stay valid. A
+  signed-in YA page creates new links as before.
+- **Programs on the host** that call the YA API directly, such as an agent
+  tool asking YA for an artifact link, are refused until they sign in. Tools
+  talking to the provider host are unaffected.
+- **Sandboxed sessions** carry no warning. Without a password, New Session
+  shows a warning under the sandbox option, because a sandboxed agent that
+  reaches YA could control it.
+
+## Desktop app: Allow Localhost Access
+
+The macOS and Windows apps protect the server with a desktop credential even
+when **Require Password** is off. While it is off, **Allow Localhost Access**
+drops that credential, so other browsers on the computer can connect. It
+admits every request that reaches the server, so with **Local Network Access**
+on it also opens the server to your network. Use **Require Password** instead
+when other devices can reach it.
 
 ## Limited users (preview)
 
 **Settings → Users** creates password-protected accounts for trusted family or
 collaborators and grants each one selected projects. Limited users need
-**Require Password** on and **Allow Localhost Access** off.
+**Require Password** on.
 
 With limited users enabled, the login page asks for a username: leave it blank
 to sign in as the owner. Over the relay, enter the limited username in **Log in
