@@ -82,6 +82,17 @@ describe("SessionMetadataService", () => {
     );
   });
 
+  it("keeps the recorded creator through later metadata updates", async () => {
+    await service.initialize();
+    await service.recordSessionCreator("session-1", "archer");
+    await service.updateMetadata("session-1", { starred: true });
+    await service.updateMetadata("session-1", { title: "Renamed" });
+
+    const restored = new SessionMetadataService({ dataDir: testDir });
+    await restored.initialize();
+    expect(restored.getMetadata("session-1")?.createdByUser).toBe("archer");
+  });
+
   describe("initialization", () => {
     it("retries an unchanged goal after a failed save", async () => {
       await service.initialize();

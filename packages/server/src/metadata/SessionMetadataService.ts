@@ -1287,6 +1287,7 @@ export class SessionMetadataService {
     if (updated.creationProvenance) {
       cleaned.creationProvenance = updated.creationProvenance;
     }
+    if (updated.createdByUser) cleaned.createdByUser = updated.createdByUser;
     if (updated.nonHumanUserTurn) {
       cleaned.nonHumanUserTurn = updated.nonHumanUserTurn;
     }
