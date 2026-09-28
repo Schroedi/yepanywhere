@@ -18,6 +18,7 @@ import {
   type MutableFileOpener,
   openMutableFileSnapshot,
 } from "./mutable-file-cache.js";
+import type { SessionPathScopeResolver } from "./session-path-scope.js";
 import { createUntrustedFileResponseHeaders } from "./untrusted-file-response.js";
 
 interface LocalFileDeps {
@@ -25,6 +26,8 @@ interface LocalFileDeps {
   scanner?: Pick<ProjectScanner, "listProjects">;
   includeProjects?: () => boolean;
   openFile?: MutableFileOpener;
+  /** Resolve paths as one session names them (the session-scoped mount). */
+  scope?: SessionPathScopeResolver;
 }
 
 interface LocalFileReference {
@@ -434,11 +437,17 @@ export function createLocalFileRoutes(deps: LocalFileDeps) {
       parsePositiveInteger(c.req.query("line")),
       parsePositiveInteger(c.req.query("column")),
     );
-    const filePath = requested.filePath;
-
-    if (!pathPolicy.isAbsolutePath(filePath)) {
+    if (!pathPolicy.isAbsolutePath(requested.filePath)) {
       return c.json({ error: "Path must be absolute" }, 400);
     }
+    const scoped = deps.scope?.(c, requested.filePath);
+    if (scoped && "status" in scoped) {
+      return c.json({ error: scoped.error }, scoped.status);
+    }
+    const filePath = scoped?.hostPath ?? requested.filePath;
+    const requestPolicy = scoped
+      ? createLocalResourcePathPolicy({ ...deps, ...scoped })
+      : pathPolicy;
 
     const contentType = getLocalFileContentType(filePath);
     if (!contentType) {
@@ -446,7 +455,7 @@ export function createLocalFileRoutes(deps: LocalFileDeps) {
     }
 
     try {
-      const resolved = await pathPolicy.resolveAllowedFilePath(filePath);
+      const resolved = await requestPolicy.resolveAllowedFilePath(filePath);
       if (!resolved.ok) {
         return c.json({ error: resolved.error }, resolved.status);
       }

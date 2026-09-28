@@ -1,6 +1,13 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, fstatSync, lstatSync, openSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readdirSync,
+} from "node:fs";
 import {
   constants as fsConstants,
   chmod,
@@ -1127,11 +1134,48 @@ function sandboxStatePaths(stateDir: string, provider: ProviderName) {
   return {
     providerStateDir: join(stateDir, provider === "codex" ? "codex" : "claude"),
     cacheDir: join(stateDir, "cache"),
-    tempDir: join(stateDir, "tmp"),
-    varTempDir: join(stateDir, "var-tmp"),
+    ...sandboxPrivateTempDirs(stateDir),
     privateClaudeJson: join(stateDir, "claude.json"),
     networkResolvConf: join(stateDir, "network-resolv.conf"),
   };
+}
+
+/**
+ * Host directories a sandbox mounts as its private /tmp and /var/tmp, so a
+ * path a sandboxed session printed under those names can be found on the
+ * host. `stateDir` is `<state root>/<state key>`.
+ */
+export function sandboxPrivateTempDirs(stateDir: string): {
+  tempDir: string;
+  varTempDir: string;
+} {
+  return {
+    tempDir: join(stateDir, "tmp"),
+    varTempDir: join(stateDir, "var-tmp"),
+  };
+}
+
+/**
+ * Every existing sandbox's private /tmp and /var/tmp under `stateRoot`: the
+ * scratch sandboxed sessions write artifacts to. Provider state, credentials
+ * and caches beside them are not included.
+ */
+export function listSandboxPrivateTempRoots(stateRoot: string): string[] {
+  let keys: string[];
+  try {
+    keys = readdirSync(stateRoot);
+  } catch (error) {
+    if (hasErrorCode(error, "ENOENT")) return [];
+    throw error;
+  }
+  return keys
+    .filter((key) => SANDBOX_STATE_KEY_PATTERN.test(key))
+    .flatMap((key) => {
+      const { tempDir, varTempDir } = sandboxPrivateTempDirs(
+        join(stateRoot, key),
+      );
+      return [tempDir, varTempDir].filter((dir) => existsSync(dir));
+    });
 }
 
 async function makePrivateDirectories(

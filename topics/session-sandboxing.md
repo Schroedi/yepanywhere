@@ -403,6 +403,16 @@ state. Claude and Codex have separate provider subtrees within that root:
 Claude receives a private `CLAUDE_CONFIG_DIR`; Codex receives a private
 `CODEX_HOME`.
 
+A path a sandboxed session prints under `/tmp` or `/var/tmp` therefore names
+a file in that private root, not the host's. The session-scoped file doors
+(`/api/sessions/:id/local-file`, `/local-image`, and the interactive preview
+grant `POST /api/sessions/:id/artifacts`) read a path as its session sees it:
+those two prefixes map to the session's private temp directories, except
+inside the project, which the sandbox binds at its own path. Artifact reads
+admit every sandbox's private temp directories, never the provider state or
+cache beside them. The host-wide doors keep reading host paths. Limited-user
+confinement of these doors is in [limited users](limited-users.md).
+
 Those provider trees contain the authoritative live transcripts. Each session
 and explicit fork still has its own provider transcript file; they share the
 project's provider configuration, agents/skills, cache, and temporary space,

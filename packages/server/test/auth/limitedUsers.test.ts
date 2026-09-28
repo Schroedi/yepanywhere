@@ -115,6 +115,29 @@ describe("limited-user route policy", () => {
     ).toEqual({ kind: "session", sessionId: "s1", required: "join" });
   });
 
+  it("scopes file reads and previews to a session, never the host-wide doors", () => {
+    expect(decide("GET", "/api/sessions/s1/local-file?path=/tmp/a")).toEqual({
+      kind: "session",
+      sessionId: "s1",
+      required: "view",
+    });
+    expect(decide("GET", "/api/sessions/s1/local-image?path=/tmp/a")).toEqual({
+      kind: "session",
+      sessionId: "s1",
+      required: "view",
+    });
+    expect(decide("POST", "/api/sessions/s1/artifacts")).toEqual({
+      kind: "session",
+      sessionId: "s1",
+      required: "join",
+    });
+    // The host-wide doors stay closed to them.
+    expect(decide("GET", "/api/local-file?path=/tmp/a")).toEqual({
+      kind: "deny",
+    });
+    expect(decide("POST", "/api/artifacts")).toEqual({ kind: "deny" });
+  });
+
   it("lets a reader refresh a session's list preview, which launches nothing", () => {
     expect(
       decide("POST", "/api/projects/abc/sessions/s1/refresh-preview"),

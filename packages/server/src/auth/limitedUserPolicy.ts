@@ -179,6 +179,10 @@ const JOIN_SESSION_ACTIONS = new Set([
   // Opening a server the session started in its sandbox: it acts on that
   // session's own process, as a turn does.
   "sandbox-apps",
+  // An interactive preview of a file the session wrote: a bearer link to
+  // that file's directory, confined by the route to the session's project
+  // and sandbox temp (routes/session-path-scope.ts).
+  "artifacts",
 ]);
 
 /**

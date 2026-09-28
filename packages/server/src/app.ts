@@ -24,6 +24,7 @@ import {
   createSessionAppRoutes,
   sessionAppBrokerSocket,
 } from "./routes/sessionApps.js";
+import { createSessionPathScopeResolver } from "./routes/session-path-scope.js";
 import {
   VhostAppControl,
   vhostAppControlAvailable,
@@ -99,6 +100,7 @@ import {
   getClaudeSandboxProjectDir,
   getCodexSandboxSessionsDir,
   getSessionSandboxAvailability,
+  listSandboxPrivateTempRoots,
 } from "./session-sandbox.js";
 import { updateAllowedHosts } from "./middleware/allowed-hosts.js";
 import { AgentServerTokens } from "./auth/AgentServerTokens.js";
@@ -1076,9 +1078,20 @@ export function createApp(options: AppOptions): AppResult {
     options.serverSettingsService?.getSetting("artifactViewer") ?? {
       port: 4402,
     };
+  const sandboxStateRoot = join(effectiveDataDir, "session-sandboxes");
   artifactServer = new ArtifactServer(
     validateArtifactConfig(artifactConfig),
-    localResourcePathPolicy,
+    // Artifact reads also admit sandboxes' private /tmp scratch, where a
+    // sandboxed session writes what it wants to show; the session-scoped
+    // grant route confines a limited user to their own session's.
+    createLocalResourcePathPolicy({
+      allowedPaths: () => [
+        ...getAllowedFilePaths(),
+        ...listSandboxPrivateTempRoots(sandboxStateRoot),
+      ],
+      scanner,
+      includeProjects: shouldIncludeProjects,
+    }),
     {
       stateDir: join(effectiveDataDir, "artifacts"),
       // An owning grant may never delete YA's own state or the checkout it
@@ -1086,6 +1099,14 @@ export function createApp(options: AppOptions): AppResult {
       protectedPaths: [effectiveDataDir, process.cwd()],
     },
   );
+  // Paths as a session names them: a sandboxed session's /tmp is its own.
+  // Shared by the session-scoped file reads below and the artifact grant.
+  const sessionPathScope = createSessionPathScopeResolver({
+    sessionMetadataService: options.sessionMetadataService,
+    sandboxStateRoot,
+    allowedPaths: getAllowedFilePaths,
+    includeProjects: shouldIncludeProjects,
+  });
   app.route(
     "/api",
     createArtifactRoutes({
@@ -1093,6 +1114,7 @@ export function createApp(options: AppOptions): AppResult {
       scanner,
       settings: options.serverSettingsService,
       locked: options.artifacts !== undefined,
+      sessionPathScope,
     }),
   );
   app.route(
@@ -3390,6 +3412,27 @@ export function createApp(options: AppOptions): AppResult {
       allowedPaths: getAllowedFilePaths,
       includeProjects: shouldIncludeProjects,
       scanner,
+    }),
+  );
+  // The same doors for a path as one session named it. Session-scoped, so a
+  // limited user reaches them for sessions they may read, confined to that
+  // session's project and sandbox temp (routes/session-path-scope.ts).
+  app.route(
+    "/api/sessions/:sessionId/local-image",
+    createLocalImageRoutes({
+      allowedPaths: getAllowedFilePaths,
+      includeProjects: shouldIncludeProjects,
+      scanner,
+      scope: sessionPathScope,
+    }),
+  );
+  app.route(
+    "/api/sessions/:sessionId/local-file",
+    createLocalFileRoutes({
+      allowedPaths: getAllowedFilePaths,
+      includeProjects: shouldIncludeProjects,
+      scanner,
+      scope: sessionPathScope,
     }),
   );
 
