@@ -20,13 +20,18 @@ superuser ([limited users](../../topics/limited-users.md#usage)).
 
 ## Direction
 
-- **Outline disclosure.** Read as: the `-`/`+` moves to lead the title like an
-  outliner, and the whole header row (marker plus title) is one button with
-  `aria-expanded`. The existing trailing button is a small target separated
-  from its label. Alternative reading: keep the trailing position, draw the
-  marker as an outlined box. Confirm before implementing.
+- **Clickable section names.** User direction, 2026-09-28: clicking a
+  section's name expands or collapses it, with some visual cue; no outlined
+  `-`/`+` box is required, and rows are never indented under a header.
+  Mocked proposal: the whole header row is one button with `aria-expanded`;
+  a small chevron directly after the name points down when open and right
+  when closed; a closed section shows its row count at the far right. This
+  replaces the separate trailing `-`/`+` button for every section, Starred
+  included.
 - **Manual categories.** A user creates, renames, and deletes named
-  categories and assigns a session to one from the row menu. A categorized
+  categories and assigns a session to one from the row menu (mocked as a
+  *Move to category* group: existing categories with the current one checked,
+  *New category…*, and *Remove from category*). A categorized
   session shows in its category instead of Last 24 Hours / Older; whether it
   also leaves Starred is open. Category sections sort by the same user
   chronology as the fixed sections, render in a fixed default position
@@ -35,7 +40,8 @@ superuser ([limited users](../../topics/limited-users.md#usage)).
   keyed by section id.
 - **Per-user categories.** For each limited user with loaded sessions, an
   automatic section titled with their username, placed by default directly
-  under Last 24 Hours. Only the superuser sees these; a limited user's own
+  under Last 24 Hours, marked by a small person glyph after the name so the
+  name itself stays aligned. Only the superuser sees these; a limited user's own
   sidebar is unchanged. A manual category assignment presumably wins over the
   automatic user grouping.
 - **Order.** v1 uses the default order: Starred, manual categories (creation
