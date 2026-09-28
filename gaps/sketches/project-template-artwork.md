@@ -1,8 +1,9 @@
 # Template-provided thumbnails and icons
 
 Requested 2026-09-28 alongside the always-visible template palette and inline
-New session creation. This is a specification sketch, not an implemented format
-extension. [Project templates](../../topics/project-templates.md) owns the
+New session creation. Runtime artwork delivery remains a specification sketch.
+The user approved the mockup icons and their addition to the source templates
+on 2026-09-28. [Project templates](../../topics/project-templates.md) owns the
 existing composed `.project-template/preview.svg` image contract; keep that
 path compatible rather than adding a second thumbnail declaration.
 
@@ -20,12 +21,14 @@ path compatible rather than adding a second thumbnail declaration.
   Project preparation may generate project branding without changing the source
   template or silently turning its thumbnail into the project's identity.
 
-## Candidate source contract
+## Adopted source convention; proposed delivery
 
-Preserve `.project-template/preview.svg`; consider a composed
-`.project-template/icon.svg` for the compact mark. Both would use normal
-explicit file composition and override rules. The icon filename is a proposal
-until the source format authority adopts it. Authors should provide artwork
+Preserve `.project-template/preview.svg`; use a composed
+`.project-template/icon.svg` for the compact mark. Both use normal explicit file
+composition and override rules. The source library's FORMAT.md now specifies
+`icon.svg` and `preview.svg` beside `template.json`, explicitly mapped to those
+destinations. App canvas, Web page and Storybook supply the approved icons.
+Authors should provide artwork
 legible on both light and dark cards, with intrinsic dimensions and no embedded
 text that duplicates the chooser label.
 
@@ -37,8 +40,7 @@ the page; require self-contained assets and prevent external fetches. Local
 source refresh and layered replacements must invalidate the matching art.
 
 Before implementation, settle supported image formats, byte/dimension limits,
-asset endpoint/caching and its capability gate, plus the exact icon convention
-in the source library's FORMAT.md. Verify malicious SVG/external references,
+asset endpoint/caching and its capability gate. Verify malicious SVG/external references,
 source shadowing, revoked grants, missing images and light/dark mobile rendering.
 
 The placement fixture uses bundled illustrative vector marks only. It does not

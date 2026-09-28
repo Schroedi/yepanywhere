@@ -169,6 +169,14 @@ the template title as accessible text; do not inject its markup into the page.
 App canvas supplies the drawing graphic from the reviewed mockup. This asset
 represents the template type, not the eventual app's screenshot.
 
+The optional compact icon is `.project-template/icon.svg`. Source authors keep
+`icon.svg` beside `template.json` and explicitly map it to that destination,
+just as `preview.svg` maps to `.project-template/preview.svg`. Both are ordinary
+format-version-1 files, not new manifest fields. App canvas, Web page and
+Storybook supply the approved 24×24 vector marks. The same self-contained,
+image-only rendering contract applies; the template icon is distinct from the
+created application's favicon and branding. YA runtime display remains pending.
+
 ### Composition and collisions
 
 Multiple bases are an ordered dependency graph. Apply each shared ancestor
@@ -263,7 +271,8 @@ illustrates placement only; production integration remains pending.
 
 [Template artwork](../gaps/sketches/project-template-artwork.md) sketches
 source-provided thumbnails and compact icons beyond the existing preview image
-contract. Its proposed icon convention is not part of format version 1 yet.
+contract. The source icon convention is adopted; runtime artwork delivery and
+thumbnail presentation remain proposed.
 
 **Create & prepare** explicitly authorizes the following sequence:
 

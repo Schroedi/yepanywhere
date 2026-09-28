@@ -13,6 +13,8 @@ settings without page navigation. The isolated fixture is
 `packages/client/mockups/project-template-placement/`; it is a mockup-first
 delivery, not production creation. The optional artwork specification remains
 in [its sketch](../../gaps/sketches/project-template-artwork.md).
+The user approved these placement mockups on 2026-09-28, including the three
+compact SVG icons, and requested that the icons ship with the source templates.
 Contributing-model: 6-Astra.
 
 The user authorized implementation and expanded the default limited-user
