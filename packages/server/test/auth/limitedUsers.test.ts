@@ -195,6 +195,23 @@ describe("limited-user route policy", () => {
     expect(decide("POST", "/api/sessions")).toEqual({ kind: "deny" });
   });
 
+  it("refuses restarting the server and updating host software", () => {
+    // The client hides these notices from a limited user; the server is what
+    // stops a script from firing them anyway.
+    for (const [method, url] of [
+      ["POST", "/api/server/restart"],
+      ["POST", "/api/dev/safe-restart"],
+      ["DELETE", "/api/dev/safe-restart"],
+      ["POST", "/api/dev/frontend-changed"],
+      ["GET", "/api/codex/updates"],
+      ["POST", "/api/codex/updates/install"],
+    ] as const) {
+      expect(decide(method, url), `${method} ${url}`).toEqual({
+        kind: "deny",
+      });
+    }
+  });
+
   it("takes no project grant from a query parameter the route ignores", () => {
     // Each of these handlers ignores `projectId`; a granted id in the query
     // must not open them.

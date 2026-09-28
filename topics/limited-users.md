@@ -411,7 +411,12 @@ for, so nothing about limited users appears anywhere else until one exists.
 
 Nav entries a limited user cannot use are hidden, and the sidebar session
 list shows only sessions in their accessible projects plus sessions they
-started. Hiding is cosmetic; the middleware above is the enforcement.
+started. Host-administration notices are not shown to a limited user: the
+server-changed reload banner, the Codex update prompt, and the YA server
+update/compatibility notices (`useCanAdministerHost`). The frontend-changed
+reload banner stays, since reloading their own page is theirs to do. Hiding is
+cosmetic; the middleware above is the enforcement, and it refuses the restart,
+safe-restart, and Codex update routes.
 
 ### Usage
 
