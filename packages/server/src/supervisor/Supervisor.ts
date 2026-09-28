@@ -897,6 +897,45 @@ export class Supervisor {
     };
   }
 
+  /**
+   * An existing session's launch with its settled sandbox applied. A
+   * persisted project-write sandbox binds every later process for the
+   * session (topics/session-sandboxing.md § Session Lifetime), so wake,
+   * heartbeat, deferred-message and restart relaunches keep it whether or
+   * not their caller restated it. A request to weaken it is refused; only a
+   * new session may choose a weaker boundary.
+   */
+  private withSettledSandbox(
+    sessionId: string,
+    projectPath: string,
+    modelSettings: ModelSettings | undefined,
+  ): { projectPath: string; modelSettings: ModelSettings | undefined } {
+    const settled = this.sessionMetadataService?.getMetadata(sessionId);
+    if (settled?.sandboxLevel !== "project-write") {
+      return { projectPath, modelSettings };
+    }
+    const settledFirewall = settled.sandboxNetworkFirewall !== false;
+    if (
+      modelSettings?.sandboxLevel === "none" ||
+      (settledFirewall && modelSettings?.sandboxNetworkFirewall === false)
+    ) {
+      throw new Error(
+        `Session ${sessionId} keeps its settled sandbox; start a new session for a weaker one.`,
+      );
+    }
+    return {
+      projectPath: settled.sandboxProjectPath ?? projectPath,
+      modelSettings: {
+        ...modelSettings,
+        sandboxLevel: "project-write",
+        sandboxNetworkFirewall:
+          settledFirewall || modelSettings?.sandboxNetworkFirewall === true,
+        sandboxStateKey:
+          settled.sandboxStateKey ?? modelSettings?.sandboxStateKey,
+      },
+    };
+  }
+
   private resolveProvider(modelSettings?: ModelSettings): AgentProvider | null {
     const providerName = modelSettings?.providerName
       ? modelSettings.providerName
@@ -1178,17 +1217,37 @@ export class Supervisor {
    * Claude and Codex reactivate with no synthetic turn.
    */
   async reactivateSession(
-    projectPath: string,
+    requestedProjectPath: string,
     resumeSessionId: string,
     permissionMode?: PermissionMode,
-    modelSettings?: ModelSettings,
+    requestedModelSettings?: ModelSettings,
     options?: SessionReactivationOptions,
   ): Promise<Process> {
+    const { projectPath, modelSettings } = this.withSettledSandbox(
+      resumeSessionId,
+      requestedProjectPath,
+      requestedModelSettings,
+    );
     this.assertSessionSandboxSettings(modelSettings);
-    const requestedOverrides = options?.requestedOverrides ?? {
-      ...(permissionMode !== undefined ? { permissionMode } : {}),
-      ...(modelSettings ? { modelSettings } : {}),
-    };
+    const overrides = options?.requestedOverrides;
+    const overrideSettings = overrides?.modelSettings;
+    const requestedOverrides = overrides
+      ? {
+          ...overrides,
+          ...(overrideSettings
+            ? {
+                modelSettings: this.withSettledSandbox(
+                  resumeSessionId,
+                  projectPath,
+                  overrideSettings,
+                ).modelSettings,
+              }
+            : {}),
+        }
+      : {
+          ...(permissionMode !== undefined ? { permissionMode } : {}),
+          ...(modelSettings ? { modelSettings } : {}),
+        };
 
     const projectId = encodeProjectId(projectPath);
     return this.activationCoordinator.reactivate({
@@ -2808,12 +2867,17 @@ export class Supervisor {
 
   async resumeSession(
     sessionId: string,
-    projectPath: string,
+    requestedProjectPath: string,
     message: UserMessage,
     permissionMode?: PermissionMode,
-    modelSettings?: ModelSettings,
+    requestedModelSettings?: ModelSettings,
     launchOptions?: SessionLaunchOptions,
   ): Promise<Process | QueuedResponse | QueueFullResponse> {
+    const { projectPath, modelSettings } = this.withSettledSandbox(
+      sessionId,
+      requestedProjectPath,
+      requestedModelSettings,
+    );
     this.assertSessionSandboxSettings(modelSettings);
     await this.activationCoordinator.waitForActivation(sessionId);
 

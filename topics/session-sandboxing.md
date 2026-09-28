@@ -575,6 +575,15 @@ New-session derivatives must not silently weaken confinement:
 - resuming the same session uses its persisted level, not the user's newer
   global default.
 
+The supervisor enforces the last rule itself rather than trusting each caller
+to restate the level. Every resume or reactivation of a session whose metadata
+records `project-write` launches with that level, its firewall selection,
+state key and sandbox project path. That covers internal relaunches that name
+no sandbox: wake, heartbeat turns, deferred messages after a hard abort, and
+effort or provider restarts. A request that names `none`, or turns off a
+recorded firewall, is refused rather than applied, whoever makes it, including
+through `POST …/reactivate`. A weaker boundary takes a new session.
+
 Provider children created beneath the provider process inherit its Bubblewrap
 namespace. Same-session process recreation reloads the persisted level and
 private state key. Every derivative for the same canonical project uses that
