@@ -46,6 +46,12 @@ export const docsNavigation: DocsNavSection[] = [
           "Control any host from anything with a modern web browser.",
       },
       {
+        path: "/docs/home-screen",
+        title: "iPad and iPhone Home Screen",
+        description:
+          "Add an app icon with Safari and stay signed in, owner or limited user.",
+      },
+      {
         path: "/docs/local-access",
         title: "Local access and passwords",
         description:

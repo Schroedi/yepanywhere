@@ -297,3 +297,28 @@ jobs:
           path: packages/client/test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  # Safari's engine on an emulated iPad: a limited user's relay login resumes
+  # from the Home Screen start URL (site/src/content/docs/home-screen.md).
+  ipad-webkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.16.0
+          cache: "pnpm"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @yep-anywhere/shared build
+      - run: pnpm -F @yep-anywhere/client exec playwright install --with-deps webkit
+      - run: pnpm -F @yep-anywhere/client exec playwright test --config playwright.ipad.config.ts --reporter=list,github
+      - name: Preserve browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ipad-webkit-failures-${{ github.run_attempt }}
+          path: packages/client/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
