@@ -1,5 +1,11 @@
 # A project's own app shows in-session; public serving is a manual Publish
 
+The selected declaration, main-pane project UI, Settings placement and
+audit-preserving removal are now specified in
+[project service](../../topics/project-service.md). It refines this direction;
+the runner and no-vhost delivery remain unimplemented. The session broker
+implementation described below is separate evidence.
+
 User direction, 2026-09-28, prompted by an App canvas project whose limited
 user saw no app: the preparation session served its starter only on a
 loopback port for its own checks, so nothing registered an app and the

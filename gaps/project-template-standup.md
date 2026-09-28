@@ -81,6 +81,16 @@ project; the grant UI is not useful before creation exists.
 
 ## Remaining integration
 
+- User-directed, 2026-09-28: implement the standardized declaration and
+  main-pane App / project Settings surface in
+  [project service](../topics/project-service.md). Reuse the existing sandbox
+  broker and HTTP proxy, but add project-owned runtime lifetime and delivery
+  without configured vhosts. Show any previous reservation only when vhost
+  serving is enabled; reservation, publication and service startup are separate.
+  A limited user's project removal must hide it only from that principal,
+  retaining superuser visibility and audit history. The spec and isolated
+  mockup do not close these runtime requirements. Contributing-model: 6-Astra.
+
 - User report, 2026-09-28: a limited user may be unable to create an App pane
   or start the template app. Reproduce both separately. Local `*.localhost`
   routing must work without configuring the maintainer's public wildcard.

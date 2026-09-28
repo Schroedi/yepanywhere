@@ -277,7 +277,27 @@ for `setup`, `build`, `test`, `preview`, a vendored `prepare` prompt, and
 `addons.server`. Activating the server adds `start`. Commands run in the
 project directory without shell interpolation. `.project-template/project.json`
 records entered name/description and composition provenance. The initial CLI
-consumes setup; YA orchestration remains to be implemented.
+consumes setup; YA creation now consumes it too. Persistent serving remains
+unimplemented.
+
+### Standard app and service declaration
+
+The approved product extension is specified in
+[project service](project-service.md#standard-declaration-where-start-status-stop-serving):
+an optional versioned `service` object in `.project-template/app.json` with
+explicit **where**, **start**, **status**, **stop**, and **serving** sections.
+Static App canvas declares its built root and entry without inventing a
+process; the activated server add-on declares a foreground command, readiness
+probe and owned-process stop policy. Existing setup/build/test and composition
+fields remain compatible. This extension still needs source-format and loader
+implementation; today's creation capability does not advertise it.
+
+That topic also owns main-pane **Open app**, preferring the declared app and
+otherwise the latest authorized project artifact, and project Settings for
+service controls and an optional retained vhost association. Vhost controls
+appear only when server vhost serving is enabled. A reservation does not start
+or publish an app. Sandboxed limited-user projects stay project-confined for
+every service launch, including when exposed through a vhost tunnel.
 
 The build has relative asset URLs and works over static HTTP(S), including
 artifact grants. ES modules do not promise `file://` execution. The portable

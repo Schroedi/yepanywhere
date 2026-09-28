@@ -159,10 +159,14 @@ Start from these existing plans and contracts:
 
 The separately authorized [project-template implementation](../tactical/132-project-template-implementation.md)
 now has a native library composer and opt-in settings for ordered GitHub/local
-sources, pinned retrieval and manual updates. Production template creation,
-ready-content admission, limited-user defaults and sandbox scope, App
-reservations, and project-local identity remain pending. The current agents
-library is the YA default; its three templates remain draft until review.
+sources, pinned retrieval and manual updates. Production creation, ready-content
+admission and limited-user template grants with project-confined setup are
+implemented. Personal-workspace scopes, retained App access, reservations and
+project-local identity remain pending. The three default templates are admitted.
+The [project service specification](../../topics/project-service.md) now defines
+main-pane App access, standardized serving/lifecycle declarations, conditional
+vhost association in project Settings and audit-preserving personal removal;
+its mockup does not implement those runtime contracts.
 This work does not displace release delivery above.
 
 The separately authorized [optional Windows Computer Control preview](../tactical/131-optional-windows-computer-control.md)

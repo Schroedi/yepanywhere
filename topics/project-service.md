@@ -1,0 +1,264 @@
+# Project service
+
+> A project service declares where a project's app lives and how YA starts,
+> checks, stops and serves it, independently of an agent session or an optional
+> reserved hostname.
+
+Topic: project-service
+
+Status: **Specified, not implemented.** User-directed scope, 2026-09-28:
+project App access for limited users and the superuser, standardized template
+service declarations, optional vhost association, and audit-preserving removal.
+The [template integration gap](../gaps/project-template-standup.md) tracks
+delivery. This topic refines the
+[root-artifact and Publish direction](../gaps/sketches/project-root-artifact-and-publish.md);
+the interactive fixture is `packages/client/mockups/project-service/`.
+
+## Project App and Settings
+
+Projects offers **Open app**, opening the main content pane with the same
+isolated rendering and viewer controls as the session's right App pane. It
+does not require opening or retaining an agent session. Keep the card's
+existing session navigation and gear action. Project Settings contains **App**
+and, only when server vhost serving is enabled, **App address**. Both principal
+kinds use this surface; authorization determines the available actions.
+
+Resolve the default target on entry in this order:
+
+1. A declared project service or static app. A stopped or failed service shows
+   its state and an authorized Start or Retry action, rather than silently
+   substituting another artifact or starting a process on a GET.
+2. Otherwise, the most recently associated artifact the principal may access.
+   Use server-recorded association order, not file mtime or whichever session
+   was last opened. Session-published artifacts name their canonical project
+   and source session; authorization is rechecked at association and open.
+3. With neither, show “No app or artifact yet” and the existing session action.
+
+When both exist, offer **App / Latest artifact**; default to App. Keep a viewed
+artifact stable while newer ones arrive and offer the new association without
+replacing the iframe during interaction. Store the artifact identity, entry,
+source session and association time in YA app data, never just a bearer URL.
+Mint a fresh scoped viewing grant on an authorized open. Expired grants can be
+renewed; missing files or a vanished session-private filesystem are explicitly
+unavailable. Association does not imply copying an ephemeral artifact forever.
+
+The main pane retains a compact **YA control band**, like the in-session
+viewer: Back, target title/status, Reload, Open in new tab, Copy link, Share,
+New session, a microphone button and Settings. New tab, Back and new-session
+entry are single presses, not buried in an overflow menu. On phones, wrap the
+band into two deliberate rows instead of hiding those primary actions.
+Closing it changes navigation only. Stop is a separate service control in
+Settings. Use the existing iframe sandbox, credential
+separation, and safe new-tab behavior in [active-content security](active-content-security.md).
+App content never shares the authenticated YA origin. On phones the viewer
+fills the main pane; Settings is a separate full-width view.
+
+**New session** creates one session in this project using the user's normal
+provider/model defaults and enforced locks, with the viewed app already open
+in its right pane. The microphone variant performs the same transition and
+starts the normal voice-input flow in that session's composer. It does not
+submit an empty turn or send speech before the ordinary voice/send policy
+allows it. Request microphone permission through the existing flow; denial
+leaves a usable text composer and the app. Guard duplicate taps and carry a
+stable target identity, renewing its viewer grant rather than copying a stale
+URL. This explicit action authorizes the pane opening for the new session
+without changing the user's global right-pane preference. On a narrow screen,
+retain the app in the right drawer and show the voice composer while recording;
+the normal App action recalls the drawer. A covered composer must not hide
+recording state or Stop recording.
+
+**Copy link** copies an authorized, current viewer link; it does not publish
+or reserve anything. Explain when that link grants transferable access and
+when it expires. **Share** offers existing public-audience artifact sharing
+when this target, server and principal support it, without requiring a vhost.
+For a service, it may offer reservation and serving through enabled vhosts,
+subject to publication authority and the private-apps ceiling. Show an existing
+association first. Opening Share alone has no side effects; confirm the
+intended access before creating a grant or publishing. Publicly reachable
+artifact bearer links remain link-required access, distinct from the vhost
+“Public — no link required” option. With neither delivery option available,
+explain that sharing is unavailable rather than sending unsupported requests.
+
+## Standard declaration: where, start, status, stop, serving
+
+Templates keep `.project-template/app.json` as their source-owned declaration.
+Add an optional, explicitly versioned `service` object; the following is the
+selected extension, not a field accepted by today's loader. The template
+manifest's existing `formatVersion: 1`, file composition, `setup`, `build`,
+`test`, `preview`, `prepare`, and add-on contracts remain unchanged. Source
+format documentation, loader validation and capability admission must land
+together before templates ship this extension as supported.
+
+Example for a template with an application server:
+
+```json
+{
+  "service": {
+    "version": 1,
+    "where": { "kind": "process", "cwd": ".", "entry": "/" },
+    "start": { "argv": ["npm", "run", "start"], "portEnv": "PORT" },
+    "status": {
+      "probe": "http",
+      "path": "/health",
+      "readyStatus": 200,
+      "startupTimeoutMs": 30000
+    },
+    "stop": { "signal": "SIGTERM", "graceMs": 5000 },
+    "serving": { "target": "sandbox-loopback", "protocol": "http" }
+  }
+}
+```
+
+| Section | Contract |
+| --- | --- |
+| `where` | Discriminated `static` or `process`. Process `cwd` is project-relative and `entry` is an app-relative URL path. Static declares `root` and a relative file `entry`. Resolve symlinks and reject project escapes, absolute filesystem paths and external entry URLs. |
+| `start` | Process only: nonempty argv, no implicit shell, run in canonical `cwd`. YA allocates a private-namespace port and passes its decimal value through the named `portEnv`; the server must honor it, bind loopback and stay foreground. No daemonizing or user-service escape. |
+| `status` | Process only: YA probes the declared HTTP path through that launch's broker until the exact expected response or startup timeout. Never execute a template-supplied status command. Probe only the owned endpoint; redirects cannot turn this into an arbitrary fetch. |
+| `stop` | Process only: stop the owned process group with SIGTERM, wait `graceMs`, then report stopped or failed-to-stop. No arbitrary kill command, port-owner lookup, unrelated-process signaling or implicit SIGKILL. |
+| `serving` | Static uses `target: "static-root"`; process uses `target: "sandbox-loopback"`, `protocol: "http"`. This names the backend, not a public hostname, bearer, PID or host port. Vhost association lives separately in YA app data. |
+
+A static template such as the initial App canvas declares:
+
+```json
+{
+  "service": {
+    "version": 1,
+    "where": { "kind": "static", "root": "dist", "entry": "index.html" },
+    "serving": { "target": "static-root" }
+  }
+}
+```
+
+Static serving has no application process or Start/Stop command. YA reports
+ready when the contained entry exists and can be served, otherwise missing
+build. Build remains an explicit authorized operation under the project's
+execution policy, never a side effect of viewing. Activating the server add-on
+replaces the static declaration with a process declaration atomically, only
+after its entry and commands are valid. Do not invent a server for a static
+bundle merely to supply lifecycle buttons.
+
+Reject unknown versions, conflicting kind-specific fields, malformed argv,
+unsafe paths, and out-of-range timeouts before launch. The declared readiness
+probe supplies configuration; observed status is YA-owned runtime data.
+Settings shows the entry/root or command as read-only details, not a limited
+user form accepting host paths or arbitrary targets.
+
+## Runtime ownership and confinement
+
+YA owns one launch generation per project service, independently of provider
+session lifetime. Duplicate Start requests reuse the current launch; serialize
+Start/Stop and reject stale-generation results. States are **Stopped,
+Starting, Running, Stopping, Failed**, plus **Unavailable** when confinement or
+delivery prerequisites are missing. “Running” requires the readiness probe;
+a PID alone is not readiness. Bound probe work, retain useful failure/log
+details, and do not poll an idle or unseen project indefinitely.
+
+Every service of a sandboxed, limited-user-created project runs entirely in
+its project sandbox with the network firewall on. No unconfined preview,
+setup/build helper, daemon, or host service may substitute when the sandbox
+is unavailable, even when the superuser presses Start for that project.
+The project root is the writable project boundary; vhost publication cannot
+widen it. Reuse the enforced sandbox launcher and private runtime directories
+rather than treating `cwd` as confinement. Static output may be read and
+served by YA without executing project code on the host.
+
+Persist declaration identity and desired/observed state in YA app data. A YA
+restart reconciles an authenticated, owned runtime before reporting Running;
+otherwise mark it stopped/interrupted. Never adopt an unrelated listener or
+trust a recycled PID. Provider-host survival is a later implementation choice,
+not a claim of automatic restart. Stop tears down the owned sandbox and
+broker after the app exits, and retains the declaration and name reservation.
+
+## Two delivery paths, one sandbox target
+
+**Without a reserved vhost:** authorized App viewing must work without enabling
+operator vhost hosting or claiming a public name. An authenticated project
+request selects the permitted app, and a scoped, isolated viewer delivery
+path proxies only its backend through the sandbox broker (or serves its static
+root). Direct and relay clients need the same product behavior. Relay carriage
+and a safe, separately isolated browser origin still require implementation;
+never iframe a host `127.0.0.1` URL or serve executable HTML under YA's API
+origin as a shortcut. A missing delivery capability reports Unavailable.
+
+**With a reserved vhost:** the configured tunnel/router carries requests to
+YA's app host handler, which authorizes the app request and forwards to that
+same sandbox broker and service generation. The tunnel does not launch the
+app outside the sandbox. Strip YA credentials and app-access credentials
+before forwarding, following existing app-proxy policy. Public hostname
+reachability and app health are separate status dimensions.
+
+Existing pieces verified in source on 2026-09-28:
+
+- `session-sandbox-port-broker.mjs` splices a YA-only Unix socket connection
+  to a requested port in the sandbox namespace, with connection and idle
+  bounds. It opens no host TCP port and relaxes no outbound firewall rule.
+- `artifacts/vhost-proxy.ts` (`proxyLoopbackVhost`) can use that broker socket.
+  Current session App links mint a transient private app host and require app
+  serving to be configured; they are not the no-vhost project delivery path.
+- That proxy refuses WebSocket upgrades with 501. Ordinary HTTP/SSE is the
+  first service boundary; do not promise Vite HMR or WebSocket applications
+  until [WebSocket forwarding](../gaps/vhost-websocket-forwarding.md) is closed.
+
+The durable project runner, association store, main-pane UI and no-vhost relay
+delivery are not implemented by those existing session facilities.
+
+## App address in project Settings
+
+Hide the entire vhost section when server vhost serving is disabled or the
+server lacks the required capability. Retain any previous association in
+storage; disabling the feature does not release a name. Re-enabling displays
+the existing association before offering a new reservation.
+
+When enabled, show the current/previous reserved hostname, owner, private or
+public visibility, and **Reserved / Serving / Unavailable** separately from
+service status. A stopped app still shows its reserved address. With none,
+offer **Reserve address** to an authorized principal, prefilled with an
+available-looking `username-project` suggestion but validated atomically by
+the server. Never silently replace an existing association or take over a
+name. Reservation alone neither starts the app nor publishes it.
+
+**Serve at this address** is an explicit separate operation, gated by the
+superuser or the limited user's publication grant. Initially only the
+superuser may publish; name-prefix restrictions and the **Private apps only**
+ceiling apply server-side. A private link remains a transferable app bearer,
+so label it “Private link required”, not “Only me”. Public access is a separate
+unchecked choice where allowed. A reservation grant does not imply publishing
+authority. Keep first-claim-wins persistence and superuser-only release from
+[project templates](project-templates.md#persistent-app-name-reservations).
+
+## Authorization and audit-preserving removal
+
+Reuse the authenticated YA principal and existing project grants; do not add
+a service-local identity system. View requires project read access, lifecycle
+actions require project execution authority, and publication requires the
+separate ceiling above. Recheck grants and confinement at execution, including
+queued operations and after reconnect. Unknown or inaccessible projects do
+not leak service state, artifact paths, reservations or logs.
+
+A limited user's project delete action means **Remove from my projects**.
+Confirm that meaning and persist a principal-scoped hidden marker, actor and
+time. It does not delete files, unregister the canonical project, erase
+sessions/audit records, stop a service, release an address, or remove the
+project from the superuser's view. Apply hiding consistently across that
+user's project lists and selectors; it does not revoke access grants.
+The superuser sees “Removed from archer's view” and can inspect the retained
+project. Restoration clears the marker with an audit event. See
+[limited users](limited-users.md#approved-project-removal-retention).
+
+## Delivery acceptance
+
+Before calling this implemented, verify the real main-pane path for both
+principal kinds and both client transports: latest artifact, static starter,
+running/stopped/failed service, absent/disabled vhosts, previous reservation,
+and insufficient grants. Cover concurrent claims and lifecycle requests,
+provider exit, YA restart, expired/missing artifacts, revoked access and
+symlink escapes. Prove writes and direct network access outside the project's
+sandbox stay denied with and without vhost serving. Removing a project as a
+limited user must survive reconnect/restart as a personal hide while the
+superuser still sees the project, sessions, service and reservation.
+
+Advertise new project-service and reservation behavior under separate precise
+capabilities; existing template or session-app capabilities do not imply it.
+The supported-release corpus and fallback review remain an implementation
+gate. Older servers keep existing project/session behavior and receive no
+new requests. Rendered mockups establish layout only, not these guarantees.

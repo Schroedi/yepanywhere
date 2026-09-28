@@ -217,6 +217,22 @@ user, with the reason stated; starting a new session stays available where
 `newSessionProjects` allows it. v1 does not implement the redirect-into-a-new-
 session behavior described above; it refuses the turn instead.
 
+### Approved project removal retention
+
+User-directed, 2026-09-28; **not yet implemented**. A limited user's project
+delete action only removes the project from that user's view. Label it
+**Remove from my projects** and explain that files and history remain. Store
+the personal hidden marker and an actor/time audit event in YA app data.
+Project lists and selectors honor it across reconnects and restarts; it does
+not revoke grants or erase the canonical project, sessions, ownership or
+audit records. The superuser retains visibility, including who removed it
+and when, and can restore it with a recorded action. Do not implicitly stop
+its app or release a reserved hostname. The current v1 removal row below
+describes the old shared-removal boundary, which this direction must replace.
+The [project service contract](project-service.md) and existing
+[template integration gap](../gaps/project-template-standup.md) track this
+auditability requirement together with project App access.
+
 ### Authorization
 
 Enforcement is a single server-side middleware ahead of every API route, so
