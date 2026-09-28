@@ -1,4 +1,10 @@
 {
+  "templateSubmitting": "Submitting project creation…",
+  "templateElapsed": "{seconds}s elapsed",
+  "templateElapsedHint": "Time spent waiting in this view",
+  "templateWaitingOutput": "Waiting for setup output…",
+  "templateHideLog": "Hide setup log",
+  "templateShowLog": "Show setup log",
   "promptHistoryLabel": "Recent prompts",
   "promptHistoryItem": "Recent prompt {number}. Drag into the composer, or press Enter to insert at the cursor.",
   "promptHistoryError": "Could not read recent prompts from this browser.",
