@@ -13,6 +13,12 @@ interpreted here as keeping the provider's default base instructions before
 appending the shared blocks. Unchecking it replaces that base with the shared
 blocks. Switching modes preserves all entered text.
 
+Mobile density revision: blocks have no visible numbered title or header row.
+A right-margin × removes each block; reorder arrows appear beneath it only
+when there are multiple blocks. Text fields grow with their content, inherited
+instructions collapse into one row, and Save/Preview share a row on phones.
+The default shared editor fits in a 375×812 viewport without scrolling.
+
 The per-user editor starts empty, shows inherited instructions separately, and
 appends its blocks after the shared blocks. Only the administrator edits these
 settings. A combined preview shows the custom text and whether a provider base

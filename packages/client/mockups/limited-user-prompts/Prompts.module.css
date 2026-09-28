@@ -51,7 +51,7 @@
   background: var(--bg-hover);
 }
 .header {
-  height: 56px;
+  height: 44px;
   padding: 0 24px;
   display: flex;
   align-items: center;
@@ -86,7 +86,7 @@
   border-radius: 6px;
 }
 .main {
-  padding: 26px 32px 60px;
+  padding: 18px 24px 24px;
   max-width: 860px;
   min-width: 0;
 }
@@ -100,17 +100,14 @@
   margin: 0 0 10px;
 }
 .main p {
-  margin: 8px 0;
+  margin: 6px 0;
 }
 .titleRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
-}
-.titleRow p {
-  color: var(--text-muted);
+  margin-bottom: 12px;
 }
 .titleRow > button {
   flex-shrink: 0;
@@ -120,11 +117,11 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 8px 12px;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 .userRow > div {
   display: flex;
@@ -136,8 +133,8 @@
   font-size: 12px;
 }
 .account {
-  padding: 12px 0;
-  margin-bottom: 18px;
+  padding: 4px 0;
+  margin-bottom: 12px;
   border-bottom: 1px solid var(--border-color);
   color: var(--text-muted);
 }
@@ -148,7 +145,10 @@
   padding-top: 5px;
 }
 .defaultControl {
-  margin: 18px 0;
+  margin: 10px 0;
+}
+.instructions {
+  margin-bottom: 0;
 }
 .defaultControl label {
   display: flex;
@@ -173,43 +173,39 @@
   gap: 12px;
 }
 .block {
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.blockHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: start;
   gap: 8px;
-  background: var(--bg-surface);
-  padding: 4px 8px 4px 14px;
-}
-.blockHead label {
-  font-weight: 600;
 }
 .tools {
   display: flex;
+  flex-direction: column;
   gap: 3px;
 }
 .tools button {
   border-color: transparent;
   padding: 5px 8px;
-  min-width: 36px;
+  min-width: 40px;
   font-size: 12px;
+}
+.tools .remove {
+  font-size: 22px;
+  line-height: 1;
 }
 .block textarea {
   display: block;
   width: 100%;
   box-sizing: border-box;
-  border: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
   padding: 14px;
   background: var(--bg-secondary);
   color: var(--text-primary);
   font: inherit;
-  line-height: 1.6;
+  line-height: 1.45;
   resize: vertical;
-  min-height: 110px;
+  min-height: 64px;
   field-sizing: content;
   overflow-wrap: anywhere;
 }
@@ -220,25 +216,17 @@
 }
 .empty {
   color: var(--text-muted);
-  border: 1px dashed var(--border-color);
-  border-radius: 8px;
-  padding: 22px 16px;
+  padding: 4px 0;
 }
 .order {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  margin: 18px 0;
   color: var(--text-muted);
   font-size: 12px;
-}
-.order > span:first-child {
-  font-weight: 600;
 }
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 12px;
 }
 .actions .primary {
   background: var(--accent-color);
@@ -248,40 +236,19 @@
 .timing {
   color: var(--text-muted);
   font-size: 12px;
-  padding-top: 6px;
 }
 .restriction {
   border-top: 1px solid var(--border-color);
-  margin-top: 24px;
-  padding-top: 20px;
-}
-.restrictionHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-}
-.restrictionHead span {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.hint {
+  margin-top: 12px;
+  padding-top: 10px;
   color: var(--text-muted);
   font-size: 12px;
 }
 .inherited {
-  border-left: 3px solid var(--border-color);
-  padding: 10px 14px;
-  margin: 18px 0;
+  border-bottom: 1px solid var(--border-color);
+  padding: 4px 0;
+  margin: 8px 0;
   background: var(--bg-surface);
-}
-.inherited > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 .inherited p,
 .inherited summary {
@@ -294,6 +261,7 @@
 }
 .notice {
   color: var(--text-secondary);
+  font-size: 12px;
 }
 .preview {
   padding: 16px;
@@ -319,10 +287,10 @@
     display: none;
   }
   .main {
-    padding: 20px 16px 40px;
+    padding: 14px 12px 20px;
   }
   .mockbar {
-    padding: 8px 16px;
+    padding: 6px 12px;
   }
   .header {
     padding: 0 16px;
@@ -338,8 +306,5 @@
   }
   .page button {
     min-height: 40px;
-  }
-  .actions > button {
-    width: 100%;
   }
 }

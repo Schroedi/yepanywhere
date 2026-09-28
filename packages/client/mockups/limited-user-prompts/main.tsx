@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { SettingsSection } from "../../src/pages/settings/SettingsSection";
 import "../../src/styles/index.css";
@@ -21,7 +21,6 @@ function Blocks({
   onChange: (blocks: Block[]) => void;
   scope: string;
 }) {
-  const prefix = useId();
   function move(index: number, direction: number) {
     const next = [...blocks];
     const other = index + direction;
@@ -31,46 +30,13 @@ function Blocks({
   return (
     <div className={styles.blocks}>
       {blocks.length === 0 && (
-        <p className={styles.empty}>
-          No additional instructions. Shared instructions still apply.
-        </p>
+        <p className={styles.empty}>No additional instructions.</p>
       )}
       {blocks.map((block, index) => (
         <div className={styles.block} key={block.id}>
-          <div className={styles.blockHead}>
-            <label htmlFor={`${prefix}-${block.id}`}>Block {index + 1}</label>
-            <div className={styles.tools}>
-              <button
-                type="button"
-                aria-label={`Move ${scope} block ${index + 1} up`}
-                disabled={index === 0}
-                onClick={() => move(index, -1)}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                aria-label={`Move ${scope} block ${index + 1} down`}
-                disabled={index === blocks.length - 1}
-                onClick={() => move(index, 1)}
-              >
-                ↓
-              </button>
-              <button
-                type="button"
-                aria-label={`Remove ${scope} block ${index + 1}`}
-                onClick={() =>
-                  onChange(blocks.filter((item) => item.id !== block.id))
-                }
-              >
-                Remove
-              </button>
-            </div>
-          </div>
           <textarea
-            id={`${prefix}-${block.id}`}
             aria-label={`${scope} block ${index + 1}`}
-            rows={block.text.length > 200 ? 5 : 3}
+            rows={2}
             placeholder="Write an instruction…"
             value={block.text}
             onChange={(event) =>
@@ -83,11 +49,45 @@ function Blocks({
               )
             }
           />
+          <div className={styles.tools}>
+            <button
+              type="button"
+              className={styles.remove}
+              aria-label={`Remove ${scope} block ${index + 1}`}
+              title="Remove instruction"
+              onClick={() =>
+                onChange(blocks.filter((item) => item.id !== block.id))
+              }
+            >
+              ×
+            </button>
+            {blocks.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  aria-label={`Move ${scope} block ${index + 1} up`}
+                  disabled={index === 0}
+                  onClick={() => move(index, -1)}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Move ${scope} block ${index + 1} down`}
+                  disabled={index === blocks.length - 1}
+                  onClick={() => move(index, 1)}
+                >
+                  ↓
+                </button>
+              </>
+            )}
+          </div>
         </div>
       ))}
       <button
         className={styles.add}
         type="button"
+        aria-label="+ Add instruction block"
         onClick={() =>
           onChange([
             ...blocks,
@@ -98,7 +98,7 @@ function Blocks({
           ])
         }
       >
-        + Add instruction block
+        + Add block
       </button>
     </div>
   );
@@ -127,7 +127,7 @@ function App() {
   return (
     <div className={styles.page}>
       <div className={styles.mockbar}>
-        <span>UI proposal · local preview only</span>
+        <span>Mockup</span>
         <nav aria-label="Mockup views">
           <button
             type="button"
@@ -166,11 +166,6 @@ function App() {
           <div className={styles.titleRow}>
             <div>
               <h1>{isGlobal ? "Users" : "Edit Alex"}</h1>
-              <p>
-                {isGlobal
-                  ? "Manage limited accounts and their shared instructions."
-                  : "Account settings · limited user"}
-              </p>
             </div>
             {!isGlobal && (
               <button type="button" onClick={() => navigate("global")}>
@@ -206,9 +201,10 @@ function App() {
             }
             description={
               isGlobal
-                ? "Applied to every limited user's agent session. Edit blocks below; they are joined in order."
-                : "Appended after the shared instructions. Only an administrator can edit these."
+                ? "Joined in order, before per-user instructions."
+                : "Appended after shared instructions."
             }
+            className={styles.instructions}
           >
             {isGlobal ? (
               <div className={styles.defaultControl}>
@@ -222,62 +218,51 @@ function App() {
                 </label>
                 <p>
                   {defaults
-                    ? "Keep the provider’s default instructions, then append these blocks."
-                    : "Replace the provider’s default instructions with these blocks."}
+                    ? "Append to the provider’s default instructions."
+                    : "Replace the provider’s default instructions."}
                 </p>
               </div>
             ) : (
-              <div className={styles.inherited}>
-                <div>
-                  <strong>Inherited from all limited users</strong>
-                  <button type="button" onClick={() => navigate("global")}>
-                    Edit shared
-                  </button>
-                </div>
-                <p>
-                  {defaults ? "Provider default + " : "Custom base · "}
+              <details className={styles.inherited}>
+                <summary>
+                  Inherited: {defaults ? "default + " : ""}
                   {globalBlocks.length} shared{" "}
                   {globalBlocks.length === 1 ? "block" : "blocks"}
+                </summary>
+                <p className={styles.promptText}>
+                  {globalBlocks.map((block) => block.text).join("\n\n") ||
+                    "No shared blocks."}
                 </p>
-                <details>
-                  <summary>Read shared instructions</summary>
-                  <p className={styles.promptText}>
-                    {globalBlocks.map((block) => block.text).join("\n\n") ||
-                      "No shared blocks."}
-                  </p>
-                </details>
-              </div>
+                <button type="button" onClick={() => navigate("global")}>
+                  Edit shared
+                </button>
+              </details>
             )}
             <Blocks
               blocks={isGlobal ? globalBlocks : userBlocks}
               onChange={isGlobal ? setGlobalBlocks : setUserBlocks}
               scope={isGlobal ? "Shared" : "Alex"}
             />
-            <div className={styles.order}>
-              <span>Order</span>
-              <span>
-                {defaults ? "Provider default → " : ""}Shared blocks
-                {!isGlobal ? " → Alex’s blocks" : " → Per-user blocks"}
-              </span>
-            </div>
             <div className={styles.actions}>
               <button
                 type="button"
                 className={styles.primary}
+                aria-label={isGlobal ? "Save shared instructions" : "Save user"}
                 onClick={() =>
                   setNotice(
                     "Saved in this preview only. No server settings changed.",
                   )
                 }
               >
-                {isGlobal ? "Save shared instructions" : "Save user"}
+                Save
               </button>
               <button
                 type="button"
                 onClick={() => setPreview(!preview)}
                 aria-expanded={preview}
+                aria-label="Preview combined instructions"
               >
-                Preview combined instructions
+                Preview combined
               </button>
             </div>
             {notice && (
@@ -288,6 +273,10 @@ function App() {
             {preview && (
               <section className={styles.preview}>
                 <h3>Combined instructions{!isGlobal && " · Alex"}</h3>
+                <p className={styles.order}>
+                  {defaults ? "Provider default → " : ""}Shared blocks
+                  {!isGlobal ? " → Alex’s blocks" : " → Per-user blocks"}
+                </p>
                 {defaults && (
                   <p className={styles.baseNote}>
                     Provider default instructions come first. Their text varies
@@ -300,21 +289,11 @@ function App() {
                 )}
               </section>
             )}
-            <p className={styles.timing}>
-              Takes effect on the next session launch. Running sessions keep
-              their current instructions.
-            </p>
+            <p className={styles.timing}>Applies on next session launch.</p>
           </SettingsSection>
           <section className={styles.restriction}>
-            <div className={styles.restrictionHead}>
-              <strong>Sandbox restrictions</strong>
-              <span>Always enforced</span>
-            </div>
-            <p>Claude: all MCP servers and connectors disabled.</p>
-            <p className={styles.hint}>
-              Applies to every sandboxed Claude session. Instruction edits
-              cannot enable them.
-            </p>
+            <strong>Sandboxed Claude</strong>
+            <p>MCP & connectors always disabled.</p>
           </section>
         </main>
       </div>

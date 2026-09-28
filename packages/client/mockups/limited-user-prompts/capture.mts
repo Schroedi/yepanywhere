@@ -21,9 +21,7 @@ const result = await captureArtifact({
     const initial = await shared.inputValue();
     await page.getByRole("checkbox", { name: "Start from default" }).uncheck();
     await expect(
-      page.getByText(
-        "Replace the provider’s default instructions with these blocks.",
-      ),
+      page.getByText("Replace the provider’s default instructions."),
     ).toBeVisible();
     await expect(shared).toHaveValue(initial);
     await page.getByRole("checkbox", { name: "Start from default" }).check();
@@ -44,11 +42,7 @@ const result = await captureArtifact({
         .getByRole("button", { name: "Edit Alex", exact: true })
         .click();
       await expect(page.getByRole("textbox")).toHaveCount(0);
-      await expect(
-        page.getByText(
-          "No additional instructions. Shared instructions still apply.",
-        ),
-      ).toBeVisible();
+      await expect(page.getByText("No additional instructions.")).toBeVisible();
       if (view === "example") {
         await page
           .getByRole("button", { name: "+ Add instruction block" })
