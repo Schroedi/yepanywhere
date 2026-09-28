@@ -81,6 +81,25 @@ project; the grant UI is not useful before creation exists.
 
 ## Remaining integration
 
+- User report, 2026-09-28: a limited user may be unable to create an App pane
+  or start the template app. Reproduce both separately. Local `*.localhost`
+  routing must work without configuring the maintainer's public wildcard.
+  The existing public-name design is first successful claim, persistent
+  reservation and superuser-only release, scoped to the configured wildcard;
+  it is not implemented merely because `*.graehl.org` exists.
+- [Own-session lists and images](limited-user-session-visibility-and-media.md)
+  have separate reported access failures. Template boilerplate also becomes
+  the session title; provide a meaningful title/preview from the user's intent
+  without hiding the actual setup instructions from the transcript.
+- Approved administrator controls, 2026-09-28: a per-limited-user choice of
+  whether standard harness-global instructions are imported into its isolated
+  harness home, and administrator-editable instructions before and after
+  template setup. These must not require children to inherit the maintainer's
+  personal global context. See the existing
+  [harness discovery gap](sandbox-harness-instruction-read-access.md).
+  Template-specific settings visible in the chooser remain sketch-only.
+  Contributing-model: 6-Astra.
+
 - Creation grants now bind to source and template identity. Efficient
   retrieval and cache retention have their own
   [gap](project-template-selective-retrieval.md).
