@@ -65,6 +65,14 @@ vi.mock("../../../hooks/useActingPrincipal", () => ({
   }),
 }));
 
+// No version by default: every optional capability reads as unsupported.
+const versionState = vi.hoisted(() => ({
+  version: undefined as { capabilities: string[] } | undefined,
+}));
+vi.mock("../../../hooks/useVersion", () => ({
+  useVersion: () => ({ version: versionState.version }),
+}));
+
 vi.mock("../../../hooks/useProjects", () => ({
   useProjects: () => ({
     projects: [
@@ -140,6 +148,7 @@ describe("Settings → Users", () => {
       logoutRedirect: "stay",
     };
     principalState.resolved = true;
+    versionState.version = undefined;
     settingsState.settings = {};
     mockListUsers.mockReset();
     mockCreateUser.mockReset();
@@ -292,6 +301,42 @@ describe("Settings → Users", () => {
     expect(await screen.findByText(/usersAutosaveSaved/)).toBeTruthy();
     // Still editing the same user.
     expect(screen.getByText("usersEditUserTitle")).toBeTruthy();
+  });
+
+  it("grants a user's project directory, picked by username, at once", async () => {
+    versionState.version = { capabilities: ["limited-user-path-grants"] };
+    mockListUsers.mockResolvedValue({
+      users: [user(), user({ username: "bobby", projectRoot: "~/bobby" })],
+      enabled: true,
+    });
+    render(<UsersSettings />);
+    fireEvent.click(await screen.findByRole("button", { name: "alice" }));
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "usersDirectoryFromUser" }),
+      { target: { value: "~/bobby" } },
+    );
+    await waitFor(() => expect(mockUpdateUser).toHaveBeenCalledTimes(1));
+    expect(mockUpdateUser.mock.calls[0]?.[1]).toMatchObject({
+      pathGrants: [{ path: "~/bobby", level: "view" }],
+    });
+    // An added row saves nothing until it names a directory.
+    fireEvent.click(screen.getByRole("button", { name: "usersDirectoryAdd" }));
+    fireEvent.blur(
+      screen.getAllByRole("textbox", { name: "usersDirectoryPath" })[1]!,
+    );
+    expect(mockUpdateUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends no directory grants to a server that would ignore them", async () => {
+    mockListUsers.mockResolvedValue({ users: [user()], enabled: true });
+    render(<UsersSettings />);
+    fireEvent.click(await screen.findByRole("button", { name: "alice" }));
+    expect(screen.queryByText("usersDirectoriesHeading")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Alpha"), {
+      target: { value: "view" },
+    });
+    await waitFor(() => expect(mockUpdateUser).toHaveBeenCalledTimes(1));
+    expect(mockUpdateUser.mock.calls[0]?.[1]).not.toHaveProperty("pathGrants");
   });
 
   it("disables a user without deleting or asking", async () => {

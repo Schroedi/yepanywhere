@@ -223,6 +223,14 @@ export class ProjectScanner {
     this.invalidateCache();
   }
 
+  /**
+   * The projects the last scan found, without scanning: empty before the
+   * first scan. For synchronous callers that can tolerate a stale list.
+   */
+  cachedProjects(): readonly Pick<Project, "id" | "path">[] {
+    return this.snapshot?.projects ?? [];
+  }
+
   async listProjects(): Promise<Project[]> {
     const snapshot = await this.getSnapshot();
     const sandboxDirs = this.sandboxSessionDirs();

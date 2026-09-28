@@ -2,6 +2,7 @@ import type {
   ActingPrincipal,
   LimitedUserLock,
   LimitedUserSummary,
+  PathGrant,
   TemplateCreationGrant,
   UsageReport,
 } from "@yep-anywhere/shared";
@@ -20,6 +21,7 @@ export interface LimitedUserDraft {
   projectRoot?: string;
   templateCreation?: TemplateCreationGrant;
   instructionBlocks?: string[];
+  pathGrants?: PathGrant[];
   disabled?: boolean;
 }
 

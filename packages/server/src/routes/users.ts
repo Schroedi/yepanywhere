@@ -14,6 +14,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type {
   ActingPrincipal,
   LimitedUserSummary,
+  PathGrant,
   TemplateCreationGrant,
 } from "@yep-anywhere/shared";
 import { limitedUsernameError } from "@yep-anywhere/shared";
@@ -57,6 +58,7 @@ interface UserBody {
   projectRoot?: string;
   templateCreation?: TemplateCreationGrant;
   instructionBlocks?: string[];
+  pathGrants?: PathGrant[];
   disabled?: boolean;
 }
 
@@ -236,6 +238,7 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
         projectRoot: body.projectRoot,
         templateCreation: body.templateCreation,
         instructionBlocks: body.instructionBlocks,
+        pathGrants: body.pathGrants,
         disabled: body.disabled,
       });
       // A new account starts with no logins, even one reusing the name of a
@@ -281,6 +284,7 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
         projectRoot: body.projectRoot,
         templateCreation: body.templateCreation,
         instructionBlocks: body.instructionBlocks,
+        pathGrants: body.pathGrants,
         disabled: body.disabled,
       });
       // A replaced password ends every login the old one opened.
@@ -297,7 +301,8 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
           grants:
             body.newSessionProjects !== undefined ||
             body.joinProjects !== undefined ||
-            body.viewProjects !== undefined,
+            body.viewProjects !== undefined ||
+            body.pathGrants !== undefined,
           ...(body.disabled !== undefined ? { disabled: body.disabled } : {}),
         },
       });

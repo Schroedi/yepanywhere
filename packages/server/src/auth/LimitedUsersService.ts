@@ -25,8 +25,11 @@ import {
   limitedUserPasswordError,
   limitedUsernameError,
   instructionBlocksError,
+  MAX_PATH_GRANTS,
+  type PathGrant,
 } from "@yep-anywhere/shared";
 import { deriveDecoySalt, generateVerifier } from "../crypto/srp-server.js";
+import { expandHomePath } from "../utils/expandHomePath.js";
 import { createCoalescingSaver } from "../lib/coalescingSaver.js";
 import { writeFileAtomically } from "../utils/writeFileAtomically.js";
 import {
@@ -83,7 +86,33 @@ export interface LimitedUserInput {
   projectRoot?: string;
   templateCreation?: TemplateCreationGrant;
   instructionBlocks?: string[];
+  pathGrants?: PathGrant[];
   disabled?: boolean;
+}
+
+const pathGrantsSchema = z
+  .array(
+    z.strictObject({
+      path: z.string().trim().min(1),
+      level: z.enum(["view", "join", "new-session"]),
+    }),
+  )
+  .max(MAX_PATH_GRANTS);
+
+/**
+ * Directory grants, stored resolved: `~` expands and `..` collapses here, so
+ * the prefix test at each request compares canonical spellings. A relative
+ * path names no directory anybody chose and is refused. One entry per
+ * directory, keeping the last level given.
+ */
+function parsePathGrants(value: unknown): PathGrant[] {
+  const grants = new Map<string, PathGrant["level"]>();
+  for (const grant of pathGrantsSchema.parse(value)) {
+    if (!grant.path.startsWith("/") && !grant.path.startsWith("~"))
+      throw new Error(`Directory grant must be absolute: ${grant.path}`);
+    grants.set(path.resolve(expandHomePath(grant.path)), grant.level);
+  }
+  return [...grants].map(([grantPath, level]) => ({ path: grantPath, level }));
 }
 
 /**
@@ -147,6 +176,7 @@ export function toLimitedUserSummary(
     templateCreation: structuredClone(templateGrantFor(record)),
     instructionBlocks: [...(record.instructionBlocks ?? [])],
     ...(record.projectRoot ? { projectRoot: record.projectRoot } : {}),
+    pathGrants: structuredClone(record.pathGrants ?? []),
   };
 }
 
@@ -198,6 +228,7 @@ export class LimitedUsersService {
             record.templateCreation === undefined
               ? templateGrantFor(record)
               : templateGrantSchema.parse(record.templateCreation),
+          pathGrants: parsePathGrants(record.pathGrants ?? []),
         };
       }
       if (parsed.version < CURRENT_VERSION) await this.save();
@@ -258,6 +289,7 @@ export class LimitedUsersService {
       lock: { ...record.lock },
       templateCreation: structuredClone(templateGrantFor(record)),
       ...(record.projectRoot ? { projectRoot: record.projectRoot } : {}),
+      pathGrants: structuredClone(record.pathGrants ?? []),
     };
   }
 
@@ -319,6 +351,7 @@ export class LimitedUsersService {
       lock: normalizeLock(input.lock),
       instructionBlocks,
       templateCreation,
+      pathGrants: parsePathGrants(input.pathGrants ?? []),
       ...(normalizeProjectRoot(input.projectRoot)
         ? { projectRoot: normalizeProjectRoot(input.projectRoot) }
         : {}),
@@ -345,6 +378,10 @@ export class LimitedUsersService {
       input.templateCreation === undefined
         ? undefined
         : templateGrantSchema.parse(input.templateCreation);
+    const pathGrants =
+      input.pathGrants === undefined
+        ? undefined
+        : parsePathGrants(input.pathGrants);
 
     if (input.password !== undefined) {
       const passwordError = limitedUserPasswordError(input.password);
@@ -378,6 +415,7 @@ export class LimitedUsersService {
     }
     if (templateCreation !== undefined)
       record.templateCreation = templateCreation;
+    if (pathGrants !== undefined) record.pathGrants = pathGrants;
     if (input.disabled !== undefined) {
       if (input.disabled) {
         record.disabled = true;

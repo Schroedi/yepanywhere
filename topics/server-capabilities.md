@@ -10,6 +10,12 @@ Topic: server-capabilities
 
 ## Source Of Truth
 
+`limited-user-path-grants` (permanent ID 96, version-implied from 0.9.4) owns
+the `pathGrants` field on `POST`/`PATCH /api/users` and in user records.
+Older servers ignore the field, so a directory grant would look saved and
+grant nothing; clients hide the directory editor and never send it. See
+[limited users § Authorization](limited-users.md#authorization).
+
 `session-creation-provenance` (permanent ID 84, version-implied from v0.9.3)
 owns the optional `creationProvenance` field on session starts, restarts, and
 forks, plus its session summary/detail projections. Hosted clients omit the

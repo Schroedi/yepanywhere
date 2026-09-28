@@ -63,6 +63,7 @@ import {
   idleReapHoursToMs,
   idleReapMsToHours,
   isClaudeProviderName,
+  withPathGrantProjects,
 } from "@yep-anywhere/shared";
 import { Hono } from "hono";
 import { compress } from "hono/compress";
@@ -846,11 +847,17 @@ export function createApp(options: AppOptions): AppResult {
   const isLimitedUsersEnabled = (): boolean =>
     limitedUsersService !== undefined &&
     options.serverSettingsService?.getSetting("limitedUsersEnabled") === true;
+  // The projects a directory grant can cover, for surfaces that list a user's
+  // projects. Bound once the scanner exists; per-project checks decode the
+  // project's path from its id and need no list.
+  let knownProjectsForGrants: () => Iterable<{ id: string; path: string }> =
+    () => [];
   // Turning the feature off keeps the records but lets no limited login act.
-  const getActiveLimitedGrants = (username: string) =>
-    isLimitedUsersEnabled()
-      ? (limitedUsersService?.getActiveGrants(username) ?? null)
-      : null;
+  const getActiveLimitedGrants = (username: string) => {
+    if (!isLimitedUsersEnabled()) return null;
+    const grants = limitedUsersService?.getActiveGrants(username) ?? null;
+    return grants && withPathGrantProjects(grants, knownProjectsForGrants());
+  };
   const sessionAccessResolver = new SessionAccessResolver({
     getLiveSession: (sessionId) => {
       const process = supervisor?.getProcessForSession(sessionId);
@@ -982,10 +989,7 @@ export function createApp(options: AppOptions): AppResult {
           context.env,
         );
       },
-      (username) =>
-        isLimitedUsersEnabled()
-          ? (limitedUsersService?.getActiveGrants(username) ?? null)
-          : null,
+      getActiveLimitedGrants,
     ),
   );
   app.route("/api", createPdfjsRoutes(new PdfjsAssetCache(effectiveDataDir)));
@@ -1105,6 +1109,18 @@ export function createApp(options: AppOptions): AppResult {
     eventBus: options.eventBus,
     cacheTtlMs: options.projectScanCacheTtlMs,
   });
+  knownProjectsForGrants = () => {
+    const known = new Map<string, string>();
+    for (const project of scanner.cachedProjects())
+      known.set(project.id, project.path);
+    // Added projects are known before any scan, including one a limited
+    // user created a moment ago.
+    for (const [id, metadata] of Object.entries(
+      options.projectMetadataService?.getAllProjects() ?? {},
+    ))
+      known.set(id, metadata.path);
+    return [...known].map(([id, path]) => ({ id, path }));
+  };
   const glossaryIndexService = new GlossaryIndexService();
   const localResourcePathPolicy = createLocalResourcePathPolicy({
     allowedPaths: getAllowedFilePaths,

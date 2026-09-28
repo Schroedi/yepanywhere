@@ -179,6 +179,23 @@
   white-space: nowrap;
 }
 
+/* Path, level and remove on one line; the path takes the slack. */
+.directoryRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 12rem auto;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+@media (max-width: 600px) {
+  .directoryRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .directoryRow > input {
+    grid-column: 1 / -1;
+  }
+}
+
 .projectExpand {
   align-self: flex-start;
 }

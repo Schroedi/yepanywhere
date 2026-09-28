@@ -7,6 +7,8 @@
  * its own rule for what a grant means.
  */
 
+import { fromUrlProjectId, isUrlProjectId } from "./projectId.js";
+
 /** Usernames share the relay label grammar: 3-32 lowercase alphanumerics/hyphens. */
 export const LIMITED_USERNAME_MIN_LENGTH = 3;
 export const LIMITED_USERNAME_MAX_LENGTH = 32;
@@ -251,7 +253,20 @@ export interface LimitedUserGrants {
   templateCreation?: TemplateCreationGrant;
   /** Appended after the shared limited-user instructions on each launch. */
   instructionBlocks?: string[];
+  /**
+   * Access to every project at or beneath a directory, including ones made
+   * there later. The server stores each path resolved and absolute.
+   */
+  pathGrants?: PathGrant[];
 }
+
+/** A directory-wide grant: `level` for every project under `path`. */
+export interface PathGrant {
+  path: string;
+  level: Exclude<ProjectAccessLevel, "none">;
+}
+
+export const MAX_PATH_GRANTS = 32;
 
 /** A limited user as any API returns it. Never carries credential material. */
 export interface LimitedUserSummary extends LimitedUserGrants {
@@ -371,10 +386,106 @@ export function projectAccessLevel(
   grants: LimitedUserGrants,
   projectId: string,
 ): ProjectAccessLevel {
+  const listed = listedAccessLevel(grants, projectId);
+  if (listed === "new-session" || !grants.pathGrants?.length) return listed;
+  const projectPath = projectPathOf(projectId);
+  if (projectPath === null) return listed;
+  return higherAccessLevel(listed, pathGrantLevel(grants, projectPath));
+}
+
+/** The level the per-project lists alone give. */
+function listedAccessLevel(
+  grants: LimitedUserGrants,
+  projectId: string,
+): ProjectAccessLevel {
   if (grants.newSessionProjects.includes(projectId)) return "new-session";
   if (grants.joinProjects.includes(projectId)) return "join";
   if (grants.viewProjects.includes(projectId)) return "view";
   return "none";
+}
+
+const ACCESS_RANK: Record<ProjectAccessLevel, number> = {
+  none: 0,
+  view: 1,
+  join: 2,
+  "new-session": 3,
+};
+
+export function higherAccessLevel(
+  a: ProjectAccessLevel,
+  b: ProjectAccessLevel,
+): ProjectAccessLevel {
+  return ACCESS_RANK[a] >= ACCESS_RANK[b] ? a : b;
+}
+
+/** A project id is its base64url-encoded absolute path; null if it is not. */
+function projectPathOf(projectId: string): string | null {
+  if (!isUrlProjectId(projectId)) return null;
+  try {
+    const decoded = fromUrlProjectId(projectId);
+    return decoded.startsWith("/") ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether `candidate` is `root` or beneath it, comparing normalized
+ * absolute spellings. The server stores roots resolved, and a project id
+ * is the path it was registered under, so no filesystem walk is involved.
+ */
+export function isPathWithin(root: string, candidate: string): boolean {
+  const trim = (value: string) =>
+    value.length > 1 ? value.replace(/\/+$/, "") : value;
+  const base = trim(root);
+  const path = trim(candidate);
+  if (!base.startsWith("/") || !path.startsWith("/")) return false;
+  if (path.split("/").includes("..")) return false;
+  return base === "/" || path === base || path.startsWith(`${base}/`);
+}
+
+/** The highest level any path grant gives a project at `projectPath`. */
+export function pathGrantLevel(
+  grants: Pick<LimitedUserGrants, "pathGrants">,
+  projectPath: string,
+): ProjectAccessLevel {
+  let level: ProjectAccessLevel = "none";
+  for (const grant of grants.pathGrants ?? []) {
+    if (isPathWithin(grant.path, projectPath))
+      level = higherAccessLevel(level, grant.level);
+  }
+  return level;
+}
+
+/**
+ * The grants with each known project a path grant covers written into the
+ * per-project lists, for the surfaces that enumerate a user's projects
+ * (lists, filters, the session index) rather than asking about one.
+ */
+export function withPathGrantProjects(
+  grants: LimitedUserGrants,
+  projects: Iterable<{ id: string; path: string }>,
+): LimitedUserGrants {
+  if (!grants.pathGrants?.length) return grants;
+  const lists = {
+    "new-session": new Set(grants.newSessionProjects),
+    join: new Set(grants.joinProjects),
+    view: new Set(grants.viewProjects),
+  };
+  for (const project of projects) {
+    const level = pathGrantLevel(grants, project.path);
+    if (
+      level !== "none" &&
+      ACCESS_RANK[level] > ACCESS_RANK[listedAccessLevel(grants, project.id)]
+    )
+      lists[level].add(project.id);
+  }
+  return {
+    ...grants,
+    newSessionProjects: [...lists["new-session"]],
+    joinProjects: [...lists.join],
+    viewProjects: [...lists.view],
+  };
 }
 
 /** Every project the user may at least read. */

@@ -282,6 +282,16 @@ a route added later is refused for limited users until it is listed. It is
 allowed gets 403, and a project or session outside the user's grants gets
 404 (existence is not disclosed).
 
+**Directory grants** (`pathGrants`, user-directed 2026-09-28) give one access
+level to every project at or beneath a directory, including projects created
+there later; the editor fills one from a limited user's project directory
+by username. The server stores each path resolved (`~` expanded, `..`
+collapsed) and refuses a relative one. A project's level is the higher of
+its per-project grant and any covering directory grant, judged on the path
+its id encodes. Surfaces that list a user's projects instead of asking
+about one see the grants with every known covered project (added projects
+plus the last scan) written into the per-project lists.
+
 The decision is made on the path the router dispatches, after
 percent-decoding, so an encoded spelling such as `/api/%69ssues` is judged
 as the `/api/issues` route it reaches. A project grant comes only from a

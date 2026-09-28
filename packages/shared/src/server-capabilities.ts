@@ -557,6 +557,28 @@ export const SERVER_CAPABILITIES = {
         "Older servers have no limited-user defaults slot to read or publish.",
     },
   },
+  limitedUserPathGrants: {
+    id: CAPABILITY_ID_ALLOCATIONS.limitedUserPathGrants.id,
+    name: "limited-user-path-grants",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Limited users carry directory grants giving an access level to every project at or beneath a path.",
+    clientFallback:
+      "Hide the Users directory-access editor and send no pathGrants field.",
+    serverContract: {
+      routes: ["POST /api/users", "PATCH /api/users/:username"],
+      requestFields: ["pathGrants"],
+      responseFields: ["users[].pathGrants"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers ignore pathGrants, so a directory grant would appear saved and grant nothing.",
+    },
+  },
   templatePreparationAttachments: {
     id: CAPABILITY_ID_ALLOCATIONS.templatePreparationAttachments.id,
     name: "template-preparation-attachments",

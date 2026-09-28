@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   LimitedUserSummary,
+  PathGrant,
   ProjectAccessLevel,
   UsageReport,
   TemplateCreationGrant,
@@ -61,6 +62,14 @@ interface DraftState {
   projectRoot: string;
   templateCreation?: TemplateCreationGrant;
   instructionBlocks: InstructionBlockDraft[];
+  pathGrants: PathGrant[];
+}
+
+/** Which optional user fields this server stores; others are never sent. */
+interface EditorSupport {
+  templates: boolean;
+  instructions: boolean;
+  pathGrants: boolean;
 }
 
 function draftFromUser(user: LimitedUserSummary): DraftState {
@@ -80,14 +89,11 @@ function draftFromUser(user: LimitedUserSummary): DraftState {
     projectRoot: user.projectRoot ?? "",
     templateCreation: templateGrantFor(user),
     instructionBlocks: instructionBlockDrafts(user.instructionBlocks ?? []),
+    pathGrants: structuredClone(user.pathGrants ?? []),
   };
 }
 
-function grantsFromDraft(
-  draft: DraftState,
-  supportsTemplates: boolean,
-  supportsInstructions: boolean,
-) {
+function grantsFromDraft(draft: DraftState, support: EditorSupport) {
   const newSessionProjects: string[] = [];
   const joinProjects: string[] = [];
   const viewProjects: string[] = [];
@@ -109,10 +115,18 @@ function grantsFromDraft(
     // Always sent, so clearing the field revokes the grant.
     projectRoot: draft.projectRoot.trim(),
     disabled: !draft.enabled,
-    ...(supportsTemplates ? { templateCreation: templateGrantFor(draft) } : {}),
-    ...(supportsInstructions
+    ...(support.templates ? { templateCreation: templateGrantFor(draft) } : {}),
+    ...(support.instructions
       ? {
           instructionBlocks: draft.instructionBlocks.map((block) => block.text),
+        }
+      : {}),
+    ...(support.pathGrants
+      ? {
+          // A row still being filled in is not a grant yet.
+          pathGrants: draft.pathGrants
+            .map((grant) => ({ ...grant, path: grant.path.trim() }))
+            .filter((grant) => grant.path),
         }
       : {}),
   };
@@ -144,6 +158,18 @@ export function UsersSettings() {
   const supportsBrowserDefaults = serverHasCapability(
     version,
     SERVER_CAPABILITIES.limitedUserBrowserDefaults.name,
+  );
+  const supportsPathGrants = serverHasCapability(
+    version,
+    SERVER_CAPABILITIES.limitedUserPathGrants.name,
+  );
+  const support = useMemo<EditorSupport>(
+    () => ({
+      templates: supportsTemplates,
+      instructions: supportsInstructions,
+      pathGrants: supportsPathGrants,
+    }),
+    [supportsTemplates, supportsInstructions, supportsPathGrants],
   );
   const {
     settings,
@@ -387,9 +413,9 @@ export function UsersSettings() {
         <UserEditor
           key={editing.username}
           user={editing}
-          supportsInstructions={supportsInstructions}
+          users={users}
+          support={support}
           sharedInstructions={settings?.limitedUserInstructions}
-          supportsTemplates={supportsTemplates}
           busy={busy}
           onSaved={(saved) =>
             setUsers((current) =>
@@ -628,6 +654,122 @@ function ProjectAccessList({
   );
 }
 
+/**
+ * Directory grants: one access level for every project at or beneath a path,
+ * including projects created there later. A user's project directory is the
+ * common choice, so it can be picked by username rather than typed.
+ */
+function DirectoryAccessList({
+  grants,
+  users,
+  onChange,
+}: {
+  grants: PathGrant[];
+  users: readonly LimitedUserSummary[];
+  /** `commit` is true for a whole-value choice, false while typing. */
+  onChange: (grants: PathGrant[], commit: boolean) => void;
+}) {
+  const { t } = useI18n();
+  const roots = users.filter((user) => user.projectRoot);
+  const update = (index: number, grant: PathGrant, commit: boolean) =>
+    onChange(
+      grants.map((existing, i) => (i === index ? grant : existing)),
+      commit,
+    );
+  return (
+    <>
+      <p className="settings-hint">{t("usersDirectoriesHint")}</p>
+      {grants.length > 0 && (
+        <ul className={styles.projectList}>
+          {grants.map((grant, index) => (
+            // Rows have no identity beyond their position while edited.
+            // biome-ignore lint/suspicious/noArrayIndexKey: see above.
+            <li key={index} className={styles.directoryRow}>
+              <input
+                className={styles.input}
+                value={grant.path}
+                placeholder={t("usersDirectoryPlaceholder")}
+                aria-label={t("usersDirectoryPath")}
+                autoComplete="off"
+                spellCheck={false}
+                onChange={(event) =>
+                  update(index, { ...grant, path: event.target.value }, false)
+                }
+              />
+              <select
+                className={styles.select}
+                value={grant.level}
+                aria-label={t("usersDirectoryLevel", { path: grant.path })}
+                onChange={(event) =>
+                  update(
+                    index,
+                    {
+                      ...grant,
+                      level: event.target.value as PathGrant["level"],
+                    },
+                    true,
+                  )
+                }
+              >
+                <option value="view">{t("usersAccessView")}</option>
+                <option value="join">{t("usersAccessJoin")}</option>
+                <option value="new-session">
+                  {t("usersAccessNewSession")}
+                </option>
+              </select>
+              <button
+                type="button"
+                className="settings-button"
+                aria-label={t("usersDirectoryRemove", { path: grant.path })}
+                onClick={() =>
+                  onChange(
+                    grants.filter((_, i) => i !== index),
+                    true,
+                  )
+                }
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <span className={styles.inputRow}>
+        <button
+          type="button"
+          className="settings-button"
+          onClick={() =>
+            onChange([...grants, { path: "", level: "view" }], false)
+          }
+        >
+          {t("usersDirectoryAdd")}
+        </button>
+        {roots.length > 0 && (
+          <select
+            className={styles.select}
+            value=""
+            aria-label={t("usersDirectoryFromUser")}
+            onChange={(event) => {
+              if (!event.target.value) return;
+              onChange(
+                [...grants, { path: event.target.value, level: "view" }],
+                true,
+              );
+            }}
+          >
+            <option value="">{t("usersDirectoryFromUser")}</option>
+            {roots.map((user) => (
+              <option key={user.username} value={user.projectRoot}>
+                {user.username} — {user.projectRoot}
+              </option>
+            ))}
+          </select>
+        )}
+      </span>
+    </>
+  );
+}
+
 /** Naming a new account; its grants are edited, and saved, once it exists. */
 function CreateUserForm({
   busy,
@@ -697,11 +839,12 @@ function CreateUserForm({
 
 interface UserEditorProps {
   user: LimitedUserSummary;
-  supportsInstructions: boolean;
+  /** Every user, whose project directories a directory grant may name. */
+  users: readonly LimitedUserSummary[];
+  support: EditorSupport;
   sharedInstructions:
     | import("@yep-anywhere/shared").LimitedUserInstructions
     | undefined;
-  supportsTemplates: boolean;
   busy: boolean;
   onSaved: (user: LimitedUserSummary) => void;
   onActAs: () => void;
@@ -718,14 +861,16 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
  */
 function UserEditor({
   user,
-  supportsInstructions,
+  users,
+  support,
   sharedInstructions,
-  supportsTemplates,
   busy,
   onSaved,
   onActAs,
   onDelete,
 }: UserEditorProps) {
+  const { templates: supportsTemplates, instructions: supportsInstructions } =
+    support;
   const { t } = useI18n();
   const { projects } = useProjects();
   const { providers } = useProviders();
@@ -736,13 +881,7 @@ function UserEditor({
   draftRef.current = draft;
   // What the server holds, so an unchanged blur sends nothing.
   const savedKey = useRef<string | null>(
-    JSON.stringify(
-      grantsFromDraft(
-        draftFromUser(user),
-        supportsTemplates,
-        supportsInstructions,
-      ),
-    ),
+    JSON.stringify(grantsFromDraft(draftFromUser(user), support)),
   );
   const queue = useRef<Promise<void>>(Promise.resolve());
   const onSavedRef = useRef(onSaved);
@@ -750,11 +889,7 @@ function UserEditor({
 
   const persist = useCallback(
     (next: DraftState) => {
-      const grants = grantsFromDraft(
-        next,
-        supportsTemplates,
-        supportsInstructions,
-      );
+      const grants = grantsFromDraft(next, support);
       const key = JSON.stringify(grants);
       const password = next.password;
       if (key === savedKey.current && !password) return;
@@ -792,7 +927,7 @@ function UserEditor({
         }
       });
     },
-    [supportsInstructions, supportsTemplates, user.username],
+    [support, supportsInstructions, user.username],
   );
   const persistRef = useRef(persist);
   persistRef.current = persist;
@@ -966,6 +1101,19 @@ function UserEditor({
             access={draft.access}
             onChange={(access) => change({ ...draft, access }, true)}
           />
+
+          {support.pathGrants && (
+            <>
+              <p className={styles.subhead}>{t("usersDirectoriesHeading")}</p>
+              <DirectoryAccessList
+                grants={draft.pathGrants}
+                users={users}
+                onChange={(pathGrants, commit) =>
+                  change({ ...draft, pathGrants }, commit)
+                }
+              />
+            </>
+          )}
 
           <label className={styles.field}>
             <span>{t("usersJoinOffsetLabel")}</span>
