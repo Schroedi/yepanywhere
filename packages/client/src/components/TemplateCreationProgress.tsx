@@ -53,7 +53,7 @@ export function TemplateCreationProgress({
       >
         {t(expanded ? "templateHideLog" : "templateShowLog")}
       </button>
-      <pre id={logId} className={styles.log} hidden={!expanded} tabIndex={0}>
+      <pre id={logId} className={styles.log} hidden={!expanded}>
         {output || t("templateWaitingOutput")}
       </pre>
       {!expanded && (
