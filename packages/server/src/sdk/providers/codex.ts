@@ -181,10 +181,8 @@ import {
   agentServerEnvironmentFor,
   inactiveProviderSessionOptionsResult,
 } from "./types.js";
-import {
-  type SessionSandboxRuntime,
-  withSessionSandboxAgentContext,
-} from "../../session-sandbox.js";
+import type { SessionSandboxRuntime } from "../../session-sandbox.js";
+import { withSessionSandboxAgentContext } from "../../session-sandbox-agent-context.js";
 
 const log = {
   debug(bindings: Record<string, unknown>, message: string): void {

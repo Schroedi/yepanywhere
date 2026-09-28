@@ -98,10 +98,8 @@ import {
   agentServerEnvironmentFor,
   resolveProviderSessionOptions,
 } from "./types.js";
-import {
-  type SessionSandboxRuntime,
-  withSessionSandboxAgentContext,
-} from "../../session-sandbox.js";
+import type { SessionSandboxRuntime } from "../../session-sandbox.js";
+import { withSessionSandboxAgentContext } from "../../session-sandbox-agent-context.js";
 
 type ClaudeSdkModelInfo = Awaited<ReturnType<Query["supportedModels"]>>[number];
 type ClaudeSdkSlashCommand = Awaited<

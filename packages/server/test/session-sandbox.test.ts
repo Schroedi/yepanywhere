@@ -24,15 +24,17 @@ import { AuthService } from "../src/auth/AuthService.js";
 import { SESSION_COOKIE_NAME } from "../src/auth/routes.js";
 import { createAuthMiddleware } from "../src/middleware/auth.js";
 import {
-  describeSessionSandboxForAgent,
   getClaudeSandboxProjectDir,
   getCodexSandboxSessionsDir,
   getSessionSandboxSettingsError,
   prepareSessionSandbox,
   probeSessionSandboxAvailability,
   type SessionSandboxSpawn,
-  withSessionSandboxAgentContext,
 } from "../src/session-sandbox.js";
+import {
+  describeSessionSandboxForAgent,
+  withSessionSandboxAgentContext,
+} from "../src/session-sandbox-agent-context.js";
 import { ClaudeSessionReader } from "../src/sessions/reader.js";
 import { ClaudeProvider } from "../src/sdk/providers/claude.js";
 import {
