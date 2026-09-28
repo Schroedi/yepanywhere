@@ -369,11 +369,15 @@ for, so nothing about limited users appears anywhere else until one exists.
   the three project lists as one per-project access level, the join-freshness
   offset, and the lock; model and effort completions populate from the
   provider catalog once a provider is chosen, and a blank field is unlocked.
-- **Sidebar.** Nothing. No panel, no shortcut, no switcher, and no logout
-  button: user management is reached through Settings like any other
-  administration. The acting principal still reports `hasLimitedUsers`, a
-  boolean and never a count, for surfaces that need to know an install has
-  more than one principal.
+- **Sidebar.** No panel, no shortcut, no switcher, and no logout button for
+  a limited login: user management is reached through Settings like any
+  other administration. The one exception is the way back for a superuser
+  acting as a limited user: while switched, the nav list ends with *Stop
+  acting as <username>*, which ends the switch and reloads. Acting as a user
+  shows that user's app, so without it the only exit was Settings → Users
+  (maintainer direction, 2026-09-28). The acting principal still reports
+  `hasLimitedUsers`, a boolean and never a count, for surfaces that need to
+  know an install has more than one principal.
 
 - **Delete.** Confirmation names the user and explains that deletion removes
   the account, its grants and usage history while keeping project directories

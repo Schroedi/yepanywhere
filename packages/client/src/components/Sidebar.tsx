@@ -11,7 +11,7 @@ import {
 } from "@yep-anywhere/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import type { GlobalSessionItem } from "../api/client";
+import { api, type GlobalSessionItem } from "../api/client";
 import { useOptionalRemoteConnection } from "../contexts/RemoteConnectionContext";
 import { useNewSessionDraft } from "../hooks/useDrafts";
 import { useProjectCodeNamePreferences } from "../hooks/useProjectCodeNamePreferences";
@@ -696,6 +696,12 @@ export function Sidebar({
 
   // Disconnect, cache-bust this document, then open the host picker after
   // reload. Reloading /login can leave a session-pinned installed window.
+  const handleReturnToSuperuser = async () => {
+    await api.logoutUser();
+    // Acting as a different principal changes every list in the app.
+    window.location.reload();
+  };
+
   const handleSwitchHost = () => {
     remoteConnection?.disconnect();
     markSwitchHostReload();
@@ -1291,6 +1297,34 @@ export function Sidebar({
               onClick={onNavigate}
               basePath={basePath}
             />
+            {/* A switched superuser sees the limited user's app; this is the way
+                back that does not require finding Settings > Users. */}
+            {actingPrincipal.switched && actingPrincipal.username && (
+              <SidebarNavButton
+                className="sidebar-return-to-superuser"
+                onClick={() => void handleReturnToSuperuser()}
+                label={t("sidebarReturnToSuperuser", {
+                  username: actingPrincipal.username,
+                })}
+                icon={
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    <polyline points="16 17 21 12 16 7" />
+                    <line x1="21" y1="12" x2="9" y2="12" />
+                  </svg>
+                }
+              />
+            )}
             {/* Relay-connected Switch Host uses nav-item markup so the mini rail stays icon-only. */}
             {remoteConnection && (
               <SidebarNavButton
