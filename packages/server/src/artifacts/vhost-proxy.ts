@@ -1,4 +1,5 @@
 import { request as httpRequest } from "node:http";
+import { connect } from "node:net";
 import { Readable } from "node:stream";
 import { vhostExternalProtocol } from "./vhosts.js";
 
@@ -49,12 +50,15 @@ function outgoingHeaders(
 /**
  * Reverse-proxy `request` to loopback `port`, preserving the incoming Host.
  * `clientAddress` is the peer YA answered, which the upstream sees as the last
- * forwarded-for hop.
+ * forwarded-for hop. With `brokerSocket`, the loopback is a firewalled
+ * sandbox's, reached through its port broker: the connection names the port
+ * on its first line (session-sandbox-port-broker.mjs).
  */
 export function proxyLoopbackVhost(
   incoming: Request,
   port: number,
   clientAddress?: string,
+  brokerSocket?: string,
 ): Promise<Response> {
   if (incoming.headers.get("upgrade"))
     return Promise.resolve(
@@ -64,8 +68,15 @@ export function proxyLoopbackVhost(
   return new Promise((resolve) => {
     const req = httpRequest(
       {
-        hostname: "127.0.0.1",
-        port,
+        ...(brokerSocket
+          ? {
+              createConnection: () => {
+                const socket = connect(brokerSocket);
+                socket.write(`${port}\n`);
+                return socket;
+              },
+            }
+          : { hostname: "127.0.0.1", port }),
         path: `${url.pathname}${url.search}`,
         method: incoming.method,
         headers: outgoingHeaders(incoming, clientAddress),

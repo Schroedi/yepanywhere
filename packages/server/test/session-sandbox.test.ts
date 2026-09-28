@@ -816,8 +816,11 @@ describe("session sandbox", { timeout: 20_000 }, () => {
       /\/tmp is private/,
       /loopback is private/,
       /YA server .* unreachable/,
-      /not yet reachable from the user's browser or an SSH forward/,
-      /do not present 127\.0\.0\.1 or localhost URLs as viewable/,
+      /not reachable directly from the user's browser or an SSH forward/,
+      // How the user sees it instead: the printed loopback URL, through YA.
+      /print its http:\/\/127\.0\.0\.1:<port>\/ URL/,
+      /App pane through this sandbox/,
+      /Do not claim to verify host reachability/,
     ]) {
       expect(firewalled).toMatch(fact);
     }

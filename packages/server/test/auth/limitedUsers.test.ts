@@ -109,6 +109,12 @@ describe("limited-user route policy", () => {
     });
   });
 
+  it("treats opening a sandboxed session's app as acting in that session", () => {
+    expect(
+      decide("POST", "/api/projects/abc/sessions/s1/sandbox-apps"),
+    ).toEqual({ kind: "session", sessionId: "s1", required: "join" });
+  });
+
   it("lets a reader refresh a session's list preview, which launches nothing", () => {
     expect(
       decide("POST", "/api/projects/abc/sessions/s1/refresh-preview"),

@@ -21,6 +21,10 @@ import { createArtifactRoutes } from "./routes/artifacts.js";
 import { createVhostAppRoutes } from "./routes/vhostApps.js";
 import { createVhostAccessRoutes } from "./routes/vhostAccess.js";
 import {
+  createSessionAppRoutes,
+  sessionAppBrokerSocket,
+} from "./routes/sessionApps.js";
+import {
   VhostAppControl,
   vhostAppControlAvailable,
 } from "./artifacts/VhostAppControl.js";
@@ -1109,6 +1113,19 @@ export function createApp(options: AppOptions): AppResult {
   );
   app.route("/api", createVhostAppRoutes(vhostAppControl));
   app.route("/api", createVhostAccessRoutes(artifactServer));
+  // Sandboxed sessions' loopback servers, through their port brokers. The
+  // supervisor is assigned later; both callbacks run only at request time.
+  artifactServer.setSessionAppUpstream((sessionId) =>
+    sessionAppBrokerSocket(supervisor.getProcessForSession(sessionId)),
+  );
+  app.route(
+    "/api",
+    createSessionAppRoutes({
+      getArtifactServer: () => artifactServer,
+      getProcessForSession: (sessionId) =>
+        supervisor.getProcessForSession(sessionId),
+    }),
+  );
   const toolResultMediaStore = new ToolResultMediaStore({
     dataDir: options.dataDir,
     storagePolicy: projectStoragePolicy,

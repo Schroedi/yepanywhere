@@ -722,15 +722,17 @@ function SessionPageContent({
   const [rightPaneTarget, setRightPaneTarget] = useState<HTMLDivElement | null>(
     null,
   );
-  // A limited user is refused app links, so their apps are not offered here
-  // (topics/limited-users.md § Authorization).
+  // A limited user is refused operator app links, so those apps are not
+  // offered to them; artifacts and their own sandboxed session apps still
+  // are (topics/limited-users.md § Authorization).
   const canUseBearerGrants = useCanUseBearerGrants();
   const rightPane = useSessionRightPane(
     `${basePath}/${projectId}/${sessionId}`,
     messages,
-    canUseBearerGrants ? versionInfo?.artifactViewer : undefined,
+    versionInfo?.artifactViewer,
     !isDomLingerParked && !loading,
     sessionId,
+    { projectId, fetchAppLinks: canUseBearerGrants },
   );
   useLayoutEffect(() => {
     if (isDomLingerParked) return;

@@ -226,16 +226,16 @@ states that:
   to be offered;
 - writes outside the project fail and `/tmp` is private; and
 - with the network firewall, loopback is private, the YA server and other host
-  services are unreachable, and a server the agent starts is not yet reachable
-  from the user's browser or an SSH forward, so it must not present
-  `127.0.0.1`/`localhost` URLs as viewable or claim to verify host
-  reachability from inside. Without the firewall it says only that networking
-  is shared with the host.
+  services are unreachable, and a server the agent starts is not reachable
+  directly from the user's browser or an SSH forward; printing its
+  `http://127.0.0.1:<port>/` URL is how the user gets it, since YA offers it
+  in the session's App pane through the sandbox's port broker
+  ([sandboxed session apps](session-right-pane.md#sandboxed-session-apps)).
+  It must not claim to verify host reachability from inside. Without the
+  firewall it says only that networking is shared with the host.
 
 It states facts, not policy: it does not discourage serving inside the
-sandbox, which is the intended way to show a built app once YA can reach it
-(see the [root artifact sketch](../gaps/sketches/project-root-artifact-and-publish.md)),
-and it promises no serving mechanism. Motivation: an agent in a firewalled
+sandbox, which is the intended way to show a built app. Motivation: an agent in a firewalled
 session (2026-09-28) offered to run a preview "outside the sandbox" with
 Claude's Bash option, planned to confirm it with `ss` from inside its own
 namespace, and wrote that model into project instructions. The OS boundary

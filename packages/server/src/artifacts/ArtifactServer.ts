@@ -27,7 +27,11 @@ import {
   setVhostHostnames,
 } from "../middleware/allowed-hosts.js";
 import { proxyLoopbackVhost } from "./vhost-proxy.js";
-import { matchVhost, vhostHostnames } from "./vhosts.js";
+import {
+  matchVhost,
+  SESSION_APP_NAME_PREFIX,
+  vhostHostnames,
+} from "./vhosts.js";
 import { VhostAccess } from "./VhostAccess.js";
 
 const MAX_GRANTS = 256;
@@ -91,10 +95,32 @@ export interface ArtifactServerOptions {
   homeDirectory?: string;
 }
 
+/** A loopback port of one sandboxed session, offered under a minted name. */
+interface SessionApp {
+  name: string;
+  sessionId: string;
+  port: number;
+}
+
+/**
+ * The broker socket reaching `sessionId`'s current sandbox loopback, or null
+ * when the session has no live firewalled process with a broker.
+ */
+export type SessionAppUpstream = (sessionId: string) => string | null;
+
+const MAX_SESSION_APPS = 256;
+
 export class ArtifactServer {
   readonly vhostAccess: VhostAccess;
   readonly app = new Hono();
   private readonly grants = new Map<string, Grant>();
+  private readonly sessionApps = new Map<string, SessionApp>();
+  /**
+   * Every name ever minted stays excluded from YA's host trust until exit,
+   * as configured app hosts do, even after its session app is gone.
+   */
+  private readonly mintedSessionAppHosts = new Set<string>();
+  private sessionAppUpstream: SessionAppUpstream = () => null;
   private listener: Server | undefined;
   private listening = false;
 
@@ -360,9 +386,49 @@ export class ArtifactServer {
 
   private registerHosts(config: ArtifactConfig): void {
     registerArtifactOrigins([config.localOrigin, config.publicOrigin]);
+    const minted = [...this.mintedSessionAppHosts].map((name) => ({
+      name,
+      port: 1,
+    }));
     setVhostHostnames(
-      vhostHostnames(config.vhosts ?? [], config.vhostPublicRoot),
+      vhostHostnames(
+        [...(config.vhosts ?? []), ...minted],
+        config.vhostPublicRoot,
+      ),
     );
+  }
+
+  /** Where session app upstreams resolve; set once the supervisor exists. */
+  setSessionAppUpstream(resolve: SessionAppUpstream): void {
+    this.sessionAppUpstream = resolve;
+  }
+
+  /**
+   * The minted app name offering `sessionId`'s loopback `port`, reusing the
+   * name already minted for that pair. The name is private: its bearer comes
+   * from `vhostAccess.token`, like any private app row's.
+   */
+  mintSessionApp(sessionId: string, port: number): SessionApp {
+    for (const app of this.sessionApps.values()) {
+      if (app.sessionId === sessionId && app.port === port) return app;
+    }
+    if (this.sessionApps.size >= MAX_SESSION_APPS) {
+      // Oldest first: a Map iterates in insertion order.
+      const oldest = this.sessionApps.keys().next().value;
+      if (oldest !== undefined) this.sessionApps.delete(oldest);
+    }
+    const staticNames = new Set(
+      (this.config.vhosts ?? []).map((row) => row.name),
+    );
+    let name: string;
+    do {
+      name = `${SESSION_APP_NAME_PREFIX}${randomBytes(8).toString("hex")}`;
+    } while (staticNames.has(name) || this.sessionApps.has(name));
+    const app = { name, sessionId, port };
+    this.sessionApps.set(name, app);
+    this.mintedSessionAppHosts.add(name);
+    this.registerHosts(this.config);
+    return app;
   }
 
   matchesHost(host: string): boolean {
@@ -379,12 +445,27 @@ export class ArtifactServer {
     );
   }
 
+  /** A session app named by `host`; operator rows always match first. */
+  private matchesSessionApp(host: string | undefined): SessionApp | undefined {
+    const matched = matchVhost(
+      host,
+      [...this.sessionApps.values()].map(({ name, port }) => ({ name, port })),
+      this.config.vhostPublicRoot,
+    );
+    return matched ? this.sessionApps.get(matched.name) : undefined;
+  }
+
   async dispatchHost(
     request: Request,
     clientAddress?: string,
   ): Promise<Response | null> {
     const host = request.headers.get("host") ?? new URL(request.url).host;
-    const vhost = this.matchesVhost(host);
+    const sessionApp = this.matchesVhost(host)
+      ? undefined
+      : this.matchesSessionApp(host);
+    const vhost =
+      this.matchesVhost(host) ??
+      (sessionApp && { name: sessionApp.name, port: sessionApp.port });
     if (vhost) {
       await this.ready;
       const authorized = this.vhostAccess.authorize(request, vhost);
@@ -396,10 +477,27 @@ export class ArtifactServer {
             "Referrer-Policy": "no-referrer",
           },
         });
+      let brokerSocket: string | undefined;
+      if (sessionApp) {
+        const upstream = this.sessionAppUpstream(sessionApp.sessionId);
+        if (!upstream)
+          return new Response(
+            "This session's sandbox is not running, so its app is unavailable",
+            {
+              status: 503,
+              headers: {
+                "Cache-Control": "no-store",
+                "Referrer-Policy": "no-referrer",
+              },
+            },
+          );
+        brokerSocket = upstream;
+      }
       const response = await proxyLoopbackVhost(
         authorized.request,
         vhost.port,
         clientAddress,
+        brokerSocket,
       );
       response.headers.set("Cache-Control", "no-store");
       response.headers.set("Referrer-Policy", "no-referrer");

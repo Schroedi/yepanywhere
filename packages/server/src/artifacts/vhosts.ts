@@ -7,6 +7,12 @@ export interface ArtifactVhost {
 }
 
 export const MAX_ARTIFACT_VHOSTS = 32;
+/**
+ * Label prefix of the names YA mints for sandboxed session apps. Operator rows
+ * are not forbidden from it, since persisted rows predate it: a static row
+ * always matches first, and minting skips any name a row uses.
+ */
+export const SESSION_APP_NAME_PREFIX = "sbx-";
 /** Names explicitly selected by the server's vhost configuration. */
 export const VHOST_ENV_NAMES = "AGENT_VHOST_ENV_NAMES";
 

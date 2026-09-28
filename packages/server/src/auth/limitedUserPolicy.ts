@@ -176,6 +176,9 @@ const JOIN_SESSION_ACTIONS = new Set([
   "queue",
   // Attaching an image or document is part of composing that turn.
   "upload",
+  // Opening a server the session started in its sandbox: it acts on that
+  // session's own process, as a turn does.
+  "sandbox-apps",
 ]);
 
 /**
