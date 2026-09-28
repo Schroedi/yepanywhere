@@ -131,6 +131,26 @@ describe("a limited user's project creation through the app", () => {
     ).toBe("archer");
   });
 
+  it("creates the configured root and nested parents on first creation", async () => {
+    await rm(root, { recursive: true });
+    const projectPath = join(root, "games", "scooter-race");
+    const response = await addProject(projectPath);
+    expect(response.status, await response.text()).toBe(200);
+    expect((await stat(join(projectPath, ".git"))).isDirectory()).toBe(true);
+    expect(
+      projectMetadataService.getMetadata(toUrlProjectId(projectPath))
+        ?.ownerUsername,
+    ).toBe("archer");
+  });
+
+  it("rejects missing descendants beneath an escaping symlink before mkdir", async () => {
+    await symlink(outside, join(root, "via"));
+    expect(
+      (await addProject(join(root, "via", "missing", "made"))).status,
+    ).toBe(403);
+    await expect(stat(join(outside, "missing"))).rejects.toThrow();
+  });
+
   it("refuses to claim a project the superuser already added under its root", async () => {
     const projectPath = join(root, "shared");
     await mkdir(projectPath);

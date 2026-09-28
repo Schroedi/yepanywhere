@@ -21,6 +21,27 @@ export const templateCreationRequest = z.strictObject({
   path: z.string().min(1),
   name: z.string().trim().min(1).max(200),
   intent: z.string().trim().min(1).max(100_000),
+  stagedAttachments: z
+    .object({
+      batchId: z.string().min(1),
+      refs: z
+        .array(
+          z.object({
+            id: z.string(),
+            batchId: z.string(),
+            originalName: z.string(),
+            name: z.string(),
+            size: z.number().nonnegative(),
+            mimeType: z.string(),
+            width: z.number().optional(),
+            height: z.number().optional(),
+            createdAt: z.string(),
+            updatedAt: z.string(),
+          }),
+        )
+        .max(100),
+    })
+    .optional(),
   session: z.record(z.string(), z.unknown()).default({}),
 });
 export type TemplateCreationRequest = z.infer<typeof templateCreationRequest>;
@@ -39,9 +60,12 @@ const operationSchema = z.object({
   projectId: z.string().optional(),
   sessionId: z.string().optional(),
   error: z.string().optional(),
+  ownerUsername: z.string().nullable().default(null),
 });
 export type TemplateCreationOperation = z.infer<typeof operationSchema>;
 export interface TemplateCreationActions {
+  ownerUsername?: string;
+  authorize?: (path: string) => Promise<void>;
   register: (path: string, name: string) => Promise<string>;
   prepare: (
     projectId: string,
@@ -111,6 +135,8 @@ export class TemplateCreationService {
     const request = templateCreationRequest.parse(input);
     const existing = await this.get(request.operationId);
     if (existing) {
+      if (existing.ownerUsername !== (actions.ownerUsername ?? null))
+        throw new Error("Operation not found");
       if (JSON.stringify(existing.request) !== JSON.stringify(request))
         throw new Error(
           "Template operation ID already belongs to a different request",
@@ -132,14 +158,18 @@ export class TemplateCreationService {
     if (!isAbsolute(expanded))
       throw new Error("Template project path must be absolute");
     const target = resolve(expanded);
+    await actions.authorize?.(target);
+    await mkdir(dirname(target), { recursive: true });
     const parent = await realpath(dirname(target));
     if (!(await stat(parent)).isDirectory())
       throw new Error("Template project parent is not a directory");
     const canonicalTarget = join(parent, basename(target));
+    await actions.authorize?.(canonicalTarget);
     const state: TemplateCreationOperation = {
       request,
       phase: "materializing",
       log: "",
+      ownerUsername: actions.ownerUsername ?? null,
     };
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
     // Exclusive journal allocation arbitrates repeated concurrent requests before side effects.
@@ -151,7 +181,11 @@ export class TemplateCreationService {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
       const winner = await this.get(request.operationId);
-      if (!winner || JSON.stringify(winner.request) !== JSON.stringify(request))
+      if (
+        !winner ||
+        winner.ownerUsername !== (actions.ownerUsername ?? null) ||
+        JSON.stringify(winner.request) !== JSON.stringify(request)
+      )
         throw new Error(
           "Template operation ID already belongs to a different request",
         );
@@ -172,11 +206,13 @@ export class TemplateCreationService {
     };
     const execute = async () => {
       try {
+        await actions.authorize?.(canonicalTarget);
         await library.materialize(request.templateId, canonicalTarget, {
           name: request.name,
           description: request.intent,
         });
         await phase("setup");
+        await actions.authorize?.(canonicalTarget);
         await runTemplateSetup(
           canonicalTarget,
           runtime.setup,
@@ -184,6 +220,7 @@ export class TemplateCreationService {
             state.log = (state.log + text).slice(-64 * 1024);
           },
           controller.signal,
+          !!actions.ownerUsername,
         );
         controller.signal.throwIfAborted();
         const bundle = await realpath(
@@ -201,9 +238,11 @@ export class TemplateCreationService {
         await initializeProjectGit(canonicalTarget, true);
         await phase("registering");
         controller.signal.throwIfAborted();
+        await actions.authorize?.(canonicalTarget);
         state.projectId = await actions.register(canonicalTarget, request.name);
         await phase("preparing");
         controller.signal.throwIfAborted();
+        await actions.authorize?.(canonicalTarget);
         const prompt = composition.files
           .get(runtime.prepare)!
           .content.toString("utf8");

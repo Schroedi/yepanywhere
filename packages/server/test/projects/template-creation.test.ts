@@ -15,6 +15,8 @@ import {
 import { createApp } from "../setup/create-app.js";
 import { MockClaudeSDK } from "../../src/sdk/mock.js";
 import { ProjectMetadataService } from "../../src/metadata/ProjectMetadataService.js";
+import { LimitedUsersService } from "../../src/auth/LimitedUsersService.js";
+import { probeSessionSandboxAvailability } from "../../src/session-sandbox.js";
 
 let root: string;
 beforeEach(async () => {
@@ -203,7 +205,7 @@ it("serves ready choices and creates through HTTP without accepting a forged sou
   ]);
 });
 
-it("denies every creation endpoint to limited principals before reading operation state", async () => {
+it("denies creation endpoints without an active limited-user grant before reading operation state", async () => {
   const sources = new TemplateSourceService(join(root, "data"));
   const service = new TemplateCreationService(join(root, "data"), sources);
   const app = new Hono<{
@@ -241,6 +243,132 @@ it("denies every creation endpoint to limited principals before reading operatio
       (await app.request(`/project-templates/${path}`, { method })).status,
     ).toBe(403);
 });
+
+it("enforces source-qualified grants, owner-only operations and real sandboxed limited-user setup", async () => {
+  const sources = await source();
+  const outside = join(root, "outside-marker");
+  await writeFile(outside, "protected");
+  const setupFile = join(root, "source/templates/app/file-0");
+  await writeFile(
+    setupFile,
+    `${await readFile(setupFile, "utf8")}\ntry { writeFileSync(${JSON.stringify(outside)}, "escaped"); } catch { /* A confined write may fail or land in private temporary storage. */ }`,
+  );
+  const users = new LimitedUsersService({ dataDir: join(root, "users") });
+  await users.initialize();
+  await users.create({
+    username: "archer",
+    password: "test-password",
+    projectRoot: root,
+    templateCreation: {
+      mode: "selected",
+      templates: [{ sourceId: "local", templateId: "app" }],
+    },
+    lock: { provider: "claude", model: "locked-model" },
+  });
+  await users.create({
+    username: "other",
+    password: "test-password",
+    projectRoot: root,
+  });
+  const service = new TemplateCreationService(join(root, "data"), sources);
+  const app = new Hono<{
+    Variables: Record<typeof PRINCIPAL_VARIABLE, Principal>;
+  }>();
+  let username = "archer";
+  app.use("*", async (c, next) => {
+    c.set(PRINCIPAL_VARIABLE, {
+      kind: "limited",
+      username,
+      via: "direct",
+      switched: false,
+      locked: true,
+      grants: users.getActiveGrants(username)!,
+    });
+    await next();
+  });
+  let launches = 0;
+  app.route(
+    "/",
+    createProjectTemplateRoutes(
+      sources,
+      service,
+      async (_context, path, body) => {
+        if (path === "/api/projects")
+          return Response.json({ project: { id: "owned" } });
+        launches++;
+        expect(body).toMatchObject({
+          provider: "claude",
+          model: "locked-model",
+          sandboxLevel: "project-write",
+        });
+        return Response.json({ sessionId: "prepared" });
+      },
+      (name) => users.getActiveGrants(name),
+    ),
+  );
+  const choices = await (
+    await app.request("/project-templates/choices")
+  ).json();
+  expect(choices.templates.map((item: { id: string }) => item.id)).toEqual([
+    "app",
+  ]);
+  const request = {
+    operationId: randomUUID(),
+    sourceId: "local",
+    templateId: "app",
+    path: join(root, "owned"),
+    name: "Owned",
+    intent: "Make a game",
+    session: {},
+  };
+  const post = (body: unknown) =>
+    app.request("/project-templates/operations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  expect((await post({ ...request, sourceId: "forged" })).status).toBe(409);
+  expect(
+    (await post({ ...request, path: join(root, "../escape") })).status,
+  ).toBe(409);
+  expect(
+    (await post({ ...request, session: { model: "different" } })).status,
+  ).toBe(409);
+  await users.update("archer", {
+    templateCreation: { mode: "selected", templates: [] },
+  });
+  expect(
+    (await (await app.request("/project-templates/choices")).json()).templates,
+  ).toEqual([]);
+  expect((await post(request)).status).toBe(409);
+  await users.update("archer", { templateCreation: { mode: "any" } });
+  const availability = await probeSessionSandboxAvailability();
+  expect((await post(request)).status).toBe(202);
+  await service.wait(request.operationId);
+  const outcome = await service.get(request.operationId);
+  if (availability.state === "available") {
+    expect(await readFile(outside, "utf8")).toBe("protected");
+    expect(outcome, outcome?.error).toMatchObject({
+      phase: "started",
+      ownerUsername: "archer",
+    });
+    expect(launches).toBe(1);
+    expect(await readFile(join(request.path, "dist/index.html"), "utf8")).toBe(
+      "Ready",
+    );
+  } else {
+    expect(outcome).toMatchObject({ phase: "failed" });
+    expect(launches).toBe(0);
+  }
+  username = "other";
+  expect(
+    (await app.request(`/project-templates/operations/${request.operationId}`))
+      .status,
+  ).toBe(404);
+  expect((await post(request)).status).toBe(404);
+  await users.update("other", { templateCreation: { mode: "none" } });
+  expect((await app.request("/project-templates/choices")).status).toBe(403);
+}, 30_000);
 
 it("retains a failed starter and never registers or prepares it on retry", async () => {
   const sources = await source();

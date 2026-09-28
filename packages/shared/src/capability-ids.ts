@@ -534,6 +534,18 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "project-template-creation",
     introducedIn: "0.9.4",
   },
+  limitedUserProjectTemplates: {
+    id: 86,
+    direction: "server",
+    name: "limited-user-project-templates",
+    introducedIn: "0.9.4",
+  },
+  templatePreparationAttachments: {
+    id: 87,
+    direction: "server",
+    name: "template-preparation-attachments",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

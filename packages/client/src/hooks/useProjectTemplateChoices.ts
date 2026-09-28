@@ -1,4 +1,8 @@
-import { SERVER_CAPABILITIES, serverHasCapability } from "@yep-anywhere/shared";
+import {
+  SERVER_CAPABILITIES,
+  serverHasCapability,
+  templateGrantFor,
+} from "@yep-anywhere/shared";
 import { useEffect, useState } from "react";
 import {
   projectTemplatesApi,
@@ -7,25 +11,47 @@ import {
 import { useActingPrincipal } from "./useActingPrincipal";
 import { useVersion } from "./useVersion";
 import { useClientSummarySourceKey } from "../lib/clientSummaryStore";
+import type { MessageKey } from "../i18n";
 
 /** Acquires template choices only after server and acting-principal gates settle. */
 export function useProjectTemplateChoices(chooserOpen = false) {
   const { version } = useVersion();
   const sourceKey = useClientSummarySourceKey();
   const { principal, resolved } = useActingPrincipal();
-  const superuser = resolved && principal.username === null;
-  const supported =
-    superuser &&
+  const limited = principal.username !== null;
+  const restricted =
+    resolved &&
+    limited &&
     serverHasCapability(
       version,
-      SERVER_CAPABILITIES.projectTemplateCreation.name,
+      SERVER_CAPABILITIES.limitedUserProjectTemplates.name,
+    );
+  const supported =
+    resolved &&
+    (!limited ||
+      (!!principal.grants?.projectRoot &&
+        templateGrantFor(principal.grants).mode !== "none")) &&
+    serverHasCapability(
+      version,
+      limited
+        ? SERVER_CAPABILITIES.limitedUserProjectTemplates.name
+        : SERVER_CAPABILITIES.projectTemplateCreation.name,
     );
   const [choices, setChoices] = useState<ProjectTemplateChoices | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadedSource, setLoadedSource] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const identityKey = JSON.stringify([
+    sourceKey,
+    principal.username,
+    principal.grants,
+  ]);
+  const requestKey = `${identityKey}:${chooserOpen}`;
+  const currentIdentity = loadedSource?.startsWith(`${identityKey}:`) === true;
   useEffect(() => {
     const controller = new AbortController();
     setError(null);
+    setLoading(supported);
     if (!supported) setChoices(null);
     if (supported)
       void projectTemplatesApi
@@ -33,20 +59,41 @@ export function useProjectTemplateChoices(chooserOpen = false) {
         .then((result) => {
           if (!controller.signal.aborted) {
             setChoices(result);
-            setLoadedSource(sourceKey);
+            setLoadedSource(requestKey);
+            setLoading(false);
           }
         })
         .catch((error: unknown) => {
           if (!controller.signal.aborted) {
             setChoices(null);
-            setLoadedSource(sourceKey);
+            setLoadedSource(requestKey);
+            setLoading(false);
             setError(error instanceof Error ? error.message : String(error));
           }
         });
     return () => controller.abort();
-  }, [supported, sourceKey, chooserOpen]);
+  }, [supported, requestKey]);
+  const emptyMessageKey: MessageKey =
+    restricted && !supported
+      ? "templateNotPermitted"
+      : loading || (supported && !currentIdentity)
+        ? "templateLoading"
+        : restricted && choices?.enabled === false
+          ? "templateDisabledForServer"
+          : limited
+            ? "templateNoneForUser"
+            : "templateNoReady";
   return {
-    choices: supported && loadedSource === sourceKey ? choices : null,
-    error: supported && loadedSource === sourceKey ? error : null,
+    emptyMessageKey,
+    choices: restricted
+      ? {
+          enabled: true,
+          templates:
+            supported && currentIdentity ? (choices?.templates ?? []) : [],
+        }
+      : supported && currentIdentity
+        ? choices
+        : null,
+    error: supported && currentIdentity ? error : null,
   };
 }

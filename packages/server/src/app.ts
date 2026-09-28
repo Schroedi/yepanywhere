@@ -918,6 +918,10 @@ export function createApp(options: AppOptions): AppResult {
           context.env,
         );
       },
+      (username) =>
+        isLimitedUsersEnabled()
+          ? (limitedUsersService?.getActiveGrants(username) ?? null)
+          : null,
     ),
   );
   app.route("/api", createPdfjsRoutes(new PdfjsAssetCache(effectiveDataDir)));

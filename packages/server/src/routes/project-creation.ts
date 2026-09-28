@@ -92,33 +92,45 @@ export function isWithinRoot(root: string, candidate: string): boolean {
  * followed, so `~/archer/x -> /` is outside `~/archer`; a symbolic link as
  * the project itself is refused outright, even one pointing back inside,
  * because a project is registered by the path typed and that path would then
- * name a directory other than the one checked. A parent that does not exist
- * leaves nothing on disk to follow; creation then refuses the missing parent.
+ * name a directory other than the one checked. Missing components are resolved
+ * from their nearest existing ancestor before creation is allowed.
  */
 export async function isContainedOnDisk(
   root: string,
   projectPath: string,
 ): Promise<boolean> {
-  let realRoot: string;
-  try {
-    realRoot = await fs.realpath(expandHomePath(root));
-  } catch {
-    return false;
-  }
+  const realRoot = await resolveFutureDirectory(
+    path.resolve(expandHomePath(root)),
+  );
   const leaf = path.resolve(expandHomePath(projectPath));
   try {
     if ((await fs.lstat(leaf)).isSymbolicLink()) return false;
-  } catch {
-    // Absent: the parent decides where it would be made.
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
-  let realParent: string;
-  try {
-    realParent = await fs.realpath(path.dirname(leaf));
-  } catch {
-    return true;
-  }
+  const realParent = await resolveFutureDirectory(path.dirname(leaf));
   const realLeaf = path.join(realParent, path.basename(leaf));
   return realLeaf !== realRoot && isWithinRoot(realRoot, realLeaf);
+}
+
+async function resolveFutureDirectory(directory: string): Promise<string> {
+  try {
+    await fs.lstat(directory);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    const parent = path.dirname(directory);
+    if (parent === directory) throw error;
+    return path.join(
+      await resolveFutureDirectory(parent),
+      path.basename(directory),
+    );
+  }
+  // Existing dangling links, inaccessible paths and files are errors, not
+  // missing directories that recursive mkdir may repair.
+  const resolved = await fs.realpath(directory);
+  if (!(await fs.stat(resolved)).isDirectory())
+    throw new Error(`Project creation parent is not a directory: ${directory}`);
+  return resolved;
 }
 
 /**
@@ -176,7 +188,7 @@ export type ProjectDirectoryOutcome =
  */
 export async function ensureProjectDirectory(
   projectPath: string,
-  options: { create: boolean },
+  options: { create: boolean; projectRoot?: string },
 ): Promise<ProjectDirectoryOutcome> {
   let stats: Awaited<ReturnType<typeof fs.stat>> | null = null;
   try {
@@ -207,6 +219,32 @@ export async function ensureProjectDirectory(
   // The parent must already exist: creating a whole tree from one typed path
   // turns a typo into a directory nobody meant to make.
   const parent = path.dirname(projectPath);
+  if (options.projectRoot) {
+    try {
+      if (
+        !isWithinRoot(options.projectRoot, projectPath) ||
+        !(await isContainedOnDisk(options.projectRoot, projectPath))
+      )
+        return {
+          kind: "error",
+          status: 400,
+          error: "Project path escapes the configured creation directory",
+        };
+      await fs.mkdir(parent, { recursive: true });
+      if (!(await isContainedOnDisk(options.projectRoot, projectPath)))
+        return {
+          kind: "error",
+          status: 400,
+          error: "Project path escapes the configured creation directory",
+        };
+    } catch (error) {
+      return {
+        kind: "error",
+        status: 500,
+        error: `Could not create project parent directory: ${(error as Error).message}`,
+      };
+    }
+  }
   try {
     const parentStats = await fs.stat(parent);
     if (!parentStats.isDirectory()) {

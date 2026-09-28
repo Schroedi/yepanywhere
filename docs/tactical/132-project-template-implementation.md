@@ -1,15 +1,51 @@
 # Usable projects from approved templates
 
-Status: superuser creation implemented, 2026-09-28; full acceptance remains open.
+Status: limited-user grants and creation implemented, 2026-09-28; full acceptance remains open.
 Contributing-model: 6-Astra.
 
 ## Current implementation checkpoint — 2026-09-28
 
-The working implementation now connects the superuser radio palette and inline
+The approved recent-prompt rail is implemented in both new-session and
+standalone template composers. Small dashes have 36 px activation targets
+(44 px with touch), hover/press previews, half-size drag previews and a
+positioned insertion caret. Release inserts without replacing the draft;
+outside release and Escape cancel. Browser checks cover real mouse/touch
+input, insertion into a blank line, keyboard insertion, account isolation,
+and sequential typing with 50 prompts and concurrent renders. The upload
+gallery remains on paperclip right-click/downward swipe; ordinary click opens
+the native picker. Browser history is local to server/account, not a complete
+server attachment inventory. See [attachment storage](../../topics/attachment-storage.md).
+
+The real limited-user browser flow now creates a missing root, builds the
+actual App canvas source, pastes an image before creation, reloads the operation
+and reaches preparation with attachments. It then reuses that upload in an
+ordinary new session. Setup, storage, authorization and routing are real; only
+the provider is mocked. The expanded New project panel spans both desktop
+columns. Draft upload indexes are account-owned. Queue transfer of those
+account-owned drafts remains in its explicit attachment gap.
+
+The working implementation now connects the authorized radio palette and inline
 New session expansion to native materialization, setup, initial Git commit,
 real project registration and session launch. The new capability is
-`project-template-creation`; template/workspace permissions and human identity
-still need their separate contracts. No shared server was restarted or published.
+`project-template-creation`; the distinct `limited-user-project-templates`
+capability adds None / Selected / Any controls to Users, source-qualified grants,
+owner-scoped operations and project-write setup. Existing records migrate once
+to Any with a root and None without one, preserving later choices. Personal
+workspace scope and human identity remain separate. No shared server was
+restarted or published.
+
+The user rejected the earlier superuser-only stopping point. A real browser
+test now saves Selected in Users, switches into that limited user, verifies
+the chooser and locked parent, creates through sandboxed setup, reloads, and
+reaches preparation. The provider is mocked; confinement and registration are
+real. Its first execution exposed symlinked sandbox-state mount destinations;
+the sandbox now canonicalizes its storage root. Desktop/phone captures under
+`.artifacts/ui-testing/2026-09-28-limited-templates/` were inspected one by one.
+Missing configured roots and intermediate parents are now created automatically
+after containment validation. App-route tests verify first creation and reject
+missing descendants under escaping symlinks. Optional personal
+feature subsets are a sketch, not delivered controls. Hidden settings inherit
+the superuser configuration subject to explicit per-user grants and locks.
 
 App canvas and its dependency closure were admitted in agents `090e72b` after
 review. Native YA creation against that local source runs dependency install,
@@ -31,7 +67,7 @@ manifest must map `icon.svg` to `.project-template/icon.svg`; GitHub changes
 require Fetch / update first, while local edits are read directly. The server
 test edits the actual local SVG and verifies changed bytes in the next response.
 
-Verification: full unit tests pass (6,343 client, 5,989 server, 916 shared,
+Earlier superuser checkpoint verification: full unit tests passed (6,343 client, 5,989 server, 916 shared,
 130 relay, 44 push broker; 15 server tests skipped). Lint, formatting,
 typechecking and the capability audit pass. Six active browser cases pass,
 including native creation/reload and the v0.8.0/v0.8.1 no-request fallback;
@@ -46,8 +82,14 @@ The corrected layout captures read the actual three SVG files in the source
 library, with fixture choice metadata. The creation case uses a real temporary
 source and the isolated mock provider. Neither claims live model execution.
 
-Remaining scope: admit Web page/Storybook, limited-user grants and migration,
-restricted setup and workspace scopes, App pane/reservations/runtime lifecycle,
+Web page and Storybook are now ready in the agents manifests, including their
+page/writing/story bases. Both passed fresh materialization, setup, typecheck,
+tests and build without allowing drafts. The limited-user empty state no longer
+directs users to settings they cannot access and distinguishes loading,
+disabled templates and absent grants.
+
+Remaining scope: personal workspace defaults/scopes
+and their migration, App pane/reservations/runtime lifecycle,
 project-local human identity, and the live-provider/direct/relay/portability
 acceptance below. Existing projects must not be modified or templates silently
 enabled. Source retrieval is still opt-in/default-off.

@@ -242,6 +242,7 @@ export interface RelayUploadState {
   clientUploadId: string;
   /** Upload storage backend */
   uploadKind: "session" | "draft-staging";
+  stagingService?: AttachmentStagingService;
   /** Server-generated upload ID from UploadManager */
   serverUploadId: string;
   /** Expected total size */
@@ -1828,6 +1829,7 @@ async function writeRelayUploadChunk(
   attachmentStagingService?: AttachmentStagingService,
 ): Promise<number> {
   if (state.uploadKind === "draft-staging") {
+    attachmentStagingService = state.stagingService ?? attachmentStagingService;
     if (!attachmentStagingService) {
       throw new Error("Attachment staging is unavailable");
     }
@@ -1843,7 +1845,9 @@ async function cancelRelayUpload(
   attachmentStagingService?: AttachmentStagingService,
 ): Promise<void> {
   if (state.uploadKind === "draft-staging") {
-    await attachmentStagingService?.cancelUpload(state.serverUploadId);
+    await (state.stagingService ?? attachmentStagingService)?.cancelUpload(
+      state.serverUploadId,
+    );
     return;
   }
 
@@ -1957,6 +1961,7 @@ export async function handleStagedUploadStart(
     uploads.set(uploadId, {
       clientUploadId: uploadId,
       uploadKind: "draft-staging",
+      stagingService: attachmentStagingService,
       serverUploadId,
       expectedSize: size,
       bytesReceived: 0,
@@ -2151,6 +2156,8 @@ export async function handleUploadEnd(
 
   try {
     if (state.uploadKind === "draft-staging") {
+      attachmentStagingService =
+        state.stagingService ?? attachmentStagingService;
       if (!attachmentStagingService) {
         throw new Error("Attachment staging is unavailable");
       }
@@ -2256,12 +2263,15 @@ export async function handleMessage(
     supervisor,
     eventBus,
     uploadManager,
-    attachmentStagingService,
+    attachmentStagingService: sharedAttachmentStagingService,
     remoteAccessService,
     remoteSessionService,
     securityClientService,
     limitedUsers,
   } = deps;
+  const attachmentStagingService = sharedAttachmentStagingService?.forUser(
+    authenticatedConnectionIdentity(connState),
+  );
   const srpRequiredPolicy = isPolicySrpRequired(connState.connectionPolicy);
   const getSpeechSession = (): SpeechWebSocketSession | null => {
     if (!options.speechSessionRef) {

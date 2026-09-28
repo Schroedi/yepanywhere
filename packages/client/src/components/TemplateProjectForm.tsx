@@ -10,6 +10,21 @@ import { pathForProjectName } from "../lib/newProjectPath";
 import { useClientSummarySourceKey } from "../lib/clientSummaryStore";
 import type { Project } from "../types";
 import styles from "./TemplateProjectForm.module.css";
+import { useActingPrincipal } from "../hooks/useActingPrincipal";
+import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
+import { ComposerRecents } from "./ComposerRecents";
+import { PromptHistoryRail } from "./PromptHistoryRail";
+import {
+  rememberComposerPrompt,
+  rememberComposerUpload,
+} from "../lib/composerHistory";
+import {
+  SERVER_CAPABILITIES,
+  serverHasCapability,
+  type StagedAttachmentRef,
+} from "@yep-anywhere/shared";
+import { useVersion } from "../hooks/useVersion";
+import { useToastContext } from "../contexts/ToastContext";
 
 interface Props {
   templates: ProjectTemplateChoice[];
@@ -20,6 +35,8 @@ interface Props {
   sessionSettings?: Record<string, unknown>;
   onBusyChange?: (busy: boolean) => void;
   disabledReason?: string;
+  emptyMessage?: string;
+  stagedAttachments?: TemplateCreationRequest["stagedAttachments"];
   onStarted: (projectId: string, sessionId: string) => void;
 }
 
@@ -33,11 +50,34 @@ export function TemplateProjectForm({
   sessionSettings = {},
   onBusyChange,
   disabledReason,
+  emptyMessage,
+  stagedAttachments,
   onStarted,
 }: Props) {
   const { t } = useI18n();
+  const { showToast } = useToastContext();
+  const { version } = useVersion();
+  const attachmentsSupported = serverHasCapability(
+    version,
+    SERVER_CAPABILITIES.templatePreparationAttachments.name,
+  );
   const sourceKey = useClientSummarySourceKey();
-  const storageKey = `ya-template-creation:${sourceKey}`;
+  const { principal, resolved } = useActingPrincipal();
+  const limited = principal.username !== null;
+  const historyScope = resolved
+    ? JSON.stringify([sourceKey, principal.username])
+    : null;
+  const { transport } = useCurrentSourceRuntime();
+  const [localAttachments, setLocalAttachments] = useState<
+    StagedAttachmentRef[]
+  >([]);
+  const [uploading, setUploading] = useState(0);
+  const [recentUploadsOpen, setRecentUploadsOpen] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const attachmentBatch = useRef(crypto.randomUUID());
+  const attachGesture = useRef({ y: 0, swiped: false });
+  const storageKey = `ya-template-creation:${sourceKey}${limited ? `:${principal.username}` : ""}`;
   const id = useId();
   const [name, setName] = useState(initialName);
   const [nameEdited, setNameEdited] = useState(false);
@@ -56,12 +96,36 @@ export function TemplateProjectForm({
     templates.find((item) => `${item.sourceId}/${item.id}` === selection) ??
     (selection === null ? templates[0] : undefined);
   const path =
-    request.current?.path ?? pathForProjectName(name, parent, projects, false);
+    request.current?.path ??
+    pathForProjectName(name, limited ? pathBase : parent, projects, false);
   const effectiveIntent = intent ?? description;
   const running =
     operation !== null &&
     !["started", "failed", "interrupted"].includes(operation.phase);
   const locked = pending || operation !== null || request.current !== null;
+  const attachFiles = async (files: File[]) => {
+    if (!resolved || locked || !attachmentsSupported) return;
+    setUploading((count) => count + files.length);
+    for (const file of files) {
+      try {
+        const ref = await transport.uploadStagedAttachment(file, {
+          batchId: attachmentBatch.current,
+        });
+        setLocalAttachments((items) => [...items, ref]);
+        if (historyScope)
+          void rememberComposerUpload(historyScope, file).catch((cause) =>
+            showToast(
+              t("composerHistorySaveError", { error: String(cause) }),
+              "error",
+            ),
+          );
+      } catch (cause) {
+        setError(`Could not attach ${file.name}: ${String(cause)}`);
+      } finally {
+        setUploading((count) => count - 1);
+      }
+    }
+  };
 
   useEffect(() => {
     onBusyChange?.(
@@ -70,7 +134,7 @@ export function TemplateProjectForm({
   }, [pending, running, operation, onBusyChange]);
 
   useEffect(() => {
-    if (recovered.current) return;
+    if (!resolved || recovered.current) return;
     recovered.current = true;
     const saved = sessionStorage.getItem(storageKey);
     if (!saved) return;
@@ -88,7 +152,7 @@ export function TemplateProjectForm({
         setError(caught instanceof Error ? caught.message : String(caught));
       })
       .finally(() => setPending(false));
-  }, [storageKey]);
+  }, [storageKey, resolved]);
 
   useEffect(() => {
     if (!nameEdited && !request.current) setName(initialName);
@@ -135,6 +199,8 @@ export function TemplateProjectForm({
 
   const create = async () => {
     if (
+      !resolved ||
+      uploading > 0 ||
       pending ||
       disabledReason ||
       !selected ||
@@ -151,9 +217,25 @@ export function TemplateProjectForm({
       name,
       intent: effectiveIntent,
       session: sessionSettings,
+      ...(stagedAttachments || localAttachments.length
+        ? {
+            stagedAttachments: stagedAttachments ?? {
+              batchId: attachmentBatch.current,
+              refs: localAttachments,
+            },
+          }
+        : {}),
     };
     setPending(true);
     setError(null);
+    if (historyScope)
+      void rememberComposerPrompt(historyScope, effectiveIntent).catch(
+        (cause) =>
+          showToast(
+            t("composerHistorySaveError", { error: String(cause) }),
+            "error",
+          ),
+      );
     try {
       sessionStorage.setItem(storageKey, JSON.stringify(request.current));
       setOperation(await projectTemplatesApi.create(request.current));
@@ -194,7 +276,12 @@ export function TemplateProjectForm({
             </span>
           </label>
         ))}
-        {templates.length === 0 && <p>{t("templateNoReady")}</p>}
+        {templates.length === 0 && (
+          <p role="status">
+            {emptyMessage ??
+              t(limited ? "templateNoneForUser" : "templateNoReady")}
+          </p>
+        )}
       </fieldset>
       {selected?.preview && (
         <img
@@ -216,31 +303,124 @@ export function TemplateProjectForm({
         />
       </label>
       {intent === undefined && (
+        <div>
+          <ComposerRecents
+            scope={historyScope}
+            onFiles={(files) => void attachFiles(files)}
+            uploadsOpen={recentUploadsOpen}
+            onUploadsClose={() => setRecentUploadsOpen(false)}
+            onBrowse={() => fileInput.current?.click()}
+          />
+          <label className={styles.field} htmlFor={`${id}-intent`}>
+            {t("templateIntent")}
+          </label>
+          <PromptHistoryRail
+            scope={historyScope}
+            textareaRef={textareaRef}
+            onChange={setDescription}
+          >
+            <div className={styles.field}>
+              <textarea
+                id={`${id}-intent`}
+                ref={textareaRef}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                onPaste={(event) => {
+                  const files = Array.from(event.clipboardData.files);
+                  if (files.length) {
+                    event.preventDefault();
+                    void attachFiles(files);
+                  }
+                }}
+                disabled={locked}
+                rows={3}
+                placeholder={t("templateIntentExample")}
+              />
+            </div>
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              hidden
+              onChange={(event) => {
+                void attachFiles(Array.from(event.target.files ?? []));
+                event.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              className={styles.secondary}
+              disabled={locked || !resolved || !attachmentsSupported}
+              onClick={() => {
+                if (attachGesture.current.swiped) {
+                  attachGesture.current.swiped = false;
+                  return;
+                }
+                fileInput.current?.click();
+              }}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setRecentUploadsOpen(true);
+              }}
+              onTouchStart={(event) => {
+                attachGesture.current = {
+                  y: event.touches[0]?.clientY ?? 0,
+                  swiped: false,
+                };
+              }}
+              onTouchEnd={(event) => {
+                if (
+                  (event.changedTouches[0]?.clientY ?? 0) -
+                    attachGesture.current.y >
+                  25
+                ) {
+                  attachGesture.current.swiped = true;
+                  setRecentUploadsOpen(true);
+                }
+              }}
+              title="Choose files; right-click or swipe down for recent uploads"
+            >
+              Attach files
+            </button>
+            {uploading > 0 && <p role="status">Uploading attachments…</p>}
+            {localAttachments.map((file) => (
+              <span key={file.id} className={styles.attachment}>
+                {file.originalName}
+                <button
+                  type="button"
+                  disabled={locked}
+                  aria-label={`Remove ${file.originalName}`}
+                  onClick={() =>
+                    setLocalAttachments((items) =>
+                      items.filter((item) => item.id !== file.id),
+                    )
+                  }
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </PromptHistoryRail>
+        </div>
+      )}
+      {!limited && (
         <label className={styles.field}>
-          {t("templateIntent")}
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+          {t("templateParent")}
+          <input
+            value={parent}
+            onChange={(e) => setParent(e.target.value)}
             disabled={locked}
-            rows={3}
-            placeholder={t("templateIntentExample")}
           />
         </label>
       )}
-      <label className={styles.field}>
-        {t("templateParent")}
-        <input
-          value={parent}
-          onChange={(e) => setParent(e.target.value)}
-          disabled={locked}
-        />
-      </label>
       {path && <small className={styles.path}>{path}</small>}
       <button
         type="button"
         className={styles.action}
         onClick={() => void create()}
         disabled={
+          !resolved ||
+          uploading > 0 ||
           pending ||
           !!disabledReason ||
           operation !== null ||

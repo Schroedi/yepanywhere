@@ -3,10 +3,14 @@ import type {
   LimitedUserSummary,
   ProjectAccessLevel,
   UsageReport,
+  TemplateCreationGrant,
 } from "@yep-anywhere/shared";
 import {
   JOIN_STALE_OFFSET_MAX_MINUTES,
   JOIN_STALE_OFFSET_MIN_MINUTES,
+  SERVER_CAPABILITIES,
+  serverHasCapability,
+  templateGrantFor,
 } from "@yep-anywhere/shared";
 import { api } from "../../api/client";
 import { useActingPrincipal } from "../../hooks/useActingPrincipal";
@@ -20,6 +24,8 @@ import { useSettingsPaneTitle } from "./SettingsPaneTitleContext";
 import { SettingsSection } from "./SettingsSection";
 import { UserUsageTable } from "./UserUsageTable";
 import styles from "./UsersSettings.module.css";
+import { UserTemplateGrant } from "./UserTemplateGrant";
+import { useVersion } from "../../hooks/useVersion";
 
 /**
  * Settings → Users: the superuser's user-management surface.
@@ -42,6 +48,7 @@ interface DraftState {
   model: string;
   effort: string;
   projectRoot: string;
+  templateCreation?: TemplateCreationGrant;
 }
 
 const EMPTY_DRAFT: DraftState = {
@@ -69,10 +76,11 @@ function draftFromUser(user: LimitedUserSummary): DraftState {
     model: user.lock.model ?? "",
     effort: user.lock.effort ?? "",
     projectRoot: user.projectRoot ?? "",
+    templateCreation: templateGrantFor(user),
   };
 }
 
-function grantsFromDraft(draft: DraftState) {
+function grantsFromDraft(draft: DraftState, supportsTemplates: boolean) {
   const newSessionProjects: string[] = [];
   const joinProjects: string[] = [];
   const viewProjects: string[] = [];
@@ -93,6 +101,7 @@ function grantsFromDraft(draft: DraftState) {
     },
     // Always sent, so clearing the field revokes the grant.
     projectRoot: draft.projectRoot.trim(),
+    ...(supportsTemplates ? { templateCreation: templateGrantFor(draft) } : {}),
   };
 }
 
@@ -108,6 +117,11 @@ type EditorTarget = { kind: "create" } | { kind: "edit"; username: string };
 
 export function UsersSettings() {
   const { t } = useI18n();
+  const { version } = useVersion();
+  const supportsTemplates = serverHasCapability(
+    version,
+    SERVER_CAPABILITIES.limitedUserProjectTemplates.name,
+  );
   useSettingsPaneTitle(t("settingsUsersTitle"));
   const {
     settings,
@@ -176,7 +190,7 @@ export function UsersSettings() {
     setBusy(true);
     setError(null);
     try {
-      const grants = grantsFromDraft(draft);
+      const grants = grantsFromDraft(draft, supportsTemplates);
       if (editor?.kind === "edit") {
         await api.updateUser(editor.username, {
           ...grants,
@@ -355,6 +369,7 @@ export function UsersSettings() {
 
       {editor !== null && (
         <UserEditor
+          supportsTemplates={supportsTemplates}
           editing={editor.kind === "edit" ? editor.username : null}
           draft={draft}
           error={error}
@@ -487,6 +502,7 @@ function ProjectRootField({
 }
 
 interface UserEditorProps {
+  supportsTemplates: boolean;
   /** The username being edited, or null when creating. */
   editing: string | null;
   draft: DraftState;
@@ -498,6 +514,7 @@ interface UserEditorProps {
 }
 
 function UserEditor({
+  supportsTemplates,
   editing,
   draft,
   error,
@@ -599,6 +616,14 @@ function UserEditor({
         username={editing ?? draft.username.trim()}
         onChange={(projectRoot) => onDraftChange({ ...draft, projectRoot })}
       />
+      {supportsTemplates && (
+        <UserTemplateGrant
+          value={templateGrantFor(draft)}
+          onChange={(templateCreation) =>
+            onDraftChange({ ...draft, templateCreation })
+          }
+        />
+      )}
 
       <label className={styles.field}>
         <span>{t("usersJoinOffsetLabel")}</span>

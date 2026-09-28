@@ -1,5 +1,11 @@
 import { ComputerSessionSelection } from "./ComputerSessionSelection";
 import { TemplateProjectForm } from "./TemplateProjectForm";
+import { ComposerRecents } from "./ComposerRecents";
+import { PromptHistoryRail } from "./PromptHistoryRail";
+import {
+  rememberComposerPrompt,
+  rememberComposerUpload,
+} from "../lib/composerHistory";
 import templateStyles from "./TemplateProjectForm.module.css";
 import { useProjectTemplateChoices } from "../hooks/useProjectTemplateChoices";
 import {
@@ -404,9 +410,11 @@ export function NewSessionForm({
   const { t } = useI18n();
   const sessionDefaultCopy = getSessionDefaultControlCopy(t);
   const [creatingTemplateProject, setCreatingTemplateProject] = useState(false);
-  const { choices: templateChoices } = useProjectTemplateChoices(
-    creatingTemplateProject,
-  );
+  const {
+    choices: templateChoices,
+    error: templateError,
+    emptyMessageKey,
+  } = useProjectTemplateChoices(creatingTemplateProject);
   const [templateProjectBusy, setTemplateProjectBusy] = useState(false);
   const handleTemplateBusyChange = useCallback((busy: boolean) => {
     setTemplateProjectBusy(busy);
@@ -559,7 +567,12 @@ export function NewSessionForm({
   // locked fields and forced sandbox are enforced at the launch route; the
   // form reads them so it stops presenting a choice that would be refused.
   // See topics/limited-users.md § Delivery v1.
-  const { principal } = useActingPrincipal();
+  const { principal, resolved: principalResolved } = useActingPrincipal();
+  const historyScope = principalResolved
+    ? JSON.stringify([clientSummarySourceKey, principal.username])
+    : null;
+  const [recentUploadsOpen, setRecentUploadsOpen] = useState(false);
+  const attachGesture = useRef({ y: 0, swiped: false });
   const launchLock = useMemo<LaunchLock>(
     () => launchLockFor(principal),
     [principal],
@@ -927,6 +940,14 @@ export function NewSessionForm({
               uploadFile,
             ).catch(() => {});
           }
+          if (historyScope)
+            void rememberComposerUpload(historyScope, uploadFile).catch(
+              (cause) =>
+                showToast(
+                  t("composerHistorySaveError", { error: String(cause) }),
+                  "error",
+                ),
+            );
           return {
             ...stagedRef,
             originalName: file.name,
@@ -994,6 +1015,7 @@ export function NewSessionForm({
     },
     [
       attachmentQuality,
+      historyScope,
       sourceTransport,
       ensureDraftAttachmentBatchId,
       setPendingFiles,
@@ -2397,6 +2419,13 @@ export function NewSessionForm({
       setInterimTranscript("");
       consumeSpeechAttribution();
       setIsStarting(true);
+      if (historyScope)
+        void rememberComposerPrompt(historyScope, finalMessage).catch((cause) =>
+          showToast(
+            t("composerHistorySaveError", { error: String(cause) }),
+            "error",
+          ),
+        );
 
       try {
         let resolvedProjectId =
@@ -2705,6 +2734,7 @@ export function NewSessionForm({
       computerSelected,
       creatingTemplateProject,
       templateProjectBusy,
+      historyScope,
       effectiveEffortLevel,
       effectiveExecutor,
       effectivePermissionMode,
@@ -3426,278 +3456,321 @@ export function NewSessionForm({
   // Shared input area with toolbar (textarea + attach/voice on left, send on right)
   const inputArea = (
     <>
-      <div
-        className={`speech-draft-field ${
-          interimDisplayTranscript ? "has-interim" : ""
-        }`}
+      <ComposerRecents
+        scope={historyScope}
+        onFiles={addPendingFiles}
+        uploadsOpen={recentUploadsOpen}
+        onUploadsClose={() => setRecentUploadsOpen(false)}
+        onBrowse={() => fileInputRef.current?.click()}
+      />
+      <PromptHistoryRail
+        scope={historyScope}
+        textareaRef={textareaRef}
+        onChange={setMessage}
       >
-        <div className="speech-draft-inline">
-          {interimDisplayTranscript && (
-            <div className="speech-draft-mirror" aria-hidden="true">
-              <span>{interimInsertion.before}</span>
-              {interimInsertion.separatorBefore}
-              <span className="speech-interim-inline">
-                {interimInsertion.transcript}
-              </span>
-              <span className="speech-interim-caret" />
-              {interimInsertion.separatorAfter}
-              <span>{interimInsertion.after}</span>
+        <div
+          className={`speech-draft-field ${
+            interimDisplayTranscript ? "has-interim" : ""
+          }`}
+        >
+          <div className="speech-draft-inline">
+            {interimDisplayTranscript && (
+              <div className="speech-draft-mirror" aria-hidden="true">
+                <span>{interimInsertion.before}</span>
+                {interimInsertion.separatorBefore}
+                <span className="speech-interim-inline">
+                  {interimInsertion.transcript}
+                </span>
+                <span className="speech-interim-caret" />
+                {interimInsertion.separatorAfter}
+                <span>{interimInsertion.after}</span>
+              </div>
+            )}
+            <textarea
+              ref={attachComposerTextarea}
+              data-composer-input
+              value={message}
+              onChange={(e) => {
+                const nextMessage = fileCompletion.normalizeInput(
+                  e.target.value,
+                );
+                clearPendingSpeechFinal();
+                if (speechInsertionRangesRef.current.size > 0) {
+                  const nextRanges = new Map<string, SpeechInsertionRange>();
+                  for (const [
+                    targetId,
+                    range,
+                  ] of speechInsertionRangesRef.current) {
+                    nextRanges.set(
+                      targetId,
+                      clearSpeechInsertionRangeReplacement(
+                        mapSpeechInsertionRangeThroughEdit(
+                          message,
+                          nextMessage,
+                          range,
+                        ),
+                      ),
+                    );
+                  }
+                  speechInsertionRangesRef.current = nextRanges;
+                  speechInsertionRangeRef.current =
+                    activeSpeechTargetIdRef.current !== null
+                      ? (nextRanges.get(activeSpeechTargetIdRef.current) ??
+                        null)
+                      : null;
+                }
+                if (
+                  activeSpeechTargetIdRef.current !== null &&
+                  hasNonWhitespaceEdit(message, nextMessage)
+                ) {
+                  composerEditedDuringSpeechRef.current = true;
+                }
+                handleSpeechSelectionTarget(true, nextMessage);
+                setMessage(nextMessage);
+              }}
+              onKeyDown={handleKeyDown}
+              onFocus={fileCompletion.onFocus}
+              onBlur={fileCompletion.onBlur}
+              onSelect={() => {
+                handleSpeechSelectionTarget();
+                fileCompletion.onSelect();
+              }}
+              onPointerUp={handleSpeechSelectionTarget}
+              onClick={handleSpeechSelectionClick}
+              onKeyUp={handleSpeechSelectionTarget}
+              onCut={clearSpeechSelectionTarget}
+              onCopy={clearSpeechSelectionTarget}
+              onPaste={(event) => {
+                clearSpeechSelectionTarget();
+                if (allowAttachments) {
+                  handlePaste(event);
+                }
+              }}
+              placeholder={resolvedPlaceholder}
+              disabled={isStarting}
+              // Read-only rather than disabled: the draft stays selectable and
+              // scrollable so it can still be read, just not sent.
+              readOnly={composerMuted}
+              rows={composerMuted ? Math.min(rows, 3) : rows}
+              className="new-session-form-textarea"
+            />
+          </div>
+          {interimTranscript && (
+            <div
+              className="speech-interim-status"
+              role="status"
+              aria-live="polite"
+              aria-label="Tentative speech transcript"
+            >
+              {interimTranscript}
             </div>
           )}
-          <textarea
-            ref={attachComposerTextarea}
-            data-composer-input
-            value={message}
-            onChange={(e) => {
-              const nextMessage = fileCompletion.normalizeInput(e.target.value);
-              clearPendingSpeechFinal();
-              if (speechInsertionRangesRef.current.size > 0) {
-                const nextRanges = new Map<string, SpeechInsertionRange>();
-                for (const [
-                  targetId,
-                  range,
-                ] of speechInsertionRangesRef.current) {
-                  nextRanges.set(
-                    targetId,
-                    clearSpeechInsertionRangeReplacement(
-                      mapSpeechInsertionRangeThroughEdit(
-                        message,
-                        nextMessage,
-                        range,
-                      ),
-                    ),
-                  );
-                }
-                speechInsertionRangesRef.current = nextRanges;
-                speechInsertionRangeRef.current =
-                  activeSpeechTargetIdRef.current !== null
-                    ? (nextRanges.get(activeSpeechTargetIdRef.current) ?? null)
-                    : null;
-              }
-              if (
-                activeSpeechTargetIdRef.current !== null &&
-                hasNonWhitespaceEdit(message, nextMessage)
-              ) {
-                composerEditedDuringSpeechRef.current = true;
-              }
-              handleSpeechSelectionTarget(true, nextMessage);
-              setMessage(nextMessage);
-            }}
-            onKeyDown={handleKeyDown}
-            onFocus={fileCompletion.onFocus}
-            onBlur={fileCompletion.onBlur}
-            onSelect={() => {
-              handleSpeechSelectionTarget();
-              fileCompletion.onSelect();
-            }}
-            onPointerUp={handleSpeechSelectionTarget}
-            onClick={handleSpeechSelectionClick}
-            onKeyUp={handleSpeechSelectionTarget}
-            onCut={clearSpeechSelectionTarget}
-            onCopy={clearSpeechSelectionTarget}
-            onPaste={(event) => {
-              clearSpeechSelectionTarget();
-              if (allowAttachments) {
-                handlePaste(event);
-              }
-            }}
-            placeholder={resolvedPlaceholder}
-            disabled={isStarting}
-            // Read-only rather than disabled: the draft stays selectable and
-            // scrollable so it can still be read, just not sent.
-            readOnly={composerMuted}
-            rows={composerMuted ? Math.min(rows, 3) : rows}
-            className="new-session-form-textarea"
-          />
         </div>
-        {interimTranscript && (
-          <div
-            className="speech-interim-status"
-            role="status"
-            aria-live="polite"
-            aria-label="Tentative speech transcript"
-          >
-            {interimTranscript}
-          </div>
-        )}
-      </div>
-      <ProjectFileCompletionMenu completion={fileCompletion} />
-      <div className="new-session-form-toolbar">
-        <div className="new-session-form-toolbar-left">
-          {allowAttachments && (
-            <>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                style={{ display: "none" }}
-                onChange={handleFileSelect}
+        <ProjectFileCompletionMenu completion={fileCompletion} />
+        <div className="new-session-form-toolbar">
+          <div className="new-session-form-toolbar-left">
+            {allowAttachments && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  style={{ display: "none" }}
+                  onChange={handleFileSelect}
+                />
+                <button
+                  type="button"
+                  className="toolbar-button"
+                  onClick={() => {
+                    if (attachGesture.current.swiped) {
+                      attachGesture.current.swiped = false;
+                      return;
+                    }
+                    fileInputRef.current?.click();
+                  }}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setRecentUploadsOpen(true);
+                  }}
+                  onTouchStart={(event) => {
+                    attachGesture.current = {
+                      y: event.touches[0]?.clientY ?? 0,
+                      swiped: false,
+                    };
+                  }}
+                  onTouchEnd={(event) => {
+                    if (
+                      (event.changedTouches[0]?.clientY ?? 0) -
+                        attachGesture.current.y >
+                      25
+                    ) {
+                      attachGesture.current.swiped = true;
+                      setRecentUploadsOpen(true);
+                    }
+                  }}
+                  title="Choose files; right-click or swipe down for recent uploads"
+                  disabled={isStarting}
+                  aria-label={t("newSessionAttachFiles")}
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
+              </>
+            )}
+            <SpeechControlMenu
+              showMethodSelector={showSpeechMethodSelector}
+              methodOptions={speechMethodOptions}
+              selectedMethod={selectedSpeechMethod}
+              onMethodChange={handleSpeechMethodSelect}
+              smartTurnSettings={activeSpeechSmartTurnSettings}
+              onSmartTurnSettingsChange={
+                supportsSelectedSpeechSmartTurn
+                  ? setSpeechSmartTurnSettings
+                  : undefined
+              }
+              smartTurnDisabled={isStarting}
+              onBeforeOpen={() => {
+                if (voiceButtonRef.current?.isListening) {
+                  voiceButtonRef.current.toggle();
+                }
+              }}
+              onBeforeCaptureChange={() => {
+                if (voiceButtonRef.current?.isListening) {
+                  voiceButtonRef.current.toggle();
+                }
+              }}
+              onPointerNearTrigger={() => voiceButtonRef.current?.prewarm?.()}
+              trigger={
+                <VoiceInputButton
+                  ref={voiceButtonRef}
+                  onTranscript={handleVoiceTranscript}
+                  onInterimTranscript={handleInterimTranscript}
+                  onListeningStart={handleListeningStart}
+                  onListeningStop={handleListeningStop}
+                  onPendingSpeechChange={handlePendingSpeechChange}
+                  disabled={isStarting}
+                  className="toolbar-button"
+                  speechMethod={selectedSpeechMethod}
+                  getTranscriptionContext={getTranscriptionContext}
+                  smartTurn={activeSpeechSmartTurnSettings}
+                />
+              }
+            />
+            {!compact && !composerMuted && (
+              <FullPaneComposerToggle
+                expanded={fullPane}
+                className={`toolbar-button ${styles.fullPaneToggle}`}
+                onToggle={() => {
+                  toggleFullPane();
+                  textareaRef.current?.focus();
+                }}
               />
+            )}
+          </div>
+          <div className="new-session-form-toolbar-actions">
+            {toolbarVisibility.projectQueue && showProjectQueueAction && (
               <button
                 type="button"
-                className="toolbar-button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isStarting}
-                aria-label={t("newSessionAttachFiles")}
+                onClick={handleQueueProjectSession}
+                disabled={
+                  isStarting ||
+                  creatingTemplateProject ||
+                  templateProjectBusy ||
+                  !canQueueProjectSession
+                }
+                className="send-button project-queue-button new-session-project-queue-button"
+                aria-label={describePrefixedDelivery(
+                  t("toolbarProjectQueueLabel"),
+                )}
+                title={describePrefixedTooltip(projectQueueNewSessionTitle)}
               >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden="true"
-                >
-                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                </svg>
+                <DeliveryGlyph className="send-icon">⇥</DeliveryGlyph>
+                {manualDeliverySpeechPrefix && (
+                  <SpeechPrefixActionCue prefix={manualDeliverySpeechPrefix} />
+                )}
               </button>
-            </>
-          )}
-          <SpeechControlMenu
-            showMethodSelector={showSpeechMethodSelector}
-            methodOptions={speechMethodOptions}
-            selectedMethod={selectedSpeechMethod}
-            onMethodChange={handleSpeechMethodSelect}
-            smartTurnSettings={activeSpeechSmartTurnSettings}
-            onSmartTurnSettingsChange={
-              supportsSelectedSpeechSmartTurn
-                ? setSpeechSmartTurnSettings
-                : undefined
-            }
-            smartTurnDisabled={isStarting}
-            onBeforeOpen={() => {
-              if (voiceButtonRef.current?.isListening) {
-                voiceButtonRef.current.toggle();
-              }
-            }}
-            onBeforeCaptureChange={() => {
-              if (voiceButtonRef.current?.isListening) {
-                voiceButtonRef.current.toggle();
-              }
-            }}
-            onPointerNearTrigger={() => voiceButtonRef.current?.prewarm?.()}
-            trigger={
-              <VoiceInputButton
-                ref={voiceButtonRef}
-                onTranscript={handleVoiceTranscript}
-                onInterimTranscript={handleInterimTranscript}
-                onListeningStart={handleListeningStart}
-                onListeningStop={handleListeningStop}
-                onPendingSpeechChange={handlePendingSpeechChange}
-                disabled={isStarting}
-                className="toolbar-button"
-                speechMethod={selectedSpeechMethod}
-                getTranscriptionContext={getTranscriptionContext}
-                smartTurn={activeSpeechSmartTurnSettings}
-              />
-            }
-          />
-          {!compact && !composerMuted && (
-            <FullPaneComposerToggle
-              expanded={fullPane}
-              className={`toolbar-button ${styles.fullPaneToggle}`}
-              onToggle={() => {
-                toggleFullPane();
-                textareaRef.current?.focus();
-              }}
-            />
-          )}
-        </div>
-        <div className="new-session-form-toolbar-actions">
-          {toolbarVisibility.projectQueue && showProjectQueueAction && (
+            )}
             <button
               type="button"
-              onClick={handleQueueProjectSession}
+              onClick={handleStartSession}
               disabled={
                 isStarting ||
                 creatingTemplateProject ||
                 templateProjectBusy ||
-                !canQueueProjectSession
+                !canStart
               }
-              className="send-button project-queue-button new-session-project-queue-button"
+              className="send-button new-session-submit-button"
               aria-label={describePrefixedDelivery(
-                t("toolbarProjectQueueLabel"),
+                launch?.startLabel ?? t("newSessionStartAction"),
               )}
-              title={describePrefixedTooltip(projectQueueNewSessionTitle)}
+              title={describePrefixedTooltip(
+                launch?.startLabel ?? t("newSessionStartAction"),
+              )}
             >
-              <DeliveryGlyph className="send-icon">⇥</DeliveryGlyph>
-              {manualDeliverySpeechPrefix && (
+              {isStarting ? (
+                <span className="send-spinner" />
+              ) : (
+                <svg
+                  className="send-icon new-session-submit-icon"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.25"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 19V5" />
+                  <path d="m5 12 7-7 7 7" />
+                </svg>
+              )}
+              {!isStarting && manualDeliverySpeechPrefix && (
                 <SpeechPrefixActionCue prefix={manualDeliverySpeechPrefix} />
               )}
             </button>
-          )}
-          <button
-            type="button"
-            onClick={handleStartSession}
-            disabled={
-              isStarting ||
-              creatingTemplateProject ||
-              templateProjectBusy ||
-              !canStart
-            }
-            className="send-button new-session-submit-button"
-            aria-label={describePrefixedDelivery(
-              launch?.startLabel ?? t("newSessionStartAction"),
-            )}
-            title={describePrefixedTooltip(
-              launch?.startLabel ?? t("newSessionStartAction"),
-            )}
-          >
-            {isStarting ? (
-              <span className="send-spinner" />
-            ) : (
-              <svg
-                className="send-icon new-session-submit-icon"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.25"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M12 19V5" />
-                <path d="m5 12 7-7 7 7" />
-              </svg>
-            )}
-            {!isStarting && manualDeliverySpeechPrefix && (
-              <SpeechPrefixActionCue prefix={manualDeliverySpeechPrefix} />
-            )}
-          </button>
+          </div>
         </div>
-      </div>
-      {pendingFiles.length > 0 && (
-        <div className={styles.pendingFilesList}>
-          {pendingFiles.map((pf) => {
-            const progress = uploadProgress[pf.id];
-            const fileName = getPendingFileName(pf);
-            const fileSize = getPendingFileSize(pf);
-            const imageSize = getPendingFileImageDimensions(pf);
-            return (
-              <AttachmentChip
-                key={pf.id}
-                attachmentId={pf.id}
-                originalName={fileName}
-                mimeType={getPendingFileMimeType(pf)}
-                sizeLabel={
-                  progress
-                    ? `${Math.round((progress.uploaded / progress.total) * 100)}%`
-                    : formatFileSize(fileSize)
-                }
-                imageWidth={imageSize?.width}
-                imageHeight={imageSize?.height}
-                previewUrl={pf.previewUrl}
-                onRemove={
-                  isStarting ? undefined : () => handleRemoveFile(pf.id)
-                }
-              />
-            );
-          })}
-        </div>
-      )}
+        {pendingFiles.length > 0 && (
+          <div className={styles.pendingFilesList}>
+            {pendingFiles.map((pf) => {
+              const progress = uploadProgress[pf.id];
+              const fileName = getPendingFileName(pf);
+              const fileSize = getPendingFileSize(pf);
+              const imageSize = getPendingFileImageDimensions(pf);
+              return (
+                <AttachmentChip
+                  key={pf.id}
+                  attachmentId={pf.id}
+                  originalName={fileName}
+                  mimeType={getPendingFileMimeType(pf)}
+                  sizeLabel={
+                    progress
+                      ? `${Math.round((progress.uploaded / progress.total) * 100)}%`
+                      : formatFileSize(fileSize)
+                  }
+                  imageWidth={imageSize?.width}
+                  imageHeight={imageSize?.height}
+                  previewUrl={pf.previewUrl}
+                  onRemove={
+                    isStarting ? undefined : () => handleRemoveFile(pf.id)
+                  }
+                />
+              );
+            })}
+          </div>
+        )}
+      </PromptHistoryRail>
     </>
   );
 
@@ -3791,58 +3864,6 @@ export function NewSessionForm({
           >
             {t("templateNewProject")}
           </button>
-          <div hidden={!creatingTemplateProject}>
-            <TemplateProjectForm
-              key={clientSummarySourceKey}
-              templates={templateChoices.templates}
-              projects={projects}
-              pathBase={newProjectBase}
-              initialName={
-                projects.some((project) => project.path === projectInput)
-                  ? ""
-                  : projectInput
-              }
-              intent={message}
-              onBusyChange={handleTemplateBusyChange}
-              disabledReason={
-                pendingFiles.length > 0
-                  ? t("templateAttachmentsUnsupported")
-                  : effectiveExecutor
-                    ? t("templateLocalOnly")
-                    : !hasSelectedProviderModel
-                      ? t("templateSelectProvider")
-                      : undefined
-              }
-              sessionSettings={{
-                mode: effectivePermissionMode,
-                provider: selectedProvider ?? undefined,
-                model: selectedModel ?? undefined,
-                thinking: toThinkingOption(
-                  effectiveThinkingMode,
-                  effectiveEffortLevel,
-                ),
-                showThinking: getShowThinkingSetting(),
-                sandboxLevel: effectiveSandboxLevel,
-                sandboxNetworkFirewall: effectiveSandboxNetworkFirewall,
-                recapMode: resolveRecapMode(
-                  selectedProviderInfo,
-                  selectedRecapMode,
-                ),
-                recapAfterSeconds,
-                promptSuggestionMode: resolvePromptSuggestionMode(
-                  selectedProviderInfo,
-                  selectedPromptSuggestionMode,
-                ),
-                helperSideModel,
-              }}
-              onStarted={(createdProjectId, sessionId) => {
-                draftControls.clearDraft();
-                navigate(
-                  `${basePath}/projects/${createdProjectId}/sessions/${sessionId}`,
-                );
-              }}
-            />
-          </div>
         </div>
       )}
       {isProjectChooserExpanded &&
@@ -4507,6 +4528,86 @@ export function NewSessionForm({
             )}
             {workstreamChooser}
           </aside>
+        )}
+        {templateChoices?.enabled && !launch && !fixedProject && (
+          <div
+            className={styles.templateProjectSlot}
+            hidden={!creatingTemplateProject}
+          >
+            <TemplateProjectForm
+              key={clientSummarySourceKey}
+              templates={templateChoices.templates}
+              emptyMessage={templateError ?? t(emptyMessageKey)}
+              projects={projects}
+              pathBase={newProjectBase}
+              initialName={
+                projects.some((project) => project.path === projectInput)
+                  ? ""
+                  : projectInput
+              }
+              intent={message}
+              onBusyChange={handleTemplateBusyChange}
+              stagedAttachments={
+                stagedPendingFileRefs[0]
+                  ? {
+                      batchId: stagedPendingFileRefs[0].batchId,
+                      refs: stagedPendingFileRefs,
+                    }
+                  : undefined
+              }
+              disabledReason={
+                pendingFiles.length > 0 &&
+                !serverHasCapability(
+                  versionInfo,
+                  SERVER_CAPABILITIES.templatePreparationAttachments.name,
+                )
+                  ? t("templateAttachmentsUnsupported")
+                  : !pendingFilesReadyForProjectQueue
+                    ? t("projectQueueNewSessionAttachmentsPreparing")
+                    : effectiveExecutor
+                      ? t("templateLocalOnly")
+                      : !hasSelectedProviderModel
+                        ? t("templateSelectProvider")
+                        : undefined
+              }
+              sessionSettings={{
+                mode: effectivePermissionMode,
+                provider: selectedProvider ?? undefined,
+                model: selectedModel ?? undefined,
+                thinking: toThinkingOption(
+                  effectiveThinkingMode,
+                  effectiveEffortLevel,
+                ),
+                showThinking: getShowThinkingSetting(),
+                sandboxLevel: effectiveSandboxLevel,
+                sandboxNetworkFirewall: effectiveSandboxNetworkFirewall,
+                recapMode: resolveRecapMode(
+                  selectedProviderInfo,
+                  selectedRecapMode,
+                ),
+                recapAfterSeconds,
+                promptSuggestionMode: resolvePromptSuggestionMode(
+                  selectedProviderInfo,
+                  selectedPromptSuggestionMode,
+                ),
+                helperSideModel,
+              }}
+              onStarted={(createdProjectId, sessionId) => {
+                if (historyScope)
+                  void rememberComposerPrompt(historyScope, message).catch(
+                    (cause) =>
+                      showToast(
+                        t("composerHistorySaveError", { error: String(cause) }),
+                        "error",
+                      ),
+                  );
+                draftControls.clearDraft();
+                navigate(
+                  `${basePath}/projects/${createdProjectId}/sessions/${sessionId}`,
+                );
+              }}
+            />
+          </div>
         )}
         {providerSlotFilled && (
           <div className="new-session-provider-slot">

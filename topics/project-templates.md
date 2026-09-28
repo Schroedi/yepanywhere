@@ -2,29 +2,47 @@
 
 > Config-driven project creation from composable capability bases, with
 > vendored instructions, deterministic setup, and an automatic preparation
-> session. Superuser creation is implemented; restricted creation and retained
-> App access remain pending.
+> session. Superusers and permitted limited users can create projects;
+> retained App access remains pending.
 
 Topic: project-templates
 
-Status: **Superuser creation implemented; broader integration open (2026-09-28).**
+Status: **Superuser and limited-user creation implemented; broader integration open (2026-09-28).**
 The implementation handoff is
 [usable template projects](../docs/tactical/132-project-template-implementation.md).
 The authoring library is the `project-templates` directory of the default
 source, [graehl/agents](https://github.com/graehl/agents/tree/master/project-templates).
-The App canvas closure was admitted locally in agents commit `090e72b`;
-other closures remain draft until their portable-instruction review finishes.
+The App canvas closure was admitted in agents commit `090e72b`; Web page and
+Storybook and their remaining bases were admitted in `cf829b4`. All three
+default templates now pass fresh setup without allowing drafts.
 YA now has a native library loader and composer in `packages/server/src/projects/template-library.ts`, with no Python
 runtime dependency. It validates the complete inventory without executing setup,
 retains the loaded file bytes, and refuses drafts through its creation accessor.
 Settings now fetches ordered GitHub sources into private, revision-stamped
 snapshots, reads local overlays directly, and shows their combined inventory.
 Fresh-target materialization, setup, Git initialization, registration and
-preparation dispatch are connected for superusers. Template permissions,
-restricted setup, retained App access and project-local identity remain open. See the
+preparation dispatch are connected for both principal kinds. Template permissions
+and project-confined setup are implemented; retained App access, personal-workspace
+scope and project-local identity remain open. See the
 [stand-up integration gap](../gaps/project-template-standup.md).
 
 ### Implemented creation boundary
+
+`limited-user-project-templates` separately gates Settings → Users template
+grants and the limited-user chooser. Administrators select None, Selected
+templates (source ID plus template ID), or Any configured template. Existing
+records migrate once to Any when a creation root exists, otherwise None;
+subsequent administrator restrictions survive restart. The same defaults apply
+to new users. The older superuser capability does not imply this extension.
+
+The server filters choices, enforces the grant and configured root before
+allocation, and rechecks current grants before setup, registration and launch.
+Limited users supply name and intent without an editable parent directory.
+Setup uses the existing Linux project-write sandbox with the network firewall;
+unsupported or broken confinement fails without executing setup unconfined.
+Preparation inherits the normal provider locks and project-write policy.
+Operation reads/retries are owner-scoped; the superuser can inspect every
+operation. Browser recovery is scoped to both server and acting username.
 
 `project-template-creation` gates the superuser radio palette in Projects and
 the inline New project expansion in New session. Older servers receive none
@@ -206,7 +224,7 @@ just as `preview.svg` maps to `.project-template/preview.svg`. Both are ordinary
 format-version-1 files, not new manifest fields. App canvas, Web page and
 Storybook supply the approved 24×24 vector marks. The same self-contained,
 image-only rendering contract applies; the template icon is distinct from the
-created application's favicon and branding. YA runtime display remains pending.
+created application's favicon and branding. YA renders these mapped images.
 
 ### Composition and collisions
 

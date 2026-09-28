@@ -4,6 +4,15 @@
   width: 100%;
   min-width: 0;
 }
+.attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  margin: 6px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+}
 .palette {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));

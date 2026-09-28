@@ -67,8 +67,11 @@ export function ProjectsPage() {
   const newProjectBase = newProjectBaseFor(principal);
   const inboxCountsByProject = useInboxCountsByProject();
   const [showAddForm, setShowAddForm] = useState(false);
-  const { choices: templateChoices, error: templateError } =
-    useProjectTemplateChoices(showAddForm);
+  const {
+    choices: templateChoices,
+    error: templateError,
+    emptyMessageKey,
+  } = useProjectTemplateChoices(showAddForm);
   const [existingDirectory, setExistingDirectory] = useState(false);
   const [templateProjectBusy, setTemplateProjectBusy] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -360,7 +363,7 @@ export function ProjectsPage() {
                   templateChoices?.enabled ? formStyles.form : undefined
                 }
               >
-                {templateChoices?.enabled && (
+                {templateChoices?.enabled && principal.username === null && (
                   <div className={formStyles.actions}>
                     <button
                       type="button"
@@ -381,9 +384,12 @@ export function ProjectsPage() {
                 )}
                 {templateError && <p role="alert">{templateError}</p>}
                 {templateChoices?.enabled && (
-                  <div hidden={existingDirectory}>
+                  <div
+                    hidden={existingDirectory && principal.username === null}
+                  >
                     <TemplateProjectForm
                       templates={templateChoices.templates}
+                      emptyMessage={templateError ?? t(emptyMessageKey)}
                       projects={projects}
                       pathBase={newProjectBase}
                       onBusyChange={setTemplateProjectBusy}
@@ -396,7 +402,12 @@ export function ProjectsPage() {
                     />
                   </div>
                 )}
-                <div hidden={templateChoices?.enabled && !existingDirectory}>
+                <div
+                  hidden={
+                    templateChoices?.enabled &&
+                    (!existingDirectory || principal.username !== null)
+                  }
+                >
                   <AddProjectForm
                     projects={projects}
                     pathBase={newProjectBase}

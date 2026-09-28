@@ -260,6 +260,16 @@ export function decideLimitedRoute(
   if (hasPrefix(path, DENIED_PREFIXES)) return { kind: "deny" };
 
   if (SELF_WRITE_PATHS.includes(path)) return { kind: "allow" };
+  // The staging service isolates drafts by the authenticated acting account.
+  if (
+    (method === "GET" &&
+      path === "/api/attachments/staging/drafts/upload/ws") ||
+    (method === "POST" &&
+      /^\/api\/attachments\/staging\/drafts\/[^/]+\/validate$/.test(path)) ||
+    (method === "DELETE" &&
+      /^\/api\/attachments\/staging\/drafts\/[^/]+\/[^/]+$/.test(path))
+  )
+    return { kind: "allow" };
   if (path.startsWith("/api/users")) {
     // Everything else under user administration is the superuser's.
     return path === "/api/users/me" && isRead
@@ -323,6 +333,15 @@ export function decideLimitedRoute(
     // (routes/project-creation.ts, topics/limited-users.md § Delivery v1).
     if (method === "POST") return { kind: "allow" };
     return { kind: "deny" };
+  }
+
+  // The creation route enforces template/root grants and operation ownership.
+  if (
+    (isRead && path === "/api/project-templates/choices") ||
+    (method === "POST" && path === "/api/project-templates/operations") ||
+    (isRead && /^\/api\/project-templates\/operations\/[^/]+$/.test(path))
+  ) {
+    return { kind: "allow" };
   }
 
   if (path === "/api/sessions") {

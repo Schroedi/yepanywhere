@@ -342,6 +342,57 @@ export const SERVER_CAPABILITIES = {
       reason: "Older servers cannot create template projects.",
     },
   },
+  limitedUserProjectTemplates: {
+    id: CAPABILITY_ID_ALLOCATIONS.limitedUserProjectTemplates.id,
+    name: "limited-user-project-templates",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Per-user template creation grants, filtered choices, owned operations and sandboxed setup.",
+    clientFallback:
+      "Hide template grants and limited-user template creation; preserve older directory behavior.",
+    serverContract: {
+      routes: [
+        "GET /api/project-templates/choices",
+        "POST /api/project-templates/operations",
+        "GET /api/project-templates/operations/:id",
+      ],
+      routeModules: ["packages/server/src/routes/project-templates.ts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Superuser template creation does not imply limited-user authorization or confinement.",
+    },
+  },
+  templatePreparationAttachments: {
+    id: CAPABILITY_ID_ALLOCATIONS.templatePreparationAttachments.id,
+    name: "template-preparation-attachments",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Account-owned draft uploads and attachments in template preparation.",
+    clientFallback:
+      "Disable attachments for template creation on older servers.",
+    serverContract: {
+      routes: [
+        "POST /api/project-templates/operations",
+        "GET /api/attachments/staging/drafts/upload/ws",
+      ],
+      // These modules also serve earlier capabilities; only the listed
+      // attachment semantics belong to this capability.
+      requestFields: ["stagedAttachments"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Template creation alone does not imply attachment preparation support.",
+    },
+  },
   speechBackendSetup: {
     id: CAPABILITY_ID_ALLOCATIONS.speechBackendSetup.id,
     name: "speech-backend-setup",

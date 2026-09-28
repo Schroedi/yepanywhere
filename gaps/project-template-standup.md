@@ -2,11 +2,12 @@
 
 The source library and local materializer exist in the default source's
 [`project-templates`](https://github.com/graehl/agents/tree/master/project-templates)
-directory. YA now offers superuser creation through a radio palette in Projects
+directory. YA now offers authorized creation through a radio palette in Projects
 and an inline New session expansion. Native setup, Git initialization,
-registration and preparation dispatch are connected. Settings → Users still
-has a project-root grant but no template selection, and App-pane integration,
-restricted setup and the full recovery contract remain unfinished.
+registration and preparation dispatch are connected. Settings → Users has
+None / Selected / Any template grants, enforced by the server. Limited-user
+setup runs in the project-write sandbox. App-pane integration, personal
+workspace scopes and the full recovery contract remain unfinished.
 
 The agreed format and product behavior live in
 [project templates](../topics/project-templates.md#current-contract--config-driven-templates).
@@ -15,8 +16,9 @@ approved on 2026-09-21; the
 [implementation handoff](../docs/tactical/132-project-template-implementation.md)
 compiles the delivery sequence and acceptance boundary. The prototype manifests
 require the separate agents instruction-library review; production must not
-silently allow drafts. The App canvas closure was admitted locally in agents
-`090e72b`; remaining closures and remote publication are separate work.
+silently allow drafts. All three default templates and their dependency
+closures are now admitted in the agents source. Remote sources must be updated
+after publication to receive those manifest changes.
 
 The native loader/composer now exists in
 `packages/server/src/projects/template-library.ts`; its conformance tests cover
@@ -38,13 +40,13 @@ runtime gap. Optional template-provided thumbnails/icons have a separate
 [specification sketch](sketches/project-template-artwork.md).
 Contributing-model: 6-Astra.
 
-With templates enabled and a ready source configured, superusers can create a
+With templates enabled and a ready source configured, permitted users can create a
 project and start preparation through either entry point. The chooser rereads
 mapped SVG images when reopened. Its source must have been explicitly updated
-to receive remote changes. Limited users still cannot create from templates:
-Settings → Users has no template grant, and a user with a project root can only
-name a directory. The original missing-template report was made on 2026-09-28.
-The remaining limited-user, App and recovery acceptance keeps this gap open.
+to receive remote changes. Limited-user grants are configured in Settings →
+Users and enforced before creation and at operation boundaries. The original
+missing-template report was made on 2026-09-28. The remaining workspace, App
+and recovery acceptance keeps this gap open.
 
 ## Plan to close
 
@@ -57,20 +59,20 @@ program and its `gaps/portable-capability-bases.md`. What remains is
 implementation. Ship it as vertical slices, each usable and
 releasable on its own:
 
-1. **Content admission (§1).** App canvas is admitted locally. Review Web page
-   and Storybook before promoting their complete dependency closures.
+1. **Content admission (§1), implemented.** All three default templates and
+   their dependency closures are ready; legacy boot remains draft and unused.
 2. **Superuser creation acceptance (§3, §5).** The native endpoint and both
    forms are implemented and verified through a real browser with a mock
    provider. Complete live App canvas preparation and recovery verification;
    reconcile queued launches and abrupt crashes without duplicate preparation.
-3. **Grants (§2).** Server-enforced None / Selected / Any on the limited-user
+3. **Grants (§2), implemented.** Server-enforced None / Selected / Any on the limited-user
    record and in Settings → Users, defaulting to Any when the user has a
    project root (user-directed 2026-09-28), with the one-time migration of
    existing users.
-4. **Limited-user creation (§2, §5).** The same flow for limited users: the
-   configured root enforced server-side, the chooser limited to granted ready
-   templates, setup run under the restricted identity and writable scope,
-   ownership and the private-apps ceiling applied.
+4. **Limited-user creation (§2, §5), core implemented.** Configured root,
+   filtered ready templates, project-write setup and owned registration are
+   verified through the real browser and server with a mock provider. Personal
+   workspace scopes and the private-apps ceiling remain with App integration.
 5. **App names and pane (§4)**, then **documentation (§6)**, as the tactical
    orders them.
 
@@ -79,9 +81,8 @@ project; the grant UI is not useful before creation exists.
 
 ## Remaining integration
 
-- Bind future creation grants to
-  the effective source and template identity, including shadowing across the
-  ordered list. Efficient retrieval and cache retention have their own
+- Creation grants now bind to source and template identity. Efficient
+  retrieval and cache retention have their own
   [gap](project-template-selective-retrieval.md).
 - Extend the native materialization/setup checks to supported platforms and
   restricted principals. Complete durable setup-log checkpoints, queued launch
@@ -103,11 +104,9 @@ project; the grant UI is not useful before creation exists.
 - Show the usable starter as soon as deterministic setup has built it, then
   auto-send the project-context prepare turn with intent. Keep setup, agent
   preparation and readiness distinguishable; agent failure retains the starter.
-- Add the server-enforced
-  [template grants](../topics/project-templates.md#limited-user-permissions) to
-  existing limited principals and Settings → Users, with their defaults.
-  Enforce configured project root, provider locks, sandbox, ownership,
-  app-exposure ceiling, and permission rechecks at the operation.
+- Complete the app-exposure ceiling alongside App integration. Template
+  grants, configured project root, provider locks, project-write setup,
+  ownership and operation permission rechecks are implemented.
 - Implement the
   [workspace direction](../topics/limited-users.md#approved-workspace-direction-2026-09-21-not-implemented):
   Create in defaults, the two superuser-locked write scopes, and the one-time

@@ -14,12 +14,21 @@ Topic: limited-users
 Status: **v1 delivered (2026-09-20); the rest remains proposal.** See
 § Delivery v1 — Settings → Users for the committed contract.
 
-The next template-creation extension is specified in
+The implemented template-creation extension is specified in
 [project templates](project-templates.md#limited-user-permissions): server-enforced
-None / Selected / Any permissions, with App canvas, Storybook and Web page
-selected for new limited users (user-directed 2026-09-21). It is not delivered
-in v1; the
-[stand-up gap](../gaps/project-template-standup.md) tracks its implementation.
+None / Selected / Any permissions in Settings → Users. A configured creation
+root defaults to Any, otherwise None (user-directed 2026-09-28); existing
+records migrate once, retaining later explicit administrator choices. Creation
+uses project-confined setup and the existing locked session launch policy. The
+[stand-up gap](../gaps/project-template-standup.md) tracks the remaining App,
+workspace, identity and recovery integration.
+
+Settings hidden from limited users inherit the superuser's effective server
+configuration; hiding a control does not select a separate default. Explicit
+per-user grants and locks remain authoritative. Optional personal controls to
+turn off part of an allowed feature set are only a
+[sketch](../gaps/sketches/limited-user-preference-narrowing.md), not implemented
+preferences or an additional source of authority.
 
 The same extension adds a superuser-managed **Private apps only** ceiling,
 default-on for new and migrated limited users. It is a negative authority cap:
@@ -241,7 +250,8 @@ percent-encoding is refused.
 | recents | the install's shared list, read filtered; clearing 403; `POST /api/recents/visit` answers `{recorded: false}` and records nothing |
 | activity REST (`/api/activity/*`) | 403: watcher status and every connected tab and browser profile are host inventory with no project to filter by |
 | user administration | 403 except `GET /api/users/me` and `POST /api/users/logout` |
-| public shares, app links, devices, bang commands, absolute-path file reads, file editing and artifact rebuild (`/api/file-edit*`), uploads outside a session, server admin, relay/remote-access config | 403 |
+| public shares, app links, devices, bang commands, absolute-path file reads, file editing and artifact rebuild (`/api/file-edit*`), server admin, relay/remote-access config | 403 |
+| pre-session draft uploads, validation and deletion | allowed only in the acting account's isolated draft store |
 
 Session-to-project resolution for session-scoped paths uses the live process
 first and the session catalog second — the same retained catalog All Sessions
@@ -600,9 +610,12 @@ A limited user creates projects only where the superuser said they may.
   alone. Without that
   flag a missing path is still a 404, so nothing creates a directory by
   accident. An existing directory is never touched — YA does not run
-  `git init` over somebody's tree. Only the leaf is created: a missing
-  parent is an error, because building a whole tree from one typed path
-  turns a typo into directories nobody meant to make.
+  `git init` over somebody's tree. For limited users, creation also makes a
+  missing configured root and parent directories below it. Before making
+  anything, containment follows the nearest existing ancestors, including
+  symlinks; a missing descendant cannot hide an escaping ancestor. Template
+  creation likewise creates missing parents. Files, dangling symlinks and
+  inaccessible parents remain errors.
 - **Ownership.** The project records `ownerUsername`, absent for the
   superuser, and it survives a restart, the project being rediscovered by a
   session-directory scan once it has sessions, and the superuser hiding the

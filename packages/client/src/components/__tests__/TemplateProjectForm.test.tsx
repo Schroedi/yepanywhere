@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import "fake-indexeddb/auto";
 import {
   cleanup,
   fireEvent,
@@ -8,8 +9,13 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
+import { ToastProvider } from "../../contexts/ToastContext";
 import { TemplateProjectForm } from "../TemplateProjectForm";
 import type { TemplateCreationRequest } from "../../api/projectTemplatesClient";
+
+vi.mock("../../hooks/useActingPrincipal", () => ({
+  useActingPrincipal: () => ({ principal: { username: null }, resolved: true }),
+}));
 
 afterEach(() => {
   cleanup();
@@ -24,12 +30,14 @@ const onStarted = vi.fn();
 function form() {
   return render(
     <I18nProvider>
-      <TemplateProjectForm
-        templates={templates}
-        projects={[]}
-        pathBase="/projects"
-        onStarted={onStarted}
-      />
+      <ToastProvider>
+        <TemplateProjectForm
+          templates={templates}
+          projects={[]}
+          pathBase="/projects"
+          onStarted={onStarted}
+        />
+      </ToastProvider>
     </I18nProvider>,
   );
 }

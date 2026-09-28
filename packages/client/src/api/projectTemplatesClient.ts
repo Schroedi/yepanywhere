@@ -1,4 +1,5 @@
 import { fetchJSON } from "./sourceApiFetch";
+import type { StagedAttachmentRef } from "@yep-anywhere/shared";
 
 export interface ProjectTemplateChoice {
   id: string;
@@ -19,6 +20,7 @@ export interface TemplateCreationRequest {
   path: string;
   name: string;
   intent: string;
+  stagedAttachments?: { batchId: string; refs: StagedAttachmentRef[] };
   session: Record<string, unknown>;
 }
 export interface TemplateCreationOperation {

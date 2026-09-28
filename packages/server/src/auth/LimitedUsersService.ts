@@ -14,10 +14,13 @@ import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import bcrypt from "bcrypt";
+import { z } from "zod";
 import {
   type LimitedUserGrants,
   type LimitedUserLock,
   type LimitedUserSummary,
+  type TemplateCreationGrant,
+  templateGrantFor,
   clampJoinStaleOffsetMinutes,
   limitedUserPasswordError,
   limitedUsernameError,
@@ -30,7 +33,22 @@ import {
 } from "../utils/filePermissions.js";
 
 const BCRYPT_ROUNDS = 12;
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 2;
+const templateGrantSchema = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("none") }),
+  z.strictObject({ mode: z.literal("any") }),
+  z.strictObject({
+    mode: z.literal("selected"),
+    templates: z
+      .array(
+        z.strictObject({
+          sourceId: z.string().min(1),
+          templateId: z.string().min(1),
+        }),
+      )
+      .max(1000),
+  }),
+]);
 
 export interface LimitedUserRecord extends LimitedUserGrants {
   username: string;
@@ -61,6 +79,7 @@ export interface LimitedUserInput {
   joinStaleOffsetMinutes?: number;
   lock?: LimitedUserLock;
   projectRoot?: string;
+  templateCreation?: TemplateCreationGrant;
   disabled?: boolean;
 }
 
@@ -116,6 +135,7 @@ export function toLimitedUserSummary(
     viewProjects: [...record.viewProjects],
     joinStaleOffsetMinutes: record.joinStaleOffsetMinutes,
     lock: { ...record.lock },
+    templateCreation: structuredClone(templateGrantFor(record)),
     ...(record.projectRoot ? { projectRoot: record.projectRoot } : {}),
   };
 }
@@ -161,8 +181,13 @@ export class LimitedUsersService {
             record.joinStaleOffsetMinutes ?? 0,
           ),
           lock: normalizeLock(record.lock),
+          templateCreation:
+            record.templateCreation === undefined
+              ? templateGrantFor(record)
+              : templateGrantSchema.parse(record.templateCreation),
         };
       }
+      if (parsed.version < CURRENT_VERSION) await this.save();
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         console.warn(
@@ -214,6 +239,7 @@ export class LimitedUsersService {
       viewProjects: [...record.viewProjects],
       joinStaleOffsetMinutes: record.joinStaleOffsetMinutes,
       lock: { ...record.lock },
+      templateCreation: structuredClone(templateGrantFor(record)),
       ...(record.projectRoot ? { projectRoot: record.projectRoot } : {}),
     };
   }
@@ -252,6 +278,12 @@ export class LimitedUsersService {
     const passwordError = limitedUserPasswordError(input.password ?? "");
     if (passwordError) throw new Error(passwordError);
     const password = input.password as string;
+    const templateCreation =
+      input.templateCreation === undefined
+        ? templateGrantFor({
+            projectRoot: normalizeProjectRoot(input.projectRoot),
+          })
+        : templateGrantSchema.parse(input.templateCreation);
 
     const record: LimitedUserRecord = {
       username: input.username,
@@ -265,6 +297,7 @@ export class LimitedUsersService {
         input.joinStaleOffsetMinutes ?? 0,
       ),
       lock: normalizeLock(input.lock),
+      templateCreation,
       ...(normalizeProjectRoot(input.projectRoot)
         ? { projectRoot: normalizeProjectRoot(input.projectRoot) }
         : {}),
@@ -281,6 +314,11 @@ export class LimitedUsersService {
   ): Promise<LimitedUserSummary> {
     const record = this.state.users[username];
     if (!record) throw new Error("User not found");
+
+    const templateCreation =
+      input.templateCreation === undefined
+        ? undefined
+        : templateGrantSchema.parse(input.templateCreation);
 
     if (input.password !== undefined) {
       const passwordError = limitedUserPasswordError(input.password);
@@ -310,6 +348,8 @@ export class LimitedUsersService {
     if (input.projectRoot !== undefined) {
       record.projectRoot = normalizeProjectRoot(input.projectRoot);
     }
+    if (templateCreation !== undefined)
+      record.templateCreation = templateCreation;
     if (input.disabled !== undefined) {
       if (input.disabled) {
         record.disabled = true;

@@ -157,13 +157,13 @@ describe("isContainedOnDisk", () => {
     );
   });
 
-  it("refuses when the root does not exist", async () => {
+  it("accepts a missing root so creation can make its directories", async () => {
     expect(
       await isContainedOnDisk(
         path.join(dir, "no-root"),
         path.join(dir, "no-root", "proj"),
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 

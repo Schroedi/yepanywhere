@@ -135,11 +135,24 @@
   visibility: hidden;
 }
 
+.templateProjectSlot {
+  grid-area: template;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+.templateProjectSlot[hidden] {
+  display: none;
+}
+
 @media (max-width: 899px) {
   .optionLayout.optionLayout {
     grid-template-areas:
       "main"
       "project"
+      "template"
       "provider"
       "advanced"
       "secondary";
@@ -149,6 +162,7 @@
     grid-template-areas:
       "main"
       "project"
+      "template"
       "advanced"
       "secondary";
   }
@@ -173,6 +187,7 @@
   .optionLayout.optionLayout {
     grid-template-areas:
       "main project"
+      "template template"
       "provider provider"
       "advanced advanced"
       "secondary secondary";
@@ -190,6 +205,7 @@
   .optionLayoutWithoutProvider.optionLayoutWithoutProvider {
     grid-template-areas:
       "main project"
+      "template template"
       "advanced advanced"
       "secondary secondary";
   }

@@ -644,6 +644,7 @@ export function createProjectsRoutes(deps: ProjectsDeps): Hono {
     // no caller creates a directory by accident.
     const directory = await ensureProjectDirectory(normalizedPath, {
       create: body.create === true,
+      projectRoot: owner?.projectRoot,
     });
     if (directory.kind === "error") {
       return c.json({ error: directory.error }, directory.status);

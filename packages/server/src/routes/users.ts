@@ -11,7 +11,11 @@
 
 import { type Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import type { ActingPrincipal, LimitedUserSummary } from "@yep-anywhere/shared";
+import type {
+  ActingPrincipal,
+  LimitedUserSummary,
+  TemplateCreationGrant,
+} from "@yep-anywhere/shared";
 import { limitedUsernameError } from "@yep-anywhere/shared";
 import type { LimitedUsersService } from "../auth/LimitedUsersService.js";
 import {
@@ -50,6 +54,7 @@ interface UserBody {
   joinStaleOffsetMinutes?: number;
   lock?: { provider?: string; model?: string; effort?: string };
   projectRoot?: string;
+  templateCreation?: TemplateCreationGrant;
   disabled?: boolean;
 }
 
@@ -206,6 +211,7 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
         joinStaleOffsetMinutes: body.joinStaleOffsetMinutes,
         lock: body.lock,
         projectRoot: body.projectRoot,
+        templateCreation: body.templateCreation,
         disabled: body.disabled,
       });
       // A new account starts with no logins, even one reusing the name of a
@@ -238,6 +244,7 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
         joinStaleOffsetMinutes: body.joinStaleOffsetMinutes,
         lock: body.lock,
         projectRoot: body.projectRoot,
+        templateCreation: body.templateCreation,
         disabled: body.disabled,
       });
       // A replaced password ends every login the old one opened.

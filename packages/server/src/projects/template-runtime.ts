@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { prepareSessionSandbox } from "../session-sandbox.js";
 import { z } from "zod";
 import { filterEnvForChildProcess } from "../sdk/providers/env-filter.js";
 import {
@@ -59,16 +60,43 @@ export async function runTemplateSetup(
   command: string[],
   onOutput: (text: string) => void,
   signal?: AbortSignal,
+  restricted = false,
 ): Promise<void> {
   signal?.throwIfAborted();
+  const sandbox = restricted
+    ? await prepareSessionSandbox({
+        level: "project-write",
+        networkFirewall: true,
+        provider: "claude",
+        projectPath: cwd,
+      })
+    : undefined;
+  signal?.throwIfAborted();
+  const environment = filterEnvForChildProcess(process.env);
+  const wrapped = sandbox?.wrapSpawn(
+    command[0]!,
+    command.slice(1),
+    environment,
+  );
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(command[0]!, command.slice(1), {
-      cwd,
-      shell: false,
-      stdio: ["ignore", "pipe", "pipe"],
-      env: filterEnvForChildProcess(process.env),
-      ...processTreeSpawnOptions,
-    });
+    const child = (() => {
+      try {
+        return spawn(
+          wrapped?.command ?? command[0]!,
+          wrapped?.args ?? command.slice(1),
+          {
+            cwd: wrapped?.cwd ?? cwd,
+            shell: false,
+            stdio: wrapped?.stdio ?? ["pipe", "pipe", "pipe"],
+            env: wrapped?.env ?? environment,
+            ...processTreeSpawnOptions,
+          },
+        );
+      } finally {
+        wrapped?.release();
+      }
+    })();
+    child.stdin?.end();
     let expired = false;
     const abort = () => signalProcessTree(child, "SIGKILL");
     signal?.addEventListener("abort", abort, { once: true });
@@ -76,14 +104,14 @@ export async function runTemplateSetup(
       expired = true;
       signal?.removeEventListener("abort", abort);
       signalProcessTree(child, "SIGKILL");
-      child.stdout.destroy();
-      child.stderr.destroy();
+      child.stdout?.destroy();
+      child.stderr?.destroy();
       reject(new Error("Template setup exceeded ten minutes"));
     }, 600_000);
-    child.stdout.on("data", (chunk: Buffer) =>
+    child.stdout?.on("data", (chunk: Buffer) =>
       onOutput(`[setup stdout] ${chunk.toString("utf8")}`),
     );
-    child.stderr.on("data", (chunk: Buffer) =>
+    child.stderr?.on("data", (chunk: Buffer) =>
       onOutput(`[setup stderr] ${chunk.toString("utf8")}`),
     );
     child.once("error", (error) => {

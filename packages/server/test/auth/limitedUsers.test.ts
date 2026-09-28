@@ -290,6 +290,53 @@ describe("LimitedUsersService", () => {
     expect(record?.srp.salt).toBeTypeOf("string");
   });
 
+  it("defaults and migrates template grants once, preserving explicit restrictions", async () => {
+    const allowed = await service.create({
+      username: "alice",
+      password: "correct-horse",
+      projectRoot: "~/alice",
+    });
+    const denied = await service.create({
+      username: "reader",
+      password: "correct-horse",
+    });
+    expect(allowed.templateCreation).toEqual({ mode: "any" });
+    expect(denied.templateCreation).toEqual({ mode: "none" });
+    await service.flushPendingWrites();
+    const file = path.join(dir, "limited-users.json");
+    const legacy = JSON.parse(await fs.readFile(file, "utf8"));
+    legacy.version = 1;
+    delete legacy.users.alice.templateCreation;
+    delete legacy.users.reader.templateCreation;
+    await fs.writeFile(file, JSON.stringify(legacy));
+    const migrated = new LimitedUsersService({ dataDir: dir });
+    await migrated.initialize();
+    expect(migrated.getActiveGrants("alice")?.templateCreation).toEqual({
+      mode: "any",
+    });
+    expect(migrated.getActiveGrants("reader")?.templateCreation).toEqual({
+      mode: "none",
+    });
+    await migrated.update("alice", { templateCreation: { mode: "none" } });
+    await migrated.flushPendingWrites();
+    const restarted = new LimitedUsersService({ dataDir: dir });
+    await restarted.initialize();
+    expect(restarted.getActiveGrants("alice")?.templateCreation).toEqual({
+      mode: "none",
+    });
+    await expect(
+      restarted.update("alice", {
+        templateCreation: {
+          mode: "selected",
+          templates: [{ sourceId: "", templateId: "app" }],
+        },
+      }),
+    ).rejects.toThrow();
+    expect(restarted.getActiveGrants("alice")?.templateCreation).toEqual({
+      mode: "none",
+    });
+  });
+
   it("verifies the right password and refuses the wrong one", async () => {
     await service.create({ username: "alice", password: "correct-horse" });
     expect(await service.verifyPassword("alice", "correct-horse")).toBe(true);

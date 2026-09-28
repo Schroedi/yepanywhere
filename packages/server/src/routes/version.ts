@@ -385,6 +385,8 @@ const BASE_CAPABILITIES: string[] = [
   SERVER_CAPABILITIES.limitedUsers.name,
   SERVER_CAPABILITIES.projectTemplateSources.name,
   SERVER_CAPABILITIES.projectTemplateCreation.name,
+  SERVER_CAPABILITIES.limitedUserProjectTemplates.name,
+  SERVER_CAPABILITIES.templatePreparationAttachments.name,
   SERVER_CAPABILITIES.speechBackendSetup.name,
   SERVER_CAPABILITIES.localSpeechModelSelection.name,
   ACLI_COMMENTARY_RENDERING_CAPABILITY,
