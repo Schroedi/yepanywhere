@@ -115,6 +115,8 @@ export interface ProjectAppInfo {
     | "unavailable";
   error?: string;
   generation?: string;
+  /** ISO timestamp of the static entry or process runtime; omitted when unknown. */
+  updatedAt?: string;
   activeDeclaration?: ProjectServiceDeclaration;
   restartRequired?: boolean;
   latestArtifact: {

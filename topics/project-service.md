@@ -90,6 +90,15 @@ hidden when supported, and reports refusals. Full view and New tab remain
 available independently. iPad system clock/battery visibility remains under
 the browser/OS's control; this does not promise their removal.
 
+At turn boundaries the session compares App information and opens the pane
+when a usable app first appears or its update stamp changes. The optional
+`ProjectAppInfo.updatedAt` is the resolved static entry's mtime in ISO format,
+or the process runtime record's update time, including an active runtime whose
+source declaration changed. Unknown stamps are omitted. Older servers without
+the field support first-declaration detection only, not rebuild detection.
+The optional stamp is recorded under `project-app-address-links`; clients
+feature-detect the field without requiring a new capability.
+
 **New session** creates one session in this project using the user's normal
 provider/model defaults and enforced locks, with the viewed app already open
 in its full-height right pane when the viewport has room. The microphone is

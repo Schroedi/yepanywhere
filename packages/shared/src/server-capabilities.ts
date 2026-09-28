@@ -661,6 +661,7 @@ export const SERVER_CAPABILITIES = {
     serverContract: {
       routes: [
         "GET /api/projects/:projectId/app/address",
+        "GET /api/projects/:projectId/app",
         "POST /api/projects/:projectId/app/address/serve",
         "POST /api/users",
         "PATCH /api/users/:username",
@@ -670,6 +671,7 @@ export const SERVER_CAPABILITIES = {
         "reservations[].url",
         "canRelease",
         "canCopyLink",
+        "updatedAt",
         "allowPublicApps",
         "allowPrivateAppLinks",
       ],

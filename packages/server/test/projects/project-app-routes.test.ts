@@ -4,13 +4,18 @@ import {
   realpath,
   rm,
   symlink,
+  utimes,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { toUrlProjectId, type LimitedUserGrants } from "@yep-anywhere/shared";
+import {
+  toUrlProjectId,
+  type LimitedUserGrants,
+  type ProjectServiceDeclaration,
+} from "@yep-anywhere/shared";
 import { Hono } from "hono";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ArtifactServer } from "../../src/artifacts/ArtifactServer.js";
 import { ProjectAppDelivery } from "../../src/artifacts/ProjectAppDelivery.js";
 import { projectAppPublicAllowed } from "../../src/projects/projectAppPolicy.js";
@@ -230,6 +235,61 @@ it("opens a static app on the isolated artifact origin without starting any proc
   expect(
     (await post("open", { target: "app", audience: "local" })).status,
   ).toBe(404);
+});
+
+it("reports static entry changes and omits the stamp when the entry is missing", async () => {
+  const entry = join(projectPath, "dist/index.html");
+  const info = async () =>
+    (await app.request(`/api/projects/${projectId}/app`)).json();
+  for (const updatedAt of [
+    "2026-09-28T10:00:00.000Z",
+    "2026-09-28T11:00:00.000Z",
+  ]) {
+    await utimes(entry, new Date(updatedAt), new Date(updatedAt));
+    expect(await info()).toMatchObject({ state: "ready", updatedAt });
+  }
+  await rm(entry);
+  const missing = await info();
+  expect(missing.state).toBe("missing");
+  expect(missing).not.toHaveProperty("updatedAt");
+});
+
+it("reports the process runtime stamp, including an active service whose declaration changed", async () => {
+  const declaration: ProjectServiceDeclaration = {
+    version: 1,
+    where: { kind: "process", cwd: ".", entry: "/" },
+    start: { argv: ["node", "server.js"], portEnv: "PORT" },
+    status: {
+      probe: "http",
+      path: "/",
+      readyStatus: 200,
+      startupTimeoutMs: 1000,
+    },
+    stop: { signal: "SIGTERM", graceMs: 1000 },
+    serving: { target: "sandbox-loopback", protocol: "http" },
+  };
+  const updatedAt = "2026-09-28T12:00:00.000Z";
+  vi.spyOn(services, "status").mockResolvedValue({
+    declaration,
+    generation: "process-generation",
+    desired: "running",
+    observed: "running",
+    updatedAt,
+  });
+  await writeFile(
+    join(projectPath, ".project-template/app.json"),
+    JSON.stringify({ service: declaration }),
+  );
+  const info = async () =>
+    (await app.request(`/api/projects/${projectId}/app`)).json();
+  expect(await info()).toMatchObject({ state: "running", updatedAt });
+  vi.spyOn(services, "ownsLaunch").mockReturnValue(true);
+  await rm(join(projectPath, ".project-template/app.json"));
+  expect(await info()).toMatchObject({
+    state: "running",
+    restartRequired: true,
+    updatedAt,
+  });
 });
 
 it("records publication order and renews an older viewed association after a new one arrives", async () => {

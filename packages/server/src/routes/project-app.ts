@@ -1,4 +1,5 @@
 import { basename } from "node:path";
+import { stat } from "node:fs/promises";
 import {
   isUrlProjectId,
   type LimitedUserGrants,
@@ -120,12 +121,17 @@ export function createProjectAppRoutes(deps: {
     try {
       info.declaration = await readProjectService(project.path);
       if (info.declaration?.where.kind === "static") {
-        await projectServiceStaticEntry(project.path, info.declaration);
+        const entry = await projectServiceStaticEntry(
+          project.path,
+          info.declaration,
+        );
+        info.updatedAt = (await stat(entry)).mtime.toISOString();
         info.state = "ready";
       } else if (info.declaration) {
         const runtime = await deps.services.status(project.id);
         info.state = runtime?.observed ?? "stopped";
         info.generation = runtime?.generation;
+        info.updatedAt = runtime?.updatedAt;
         info.error = runtime?.error;
       }
     } catch (error) {
@@ -143,6 +149,7 @@ export function createProjectAppRoutes(deps: {
         JSON.stringify(runtime.declaration);
       info.state = runtime.observed;
       info.generation = runtime.generation;
+      info.updatedAt = runtime.updatedAt;
       info.error = runtime.error ?? info.error;
     }
     if (
