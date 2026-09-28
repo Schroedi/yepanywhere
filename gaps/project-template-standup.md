@@ -81,7 +81,7 @@ releasable on its own:
 4. **Limited-user creation (§2, §5), core implemented.** Configured root,
    filtered ready templates, project-write setup and owned registration are
    verified through the real browser and server with a mock provider. Personal
-   workspace scopes and the private-apps ceiling remain with App integration.
+   workspace scopes and creation-time app publication remain with App integration.
 5. **App names and pane (§4)**, then **documentation (§6)**, as the tactical
    orders them.
 
@@ -97,8 +97,9 @@ API admission, association storage, direct/relay delivery and the full-height
 project/session App UI are implemented. Native sandbox and browser checks cover
 these paths. Existing static source declarations are adapted; source-library
 server add-ons still need the versioned service declaration. Fine-grained
-publication grants, creation-time reservations and global orphaned-name
-inventory remain broader template work.
+creation-time reservations and global orphaned-name inventory remain broader
+template work. Publication grants and private-link copy controls landed on
+2026-09-28, with server-enforced owner permissions and live revocation.
 Contributing-model: 6-Astra.
 
 - User-directed, 2026-09-28: implement the standardized declaration and
@@ -161,7 +162,7 @@ Contributing-model: 6-Astra.
 - Show the usable starter as soon as deterministic setup has built it, then
   auto-send the project-context prepare turn with intent. Keep setup, agent
   preparation and readiness distinguishable; agent failure retains the starter.
-- Complete the app-exposure ceiling alongside App integration. Template
+- Apply the implemented app-exposure ceiling to creation-time publication. Template
   grants, configured project root, provider locks, project-write setup,
   ownership and operation permission rechecks are implemented.
 - Implement the

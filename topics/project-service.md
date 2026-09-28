@@ -29,6 +29,10 @@ does not require opening or retaining an agent session. Keep the card's
 existing session navigation and gear action. Project Settings contains **App**
 and, only when server vhost serving is enabled, **App address**. Both principal
 kinds use this surface; authorization determines the available actions.
+App lifecycle and address controls appear inline in the project settings
+dialog, alongside sharing and session defaults. Opening settings does not
+open an app frame or mint a viewing grant. Wide dialogs use two columns;
+phones retain one scrolling column and visible save controls.
 
 Resolve the default target on entry in this order:
 
@@ -77,6 +81,14 @@ right-clicking it), or the viewer's full-view button, opens **full view**:
 the same pane, frame kept live, covers the session and sidebar until Back
 or Escape returns it beside the session (maintainer direction, 2026-09-28,
 for kid-friendly tablet use).
+
+App toolbars use one compact row and can collapse to a small corner button
+without remounting the app or its controls. Collapse chooses the right corner;
+a horizontal swipe on the unoccupied bar chooses its direction's corner.
+The fullscreen action uses the browser Fullscreen API with navigation UI
+hidden when supported, and reports refusals. Full view and New tab remain
+available independently. iPad system clock/battery visibility remains under
+the browser/OS's control; this does not promise their removal.
 
 **New session** creates one session in this project using the user's normal
 provider/model defaults and enforced locks, with the viewed app already open
@@ -283,18 +295,31 @@ the server. Never silently replace an existing association or take over a
 name. Reservation alone neither starts the app nor publishes it.
 
 **Serve at this address** is an explicit separate operation, gated by the
-superuser or the limited user's publication grant. Initially only the
-superuser may publish; name-prefix restrictions and the **Private apps only**
+superuser or the limited user's **Allow public apps** permission (default off),
+with Start sessions access. Name-prefix restrictions and the **Private apps only**
 ceiling apply server-side. A private link remains a transferable app bearer,
 so label it “Private link required”, not “Only me”. Public access is a separate
 unchecked choice where allowed. A reservation grant does not imply publishing
 authority. Keep first-claim-wins persistence and superuser-only release from
 [project templates](project-templates.md#persistent-app-name-reservations).
 
-The initial implementation keeps every limited-owned project/reservation
-private, including an administrator's claim for that project. Fine-grained
-limited-user publication grants and the configurable ceiling remain future
-work. Release rotates the address bearer before freeing the claim. Static
+The limited project owner's current public-app permission is the ceiling,
+including an administrator's claim for that project. Revocation makes existing
+addresses require a token again at the next request. A private-only app shows
+an explanation instead of an inert Public checkbox. Where public access is
+allowed, **Save access** applies the checkbox without changing serving state.
+
+**Allow copying private app links** defaults on independently of publication.
+Authorized users see the current address URL and Copy viewer link beside it;
+with the permission off, the API withholds private address URLs and the App
+viewer hides its share/copy controls. This governs link-distribution controls,
+not the ability to extract a URL needed to view an app. Viewing authority is
+unchanged; public URLs remain visible. Previous-namespace rows get no link.
+The `project-app-address-links` capability covers these permissions, optional
+URLs and release/copy flags. Without it clients omit new permission fields and
+the URL row; v0.9.0–v0.9.2 lack this contract (approved 2026-09-28).
+
+Release remains superuser-only and rotates the address bearer before freeing the claim. Static
 reservations redirect authorized opens to a contained artifact grant; process
 reservations proxy the same sandbox. Previous namespace rows stay visible in
 Settings while vhosts are enabled, and cannot silently be reassigned.

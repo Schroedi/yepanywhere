@@ -259,16 +259,16 @@ export class ProjectAppStore {
     namespace: string,
     serving: boolean,
     publicAccess: boolean,
-    authorize: () => Promise<void>,
+    authorize: () => Promise<void> | Promise<boolean>,
   ): Promise<ProjectAppReservation> {
     return this.change(async (state) => {
-      await authorize();
+      const publicPermission = await authorize();
       const row = state.reservations.find(
         (entry) =>
           entry.projectId === projectId && entry.namespace === namespace,
       );
       if (!row) throw new Error("Project has no reserved app address");
-      if (publicAccess && row.privateOnly)
+      if (publicAccess && row.privateOnly && publicPermission !== true)
         throw new Error("This owner's apps require a private link");
       row.serving = serving;
       row.public = publicAccess;

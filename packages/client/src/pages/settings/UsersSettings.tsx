@@ -60,6 +60,9 @@ interface DraftState {
   model: string;
   effort: string;
   projectRoot: string;
+  allowNoProjectSessions: boolean;
+  allowPublicApps: boolean;
+  allowPrivateAppLinks: boolean;
   templateCreation?: TemplateCreationGrant;
   instructionBlocks: InstructionBlockDraft[];
   pathGrants: PathGrant[];
@@ -70,6 +73,8 @@ interface EditorSupport {
   templates: boolean;
   instructions: boolean;
   pathGrants: boolean;
+  noProject: boolean;
+  appLinks: boolean;
 }
 
 function draftFromUser(user: LimitedUserSummary): DraftState {
@@ -87,6 +92,9 @@ function draftFromUser(user: LimitedUserSummary): DraftState {
     model: user.lock.model ?? "",
     effort: user.lock.effort ?? "",
     projectRoot: user.projectRoot ?? "",
+    allowNoProjectSessions: user.allowNoProjectSessions === true,
+    allowPublicApps: user.allowPublicApps === true,
+    allowPrivateAppLinks: user.allowPrivateAppLinks !== false,
     templateCreation: templateGrantFor(user),
     instructionBlocks: instructionBlockDrafts(user.instructionBlocks ?? []),
     pathGrants: structuredClone(user.pathGrants ?? []),
@@ -114,6 +122,15 @@ function grantsFromDraft(draft: DraftState, support: EditorSupport) {
     },
     // Always sent, so clearing the field revokes the grant.
     projectRoot: draft.projectRoot.trim(),
+    ...(support.noProject
+      ? { allowNoProjectSessions: draft.allowNoProjectSessions }
+      : {}),
+    ...(support.appLinks
+      ? {
+          allowPublicApps: draft.allowPublicApps,
+          allowPrivateAppLinks: draft.allowPrivateAppLinks,
+        }
+      : {}),
     disabled: !draft.enabled,
     ...(support.templates ? { templateCreation: templateGrantFor(draft) } : {}),
     ...(support.instructions
@@ -168,8 +185,16 @@ export function UsersSettings() {
       templates: supportsTemplates,
       instructions: supportsInstructions,
       pathGrants: supportsPathGrants,
+      noProject: serverHasCapability(
+        version,
+        SERVER_CAPABILITIES.limitedUserNoProjectSessions.name,
+      ),
+      appLinks: serverHasCapability(
+        version,
+        SERVER_CAPABILITIES.projectAppAddressLinks.name,
+      ),
     }),
-    [supportsTemplates, supportsInstructions, supportsPathGrants],
+    [supportsTemplates, supportsInstructions, supportsPathGrants, version],
   );
   const {
     settings,
@@ -1020,6 +1045,64 @@ function UserEditor({
           </label>
 
           <p className={styles.subhead}>{t("usersProjectRootHeading")}</p>
+          {support.noProject && (
+            <div>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={draft.allowNoProjectSessions}
+                  onChange={(event) =>
+                    change(
+                      {
+                        ...draft,
+                        allowNoProjectSessions: event.target.checked,
+                      },
+                      true,
+                    )
+                  }
+                />{" "}
+                {t("usersAllowNoProject")}
+              </label>
+              <p className="settings-hint">{t("usersAllowNoProjectHint")}</p>
+            </div>
+          )}
+          {support.appLinks && (
+            <div>
+              <label className={styles.field}>
+                <span>
+                  <input
+                    type="checkbox"
+                    checked={draft.allowPublicApps}
+                    onChange={(event) =>
+                      change(
+                        { ...draft, allowPublicApps: event.target.checked },
+                        true,
+                      )
+                    }
+                  />{" "}
+                  {t("usersAllowPublicApps")}
+                </span>
+              </label>
+              <label className={styles.field}>
+                <span>
+                  <input
+                    type="checkbox"
+                    checked={draft.allowPrivateAppLinks}
+                    onChange={(event) =>
+                      change(
+                        {
+                          ...draft,
+                          allowPrivateAppLinks: event.target.checked,
+                        },
+                        true,
+                      )
+                    }
+                  />{" "}
+                  {t("usersAllowPrivateAppLinks")}
+                </span>
+              </label>
+            </div>
+          )}
           <ProjectRootField
             projectRoot={draft.projectRoot}
             username={user.username}

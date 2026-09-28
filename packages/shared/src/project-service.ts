@@ -132,6 +132,8 @@ export interface ProjectAppInfo {
   canStart?: boolean;
   canPublish: boolean;
   canShare: boolean;
+  /** UI share/copy permission; viewing remains authorized independently. */
+  canCopyLink?: boolean;
   removedFrom: Array<{ username: string; at: string }>;
 }
 
@@ -151,6 +153,8 @@ export interface ProjectAppAddresses {
   requiredPrefix: string;
   canReserve: boolean;
   canPublish: boolean;
+  /** Absent on older servers, where only administrators canPublish. */
+  canRelease?: boolean;
   reservations: Array<{
     namespace: string;
     name: string;
@@ -159,5 +163,7 @@ export interface ProjectAppAddresses {
     public: boolean;
     privateOnly: boolean;
     reservedAt: string;
+    /** Transferable current-namespace link; advertised by project-app-address-links. */
+    url?: string;
   }>;
 }

@@ -32,6 +32,7 @@ export type LimitedRouteDecision =
   | { kind: "deny" }
   /** Allowed with no project scope (identity, version, catalogs). */
   | { kind: "allow" }
+  | { kind: "detached-create" }
   /** Allowed when the named project grants at least `required`. */
   | {
       kind: "project";
@@ -407,9 +408,13 @@ export function decideLimitedRoute(
     return { kind: "allow" };
   }
 
+  if (
+    method === "POST" &&
+    (path === "/api/sessions" || path === "/api/sessions/create")
+  ) {
+    return { kind: "detached-create" };
+  }
   if (path === "/api/sessions") {
-    // GET is the global session list; POST would start a detached session in
-    // the hidden "No Project" workspace, which is the superuser's.
     return isRead
       ? { kind: "allow-filtered", filter: "sessions" }
       : { kind: "deny" };

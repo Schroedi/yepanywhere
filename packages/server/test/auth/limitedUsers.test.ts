@@ -265,7 +265,12 @@ describe("limited-user route policy", () => {
       kind: "allow-filtered",
       filter: "sessions",
     });
-    expect(decide("POST", "/api/sessions")).toEqual({ kind: "deny" });
+    expect(decide("POST", "/api/sessions")).toEqual({
+      kind: "detached-create",
+    });
+    expect(decide("POST", "/api/sessions/create")).toEqual({
+      kind: "detached-create",
+    });
   });
 
   it("refuses restarting the server and updating host software", () => {

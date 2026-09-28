@@ -9,7 +9,12 @@ import { LimitedUsersService } from "../../src/auth/LimitedUsersService.js";
 import { SESSION_COOKIE_NAME } from "../../src/auth/routes.js";
 import { ProjectMetadataService } from "../../src/metadata/ProjectMetadataService.js";
 import { SessionMetadataService } from "../../src/metadata/SessionMetadataService.js";
-import { encodeProjectId } from "../../src/projects/paths.js";
+import {
+  encodeProjectId,
+  DETACHED_PROJECT_PATH,
+  limitedDetachedProjectPath,
+} from "../../src/projects/paths.js";
+import { levelFor } from "../../src/auth/limitedUserPolicy.js";
 import { TemplateSourceService } from "../../src/projects/TemplateSourceService.js";
 import { MockClaudeSDK } from "../../src/sdk/mock.js";
 import { probeSessionSandboxAvailability } from "../../src/session-sandbox.js";
@@ -35,6 +40,7 @@ let instance: AppResult;
 let sessionMetadataService: SessionMetadataService;
 let authService: AuthService;
 let launches: ModelSettings[];
+let users: LimitedUsersService;
 
 beforeEach(async () => {
   root = await realpath(tmpdir()).then((base) =>
@@ -48,6 +54,7 @@ beforeEach(async () => {
   await authService.initialize();
   await authService.enableAuth("superuser-password");
   const limitedUsersService = new LimitedUsersService({ dataDir });
+  users = limitedUsersService;
   await limitedUsersService.initialize();
   await limitedUsersService.create({
     username: "archer",
@@ -225,6 +232,69 @@ it("records a limited creator on the preparation session and sandboxes it", asyn
     sandboxStateKey: "project-prep",
   });
 }, 40_000);
+
+it("admits private No project creation only by permission, with the normal launch policy", async () => {
+  const cookie = `${SESSION_COOKIE_NAME}=${await authService.createSession("archer", "archer")}`;
+  const post = (path: string, body: object) =>
+    instance.app.request(path, {
+      method: "POST",
+      headers: {
+        Cookie: cookie,
+        "X-Yep-Anywhere": "true",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  expect(
+    (await post("/api/sessions", { message: "Make a sketch" })).status,
+  ).toBe(403);
+  expect((await post("/api/sessions/create", {})).status).toBe(403);
+  await users.update("archer", {
+    allowNoProjectSessions: true,
+    lock: { provider: "claude", model: "locked-model" },
+  });
+  expect(
+    (await post("/api/sessions", { message: "Escape", executor: "remote" }))
+      .status,
+  ).toBe(403);
+  expect(
+    (
+      await post("/api/sessions", {
+        message: "Escape",
+        sandboxNetworkFirewall: false,
+      })
+    ).status,
+  ).toBe(403);
+  const response = await post("/api/sessions", { message: "Make a sketch" });
+  expect(response.status, await response.clone().text()).toBe(200);
+  const result = await response.json();
+  const own = encodeProjectId(limitedDetachedProjectPath("archer"));
+  expect(result.projectId).toBe(own);
+  expect(launches).toEqual([
+    expect.objectContaining({
+      instructionUsername: "archer",
+      providerName: "claude",
+      model: "locked-model",
+      sandboxLevel: "project-write",
+      sandboxNetworkFirewall: true,
+    }),
+  ]);
+  expect(sessionMetadataService.getMetadata(result.sessionId)).toMatchObject({
+    createdByUser: "archer",
+    sandboxLevel: "project-write",
+  });
+  const grants = users.getActiveGrants("archer")!;
+  expect(levelFor(grants, own)).toBe("new-session");
+  expect(levelFor(grants, encodeProjectId(DETACHED_PROJECT_PATH))).toBe("none");
+  expect(
+    levelFor(grants, encodeProjectId(limitedDetachedProjectPath("skyler"))),
+  ).toBe("none");
+  await users.update("archer", { allowNoProjectSessions: false });
+  expect((await post("/api/sessions", { message: "Another" })).status).toBe(
+    403,
+  );
+  expect(levelFor(users.getActiveGrants("archer")!, own)).toBe("join");
+});
 
 it("records no creator on the superuser's preparation session", async () => {
   const cookie = `${SESSION_COOKIE_NAME}=${await authService.createSession("superuser")}`;

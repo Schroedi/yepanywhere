@@ -56,6 +56,9 @@ interface UserBody {
   joinStaleOffsetMinutes?: number;
   lock?: { provider?: string; model?: string; effort?: string };
   projectRoot?: string;
+  allowNoProjectSessions?: boolean;
+  allowPublicApps?: boolean;
+  allowPrivateAppLinks?: boolean;
   templateCreation?: TemplateCreationGrant;
   instructionBlocks?: string[];
   pathGrants?: PathGrant[];
@@ -236,6 +239,9 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
         joinStaleOffsetMinutes: body.joinStaleOffsetMinutes,
         lock: body.lock,
         projectRoot: body.projectRoot,
+        allowNoProjectSessions: body.allowNoProjectSessions,
+        allowPublicApps: body.allowPublicApps,
+        allowPrivateAppLinks: body.allowPrivateAppLinks,
         templateCreation: body.templateCreation,
         instructionBlocks: body.instructionBlocks,
         pathGrants: body.pathGrants,
@@ -282,6 +288,9 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
         joinStaleOffsetMinutes: body.joinStaleOffsetMinutes,
         lock: body.lock,
         projectRoot: body.projectRoot,
+        allowNoProjectSessions: body.allowNoProjectSessions,
+        allowPublicApps: body.allowPublicApps,
+        allowPrivateAppLinks: body.allowPrivateAppLinks,
         templateCreation: body.templateCreation,
         instructionBlocks: body.instructionBlocks,
         pathGrants: body.pathGrants,

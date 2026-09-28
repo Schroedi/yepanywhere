@@ -1331,6 +1331,14 @@ export function NewSessionForm({
     });
   const isDetachedProject =
     !hasCustomProjectPath && currentProjectSelection === null;
+  const canCreateDetached =
+    principalResolved &&
+    (!launchLock.limited ||
+      (principal.grants?.allowNoProjectSessions === true &&
+        serverHasCapability(
+          versionInfo,
+          SERVER_CAPABILITIES.limitedUserNoProjectSessions.name,
+        )));
   const projectSummaryTitle =
     currentProjectSelection?.name ?? t("newSessionProjectDetached");
   const projectSummaryMeta = hasCustomProjectPath
@@ -1437,21 +1445,23 @@ export function NewSessionForm({
   const projectPanelRows = useMemo(() => {
     if (!isProjectChooserExpanded) return null;
 
-    const rows: ReactNode[] = [
-      <button
-        key="detached"
-        type="button"
-        className={`new-session-project-option ${isDetachedProject ? "selected" : ""}`}
-        onClick={handleDetachedProject}
-      >
-        <span className="new-session-project-option-name">
-          {t("newSessionProjectDetached")}
-        </span>
-        <span className="new-session-project-option-path">
-          {t("newSessionProjectDetachedHint")}
-        </span>
-      </button>,
-    ];
+    const rows: ReactNode[] = canCreateDetached
+      ? [
+          <button
+            key="detached"
+            type="button"
+            className={`new-session-project-option ${isDetachedProject ? "selected" : ""}`}
+            onClick={handleDetachedProject}
+          >
+            <span className="new-session-project-option-name">
+              {t("newSessionProjectDetached")}
+            </span>
+            <span className="new-session-project-option-path">
+              {t("newSessionProjectDetachedHint")}
+            </span>
+          </button>,
+        ]
+      : [];
 
     if (hasCustomProjectPath) {
       rows.push(
@@ -1513,6 +1523,7 @@ export function NewSessionForm({
     return rows;
   }, [
     currentProjectSelection?.id,
+    canCreateDetached,
     handleDetachedProject,
     handleProjectOptionSelect,
     hasCustomProjectPath,
@@ -2440,6 +2451,9 @@ export function NewSessionForm({
       try {
         let resolvedProjectId =
           await resolveProjectIdForSubmission(trimmedProjectInput);
+        if (!resolvedProjectId && !canCreateDetached) {
+          throw new Error("Choose a project to start a session.");
+        }
 
         let sessionId: string;
         let processId: string;
@@ -2752,6 +2766,7 @@ export function NewSessionForm({
       effectiveThinkingMode,
       helperSideModel,
       hasSelectedProviderModel,
+      canCreateDetached,
       isStarting,
       launch,
       launchLock,
@@ -3371,7 +3386,9 @@ export function NewSessionForm({
     speechPending !== null ||
     interimTranscript;
   const canStart = Boolean(
-    (hasContent || composerMuted) && hasSelectedProviderModel,
+    (hasContent || composerMuted) &&
+      hasSelectedProviderModel &&
+      (!isDetachedProject || canCreateDetached),
   );
   const hasProjectQueueTargetProject = Boolean(projectQueueTargetProjectId);
   const pendingFilesReadyForProjectQueue =

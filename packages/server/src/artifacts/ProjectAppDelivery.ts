@@ -1,6 +1,9 @@
 import { HTTPException } from "hono/http-exception";
 import type { ProjectAppView } from "@yep-anywhere/shared";
-import type { ProjectAppStore } from "../projects/ProjectAppStore.js";
+import type {
+  ProjectAppStore,
+  ProjectAppReservation,
+} from "../projects/ProjectAppStore.js";
 import type {
   ProjectServiceManager,
   ProjectServiceUpstream,
@@ -27,6 +30,9 @@ export class ProjectAppDelivery {
     private readonly staticApp?: (
       projectId: string,
     ) => Promise<{ entry: string; root: string } | null>,
+    private readonly publicAllowed?: (
+      reservation: ProjectAppReservation,
+    ) => Promise<boolean>,
   ) {
     this.ready = this.refreshHosts();
     void this.ready.catch((error: unknown) =>
@@ -64,20 +70,17 @@ export class ProjectAppDelivery {
         message: "Project service is not running",
       });
     const config = this.artifacts.config;
-    const reserved = (await this.store.reservations(projectId)).find(
+    const storedReservation = (await this.store.reservations(projectId)).find(
       (row) => row.namespace === config.vhostPublicRoot && row.serving,
     );
+    const reserved = storedReservation
+      ? await this.effectiveReservation(storedReservation)
+      : undefined;
     if (audience === "public" && reserved) {
-      const url = new URL(`https://${reserved.name}.${reserved.namespace}/`);
-      if (!reserved.public)
-        url.searchParams.set(
-          APP_ACCESS_QUERY,
-          this.artifacts.vhostAccess.token({ name: reserved.name, projectId }),
-        );
       return {
         id: `service:${projectId}:${upstream.generation}`,
         kind: "service",
-        url: url.href,
+        url: await this.addressLink(reserved),
         label: "Project app",
         transferable: true,
       };
@@ -124,6 +127,33 @@ export class ProjectAppDelivery {
       label: "Project app",
       transferable: true,
     };
+  }
+
+  /** Caller must authorize project access before exposing this transferable link. */
+  async addressLink(reservation: ProjectAppReservation): Promise<string> {
+    await this.artifacts.ready;
+    const url = new URL(
+      `https://${reservation.name}.${reservation.namespace}/`,
+    );
+    if (!reservation.public) {
+      url.searchParams.set(
+        APP_ACCESS_QUERY,
+        this.artifacts.vhostAccess.token({
+          name: reservation.name,
+          projectId: reservation.projectId,
+        }),
+      );
+    }
+    return url.href;
+  }
+
+  async effectiveReservation(
+    row: ProjectAppReservation,
+  ): Promise<ProjectAppReservation> {
+    const allowed = this.publicAllowed
+      ? await this.publicAllowed(row)
+      : !row.privateOnly;
+    return { ...row, privateOnly: !allowed, public: row.public && allowed };
   }
 
   /** Bearer path for base-path-aware apps, under the opaque artifact sandbox. */
@@ -210,12 +240,15 @@ export class ProjectAppDelivery {
       request.headers.get("host") ?? new URL(request.url).host,
     );
     const namespace = this.artifacts.config.vhostPublicRoot ?? "localhost";
-    const reservation = (await this.store.allReservations()).find(
+    const storedReservation = (await this.store.allReservations()).find(
       (row) =>
         row.namespace === namespace &&
         (hostname === `${row.name}.localhost` ||
           hostname === `${row.name}.${row.namespace}`),
     );
+    const reservation = storedReservation
+      ? await this.effectiveReservation(storedReservation)
+      : undefined;
     let upstream: ProjectServiceUpstream | null;
     let target: AppAccessTarget;
     if (reservation) {

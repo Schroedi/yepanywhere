@@ -292,6 +292,7 @@ vi.mock("../../hooks/useActingPrincipal", () => ({
   useActingPrincipal: () => ({
     principal: actingPrincipalState.principal,
     loading: false,
+    resolved: true,
     refresh: vi.fn(),
   }),
   isLimitedPrincipal: (principal: { username: string | null }) =>
@@ -2891,6 +2892,49 @@ describe("NewSessionForm", () => {
     openAdvancedOptions();
     expect(screen.getByText("showThinkingTitle")).toBeDefined();
   });
+
+  it.each([
+    [false, false, false],
+    [true, false, false],
+    [false, true, false],
+    [true, true, true],
+  ])(
+    "gates limited No project choice: permission %s, capability %s",
+    (allowed, capable, visible) => {
+      actingPrincipalState.principal = {
+        ...actingPrincipalState.principal,
+        username: "archer",
+        superuser: false,
+        grants: {
+          viewProjects: [],
+          joinProjects: [],
+          newSessionProjects: ["project-1"],
+          joinStaleOffsetMinutes: 0,
+          lock: {},
+          allowNoProjectSessions: allowed,
+        },
+      };
+      versionState.version = {
+        capabilities: capable
+          ? [SERVER_CAPABILITIES.limitedUserNoProjectSessions.name]
+          : [],
+      };
+      const { container } = render(
+        <NewSessionForm
+          projectId="project-1"
+          selectedProject={chooserProjects[0]}
+          projects={[...chooserProjects]}
+        />,
+      );
+      fireEvent.click(
+        container.querySelector(".new-session-project-summary") as HTMLElement,
+      );
+      expect(
+        screen.queryByRole("button", { name: /newSessionProjectDetached/i }) !==
+          null,
+      ).toBe(visible);
+    },
+  );
 
   it("shows detached and recent project choices in the default launcher", () => {
     render(<NewSessionForm projects={[...chooserProjects]} />);

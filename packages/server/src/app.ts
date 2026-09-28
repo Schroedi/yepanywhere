@@ -91,6 +91,7 @@ import {
   projectServiceStaticApp,
 } from "./projects/ProjectServiceManager.js";
 import { ProjectAppDelivery } from "./artifacts/ProjectAppDelivery.js";
+import { projectAppPublicAllowed } from "./projects/projectAppPolicy.js";
 import { createProjectAccessRoutes } from "./routes/project-access.js";
 import { createProjectAppRoutes } from "./routes/project-app.js";
 import { SESSION_COOKIE_NAME } from "./auth/routes.js";
@@ -1172,6 +1173,17 @@ export function createApp(options: AppOptions): AppResult {
       const declaration = await readProjectService(project.path);
       if (declaration?.where.kind !== "static") return null;
       return projectServiceStaticApp(project.path, declaration);
+    },
+    async (reservation) => {
+      const project = await scanner.getProject(reservation.projectId);
+      return (
+        !!project &&
+        projectAppPublicAllowed(
+          project.ownerUsername,
+          reservation,
+          getActiveLimitedGrants,
+        )
+      );
     },
   );
   artifactServer.setProjectAppDelivery(projectAppDelivery);

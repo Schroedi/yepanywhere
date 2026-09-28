@@ -37,13 +37,11 @@ turn off part of an allowed feature set are only a
 [sketch](../gaps/sketches/limited-user-preference-narrowing.md), not implemented
 preferences or an additional source of authority.
 
-The same extension adds a superuser-managed **Private apps only** ceiling,
-default-on for new and migrated limited users. It is a negative authority cap:
-when enabled, project-template creation and later app-row mutations for that
-user's projects must remain bearer-protected. When disabled, the user may opt a
-new template app into Public access; private remains the default. The server
-checks the ceiling at reservation creation/update, independently of the client
-control.
+The implemented **Allow public apps** permission defaults off for new and
+existing limited users. It supplies the publication ceiling for their app
+addresses; the server rechecks it for row updates and incoming requests.
+The earlier **Private apps only** proposal describes the inverse of this
+permission. Creation-time template publication remains in the stand-up gap.
 
 ### Approved workspace direction (2026-09-21; not implemented)
 
@@ -302,6 +300,24 @@ which the client adds through the ordinary add-project route, so the copy is
 owned and granted Start sessions like any project the user adds.
 
 ### Authorization
+
+**No project sessions.** A per-user `allowNoProjectSessions` checkbox defaults
+off. When enabled, both detached creation routes launch in a stable private
+scratch workspace for that username, with the usual sandbox, network firewall,
+provider/model/effort locks, creator attribution and limited-user instructions.
+This creates no grant on the superuser's shared No project workspace or another
+user's private one. Private workspaces remain hidden from Projects and named
+No project in session lists. Disabling creation retains read/join access to
+existing private sessions; it does not admit new sessions in that workspace.
+The `limited-user-no-project-sessions` capability gates the checkbox, submitted
+field and limited-user detached option. Without it, omit the field and deny
+detached creation in the client. Supported v0.9.0–v0.9.2 lack this contract;
+the capability and fallback were approved on 2026-09-28.
+
+**App distribution.** Per-user `allowPublicApps` defaults false;
+`allowPrivateAppLinks` defaults true. These are independent of project view
+and Start sessions grants. [Project service](project-service.md#app-address-in-project-settings)
+owns publication, owner ceilings, inline links and revocation behavior.
 
 Enforcement is a single server-side middleware ahead of every API route, so
 a route added later is refused for limited users until it is listed. It is

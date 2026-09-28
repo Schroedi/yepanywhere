@@ -16,6 +16,7 @@ import { principalFor } from "../auth/limitedLaunchPolicy.js";
 import { levelFor, satisfies } from "../auth/limitedUserPolicy.js";
 import type { SessionAccessResolver } from "../auth/sessionAccess.js";
 import type { ProjectAppStore } from "../projects/ProjectAppStore.js";
+import { projectAppPublicAllowed } from "../projects/projectAppPolicy.js";
 import {
   readProjectService,
   projectServiceStaticEntry,
@@ -149,6 +150,10 @@ export function createProjectAppRoutes(deps: {
       (info.activeDeclaration ?? info.declaration)?.where.kind === "process"
     )
       info.canShare = true;
+    info.canCopyLink =
+      principal.kind === "superuser" ||
+      principal.grants.allowPrivateAppLinks !== false;
+    if (!info.canCopyLink) info.canShare = false;
     return c.json(info);
   });
 
@@ -271,9 +276,14 @@ export function createProjectAppRoutes(deps: {
     return c.json({ restored: true });
   });
   const namespace = () => deps.artifacts.config.vhostPublicRoot ?? null;
-  const publisher = async (c: Context) => {
+  const publisher = async (c: Context, release = false) => {
     await authorize(c, "new-session");
-    if (principalFor(c).kind !== "superuser")
+    const principal = principalFor(c);
+    if (
+      principal.kind !== "superuser" &&
+      (release ||
+        deps.activeGrants(principal.username)?.allowPublicApps !== true)
+    )
       throw new HTTPException(403, {
         message: "Only the administrator can publish or release an app address",
       });
@@ -290,8 +300,37 @@ export function createProjectAppRoutes(deps: {
       canReserve:
         principal.kind === "superuser" ||
         satisfies(levelFor(principal.grants, project.id), "new-session"),
-      canPublish: principal.kind === "superuser",
-      reservations: current ? await deps.store.reservations(project.id) : [],
+      canPublish:
+        principal.kind === "superuser" ||
+        (principal.grants.allowPublicApps === true &&
+          satisfies(levelFor(principal.grants, project.id), "new-session")),
+      canRelease: principal.kind === "superuser",
+      reservations: current
+        ? await Promise.all(
+            (await deps.store.reservations(project.id)).map(async (stored) => {
+              const allowed = projectAppPublicAllowed(
+                project.ownerUsername,
+                stored,
+                deps.activeGrants,
+              );
+              const row = {
+                ...stored,
+                privateOnly: !allowed,
+                public: stored.public && allowed,
+              };
+              const canCopy =
+                row.public ||
+                principal.kind === "superuser" ||
+                principal.grants.allowPrivateAppLinks !== false;
+              return {
+                ...row,
+                ...(canCopy && row.namespace === current && deps.delivery
+                  ? { url: await deps.delivery.addressLink(row) }
+                  : {}),
+              };
+            }),
+          )
+        : [],
     };
     return c.json(addresses);
   });
@@ -371,8 +410,14 @@ export function createProjectAppRoutes(deps: {
       (row) => row.namespace === current,
     );
     if (!reservation) return c.json({ error: "Reserve an address first" }, 409);
-    // Limited-owned reservations retain the private ceiling until publication grants exist.
-    if (parsed.data.public && reservation.privateOnly)
+    if (
+      parsed.data.public &&
+      !projectAppPublicAllowed(
+        project.ownerUsername,
+        reservation,
+        deps.activeGrants,
+      )
+    )
       return c.json({ error: "This owner's apps require a private link" }, 403);
     return c.json(
       await deps.store.setServing(
@@ -380,19 +425,32 @@ export function createProjectAppRoutes(deps: {
         current,
         parsed.data.serving,
         parsed.data.public,
-        () => publisher(c),
+        async () => {
+          await publisher(c);
+          const freshProject = await authorize(c, "new-session");
+          const allowed = projectAppPublicAllowed(
+            freshProject.ownerUsername,
+            reservation,
+            deps.activeGrants,
+          );
+          if (parsed.data.public && !allowed)
+            throw new HTTPException(403, {
+              message: "This owner's apps require a private link",
+            });
+          return allowed;
+        },
       ),
     );
   });
   routes.post("/projects/:projectId/app/address/release", async (c) => {
     const project = await authorize(c, "new-session");
-    await publisher(c);
+    await publisher(c, true);
     const parsed = z
       .strictObject({ namespace: z.string().min(1) })
       .safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: "Expected namespace" }, 400);
     await deps.store.release(project.id, parsed.data.namespace, async () => {
-      await publisher(c);
+      await publisher(c, true);
       const row = (await deps.store.reservations(project.id)).find(
         (entry) => entry.namespace === parsed.data.namespace,
       );

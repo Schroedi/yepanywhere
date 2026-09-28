@@ -374,6 +374,17 @@ export function createLimitedUsersMiddleware(
       case "allow":
         await next();
         return;
+      case "detached-create":
+        if (principal.grants.allowNoProjectSessions !== true) {
+          return c.json(
+            {
+              error: "No project session creation is not enabled for this user",
+            },
+            403,
+          );
+        }
+        await next();
+        return;
       case "allow-filtered": {
         await next();
         if (c.res) {

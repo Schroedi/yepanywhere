@@ -110,5 +110,6 @@ it("refuses a limited user who did not create the project, and odd requests", as
 it("lets the superuser share any project", async () => {
   principal = { kind: "superuser" };
   expect((await put({ username: "carol", level: "join" })).status).toBe(200);
-  expect(users.getActiveGrants("carol")?.joinProjects).toEqual([projectId]);
+  // Check the explicit project grant, apart from the user's private workspace.
+  expect(users.get("carol")?.joinProjects).toEqual([projectId]);
 });

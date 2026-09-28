@@ -65,7 +65,11 @@ import {
 import type { NotificationService } from "../notifications/index.js";
 import type { CodexSessionScanner } from "../projects/codex-scanner.js";
 import type { GeminiSessionScanner } from "../projects/gemini-scanner.js";
-import { DETACHED_PROJECT_PATH, encodeProjectId } from "../projects/paths.js";
+import {
+  DETACHED_PROJECT_PATH,
+  encodeProjectId,
+  limitedDetachedProjectPath,
+} from "../projects/paths.js";
 import { tryClaimProjectPathIndex } from "../projects/projectPathIndex.js";
 import type { ProjectScanner } from "../projects/scanner.js";
 import { resolveCanonicalProjectRedirect } from "./session-project-routing.js";
@@ -2761,12 +2765,16 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
 
   const ensureDetachedProjectPath = async (
     executor?: string,
+    username?: string,
   ): Promise<string> => {
-    await mkdir(DETACHED_PROJECT_PATH, { recursive: true });
+    const projectPath = username
+      ? limitedDetachedProjectPath(username)
+      : DETACHED_PROJECT_PATH;
+    await mkdir(projectPath, { recursive: true, mode: 0o700 });
     if (executor) {
-      await ensureRemoteDirectory(executor, DETACHED_PROJECT_PATH);
+      await ensureRemoteDirectory(executor, projectPath);
     }
-    return DETACHED_PROJECT_PATH;
+    return projectPath;
   };
 
   // GET /api/projects/:projectId/sessions/:sessionId/agents - Get agent mappings
@@ -4369,6 +4377,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
 
+    const limitedLaunch = applyLimitedLaunchPolicy(c, body);
+    if (limitedLaunch.kind === "error")
+      return c.json({ error: limitedLaunch.error }, 403);
+
     const modeError = permissionModeError(body.mode);
     if (modeError) {
       return c.json({ error: modeError }, 400);
@@ -4402,7 +4414,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       return c.json({ error: sandboxSettingsError }, 400);
     }
 
-    const projectPath = await ensureDetachedProjectPath(executor);
+    const projectPath = await ensureDetachedProjectPath(
+      executor,
+      actingUsername(c),
+    );
     const serverTimestamp = Date.now();
     const userMessage: UserMessage = {
       text: body.message,
@@ -4440,6 +4455,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         sandboxLevel: sandboxSelection.sandboxLevel,
         sandboxNetworkFirewall: sandboxSelection.sandboxNetworkFirewall,
         globalInstructions: getGlobalInstructions(),
+        instructionUsername: actingUsername(c),
         permissions: body.permissions,
         recapMode: helperSettings.recapMode,
         recapAfterSeconds: helperSettings.recapAfterSeconds,
@@ -4450,6 +4466,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         onStarted: (_sessionId, process) =>
           recordNewSessionLaunch(process, {
             creationProvenance: body.creationProvenance,
+            createdByUser: actingUsername(c),
             provider: body.provider,
             executor,
             initialPrompt: body.message,
@@ -4500,6 +4517,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       // Body is optional for this endpoint
     }
 
+    const limitedLaunch = applyLimitedLaunchPolicy(c, body);
+    if (limitedLaunch.kind === "error")
+      return c.json({ error: limitedLaunch.error }, 403);
+
     const modeError = permissionModeError(body.mode);
     if (modeError) {
       return c.json({ error: modeError }, 400);
@@ -4530,7 +4551,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       return c.json({ error: sandboxSettingsError }, 400);
     }
 
-    const projectPath = await ensureDetachedProjectPath(executor);
+    const projectPath = await ensureDetachedProjectPath(
+      executor,
+      actingUsername(c),
+    );
     const { thinking, effort } = buildThinkingOptions(body);
     const model =
       body.model && body.model !== "default" ? body.model : undefined;
@@ -4551,6 +4575,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         sandboxLevel: sandboxSelection.sandboxLevel,
         sandboxNetworkFirewall: sandboxSelection.sandboxNetworkFirewall,
         globalInstructions: getGlobalInstructions(),
+        instructionUsername: actingUsername(c),
         permissions: body.permissions,
         recapMode: helperSettings.recapMode,
         recapAfterSeconds: helperSettings.recapAfterSeconds,
@@ -4561,6 +4586,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         onStarted: (_sessionId, process) =>
           recordNewSessionLaunch(process, {
             creationProvenance: body.creationProvenance,
+            createdByUser: actingUsername(c),
             provider: body.provider,
             executor,
             requestedModel: body.model,

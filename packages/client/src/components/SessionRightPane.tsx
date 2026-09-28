@@ -15,7 +15,7 @@ import { useI18n } from "../i18n";
 import { createLocalStorageValue } from "../lib/localStorageValue";
 import { UI_KEYS } from "../lib/storageKeys";
 import styles from "./SessionRightPane.module.css";
-import headerStyles from "./ViewerHeader.module.css";
+import { AppViewerToolbar } from "./AppViewerToolbar";
 import { ViewerFindField } from "./ViewerFindField";
 import { ViewerWindowActions } from "./ViewerWindowActions";
 import { ComposerMicAction } from "./ComposerMicAction";
@@ -132,6 +132,7 @@ function SessionRightPaneContent({
 }) {
   const { t } = useI18n();
   const root = useRef<HTMLElement>(null);
+  const appRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(widthStore.read);
   const [maxWidth, setMaxWidth] = useState(1600);
   const visibleWidth = Math.min(width, maxWidth);
@@ -279,17 +280,18 @@ function SessionRightPaneContent({
           />
         )}
         {pane.selected && (
-          <div className={styles.appContent} hidden={projectAppOpen}>
-            <header className={`${headerStyles.header} ${styles.header}`}>
-              <span className={headerStyles.identity}>
-                <span className={styles.title} title={pane.selected.label}>
-                  {pane.selected.label}
-                </span>
+          <div
+            ref={appRef}
+            className={styles.appContent}
+            hidden={projectAppOpen}
+          >
+            <AppViewerToolbar viewerRef={appRef}>
+              <span className={styles.title} title={pane.selected.label}>
+                {pane.selected.label}
               </span>
               <ViewerFindField find={find} />
               {voice && <ComposerMicAction voice={voice} />}
               <ViewerWindowActions
-                className={headerStyles.actions}
                 url={pane.selected.url}
                 copyUrl={pane.copyUrl}
                 onMinimize={pane.hide}
@@ -310,7 +312,7 @@ function SessionRightPaneContent({
                     : "sessionRightPaneKill",
                 )}
               />
-            </header>
+            </AppViewerToolbar>
             {pane.appStatus === "checking" ? (
               <p className={styles.error} role="status">
                 {t("sessionRightPaneChecking")}

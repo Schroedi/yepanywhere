@@ -365,6 +365,11 @@ thumbnail presentation remain proposed.
    project instructions, refines the README lede, verifies run/test/build,
    and reports readiness to build the requested app.
 
+The preparation session's display title comes from the entered user intent,
+using the normal title-length limit. The full composed preparation prompt
+remains the provider's first turn and the stored recovery prompt; template
+setup text must not become the displayed session title.
+
 Setup seeds a reasonable README summary immediately, so the project description
 does not remain blank while preparation runs. The shipped base instruction
 keeps documentation current, including revising that lede when the project's
@@ -457,9 +462,11 @@ ceiling is enabled.
 
 Persistent reservation storage, concurrency and authorization are implemented
 under `project-app-reservations`. Project App Settings shows current and prior
-namespace associations, with administrator serving/release controls. Initially
-limited-owned apps are always private; the configurable publication ceiling,
-creation-time claim and global orphaned-name inventory remain in the stand-up
+namespace associations. Serving is available to administrators and limited
+users with Allow public apps; release remains administrator-only. The owner's
+current permission is the publication ceiling, defaulting to private-only,
+as described in [project service](project-service.md#app-address-in-project-settings).
+Creation-time claim and global orphaned-name inventory remain in the stand-up
 gap. Host-provided static publication does not require this wildcard.
 
 ### Next delivery boundary

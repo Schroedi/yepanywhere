@@ -169,6 +169,78 @@ describe("Settings → Users", () => {
     vi.restoreAllMocks();
   });
 
+  it("gates the new session and app permissions and preserves their defaults", async () => {
+    versionState.version = {
+      capabilities: [
+        "limited-user-no-project-sessions",
+        "project-app-address-links",
+      ],
+    };
+    mockListUsers.mockResolvedValue({ users: [user()], enabled: true });
+    render(<UsersSettings />);
+    fireEvent.click(await screen.findByRole("button", { name: "alice" }));
+    expect(
+      (
+        screen.getByRole("checkbox", {
+          name: "usersAllowNoProject",
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(false);
+    expect(
+      (
+        screen.getByRole("checkbox", {
+          name: "usersAllowPublicApps",
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(false);
+    expect(
+      (
+        screen.getByRole("checkbox", {
+          name: "usersAllowPrivateAppLinks",
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(true);
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "usersAllowNoProject" }),
+    );
+    await waitFor(() =>
+      expect(mockUpdateUser).toHaveBeenCalledWith(
+        "alice",
+        expect.objectContaining({
+          allowNoProjectSessions: true,
+          allowPublicApps: false,
+          allowPrivateAppLinks: true,
+        }),
+      ),
+    );
+  });
+
+  it("omits unsupported permissions from older-server updates", async () => {
+    mockListUsers.mockResolvedValue({ users: [user()], enabled: true });
+    render(<UsersSettings />);
+    fireEvent.click(await screen.findByRole("button", { name: "alice" }));
+    expect(
+      screen.queryByRole("checkbox", { name: "usersAllowNoProject" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("checkbox", { name: "usersAllowPublicApps" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("checkbox", { name: "usersAllowPrivateAppLinks" }),
+    ).toBeNull();
+    fireEvent.change(screen.getByLabelText("Alpha"), {
+      target: { value: "view" },
+    });
+    await waitFor(() => expect(mockUpdateUser).toHaveBeenCalled());
+    const payload = mockUpdateUser.mock.calls[0]![1];
+    for (const field of [
+      "allowNoProjectSessions",
+      "allowPublicApps",
+      "allowPrivateAppLinks",
+    ])
+      expect(payload).not.toHaveProperty(field);
+  });
+
   it("requires confirmation before deleting a user and keeps them on cancel", async () => {
     mockListUsers.mockResolvedValue({ users: [user()], enabled: true });
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);

@@ -621,6 +621,65 @@ export const SERVER_CAPABILITIES = {
       reason: "Older servers have no copy route.",
     },
   },
+  limitedUserNoProjectSessions: {
+    id: CAPABILITY_ID_ALLOCATIONS.limitedUserNoProjectSessions.id,
+    name: "limited-user-no-project-sessions",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Per-user permission to create sandboxed sessions in a private No project workspace.",
+    clientFallback:
+      "Hide the checkbox, omit allowNoProjectSessions, and prevent limited-user detached creation.",
+    serverContract: {
+      routes: [
+        "POST /api/users",
+        "PATCH /api/users/:username",
+        "POST /api/sessions",
+        "POST /api/sessions/create",
+      ],
+      requestFields: ["allowNoProjectSessions"],
+      responseFields: ["allowNoProjectSessions"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers admit detached creation only for the superuser.",
+    },
+  },
+  projectAppAddressLinks: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectAppAddressLinks.id,
+    name: "project-app-address-links",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Authorized transferable address URLs and per-user public-app/private-link permissions.",
+    clientFallback:
+      "Omit the address URL row and the optional user permission fields on older servers.",
+    serverContract: {
+      routes: [
+        "GET /api/projects/:projectId/app/address",
+        "POST /api/projects/:projectId/app/address/serve",
+        "POST /api/users",
+        "PATCH /api/users/:username",
+      ],
+      requestFields: ["allowPublicApps", "allowPrivateAppLinks"],
+      responseFields: [
+        "reservations[].url",
+        "canRelease",
+        "canCopyLink",
+        "allowPublicApps",
+        "allowPrivateAppLinks",
+      ],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers do not expose address links or these user permissions.",
+    },
+  },
   templatePreparationAttachments: {
     id: CAPABILITY_ID_ALLOCATIONS.templatePreparationAttachments.id,
     name: "template-preparation-attachments",

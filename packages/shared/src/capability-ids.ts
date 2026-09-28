@@ -612,6 +612,18 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "project-copy",
     introducedIn: "0.9.4",
   },
+  limitedUserNoProjectSessions: {
+    id: 98,
+    direction: "server",
+    name: "limited-user-no-project-sessions",
+    introducedIn: "0.9.4",
+  },
+  projectAppAddressLinks: {
+    id: 100,
+    direction: "server",
+    name: "project-app-address-links",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

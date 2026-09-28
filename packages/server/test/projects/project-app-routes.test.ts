@@ -12,6 +12,8 @@ import { toUrlProjectId, type LimitedUserGrants } from "@yep-anywhere/shared";
 import { Hono } from "hono";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { ArtifactServer } from "../../src/artifacts/ArtifactServer.js";
+import { ProjectAppDelivery } from "../../src/artifacts/ProjectAppDelivery.js";
+import { projectAppPublicAllowed } from "../../src/projects/projectAppPolicy.js";
 import {
   PRINCIPAL_VARIABLE,
   type Principal,
@@ -36,6 +38,7 @@ let scanner: ProjectScanner;
 let app: Hono;
 let grants: LimitedUserGrants;
 let principal: Principal;
+let delivery: ProjectAppDelivery;
 beforeEach(async () => {
   root = await realpath(await mkdtemp(join(tmpdir(), "ya-project-app-route-")));
   projectPath = join(root, "project");
@@ -92,6 +95,17 @@ beforeEach(async () => {
     c.set(PRINCIPAL_VARIABLE, principal);
     await next();
   });
+  delivery = new ProjectAppDelivery(
+    artifacts,
+    services,
+    store,
+    async () => ({
+      entry: join(projectPath, "dist/index.html"),
+      root: join(projectPath, "dist"),
+    }),
+    async (reservation) =>
+      projectAppPublicAllowed("archer", reservation, () => grants),
+  );
   app.route(
     "/api",
     createProjectAppRoutes({
@@ -99,6 +113,7 @@ beforeEach(async () => {
       store,
       services,
       artifacts,
+      delivery,
       activeGrants: () => grants,
       sessionAccess: new SessionAccessResolver({
         getLiveSession: () => undefined,
@@ -130,6 +145,63 @@ function post(action: string, body: unknown = {}) {
     body: JSON.stringify(body),
   });
 }
+
+it("enforces public publishing and private-link retrieval independently, including revocation", async () => {
+  artifacts.config.vhostPublicRoot = "apps.example";
+  artifacts.config.publicOrigin = "https://artifacts.example";
+  grants.newSessionProjects = [projectId];
+  expect((await post("address/reserve", { name: "archer-game" })).status).toBe(
+    200,
+  );
+  const get = async () =>
+    (await app.request(`/api/projects/${projectId}/app/address`)).json();
+  let address = await get();
+  expect(address.reservations[0].url).toMatch(
+    /^https:\/\/archer-game\.apps\.example\/\?ya_access=/,
+  );
+  const privateUrl = address.reservations[0].url;
+  expect(
+    (await post("address/serve", { serving: true, public: true })).status,
+  ).toBe(403);
+  grants.allowPrivateAppLinks = false;
+  expect((await get()).reservations[0].url).toBeUndefined();
+  grants.allowPublicApps = true;
+  expect(
+    (await post("address/serve", { serving: true, public: true })).status,
+  ).toBe(200);
+  address = await get();
+  expect(address).toMatchObject({ canPublish: true, canRelease: false });
+  expect(address.reservations[0]).toMatchObject({
+    public: true,
+    privateOnly: false,
+    url: "https://archer-game.apps.example/",
+  });
+  expect(
+    (
+      await delivery.dispatchHost(
+        new Request("https://archer-game.apps.example/"),
+      )
+    ).status,
+  ).toBe(302);
+  grants.allowPublicApps = false;
+  expect(
+    (
+      await delivery.dispatchHost(
+        new Request("https://archer-game.apps.example/"),
+      )
+    ).status,
+  ).toBe(401);
+  expect((await delivery.dispatchHost(new Request(privateUrl))).status).toBe(
+    302,
+  );
+  expect((await get()).reservations[0]).toMatchObject({
+    public: false,
+    privateOnly: true,
+  });
+  expect(
+    (await post("address/release", { namespace: "apps.example" })).status,
+  ).toBe(403);
+});
 
 it("opens a static app on the isolated artifact origin without starting any process", async () => {
   const info = await app.request(`/api/projects/${projectId}/app`);

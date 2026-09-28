@@ -10,6 +10,7 @@ import { createFrontendProxy } from "../../server/src/frontend/proxy";
 import { MockServerClaudeProvider } from "../../server/src/sdk/mock";
 import { ProjectMetadataService } from "../../server/src/metadata/ProjectMetadataService";
 import { SessionMetadataService } from "../../server/src/metadata/SessionMetadataService";
+import { LimitedUsersService } from "../../server/src/auth/LimitedUsersService";
 import { initFileAccess } from "../../server/src/middleware/file-access";
 import { recordUiCapture, presentUiCaptures } from "./support/ui-capture";
 
@@ -45,6 +46,8 @@ test.beforeAll(async () => {
   await metadata.addProject(projectId, project, "archer");
   const sessionMetadata = new SessionMetadataService({ dataDir });
   await sessionMetadata.initialize();
+  const limitedUsers = new LimitedUsersService({ dataDir });
+  await limitedUsers.initialize();
   initFileAccess({
     uploadsDir: directory,
     homeDir: directory,
@@ -62,6 +65,7 @@ test.beforeAll(async () => {
   instance = createApp({
     provider: new MockServerClaudeProvider(),
     sessionMetadataService: sessionMetadata,
+    limitedUsersService: limitedUsers,
     dataDir,
     projectsDir: join(directory, "sessions"),
     projectMetadataService: metadata,
@@ -123,6 +127,33 @@ test("project App fills the pane and retains canvas and composer across phone sw
     const bounds = await frame.boundingBox();
     expect(bounds!.height).toBeGreaterThan(size.height * 0.65);
     await recordUiCapture(page, `project-app-${size.width}`);
+    const header = app.locator("header");
+    expect((await header.boundingBox())!.height).toBeLessThanOrEqual(33);
+    await app.getByRole("button", { name: /^Collapse app toolbar/ }).click();
+    expect((await header.boundingBox())!.width).toBeLessThanOrEqual(34);
+    expect((await frame.boundingBox())!.height).toBeGreaterThan(
+      bounds!.height + 25,
+    );
+    await expect(canvas.getByRole("button", { name: "1 ideas" })).toBeVisible();
+    await recordUiCapture(page, `project-app-corner-${size.width}`);
+    await app.getByRole("button", { name: "Show app toolbar" }).click();
+    if (size.width === 1200) {
+      await app
+        .getByRole("button", { name: "Enter browser fullscreen" })
+        .click();
+      await expect
+        .poll(() => page.evaluate(() => !!document.fullscreenElement))
+        .toBe(true);
+      await expect(
+        canvas.getByRole("button", { name: "1 ideas" }),
+      ).toBeVisible();
+      await app
+        .getByRole("button", { name: "Exit browser fullscreen" })
+        .click();
+      await expect
+        .poll(() => page.evaluate(() => !!document.fullscreenElement))
+        .toBe(false);
+    }
     await app.getByRole("button", { name: "App settings" }).click();
     await expect(app.getByRole("group", { name: "App address" })).toHaveCount(
       0,
@@ -256,4 +287,37 @@ test("project App fills the pane and retains canvas and composer across phone sw
   await recordUiCapture(page, "project-app-address-1200");
   await page.setViewportSize({ width: 375, height: 812 });
   await recordUiCapture(page, "project-app-address-375");
+  for (const size of [
+    { width: 1200, height: 600 },
+    { width: 1000, height: 600 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.goto(`${base}/projects`);
+    await page
+      .getByRole("button", { name: "Open project settings" })
+      .first()
+      .click();
+    const settings = page.getByRole("dialog");
+    await expect(
+      settings.getByRole("group", { name: "App address" }),
+    ).toBeVisible();
+    await expect(settings.locator("iframe")).toHaveCount(0);
+    await expect(
+      settings.getByText("archer-garden.apps.example", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      settings.getByRole("button", { name: "Copy viewer link" }),
+    ).toBeVisible();
+    await expect(
+      settings.getByRole("checkbox", { name: "Public — no link required" }),
+    ).toHaveCount(0);
+    await expect(settings.getByRole("alert")).toHaveCount(0);
+    expect(
+      await settings.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    await recordUiCapture(page, `project-settings-inline-${size.width}`);
+  }
 });

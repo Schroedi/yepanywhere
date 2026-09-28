@@ -34,6 +34,10 @@ import { expandHomePath } from "../utils/expandHomePath.js";
 import { createCoalescingSaver } from "../lib/coalescingSaver.js";
 import { writeFileAtomically } from "../utils/writeFileAtomically.js";
 import {
+  encodeProjectId,
+  limitedDetachedProjectPath,
+} from "../projects/paths.js";
+import {
   OWNER_READ_WRITE_FILE_MODE,
   enforceOwnerReadWriteFilePermissions,
 } from "../utils/filePermissions.js";
@@ -85,6 +89,9 @@ export interface LimitedUserInput {
   joinStaleOffsetMinutes?: number;
   lock?: LimitedUserLock;
   projectRoot?: string;
+  allowNoProjectSessions?: boolean;
+  allowPublicApps?: boolean;
+  allowPrivateAppLinks?: boolean;
   templateCreation?: TemplateCreationGrant;
   instructionBlocks?: string[];
   pathGrants?: PathGrant[];
@@ -178,6 +185,9 @@ export function toLimitedUserSummary(
     instructionBlocks: [...(record.instructionBlocks ?? [])],
     ...(record.projectRoot ? { projectRoot: record.projectRoot } : {}),
     pathGrants: structuredClone(record.pathGrants ?? []),
+    allowNoProjectSessions: record.allowNoProjectSessions === true,
+    allowPublicApps: record.allowPublicApps === true,
+    allowPrivateAppLinks: record.allowPrivateAppLinks !== false,
   };
 }
 
@@ -230,6 +240,13 @@ export class LimitedUsersService {
               ? templateGrantFor(record)
               : templateGrantSchema.parse(record.templateCreation),
           pathGrants: parsePathGrants(record.pathGrants ?? []),
+          allowNoProjectSessions: z
+            .boolean()
+            .parse(record.allowNoProjectSessions ?? false),
+          allowPublicApps: z.boolean().parse(record.allowPublicApps ?? false),
+          allowPrivateAppLinks: z
+            .boolean()
+            .parse(record.allowPrivateAppLinks ?? true),
         };
       }
       if (parsed.version < CURRENT_VERSION) await this.save();
@@ -282,15 +299,22 @@ export class LimitedUsersService {
   getActiveGrants(username: string): LimitedUserGrants | null {
     const record = this.get(username);
     if (!record || record.disabled === true) return null;
+    const detachedId = encodeProjectId(limitedDetachedProjectPath(username));
     return {
-      newSessionProjects: [...record.newSessionProjects],
-      joinProjects: [...record.joinProjects],
+      newSessionProjects: [
+        ...record.newSessionProjects,
+        ...(record.allowNoProjectSessions ? [detachedId] : []),
+      ],
+      joinProjects: [...record.joinProjects, detachedId],
       viewProjects: [...record.viewProjects],
       joinStaleOffsetMinutes: record.joinStaleOffsetMinutes,
       lock: { ...record.lock },
       templateCreation: structuredClone(templateGrantFor(record)),
       ...(record.projectRoot ? { projectRoot: record.projectRoot } : {}),
       pathGrants: structuredClone(record.pathGrants ?? []),
+      allowNoProjectSessions: record.allowNoProjectSessions === true,
+      allowPublicApps: record.allowPublicApps === true,
+      allowPrivateAppLinks: record.allowPrivateAppLinks !== false,
     };
   }
 
@@ -353,6 +377,13 @@ export class LimitedUsersService {
       instructionBlocks,
       templateCreation,
       pathGrants: parsePathGrants(input.pathGrants ?? []),
+      allowNoProjectSessions: z
+        .boolean()
+        .parse(input.allowNoProjectSessions ?? false),
+      allowPublicApps: z.boolean().parse(input.allowPublicApps ?? false),
+      allowPrivateAppLinks: z
+        .boolean()
+        .parse(input.allowPrivateAppLinks ?? true),
       ...(normalizeProjectRoot(input.projectRoot)
         ? { projectRoot: normalizeProjectRoot(input.projectRoot) }
         : {}),
@@ -383,6 +414,13 @@ export class LimitedUsersService {
       input.pathGrants === undefined
         ? undefined
         : parsePathGrants(input.pathGrants);
+    const appAndSessionGrants = z
+      .object({
+        allowNoProjectSessions: z.boolean().optional(),
+        allowPublicApps: z.boolean().optional(),
+        allowPrivateAppLinks: z.boolean().optional(),
+      })
+      .parse(input);
 
     if (input.password !== undefined) {
       const passwordError = limitedUserPasswordError(input.password);
@@ -417,6 +455,9 @@ export class LimitedUsersService {
     if (templateCreation !== undefined)
       record.templateCreation = templateCreation;
     if (pathGrants !== undefined) record.pathGrants = pathGrants;
+    for (const [key, value] of Object.entries(appAndSessionGrants)) {
+      if (value !== undefined) Object.assign(record, { [key]: value });
+    }
     if (input.disabled !== undefined) {
       if (input.disabled) {
         record.disabled = true;

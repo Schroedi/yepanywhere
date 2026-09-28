@@ -39,6 +39,53 @@ beforeEach(() => {
   );
 });
 afterEach(cleanup);
+it("renders address controls inline and saves visibility without stopping serving", async () => {
+  const row = {
+    name: "canvas",
+    namespace: "apps.example",
+    owner: "superuser",
+    serving: true,
+    public: false,
+    privateOnly: false,
+    url: "https://canvas.apps.example/?ya_access=private",
+  };
+  mock.fetch.mockImplementation(
+    async (path: string, options?: { body: string }) => {
+      if (path.endsWith("/serve")) {
+        Object.assign(row, JSON.parse(options!.body));
+        return row;
+      }
+      if (path.endsWith("/address"))
+        return {
+          enabled: true,
+          namespace: "apps.example",
+          canPublish: true,
+          reservations: [{ ...row }],
+        };
+      return { state: "ready", declaration: null, removedFrom: [] };
+    },
+  );
+  const { container } = render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" presentation="settings" />
+    </I18nProvider>,
+  );
+  fireEvent.click(
+    await screen.findByRole("checkbox", { name: "Public — no link required" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Save access" }));
+  await waitFor(() => expect(row.public).toBe(true));
+  expect(row.serving).toBe(true);
+  expect(container.querySelector("iframe")).toBeNull();
+  expect(mock.fetch.mock.calls.some(([path]) => path.endsWith("/open"))).toBe(
+    false,
+  );
+  expect(
+    screen
+      .getByRole("button", { name: "Copy viewer link" })
+      .getAttribute("href"),
+  ).toBe(row.url);
+});
 it("sends no App requests to an older server", () => {
   mock.version = "0.9.2";
   render(

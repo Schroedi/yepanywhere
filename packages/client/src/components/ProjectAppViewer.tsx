@@ -6,14 +6,14 @@ import {
   type ProjectAppView,
   type ProjectAppAddresses,
 } from "@yep-anywhere/shared";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { projectAppApi, type ProjectAppTarget } from "../api/projectApp";
 import { useVersion } from "../hooks/useVersion";
 import { artifactAudience } from "../lib/artifactPreview";
 import type { VoiceInputButtonRef } from "./VoiceInputButton";
 import { ViewerWindowActions } from "./ViewerWindowActions";
 import { ComposerMicAction } from "./ComposerMicAction";
-import headerStyles from "./ViewerHeader.module.css";
+import { AppViewerToolbar } from "./AppViewerToolbar";
 import actions from "./ViewerWindowActions.module.css";
 import styles from "./ProjectAppViewer.module.css";
 import { useI18n } from "../i18n";
@@ -47,20 +47,24 @@ export function ProjectAppViewer({
   onVoice,
   initialSettings = false,
   onFullView,
+  presentation = "viewer",
 }: {
   projectId: string;
   initialTarget?: ProjectAppTarget;
   onTarget?: (target: ProjectAppTarget) => void;
-  onBack: () => void;
+  onBack?: () => void;
   onSession?: () => void;
   voice?: VoiceInputButtonRef | null;
   onVoice?: () => void;
   initialSettings?: boolean;
   /** Offered in a session pane: fill the whole window with the app. */
   onFullView?: () => void;
+  /** Inline project settings use the same controls without opening an app. */
+  presentation?: "viewer" | "settings";
 }) {
   const { version } = useVersion();
   const { t } = useI18n();
+  const viewerRef = useRef<HTMLElement>(null);
   const supported = serverHasCapability(
     version,
     SERVER_CAPABILITIES.projectService.name,
@@ -76,7 +80,8 @@ export function ProjectAppViewer({
   const [view, setView] = useState<ProjectAppView | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [settings, setSettings] = useState(initialSettings);
+  const [settingsOpen, setSettings] = useState(initialSettings);
+  const settings = presentation === "settings" || settingsOpen;
   const [sharing, setSharing] = useState(false);
   const [share, setShare] = useState<ProjectAppView | null>(null);
   const [addresses, setAddresses] = useState<ProjectAppAddresses | null>(null);
@@ -116,7 +121,7 @@ export function ProjectAppViewer({
   const artifactId = target?.artifactId;
   // biome-ignore lint/correctness/useExhaustiveDependencies: Reload deliberately renews the view grant even when its target is unchanged.
   useEffect(() => {
-    if (!supported || !targetKind) return;
+    if (!supported || !targetKind || presentation === "settings") return;
     let active = true;
     setView(null);
     setError("");
@@ -129,7 +134,15 @@ export function ProjectAppViewer({
     return () => {
       active = false;
     };
-  }, [projectId, targetKind, artifactId, audience, supported, reload]);
+  }, [
+    projectId,
+    targetKind,
+    artifactId,
+    audience,
+    supported,
+    reload,
+    presentation,
+  ]);
   useEffect(() => {
     if (target) onTarget?.(target);
   }, [target, onTarget]);
@@ -167,89 +180,103 @@ export function ProjectAppViewer({
       ? info.declaration.start.argv.join(" ")
       : undefined;
   return (
-    <section className={styles.viewer} aria-label={t("projectAppTitle")}>
-      <header className={`${headerStyles.header} ${styles.header}`}>
-        <div className={actions.actions}>
-          <button
-            type="button"
-            aria-label={t("projectAppBack")}
-            title={t("projectAppBack")}
-            onClick={() => {
-              if (details) {
+    <section
+      ref={viewerRef}
+      className={
+        presentation === "settings" ? styles.inlineSettings : styles.viewer
+      }
+      aria-label={t("projectAppTitle")}
+    >
+      {presentation === "viewer" && (
+        <AppViewerToolbar viewerRef={viewerRef}>
+          <div className={actions.actions}>
+            <button
+              type="button"
+              aria-label={t("projectAppBack")}
+              title={t("projectAppBack")}
+              onClick={() => {
+                if (details) {
+                  setSettings(false);
+                  setSharing(false);
+                } else {
+                  onBack?.();
+                }
+              }}
+            >
+              <Glyph path="M15 5l-7 7 7 7" />
+            </button>
+          </div>
+          <span className={styles.title}>
+            {view?.label ?? t("projectAppLabel")}
+          </span>
+          <div className={actions.actions}>
+            {onFullView && (
+              <button
+                type="button"
+                title={t("projectAppFullView")}
+                aria-label={t("projectAppFullView")}
+                onClick={onFullView}
+              >
+                <Glyph path="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+              </button>
+            )}
+            {info?.canExecute && onSession && (
+              <button
+                type="button"
+                title={t("projectAppNewSession")}
+                aria-label={t("projectAppNewSession")}
+                onClick={onSession}
+              >
+                <Glyph path="M12 4v16M4 12h16" />
+              </button>
+            )}
+            {info?.canExecute && (
+              <ComposerMicAction voice={voice} onActivate={onVoice} />
+            )}
+            <button
+              type="button"
+              title={t("projectAppShare")}
+              aria-label={t("projectAppShare")}
+              hidden={info?.canCopyLink === false}
+              disabled={!view}
+              onClick={() => {
+                setSharing(true);
                 setSettings(false);
+              }}
+            >
+              <Glyph path="M12 16V3M7 8l5-5 5 5M5 13v8h14v-8" />
+            </button>
+            <button
+              type="button"
+              title={t("projectAppSettings")}
+              aria-label={t("projectAppSettings")}
+              onClick={() => {
+                setSettings(true);
                 setSharing(false);
-              } else {
-                onBack();
-              }
-            }}
-          >
-            <Glyph path="M15 5l-7 7 7 7" />
-          </button>
-        </div>
-        <span className={styles.title}>
-          {view?.label ?? t("projectAppLabel")}
-        </span>
-        <div className={`${headerStyles.actions} ${actions.actions}`}>
-          {onFullView && (
-            <button
-              type="button"
-              title={t("projectAppFullView")}
-              aria-label={t("projectAppFullView")}
-              onClick={onFullView}
+                void refresh().catch((reason: Error) =>
+                  setError(reason.message),
+                );
+              }}
             >
-              <Glyph path="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+              <Glyph path="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6" />
             </button>
+          </div>
+          {view && (
+            <ViewerWindowActions
+              url={view.url}
+              copyLink={info?.canCopyLink !== false}
+              copyNotice={`${t("projectAppLinkWarning")} ${view.expiresAt ? t("projectAppExpires", { date: new Date(view.expiresAt).toLocaleString() }) : t("projectAppLaunchLifetime")}`}
+              onReload={() => {
+                void refresh().catch((reason: Error) =>
+                  setError(reason.message),
+                );
+                setReload((value) => value + 1);
+              }}
+              onMoveOut={() => {}}
+            />
           )}
-          {info?.canExecute && onSession && (
-            <button
-              type="button"
-              title={t("projectAppNewSession")}
-              aria-label={t("projectAppNewSession")}
-              onClick={onSession}
-            >
-              <Glyph path="M12 4v16M4 12h16" />
-            </button>
-          )}
-          {info?.canExecute && (
-            <ComposerMicAction voice={voice} onActivate={onVoice} />
-          )}
-          <button
-            type="button"
-            title={t("projectAppShare")}
-            aria-label={t("projectAppShare")}
-            disabled={!view}
-            onClick={() => {
-              setSharing(true);
-              setSettings(false);
-            }}
-          >
-            <Glyph path="M12 16V3M7 8l5-5 5 5M5 13v8h14v-8" />
-          </button>
-          <button
-            type="button"
-            title={t("projectAppSettings")}
-            aria-label={t("projectAppSettings")}
-            onClick={() => {
-              setSettings(true);
-              setSharing(false);
-              void refresh().catch((reason: Error) => setError(reason.message));
-            }}
-          >
-            <Glyph path="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6" />
-          </button>
-        </div>
-        {view && (
-          <ViewerWindowActions
-            url={view.url}
-            copyNotice={`${t("projectAppLinkWarning")} ${view.expiresAt ? t("projectAppExpires", { date: new Date(view.expiresAt).toLocaleString() }) : t("projectAppLaunchLifetime")}`}
-            onReload={() => {
-              void refresh().catch((reason: Error) => setError(reason.message));
-              setReload((value) => value + 1);
-            }}
-            onMoveOut={() => {}}
-          />
-        )}
-      </header>
+        </AppViewerToolbar>
+      )}
       <div className={styles.details} hidden={!details && !!view}>
         {!supported ? (
           <p>{t("projectAppUpdateRequired")}</p>
@@ -319,7 +346,7 @@ export function ProjectAppViewer({
                     )}
                   </dl>
                 )}
-                {info?.latestArtifact && (
+                {presentation === "viewer" && info?.latestArtifact && (
                   <button
                     type="button"
                     onClick={() => {
@@ -335,17 +362,18 @@ export function ProjectAppViewer({
                     })}
                   </button>
                 )}
-                {(info?.declaration || info?.activeDeclaration) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTarget({ target: "app" });
-                      setSettings(false);
-                    }}
-                  >
-                    {t("projectAppLabel")}
-                  </button>
-                )}
+                {presentation === "viewer" &&
+                  (info?.declaration || info?.activeDeclaration) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTarget({ target: "app" });
+                        setSettings(false);
+                      }}
+                    >
+                      {t("projectAppLabel")}
+                    </button>
+                  )}
                 {info?.removedFrom.map((row) => (
                   <p key={row.username}>
                     {t("projectAppRemoved", {
@@ -420,21 +448,68 @@ export function ProjectAppViewer({
                       ·{" "}
                       {t(row.public ? "projectAppPublic" : "projectAppPrivate")}
                     </p>
+                    {row.url &&
+                      serverHasCapability(
+                        version,
+                        SERVER_CAPABILITIES.projectAppAddressLinks.name,
+                      ) && (
+                        <div className={styles.addressLink}>
+                          <a
+                            href={row.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {row.url}
+                          </a>
+                          <ViewerWindowActions
+                            url={row.url}
+                            moveOut={false}
+                            copyLabel={t("fileLinkMenuCopyViewerLink")}
+                          />
+                        </div>
+                      )}
                     {addresses.canPublish && (
                       <>
                         {row.namespace === addresses.namespace && (
                           <>
-                            <label>
-                              <input
-                                type="checkbox"
-                                checked={publicAccess ?? row.public}
-                                disabled={row.privateOnly}
-                                onChange={(event) =>
-                                  setPublicAccess(event.target.checked)
-                                }
-                              />
-                              {t("projectAppPublic")}
-                            </label>
+                            {row.privateOnly ? (
+                              <p>{t("projectAppPrivateOnly")}</p>
+                            ) : (
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  checked={publicAccess ?? row.public}
+                                  disabled={busy}
+                                  onChange={(event) =>
+                                    setPublicAccess(event.target.checked)
+                                  }
+                                />
+                                {t("projectAppPublic")}
+                              </label>
+                            )}
+                            {!row.privateOnly &&
+                              publicAccess !== undefined &&
+                              publicAccess !== row.public && (
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    void perform(async () => {
+                                      await projectAppApi.addressAction(
+                                        projectId,
+                                        "serve",
+                                        {
+                                          serving: row.serving,
+                                          public: publicAccess,
+                                        },
+                                      );
+                                      setPublicAccess(undefined);
+                                    })
+                                  }
+                                >
+                                  {t("projectAppSaveAccess")}
+                                </button>
+                              )}
                             <button
                               type="button"
                               disabled={busy}
@@ -445,7 +520,7 @@ export function ProjectAppViewer({
                                     "serve",
                                     {
                                       serving: !row.serving,
-                                      public: publicAccess ?? row.public,
+                                      public: row.public,
                                     },
                                   ),
                                 )
@@ -459,28 +534,30 @@ export function ProjectAppViewer({
                             </button>
                           </>
                         )}
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                t("projectAppReleaseConfirm", {
-                                  address: `${row.name}.${row.namespace}`,
-                                }),
+                        {(addresses.canRelease ?? addresses.canPublish) && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  t("projectAppReleaseConfirm", {
+                                    address: `${row.name}.${row.namespace}`,
+                                  }),
+                                )
                               )
-                            )
-                              void perform(() =>
-                                projectAppApi.addressAction(
-                                  projectId,
-                                  "release",
-                                  { namespace: row.namespace },
-                                ),
-                              );
-                          }}
-                        >
-                          {t("projectAppRelease")}
-                        </button>
+                                void perform(() =>
+                                  projectAppApi.addressAction(
+                                    projectId,
+                                    "release",
+                                    { namespace: row.namespace },
+                                  ),
+                                );
+                            }}
+                          >
+                            {t("projectAppRelease")}
+                          </button>
+                        )}
                       </>
                     )}
                   </div>

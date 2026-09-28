@@ -1,4 +1,5 @@
 .viewer {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -7,11 +8,6 @@
   height: 100%;
   overflow: hidden;
   background: var(--bg-surface);
-}
-.header {
-  flex-wrap: nowrap;
-  padding: 2px 6px;
-  border-bottom: 1px solid var(--border-color);
 }
 .title {
   flex: 1;
@@ -57,6 +53,9 @@
   margin-top: 6px;
 }
 .details fieldset {
+  min-width: 0;
+  margin: 16px 0 0;
+  padding: 12px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm, 4px);
 }
@@ -66,6 +65,55 @@
 }
 .details dd {
   margin: 4px 0 12px;
+}
+.inlineSettings {
+  min-width: 0;
+}
+.addressLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.addressLink > a {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+}
+.details p {
+  overflow-wrap: anywhere;
+}
+.inlineSettings .details {
+  overflow: visible;
+  padding: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+}
+.inlineSettings .details p {
+  margin-block: 8px;
+}
+.inlineSettings .details > p:first-child {
+  margin-top: 0;
+}
+.inlineSettings .details dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 16px;
+  font-size: var(--font-size-sm);
+}
+.inlineSettings .details dt,
+.inlineSettings .details dd {
+  margin: 0;
+}
+.details input:not([type="checkbox"]) {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: inherit;
 }
 .workspace {
   display: flex;

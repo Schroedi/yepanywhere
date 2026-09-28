@@ -250,6 +250,12 @@ export interface LimitedUserGrants {
    * topics/limited-users.md § Delivery v1 — Project creation.
    */
   projectRoot?: string;
+  /** May create sessions in their private No project workspace. Default false. */
+  allowNoProjectSessions?: boolean;
+  /** May publish app addresses without bearer tokens. Default false. */
+  allowPublicApps?: boolean;
+  /** May retrieve transferable private app-address links. Default true. */
+  allowPrivateAppLinks?: boolean;
   templateCreation?: TemplateCreationGrant;
   /** Appended after the shared limited-user instructions on each launch. */
   instructionBlocks?: string[];
