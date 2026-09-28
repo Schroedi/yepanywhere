@@ -437,6 +437,20 @@ does not turn an outside read-only asset into a private writable copy. Existing
 initialized homes retain their configuration; bootstrap does not overwrite
 them on resume.
 
+The Claude login is the one exception to private copies. Claude rotates
+its refresh token on every refresh and the old one stops working. A copied
+`.credentials.json` therefore failed as soon as the host refreshed, and
+every later launch of that sandbox, whoever resumed it, failed with "OAuth
+session expired and could not be refreshed". A sandbox that refreshed
+first logged the host out instead. Every Claude launch now bind-mounts the
+host's `.credentials.json`, writable, over the private path, including
+sandboxes that already hold a stale copy. With one shared login, whichever
+side refreshes, the other re-reads the new tokens. With no host credentials
+file, nothing is mounted. The sandbox gains write access to the host login
+it could already read; that exposure, Codex's still-copied `auth.json`, and
+a proposed optional read-only mode with YA-brokered refresh are in the
+[shared credentials gap](../gaps/sandbox-shared-provider-credentials.md).
+
 A generic writable exception for the real `$HOME`, provider state directory,
 `/tmp`, cache root, or shared language environment is not equivalent to
 Project writes only. If a provider cannot function with the private-state

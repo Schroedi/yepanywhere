@@ -407,6 +407,83 @@ describe("session sandbox", { timeout: 20_000 }, () => {
     },
   );
 
+  t(
+    "shares the host Claude login instead of a copy that goes stale",
+    async () => {
+      const root = await fixtureRoot();
+      const projectPath = join(root, "project");
+      const stateRoot = join(root, "state");
+      const sourceConfig = join(root, "claude-source");
+      await Promise.all([mkdir(projectPath), mkdir(sourceConfig)]);
+      const hostCredentials = join(sourceConfig, ".credentials.json");
+      await writeFile(hostCredentials, "host-v1\n");
+      // An older sandbox's one-time copy, since rotated away on the host.
+      const privateConfig = join(stateRoot, "test-session", "claude");
+      await mkdir(privateConfig, { recursive: true });
+      await writeFile(join(privateConfig, ".credentials.json"), "stale\n");
+      await writeFile(
+        join(stateRoot, "test-session", ".ya-claude-sandbox-initialized"),
+        "",
+      );
+      vi.stubEnv("CLAUDE_CONFIG_DIR", sourceConfig);
+
+      const runtime = await prepareSessionSandbox({
+        level: "project-write",
+        provider: "claude",
+        projectPath,
+        stateKey: "test-session",
+        stateRoot,
+      });
+      if (!runtime) throw new Error("sandbox runtime was not prepared");
+      // Claude rewrites the file in place when it refreshes.
+      const script = `
+      set -eu
+      [ "$(cat "$CLAUDE_CONFIG_DIR/.credentials.json")" = host-v1 ] || exit 10
+      printf 'sandbox-v2\\n' > "$CLAUDE_CONFIG_DIR/.credentials.json"
+    `;
+      await runSandboxed(
+        runtime.wrapSpawn("/bin/sh", ["-c", script], process.env),
+      );
+      expect(await readFile(hostCredentials, "utf8")).toBe("sandbox-v2\n");
+
+      await writeFile(hostCredentials, "host-v3\n");
+      await runSandboxed(
+        runtime.wrapSpawn(
+          "/bin/sh",
+          [
+            "-c",
+            '[ "$(cat "$CLAUDE_CONFIG_DIR/.credentials.json")" = host-v3 ]',
+          ],
+          process.env,
+        ),
+      );
+    },
+  );
+
+  t("launches without a host Claude login to share", async () => {
+    const root = await fixtureRoot();
+    const projectPath = join(root, "project");
+    const sourceConfig = join(root, "claude-source");
+    await Promise.all([mkdir(projectPath), mkdir(sourceConfig)]);
+    vi.stubEnv("CLAUDE_CONFIG_DIR", sourceConfig);
+
+    const runtime = await prepareSessionSandbox({
+      level: "project-write",
+      provider: "claude",
+      projectPath,
+      stateKey: "test-session",
+      stateRoot: join(root, "state"),
+    });
+    if (!runtime) throw new Error("sandbox runtime was not prepared");
+    await runSandboxed(
+      runtime.wrapSpawn(
+        "/bin/sh",
+        ["-c", '[ ! -e "$CLAUDE_CONFIG_DIR/.credentials.json" ]'],
+        process.env,
+      ),
+    );
+  });
+
   t.each(["claude", "codex"] as const)(
     "preserves relative bootstrap links through a symlinked %s home",
     async (provider) => {

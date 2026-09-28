@@ -830,13 +830,9 @@ async function bootstrapProviderState(options: {
       await copyBootstrapEntry(source, options.providerStateDir, entry);
     }
   } else {
-    const source = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
-    for (const entry of [
-      ".credentials.json",
-      "settings.json",
-      "plugins",
-      "skills",
-    ]) {
+    // .credentials.json is shared, not copied: see sharedClaudeCredentials.
+    const source = hostClaudeConfigDir();
+    for (const entry of ["settings.json", "plugins", "skills"]) {
       await copyBootstrapEntry(source, options.providerStateDir, entry);
     }
     const hostClaudeJson = join(homedir(), ".claude.json");
@@ -855,6 +851,37 @@ async function bootstrapProviderState(options: {
 
   await writeEmptyFile(marker);
   await chmod(marker, 0o600);
+}
+
+function hostClaudeConfigDir(): string {
+  return process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude");
+}
+
+/**
+ * The host's Claude login, mounted writable over the private config's
+ * `.credentials.json`. Claude rotates its refresh token on every refresh and
+ * the old one dies, so a private copy stops working as soon as either side
+ * refreshes, and a sandbox refreshing first logs the host out. One shared
+ * file keeps both current: Claude rewrites it in place and re-reads it when
+ * another process refreshed first. Sandboxes can already read this file
+ * through the read-only host view; sharing adds write access to it.
+ */
+async function sharedClaudeCredentials(
+  providerStateDir: string,
+): Promise<{ source: string; target: string } | undefined> {
+  const source = join(hostClaudeConfigDir(), ".credentials.json");
+  try {
+    // Claude itself refuses a symlinked credentials file.
+    if (!(await lstat(source)).isFile()) return undefined;
+  } catch (error) {
+    if (hasErrorCode(error, "ENOENT")) return undefined;
+    throw error;
+  }
+  const target = join(providerStateDir, ".credentials.json");
+  // The bind needs an existing mount point; an older sandbox's stale copy
+  // serves, and is hidden under the mount.
+  await writeFile(target, "", { flag: "a", mode: 0o600 });
+  return { source, target };
 }
 
 async function writeEmptyFile(destination: string): Promise<void> {
@@ -1002,6 +1029,7 @@ function buildBwrapBaseArgs(options: {
   tempDir: string;
   varTempDir: string;
   privateClaudeJson?: string;
+  sharedCredentials?: { source: string; target: string };
   providerHostRuntimeDir?: string;
   networkResolvConf?: { source: string; mountPoint: string };
 }): string[] {
@@ -1037,6 +1065,14 @@ function buildBwrapBaseArgs(options: {
     options.cacheDir,
     options.cacheDir,
   ];
+  if (options.sharedCredentials) {
+    // After the provider-state bind, so it overlays the private path.
+    args.push(
+      "--bind",
+      options.sharedCredentials.source,
+      options.sharedCredentials.target,
+    );
+  }
   if (options.privateClaudeJson) {
     args.push(
       "--bind-try",
@@ -1405,6 +1441,10 @@ export async function prepareSessionSandbox(
   }
   const mountPrivateClaudeJson =
     options.provider !== "codex" && (await hasClaudeJsonMountPoint());
+  const sharedCredentials =
+    options.provider === "codex"
+      ? undefined
+      : await sharedClaudeCredentials(providerStateDir);
   const providerHostRuntimeDir = await resolveProviderHostRuntimeMask({
     projectPath,
     stateDir,
@@ -1420,6 +1460,7 @@ export async function prepareSessionSandbox(
     tempDir,
     varTempDir,
     privateClaudeJson: mountPrivateClaudeJson ? privateClaudeJson : undefined,
+    sharedCredentials,
     providerHostRuntimeDir,
     networkResolvConf: networkFirewall
       ? { source: networkResolvConf, mountPoint: await resolvConfMountPoint() }
