@@ -131,6 +131,7 @@ import {
 import {
   type QueuedRequestInfo,
   type QueuedResponse,
+  type SessionStartedCallback,
   WorkerQueue,
   isQueueFullError,
 } from "./WorkerQueue.js";
@@ -469,8 +470,13 @@ export interface SessionLaunchOptions {
   projectId?: UrlProjectId;
   /** YA workstream lane to persist once a queued launch starts. */
   workstreamId?: WorkstreamId;
-  /** One-shot callback once an immediate or queued launch has a canonical YA id. */
-  onStarted?: (sessionId: string) => void | Promise<void>;
+  /**
+   * One-shot callback once an immediate or queued launch has a canonical YA
+   * id, from `startSession` and `createSession` alike. The single place a
+   * caller records what the launch settled, since a queued launch returns to
+   * its caller before it starts.
+   */
+  onStarted?: SessionStartedCallback;
   /** One-shot callback when a deferred launch cannot start. */
   onFailed?: (reason: string) => void | Promise<void>;
   /** One-shot callback when transient provider startup should be retried. */
@@ -1050,8 +1056,18 @@ export class Supervisor {
         modelSettings,
       );
     }
+    await this.notifyImmediateStart(launchOptions, process, projectId);
+    return process;
+  }
+
+  /** Run an immediate launch's `onStarted`, as the worker queue does. */
+  private async notifyImmediateStart(
+    launchOptions: SessionLaunchOptions | undefined,
+    process: Process,
+    projectId: UrlProjectId,
+  ): Promise<void> {
     try {
-      await launchOptions?.onStarted?.(process.sessionId);
+      await launchOptions?.onStarted?.(process.sessionId, process);
     } catch (error) {
       getLogger().warn(
         {
@@ -1063,7 +1079,6 @@ export class Supervisor {
         "Session started but its one-shot association callback failed",
       );
     }
-    return process;
   }
 
   /**
@@ -1119,9 +1134,10 @@ export class Supervisor {
       }
     }
 
+    let process: Process;
     // Use provider if available (preferred)
     if (provider) {
-      return this.createProviderSession(
+      process = await this.createProviderSession(
         projectPath,
         projectId,
         permissionMode,
@@ -1131,22 +1147,22 @@ export class Supervisor {
         launchOptions?.retryProviderStartupFailure,
         launchOptions?.requireProviderSessionId,
       );
-    }
-
-    // Use real SDK if available
-    if (this.realSdk) {
-      return this.createRealSession(
+    } else if (this.realSdk) {
+      // Use real SDK if available
+      process = await this.createRealSession(
         projectPath,
         projectId,
         permissionMode,
         modelSettings,
       );
+    } else {
+      // Fall back to legacy mock SDK - not supported for create-only
+      throw new Error(
+        "createSession requires provider or real SDK - legacy mock SDK not supported",
+      );
     }
-
-    // Fall back to legacy mock SDK - not supported for create-only
-    throw new Error(
-      "createSession requires provider or real SDK - legacy mock SDK not supported",
-    );
+    await this.notifyImmediateStart(launchOptions, process, projectId);
+    return process;
   }
 
   /**
@@ -6194,7 +6210,7 @@ export class Supervisor {
 
         request.resolve({ status: "started", processId: process.id });
         try {
-          await request.onStarted?.(process.sessionId);
+          await request.onStarted?.(process.sessionId, process);
         } catch (error) {
           getLogger().warn(
             {

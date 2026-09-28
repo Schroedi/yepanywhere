@@ -263,7 +263,8 @@ no project, including one the catalog files under two projects, is refused. List
 project whose grant was later removed stays directly readable but no longer
 appears in their lists. Sessions the user starts are recorded with `createdByUser` in
 session metadata at create time, which is what makes the "always readable"
-row above durable.
+row above durable. A start that waits for a free worker records it, with the
+rest of its launch metadata and sandbox, when the worker starts it.
 
 The same principal check gates websocket subscriptions: a limited user may
 subscribe to a session channel only for sessions they may read, and the

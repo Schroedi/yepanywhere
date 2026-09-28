@@ -2483,6 +2483,64 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     }
   };
 
+  /**
+   * Everything a new session's launch records once it has an id: heartbeat
+   * defaults for a project session, client provenance, the limited user who
+   * started it, and the launch metadata, sandbox included. The session-create
+   * routes run it as their `onStarted`, so a start that waited for a free
+   * worker records exactly what one that started at once does.
+   */
+  const recordNewSessionLaunch = async (
+    process: Process,
+    launch: {
+      heartbeatProjectId?: UrlProjectId;
+      creationProvenance: unknown;
+      /** The limited user who started it; absent for the superuser. */
+      createdByUser?: string;
+      provider: ProviderName | undefined;
+      executor: string | undefined;
+      initialPrompt?: string;
+      requestedModel?: string;
+      recapAfterSeconds?: number;
+      workstreamId?: WorkstreamId;
+      sandbox: { level: SessionSandboxLevel; networkFirewall: boolean };
+    },
+  ): Promise<void> => {
+    const { sessionId } = process;
+    if (launch.heartbeatProjectId) {
+      await initializeProjectHeartbeatDefaults(
+        sessionId,
+        launch.heartbeatProjectId,
+      );
+    }
+    await recordCreationProvenance(sessionId, launch.creationProvenance);
+    if (launch.createdByUser) {
+      // Ownership survives a later grant change: a limited user can always
+      // read a session they started (topics/limited-users.md § Delivery v1).
+      await deps.sessionMetadataService?.recordSessionCreator(
+        sessionId,
+        launch.createdByUser,
+      );
+    }
+    await persistLaunchMetadata(
+      sessionId,
+      launch.provider,
+      launch.executor,
+      launch.initialPrompt,
+      launch.requestedModel,
+      process.promptSuggestionMode,
+      launch.recapAfterSeconds,
+      launch.workstreamId,
+      {
+        level: launch.sandbox.level,
+        networkFirewall: launch.sandbox.networkFirewall,
+        stateKey: process.sandboxStateKey,
+        projectPath: process.sandboxProjectPath ?? process.projectPath,
+        projectId: process.projectId,
+      },
+    );
+  };
+
   const loadProviderSession = async (
     project: Project,
     sessionId: string,
@@ -4079,10 +4137,25 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       {
         projectId: project.id,
         workstreamId: workstreamTarget.workstreamId,
-        onStarted: async (sessionId) => {
-          await initializeProjectHeartbeatDefaults(sessionId, project.id);
-          await recordCreationProvenance(sessionId, body.creationProvenance);
-        },
+        onStarted: (_sessionId, process) =>
+          recordNewSessionLaunch(process, {
+            heartbeatProjectId: project.id,
+            creationProvenance: body.creationProvenance,
+            createdByUser:
+              limitedLaunch.kind === "applied"
+                ? limitedLaunch.username
+                : undefined,
+            provider: body.provider,
+            executor,
+            initialPrompt: body.message,
+            requestedModel: body.model,
+            recapAfterSeconds: helperSettings.recapAfterSeconds,
+            workstreamId: workstreamTarget.workstreamId,
+            sandbox: {
+              level: sandboxSelection.sandboxLevel,
+              networkFirewall: sandboxSelection.sandboxNetworkFirewall,
+            },
+          }),
       },
     );
 
@@ -4102,33 +4175,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     if (isQueuedResponse(result)) {
       return c.json({ ...result, serverTimestamp }, 202); // 202 Accepted - queued for processing
     }
-
-    if (limitedLaunch.kind === "applied") {
-      // Ownership survives a later grant change: a limited user can always
-      // read a session they started (topics/limited-users.md § Delivery v1).
-      await deps.sessionMetadataService?.recordSessionCreator(
-        result.sessionId,
-        limitedLaunch.username,
-      );
-    }
-
-    await persistLaunchMetadata(
-      result.sessionId,
-      body.provider,
-      executor,
-      body.message,
-      body.model,
-      result.promptSuggestionMode,
-      helperSettings.recapAfterSeconds,
-      workstreamTarget.workstreamId,
-      {
-        level: sandboxSelection.sandboxLevel,
-        networkFirewall: sandboxSelection.sandboxNetworkFirewall,
-        stateKey: result.sandboxStateKey,
-        projectPath: result.sandboxProjectPath ?? result.projectPath,
-        projectId: result.projectId,
-      },
-    );
 
     return c.json({
       sessionId: result.sessionId,
@@ -4245,10 +4291,24 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       {
         projectId: project.id,
         workstreamId: workstreamTarget.workstreamId,
-        onStarted: async (sessionId) => {
-          await initializeProjectHeartbeatDefaults(sessionId, project.id);
-          await recordCreationProvenance(sessionId, body.creationProvenance);
-        },
+        onStarted: (_sessionId, process) =>
+          recordNewSessionLaunch(process, {
+            heartbeatProjectId: project.id,
+            creationProvenance: body.creationProvenance,
+            createdByUser:
+              limitedLaunch.kind === "applied"
+                ? limitedLaunch.username
+                : undefined,
+            provider: body.provider,
+            executor,
+            requestedModel: body.model,
+            recapAfterSeconds: helperSettings.recapAfterSeconds,
+            workstreamId: workstreamTarget.workstreamId,
+            sandbox: {
+              level: sandboxSelection.sandboxLevel,
+              networkFirewall: sandboxSelection.sandboxNetworkFirewall,
+            },
+          }),
       },
     );
 
@@ -4267,36 +4327,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     if (isQueuedResponse(result)) {
       return c.json({ ...result, serverTimestamp: Date.now() }, 202); // 202 Accepted - queued for processing
     }
-
-    await initializeProjectHeartbeatDefaults(result.sessionId, project.id);
-    await recordCreationProvenance(result.sessionId, body.creationProvenance);
-
-    if (limitedLaunch.kind === "applied") {
-      // Ownership survives a later grant change: a limited user can always
-      // read a session they started (topics/limited-users.md § Delivery v1).
-      await deps.sessionMetadataService?.recordSessionCreator(
-        result.sessionId,
-        limitedLaunch.username,
-      );
-    }
-
-    await persistLaunchMetadata(
-      result.sessionId,
-      body.provider,
-      executor,
-      undefined,
-      body.model,
-      result.promptSuggestionMode,
-      helperSettings.recapAfterSeconds,
-      workstreamTarget.workstreamId,
-      {
-        level: sandboxSelection.sandboxLevel,
-        networkFirewall: sandboxSelection.sandboxNetworkFirewall,
-        stateKey: result.sandboxStateKey,
-        projectPath: result.sandboxProjectPath ?? result.projectPath,
-        projectId: result.projectId,
-      },
-    );
 
     return c.json({
       sessionId: result.sessionId,
@@ -4398,8 +4428,19 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         helperSideModel: helperSettings.helperSideModel,
       },
       {
-        onStarted: (sessionId) =>
-          recordCreationProvenance(sessionId, body.creationProvenance),
+        onStarted: (_sessionId, process) =>
+          recordNewSessionLaunch(process, {
+            creationProvenance: body.creationProvenance,
+            provider: body.provider,
+            executor,
+            initialPrompt: body.message,
+            requestedModel: body.model,
+            recapAfterSeconds: helperSettings.recapAfterSeconds,
+            sandbox: {
+              level: sandboxSelection.sandboxLevel,
+              networkFirewall: sandboxSelection.sandboxNetworkFirewall,
+            },
+          }),
       },
     );
 
@@ -4417,24 +4458,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     if (isQueuedResponse(result)) {
       return c.json({ ...result, serverTimestamp: Date.now() }, 202);
     }
-
-    await persistLaunchMetadata(
-      result.sessionId,
-      body.provider,
-      executor,
-      body.message,
-      body.model,
-      result.promptSuggestionMode,
-      helperSettings.recapAfterSeconds,
-      undefined,
-      {
-        level: sandboxSelection.sandboxLevel,
-        networkFirewall: sandboxSelection.sandboxNetworkFirewall,
-        stateKey: result.sandboxStateKey,
-        projectPath: result.sandboxProjectPath ?? result.projectPath,
-        projectId: result.projectId,
-      },
-    );
 
     return c.json({
       sessionId: result.sessionId,
@@ -4516,8 +4539,18 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         helperSideModel: helperSettings.helperSideModel,
       },
       {
-        onStarted: (sessionId) =>
-          recordCreationProvenance(sessionId, body.creationProvenance),
+        onStarted: (_sessionId, process) =>
+          recordNewSessionLaunch(process, {
+            creationProvenance: body.creationProvenance,
+            provider: body.provider,
+            executor,
+            requestedModel: body.model,
+            recapAfterSeconds: helperSettings.recapAfterSeconds,
+            sandbox: {
+              level: sandboxSelection.sandboxLevel,
+              networkFirewall: sandboxSelection.sandboxNetworkFirewall,
+            },
+          }),
       },
     );
 
@@ -4534,26 +4567,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     if (isQueuedResponse(result)) {
       return c.json({ ...result, serverTimestamp: Date.now() }, 202);
     }
-
-    await recordCreationProvenance(result.sessionId, body.creationProvenance);
-
-    await persistLaunchMetadata(
-      result.sessionId,
-      body.provider,
-      executor,
-      undefined,
-      body.model,
-      result.promptSuggestionMode,
-      helperSettings.recapAfterSeconds,
-      undefined,
-      {
-        level: sandboxSelection.sandboxLevel,
-        networkFirewall: sandboxSelection.sandboxNetworkFirewall,
-        stateKey: result.sandboxStateKey,
-        projectPath: result.sandboxProjectPath ?? result.projectPath,
-        projectId: result.projectId,
-      },
-    );
 
     return c.json({
       sessionId: result.sessionId,
