@@ -546,6 +546,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "template-preparation-attachments",
     introducedIn: "0.9.4",
   },
+  sidebarSessionCategories: {
+    id: 88,
+    direction: "server",
+    name: "sidebar-session-categories",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

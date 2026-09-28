@@ -93,6 +93,15 @@ describe("SessionMetadataService", () => {
     expect(restored.getMetadata("session-1")?.createdByUser).toBe("archer");
   });
 
+  it("files a session under a sidebar category and clears it", async () => {
+    await service.initialize();
+    await service.updateMetadata("session-1", { sidebarCategory: "Paper" });
+    expect(service.getMetadata("session-1")?.sidebarCategory).toBe("Paper");
+
+    await service.updateMetadata("session-1", { sidebarCategory: null });
+    expect(service.getMetadata("session-1")?.sidebarCategory).toBeUndefined();
+  });
+
   describe("initialization", () => {
     it("retries an unchanged goal after a failed save", async () => {
       await service.initialize();

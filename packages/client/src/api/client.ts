@@ -173,6 +173,10 @@ export interface GlobalSessionItem {
   customTitle?: string;
   isArchived?: boolean;
   isStarred?: boolean;
+  /** User-named sidebar category; absent when the session has none. */
+  sidebarCategory?: string;
+  /** Limited user who started the session; absent means the superuser. */
+  createdByUser?: string;
   /** True when an explicit manual termination disabled resume. */
   autoResumeDisabled?: boolean;
   /** Interactive Mother session for a YA-owned `/btw` aside. */
@@ -255,6 +259,8 @@ export interface GlobalSessionsRequest {
   limit?: number;
   includeArchived?: boolean;
   starred?: boolean;
+  /** Send only behind `sidebar-session-categories`; older servers ignore it. */
+  categorized?: boolean;
   includeStats?: boolean;
 }
 
@@ -397,6 +403,7 @@ function getGlobalSessionsRequest(
   if (params?.limit) searchParams.set("limit", String(params.limit));
   if (params?.includeArchived) searchParams.set("includeArchived", "true");
   if (params?.starred) searchParams.set("starred", "true");
+  if (params?.categorized) searchParams.set("categorized", "true");
   if (params?.includeStats) searchParams.set("includeStats", "true");
   if (params?.knownGeneration !== undefined) {
     searchParams.set("knownGeneration", String(params.knownGeneration));

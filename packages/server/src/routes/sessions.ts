@@ -8618,6 +8618,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         title: patch.title,
         archived: patch.archived,
         starred: patch.starred,
+        sidebarCategory: patch.sidebarCategory,
         parentSessionId: patch.parentSessionId,
         parentSessionKind:
           patch.parentSessionId === undefined

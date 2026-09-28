@@ -17,6 +17,7 @@ export type {
 
 export * from "./session-content-search.js";
 export * from "./limited-users.js";
+export * from "./sidebar-categories.js";
 export * from "./project-template-source.js";
 export * from "./model-prices.js";
 export * from "./model-display.js";
@@ -818,6 +819,7 @@ export {
   NON_HUMAN_USER_TURN_CAPABILITY,
   SESSION_CONTENT_SEARCH_CAPABILITY,
   SESSION_CREATION_PROVENANCE_CAPABILITY,
+  SIDEBAR_SESSION_CATEGORIES_CAPABILITY,
   GIT_WORKING_TREE_SECTIONS_CAPABILITY,
   GIT_WORKING_TREE_COMPLETE_SCAN_CAPABILITY,
   GLOSSARY_TOOLTIPS_CAPABILITY,

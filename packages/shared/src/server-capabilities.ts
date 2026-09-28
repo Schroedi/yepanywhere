@@ -204,6 +204,32 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  sidebarSessionCategories: {
+    id: CAPABILITY_ID_ALLOCATIONS.sidebarSessionCategories.id,
+    name: "sidebar-session-categories",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Store a user-named sidebar category per session and return it, with the limited user who started each session, in session lists.",
+    clientFallback:
+      "Hide the Move to category menu and per-user sidebar sections; send no sidebarCategory.",
+    serverContract: {
+      routes: ["PUT /api/sessions/:sessionId/metadata", "GET /api/sessions"],
+      requestFields: ["sidebarCategory", "categorized"],
+      responseFields: [
+        "sessions[].sidebarCategory",
+        "sessions[].createdByUser",
+      ],
+      events: ["session-metadata-changed"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers neither store categories nor report session creators in lists.",
+    },
+  },
   sessionCreationProvenance: {
     id: CAPABILITY_ID_ALLOCATIONS.sessionCreationProvenance.id,
     name: "session-creation-provenance",
@@ -3107,6 +3133,8 @@ export const NON_HUMAN_USER_TURN_CAPABILITY =
   SERVER_CAPABILITIES.nonHumanUserTurn.name;
 export const SESSION_CONTENT_SEARCH_CAPABILITY =
   SERVER_CAPABILITIES.sessionContentSearch.name;
+export const SIDEBAR_SESSION_CATEGORIES_CAPABILITY =
+  SERVER_CAPABILITIES.sidebarSessionCategories.name;
 export const SESSION_CREATION_PROVENANCE_CAPABILITY =
   SERVER_CAPABILITIES.sessionCreationProvenance.name;
 export const ACLI_COMMENTARY_RENDERING_CAPABILITY =

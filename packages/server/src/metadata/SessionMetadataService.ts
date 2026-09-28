@@ -82,6 +82,8 @@ export interface SessionMetadata {
   isArchived?: boolean;
   /** Whether the session is starred/favorited */
   isStarred?: boolean;
+  /** User-named sidebar category this session is filed under. */
+  sidebarCategory?: string;
   /** Interactive Mother session for a YA-owned `/btw` aside. */
   parentSessionId?: string;
   /** Explicit meaning of parentSessionId; absent on legacy records. */
@@ -1140,6 +1142,7 @@ export class SessionMetadataService {
       title?: string;
       archived?: boolean;
       starred?: boolean;
+      sidebarCategory?: string | null;
       parentSessionId?: string | null;
       parentSessionKind?: "btw-aside" | null;
       forkedFromSessionId?: string | null;
@@ -1175,6 +1178,10 @@ export class SessionMetadataService {
       // Handle starred
       if (updates.starred !== undefined) {
         result.isStarred = updates.starred || undefined;
+      }
+
+      if (updates.sidebarCategory !== undefined) {
+        result.sidebarCategory = updates.sidebarCategory || undefined;
       }
 
       if (updates.parentSessionId !== undefined) {
@@ -1294,6 +1301,9 @@ export class SessionMetadataService {
     if (updated.customTitle) cleaned.customTitle = updated.customTitle;
     if (updated.isArchived) cleaned.isArchived = updated.isArchived;
     if (updated.isStarred) cleaned.isStarred = updated.isStarred;
+    if (updated.sidebarCategory) {
+      cleaned.sidebarCategory = updated.sidebarCategory;
+    }
     if (updated.parentSessionId)
       cleaned.parentSessionId = updated.parentSessionId;
     if (updated.parentSessionId && updated.parentSessionKind) {

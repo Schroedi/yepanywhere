@@ -64,6 +64,7 @@ import {
   selectSessionCollectionQueryRecords,
   selectSessionCollectionQueryState,
   selectSessionCollectionRecord,
+  selectCategorizedSessionRecords,
   selectStarredSessionRecords,
 } from "./clientSummaryQueries";
 import type {
@@ -925,6 +926,11 @@ export function useHasActiveAgents(): boolean {
 export function useStarredSessionRecords(): SessionCollectionRecord[] {
   const state = useClientSummaryState();
   return useMemo(() => selectStarredSessionRecords(state), [state]);
+}
+
+export function useCategorizedSessionRecords(): SessionCollectionRecord[] {
+  const state = useClientSummaryState();
+  return useMemo(() => selectCategorizedSessionRecords(state), [state]);
 }
 
 export function useRecentSessionRecords(
