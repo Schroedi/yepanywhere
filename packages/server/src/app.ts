@@ -899,6 +899,8 @@ export function createApp(options: AppOptions): AppResult {
         desktopBootstrapService: options.desktopBootstrapService,
         limitedUsers: limitedUsersService,
         isLimitedUsersEnabled,
+        getOwnerRelayUsername: () =>
+          options.remoteAccessService?.getUsername() ?? null,
       }),
     );
   }

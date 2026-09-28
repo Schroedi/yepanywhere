@@ -26,6 +26,8 @@ export interface AuthRoutesDeps {
   limitedUsers?: LimitedUsersService;
   /** Whether limited users are enabled in server settings. */
   isLimitedUsersEnabled?: () => boolean;
+  /** The owner's Remote Access (relay) username, when one is registered. */
+  getOwnerRelayUsername?: () => string | null;
 }
 
 interface SetupBody {
@@ -74,6 +76,7 @@ export function createAuthRoutes(deps: AuthRoutesDeps): Hono {
     desktopBootstrapService,
     limitedUsers,
     isLimitedUsersEnabled,
+    getOwnerRelayUsername,
   } = deps;
 
   /**
@@ -282,7 +285,18 @@ export function createAuthRoutes(deps: AuthRoutesDeps): Hono {
     const rawBody = await c.req
       .json<LoginBody>()
       .catch(() => null as LoginBody | null);
-    const requestedUsername = rawBody?.username?.trim();
+    const typedUsername = rawBody?.username?.trim();
+    // Browsers autofill the owner's saved relay credential here. The relay
+    // already treats that name as the owner, so the owner login does too,
+    // unless a limited user holds the name.
+    const ownerRelayUsername = getOwnerRelayUsername?.();
+    const requestedUsername =
+      typedUsername &&
+      ownerRelayUsername &&
+      typedUsername.toLowerCase() === ownerRelayUsername.toLowerCase() &&
+      !limitedUsers?.get(typedUsername.toLowerCase())
+        ? undefined
+        : typedUsername;
     if (requestedUsername) {
       if (!limitedUsers || !isLimitedUsersEnabled?.()) {
         return c.json({ error: "Invalid username or password" }, 401);

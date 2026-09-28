@@ -311,6 +311,10 @@ therefore gets exactly the 403/404 answers above, never superuser authority.
   username. It learns which before sign-in from `limitedUsersEnabled` on the
   unauthenticated `GET /api/auth/status`; a server that omits the field reads
   as off. The cookie session records which principal it authenticated.
+  The owner's Remote Access username also means the superuser here, matched
+  case-insensitively, unless a limited user holds that name: browsers
+  autofill the saved relay credential into the username field, and the relay
+  already reads that identity as the superuser.
 - **A relay-authenticated limited user is locked to that user** for the life
   of the connection: no switch control, and `POST /api/users/switch` is
   refused.

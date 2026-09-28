@@ -11,10 +11,10 @@ or across a LAN or private network. It has its own password, separate from the
 ## Require a password
 
 1. Open **Settings → Local Access**.
-2. Turn on **Require Password**. **Password** and **Confirm Password** fields
-   appear.
-3. Enter a password of at least 6 characters in both, then choose **Apply
-   Changes**.
+2. Turn on **Require Password**. Directly beneath it, **Password** and
+   **Confirm Password** fields appear, marked **Not active yet**.
+3. Enter a password of at least 6 characters in both. The block says whether
+   they match, then choose **Require password** beside them.
 
 The page you are on immediately sends you to the login screen: the Yep
 Anywhere logo, **Enter your password to continue**, a single **Password**
@@ -71,7 +71,9 @@ collaborators and grants each one selected projects. Limited users need
 **Require Password** on.
 
 With limited users enabled, the login page asks for a username: leave it blank
-to sign in as the owner. Over the relay, enter the limited username in **Log in
+to sign in as the owner. Your Remote Access username also signs you in as the
+owner, so a browser that fills it in from a saved relay login still works.
+Over the relay, enter the limited username in **Log in
 as** at [yepanywhere.com/remote](https://yepanywhere.com/remote); the server name
 stays the same.
 

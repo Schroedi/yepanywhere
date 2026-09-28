@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AuthService } from "../../src/auth/AuthService.js";
+import { LimitedUsersService } from "../../src/auth/LimitedUsersService.js";
 import {
   SESSION_COOKIE_NAME,
   createAuthRoutes,
@@ -103,6 +104,87 @@ describe("Auth routes - POST /enable", () => {
     );
     await expect(authService.verifyPassword("current-password")).resolves.toBe(
       false,
+    );
+  });
+});
+
+describe("Auth routes - owner relay name on the local login", () => {
+  let authService: AuthService;
+  let limitedUsers: LimitedUsersService;
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = await fs.mkdtemp(path.join(os.tmpdir(), "auth-relay-name-"));
+    authService = new AuthService({
+      dataDir: testDir,
+      cookieSecret: "test-cookie-secret",
+    });
+    await authService.initialize();
+    await authService.enableAuth("owner-password");
+    limitedUsers = new LimitedUsersService({ dataDir: testDir });
+    await limitedUsers.initialize();
+  });
+
+  afterEach(async () => {
+    await authService.flushPendingWrites();
+    await fs.rm(testDir, { recursive: true, force: true });
+  });
+
+  async function login(
+    routes: ReturnType<typeof createAuthRoutes>,
+    username: string,
+    password: string,
+  ): Promise<Response> {
+    return await routes.request("/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+  }
+
+  it("signs in the owner when the autofilled username is the relay name", async () => {
+    const routes = createAuthRoutes({
+      authService,
+      limitedUsers,
+      isLimitedUsersEnabled: () => true,
+      getOwnerRelayUsername: () => "myserver",
+    });
+    const res = await login(routes, "MyServer", "owner-password");
+    expect(res.status).toBe(200);
+    const cookie = res.headers.get("set-cookie") ?? "";
+    const sessionId = cookie.match(
+      new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`),
+    )?.[1];
+    // An owner session carries no limited-user name.
+    expect(sessionId).toBeTruthy();
+    expect(authService.getSessionUsername(sessionId)).toBeNull();
+    expect((await login(routes, "myserver", "wrong")).status).toBe(401);
+  });
+
+  it("leaves the name to a limited user who holds it", async () => {
+    await limitedUsers.create({ username: "myserver", password: "limited-pw" });
+    const routes = createAuthRoutes({
+      authService,
+      limitedUsers,
+      isLimitedUsersEnabled: () => true,
+      getOwnerRelayUsername: () => "myserver",
+    });
+    expect((await login(routes, "myserver", "owner-password")).status).toBe(
+      401,
+    );
+    expect((await login(routes, "myserver", "limited-pw")).status).toBe(200);
+  });
+
+  it("still refuses other names while limited users are off", async () => {
+    const routes = createAuthRoutes({
+      authService,
+      limitedUsers,
+      isLimitedUsersEnabled: () => false,
+      getOwnerRelayUsername: () => "myserver",
+    });
+    expect((await login(routes, "someone", "owner-password")).status).toBe(401);
+    expect((await login(routes, "myserver", "owner-password")).status).toBe(
+      200,
     );
   });
 });
