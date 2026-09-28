@@ -292,10 +292,12 @@ introducing a second user system. The server enforces a per-user choice:
 | Selected templates | Only saved source-qualified template IDs. Empty means none. |
 | Any configured template | Every enabled, ready template, including future additions. |
 
-New limited users default to Selected templates with the three current
-default-source templates: App canvas, Storybook and Web page (user-directed
-2026-09-21). These are source-qualified selections, not an Any grant to future
-templates. Exactly one permitted available template is applied without a picker;
+A limited user who may create projects (a project root is configured)
+defaults to Any configured template, so creation works with whatever the
+enabled sources offer; a user without one defaults to None (user-directed
+2026-09-28, replacing the 2026-09-21 default of Selected with the three then
+current templates). Narrowing to Selected or None is the superuser's explicit
+choice. Exactly one permitted available template is applied without a picker;
 multiple templates offer a chooser. A removed/unavailable/draft template never
 silently falls back to another. Limited users cannot supply a source, script,
 arbitrary directory or permission grant: the superuser's configured project

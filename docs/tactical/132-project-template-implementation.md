@@ -197,8 +197,9 @@ settings. Server-side None / Selected / Any grants are authoritative:
 
 - None and an empty Selected set prevent creation without changing existing
   project access. Any includes future enabled ready templates.
-- Selected uses source-qualified IDs. New limited users default to all three
-  current templates: App canvas, Storybook and Web page.
+- Selected uses source-qualified IDs. A limited user with a configured
+  project root defaults to Any; without one, to None (user-directed
+  2026-09-28; see [project templates](../../topics/project-templates.md#limited-user-permissions)).
   Missing/draft/unavailable selections do not fall back to another template.
 - One permitted available choice is automatic; multiple choices show cards.
   No arbitrary source, script, grant or parent-directory fields for limited users.

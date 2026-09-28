@@ -26,6 +26,52 @@ list, pins fetched revisions, relocates retrieved repository aliases and
 validates the combined inventory. Local overlays are read directly.
 Materialization and production admission remain open.
 
+## What a user sees today
+
+With templates enabled, Settings → Project templates fetches and validates the
+default source and lists App canvas, Web page and Storybook, each marked
+**Draft — unavailable for creation**. Nothing else in YA offers a template: New
+Session and Add project have no template mode, and Settings → Users has no
+template grant (the "Allowed templates" control exists only in the
+`packages/client/mockups/project-templates` prototype). A limited user with a
+project root can only name a directory. Reported by the maintainer
+2026-09-28 as missing templates and missing "allowed templates" options.
+
+## Plan to close
+
+The contract is complete in
+[project templates](../topics/project-templates.md) and
+[limited users](../topics/limited-users.md), the delivery order in
+[tactical 132](../docs/tactical/132-project-template-implementation.md),
+and the source side in the agents repository's `project-templates/`
+program and its `gaps/portable-capability-bases.md`. What remains is
+implementation. Ship it as vertical slices, each usable and
+releasable on its own:
+
+1. **Admit one template (agents side, tactical §1).** Review the App canvas
+   dependency closure in `~/agents/project-templates` and promote it from
+   draft to ready; Web page and Storybook follow when reviewed. Until a
+   template is ready, every later slice has nothing to create from.
+2. **Superuser creation end to end (§3, §5).** A server creation endpoint that
+   materializes the validated revision into a fresh target, runs setup,
+   initializes Git, registers the project and dispatches the one preparation
+   turn with the intent, with crash-safe retry. Add a New project template
+   mode behind a capability, shown to the superuser only. Closure evidence:
+   create App canvas through the UI with no manual steps.
+3. **Grants (§2).** Server-enforced None / Selected / Any on the limited-user
+   record and in Settings → Users, defaulting to Any when the user has a
+   project root (user-directed 2026-09-28), with the one-time migration of
+   existing users.
+4. **Limited-user creation (§2, §5).** The same flow for limited users: the
+   configured root enforced server-side, the chooser limited to granted ready
+   templates, setup run under the restricted identity and writable scope,
+   ownership and the private-apps ceiling applied.
+5. **App names and pane (§4)**, then **documentation (§6)**, as the tactical
+   orders them.
+
+Slices 1 and 2 are the shortest path to a template that actually creates a
+project; the grant UI is not useful before creation exists.
+
 ## Remaining integration
 
 - Revalidate direct local sources before creation. Bind future creation grants to
