@@ -50,9 +50,10 @@ const UPSTREAM_PROVIDER_BY_YA_PROVIDER: Readonly<Record<string, string>> = {
  * because the vendored table does not name these models:
  *
  * - `platform.claude.com/docs/en/about-claude/pricing` — Claude Opus 5,
- *   Sonnet 5, Fable 5.1 and Mythos 5/5.1. **Fable 5.1 and Mythos 5.1 break the
- *   family's usual 0.1x cache-read ratio at 0.025x**, which is exactly why this
- *   is a per-model table and not a set of per-provider ratios.
+ *   Sonnet 5, Fable 5.1 and Mythos 5/5.1; Opus 5.5 added on 2026-09-28.
+ *   **Fable 5.1 and Mythos 5.1 break the family's usual 0.1x cache-read ratio
+ *   at 0.025x, and Opus 5.5 at 0.05x**, which is exactly why this is a
+ *   per-model table and not a set of per-provider ratios.
  * - `developers.openai.com/api/docs/pricing` — the GPT-5.6 family, GPT-6
  *   Astra/Sol/Luna (standard short-context rates) and the Daybreak alias. `gpt-daybreak-blue` is an alias of `gpt-5.6-sol`
  *   and carries its rates.
@@ -64,6 +65,9 @@ const PUBLISHED_MODEL_PRICES: Readonly<
   Record<string, Readonly<Record<string, VendoredModelPrices>>>
 > = {
   anthropic: {
+    // Opus 5.5 is cheaper than Opus 5 and caches at 0.05x, not 0.1x (read
+    // 2026-09-28). Without its own row it matched Opus 5 by prefix.
+    "claude-opus-5-5": { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
     "claude-opus-5": { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
     "claude-sonnet-5": {
       input: 2,

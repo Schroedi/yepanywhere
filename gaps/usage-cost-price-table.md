@@ -15,7 +15,8 @@ open, none of them blocking the report:
   nothing about how old it is. Cheap fix: carry each table's read date and show
   the older of the two beside the dollar figures.
 - **A fast-mode Claude turn is priced at half.** Anthropic's fast mode bills
-  Opus 5 and Opus 4.8 at $10/$50 per million instead of $5/$25, across the whole
+  Opus 5 and Opus 4.8 at $10/$50 per million instead of $5/$25, and Opus 5.5
+  at $8/$40 instead of $4/$20 (rechecked 2026-09-28), across the whole
   context window. YA has a fast-mode concept, but the ledger records only model
   and provider, so such a turn is indistinguishable from a standard one and
   costs out at half. Fixing it means recording the request speed alongside the

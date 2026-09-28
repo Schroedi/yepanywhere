@@ -105,6 +105,21 @@ describe("findModelPrices", () => {
     });
   });
 
+  it("prices Opus 5.5 at its own rates, not Opus 5's by prefix", () => {
+    // Cheaper than Opus 5 and caching at 0.05x; before its own row the
+    // prefix match charged it Opus 5's $5/$25 and 0.1x cache reads.
+    expect(findModelPrices("claude", "claude-opus-5-5")).toEqual({
+      input: 4,
+      output: 20,
+      cacheRead: 0.2,
+      cacheWrite: 5,
+    });
+    expect(findModelPrices("claude", "claude-opus-5")).toMatchObject({
+      input: 5,
+      cacheRead: 0.5,
+    });
+  });
+
   it("prices a 1m alias as the plain model, Anthropic charging flat", () => {
     expect(findModelPrices("claude", "claude-fable-5[1m]")).toEqual(
       findModelPrices("claude", "claude-fable-5"),
