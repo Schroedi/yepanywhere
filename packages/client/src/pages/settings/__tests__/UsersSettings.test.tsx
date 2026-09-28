@@ -65,7 +65,10 @@ vi.mock("../../../hooks/useActingPrincipal", () => ({
 
 vi.mock("../../../hooks/useProjects", () => ({
   useProjects: () => ({
-    projects: [{ id: "p1", name: "Alpha", path: "/tmp/alpha" }],
+    projects: [
+      { id: "p1", name: "Alpha", path: "/tmp/alpha" },
+      { id: "p2", name: "Beta", path: "/tmp/beta" },
+    ],
   }),
 }));
 
@@ -168,6 +171,30 @@ describe("Settings → Users", () => {
     await waitFor(() => expect(screen.queryByText("alice")).toBeNull());
   });
 
+  it("lists only granted projects until the rest are expanded", async () => {
+    mockListUsers.mockResolvedValue({ users: [user()], enabled: true });
+    render(<UsersSettings />);
+    fireEvent.click(await screen.findByRole("button", { name: "usersEdit" }));
+
+    expect(screen.getByLabelText("Alpha")).toBeTruthy();
+    expect(screen.queryByLabelText("Beta")).toBeNull();
+
+    // Revoking a shown grant keeps its row, so the change stays visible.
+    fireEvent.change(screen.getByLabelText("Alpha"), {
+      target: { value: "none" },
+    });
+    expect(screen.getByLabelText("Alpha")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "usersProjectsShowNoAccess" }),
+    );
+    expect(screen.getByLabelText("Beta")).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "usersProjectsHideNoAccess" }),
+    );
+    expect(screen.queryByLabelText("Beta")).toBeNull();
+  });
+
   it("offers the toggle and adding the first user while the feature is off", async () => {
     render(<UsersSettings />);
 
@@ -203,6 +230,11 @@ describe("Settings → Users", () => {
     fireEvent.change(screen.getByPlaceholderText("usersPasswordPlaceholder"), {
       target: { value: "alice-password" },
     });
+    // A new user has no grants, so every project starts behind the expander.
+    expect(screen.queryByLabelText("Alpha")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "usersProjectsShowNoAccess" }),
+    );
     fireEvent.change(screen.getByLabelText("Alpha"), {
       target: { value: "new-session" },
     });

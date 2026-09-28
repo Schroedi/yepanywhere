@@ -170,6 +170,10 @@
   white-space: nowrap;
 }
 
+.projectExpand {
+  align-self: flex-start;
+}
+
 /* Three lock selects side by side where there is room, stacked on a phone. */
 .lockRow {
   display: grid;

@@ -580,6 +580,91 @@ function ProjectRootField({
   );
 }
 
+/**
+ * Per-project access selects. A server can hold many projects, and most
+ * users are granted a few, so only granted rows show until the superuser
+ * expands the rest. A row stays shown for the rest of this edit once it was
+ * granted or touched, so revoking one does not make it vanish mid-edit.
+ */
+function ProjectAccessList({
+  projects,
+  access,
+  onChange,
+}: {
+  projects: readonly { id: string; name: string; path: string }[];
+  access: Record<string, ProjectAccessLevel>;
+  onChange: (access: Record<string, ProjectAccessLevel>) => void;
+}) {
+  const { t } = useI18n();
+  const [expanded, setExpanded] = useState(false);
+  const [pinned, setPinned] = useState<ReadonlySet<string>>(
+    () =>
+      new Set(
+        Object.entries(access)
+          .filter(([, level]) => level !== "none")
+          .map(([id]) => id),
+      ),
+  );
+
+  if (projects.length === 0) {
+    return <p className="settings-hint">{t("usersNoProjects")}</p>;
+  }
+
+  const shown = expanded
+    ? projects
+    : projects.filter((project) => pinned.has(project.id));
+  const hiddenCount = projects.length - shown.length;
+
+  return (
+    <>
+      {shown.length === 0 ? (
+        <p className="settings-hint">{t("usersNoProjectAccess")}</p>
+      ) : (
+        <ul className={styles.projectList}>
+          {shown.map((project) => (
+            <li key={project.id} className={styles.projectRow}>
+              <span className={styles.projectName} title={project.path}>
+                {project.name}
+              </span>
+              <select
+                className={styles.select}
+                value={access[project.id] ?? "none"}
+                aria-label={project.name}
+                onChange={(event) => {
+                  setPinned((prev) => new Set(prev).add(project.id));
+                  onChange({
+                    ...access,
+                    [project.id]: event.target.value as ProjectAccessLevel,
+                  });
+                }}
+              >
+                <option value="none">{t("usersAccessNone")}</option>
+                <option value="view">{t("usersAccessView")}</option>
+                <option value="join">{t("usersAccessJoin")}</option>
+                <option value="new-session">
+                  {t("usersAccessNewSession")}
+                </option>
+              </select>
+            </li>
+          ))}
+        </ul>
+      )}
+      {(expanded || hiddenCount > 0) && (
+        <button
+          type="button"
+          className={`settings-button ${styles.projectExpand}`}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded
+            ? t("usersProjectsHideNoAccess")
+            : t("usersProjectsShowNoAccess", { count: hiddenCount })}
+        </button>
+      )}
+    </>
+  );
+}
+
 interface UserEditorProps {
   supportsInstructions: boolean;
   sharedInstructions:
@@ -665,43 +750,6 @@ function UserEditor({
             />
           </label>
 
-          <p className={styles.subhead}>{t("usersProjectsHeading")}</p>
-          {projects.length === 0 ? (
-            <p className="settings-hint">{t("usersNoProjects")}</p>
-          ) : (
-            <ul className={styles.projectList}>
-              {projects.map((project) => (
-                <li key={project.id} className={styles.projectRow}>
-                  <span className={styles.projectName} title={project.path}>
-                    {project.name}
-                  </span>
-                  <select
-                    className={styles.select}
-                    value={draft.access[project.id] ?? "none"}
-                    aria-label={project.name}
-                    onChange={(event) =>
-                      onDraftChange({
-                        ...draft,
-                        access: {
-                          ...draft.access,
-                          [project.id]: event.target
-                            .value as ProjectAccessLevel,
-                        },
-                      })
-                    }
-                  >
-                    <option value="none">{t("usersAccessNone")}</option>
-                    <option value="view">{t("usersAccessView")}</option>
-                    <option value="join">{t("usersAccessJoin")}</option>
-                    <option value="new-session">
-                      {t("usersAccessNewSession")}
-                    </option>
-                  </select>
-                </li>
-              ))}
-            </ul>
-          )}
-
           <p className={styles.subhead}>{t("usersProjectRootHeading")}</p>
           <ProjectRootField
             projectRoot={draft.projectRoot}
@@ -716,24 +764,6 @@ function UserEditor({
               }
             />
           )}
-
-          <label className={styles.field}>
-            <span>{t("usersJoinOffsetLabel")}</span>
-            <input
-              className={styles.input}
-              type="number"
-              min={JOIN_STALE_OFFSET_MIN_MINUTES}
-              max={JOIN_STALE_OFFSET_MAX_MINUTES}
-              value={draft.joinStaleOffsetMinutes}
-              onChange={(event) =>
-                onDraftChange({
-                  ...draft,
-                  joinStaleOffsetMinutes: Number(event.target.value),
-                })
-              }
-            />
-          </label>
-          <p className="settings-hint">{t("usersJoinOffsetHint")}</p>
 
           <p className={styles.subhead}>{t("usersLockHeading")}</p>
           <p className="settings-hint">{t("usersLockHint")}</p>
@@ -795,6 +825,31 @@ function UserEditor({
               </select>
             </label>
           </div>
+
+          <p className={styles.subhead}>{t("usersProjectsHeading")}</p>
+          <ProjectAccessList
+            projects={projects}
+            access={draft.access}
+            onChange={(access) => onDraftChange({ ...draft, access })}
+          />
+
+          <label className={styles.field}>
+            <span>{t("usersJoinOffsetLabel")}</span>
+            <input
+              className={styles.input}
+              type="number"
+              min={JOIN_STALE_OFFSET_MIN_MINUTES}
+              max={JOIN_STALE_OFFSET_MAX_MINUTES}
+              value={draft.joinStaleOffsetMinutes}
+              onChange={(event) =>
+                onDraftChange({
+                  ...draft,
+                  joinStaleOffsetMinutes: Number(event.target.value),
+                })
+              }
+            />
+          </label>
+          <p className="settings-hint">{t("usersJoinOffsetHint")}</p>
         </div>
       </details>
       {supportsInstructions && (
