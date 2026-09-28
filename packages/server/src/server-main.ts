@@ -95,6 +95,7 @@ import { syncGatewayServiceExports } from "./sdk/providers/gatewayServiceExport.
 import { ClaudeOllamaProvider } from "./sdk/providers/claude-ollama.js";
 import { grokACPProvider } from "./sdk/providers/grok-acp.js";
 import { RealClaudeSDK } from "./sdk/real.js";
+import { configureAuthAudit } from "./security/authAuditLog.js";
 import {
   BrowserProfileService,
   BrowserSettingsBackupService,
@@ -432,6 +433,7 @@ initCodexCorrelationDebugLogger();
 
 // Log configuration for discoverability
 console.log(`[Config] Data dir: ${config.dataDir}`);
+configureAuthAudit(config.dataDir);
 console.log(
   `[Config] Log file: ${getLogFilePath({ logDir: config.logDir, logFile: config.logFile })}`,
 );

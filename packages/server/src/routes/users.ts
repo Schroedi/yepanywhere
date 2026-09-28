@@ -28,6 +28,7 @@ import { SESSION_COOKIE_NAME, shouldUseSecureCookie } from "../auth/routes.js";
 import type { AuthService } from "../auth/AuthService.js";
 import type { UserUsageService } from "../auth/UserUsageService.js";
 import { getAuthenticatedSrpTransport } from "../middleware/authenticated-transport.js";
+import { recordAuthEvent } from "../security/authAuditLog.js";
 
 export interface UsersRoutesDeps {
   limitedUsers: LimitedUsersService;
@@ -133,6 +134,11 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
         if (sessionId) await authService.invalidateSession(sessionId);
         deleteCookie(c, SESSION_COOKIE_NAME, { path: "/" });
       }
+      await recordAuthEvent(c, {
+        event: "logout",
+        outcome: "success",
+        account: principal.username,
+      });
       return c.json({
         success: true,
         redirect: principal.via === "relay" ? "relay-login" : "direct-login",
@@ -159,11 +165,27 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
     const username = body.username?.trim();
     if (!username) {
       deleteCookie(c, ACTING_USER_COOKIE, { path: "/" });
+      await recordAuthEvent(c, {
+        event: "user-switch",
+        outcome: "success",
+        account: "owner",
+      });
       return c.json({ success: true, username: null });
     }
     if (!limitedUsers.getActiveGrants(username)) {
+      await recordAuthEvent(c, {
+        event: "user-switch",
+        outcome: "failure",
+        account: username,
+        reason: "unknown-or-disabled",
+      });
       return c.json({ error: "User not found or disabled" }, 404);
     }
+    await recordAuthEvent(c, {
+      event: "user-switch",
+      outcome: "success",
+      account: username,
+    });
     setCookie(
       c,
       ACTING_USER_COOKIE,
@@ -218,8 +240,19 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
       // user deleted before deletion ended their logins.
       await deps.revokeUserLogins(user.username);
       if (!isEnabled()) await deps.setEnabled?.(true);
+      await recordAuthEvent(c, {
+        event: "user-create",
+        outcome: "success",
+        account: user.username,
+      });
       return c.json({ user }, 201);
     } catch (error) {
+      await recordAuthEvent(c, {
+        event: "user-create",
+        outcome: "failure",
+        account: body.username,
+        reason: "rejected",
+      });
       return c.json({ error: (error as Error).message }, 400);
     }
   });
@@ -251,8 +284,28 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
       if (body.password !== undefined) {
         await deps.revokeUserLogins(user.username);
       }
+      await recordAuthEvent(c, {
+        event: "user-update",
+        outcome: "success",
+        account: user.username,
+        // Which kinds of fields changed, never their values' secrets.
+        details: {
+          password: body.password !== undefined,
+          grants:
+            body.newSessionProjects !== undefined ||
+            body.joinProjects !== undefined ||
+            body.viewProjects !== undefined,
+          ...(body.disabled !== undefined ? { disabled: body.disabled } : {}),
+        },
+      });
       return c.json({ user });
     } catch (error) {
+      await recordAuthEvent(c, {
+        event: "user-update",
+        outcome: "failure",
+        account: c.req.param("username"),
+        reason: "rejected",
+      });
       const message = (error as Error).message;
       return c.json(
         { error: message },
@@ -282,6 +335,12 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
     if (denied) return denied;
     const username = c.req.param("username");
     const removed = await limitedUsers.remove(username);
+    await recordAuthEvent(c, {
+      event: "user-delete",
+      outcome: removed ? "success" : "failure",
+      account: username,
+      ...(removed ? {} : { reason: "unknown-user" }),
+    });
     if (!removed) return c.json({ error: "User not found" }, 404);
     await deps.revokeUserLogins(username);
     // Deleting a user takes their usage history with them.

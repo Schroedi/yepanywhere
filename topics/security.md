@@ -196,6 +196,21 @@ browser holding the owner's desktop session was the owner again even while a
 limited user was signed in there. Deleting `auth.json` is the deliberate
 reset.
 
+### Authentication audit
+
+Every login, logout, password setup or change, authentication enable or
+disable, localhost-access change, limited-user create, update, delete or
+switch, remote-access credential or relay change, and `--setup-auth` password
+reset is recorded in `<dataDir>/logs/auth-events.jsonl` (owner-only, rotated
+with gzip at 10 MB) and in the server log as `event: "auth_event"`. An entry
+names the event, outcome, account, a short failure reason, the transport
+(`direct`, `relay` or `cli`), the client address and user agent. It never
+carries a password, hash, cookie or token; an update records which kinds of
+fields changed, not their values. Recording never blocks the action it
+describes. This exists so a changed credential state can be attributed to a
+request or to the command line after the fact: the 2026-09-28 empty
+`auth.json` could be ruled out as a remote change only by elimination.
+
 Browser bearer tokens never appear in `auth.json`; it stores domain-separated
 SHA-256 verifiers of the random tokens instead. Provider environments omit the
 auth-cookie secret, desktop token, and provider-runtime control credentials.
