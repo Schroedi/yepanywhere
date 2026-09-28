@@ -135,6 +135,35 @@ describe("session sandbox", { timeout: 20_000 }, () => {
     });
   });
 
+  t("launches through a symlinked private state root", async () => {
+    // Keep the alias visible through the read-only host mount; /tmp is
+    // replaced inside the sandbox and would hide the symlink under test.
+    const root = await fixtureRoot(process.cwd());
+    const projectPath = join(root, "project");
+    const storage = join(root, "storage");
+    const alias = join(root, "alias");
+    await mkdir(projectPath);
+    await mkdir(storage);
+    await symlink(storage, alias);
+    const runtime = await prepareSessionSandbox({
+      level: "project-write",
+      provider: "codex",
+      projectPath,
+      stateRoot: join(alias, "state"),
+    });
+    expect(runtime?.transcriptDir).toContain(await realpath(storage));
+    await runSandboxed(
+      runtime!.wrapSpawn(
+        process.execPath,
+        ["-e", "require('node:fs').writeFileSync('created.txt', 'ready')"],
+        process.env,
+      ),
+    );
+    expect(await readFile(join(projectPath, "created.txt"), "utf8")).toBe(
+      "ready",
+    );
+  });
+
   it("distinguishes missing and untrusted Linux backends", async () => {
     const root = await fixtureRoot();
     const missingPath = join(root, "missing-bwrap");

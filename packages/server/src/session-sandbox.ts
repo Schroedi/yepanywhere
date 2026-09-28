@@ -1113,9 +1113,13 @@ export async function prepareSessionSandbox(
     throw new Error("Invalid session sandbox state key");
   }
 
-  const root = resolve(
+  const configuredRoot = resolve(
     options.stateRoot ?? join(homedir(), ".yep-anywhere", "session-sandboxes"),
   );
+  await mkdir(configuredRoot, { recursive: true, mode: 0o700 });
+  // Bubblewrap mount destinations must name the real directory, not an
+  // ancestor symlink that it cannot create through the read-only host bind.
+  const root = await realpath(configuredRoot);
   const stateDir = resolve(root, stateKey);
   if (!isWithin(root, stateDir)) {
     throw new Error("Session sandbox state escaped its configured root");
