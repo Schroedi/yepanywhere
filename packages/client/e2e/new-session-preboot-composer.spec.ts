@@ -51,6 +51,34 @@ test("keys typed before the app loads reach the new-session composer", async ({
   await expect(page.locator(".sidebar-desktop")).toHaveCount(0);
 });
 
+test("a reload before the app adopts the composer keeps what was typed", async ({
+  page,
+  baseURL,
+}) => {
+  const release = await holdScripts(page);
+  await page.goto(`${baseURL}/new-session`, { waitUntil: "commit" });
+  const preboot = page.locator("#yep-preboot-composer textarea");
+  await expect(preboot).toBeFocused();
+  await page.keyboard.type("typed before", { delay: 10 });
+
+  // What a development source-version check or applied defaults do mid-boot.
+  await page.reload({ waitUntil: "commit" });
+  await expect(preboot).toBeFocused();
+  await expect(preboot).toHaveValue("typed before");
+  await page.keyboard.type(" a reload", { delay: 10 });
+
+  await release();
+  const composer = page.locator("textarea.new-session-form-textarea");
+  await expect(composer).toBeFocused({ timeout: 30_000 });
+  await expect(composer).toHaveValue("typed before a reload");
+  // Adopted once: the stash is spent, so a later reload does not add it again.
+  expect(
+    await page.evaluate(() =>
+      sessionStorage.getItem("yep-preboot-composer-text"),
+    ),
+  ).toBeNull();
+});
+
 test("other routes never show the pre-boot composer", async ({
   page,
   baseURL,

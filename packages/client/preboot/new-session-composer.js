@@ -79,10 +79,25 @@
     event.preventDefault();
   });
 
+  // A reload before the app adopts this field (a development source-version
+  // check, applied browser defaults) must not cost what was typed: keep it
+  // in the tab's session storage, where prebootComposer.ts also stashes it.
+  var stashKey = "yep-preboot-composer-text";
+  try {
+    textarea.value = sessionStorage.getItem(stashKey) || "";
+  } catch {}
+  textarea.addEventListener("input", () => {
+    try {
+      if (textarea.value) sessionStorage.setItem(stashKey, textarea.value);
+      else sessionStorage.removeItem(stashKey);
+    } catch {}
+  });
+
   column.append(textarea, status);
   overlay.append(column);
   document.head.append(style);
   document.documentElement.setAttribute("data-preboot-composer", "");
   document.body.append(overlay);
   textarea.focus();
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
 })();

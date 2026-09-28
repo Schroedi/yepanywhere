@@ -115,14 +115,21 @@ its own composer.
    the overlay is removed and non-empty text is kept in `sessionStorage` for
    the next adoption in that tab. It sits below the app's modals, so a
    blocking dialog raised at the same URL (host offline) shows over it.
-4. **Enter does not send yet.** On a fine pointer, plain Enter is swallowed
+4. **A reload before adoption keeps the text.** The pre-boot field writes its
+   text to the tab's `sessionStorage` stash on every input and restores it,
+   caret at the end, when a reloaded document shows it again. Reloads during
+   boot are real: the development source-version check reloads at a lazy
+   import, and a limited user's newly published browser defaults reload once.
+   Adoption spends the stash, so the text is adopted once; after adoption the
+   form's own draft persistence owns it.
+5. **Enter does not send yet.** On a fine pointer, plain Enter is swallowed
    rather than becoming a newline, because the app's Enter would have sent;
    Shift+Enter still adds a newline. On a coarse pointer, Enter is a newline,
    as in the app.
-5. **The tab starts with the sidebar minimized** (unsaved; see
+6. **The tab starts with the sidebar minimized** (unsaved; see
    [UI architecture](ui-architecture.md#desktop-sidebar-display-modes)), so
    loading the sidebar neither competes with the composer nor moves it.
-6. **Geometry follows the page.** The pre-boot textarea sits where the form's
+7. **Geometry follows the page.** The pre-boot textarea sits where the form's
    textarea will be at each width, including the reader's content width, so
    the handoff does not visibly move the text. Its copy is English only: the
    app's catalog is not loaded yet.
