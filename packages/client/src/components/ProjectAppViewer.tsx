@@ -111,6 +111,7 @@ export function ProjectAppViewer({
   }, [projectId, supported]);
   const targetKind = target?.target;
   const artifactId = target?.artifactId;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Reload deliberately renews the view grant even when its target is unchanged.
   useEffect(() => {
     if (!supported || !targetKind) return;
     let active = true;
@@ -170,9 +171,14 @@ export function ProjectAppViewer({
             type="button"
             aria-label={t("projectAppBack")}
             title={t("projectAppBack")}
-            onClick={() =>
-              details ? (setSettings(false), setSharing(false)) : onBack()
-            }
+            onClick={() => {
+              if (details) {
+                setSettings(false);
+                setSharing(false);
+              } else {
+                onBack();
+              }
+            }}
           >
             <Glyph path="M15 5l-7 7 7 7" />
           </button>

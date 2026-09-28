@@ -80,11 +80,14 @@ function ProjectAppWorkspace({ projectId }: { projectId: string }) {
           onSession={begin}
           onVoice={begin}
           initialSettings={params.get("settings") === "1"}
-          onBack={() =>
-            composing
-              ? (setShowApp(false), setComposing(true))
-              : navigate(`${basePath}/projects`)
-          }
+          onBack={() => {
+            if (composing) {
+              setShowApp(false);
+              setComposing(true);
+            } else {
+              navigate(`${basePath}/projects`);
+            }
+          }}
         />
       </div>
     </MainContent>
