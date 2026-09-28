@@ -49,7 +49,15 @@ export function createProjectAppRoutes(deps: {
   ) => Promise<ProjectAppView>;
 }) {
   const routes = new Hono();
-  const authorize = async (c: Context, execute = false) => {
+  /**
+   * `view` admits anyone who can see the project, which is also enough to
+   * start its declared app; `new-session` is required to stop it or change
+   * how it is served (topics/project-service.md § Project App and Settings).
+   */
+  const authorize = async (
+    c: Context,
+    required: "view" | "new-session" = "view",
+  ) => {
     const projectId = c.req.param("projectId");
     if (!projectId || !isUrlProjectId(projectId))
       throw new HTTPException(404, { message: "Project not found" });
@@ -59,7 +67,7 @@ export function createProjectAppRoutes(deps: {
       const level = grants ? levelFor(grants, projectId) : "none";
       if (level === "none")
         throw new HTTPException(404, { message: "Project not found" });
-      if (execute && !satisfies(level, "new-session"))
+      if (!satisfies(level, required))
         throw new HTTPException(403, {
           message: "Project execution is not permitted",
         });
@@ -102,6 +110,8 @@ export function createProjectAppRoutes(deps: {
       canExecute:
         principal.kind === "superuser" ||
         satisfies(levelFor(principal.grants, project.id), "new-session"),
+      // Reaching this read already required a view grant.
+      canStart: true,
       canPublish: principal.kind === "superuser",
       canShare: !!deps.artifacts.config.publicOrigin,
       removedFrom: [...visibility.values()],
@@ -143,16 +153,16 @@ export function createProjectAppRoutes(deps: {
   });
 
   routes.post("/projects/:projectId/app/start", async (c) => {
-    const project = await authorize(c, true);
+    const project = await authorize(c, "view");
     await deps.services.start(project.id, project.path, async () => {
-      await authorize(c, true);
+      await authorize(c, "view");
     });
     return c.json({ started: true });
   });
   routes.post("/projects/:projectId/app/stop", async (c) => {
-    const project = await authorize(c, true);
+    const project = await authorize(c, "new-session");
     await deps.services.stop(project.id, async () => {
-      await authorize(c, true);
+      await authorize(c, "new-session");
     });
     return c.json({ stopped: true });
   });
@@ -262,7 +272,7 @@ export function createProjectAppRoutes(deps: {
   });
   const namespace = () => deps.artifacts.config.vhostPublicRoot ?? null;
   const publisher = async (c: Context) => {
-    await authorize(c, true);
+    await authorize(c, "new-session");
     if (principalFor(c).kind !== "superuser")
       throw new HTTPException(403, {
         message: "Only the administrator can publish or release an app address",
@@ -286,7 +296,7 @@ export function createProjectAppRoutes(deps: {
     return c.json(addresses);
   });
   routes.post("/projects/:projectId/app/address/reserve", async (c) => {
-    const project = await authorize(c, true);
+    const project = await authorize(c, "new-session");
     const principal = principalFor(c);
     const current = namespace();
     if (!current)
@@ -324,7 +334,7 @@ export function createProjectAppRoutes(deps: {
           privateOnly: principal.kind === "limited" || !!project.ownerUsername,
         },
         async () => {
-          await authorize(c, true);
+          await authorize(c, "new-session");
           if (
             namespace() !== current ||
             deps.artifacts.config.vhosts?.some((row) => row.name === name)
@@ -347,7 +357,7 @@ export function createProjectAppRoutes(deps: {
     }
   });
   routes.post("/projects/:projectId/app/address/serve", async (c) => {
-    const project = await authorize(c, true);
+    const project = await authorize(c, "new-session");
     await publisher(c);
     const current = namespace();
     if (!current)
@@ -375,7 +385,7 @@ export function createProjectAppRoutes(deps: {
     );
   });
   routes.post("/projects/:projectId/app/address/release", async (c) => {
-    const project = await authorize(c, true);
+    const project = await authorize(c, "new-session");
     await publisher(c);
     const parsed = z
       .strictObject({ namespace: z.string().min(1) })

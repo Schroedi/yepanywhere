@@ -136,6 +136,7 @@ it("opens a static app on the isolated artifact origin without starting any proc
   expect(await info.json()).toMatchObject({
     state: "ready",
     canExecute: false,
+    canStart: true,
   });
   expect(await services.status(projectId)).toBeNull();
   const opened = await post("open", { target: "app", audience: "local" });
@@ -146,7 +147,13 @@ it("opens a static app on the isolated artifact origin without starting any proc
   expect(await (await artifacts.app.request(view.url)).text()).toBe(
     "<h1>Static starter</h1>",
   );
-  expect((await post("start")).status).toBe(403);
+  // A view grant may start the app but not stop it. This static app has no
+  // process, so an admitted start fails on the declaration, not on access.
+  const started = await post("start");
+  expect(started.status).not.toBe(403);
+  expect(started.status).not.toBe(404);
+  expect(await services.status(projectId)).toBeNull();
+  expect((await post("stop")).status).toBe(403);
   grants.viewProjects = [];
   expect(
     (await post("open", { target: "app", audience: "local" })).status,

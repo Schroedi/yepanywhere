@@ -115,6 +115,21 @@ describe("limited-user route policy", () => {
     });
   });
 
+  it("lets a view grant open and start a project's app, but not stop it", () => {
+    for (const action of ["open", "start"]) {
+      expect(decide("POST", `/api/projects/p1/app/${action}`)).toEqual({
+        kind: "project",
+        projectId: "p1",
+        required: "view",
+      });
+    }
+    expect(decide("POST", "/api/projects/p1/app/stop")).toEqual({
+      kind: "project",
+      projectId: "p1",
+      required: "new-session",
+    });
+  });
+
   it("treats opening a sandboxed session's app as acting in that session", () => {
     expect(
       decide("POST", "/api/projects/abc/sessions/s1/sandbox-apps"),

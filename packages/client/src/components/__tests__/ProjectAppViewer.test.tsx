@@ -49,6 +49,47 @@ it("sends no App requests to an older server", () => {
   expect(screen.getByText("Project App requires a newer server.")).toBeTruthy();
   expect(mock.fetch).not.toHaveBeenCalled();
 });
+it("offers a view-only user Start for a stopped app and never Stop", async () => {
+  const process = {
+    version: 1,
+    where: { kind: "process", cwd: ".", entry: "/" },
+    start: { argv: ["npm", "start"], portEnv: "PORT" },
+  };
+  let running = false;
+  mock.fetch.mockImplementation(async (path: string) =>
+    path.endsWith("/address")
+      ? { enabled: false, reservations: [] }
+      : path.endsWith("/app")
+        ? {
+            projectId: "test",
+            declaration: process,
+            ...(running ? { activeDeclaration: process } : {}),
+            state: running ? "running" : "stopped",
+            latestArtifact: null,
+            canExecute: false,
+            canStart: true,
+            canShare: false,
+            removedFrom: [],
+          }
+        : new Promise(() => {}),
+  );
+  render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" onBack={() => {}} />
+    </I18nProvider>,
+  );
+  expect(await screen.findByRole("button", { name: "Start app" })).toBeTruthy();
+  running = true;
+  cleanup();
+  render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" onBack={() => {}} />
+    </I18nProvider>,
+  );
+  await screen.findByText(/running/);
+  expect(screen.queryByRole("button", { name: "Stop app" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Start app" })).toBeNull();
+});
 it("keeps the live iframe across settings and sharing and delegates mic synchronously to its composer", async () => {
   const toggle = vi.fn();
   const onVoice = vi.fn();

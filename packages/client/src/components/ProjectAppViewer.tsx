@@ -252,9 +252,11 @@ export function ProjectAppViewer({
                 </p>
                 {info?.error && <p>{info.error}</p>}
                 {info?.restartRequired && <p>{t("projectAppChanged")}</p>}
-                {info?.canExecute &&
-                  (info.declaration?.where.kind === "process" ||
-                    info.activeDeclaration) && (
+                {info &&
+                  (info.activeDeclaration
+                    ? info.canExecute
+                    : (info.canStart ?? info.canExecute) &&
+                      info.declaration?.where.kind === "process") && (
                     <button
                       type="button"
                       disabled={busy}

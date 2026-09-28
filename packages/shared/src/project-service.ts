@@ -124,6 +124,12 @@ export interface ProjectAppInfo {
     associatedAt: string;
   } | null;
   canExecute: boolean;
+  /**
+   * Whether this principal may start the declared service. A view grant is
+   * enough to start it; stopping still needs `canExecute`. Absent from older
+   * servers, where `canExecute` governs both.
+   */
+  canStart?: boolean;
   canPublish: boolean;
   canShare: boolean;
   removedFrom: Array<{ username: string; at: string }>;

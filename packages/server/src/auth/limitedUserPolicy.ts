@@ -356,7 +356,9 @@ export function decideLimitedRoute(
     const projectId = decodeSegment(projectScoped[1] as string);
     if (projectId === null) return { kind: "deny" };
     const rest = projectScoped[2] ?? "";
-    if (rest === "/app/open" && method === "POST")
+    // Seeing a project is enough to open its app and to start it; stopping
+    // it stays with the default new-session requirement below.
+    if ((rest === "/app/open" || rest === "/app/start") && method === "POST")
       return { kind: "project", projectId, required: "view" };
     if (rest === "/sessions" || rest === "/sessions/create") {
       // Creating a session in this project. Checked before the session-scoped

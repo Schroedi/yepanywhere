@@ -64,6 +64,12 @@ separation, and safe new-tab behavior in [active-content security](active-conten
 App content never shares the authenticated YA origin. On phones the viewer
 fills the main pane; Settings is a separate full-width view.
 
+Any grant that shows a limited user the project, including View sessions, lets
+them open its App and **Start** a stopped service, since running it is how
+they use it (maintainer direction, 2026-09-28). **Stop**, address
+reservation and serving still need Start sessions. `ProjectAppInfo.canStart`
+reports the first; older servers omit it and `canExecute` governs both.
+
 A session in a project that declares an app offers the same **App** toggle in
 its header even when it was not opened from the project App entry; it starts
 closed and opens this viewer in the right pane.
