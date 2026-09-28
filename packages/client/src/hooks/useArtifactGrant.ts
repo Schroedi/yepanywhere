@@ -139,7 +139,16 @@ export function useArtifactGrant(
         onPolicyViolation,
       );
     };
-  }, [attempt, origin, audience, path, projectId, runtime, sessionPath, fileScope]);
+  }, [
+    attempt,
+    origin,
+    audience,
+    path,
+    projectId,
+    runtime,
+    sessionPath,
+    fileScope,
+  ]);
 
   return { origin, grant, busy, failed, frameBlocked };
 }

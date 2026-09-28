@@ -29,7 +29,10 @@ export function createSessionLocalFileRoutes(deps: {
     scanner: deps.scanner,
     scope: deps.scope,
   };
-  routes.get("/sessions/:sessionId/local-file", createLocalFileHandler(fileDeps));
+  routes.get(
+    "/sessions/:sessionId/local-file",
+    createLocalFileHandler(fileDeps),
+  );
   routes.get(
     "/sessions/:sessionId/local-image",
     createLocalImageHandler(fileDeps),
