@@ -1,15 +1,26 @@
 /**
- * Turn what someone typed into the add-project form into a project path.
+ * Turn what someone typed as a project — in the Projects add form or the new
+ * session project field — into a project path.
  *
- * Contract: topics/project-names.md § Adding a project. Anything that is not
+ * Contract: topics/project-names.md § Paths from names. Anything that is not
  * already an absolute or `~` path lands under a base directory — the host
  * home (`~`, expanded by the server) or a limited user's project root — so a
  * bare name or a sentence typed by someone who does not think in paths still
  * names a real directory the server will accept.
  */
 
+import type { ActingPrincipal } from "@yep-anywhere/shared";
+
 /** Longest directory name derived from a typed name. */
 export const MAX_DERIVED_DIR_NAME_LENGTH = 40;
+
+/**
+ * Where typed names land: a limited user's project root, the only place they
+ * may create projects, else the host home.
+ */
+export function newProjectBaseFor(principal: ActingPrincipal): string {
+  return principal.grants?.projectRoot || "~";
+}
 
 /** Whether `text` already names a location without a base directory. */
 export function isAnchoredPath(text: string): boolean {

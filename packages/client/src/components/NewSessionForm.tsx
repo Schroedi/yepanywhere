@@ -136,6 +136,11 @@ import {
   normalizeProjectInput,
   sortProjectsForChooser,
 } from "../lib/newSessionProjects";
+import {
+  isAnchoredPath,
+  newProjectBaseFor,
+  settlePathEntry,
+} from "../lib/newProjectPath";
 import { getRecapModeDescription } from "../lib/recapModes";
 import { getSessionDefaultControlCopy } from "../lib/sessionDefaultControlCopy";
 import { prepareImageUpload } from "../lib/imageAttachmentResize";
@@ -1234,6 +1239,18 @@ export function NewSessionForm({
   );
   const hasCustomProjectPath =
     Boolean(activeProjectSearchQuery) && exactProjectMatch === null;
+  // A typed name or relative path names a folder under the base, created on
+  // start if missing (topics/project-names.md § Paths from names).
+  const newProjectBase = newProjectBaseFor(principal);
+  const customProjectTarget = useMemo(
+    () =>
+      hasCustomProjectPath
+        ? settlePathEntry(activeProjectSearchQuery, newProjectBase, projects)
+        : null,
+    [activeProjectSearchQuery, hasCustomProjectPath, newProjectBase, projects],
+  );
+  const customProjectIsNewFolder =
+    hasCustomProjectPath && !isAnchoredPath(activeProjectSearchQuery);
   const currentProjectSelection = exactProjectMatch ?? selectedProject ?? null;
   const projectQueueTargetProjectId =
     !hasCustomProjectPath && normalizedProjectInput && currentProjectSelection
@@ -1401,10 +1418,12 @@ export function NewSessionForm({
           onClick={() => setIsProjectChooserExpanded(false)}
         >
           <span className="new-session-project-option-name">
-            {t("newSessionProjectUseTypedPath")}
+            {customProjectIsNewFolder
+              ? t("newSessionProjectNewFolder")
+              : t("newSessionProjectUseTypedPath")}
           </span>
           <span className="new-session-project-option-path">
-            {activeProjectSearchQuery}
+            {customProjectTarget?.path ?? activeProjectSearchQuery}
           </span>
         </button>,
       );
@@ -1453,6 +1472,8 @@ export function NewSessionForm({
     handleDetachedProject,
     handleProjectOptionSelect,
     hasCustomProjectPath,
+    customProjectIsNewFolder,
+    customProjectTarget,
     isDetachedProject,
     isProjectChooserExpanded,
     activeProjectSearchQuery,
@@ -2137,16 +2158,45 @@ export function NewSessionForm({
           : (findProjectByInput(projects, trimmedProjectInput)?.id ?? null);
 
       if (trimmedProjectInput && !resolvedProjectId) {
-        const addProjectResult = await api.addProject(trimmedProjectInput);
+        // A typed name is a folder under the base, made if missing; a typed
+        // absolute path must already exist, as it always had to.
+        const newFolder = !isAnchoredPath(trimmedProjectInput);
+        const target = settlePathEntry(
+          trimmedProjectInput,
+          newProjectBase,
+          projects,
+        );
+        const addProjectResult = newFolder
+          ? await api.addProject(target.path, {
+              create: true,
+              name: target.name,
+            })
+          : await api.addProject(target.path);
         resolvedProjectId = addProjectResult.project.id ?? null;
         if (!resolvedProjectId) return null;
+        if (newFolder) {
+          const path = addProjectResult.project.path ?? target.path;
+          showToast(
+            addProjectResult.created
+              ? t("newSessionProjectFolderCreated", { path })
+              : t("newSessionProjectFolderExisting", { path }),
+            "info",
+          );
+        }
         lastSyncedProjectIdRef.current = resolvedProjectId;
         onProjectChange?.(resolvedProjectId);
       }
 
       return resolvedProjectId;
     },
-    [currentProjectSelection, onProjectChange, projects],
+    [
+      currentProjectSelection,
+      newProjectBase,
+      onProjectChange,
+      projects,
+      showToast,
+      t,
+    ],
   );
 
   const resolvePendingAttachmentsForSession = useCallback(

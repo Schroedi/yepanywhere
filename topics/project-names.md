@@ -21,8 +21,9 @@ Status: **implemented (2026-09-20).**
   again when focus leaves it and submits as the default. The defaults are
   visible values, not placeholders, so a user who wants them submits without
   touching them.
-- **Paths from names.** Nobody has to know a path to add a project. The
-  base directory is the host home (`~`), or a limited user's project root.
+- **Paths from names.** Nobody has to know a path to add a project, on
+  Projects or in the new session project field. The base directory is the
+  host home (`~`), or a limited user's project root.
   - Until the path field is typed into, a typed name derives the path as it
     is typed: the base plus a directory name that is the name lowercased,
     with each run of characters other than letters, digits, `.`, `_` and
@@ -40,6 +41,13 @@ Status: **implemented (2026-09-20).**
     name as above. Any other relative entry, such as `story1` or
     `code/story1`, lands under the base. Emptying the path field returns
     it to following the name.
+  - The new session project field settles an entry that matches no listed
+    project the same way (a description names the project). Its typed-path
+    row shows the settled path, labelled as a new project folder when the
+    entry was not itself a path. Starting the session adds that project,
+    creating the directory if it does not exist, and a notice says whether
+    the folder was created or already existed. An absolute or `~` path
+    that does not exist is still refused there, as before.
 - A name that still equals the path's last component is no override. Only a
   differing name is stored; renaming the directory later therefore changes
   the name of a project that was never explicitly named.

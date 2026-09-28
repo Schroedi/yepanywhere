@@ -48,6 +48,7 @@ const {
   mockGetProjectWorkstreams,
   mockReportProjectQueueCollectionSnapshot,
   mockAddProject,
+  mockShowToast,
   mockUpload,
   mockUploadStagedAttachment,
   mockConnectionFetch,
@@ -88,6 +89,7 @@ const {
   mockGetProjectWorkstreams: vi.fn(),
   mockReportProjectQueueCollectionSnapshot: vi.fn(),
   mockAddProject: vi.fn(),
+  mockShowToast: vi.fn(),
   mockUpload: vi.fn(),
   mockUploadStagedAttachment: vi.fn(),
   mockConnectionFetch: vi.fn(),
@@ -559,7 +561,7 @@ vi.mock("../../hooks/useVersion", () => ({
 
 vi.mock("../../contexts/ToastContext", () => ({
   useToastContext: () => ({
-    showToast: vi.fn(),
+    showToast: mockShowToast,
   }),
 }));
 
@@ -831,6 +833,7 @@ describe("NewSessionForm", () => {
     mockCreateProjectQueueItem.mockReset();
     mockGetProjectWorkstreams.mockReset();
     mockAddProject.mockReset();
+    mockShowToast.mockReset();
     mockUpload.mockReset();
     mockUploadStagedAttachment.mockReset();
     mockConnectionFetch.mockReset();
@@ -3408,6 +3411,51 @@ describe("NewSessionForm", () => {
       expect(mockAddProject).toHaveBeenCalledWith("/tmp/added-project");
       expect(mockStartSession).toHaveBeenCalledWith(
         "project-added",
+        "hello",
+        expect.any(Object),
+        undefined,
+        expect.any(Number),
+        undefined,
+      );
+    });
+  });
+
+  it("makes a typed description a project folder under home", async () => {
+    mockAddProject.mockResolvedValue({
+      project: {
+        id: "project-cat",
+        name: "My Cat Game",
+        path: "/home/u/my-cat-game",
+        sessionCount: 0,
+        activeOwnedCount: 0,
+        activeExternalCount: 0,
+      },
+      created: true,
+    });
+    render(<NewSessionForm projects={[...chooserProjects]} />);
+
+    fireEvent.change(
+      screen.getByPlaceholderText("newSessionProjectPathPlaceholder"),
+      { target: { value: "My Cat Game" } },
+    );
+    fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
+      target: { value: "hello" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "newSessionStartAction" }),
+    );
+
+    await waitFor(() => {
+      expect(mockAddProject).toHaveBeenCalledWith("~/my-cat-game", {
+        create: true,
+        name: "My Cat Game",
+      });
+      expect(mockShowToast).toHaveBeenCalledWith(
+        "newSessionProjectFolderCreated",
+        "info",
+      );
+      expect(mockStartSession).toHaveBeenCalledWith(
+        "project-cat",
         "hello",
         expect.any(Object),
         undefined,

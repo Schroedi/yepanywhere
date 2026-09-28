@@ -29,6 +29,7 @@ import { useVersion } from "../hooks/useVersion";
 import { useI18n } from "../i18n";
 import { MainContent, useNavigationLayout } from "../layouts";
 import { useInboxCountsByProject } from "../lib/clientSummaryStore";
+import { newProjectBaseFor } from "../lib/newProjectPath";
 import { serverSupportsProjectQueue } from "../lib/projectQueueVisibility";
 import type { Project } from "../types";
 
@@ -60,10 +61,8 @@ export function ProjectsPage() {
     PROJECT_NAMES_CAPABILITY,
   );
   const { projectCodeNamesEnabled } = useProjectCodeNamePreferences();
-  // A limited user's typed names land under their project root, the only
-  // place they may create projects; everyone else's under the host home.
   const { principal } = useActingPrincipal();
-  const newProjectBase = principal.grants?.projectRoot || "~";
+  const newProjectBase = newProjectBaseFor(principal);
   const inboxCountsByProject = useInboxCountsByProject();
   const [showAddForm, setShowAddForm] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
