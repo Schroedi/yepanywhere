@@ -113,8 +113,12 @@ describe("UserUsageService", () => {
       cacheWriteTokens: 500,
       outputTokens: 2000,
     });
+    // Named by the served model, not the "opus" alias it was launched as.
     expect(archer?.total.byModel).toEqual([
-      expect.objectContaining({ name: "opus", equivalentOutputTokens: 2505 }),
+      expect.objectContaining({
+        name: "claude-opus-4-5",
+        equivalentOutputTokens: 2505,
+      }),
     ]);
     expect(archer?.total.byProject).toEqual([
       expect.objectContaining({ name: "yepanywhere" }),

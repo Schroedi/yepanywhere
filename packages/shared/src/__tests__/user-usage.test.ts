@@ -166,10 +166,14 @@ describe("summarizeUsage", () => {
       });
     });
 
-    it("prices a model bucket in its own output tokens and in dollars", () => {
-      const opus = archerOf(tokenEvents)?.total.byModel.find(
-        (bucket) => bucket.name === "opus",
+    // Rows are named by the model that served the requests, not the alias.
+    const opusOf = (events: UsageEvent[]) =>
+      archerOf(events)?.total.byModel.find(
+        (bucket) => bucket.name === "claude-opus-4-5",
       );
+
+    it("prices a model bucket in its own output tokens and in dollars", () => {
+      const opus = opusOf(tokenEvents);
       // Opus 4.5 is $5/$25/$0.50/$6.25 per million. So
       // 1000*5 + 9000*0.5 + 500*6.25 + 2000*25 = 62,625 dollar-microunits,
       // i.e. $0.062625, which at $25/M output is 2505 output tokens.
@@ -178,9 +182,7 @@ describe("summarizeUsage", () => {
     });
 
     it("relates the two by exactly the model's output price", () => {
-      const opus = archerOf(tokenEvents)?.total.byModel.find(
-        (bucket) => bucket.name === "opus",
-      );
+      const opus = opusOf(tokenEvents);
       const outputPricePerToken = 25 / 1_000_000;
       expect(opus?.equivalentOutputTokens).toBe(
         Math.round((opus?.costUsd ?? 0) / outputPricePerToken),
@@ -190,7 +192,7 @@ describe("summarizeUsage", () => {
     it("ranks buckets costliest first", () => {
       expect(
         archerOf(tokenEvents)?.total.byModel.map((bucket) => bucket.name),
-      ).toEqual(["opus", "sonnet"]);
+      ).toEqual(["claude-opus-4-5", "claude-sonnet-4-5"]);
     });
 
     it("gives a cross-model project bucket dollars but no output equivalent", () => {

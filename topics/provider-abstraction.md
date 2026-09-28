@@ -252,6 +252,19 @@ swapped silently, with exactly one resolver where they cross. The two-field
 minimum is now in place (`requestedModel` alongside the reported `model` on
 `Process`/`ProcessInfo`/`LiveModelConfig`); the nominal brand is not yet.
 
+**When the reported model is known (2026-09-28).** A process reports the served
+id from launch, not the alias. The supervisor hands each process its provider's
+`resolveLaunchModel` (the catalog's current id for a selection, never probing),
+which resolves the launch selection immediately and each later switch. Every
+main-thread reply then names the served model and keeps it current; subagent
+replies are ignored, since they may run another model. Each change is published
+as a session update carrying the model, so an open page moves off the alias
+without a reload. Before this, the reported model was the alias until the first
+reply, was captured from that reply only, and a switch pinned the new alias
+for the rest of the session. Displays drop the vendor name
+(`displayModelId`: `claude-opus-5-5` reads `opus-5-5`); records keep the full
+id, because the same model through another harness may bill differently.
+
 ### Rejected: probe-and-store-under-the-resolved-name
 
 Initial idea: probe what each alias currently resolves to (`opus →

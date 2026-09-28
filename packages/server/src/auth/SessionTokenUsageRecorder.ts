@@ -34,9 +34,13 @@ import type { Process } from "../supervisor/Process.js";
 /** What the recorder appends. Kept narrow so tests need no usage service. */
 export interface SessionTokenUsageRecord extends UsageTokenClasses {
   username?: string;
-  /** Launch alias, which the report groups by. */
+  /** Launch alias the session was started with, kept for reference. */
   model?: string;
-  /** Resolved provider model id, which the price table is keyed by. */
+  /**
+   * The model that served these requests, which the report groups by and the
+   * price table is keyed by: the frame's own model where it names one, else
+   * the session's resolved model.
+   */
   modelId?: string;
   project?: string;
   /** Which price list these counts are read under. */
@@ -52,9 +56,19 @@ export interface SessionTokenUsageRecorderOptions {
   resolveUsername?: (sessionId: string) => string | undefined;
 }
 
+interface PendingCharge {
+  /** The serving model the frames named; undefined uses the session's. */
+  model: string | undefined;
+  longContext: boolean;
+  classes: UsageTokenClasses;
+}
+
 interface PendingTurn {
-  /** One accumulator per context tier: `false` is the standard tier. */
-  tiers: Map<boolean, UsageTokenClasses>;
+  /**
+   * One accumulator per serving model and context tier, so a subagent's
+   * requests on another model are priced at that model.
+   */
+  charges: Map<string, PendingCharge>;
   /** Responses already counted this turn, so repeated frames add nothing. */
   countedResponseIds: Set<string>;
 }
@@ -76,7 +90,7 @@ export class SessionTokenUsageRecorder {
     if (!usage) return;
 
     const pending: PendingTurn = this.pending.get(process.id) ?? {
-      tiers: new Map(),
+      charges: new Map(),
       countedResponseIds: new Set(),
     };
     if (usage.responseId !== undefined) {
@@ -95,12 +109,17 @@ export class SessionTokenUsageRecorder {
       threshold !== null &&
       usage.requestPromptTokens !== undefined &&
       usage.requestPromptTokens > threshold;
-    const tier = pending.tiers.get(longContext) ?? emptyClasses();
-    tier.freshInputTokens += usage.freshInputTokens;
-    tier.cachedInputTokens += usage.cachedInputTokens;
-    tier.cacheWriteTokens += usage.cacheWriteTokens;
-    tier.outputTokens += usage.outputTokens;
-    pending.tiers.set(longContext, tier);
+    const key = `${usage.model ?? ""}\u0000${longContext ? 1 : 0}`;
+    const charge = pending.charges.get(key) ?? {
+      model: usage.model,
+      longContext,
+      classes: emptyClasses(),
+    };
+    charge.classes.freshInputTokens += usage.freshInputTokens;
+    charge.classes.cachedInputTokens += usage.cachedInputTokens;
+    charge.classes.cacheWriteTokens += usage.cacheWriteTokens;
+    charge.classes.outputTokens += usage.outputTokens;
+    pending.charges.set(key, charge);
     this.pending.set(process.id, pending);
   }
 
@@ -113,17 +132,23 @@ export class SessionTokenUsageRecorder {
     const identity = {
       ...(username ? { username } : {}),
       ...(process.requestedModel ? { model: process.requestedModel } : {}),
-      ...(process.resolvedModel ? { modelId: process.resolvedModel } : {}),
       ...(process.projectPath
         ? { project: getProjectName(process.projectPath) }
         : {}),
       provider: process.provider,
     };
     // Standard tier first, so a mixed turn reads in the order it was priced.
-    for (const longContext of [false, true]) {
-      const tier = pending.tiers.get(longContext);
-      if (!tier) continue;
-      this.options.record({ ...identity, longContext, ...tier });
+    const charges = [...pending.charges.values()].sort(
+      (a, b) => Number(a.longContext) - Number(b.longContext),
+    );
+    for (const charge of charges) {
+      const modelId = charge.model ?? process.resolvedModel;
+      this.options.record({
+        ...identity,
+        ...(modelId ? { modelId } : {}),
+        longContext: charge.longContext,
+        ...charge.classes,
+      });
     }
   }
 

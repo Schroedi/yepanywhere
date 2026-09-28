@@ -30,11 +30,13 @@ function claudeFrame(options: {
   input: number;
   cacheRead?: number;
   output: number;
+  model?: string;
 }): SDKMessage {
   return {
     type: "assistant",
     message: {
       id: options.responseId,
+      ...(options.model ? { model: options.model } : {}),
       usage: {
         input_tokens: options.input,
         cache_read_input_tokens: options.cacheRead ?? 0,
@@ -93,6 +95,39 @@ describe("SessionTokenUsageRecorder", () => {
         outputTokens: 50,
       },
     ]);
+  });
+
+  it("prices each request at the model its frame names, not the alias", () => {
+    const { recorder, records } = recorderWithLog();
+    // Before any reply the process only knows its launch alias.
+    const process = fakeProcess({ resolvedModel: "opus" });
+
+    recorder.observeMessage(
+      process,
+      claudeFrame({
+        responseId: "main",
+        input: 100,
+        output: 50,
+        model: "claude-opus-5-5",
+      }),
+    );
+    // A subagent on another model is billed at that model.
+    recorder.observeMessage(
+      process,
+      claudeFrame({
+        responseId: "sub",
+        input: 10,
+        output: 5,
+        model: "claude-haiku-4-5",
+      }),
+    );
+    recorder.flush(process);
+
+    expect(records.map((record) => record.modelId)).toEqual([
+      "claude-opus-5-5",
+      "claude-haiku-4-5",
+    ]);
+    expect(records.map((record) => record.outputTokens)).toEqual([50, 5]);
   });
 
   it("counts one response once however many frames repeat its usage", () => {

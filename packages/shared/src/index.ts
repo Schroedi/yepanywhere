@@ -19,6 +19,7 @@ export * from "./session-content-search.js";
 export * from "./limited-users.js";
 export * from "./project-template-source.js";
 export * from "./model-prices.js";
+export * from "./model-display.js";
 export * from "./user-usage.js";
 export {
   ACLI_COMMENTARY_MAX_TEXTS,

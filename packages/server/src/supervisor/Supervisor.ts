@@ -5131,6 +5131,16 @@ export class Supervisor {
           process,
           event.type === "mode-change" ? "permissionMode" : event.setting,
         );
+      } else if (event.type === "model-resolved") {
+        // Clients opened on the launch alias learn the served model now,
+        // rather than only on their next reload.
+        this.eventBus?.emit({
+          type: "session-updated",
+          sessionId: process.sessionId,
+          projectId: process.projectId,
+          model: event.model,
+          timestamp: new Date().toISOString(),
+        });
       } else if (event.type === "idle-reap") {
         this.emitSessionAborted(
           process.sessionId,
@@ -5382,6 +5392,14 @@ export class Supervisor {
         );
       }
     });
+    // After subscribing, so a launch alias resolved here is published too.
+    const provider =
+      this.provider?.name === process.provider
+        ? this.provider
+        : getProvider(process.provider);
+    if (provider?.resolveLaunchModel) {
+      process.useModelResolver((model) => provider.resolveLaunchModel?.(model));
+    }
   }
 
   private registerProcess(process: Process, isNewSession: boolean): void {

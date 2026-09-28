@@ -1183,8 +1183,15 @@ export class Process {
   private _pidResolver: number | (() => number | undefined) | undefined;
   private _lastKnownPid: number | undefined;
 
-  /** Resolved model name from the first assistant message (e.g., "claude-sonnet-4-5-20250929") */
+  /**
+   * The model the provider is serving (e.g. "claude-opus-5-5"): resolved from
+   * the selection through the provider's catalog at launch and on each switch,
+   * then kept current by each main-thread reply. `null` means an explicit
+   * return to the provider default, whose model is not yet known.
+   */
   private _resolvedModel: string | null | undefined;
+  /** See `useModelResolver`. */
+  private resolveModel?: (model: string | undefined) => string | undefined;
   /**
    * Current requested YA model id (launch alias, e.g. "opus"). Starts at the
    * exact launch request and follows mid-session model switches (which leave the
@@ -1427,6 +1434,25 @@ export class Process {
       return undefined;
     }
     return this._resolvedModel ?? this.model;
+  }
+
+  /**
+   * Adopt the provider's resolver for model selections ("opus" →
+   * "claude-opus-5-5", from its already-fetched catalog; undefined when it does
+   * not know). Resolves the launch model now, unless a reply already named
+   * one, and each later switch, so the process reports the served model
+   * rather than an alias before the next reply.
+   */
+  useModelResolver(
+    resolve: (model: string | undefined) => string | undefined,
+  ): void {
+    this.resolveModel = resolve;
+    if (this._resolvedModel !== undefined) return;
+    const resolved = resolve(this.requestedModel);
+    if (resolved) {
+      this._resolvedModel = resolved;
+      this.emit({ type: "model-resolved", model: resolved });
+    }
   }
 
   /**
@@ -2611,8 +2637,10 @@ export class Process {
     }
 
     // Follow switches, including an explicit return to provider default.
-    // The readonly `model` remains the original launch value.
-    this._resolvedModel = model ?? null;
+    // The readonly `model` remains the original launch value. An alias the
+    // catalog cannot resolve stands only until the next reply names the model.
+    this._resolvedModel =
+      model === undefined ? null : (this.resolveModel?.(model) ?? model);
     this._requestedModel = requestedModel;
     this.emit({ type: "configuration-applied", setting: "model" });
     return true;
@@ -5063,14 +5091,17 @@ export class Process {
           this.sessionIdResolvers = [];
         }
 
-        // Capture resolved model from first assistant message
+        // The served model, as each main-thread reply names it. A subagent's
+        // reply may run another model and says nothing about this session's.
         if (
-          !this._resolvedModel &&
           message.type === "assistant" &&
+          !message.parent_tool_use_id &&
           message.message?.model &&
-          message.message.model !== "<synthetic>"
+          message.message.model !== "<synthetic>" &&
+          message.message.model !== this._resolvedModel
         ) {
           this._resolvedModel = message.message.model;
+          this.emit({ type: "model-resolved", model: this._resolvedModel });
         }
 
         this.promoteIdleForProviderWork(message, receivedAt);

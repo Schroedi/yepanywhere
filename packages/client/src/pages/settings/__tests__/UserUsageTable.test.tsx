@@ -139,6 +139,16 @@ describe("UserUsageTable", () => {
     ]);
   });
 
+  it("shows a served model id without the vendor name", () => {
+    const served = totals({
+      byModel: [bucket({ name: "claude-opus-5-5" })],
+    });
+    renderTable(
+      report({ users: [{ username: null, total: served, lastWeek: served }] }),
+    );
+    expect(rowCells(OWNER_BY_MODEL, "opus-5-5")[0]).toBe("2,400");
+  });
+
   it("marks a figure the report does not have instead of omitting it", () => {
     renderTable(report());
     expect(rowCells(OWNER_BY_PROJECT, "yepanywhere")).toEqual([

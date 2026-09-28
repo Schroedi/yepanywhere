@@ -3,6 +3,7 @@ import {
   type UsageTokenBucket,
   type UsageTotals,
   coveredCalendarDays,
+  displayModelId,
   rawTokenCount,
 } from "@yep-anywhere/shared";
 import { useState } from "react";
@@ -187,6 +188,7 @@ export function UserUsageTable({ report }: UserUsageTableProps) {
                   title={t("userUsageByModelTitle", { user: name })}
                   nameHeading={t("userUsageColModel")}
                   buckets={totals.byModel}
+                  displayName={displayModelId}
                 />
                 <UsageBreakdownTable
                   title={t("userUsageByProjectTitle", { user: name })}
@@ -223,10 +225,13 @@ function UsageBreakdownTable({
   title,
   nameHeading,
   buckets,
+  displayName = (name) => name,
 }: {
   title: string;
   nameHeading: string;
   buckets: UsageTokenBucket[];
+  /** How a bucket's name reads; model ids drop their vendor name. */
+  displayName?: (name: string) => string;
 }) {
   const { t } = useI18n();
   const named = buckets.filter((bucket) => rawTokenCount(bucket.tokens) > 0);
@@ -253,7 +258,9 @@ function UsageBreakdownTable({
           {named.map((bucket) => (
             <tr key={bucket.name}>
               <th scope="row" className={styles.usageUser}>
-                {bucket.name || t("userUsageUnattributed")}
+                {bucket.name
+                  ? displayName(bucket.name)
+                  : t("userUsageUnattributed")}
               </th>
               <td className={styles.usageNumber}>
                 {bucket.equivalentOutputTokens === null

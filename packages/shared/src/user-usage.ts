@@ -473,10 +473,15 @@ export function summarizeUsage(
         modelId: event.d ?? "",
         longContext: event.x === 1,
       };
-      addToBucket(entry.totalByModel, event.m ?? "", identity, classes);
+      // Group by the model that served the requests, not the launch alias
+      // ("opus"), so one model reads as one row whatever it was selected as;
+      // a dated snapshot id joins its model's row. Records predating the
+      // served id fall back to the alias.
+      const servedModel = (event.d || event.m || "").replace(/-\d{8}$/u, "");
+      addToBucket(entry.totalByModel, servedModel, identity, classes);
       addToBucket(entry.totalByProject, event.p ?? "", identity, classes);
       if (inLastWeek) {
-        addToBucket(entry.weekByModel, event.m ?? "", identity, classes);
+        addToBucket(entry.weekByModel, servedModel, identity, classes);
         addToBucket(entry.weekByProject, event.p ?? "", identity, classes);
       }
       continue;

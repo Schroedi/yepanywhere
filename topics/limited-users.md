@@ -540,9 +540,14 @@ this install and how much.
     gaps/usage-cost-price-table.md.
 - **The split is by model and, separately, by project** — never by the two
   together, which multiplies rows without answering a question anybody asked.
-  The model name is the launch alias (`opus`); the resolved provider id is
-  recorded separately, because that is what the price table is keyed by and the
-  alias is what a reader groups by. Either name may be absent, and an unnamed
+  A charge is named by the model that served it (`claude-opus-5-5`): the
+  model each Claude frame names, so a subagent on another model is priced at
+  that model, else the session's resolved model (see
+  [provider abstraction](provider-abstraction.md)). The report groups and
+  prices by that id, with a dated snapshot joining its model's row, and shows
+  it without the vendor name (`opus-5-5`). The launch alias (`opus`) is kept
+  on the record for reference and names rows only for records that predate
+  the served id (2026-09-28). Either name may be absent, and an unnamed
   charge collects in one bucket rather than being dropped. Buckets are ranked
   costliest first, with unpriced ones after the priced ones by raw volume.
 - **The report.** `GET /api/users/usage`, superuser only, returns per-user

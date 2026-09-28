@@ -75,6 +75,11 @@ export interface BillableUsage extends UsageTokenClasses {
   requestPromptTokens?: number;
   /** The provider's id for the response, when it names one. */
   responseId?: string;
+  /**
+   * The model that served this frame, when the frame names it. A subagent's
+   * requests may run another model than the session's, and are priced at it.
+   */
+  model?: string;
 }
 
 /**
@@ -145,6 +150,16 @@ export function readBillableUsage(
   const responseId = usageResponseId(message);
   const perRequest =
     source.frame === "assistant" || source.frame === "token-usage";
+  const servedModel =
+    source.frame === "assistant"
+      ? (message as { message?: { model?: unknown } }).message?.model
+      : undefined;
+  const model =
+    typeof servedModel === "string" &&
+    servedModel.trim() &&
+    servedModel !== "<synthetic>"
+      ? servedModel
+      : undefined;
   return {
     freshInputTokens: Math.max(
       0,
@@ -155,5 +170,6 @@ export function readBillableUsage(
     outputTokens,
     ...(perRequest ? { requestPromptTokens: promptTokens } : {}),
     ...(responseId ? { responseId } : {}),
+    ...(model ? { model } : {}),
   };
 }
