@@ -403,6 +403,12 @@ V1 keeps Claude and Codex transcripts in their project-private provider-state
 directories and merges those directories into YA's ordinary session readers.
 This preserves one authoritative file while providing list, detail, replay,
 resume, and same-session process recreation after a YA server restart.
+Every project read carries its Claude sandbox transcript directories among
+its merged session directories, joined per read rather than cached, so a
+sandboxed session appears in the project's session list and count, the
+All Sessions and sidebar catalog, and the focused-session watcher after its
+process stops, exactly as a host-tree session does. Codex sandbox roots
+reach the same lists through the Codex reader's own file listing.
 
 A follow-up should continuously integrate sandboxed Claude and Codex
 transcripts into each provider's conventional global session tree. Besides the

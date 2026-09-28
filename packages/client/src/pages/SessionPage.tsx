@@ -76,6 +76,7 @@ import {
   SessionAppAction,
 } from "../components/SessionRightPane";
 import { useSessionRightPane } from "../hooks/useSessionRightPane";
+import { useCanUseBearerGrants } from "../hooks/useActingPrincipal";
 import { BtwAsideStickyCards } from "../components/BtwAsideStickyCards";
 import { ClientLogRecordingBadge } from "../components/ClientLogRecordingBadge";
 import { ExternalSessionWarning } from "../components/ExternalSessionWarning";
@@ -721,10 +722,13 @@ function SessionPageContent({
   const [rightPaneTarget, setRightPaneTarget] = useState<HTMLDivElement | null>(
     null,
   );
+  // A limited user is refused app links, so their apps are not offered here
+  // (topics/limited-users.md § Authorization).
+  const canUseBearerGrants = useCanUseBearerGrants();
   const rightPane = useSessionRightPane(
     `${basePath}/${projectId}/${sessionId}`,
     messages,
-    versionInfo?.artifactViewer,
+    canUseBearerGrants ? versionInfo?.artifactViewer : undefined,
     !isDomLingerParked && !loading,
     sessionId,
   );
@@ -756,7 +760,8 @@ function SessionPageContent({
       SERVER_CAPABILITIES.speechVocabularySessionTerms.name,
     ),
   );
-  const publicSharesEnabled = serverSettings?.publicSharesEnabled ?? false;
+  const publicSharesEnabled =
+    (serverSettings?.publicSharesEnabled ?? false) && canUseBearerGrants;
   const { status: publicShareGlobalStatus } = usePublicShareStatus({
     poll: publicSharesEnabled,
   });

@@ -87,10 +87,20 @@ project; the grant UI is not useful before creation exists.
   The existing public-name design is first successful claim, persistent
   reservation and superuser-only release, scoped to the configured wildcard;
   it is not implemented merely because `*.graehl.org` exists.
-- [Own-session lists and images](limited-user-session-visibility-and-media.md)
-  have separate reported access failures. Template boilerplate also becomes
-  the session title; provide a meaningful title/preview from the user's intent
-  without hiding the actual setup instructions from the transcript.
+- Template boilerplate becomes the session title; provide a meaningful
+  title/preview from the user's intent without hiding the actual setup
+  instructions from the transcript. The preparation session a template
+  creation launches for a limited user records no `createdByUser`, so it is
+  not "a session the user started": it stays readable only through the
+  project grant, and the user loses it if that grant is removed. Record the
+  creating principal at that launch.
+- The App canvas preparation prompt serves the starter only on "an available
+  loopback port" for its own checks, so no app host is registered and the
+  session's App action has nothing to open. A limited user is also refused
+  app links outright (v1), so the session page offers them no app at all.
+  The user-directed shape — a project's persistently associated root artifact
+  for in-session display, and a separate manual Publish for hostname serving —
+  is [sketched](sketches/project-root-artifact-and-publish.md).
 - Approved administrator controls, 2026-09-28: a per-limited-user choice of
   whether standard harness-global instructions are imported into its isolated
   harness home, and administrator-editable instructions before and after

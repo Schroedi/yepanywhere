@@ -108,6 +108,15 @@ describe("limited-user route policy", () => {
     });
   });
 
+  it("lets a reader refresh a session's list preview, which launches nothing", () => {
+    expect(
+      decide("POST", "/api/projects/abc/sessions/s1/refresh-preview"),
+    ).toEqual({ kind: "session", sessionId: "s1", required: "view" });
+    expect(
+      decide("DELETE", "/api/projects/abc/sessions/s1/refresh-preview"),
+    ).toEqual({ kind: "deny" });
+  });
+
   it("treats sending a turn as a join and anything heavier as new-session", () => {
     expect(decide("POST", "/api/sessions/s1/messages")).toEqual({
       kind: "session",

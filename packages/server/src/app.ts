@@ -993,7 +993,44 @@ export function createApp(options: AppOptions): AppResult {
   const projectScanCachePath = options.dataDir
     ? join(options.dataDir, "indexes", "project-scanner-cache.json")
     : undefined;
+  // Sandboxed Claude sessions write their transcripts under the project's
+  // private provider root (topics/session-sandboxing.md); every reader and
+  // list of a project must include those directories.
+  const claudeSandboxSessionDirs = (): Map<string, string[]> => {
+    const byProject = new Map<string, string[]>();
+    for (const metadata of Object.values(
+      options.sessionMetadataService?.getAllMetadata() ?? {},
+    )) {
+      if (
+        !metadata.provider ||
+        !isClaudeProviderName(metadata.provider) ||
+        metadata.sandboxLevel !== "project-write" ||
+        !metadata.sandboxStateKey ||
+        !metadata.workingProjectId
+      ) {
+        continue;
+      }
+      let projectPath = metadata.sandboxProjectPath;
+      if (!projectPath) {
+        try {
+          projectPath = decodeProjectId(metadata.workingProjectId);
+        } catch {
+          continue;
+        }
+      }
+      const dir = getClaudeSandboxProjectDir({
+        dataDir: effectiveDataDir,
+        stateKey: metadata.sandboxStateKey,
+        projectPath,
+      });
+      const dirs = byProject.get(metadata.workingProjectId) ?? [];
+      if (!dirs.includes(dir)) dirs.push(dir);
+      byProject.set(metadata.workingProjectId, dirs);
+    }
+    return byProject;
+  };
   const scanner = new ProjectScanner({
+    getSandboxSessionDirs: claudeSandboxSessionDirs,
     projectsDir: options.projectsDir,
     codexScanner,
     geminiScanner,
@@ -1254,27 +1291,11 @@ export function createApp(options: AppOptions): AppResult {
       case "claude-gateway":
       case "claude-ollama": {
         const mis = options.modelInfoService;
-        const sandboxSessionDirs = [
-          ...new Set(
-            Object.values(
-              options.sessionMetadataService?.getAllMetadata() ?? {},
-            ).flatMap((metadata) =>
-              metadata.provider &&
-              isClaudeProviderName(metadata.provider) &&
-              metadata.sandboxLevel === "project-write" &&
-              metadata.sandboxStateKey &&
-              metadata.workingProjectId === project.id
-                ? [
-                    getClaudeSandboxProjectDir({
-                      dataDir: effectiveDataDir,
-                      stateKey: metadata.sandboxStateKey,
-                      projectPath: metadata.sandboxProjectPath ?? project.path,
-                    }),
-                  ]
-                : [],
-            ),
-          ),
-        ];
+        // A project from the scanner already lists these among its merged
+        // directories; one built elsewhere from an id may not.
+        const sandboxSessionDirs = (
+          claudeSandboxSessionDirs().get(project.id) ?? []
+        ).filter((dir) => !project.mergedSessionDirs?.includes(dir));
         const allAdditionalDirs = [
           ...(project.mergedSessionDirs ?? []),
           ...sandboxSessionDirs,

@@ -207,6 +207,9 @@ function sessionMutationRequirement(
   action: string,
   method: string,
 ): RequiredAccess | null {
+  // Recomputes the list preview from the transcript a reader may already
+  // read; it launches nothing and stores nothing.
+  if (action === "refresh-preview" && method === "POST") return "view";
   if (JOIN_SESSION_ACTIONS.has(action)) return "join";
   if (NEW_SESSION_SESSION_ACTIONS.has(action)) return "new-session";
   // Dropping a restart-paused queued message launches nothing; resuming or
