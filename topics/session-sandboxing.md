@@ -555,8 +555,9 @@ transcript reports a native sandbox policy.
 
 New-session derivatives must not silently weaken confinement:
 
-- an explicit transcript fork, fork-after-summary target, retitle helper,
-  recap fork, handoff, or restart-as-new flow inherits the source level;
+- an explicit transcript fork, clone (including a `/btw` aside),
+  fork-after-summary target, retitle helper, recap fork, handoff, or
+  restart-as-new flow inherits the source level;
 - an explicit fork cannot override the source level;
 - a separately created New Session settles its own visible pre-launch choice;
   and
@@ -571,9 +572,13 @@ file remains distinct.
 
 Linux v1 runs explicit transcript forks, retitle-via-fork, fork-summary
 generation and target creation, and fork-mode recaps through the inherited
-private provider-state launcher. Host-side Claude transcript copying opens the
-private transcript directory component by component without following
-agent-controlled symlinks. YA-simulated `side-session` recaps remain
+private provider-state launcher. A clone of a sandboxed Claude session copies
+its transcript verbatim from and into that project's private transcript
+directory and records the source's level, firewall, state key and project
+path, so the readers that merge that directory list and open it. Host-side
+Claude transcript copying opens the private transcript directory component by
+component without following agent-controlled symlinks, and never writes
+through a link or over an existing file. YA-simulated `side-session` recaps remain
 unavailable and are rejected before launch; Off, Native, and fork recaps remain
 available.
 

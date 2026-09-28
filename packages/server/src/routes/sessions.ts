@@ -8757,8 +8757,53 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           // arrives. A conservative bound hides inherited text without a scan.
           entries: Number.MAX_SAFE_INTEGER,
         };
+      } else if (originalMetadata?.sandboxLevel === "project-write") {
+        // A sandboxed source's transcript lives in its project's private
+        // provider root, and a clone for the same canonical project shares
+        // that root and its settled sandbox (topics/session-sandboxing.md
+        // § Session Lifetime), so the copy is read from and written there.
+        const stateKey = originalMetadata.sandboxStateKey;
+        if (!stateKey) {
+          return c.json(
+            {
+              error:
+                "This sandboxed session records no private state, so its transcript cannot be cloned",
+            },
+            409,
+          );
+        }
+        const sandboxProjectPath =
+          originalMetadata.sandboxProjectPath ?? project.path;
+        const transcriptDirectory =
+          await deps.supervisor.openClaudeSandboxTranscriptDirectory({
+            stateKey,
+            projectPath: sandboxProjectPath,
+          });
+        try {
+          result = await cloneClaudeSession(
+            `/proc/self/fd/${transcriptDirectory.fd}`,
+            sessionId,
+          );
+        } finally {
+          await transcriptDirectory.close();
+        }
+        await deps.sessionMetadataService?.setSessionSandbox(
+          result.newSessionId,
+          {
+            level: "project-write",
+            networkFirewall: persistedSandboxNetworkFirewall(originalMetadata),
+            stateKey,
+            projectPath: sandboxProjectPath,
+            projectId:
+              originalMetadata.workingProjectId ?? (projectId as UrlProjectId),
+            // The sandbox transcript readers find a session by its provider.
+            provider: cloneProvider,
+          },
+        );
       } else {
         result = await cloneClaudeSession(sessionDir, sessionId);
+      }
+      if (!shouldCloneFromCodex) {
         // The verbatim copy keeps every uuid, so the source's rewound groups
         // and any still-pending rewind mean the same rows in the clone
         // (topics/session-rewind.md).

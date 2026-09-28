@@ -1104,9 +1104,7 @@ async function resolveProviderHostRuntimeMask(options: {
  * symlink that it cannot create through the read-only host bind.
  */
 async function resolveSandboxStateRoot(configured?: string): Promise<string> {
-  const configuredRoot = resolve(
-    configured ?? join(homedir(), ".yep-anywhere", "session-sandboxes"),
-  );
+  const configuredRoot = sessionSandboxStateRoot(configured);
   await mkdir(configuredRoot, { recursive: true, mode: 0o700 });
   return realpath(configuredRoot);
 }
@@ -1223,6 +1221,40 @@ async function openAnchoredDirectory(
     await current.close();
     throw error;
   }
+}
+
+/** The root holding every project's private sandbox state. */
+function sessionSandboxStateRoot(stateRoot: string | undefined): string {
+  return resolve(
+    stateRoot ?? join(homedir(), ".yep-anywhere", "session-sandboxes"),
+  );
+}
+
+/**
+ * Open a sandboxed Claude session's private transcript directory for a
+ * host-side copy, the same directory `prepareSessionSandbox` gives the
+ * provider and `getClaudeSandboxProjectDir` gives the readers. The state root
+ * and key are YA's own; everything below them is writable from inside the
+ * sandbox, so each of those components is opened without following links.
+ */
+export async function openClaudeSandboxTranscriptDirectory(options: {
+  stateRoot?: string;
+  stateKey: string;
+  projectPath: string;
+}): Promise<FileHandle> {
+  if (!SANDBOX_STATE_KEY_PATTERN.test(options.stateKey)) {
+    throw new Error("Invalid session sandbox state key");
+  }
+  const root = await realpath(sessionSandboxStateRoot(options.stateRoot));
+  return openAnchoredDirectory(
+    root,
+    join(
+      options.stateKey,
+      "claude",
+      "projects",
+      claudeProjectDirectory(options.projectPath),
+    ),
+  );
 }
 
 export async function prepareSessionSandbox(

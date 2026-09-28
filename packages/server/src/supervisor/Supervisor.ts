@@ -44,6 +44,7 @@ import {
 } from "../projects/paths.js";
 import {
   getSessionSandboxSettingsError,
+  openClaudeSandboxTranscriptDirectory,
   prepareSessionSandbox,
   type PrepareSessionSandboxOptions,
 } from "../session-sandbox.js";
@@ -3151,6 +3152,20 @@ export class Supervisor {
       sandboxStateKey: sessionSandbox?.stateKey,
       sessionSandbox,
     };
+  }
+
+  /**
+   * Open the private Claude transcript directory a sandboxed session with
+   * this state key and project uses, for a host-side transcript copy.
+   */
+  openClaudeSandboxTranscriptDirectory(options: {
+    stateKey: string;
+    projectPath: string;
+  }): ReturnType<typeof openClaudeSandboxTranscriptDirectory> {
+    return openClaudeSandboxTranscriptDirectory({
+      ...options,
+      stateRoot: this.sandboxStateRoot,
+    });
   }
 
   async generateSummary(
