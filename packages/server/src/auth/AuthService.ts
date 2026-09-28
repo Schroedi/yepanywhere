@@ -18,6 +18,7 @@ import {
   enforceOwnerReadWriteFilePermissions,
 } from "../utils/filePermissions.js";
 import { createCoalescingSaver } from "../lib/coalescingSaver.js";
+import { writeFileAtomically } from "../utils/writeFileAtomically.js";
 
 const BCRYPT_ROUNDS = 12;
 const SESSION_ID_BYTES = 32;
@@ -119,21 +120,23 @@ export class AuthService {
         };
         await this.save();
       } else {
-        // Future: handle migrations
-        this.state = {
-          version: CURRENT_VERSION,
-          account: parsed.account,
-          sessions: {},
-        };
-        await this.save();
+        throw new Error(
+          `unrecognized auth state version ${String(parsed.version)}`,
+        );
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        console.warn(
-          "[AuthService] Failed to load state, starting fresh:",
-          error,
+        // Fail closed. Starting "fresh" here once turned a truncated file into
+        // a server with no password and no logins, so every browser holding
+        // another credential became the owner, limited users included
+        // (topics/security.md § Local Access). The file is left as it is.
+        throw new Error(
+          `[AuthService] ${this.filePath} is unreadable (${error instanceof Error ? error.message : String(error)}). ` +
+            "Refusing to start with local authentication off. Restore the file, " +
+            "or delete it to deliberately reset local access to its unconfigured default.",
         );
       }
+      // No file at all: local access was never configured.
       this.state = { version: CURRENT_VERSION, sessions: {} };
     }
 
@@ -393,8 +396,9 @@ export class AuthService {
   private async doSave(): Promise<void> {
     try {
       const content = JSON.stringify(this.state, null, 2);
-      await fs.writeFile(this.filePath, content, {
-        encoding: "utf-8",
+      // Atomic: saves run on every login check, and an in-place write that a
+      // restart interrupts leaves an empty file (see initialize).
+      await writeFileAtomically(this.filePath, content, {
         mode: OWNER_READ_WRITE_FILE_MODE,
       });
       await enforceOwnerReadWriteFilePermissions(

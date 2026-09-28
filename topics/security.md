@@ -179,6 +179,16 @@ standing warning on the enabled sandbox: an agent that reaches YA — readily
 so with the network firewall off — can drive it and escape. Authentication
 remains independent defense in depth, now the operator's choice.
 
+`auth.json` fails closed. It is saved by atomic replacement, never rewritten
+in place, and a file that exists but cannot be read, or carries an
+unrecognized version, stops startup with an error naming it; the file is left
+as it is. Only a missing file means local access was never configured.
+Observed 2026-09-28: a restart interrupted an in-place save, the server
+treated the empty file as a fresh install, and with no password left, a
+browser holding the owner's desktop session was the owner again even while a
+limited user was signed in there. Deleting `auth.json` is the deliberate
+reset.
+
 Browser bearer tokens never appear in `auth.json`; it stores domain-separated
 SHA-256 verifiers of the random tokens instead. Provider environments omit the
 auth-cookie secret, desktop token, and provider-runtime control credentials.
