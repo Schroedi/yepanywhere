@@ -28,7 +28,7 @@ export function describeSessionSandboxForAgent(
   ];
   lines.push(
     enforcement.networkFirewall
-      ? "The network loopback is private to this sandbox, and the YA server and other host services are unreachable from it. A server you start here is not reachable directly from the user's browser or an SSH forward, but YA can show it to the user: print its http://127.0.0.1:<port>/ URL in your output and YA offers it in the session's App pane through this sandbox. Do not claim to verify host reachability from inside the sandbox."
+      ? "The network loopback is private to this sandbox, and the YA server and other host services are unreachable from it. A server you start here is not reachable directly from the user's browser or an SSH forward, but YA can show it to the user: print its http://127.0.0.1:<port>/ URL from a command, for example with echo, and YA offers it in the session's App pane through this sandbox. YA looks for app URLs in command output, not in your reply. Do not claim to verify host reachability from inside the sandbox."
       : "Networking is shared with the host.",
   );
   return lines.join("\n");

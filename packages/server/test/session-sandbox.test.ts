@@ -818,8 +818,10 @@ describe("session sandbox", { timeout: 20_000 }, () => {
       /YA server .* unreachable/,
       /not reachable directly from the user's browser or an SSH forward/,
       // How the user sees it instead: the printed loopback URL, through YA.
-      /print its http:\/\/127\.0\.0\.1:<port>\/ URL/,
+      /print its http:\/\/127\.0\.0\.1:<port>\/ URL from a command/,
       /App pane through this sandbox/,
+      // Only tool output announces apps (session-right-pane.md).
+      /in command output, not in your reply/,
       /Do not claim to verify host reachability/,
     ]) {
       expect(firewalled).toMatch(fact);

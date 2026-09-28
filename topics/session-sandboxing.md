@@ -228,8 +228,9 @@ states that:
 - with the network firewall, loopback is private, the YA server and other host
   services are unreachable, and a server the agent starts is not reachable
   directly from the user's browser or an SSH forward; printing its
-  `http://127.0.0.1:<port>/` URL is how the user gets it, since YA offers it
-  in the session's App pane through the sandbox's port broker
+  `http://127.0.0.1:<port>/` URL from a command (for example with `echo`) is
+  how the user gets it, since YA takes app URLs only from tool output and
+  offers such a URL in the session's App pane through the sandbox's port broker
   ([sandboxed session apps](session-right-pane.md#sandboxed-session-apps)).
   It must not claim to verify host reachability from inside. Without the
   firewall it says only that networking is shared with the host.
