@@ -423,11 +423,19 @@ for, so nothing about limited users appears anywhere else until one exists.
   the switch comes first: the `limitedUsersEnabled` toggle, then the list of
   users, then an editor. Turning the toggle on is enough to add the first
   user — creating one also turns the feature on server-side, so neither step
-  waits on the other. Each row carries the username, a grant summary, any
-  lock, and Act as / Edit / Delete. The editor takes username and password,
-  the three project lists as one per-project access level, the join-freshness
-  offset, and the lock; model and effort completions populate from the
-  provider catalog once a provider is chosen, and a blank field is unlocked.
+  waits on the other. Users appear as one wrapped bar of names, a disabled
+  one struck through; pressing a name opens its editor below, and pressing
+  it again closes it. The editor header carries the grant summary, any lock,
+  an **Enabled** checkbox (disabling keeps the account and asks nothing),
+  Act as, and Delete. It takes a new password, the project lists as one
+  per-project access level (ungranted projects behind an expander), the
+  join-freshness offset and the lock; model and effort completions populate
+  from the provider catalog once a provider is chosen, and a blank field is
+  unlocked. Nothing waits on a Save button, which is easy to miss beneath
+  long sections (maintainer direction, 2026-09-28): a choice saves at once,
+  typed text when its field loses focus, and pending text when the editor
+  closes, all without leaving the editor. Adding a user asks only name and
+  password, then opens that user's editor.
 - **Sidebar.** No panel, no shortcut, no switcher, and no logout button for
   a limited login: user management is reached through Settings like any
   other administration. The one exception is the way back for a superuser

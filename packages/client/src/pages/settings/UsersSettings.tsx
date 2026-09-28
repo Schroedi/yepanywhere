@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   LimitedUserSummary,
   ProjectAccessLevel,
@@ -52,6 +52,7 @@ const EFFORT_OPTIONS = ["low", "medium", "high", "xhigh", "max"] as const;
 interface DraftState {
   username: string;
   password: string;
+  enabled: boolean;
   access: Record<string, ProjectAccessLevel>;
   joinStaleOffsetMinutes: number;
   provider: string;
@@ -62,18 +63,6 @@ interface DraftState {
   instructionBlocks: InstructionBlockDraft[];
 }
 
-const EMPTY_DRAFT: DraftState = {
-  username: "",
-  password: "",
-  access: {},
-  joinStaleOffsetMinutes: 0,
-  provider: "",
-  model: "",
-  effort: "",
-  projectRoot: "",
-  instructionBlocks: [],
-};
-
 function draftFromUser(user: LimitedUserSummary): DraftState {
   const access: Record<string, ProjectAccessLevel> = {};
   for (const id of user.viewProjects) access[id] = "view";
@@ -82,6 +71,7 @@ function draftFromUser(user: LimitedUserSummary): DraftState {
   return {
     username: user.username,
     password: "",
+    enabled: !user.disabled,
     access,
     joinStaleOffsetMinutes: user.joinStaleOffsetMinutes,
     provider: user.lock.provider ?? "",
@@ -118,6 +108,7 @@ function grantsFromDraft(
     },
     // Always sent, so clearing the field revokes the grant.
     projectRoot: draft.projectRoot.trim(),
+    disabled: !draft.enabled,
     ...(supportsTemplates ? { templateCreation: templateGrantFor(draft) } : {}),
     ...(supportsInstructions
       ? {
@@ -135,7 +126,8 @@ function lockSummary(user: LimitedUserSummary): string | null {
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-type EditorTarget = { kind: "create" } | { kind: "edit"; username: string };
+/** A username being edited, a new user being named, or nothing open. */
+type Selection = { kind: "create" } | { kind: "edit"; username: string };
 
 export function UsersSettings() {
   const { t } = useI18n();
@@ -167,8 +159,7 @@ export function UsersSettings() {
 
   const [users, setUsers] = useState<LimitedUserSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [editor, setEditor] = useState<EditorTarget | null>(null);
-  const [draft, setDraft] = useState<DraftState>(EMPTY_DRAFT);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [usage, setUsage] = useState<UsageReport | null>(null);
@@ -217,39 +208,20 @@ export function UsersSettings() {
 
   const enabled = settings?.limitedUsersEnabled === true;
 
-  const submit = async () => {
+  const create = async (username: string, password: string) => {
     setBusy(true);
     setError(null);
     try {
-      const grants = grantsFromDraft(
-        draft,
-        supportsTemplates,
-        supportsInstructions,
-      );
-      if (supportsInstructions) {
-        const invalid = instructionBlocksError(grants.instructionBlocks);
-        if (invalid) throw new Error(invalid);
-      }
-      if (editor?.kind === "edit") {
-        await api.updateUser(editor.username, {
-          ...grants,
-          ...(draft.password ? { password: draft.password } : {}),
-        });
-      } else {
-        await api.createUser({
-          username: draft.username,
-          password: draft.password,
-          ...grants,
-        });
-      }
-      setDraft(EMPTY_DRAFT);
-      setEditor(null);
+      // The server supplies every grant's default; they are set, and saved,
+      // in the editor that opens next.
+      const { user } = await api.createUser({ username, password });
       await loadUsers();
       // Creating the first user turns the feature on server-side; re-read so
       // this pane and the acting principal agree without a reload.
       await refreshPrincipal();
-    } catch (submitError) {
-      setError((submitError as Error).message);
+      setSelection({ kind: "edit", username: user.username });
+    } catch (createError) {
+      setError((createError as Error).message);
     } finally {
       setBusy(false);
     }
@@ -261,8 +233,7 @@ export function UsersSettings() {
     setError(null);
     try {
       await api.deleteUser(username);
-      setEditor(null);
-      setDraft(EMPTY_DRAFT);
+      setSelection(null);
       await loadUsers();
     } catch (deleteError) {
       setError((deleteError as Error).message);
@@ -309,6 +280,11 @@ export function UsersSettings() {
     return <LimitedUserView onLogout={() => void logout()} busy={busy} />;
   }
 
+  const editing =
+    selection?.kind === "edit"
+      ? users.find((user) => user.username === selection.username)
+      : undefined;
+
   return (
     <SettingsSection
       title={t("settingsUsersTitle")}
@@ -319,7 +295,7 @@ export function UsersSettings() {
     >
       {/* First, because it is the decision the rest of the pane depends on.
           Turning it off keeps the records and refuses their logins. */}
-      {(!supportsInstructions || editor === null) && (
+      {selection === null && (
         <details
           className={styles.account}
           open={!supportsInstructions || !enabled}
@@ -349,82 +325,86 @@ export function UsersSettings() {
         </details>
       )}
 
-      {(!supportsInstructions || editor === null) && (
-        <div className="settings-group">
-          {loaded && users.length === 0 ? (
-            <p className="settings-hint">{t("usersEmpty")}</p>
-          ) : (
-            <ul className={styles.userList}>
-              {users.map((user) => {
-                const lock = lockSummary(user);
-                return (
-                  <li key={user.username} className={styles.userRow}>
-                    <div className={styles.userInfo}>
-                      <strong className={styles.userName}>
-                        {user.username}
-                      </strong>
-                      <span className={styles.userMeta}>
-                        {t("usersGrantSummary", {
-                          newSession: user.newSessionProjects.length,
-                          join: user.joinProjects.length,
-                          view: user.viewProjects.length,
-                        })}
-                        {lock ? ` · ${lock}` : ""}
-                      </span>
-                    </div>
-                    <div className={styles.userActions}>
-                      <button
-                        type="button"
-                        className="settings-button"
-                        disabled={busy}
-                        onClick={() => void switchTo(user.username)}
-                      >
-                        {t("usersActAs")}
-                      </button>
-                      <button
-                        type="button"
-                        className="settings-button"
-                        disabled={busy}
-                        onClick={() => {
-                          setEditor({ kind: "edit", username: user.username });
-                          setDraft(draftFromUser(user));
-                        }}
-                      >
-                        {t("usersEdit")}
-                      </button>
-                      <button
-                        type="button"
-                        className="settings-button settings-button-danger-subtle"
-                        disabled={busy}
-                        onClick={() => void remove(user.username)}
-                      >
-                        {t("usersDelete")}
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          {editor === null && (
-            <button
-              type="button"
-              className="settings-button"
-              disabled={busy}
-              onClick={() => {
-                setEditor({ kind: "create" });
-                setDraft(EMPTY_DRAFT);
-              }}
-            >
-              {t("usersAddUser")}
-            </button>
-          )}
+      <div className="settings-group">
+        {loaded && users.length === 0 && (
+          <p className="settings-hint">{t("usersEmpty")}</p>
+        )}
+        <div
+          className={styles.userBar}
+          role="group"
+          aria-label={t("usersListLabel")}
+        >
+          {users.map((user) => {
+            const selected =
+              selection?.kind === "edit" &&
+              selection.username === user.username;
+            return (
+              <button
+                key={user.username}
+                type="button"
+                className={`settings-button ${styles.userChip} ${user.disabled ? styles.userChipDisabled : ""}`}
+                aria-pressed={selected}
+                title={user.disabled ? t("usersDisabledTitle") : undefined}
+                onClick={() =>
+                  setSelection(
+                    selected ? null : { kind: "edit", username: user.username },
+                  )
+                }
+              >
+                {user.username}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            className={`settings-button ${styles.userChip}`}
+            aria-pressed={selection?.kind === "create"}
+            disabled={busy}
+            onClick={() =>
+              setSelection(
+                selection?.kind === "create" ? null : { kind: "create" },
+              )
+            }
+          >
+            + {t("usersAddUser")}
+          </button>
         </div>
+      </div>
+
+      {selection?.kind === "create" && (
+        <CreateUserForm
+          busy={busy}
+          error={error}
+          onCreate={(username, password) => void create(username, password)}
+          onCancel={() => {
+            setSelection(null);
+            setError(null);
+          }}
+        />
+      )}
+
+      {editing && (
+        <UserEditor
+          key={editing.username}
+          user={editing}
+          supportsInstructions={supportsInstructions}
+          sharedInstructions={settings?.limitedUserInstructions}
+          supportsTemplates={supportsTemplates}
+          busy={busy}
+          onSaved={(saved) =>
+            setUsers((current) =>
+              current.map((user) =>
+                user.username === saved.username ? saved : user,
+              ),
+            )
+          }
+          onActAs={() => void switchTo(editing.username)}
+          onDelete={() => void remove(editing.username)}
+        />
       )}
 
       {supportsInstructions &&
-        editor === null &&
+        selection === null &&
         !settingsLoading &&
         settings && (
           <div className="settings-group">
@@ -437,33 +417,15 @@ export function UsersSettings() {
           </div>
         )}
 
-      {supportsBrowserDefaults && editor === null && (
+      {supportsBrowserDefaults && selection === null && (
         <div className="settings-group">
           <LimitedUserBrowserDefaults />
         </div>
       )}
 
-      {editor !== null && (
-        <UserEditor
-          key={editor.kind === "edit" ? editor.username : "new"}
-          supportsInstructions={supportsInstructions}
-          sharedInstructions={settings?.limitedUserInstructions}
-          supportsTemplates={supportsTemplates}
-          editing={editor.kind === "edit" ? editor.username : null}
-          draft={draft}
-          error={error}
-          busy={busy}
-          onDraftChange={setDraft}
-          onSubmit={() => void submit()}
-          onCancel={() => {
-            setEditor(null);
-            setDraft(EMPTY_DRAFT);
-            setError(null);
-          }}
-        />
+      {error && selection?.kind !== "create" && (
+        <p className="form-error">{error}</p>
       )}
-
-      {error && editor === null && <p className="form-error">{error}</p>}
 
       {usage && <UserUsageTable report={usage} />}
     </SettingsSection>
@@ -539,7 +501,8 @@ function ProjectRootField({
 }: {
   projectRoot: string;
   username: string;
-  onChange: (projectRoot: string) => void;
+  /** `commit` is true for a whole-value choice, false while typing. */
+  onChange: (projectRoot: string, commit: boolean) => void;
 }) {
   const { t } = useI18n();
   const root = projectRoot.trim().replace(/\/+$/, "");
@@ -562,13 +525,13 @@ function ProjectRootField({
             placeholder={t("usersProjectRootPlaceholder")}
             autoComplete="off"
             spellCheck={false}
-            onChange={(event) => onChange(event.target.value)}
+            onChange={(event) => onChange(event.target.value, false)}
           />
           {suggestion && (
             <button
               type="button"
               className="settings-button"
-              onClick={() => onChange(suggestion)}
+              onClick={() => onChange(suggestion, true)}
             >
               {t("usersProjectRootUseSuggestion", { path: suggestion })}
             </button>
@@ -665,87 +628,257 @@ function ProjectAccessList({
   );
 }
 
+/** Naming a new account; its grants are edited, and saved, once it exists. */
+function CreateUserForm({
+  busy,
+  error,
+  onCreate,
+  onCancel,
+}: {
+  busy: boolean;
+  error: string | null;
+  onCreate: (username: string, password: string) => void;
+  onCancel: () => void;
+}) {
+  const { t } = useI18n();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  return (
+    <form
+      className={`settings-group ${styles.editor}`}
+      onSubmit={(event) => {
+        event.preventDefault();
+        onCreate(username.trim(), password);
+      }}
+    >
+      <h3 className={styles.editorTitle}>{t("usersAddUser")}</h3>
+      <label className={styles.field}>
+        <span>{t("usersUsernameLabel")}</span>
+        <input
+          className={styles.input}
+          value={username}
+          placeholder={t("usersUsernamePlaceholder")}
+          autoComplete="off"
+          onChange={(event) => setUsername(event.target.value)}
+        />
+      </label>
+      <label className={styles.field}>
+        <span>{t("usersPasswordLabel")}</span>
+        <input
+          className={styles.input}
+          type="password"
+          value={password}
+          placeholder={t("usersPasswordPlaceholder")}
+          autoComplete="new-password"
+          onChange={(event) => setPassword(event.target.value)}
+        />
+      </label>
+      {error && <p className="form-error">{error}</p>}
+      <div className={styles.editorActions}>
+        <button
+          type="submit"
+          className="settings-button settings-button-primary"
+          disabled={busy}
+        >
+          {t("usersCreateUser")}
+        </button>
+        <button
+          type="button"
+          className="settings-button"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          {t("usersCancel")}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 interface UserEditorProps {
+  user: LimitedUserSummary;
   supportsInstructions: boolean;
   sharedInstructions:
     | import("@yep-anywhere/shared").LimitedUserInstructions
     | undefined;
   supportsTemplates: boolean;
-  /** The username being edited, or null when creating. */
-  editing: string | null;
-  draft: DraftState;
-  error: string | null;
   busy: boolean;
-  onDraftChange: (draft: DraftState) => void;
-  onSubmit: () => void;
-  onCancel: () => void;
+  onSaved: (user: LimitedUserSummary) => void;
+  onActAs: () => void;
+  onDelete: () => void;
 }
 
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+/**
+ * One user's settings, saved as they are made: a choice (select, checkbox,
+ * add/remove/move) saves at once, typed text when its field loses focus, and
+ * anything pending when the editor closes. There is no Save button to miss
+ * beneath the long sections above it.
+ */
 function UserEditor({
+  user,
   supportsInstructions,
   sharedInstructions,
   supportsTemplates,
-  editing,
-  draft,
-  error,
   busy,
-  onDraftChange,
-  onSubmit,
-  onCancel,
+  onSaved,
+  onActAs,
+  onDelete,
 }: UserEditorProps) {
   const { t } = useI18n();
   const { projects } = useProjects();
   const { providers } = useProviders();
+  const [draft, setDraft] = useState(() => draftFromUser(user));
+  const [status, setStatus] = useState<SaveStatus>("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  // What the server holds, so an unchanged blur sends nothing.
+  const savedKey = useRef<string | null>(
+    JSON.stringify(
+      grantsFromDraft(
+        draftFromUser(user),
+        supportsTemplates,
+        supportsInstructions,
+      ),
+    ),
+  );
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const onSavedRef = useRef(onSaved);
+  onSavedRef.current = onSaved;
+
+  const persist = useCallback(
+    (next: DraftState) => {
+      const grants = grantsFromDraft(
+        next,
+        supportsTemplates,
+        supportsInstructions,
+      );
+      const key = JSON.stringify(grants);
+      const password = next.password;
+      if (key === savedKey.current && !password) return;
+      if (supportsInstructions) {
+        const invalid = instructionBlocksError(grants.instructionBlocks);
+        if (invalid) {
+          setSaveError(invalid);
+          setStatus("error");
+          return;
+        }
+      }
+      // Claimed now, so a blur racing this save does not send it twice.
+      savedKey.current = key;
+      queue.current = queue.current.then(async () => {
+        setStatus("saving");
+        try {
+          const { user: saved } = await api.updateUser(user.username, {
+            ...grants,
+            ...(password ? { password } : {}),
+          });
+          if (password)
+            setDraft((current) =>
+              current.password === password
+                ? { ...current, password: "" }
+                : current,
+            );
+          setSaveError(null);
+          setStatus("saved");
+          onSavedRef.current(saved);
+        } catch (error) {
+          // Forget the claim so the next blur or choice retries it.
+          if (savedKey.current === key) savedKey.current = null;
+          setSaveError((error as Error).message);
+          setStatus("error");
+        }
+      });
+    },
+    [supportsInstructions, supportsTemplates, user.username],
+  );
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
+  // Closing the editor (another user, the bar, leaving Settings) keeps edits.
+  useEffect(() => () => persistRef.current(draftRef.current), []);
+
+  const change = (next: DraftState, commit: boolean) => {
+    setDraft(next);
+    if (commit) persist(next);
+  };
 
   const models = useMemo(() => {
     const provider = providers.find((entry) => entry.name === draft.provider);
     return provider?.models ?? [];
   }, [providers, draft.provider]);
+  const lock = lockSummary(user);
 
   return (
-    <div className={`settings-group ${styles.editor}`}>
-      <h3 className={styles.editorTitle}>
-        {editing
-          ? t("usersEditUserTitle", { username: editing })
-          : t("usersAddUser")}
-      </h3>
+    <div
+      className={`settings-group ${styles.editor}`}
+      onBlur={() => persist(draftRef.current)}
+    >
+      <div className={styles.editorHeader}>
+        <div className={styles.editorHeading}>
+          <h3 className={styles.editorTitle}>
+            {t("usersEditUserTitle", { username: user.username })}
+          </h3>
+          <span className={styles.userMeta}>
+            {t("usersGrantSummary", {
+              newSession: user.newSessionProjects.length,
+              join: user.joinProjects.length,
+              view: user.viewProjects.length,
+            })}
+            {lock ? ` · ${lock}` : ""}
+            {status === "saving" && ` · ${t("usersAutosaveSaving")}`}
+            {status === "saved" && ` · ${t("usersAutosaveSaved")}`}
+          </span>
+        </div>
+        <div className={styles.userActions}>
+          <label className={styles.enabledToggle}>
+            <input
+              type="checkbox"
+              checked={draft.enabled}
+              onChange={(event) =>
+                change({ ...draft, enabled: event.target.checked }, true)
+              }
+            />
+            {t("usersEnabledLabel")}
+          </label>
+          <button
+            type="button"
+            className="settings-button"
+            disabled={busy || !draft.enabled}
+            onClick={onActAs}
+          >
+            {t("usersActAs")}
+          </button>
+          <button
+            type="button"
+            className="settings-button settings-button-danger-subtle"
+            disabled={busy}
+            onClick={onDelete}
+          >
+            {t("usersDelete")}
+          </button>
+        </div>
+      </div>
+      {saveError && (
+        <p role="alert" className="form-error">
+          {saveError}
+        </p>
+      )}
 
-      <details
-        className={styles.account}
-        open={!supportsInstructions || !editing}
-      >
+      <details className={styles.account} open={!supportsInstructions}>
         <summary>{t("usersAccountAndAccess")}</summary>
         <div className={styles.accountFields}>
-          {!editing && (
-            <label className={styles.field}>
-              <span>{t("usersUsernameLabel")}</span>
-              <input
-                className={styles.input}
-                value={draft.username}
-                placeholder={t("usersUsernamePlaceholder")}
-                autoComplete="off"
-                onChange={(event) =>
-                  onDraftChange({ ...draft, username: event.target.value })
-                }
-              />
-            </label>
-          )}
           <label className={styles.field}>
-            <span>
-              {editing ? t("usersNewPasswordLabel") : t("usersPasswordLabel")}
-            </span>
+            <span>{t("usersNewPasswordLabel")}</span>
             <input
               className={styles.input}
               type="password"
               value={draft.password}
-              placeholder={
-                editing
-                  ? t("usersNewPasswordPlaceholder")
-                  : t("usersPasswordPlaceholder")
-              }
+              placeholder={t("usersNewPasswordPlaceholder")}
               autoComplete="new-password"
               onChange={(event) =>
-                onDraftChange({ ...draft, password: event.target.value })
+                change({ ...draft, password: event.target.value }, false)
               }
             />
           </label>
@@ -753,14 +886,16 @@ function UserEditor({
           <p className={styles.subhead}>{t("usersProjectRootHeading")}</p>
           <ProjectRootField
             projectRoot={draft.projectRoot}
-            username={editing ?? draft.username.trim()}
-            onChange={(projectRoot) => onDraftChange({ ...draft, projectRoot })}
+            username={user.username}
+            onChange={(projectRoot, commit) =>
+              change({ ...draft, projectRoot }, commit)
+            }
           />
           {supportsTemplates && (
             <UserTemplateGrant
               value={templateGrantFor(draft)}
               onChange={(templateCreation) =>
-                onDraftChange({ ...draft, templateCreation })
+                change({ ...draft, templateCreation }, true)
               }
             />
           )}
@@ -774,11 +909,10 @@ function UserEditor({
                 className={styles.select}
                 value={draft.provider}
                 onChange={(event) =>
-                  onDraftChange({
-                    ...draft,
-                    provider: event.target.value,
-                    model: "",
-                  })
+                  change(
+                    { ...draft, provider: event.target.value, model: "" },
+                    true,
+                  )
                 }
               >
                 <option value="">{t("usersLockUnset")}</option>
@@ -796,7 +930,7 @@ function UserEditor({
                 value={draft.model}
                 disabled={!draft.provider}
                 onChange={(event) =>
-                  onDraftChange({ ...draft, model: event.target.value })
+                  change({ ...draft, model: event.target.value }, true)
                 }
               >
                 <option value="">{t("usersLockUnset")}</option>
@@ -813,7 +947,7 @@ function UserEditor({
                 className={styles.select}
                 value={draft.effort}
                 onChange={(event) =>
-                  onDraftChange({ ...draft, effort: event.target.value })
+                  change({ ...draft, effort: event.target.value }, true)
                 }
               >
                 <option value="">{t("usersLockUnset")}</option>
@@ -830,7 +964,7 @@ function UserEditor({
           <ProjectAccessList
             projects={projects}
             access={draft.access}
-            onChange={(access) => onDraftChange({ ...draft, access })}
+            onChange={(access) => change({ ...draft, access }, true)}
           />
 
           <label className={styles.field}>
@@ -842,10 +976,13 @@ function UserEditor({
               max={JOIN_STALE_OFFSET_MAX_MINUTES}
               value={draft.joinStaleOffsetMinutes}
               onChange={(event) =>
-                onDraftChange({
-                  ...draft,
-                  joinStaleOffsetMinutes: Number(event.target.value),
-                })
+                change(
+                  {
+                    ...draft,
+                    joinStaleOffsetMinutes: Number(event.target.value),
+                  },
+                  false,
+                )
               }
             />
           </label>
@@ -858,29 +995,16 @@ function UserEditor({
           blocks={draft.instructionBlocks}
           disabled={busy}
           onChange={(instructionBlocks) =>
-            onDraftChange({ ...draft, instructionBlocks })
+            // Adding, removing or reordering a block is a choice; typing
+            // inside one saves when the field loses focus.
+            change(
+              { ...draft, instructionBlocks },
+              instructionBlocks.map((block) => block.id).join() !==
+                draft.instructionBlocks.map((block) => block.id).join(),
+            )
           }
         />
       )}
-      {error && <p className="form-error">{error}</p>}
-      <div className={styles.editorActions}>
-        <button
-          type="button"
-          className="settings-button settings-button-primary"
-          disabled={busy}
-          onClick={onSubmit}
-        >
-          {editing ? t("usersSaveUser") : t("usersCreateUser")}
-        </button>
-        <button
-          type="button"
-          className="settings-button"
-          disabled={busy}
-          onClick={onCancel}
-        >
-          {t("usersCancel")}
-        </button>
-      </div>
     </div>
   );
 }

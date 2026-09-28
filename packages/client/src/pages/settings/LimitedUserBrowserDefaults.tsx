@@ -134,44 +134,49 @@ export function LimitedUserBrowserDefaults() {
         {dirty && ` · ${t("usersBrowserDefaultsUnsaved")}`}
       </span>
       {entries.length > 0 && (
-        <ul className={styles.list}>
-          {entries.map(([key, value]) => {
-            const label = key.startsWith(KEY_PREFIX)
-              ? key.slice(KEY_PREFIX.length)
-              : key;
-            return (
-              <li key={key} className={styles.row}>
-                <label
-                  className={styles.key}
-                  htmlFor={`browser-default-${key}`}
-                >
-                  {label}
-                </label>
-                <input
-                  id={`browser-default-${key}`}
-                  className={styles.value}
-                  value={value}
-                  disabled={operation !== null}
-                  onChange={(event) =>
-                    edit({ ...draft, [key]: event.target.value })
-                  }
-                />
-                <button
-                  type="button"
-                  className={styles.remove}
-                  disabled={operation !== null}
-                  aria-label={t("usersBrowserDefaultsRemove", { key: label })}
-                  onClick={() => {
-                    const { [key]: _removed, ...rest } = draft;
-                    edit(rest);
-                  }}
-                >
-                  ×
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <details>
+          <summary className={styles.hint}>
+            {t("usersBrowserDefaultsCount", { count: entries.length })}
+          </summary>
+          <ul className={styles.list}>
+            {entries.map(([key, value]) => {
+              const label = key.startsWith(KEY_PREFIX)
+                ? key.slice(KEY_PREFIX.length)
+                : key;
+              return (
+                <li key={key} className={styles.row}>
+                  <label
+                    className={styles.key}
+                    htmlFor={`browser-default-${key}`}
+                  >
+                    {label}
+                  </label>
+                  <input
+                    id={`browser-default-${key}`}
+                    className={styles.value}
+                    value={value}
+                    disabled={operation !== null}
+                    onChange={(event) =>
+                      edit({ ...draft, [key]: event.target.value })
+                    }
+                  />
+                  <button
+                    type="button"
+                    className={styles.remove}
+                    disabled={operation !== null}
+                    aria-label={t("usersBrowserDefaultsRemove", { key: label })}
+                    onClick={() => {
+                      const { [key]: _removed, ...rest } = draft;
+                      edit(rest);
+                    }}
+                  >
+                    ×
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
       )}
     </section>
   );

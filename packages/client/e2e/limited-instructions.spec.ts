@@ -169,7 +169,7 @@ test("edits and persists ordered instructions while concurrent updates retain ev
     startFromDefault: false,
     blocks: [...DEFAULT_LIMITED_USER_INSTRUCTION_BLOCKS],
   });
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByRole("button", { name: "alice", exact: true }).click();
   const personal = page.getByRole("region", {
     name: "Additional instructions for this user",
   });
@@ -199,7 +199,7 @@ test("edits and persists ordered instructions while concurrent updates retain ev
       "Explain unfamiliar terms.",
     ].join("\n\n"),
   );
-  await page.getByRole("button", { name: "Save user", exact: true }).click();
+  // Pressing Preview took focus from the typed block, which saved it.
   await expect
     .poll(() => users.get("alice")?.instructionBlocks)
     .toEqual(["Explain unfamiliar terms."]);
@@ -231,13 +231,12 @@ test("older servers show no instruction controls and receive no new user fields"
     });
   });
   await page.goto(`${base}/e2e/fixtures/limited-instructions.html`);
-  await expect(
-    page.getByRole("button", { name: "Edit", exact: true }),
-  ).toBeVisible();
+  const alice = page.getByRole("button", { name: "alice", exact: true });
+  await expect(alice).toBeVisible();
   await expect(
     page.getByRole("checkbox", { name: "Start from default" }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await alice.click();
   await expect(page.getByRole("button", { name: "+ Add block" })).toHaveCount(
     0,
   );
@@ -246,7 +245,10 @@ test("older servers show no instruction controls and receive no new user fields"
       request.method() === "PATCH" &&
       request.url().endsWith("/api/users/alice"),
   );
-  await page.getByRole("button", { name: "Save user", exact: true }).click();
+  // Any edit saves on blur; the join offset is one every server accepts.
+  const offset = page.getByRole("spinbutton");
+  await offset.fill("3");
+  await offset.blur();
   expect((await request).postDataJSON()).not.toHaveProperty(
     "instructionBlocks",
   );

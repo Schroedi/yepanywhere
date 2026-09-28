@@ -135,6 +135,9 @@ test("superuser publishes defaults that a limited user's browser takes once", as
   await panel
     .getByRole("button", { name: "Load from my saved settings" })
     .click();
+  // The loaded values sit in a collapsed outline that counts them.
+  await expect(panel.getByRole("textbox")).toHaveCount(0);
+  await panel.getByText("(2 settings)", { exact: true }).click();
   await expect(panel.getByRole("textbox")).toHaveCount(2);
   const theme = panel.getByRole("textbox", { name: "theme" });
   await expect(theme).toHaveValue("light");
