@@ -260,6 +260,17 @@ export interface LimitedUserGrants {
   pathGrants?: PathGrant[];
 }
 
+/**
+ * One limited user's access to one project, as the project's sharing panel
+ * shows it: `level` is the per-project grant this panel sets, and
+ * `directoryLevel` what a directory grant already gives regardless.
+ */
+export interface ProjectAccessEntry {
+  username: string;
+  level: ProjectAccessLevel;
+  directoryLevel: ProjectAccessLevel;
+}
+
 /** A directory-wide grant: `level` for every project under `path`. */
 export interface PathGrant {
   path: string;

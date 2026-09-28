@@ -553,6 +553,7 @@ export function ProjectsPage() {
         <ProjectSessionDefaultsModal
           projectId={settingsProject.id}
           projectName={settingsProject.name}
+          ownerUsername={settingsProject.ownerUsername}
           onClose={() => setSettingsProject(null)}
         />
       )}

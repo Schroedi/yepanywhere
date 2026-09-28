@@ -579,6 +579,29 @@ export const SERVER_CAPABILITIES = {
         "Older servers ignore pathGrants, so a directory grant would appear saved and grant nothing.",
     },
   },
+  projectAccessSharing: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectAccessSharing.id,
+    name: "project-access-sharing",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "A project's settings let the superuser or the limited user who created it grant other limited users access to that project.",
+    clientFallback:
+      "Hide the project's sharing section; the superuser grants access in Settings → Users.",
+    serverContract: {
+      routes: [
+        "GET /api/projects/:projectId/access",
+        "PUT /api/projects/:projectId/access",
+      ],
+      routeModules: ["packages/server/src/routes/project-access.ts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers have no per-project sharing route.",
+    },
+  },
   templatePreparationAttachments: {
     id: CAPABILITY_ID_ALLOCATIONS.templatePreparationAttachments.id,
     name: "template-preparation-attachments",

@@ -91,6 +91,7 @@ import {
   projectServiceStaticApp,
 } from "./projects/ProjectServiceManager.js";
 import { ProjectAppDelivery } from "./artifacts/ProjectAppDelivery.js";
+import { createProjectAccessRoutes } from "./routes/project-access.js";
 import { createProjectAppRoutes } from "./routes/project-app.js";
 import { SESSION_COOKIE_NAME } from "./auth/routes.js";
 import { getCookie as getRequestCookie } from "hono/cookie";
@@ -1195,6 +1196,16 @@ export function createApp(options: AppOptions): AppResult {
         projectAppDelivery.open(projectId, audience),
     }),
   );
+  if (limitedUsersService && options.projectMetadataService) {
+    app.route(
+      "/api",
+      createProjectAccessRoutes({
+        scanner,
+        limitedUsers: limitedUsersService,
+        metadata: options.projectMetadataService,
+      }),
+    );
+  }
   app.route(
     "/api",
     createArtifactRoutes({

@@ -600,6 +600,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "limited-user-path-grants",
     introducedIn: "0.9.4",
   },
+  projectAccessSharing: {
+    id: 97,
+    direction: "server",
+    name: "project-access-sharing",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

@@ -10,6 +10,7 @@ import { api } from "../api/client";
 import { useServerSettings } from "../hooks/useServerSettings";
 import { useI18n } from "../i18n";
 import { HeartbeatTextArea } from "./HeartbeatTextArea";
+import { ProjectSharingSection } from "./ProjectSharingSection";
 import styles from "./ProjectSessionDefaultsModal.module.css";
 import { Modal } from "./ui/Modal";
 import { Link } from "react-router-dom";
@@ -19,12 +20,15 @@ import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 interface ProjectSessionDefaultsModalProps {
   projectId: string;
   projectName?: string;
+  /** The limited user who created the project, who may share it. */
+  ownerUsername?: string;
   onClose: () => void;
 }
 
 export function ProjectSessionDefaultsModal({
   projectId,
   projectName,
+  ownerUsername,
   onClose,
 }: ProjectSessionDefaultsModalProps) {
   const { t } = useI18n();
@@ -128,6 +132,10 @@ export function ProjectSessionDefaultsModal({
             {t("projectAppSettings")}
           </Link>
         )}
+        <ProjectSharingSection
+          projectId={projectId}
+          ownerUsername={ownerUsername}
+        />
         <p className={styles.intro}>{t("projectSettingsHeartbeatIntro")}</p>
 
         <section className={styles.section}>

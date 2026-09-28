@@ -274,6 +274,19 @@ The [project service contract](project-service.md) and existing
 [template integration gap](../gaps/project-template-standup.md) track this
 auditability requirement together with project App access.
 
+### Project sharing
+
+User-directed, 2026-09-28. A project's settings (the Projects gear) carry
+**Share with limited users** for the superuser and for the limited user who
+created the project, recorded as its `ownerUsername`. Each other limited
+user is listed with a per-project level, any level including Start
+sessions, saved as it is chosen; a covering directory grant is shown beside
+it, since this panel cannot remove one. It edits the same per-project grants
+as Settings → Users, where the superuser reviews and revokes them. The
+routes are `GET`/`PUT /api/projects/:projectId/access` under the
+`project-access-sharing` capability. A limited user who did not create the
+project gets 403 there; the creator's own access is not offered.
+
 ### Authorization
 
 Enforcement is a single server-side middleware ahead of every API route, so

@@ -27,6 +27,7 @@ import {
   instructionBlocksError,
   MAX_PATH_GRANTS,
   type PathGrant,
+  type ProjectAccessLevel,
 } from "@yep-anywhere/shared";
 import { deriveDecoySalt, generateVerifier } from "../crypto/srp-server.js";
 import { expandHomePath } from "../utils/expandHomePath.js";
@@ -440,6 +441,28 @@ export class LimitedUsersService {
     if (!record) throw new Error("User not found");
     if (record.newSessionProjects.includes(projectId)) return;
     record.newSessionProjects.push(projectId);
+    await this.save();
+  }
+
+  /**
+   * Set one user's per-project level on one project, leaving every other
+   * grant as it was. `none` removes the per-project grant; a directory grant
+   * covering the project still applies.
+   */
+  async setProjectLevel(
+    username: string,
+    projectId: string,
+    level: ProjectAccessLevel,
+  ): Promise<void> {
+    const record = this.state.users[username];
+    if (!record) throw new Error("User not found");
+    const without = (list: string[]) => list.filter((id) => id !== projectId);
+    record.newSessionProjects = without(record.newSessionProjects);
+    record.joinProjects = without(record.joinProjects);
+    record.viewProjects = without(record.viewProjects);
+    if (level === "new-session") record.newSessionProjects.push(projectId);
+    else if (level === "join") record.joinProjects.push(projectId);
+    else if (level === "view") record.viewProjects.push(projectId);
     await this.save();
   }
 
