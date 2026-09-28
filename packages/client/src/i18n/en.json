@@ -740,7 +740,7 @@
   "projectsLoading": "Loading projects...",
   "projectsErrorPrefix": "Error:",
   "projectsAdd": "Add Project",
-  "projectsAddPlaceholder": "Enter project path (e.g., ~/code/my-project)",
+  "projectsAddPlaceholder": "Project path or name (e.g., ~/code/my-project or My Story)",
   "projectsAddPathLabel": "Project path",
   "projectsAddNameLabel": "Name",
   "projectsAddNameHint": "Defaults to the last path component",

@@ -21,6 +21,25 @@ Status: **implemented (2026-09-20).**
   again when focus leaves it and submits as the default. The defaults are
   visible values, not placeholders, so a user who wants them submits without
   touching them.
+- **Paths from names.** Nobody has to know a path to add a project. The
+  base directory is the host home (`~`), or a limited user's project root.
+  - Until the path field is typed into, a typed name derives the path as it
+    is typed: the base plus a directory name that is the name lowercased,
+    with each run of characters other than letters, digits, `.`, `_` and
+    `-` turned into one `-`, cut to 40 characters.
+  - A name matching an existing project's name, ignoring case, means that
+    project: the path is its path, and adding it again renames nothing.
+  - A derived directory name that a listed project already uses, including
+    a collision that only truncation created, gets a `-2`, `-3`, …
+    suffix. Only listed projects are checked; the client cannot see other
+    directories, and an existing unlisted directory is added as it is.
+  - When focus leaves the path field, or the form is submitted, the entry
+    settles and the field shows the path the server will get. An absolute
+    or `~` path stands as typed. A description (whitespace and no path
+    separator) moves to an untouched name field, and the path follows the
+    name as above. Any other relative entry, such as `story1` or
+    `code/story1`, lands under the base. Emptying the path field returns
+    it to following the name.
 - A name that still equals the path's last component is no override. Only a
   differing name is stored; renaming the directory later therefore changes
   the name of a project that was never explicitly named.
