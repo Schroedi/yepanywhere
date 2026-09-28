@@ -602,6 +602,25 @@ export const SERVER_CAPABILITIES = {
       reason: "Older servers have no per-project sharing route.",
     },
   },
+  projectCopy: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectCopy.id,
+    name: "project-copy",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Anyone who can see a project may copy its working tree into their own project directory as a new project.",
+    clientFallback: "Hide the Copy action on project cards.",
+    serverContract: {
+      routes: ["POST /api/projects/:projectId/copy"],
+      routeModules: ["packages/server/src/routes/project-copy.ts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers have no copy route.",
+    },
+  },
   templatePreparationAttachments: {
     id: CAPABILITY_ID_ALLOCATIONS.templatePreparationAttachments.id,
     name: "template-preparation-attachments",

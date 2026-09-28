@@ -11,6 +11,7 @@ import type { LimitedUsersService } from "../auth/LimitedUsersService.js";
 import { principalFor } from "../auth/limitedLaunchPolicy.js";
 import type { ProjectMetadataService } from "../metadata/ProjectMetadataService.js";
 import type { ProjectScanner } from "../projects/scanner.js";
+import { createProjectCopyRoutes } from "./project-copy.js";
 
 const setRequest = z.strictObject({
   username: z.string().min(1),
@@ -78,6 +79,10 @@ export function createProjectAccessRoutes(deps: {
     await deps.limitedUsers.setProjectLevel(username, project.id, level);
     return c.json({ username, level });
   });
+
+  // Copying is the other half of reaching someone else's project; mounted
+  // here so both share one registration point in the app.
+  routes.route("/", createProjectCopyRoutes({ scanner: deps.scanner }));
 
   return routes;
 }

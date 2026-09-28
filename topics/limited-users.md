@@ -287,6 +287,20 @@ routes are `GET`/`PUT /api/projects/:projectId/access` under the
 `project-access-sharing` capability. A limited user who did not create the
 project gets 403 there; the creator's own access is not offered.
 
+### Project copy
+
+User-directed, 2026-09-28. Anyone who can see a project, View sessions
+included, may make their own copy: `POST /api/projects/:projectId/copy`
+with a directory name (`project-copy` capability). A limited user's copy
+lands under their configured project directory (none configured: 403); the
+superuser's beside the source. The destination is claimed exclusively,
+checked on disk against the project directory, and filled with the source's
+working tree minus `node_modules`, symbolic links (which could name any host
+file) and special files, bounded at 512 MB and 50,000 entries; a failed or
+oversized copy removes what it made. The response names the new directory,
+which the client adds through the ordinary add-project route, so the copy is
+owned and granted Start sessions like any project the user adds.
+
 ### Authorization
 
 Enforcement is a single server-side middleware ahead of every API route, so

@@ -360,6 +360,10 @@ export function decideLimitedRoute(
     // it stays with the default new-session requirement below.
     if ((rest === "/app/open" || rest === "/app/start") && method === "POST")
       return { kind: "project", projectId, required: "view" };
+    // Copying reads the project and writes only under the user's own
+    // project directory, which the copy route enforces.
+    if (rest === "/copy" && method === "POST")
+      return { kind: "project", projectId, required: "view" };
     if (rest === "/sessions" || rest === "/sessions/create") {
       // Creating a session in this project. Checked before the session-scoped
       // match below, whose `[^/]+` would otherwise read "create" as an id.
