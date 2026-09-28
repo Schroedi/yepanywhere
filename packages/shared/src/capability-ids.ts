@@ -558,6 +558,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "agent-server-access",
     introducedIn: "0.9.4",
   },
+  sessionScopedLocalFiles: {
+    id: 90,
+    direction: "server",
+    name: "session-scoped-local-files",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

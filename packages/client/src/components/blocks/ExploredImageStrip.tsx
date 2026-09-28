@@ -11,6 +11,7 @@ import {
   fetchLocalMediaBlob,
   LocalMediaModal,
   type LocalMediaSource,
+  useLocalFileScope,
 } from "../LocalMediaModal";
 import styles from "./ExploredImageStrip.module.css";
 
@@ -114,10 +115,12 @@ function ExploredImageThumbnail({
   onOpen: () => void;
 }) {
   const transport = useCurrentSourceRuntime().transport;
+  const fileScope = useLocalFileScope();
   const source = useExploredImageSource(image);
   const loadBlob = useCallback(
-    () => fetchLocalMediaBlob(image.path, source, "inline", transport),
-    [image.path, source, transport],
+    () =>
+      fetchLocalMediaBlob(image.path, source, "inline", transport, fileScope),
+    [image.path, source, transport, fileScope],
   );
 
   return (

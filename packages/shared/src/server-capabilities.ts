@@ -226,6 +226,31 @@ export const SERVER_CAPABILITIES = {
         "Older servers neither store the setting nor accept agent bearer tokens.",
     },
   },
+  sessionScopedLocalFiles: {
+    id: CAPABILITY_ID_ALLOCATIONS.sessionScopedLocalFiles.id,
+    name: "session-scoped-local-files",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Read a file, and grant an interactive preview of it, as a session names it: a sandboxed session's /tmp is its private one, and a limited user reaches only that session's project and sandbox temp.",
+    clientFallback:
+      "Open session-named files through the host-wide local-file, local-image and artifact routes, as before.",
+    serverContract: {
+      routes: [
+        "GET /api/sessions/:sessionId/local-file",
+        "GET /api/sessions/:sessionId/local-image",
+        "POST /api/sessions/:sessionId/artifacts",
+      ],
+      routeModules: ["packages/server/src/routes/session-local-files.ts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers read every path host-wide and refuse limited users those reads.",
+    },
+  },
   sidebarSessionCategories: {
     id: CAPABILITY_ID_ALLOCATIONS.sidebarSessionCategories.id,
     name: "sidebar-session-categories",
@@ -3159,6 +3184,8 @@ export const AGENT_SERVER_ACCESS_CAPABILITY =
   SERVER_CAPABILITIES.agentServerAccess.name;
 export const SIDEBAR_SESSION_CATEGORIES_CAPABILITY =
   SERVER_CAPABILITIES.sidebarSessionCategories.name;
+export const SESSION_SCOPED_LOCAL_FILES_CAPABILITY =
+  SERVER_CAPABILITIES.sessionScopedLocalFiles.name;
 export const SESSION_CREATION_PROVENANCE_CAPABILITY =
   SERVER_CAPABILITIES.sessionCreationProvenance.name;
 export const ACLI_COMMENTARY_RENDERING_CAPABILITY =

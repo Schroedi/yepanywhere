@@ -258,6 +258,12 @@ percent-encoding is refused.
 | a server their sandboxed session started (`sandbox-apps`) | `join` on the session, as for a turn: YA mints a private app name reaching that session's sandbox loopback, and the session page offers it in the App pane though operator app links stay withheld ([sandboxed session apps](session-right-pane.md#sandboxed-session-apps)) |
 | pre-session draft uploads, validation and deletion | allowed only in the acting account's isolated draft store. A relay upload socket selects the store the same way its tunneled requests resolve the principal, so the owner's relay identity stages into the superuser's store |
 
+The client reaches a session's files through those session-scoped routes
+whenever it is on a session page and the server advertises
+`session-scoped-local-files`, for the owner too, so a sandboxed session's
+`/tmp` path resolves the same way for everyone; an older server gets the
+host-wide routes.
+
 Session-to-project resolution for session-scoped paths uses the live process
 first and the session catalog second — the same retained catalog All Sessions
 and Inbox read, re-read at most every few seconds. A session that resolves to

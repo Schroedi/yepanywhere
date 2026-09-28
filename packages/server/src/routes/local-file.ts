@@ -2,7 +2,7 @@ import { readFile, type FileHandle } from "node:fs/promises";
 import { basename, dirname, extname } from "node:path";
 import { Readable } from "node:stream";
 import { parseLineColumn } from "@yep-anywhere/shared";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { renderMarkdownFilePreview } from "../augments/markdown-file-preview.js";
 import type { ProjectScanner } from "../projects/scanner.js";
 import {
@@ -21,7 +21,7 @@ import {
 import type { SessionPathScopeResolver } from "./session-path-scope.js";
 import { createUntrustedFileResponseHeaders } from "./untrusted-file-response.js";
 
-interface LocalFileDeps {
+export interface LocalFileDeps {
   allowedPaths: string[] | (() => string[]);
   scanner?: Pick<ProjectScanner, "listProjects">;
   includeProjects?: () => boolean;
@@ -425,9 +425,15 @@ ${lineTargetScript}
  */
 export function createLocalFileRoutes(deps: LocalFileDeps) {
   const routes = new Hono();
+  routes.get("/", createLocalFileHandler(deps));
+  return routes;
+}
+
+/** The local-file GET handler, also mounted session-scoped with `scope`. */
+export function createLocalFileHandler(deps: LocalFileDeps) {
   const pathPolicy = createLocalResourcePathPolicy(deps);
 
-  routes.get("/", async (c) => {
+  return async (c: Context) => {
     const rawFilePath = c.req.query("path");
     if (!rawFilePath) {
       return c.json({ error: "Missing path parameter" }, 400);
@@ -543,7 +549,5 @@ export function createLocalFileRoutes(deps: LocalFileDeps) {
       console.error("[LocalFile] Error serving file:", err);
       return c.json({ error: "Internal error" }, 500);
     }
-  });
-
-  return routes;
+  };
 }

@@ -1,7 +1,7 @@
 import type { FileHandle } from "node:fs/promises";
 import * as path from "node:path";
 import { Readable } from "node:stream";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import type { ProjectScanner } from "../projects/scanner.js";
 import {
   createLocalResourcePathPolicy,
@@ -18,7 +18,7 @@ import {
 import type { SessionPathScopeResolver } from "./session-path-scope.js";
 import { createUntrustedFileResponseHeaders } from "./untrusted-file-response.js";
 
-interface LocalImageDeps {
+export interface LocalImageDeps {
   allowedPaths: string[] | (() => string[]);
   scanner?: Pick<ProjectScanner, "listProjects">;
   includeProjects?: () => boolean;
@@ -37,9 +37,15 @@ interface LocalImageDeps {
  */
 export function createLocalImageRoutes(deps: LocalImageDeps) {
   const routes = new Hono();
+  routes.get("/", createLocalImageHandler(deps));
+  return routes;
+}
+
+/** The local-image GET handler, also mounted session-scoped with `scope`. */
+export function createLocalImageHandler(deps: LocalImageDeps) {
   const pathPolicy = createLocalResourcePathPolicy(deps);
 
-  routes.get("/", async (c) => {
+  return async (c: Context) => {
     const requestedPath = c.req.query("path");
     if (!requestedPath) {
       return c.json({ error: "Missing path parameter" }, 400);
@@ -110,7 +116,5 @@ export function createLocalImageRoutes(deps: LocalImageDeps) {
       console.error("[LocalImage] Error serving file:", err);
       return c.json({ error: "Internal error" }, 500);
     }
-  });
-
-  return routes;
+  };
 }

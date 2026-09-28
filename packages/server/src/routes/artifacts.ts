@@ -1,7 +1,5 @@
-import { isAbsolute, resolve } from "node:path";
+import { resolve } from "node:path";
 import { Hono } from "hono";
-import { createLocalResourcePathPolicy } from "./local-resource-policy.js";
-import type { SessionPathScopeResolver } from "./session-path-scope.js";
 import type { ArtifactServer } from "../artifacts/ArtifactServer.js";
 import {
   validateArtifactConfig,
@@ -13,11 +11,9 @@ import { expandHomePath } from "../utils/expandHomePath.js";
 
 export function createArtifactRoutes(options: {
   server: ArtifactServer;
-  scanner: Pick<ProjectScanner, "getProject" | "listProjects">;
+  scanner: Pick<ProjectScanner, "getProject">;
   settings?: ServerSettingsService;
   locked: boolean;
-  /** Resolves paths as a session names them, for the session-scoped grant. */
-  sessionPathScope?: SessionPathScopeResolver;
 }) {
   const routes = new Hono();
   let updating = false;
@@ -110,43 +106,6 @@ export function createArtifactRoutes(options: {
         filePath,
         audience,
         owned as boolean | undefined,
-      ),
-    );
-  });
-  /**
-   * An interactive preview of a file as a session named it: a sandboxed
-   * session's /tmp is its private one, and a limited user may grant only
-   * files in the session's project or its sandbox's private temp directories
-   * (topics/limited-users.md § Authorization). The grant borrows its
-   * directory; ownership is reserved for callers that produced it.
-   */
-  routes.post("/sessions/:sessionId/artifacts", async (c) => {
-    if (!options.server.available)
-      return c.json({ error: "Artifact serving is disabled" }, 409);
-    const scope = options.sessionPathScope;
-    if (!scope) return c.json({ error: "Not available" }, 404);
-    const body = await c.req.json<unknown>().catch(() => undefined);
-    const { path, audience } = (body ?? {}) as Record<string, unknown>;
-    if (
-      typeof path !== "string" ||
-      (audience !== "local" && audience !== "public")
-    )
-      return c.json({ error: "Expected path and local/public audience" }, 400);
-    if (!isAbsolute(expandHomePath(path)))
-      return c.json({ error: "Path must be absolute" }, 400);
-    const scoped = scope(c, path);
-    if ("status" in scoped)
-      return c.json({ error: scoped.error }, scoped.status);
-    const allowed = await createLocalResourcePathPolicy({
-      ...scoped,
-      scanner: options.scanner,
-    }).resolveAllowedFilePath(scoped.hostPath);
-    if (!allowed.ok) return c.json({ error: allowed.error }, allowed.status);
-    return c.json(
-      await options.server.createGrant(
-        allowed.file.resolvedPath,
-        audience,
-        false,
       ),
     );
   });

@@ -25,6 +25,7 @@ import {
   sessionAppBrokerSocket,
 } from "./routes/sessionApps.js";
 import { createSessionPathScopeResolver } from "./routes/session-path-scope.js";
+import { createSessionLocalFileRoutes } from "./routes/session-local-files.js";
 import {
   VhostAppControl,
   vhostAppControlAvailable,
@@ -1114,7 +1115,16 @@ export function createApp(options: AppOptions): AppResult {
       scanner,
       settings: options.serverSettingsService,
       locked: options.artifacts !== undefined,
-      sessionPathScope,
+    }),
+  );
+  app.route(
+    "/api",
+    createSessionLocalFileRoutes({
+      allowedPaths: getAllowedFilePaths,
+      includeProjects: shouldIncludeProjects,
+      scanner,
+      scope: sessionPathScope,
+      artifactServer,
     }),
   );
   app.route(
@@ -3412,27 +3422,6 @@ export function createApp(options: AppOptions): AppResult {
       allowedPaths: getAllowedFilePaths,
       includeProjects: shouldIncludeProjects,
       scanner,
-    }),
-  );
-  // The same doors for a path as one session named it. Session-scoped, so a
-  // limited user reaches them for sessions they may read, confined to that
-  // session's project and sandbox temp (routes/session-path-scope.ts).
-  app.route(
-    "/api/sessions/:sessionId/local-image",
-    createLocalImageRoutes({
-      allowedPaths: getAllowedFilePaths,
-      includeProjects: shouldIncludeProjects,
-      scanner,
-      scope: sessionPathScope,
-    }),
-  );
-  app.route(
-    "/api/sessions/:sessionId/local-file",
-    createLocalFileRoutes({
-      allowedPaths: getAllowedFilePaths,
-      includeProjects: shouldIncludeProjects,
-      scanner,
-      scope: sessionPathScope,
     }),
   );
 

@@ -29,6 +29,7 @@ import {
   fetchLocalMediaBlob,
   LocalMediaModal,
   type LocalMediaSource,
+  useLocalFileScope,
 } from "./LocalMediaModal";
 import { LocalImageThumbnail } from "./LocalImageThumbnail";
 import styles from "./TurnImageGallery.module.css";
@@ -98,9 +99,17 @@ function GalleryThumbnail({
 }: GalleryThumbnailProps) {
   const { t } = useI18n();
   const transport = useCurrentSourceRuntime().transport;
+  const fileScope = useLocalFileScope();
   const loadBlob = useCallback(
-    () => fetchLocalMediaBlob(candidate.path, mediaSource, "inline", transport),
-    [candidate.path, mediaSource, transport],
+    () =>
+      fetchLocalMediaBlob(
+        candidate.path,
+        mediaSource,
+        "inline",
+        transport,
+        fileScope,
+      ),
+    [candidate.path, mediaSource, transport, fileScope],
   );
 
   return (
