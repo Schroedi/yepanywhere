@@ -271,9 +271,19 @@ then per-user. Text is preserved; each list permits at most 32 blocks and
 10,000 characters in total. Invalid saves fail without truncation. An empty
 list deliberately contributes no text. Per-user lists default empty.
 
-The editable shared default is:
+The editable shared default is two blocks:
 
 > When using any external image/video generation API or MCP tool, enable the provider's safety filtering at its strictest setting (e.g. moderation="auto", enable_safety_checker=true, safety_filter_level="block_most"). Never disable a safety checker. Prefer providers with server-side filtering.
+
+and an App block (`DEFAULT_LIMITED_USER_APP_INSTRUCTION` in
+`packages/shared/src/limited-users.ts`) telling the agent to make what it
+builds open from the App button by declaring `.project-template/app.json`
+([project service](project-service.md#standard-declaration-where-start-status-stop-serving)),
+never by handing over a loopback link the user's device cannot reach
+(user-directed 2026-09-28). A test holds its static and server examples to the
+declaration schema. A saved shared policy still equal to an earlier shipped
+default is upgraded to the current default on load; any edit is kept as
+written.
 
 **Start from default**, checked initially, retains the provider's base prompt.
 Unchecked requests replacement. Claude uses its preset plus append or a custom

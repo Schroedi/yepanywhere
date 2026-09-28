@@ -36,6 +36,8 @@ import type {
 import {
   DEFAULT_CACHE_MISS_BILLING_SETTINGS,
   defaultLimitedUserInstructions,
+  limitedUserInstructionsError,
+  upgradeUntouchedLimitedUserInstructions,
   DEFAULT_CLAUDE_STEER_BACKGROUND_BASH,
   DEFAULT_CODEX_REASONING_SUMMARY,
   DEFAULT_HEARTBEAT_TURN_TEXT,
@@ -496,6 +498,14 @@ function normalizeLoadedSettings(settings: ServerSettings): ServerSettings {
     settings.toolResultMediaPreservation === "preserve"
       ? "preserve"
       : DEFAULT_SERVER_SETTINGS.toolResultMediaPreservation;
+  // An invalid saved policy is left for the launch-time check to refuse.
+  if (
+    settings.limitedUserInstructions &&
+    !limitedUserInstructionsError(settings.limitedUserInstructions)
+  ) {
+    normalized.limitedUserInstructions =
+      upgradeUntouchedLimitedUserInstructions(settings.limitedUserInstructions);
+  }
   normalized.hostProcessObservabilityEnabled =
     typeof settings.hostProcessObservabilityEnabled === "boolean"
       ? settings.hostProcessObservabilityEnabled

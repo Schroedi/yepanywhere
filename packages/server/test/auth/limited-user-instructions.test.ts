@@ -2,7 +2,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { DEFAULT_LIMITED_USER_INSTRUCTION } from "@yep-anywhere/shared";
+import {
+  DEFAULT_LIMITED_USER_INSTRUCTION,
+  DEFAULT_LIMITED_USER_INSTRUCTION_BLOCKS,
+} from "@yep-anywhere/shared";
+
+const DEFAULT_TEXT = DEFAULT_LIMITED_USER_INSTRUCTION_BLOCKS.join("\n\n");
 import { LimitedUsersService } from "../../src/auth/LimitedUsersService.js";
 import { limitedUserInstructionsForLaunch } from "../../src/auth/limitedUserInstructions.js";
 import { ServerSettingsService } from "../../src/services/ServerSettingsService.js";
@@ -24,10 +29,10 @@ afterEach(async () => {
   await rm(directory, { recursive: true });
 });
 
-it("uses the editable safety default and persists ordered shared and per-user blocks", async () => {
+it("uses the editable safety and App defaults and persists ordered shared and per-user blocks", async () => {
   expect(limitedUserInstructionsForLaunch("alice", users, settings)).toEqual({
     startFromDefault: true,
-    text: DEFAULT_LIMITED_USER_INSTRUCTION,
+    text: DEFAULT_TEXT,
   });
   const routes = createSettingsRoutes({ serverSettingsService: settings });
   const response = await routes.request("/", {
@@ -81,7 +86,7 @@ it("rejects malformed and oversized updates without changing the saved policy", 
   ).rejects.toThrow("10000");
   expect(users.get("alice")?.disabled).not.toBe(true);
   expect(limitedUserInstructionsForLaunch("alice", users, settings).text).toBe(
-    DEFAULT_LIMITED_USER_INSTRUCTION,
+    DEFAULT_TEXT,
   );
 });
 
@@ -101,4 +106,28 @@ it("keeps two users separate and honors an intentionally empty replacement", asy
   expect(limitedUserInstructionsForLaunch("bobby", users, settings).text).toBe(
     "Only Bobby.",
   );
+});
+
+it("upgrades a saved policy still equal to the earlier default, and keeps edits", async () => {
+  await settings.updateSettings({
+    limitedUserInstructions: {
+      startFromDefault: true,
+      blocks: [DEFAULT_LIMITED_USER_INSTRUCTION],
+    },
+  });
+  const reloaded = new ServerSettingsService({ dataDir: directory });
+  await reloaded.initialize();
+  expect(reloaded.getSetting("limitedUserInstructions")).toEqual({
+    startFromDefault: true,
+    blocks: [...DEFAULT_LIMITED_USER_INSTRUCTION_BLOCKS],
+  });
+
+  const edited = {
+    startFromDefault: true,
+    blocks: [DEFAULT_LIMITED_USER_INSTRUCTION, "Be brief."],
+  };
+  await reloaded.updateSettings({ limitedUserInstructions: edited });
+  const again = new ServerSettingsService({ dataDir: directory });
+  await again.initialize();
+  expect(again.getSetting("limitedUserInstructions")).toEqual(edited);
 });

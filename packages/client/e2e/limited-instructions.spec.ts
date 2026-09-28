@@ -3,7 +3,10 @@ import { createServer } from "node:http";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
-import { DEFAULT_LIMITED_USER_INSTRUCTION } from "@yep-anywhere/shared";
+import {
+  DEFAULT_LIMITED_USER_INSTRUCTION,
+  DEFAULT_LIMITED_USER_INSTRUCTION_BLOCKS,
+} from "@yep-anywhere/shared";
 import { createTestViteServer } from "./support/vite-server";
 import { recordUiCapture, presentUiCaptures } from "./support/ui-capture";
 import { createApp } from "../../server/test/setup/create-app";
@@ -132,8 +135,9 @@ test("edits and persists ordered instructions while concurrent updates retain ev
   });
   await shared.getByRole("checkbox", { name: "Start from default" }).uncheck();
   await shared.getByRole("button", { name: "+ Add block" }).click();
-  const second = shared.getByRole("textbox", {
-    name: "Instruction 2",
+  // The defaults fill blocks 1–2, so the added block is 3.
+  const added = shared.getByRole("textbox", {
+    name: "Instruction 3",
     exact: true,
   });
   const before = Number(
@@ -141,15 +145,16 @@ test("edits and persists ordered instructions while concurrent updates retain ev
   );
   let typed = "";
   for (const character of "Keep responses concise.") {
-    await second.pressSequentially(character);
+    await added.pressSequentially(character);
     typed += character;
-    await expect(second).toHaveValue(typed, { timeout: 100 });
+    await expect(added).toHaveValue(typed, { timeout: 100 });
   }
   expect(
     Number(
       await page.getByTestId("background-updates").getAttribute("data-updates"),
     ),
   ).toBeGreaterThan(before);
+  await shared.getByRole("button", { name: "Move instruction 3 up" }).click();
   await shared.getByRole("button", { name: "Move instruction 2 up" }).click();
   await expect(first).toHaveValue(typed);
   await shared
@@ -162,7 +167,7 @@ test("edits and persists ordered instructions while concurrent updates retain ev
   await expect(shared.getByRole("status")).toHaveText("Saved");
   expect(settings.getSetting("limitedUserInstructions")).toEqual({
     startFromDefault: false,
-    blocks: [DEFAULT_LIMITED_USER_INSTRUCTION],
+    blocks: [...DEFAULT_LIMITED_USER_INSTRUCTION_BLOCKS],
   });
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   const personal = page.getByRole("region", {
@@ -189,7 +194,10 @@ test("edits and persists ordered instructions while concurrent updates retain ev
     .getByRole("button", { name: "Preview combined instructions" })
     .click();
   await expect(personal.locator("pre").last()).toHaveText(
-    `${DEFAULT_LIMITED_USER_INSTRUCTION}\n\nExplain unfamiliar terms.`,
+    [
+      ...DEFAULT_LIMITED_USER_INSTRUCTION_BLOCKS,
+      "Explain unfamiliar terms.",
+    ].join("\n\n"),
   );
   await page.getByRole("button", { name: "Save user", exact: true }).click();
   await expect

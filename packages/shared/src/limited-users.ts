@@ -17,6 +17,59 @@ export const MAX_INSTRUCTION_CHARACTERS = 10_000;
 export const DEFAULT_LIMITED_USER_INSTRUCTION =
   'When using any external image/video generation API or MCP tool, enable the provider\'s safety filtering at its strictest setting (e.g. moderation="auto", enable_safety_checker=true, safety_filter_level="block_most"). Never disable a safety checker. Prefer providers with server-side filtering.';
 
+/**
+ * The two `.project-template/app.json` shapes the App instruction teaches.
+ * Exported so a test holds them to the service declaration schema; the
+ * contract is topics/project-service.md § Standard declaration.
+ */
+export const LIMITED_USER_STATIC_APP_EXAMPLE = {
+  service: {
+    version: 1,
+    where: { kind: "static", root: "dist", entry: "index.html" },
+    serving: { target: "static-root" },
+  },
+} as const;
+export const LIMITED_USER_SERVER_APP_EXAMPLE = {
+  service: {
+    version: 1,
+    where: { kind: "process", cwd: ".", entry: "/" },
+    start: { argv: ["npm", "run", "start"], portEnv: "PORT" },
+    status: {
+      probe: "http",
+      path: "/",
+      readyStatus: 200,
+      startupTimeoutMs: 30000,
+    },
+    stop: { signal: "SIGTERM", graceMs: 5000 },
+    serving: {
+      target: "sandbox-loopback",
+      protocol: "http",
+      basePathEnv: "BASE_PATH",
+    },
+  },
+} as const;
+
+/**
+ * How an agent makes what it builds openable by a limited user, who is on
+ * another device and cannot reach this machine's loopback ports.
+ */
+export const DEFAULT_LIMITED_USER_APP_INSTRUCTION = [
+  "To show the user a web page, game or app you build, make it open from Yep Anywhere's App button (in the session header and on the project) instead of giving a localhost or 127.0.0.1 link: the user is on another device and cannot reach this machine's ports.",
+  "Declare it in `.project-template/app.json` at the project root, then tell the user to tap App (and Start, if it shows as stopped).",
+  `- Static page (preferred for plain HTML/JS): build into \`dist/\` with an \`index.html\` and relative asset URLs, and declare ${JSON.stringify(LIMITED_USER_STATIC_APP_EXAMPLE)}`,
+  `- App with its own server: declare ${JSON.stringify(LIMITED_USER_SERVER_APP_EXAMPLE)}, adjusting argv and the status path. The server must listen on 127.0.0.1 at the port in $PORT, stay in the foreground, and serve every link, asset and API call under the $BASE_PATH prefix. WebSockets are not supported. Yep Anywhere starts and stops it; do not start it yourself.`,
+].join("\n");
+
+export const DEFAULT_LIMITED_USER_INSTRUCTION_BLOCKS: readonly string[] = [
+  DEFAULT_LIMITED_USER_INSTRUCTION,
+  DEFAULT_LIMITED_USER_APP_INSTRUCTION,
+];
+
+/** Earlier shipped defaults, upgraded on load while still untouched. */
+const SUPERSEDED_DEFAULT_BLOCKS: readonly (readonly string[])[] = [
+  [DEFAULT_LIMITED_USER_INSTRUCTION],
+];
+
 export interface LimitedUserInstructions {
   startFromDefault: boolean;
   blocks: string[];
@@ -28,7 +81,27 @@ export interface ResolvedLimitedUserInstructions {
 }
 
 export function defaultLimitedUserInstructions(): LimitedUserInstructions {
-  return { startFromDefault: true, blocks: [DEFAULT_LIMITED_USER_INSTRUCTION] };
+  return {
+    startFromDefault: true,
+    blocks: [...DEFAULT_LIMITED_USER_INSTRUCTION_BLOCKS],
+  };
+}
+
+/**
+ * A saved policy that still equals an earlier shipped default was never
+ * edited, so it takes the current default; any edit is kept as written.
+ */
+export function upgradeUntouchedLimitedUserInstructions(
+  value: LimitedUserInstructions,
+): LimitedUserInstructions {
+  const untouched = SUPERSEDED_DEFAULT_BLOCKS.some(
+    (blocks) =>
+      blocks.length === value.blocks.length &&
+      blocks.every((block, index) => block === value.blocks[index]),
+  );
+  return untouched
+    ? { ...value, blocks: [...DEFAULT_LIMITED_USER_INSTRUCTION_BLOCKS] }
+    : value;
 }
 
 /** Validate instruction blocks without trimming or silently truncating text. */
