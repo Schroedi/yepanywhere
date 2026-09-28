@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { homedir } from "node:os";
-import { basename, dirname, extname, resolve } from "node:path";
+import { basename, dirname, extname, relative, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { getRequestListener } from "@hono/node-server";
 import { ARTIFACT_SANDBOX, ARTIFACT_TAB_PROTOCOL } from "@yep-anywhere/shared";
@@ -33,6 +33,8 @@ import {
   vhostHostnames,
 } from "./vhosts.js";
 import { VhostAccess } from "./VhostAccess.js";
+import type { ProjectAppDelivery } from "./ProjectAppDelivery.js";
+import { hostnameFromHostHeader } from "./vhosts.js";
 
 const MAX_GRANTS = 256;
 
@@ -121,6 +123,8 @@ export class ArtifactServer {
    */
   private readonly mintedSessionAppHosts = new Set<string>();
   private sessionAppUpstream: SessionAppUpstream = () => null;
+  private projectAppDelivery?: ProjectAppDelivery;
+  private readonly projectHosts = new Set<string>();
   private listener: Server | undefined;
   private listening = false;
 
@@ -170,14 +174,41 @@ export class ArtifactServer {
         "Permissions-Policy",
         "camera=(), microphone=(), geolocation=(), clipboard-read=(), clipboard-write=(), payment=(), usb=(), serial=(), display-capture=()",
       );
-      if (c.req.method !== "GET" && c.req.method !== "HEAD")
+      if (
+        c.req.method !== "GET" &&
+        c.req.method !== "HEAD" &&
+        !c.req.path.startsWith("/p/")
+      )
         return c.text("Read only", 405);
       await next();
+      // Proxy responses carry their own Headers; enforce the isolated-origin
+      // policy after dispatch so upstream headers cannot replace it.
+      c.res.headers.set(
+        "Content-Security-Policy",
+        c.req.path.startsWith("/p/")
+          ? ARTIFACT_CSP.replace(
+              `sandbox ${ARTIFACT_SANDBOX}`,
+              "sandbox allow-scripts",
+            )
+          : ARTIFACT_CSP,
+      );
+      c.res.headers.set("X-Content-Type-Options", "nosniff");
+      c.res.headers.set("Referrer-Policy", "no-referrer");
+      c.res.headers.set("Cache-Control", "no-store");
+      c.res.headers.set(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), clipboard-read=(), clipboard-write=(), payment=(), usb=(), serial=(), display-capture=()",
+      );
     });
     this.app.get("/health", (c) => {
       c.header("Access-Control-Allow-Origin", "*");
       return c.json({ artifactViewer: 1 });
     });
+    this.app.all("/p/:token/*", async (c) =>
+      this.projectAppDelivery
+        ? this.projectAppDelivery.dispatchPath(c.req.raw, c.req.param("token"))
+        : c.notFound(),
+    );
     this.app.get("/a/:token/*", async (c) => {
       const grant = this.grants.get(c.req.param("token"));
       if (!grant || grant.expiresAt <= Date.now()) {
@@ -390,17 +421,27 @@ export class ArtifactServer {
       name,
       port: 1,
     }));
-    setVhostHostnames(
-      vhostHostnames(
+    setVhostHostnames([
+      ...this.projectHosts,
+      ...vhostHostnames(
         [...(config.vhosts ?? []), ...minted],
         config.vhostPublicRoot,
       ),
-    );
+    ]);
   }
 
   /** Where session app upstreams resolve; set once the supervisor exists. */
   setSessionAppUpstream(resolve: SessionAppUpstream): void {
     this.sessionAppUpstream = resolve;
+  }
+
+  setProjectAppDelivery(delivery: ProjectAppDelivery): void {
+    this.projectAppDelivery = delivery;
+  }
+
+  registerProjectHosts(hosts: readonly string[]): void {
+    for (const host of hosts) this.projectHosts.add(host.toLowerCase());
+    this.registerHosts(this.config);
   }
 
   /**
@@ -460,6 +501,11 @@ export class ArtifactServer {
     clientAddress?: string,
   ): Promise<Response | null> {
     const host = request.headers.get("host") ?? new URL(request.url).host;
+    if (this.projectAppDelivery) {
+      await this.projectAppDelivery.ready;
+      if (this.projectHosts.has(hostnameFromHostHeader(host) ?? ""))
+        return this.projectAppDelivery.dispatchHost(request, clientAddress);
+    }
     const sessionApp = this.matchesVhost(host)
       ? undefined
       : this.matchesSessionApp(host);
@@ -516,6 +562,7 @@ export class ArtifactServer {
       this.config,
     );
     const previous = this.config;
+    await this.projectAppDelivery?.validateConfig(config);
     const deliveryChanged =
       config.port !== previous.port ||
       config.localOrigin !== previous.localOrigin ||
@@ -597,6 +644,7 @@ export class ArtifactServer {
     filePath: string,
     audience: "local" | "public",
     owned?: boolean,
+    declaredRoot?: string,
   ) {
     await this.ready;
     const origin =
@@ -620,8 +668,18 @@ export class ArtifactServer {
     const now = Date.now();
     for (const [token, grant] of this.grants)
       if (grant.expiresAt <= now) this.grants.delete(token);
-    const root = dirname(allowed.file.resolvedPath);
-    const entry = basename(allowed.file.resolvedPath);
+    // Project callers supply the canonical, containment-checked root. Resolving
+    // symlinks again here could accept a replacement pointing outside it.
+    const root = declaredRoot
+      ? resolve(declaredRoot)
+      : dirname(allowed.file.resolvedPath);
+    if (!isPathInsideDirectory(allowed.file.resolvedPath, root))
+      throw new HTTPException(403, {
+        message: "Artifact entry escapes declared root",
+      });
+    const entry = relative(root, allowed.file.resolvedPath)
+      .split("\\")
+      .join("/");
     const lifetimeMs = this.config.expiryDays! * 24 * 60 * 60 * 1000;
     // Ownership is refused rather than honoured for a directory that is
     // plainly not a disposable bundle; the grant is still created, borrowing.
@@ -692,7 +750,7 @@ export class ArtifactServer {
   private issue(grant: Grant, origin: string, reused: boolean) {
     return {
       id: grant.id,
-      url: `${origin}/a/${grant.token}/${encodeURIComponent(grant.entry)}`,
+      url: `${origin}/a/${grant.token}/${grant.entry.split("/").map(encodeURIComponent).join("/")}`,
       expiresAt: grant.expiresAt,
       owned: grant.owned,
       reused,

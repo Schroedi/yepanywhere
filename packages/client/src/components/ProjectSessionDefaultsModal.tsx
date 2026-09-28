@@ -2,6 +2,8 @@ import {
   DEFAULT_HEARTBEAT_TURN_TEXT,
   DEFAULT_HEARTBEAT_TURNS_AFTER_MINUTES,
   MAX_HEARTBEAT_TURN_TEXT_LENGTH,
+  SERVER_CAPABILITIES,
+  serverHasCapability,
 } from "@yep-anywhere/shared";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
@@ -10,6 +12,9 @@ import { useI18n } from "../i18n";
 import { HeartbeatTextArea } from "./HeartbeatTextArea";
 import styles from "./ProjectSessionDefaultsModal.module.css";
 import { Modal } from "./ui/Modal";
+import { Link } from "react-router-dom";
+import { useVersion } from "../hooks/useVersion";
+import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 
 interface ProjectSessionDefaultsModalProps {
   projectId: string;
@@ -23,6 +28,8 @@ export function ProjectSessionDefaultsModal({
   onClose,
 }: ProjectSessionDefaultsModalProps) {
   const { t } = useI18n();
+  const { version } = useVersion();
+  const basePath = useRemoteBasePath();
   const { settings } = useServerSettings();
   const globalMinutes =
     settings?.heartbeatTurnsAfterMinutes ??
@@ -110,6 +117,17 @@ export function ProjectSessionDefaultsModal({
   return (
     <Modal title={title} onClose={onClose}>
       <div className={styles.body}>
+        {serverHasCapability(
+          version,
+          SERVER_CAPABILITIES.projectService.name,
+        ) && (
+          <Link
+            to={`${basePath}/projects/${projectId}/app?settings=1`}
+            onClick={onClose}
+          >
+            {t("projectAppSettings")}
+          </Link>
+        )}
         <p className={styles.intro}>{t("projectSettingsHeartbeatIntro")}</p>
 
         <section className={styles.section}>

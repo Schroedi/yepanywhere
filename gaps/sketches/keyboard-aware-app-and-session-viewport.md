@@ -12,11 +12,10 @@ existing [mobile viewport contract](../../topics/ui-architecture.md#mobile-viewp
 `NavigationLayout.tsx` computes a focused-text-entry bottom inset from the
 top-level `visualViewport` height and offset, listens to resize/scroll and
 focus changes, and avoids double-insetting an already resized layout viewport.
-Its `getMobileVisualViewportBottomInset` returns zero for wide layouts and
-without top-level text-entry focus. Existing NavigationLayout tests cover the
-mobile inset, offset, restoration and double-inset cases. These are useful
-foundations, not proof of tablet side-by-side behavior or keyboard focus inside
-an isolated iframe (whose parent sees the iframe as the active element).
+Its `getVisualViewportBottomInset` now includes wide layouts and iframe focus,
+and ignores pinch-zoom geometry. NavigationLayout tests cover mobile/tablet
+inset, offset, restoration, zoom and double-inset cases. These are synthetic
+geometry checks, not proof of native tablet keyboard behavior.
 
 `MessageInput.tsx` also resizes its textarea on window/visual-viewport changes.
 Verify transcript anchoring alongside this; keeping the textarea visible alone
@@ -54,7 +53,9 @@ The platform building blocks are
 (only the top-level window exposes the distinct visual viewport), and the
 limited-availability
 [VirtualKeyboard API](https://developer.mozilla.org/en-US/docs/Web/API/VirtualKeyboard_API).
-The API choice and bridge schema remain implementation decisions.
+The implementation resizes the actual iframe; no message bridge or
+VirtualKeyboard API is needed for browsers reporting usable visual-viewport
+height. Floating occlusion not reported there remains a platform limitation.
 
 ## Session anchoring requirement
 
@@ -82,8 +83,13 @@ transcript anchors, caret visibility, sequential typing and no double inset.
 Synthetic geometry tests are useful but must be distinguished from native
 keyboard/device evidence. No platform keyboard was exercised in this task.
 
-Not implemented here: this request opens the gap; the current work only
-revises the project App mockup and its specification.
+Implemented 2026-09-28: the shared viewport owner resizes desktop/tablet and
+phone surfaces while retaining the app. Real browser checks simulate a 200px
+height reduction and verify iframe shrink without canvas reset; phone switching
+retains the canvas and sequentially typed draft. Existing MessageList resize
+checks pass for tail pinning and scrolled-back position preservation. The
+native-device matrix above remains open; do not describe simulation as native
+keyboard evidence. Contributing-model: 6-Astra.
 
 Found 2026-09-28 while revising the project App viewer and discussing tablet
 keyboard occlusion. Contributing-model: 6-Astra.

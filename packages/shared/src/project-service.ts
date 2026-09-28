@@ -89,8 +89,69 @@ export const projectServiceSchema = z.union([
     serving: z.strictObject({
       target: z.literal("sandbox-loopback"),
       protocol: z.literal("http"),
+      basePathEnv: z
+        .string()
+        .regex(/^(?:BASE_PATH|[A-Z][A-Z0-9_]*_BASE_PATH)$/)
+        .refine((value) => !/^(?:YA_|YEP_|AGENT_)/.test(value))
+        .optional(),
     }),
   }),
 ]);
 
 export type ProjectServiceDeclaration = z.infer<typeof projectServiceSchema>;
+
+export interface ProjectAppInfo {
+  projectId: string;
+  declaration: ProjectServiceDeclaration | null;
+  state:
+    | "none"
+    | "ready"
+    | "missing"
+    | "stopped"
+    | "starting"
+    | "running"
+    | "stopping"
+    | "failed"
+    | "unavailable";
+  error?: string;
+  generation?: string;
+  activeDeclaration?: ProjectServiceDeclaration;
+  restartRequired?: boolean;
+  latestArtifact: {
+    id: string;
+    label: string;
+    sessionId?: string;
+    associatedAt: string;
+  } | null;
+  canExecute: boolean;
+  canPublish: boolean;
+  canShare: boolean;
+  removedFrom: Array<{ username: string; at: string }>;
+}
+
+export interface ProjectAppView {
+  id: string;
+  kind: "static" | "artifact" | "service";
+  url: string;
+  expiresAt?: number;
+  label: string;
+  /** A viewer URL grants transferable access; it is not the authenticated project route. */
+  transferable: true;
+}
+
+export interface ProjectAppAddresses {
+  enabled: boolean;
+  namespace: string | null;
+  requiredPrefix: string;
+  canReserve: boolean;
+  canPublish: boolean;
+  reservations: Array<{
+    namespace: string;
+    name: string;
+    owner: string;
+    serving: boolean;
+    public: boolean;
+    privateOnly: boolean;
+    reservedAt: string;
+  }>;
+}

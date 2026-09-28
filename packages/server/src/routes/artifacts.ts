@@ -14,6 +14,7 @@ export function createArtifactRoutes(options: {
   scanner: Pick<ProjectScanner, "getProject">;
   settings?: ServerSettingsService;
   locked: boolean;
+  onArtifactCreated?: (path: string, projectId?: string) => Promise<void>;
 }) {
   const routes = new Hono();
   let updating = false;
@@ -96,18 +97,24 @@ export function createArtifactRoutes(options: {
         400,
       );
     let filePath = expandHomePath(path);
+    let canonicalProjectId: string | undefined;
     if (projectId) {
       const project = await options.scanner.getProject(projectId);
       if (!project) return c.json({ error: "Project not found" }, 404);
       filePath = resolve(project.path, filePath);
+      canonicalProjectId = project.id;
     }
-    return c.json(
-      await options.server.createGrant(
-        filePath,
-        audience,
-        owned as boolean | undefined,
-      ),
+    const grant = await options.server.createGrant(
+      filePath,
+      audience,
+      owned as boolean | undefined,
     );
+    if (options.onArtifactCreated)
+      await options.onArtifactCreated(
+        await options.server.resolveSourceUrl(grant.url),
+        canonicalProjectId,
+      );
+    return c.json(grant);
   });
   routes.delete("/artifacts/:id", async (c) => {
     await options.server.revoke(c.req.param("id"));

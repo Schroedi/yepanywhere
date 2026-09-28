@@ -6,8 +6,9 @@ directory. YA now offers authorized creation through a radio palette in Projects
 and an inline New session expansion. Native setup, Git initialization,
 registration and preparation dispatch are connected. Settings → Users has
 None / Selected / Any template grants, enforced by the server. Limited-user
-setup runs in the project-write sandbox. App-pane integration, personal
-workspace scopes and the full recovery contract remain unfinished.
+setup runs in the project-write sandbox. Project App/service integration is
+implemented; personal workspace scopes and the full recovery contract remain
+unfinished.
 
 The agreed format and product behavior live in
 [project templates](../topics/project-templates.md#current-contract--config-driven-templates).
@@ -44,9 +45,9 @@ Personal removal landed, 2026-09-28: a limited owner's DELETE now persists a
 personal hidden marker and actor/time event, without changing canonical
 project metadata. List projections honor it after reconnect; direct access
 still follows grants. The Projects confirmation is capability-gated. Retained
-artifact identity and first-claim-wins reservation storage also exist, but
-association and serving routes plus administrator audit/restore UI remain
-pending. Contributing-model: 6-Astra.
+artifact association, first-claim-wins reservations, serving routes and the
+administrator audit/restore UI in project App Settings are implemented.
+Contributing-model: 6-Astra.
 
 With templates enabled and a ready source configured, permitted users can create a
 project and start preparation through either entry point. The chooser rereads
@@ -92,9 +93,12 @@ project; the grant UI is not useful before creation exists.
 Backend foundation landed, 2026-09-28: YA validates the optional versioned
 service declaration and has a project-owned sandbox runner with private-broker
 readiness, serialized lifecycle actions and persisted interrupted/stop state.
-Twelve focused tests pass, including real sandbox launches. API admission,
-association storage, delivery, project UI and source-library updates remain
-unimplemented; this does not make the App entry available.
+API admission, association storage, direct/relay delivery and the full-height
+project/session App UI are implemented. Native sandbox and browser checks cover
+these paths. Existing static source declarations are adapted; source-library
+server add-ons still need the versioned service declaration. Fine-grained
+publication grants, creation-time reservations and global orphaned-name
+inventory remain broader template work.
 Contributing-model: 6-Astra.
 
 - User-directed, 2026-09-28: implement the standardized declaration and

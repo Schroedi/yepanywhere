@@ -219,8 +219,8 @@ session behavior described above; it refuses the turn instead.
 
 ### Approved project removal retention
 
-User-directed, 2026-09-28; **personal removal and retained audit storage
-implemented; administrator audit/restore UI pending**. A limited user's project
+User-directed, 2026-09-28; **personal removal, retained audit storage and
+administrator restore in project App Settings implemented**. A limited user's project
 delete action only removes the project from that user's view. Label it
 **Remove from my projects** and explain that files and history remain. Store
 the personal hidden marker and an actor/time audit event in YA app data.
@@ -230,8 +230,8 @@ audit records. The superuser retains visibility, including who removed it
 and when, and can restore it with a recorded action. Do not implicitly stop
 its app or release a reserved hostname. The `personal-project-hiding`
 capability guarantees these removal semantics; older servers retain their
-existing removal label and confirmation. The administrator audit/restore
-surface remains part of project App integration.
+existing removal label and confirmation. Administrator restoration also
+invalidates connected project lists.
 The [project service contract](project-service.md) and existing
 [template integration gap](../gaps/project-template-standup.md) track this
 auditability requirement together with project App access.

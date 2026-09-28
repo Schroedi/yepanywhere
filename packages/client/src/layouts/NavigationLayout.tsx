@@ -92,16 +92,18 @@ function isKeyboardTextEntry(
   return target instanceof HTMLElement && target.isContentEditable;
 }
 
-function getMobileVisualViewportBottomInset(
-  isWideScreen: boolean,
+function getVisualViewportBottomInset(
   activeElement: EventTarget | null = document.activeElement,
 ): number {
   const visualViewport = window.visualViewport;
   const layoutViewportHeight = window.innerHeight;
   if (
-    isWideScreen ||
     !visualViewport ||
-    !isKeyboardTextEntry(activeElement) ||
+    Math.abs((visualViewport.scale ?? 1) - 1) > 0.01 ||
+    !(
+      isKeyboardTextEntry(activeElement) ||
+      activeElement instanceof HTMLIFrameElement
+    ) ||
     layoutViewportHeight <= 0 ||
     visualViewport.height >=
       layoutViewportHeight * MOBILE_KEYBOARD_OPEN_VIEWPORT_RATIO
@@ -268,10 +270,7 @@ function NavigationLayoutFrame({ sessionElement }: NavigationLayoutProps) {
     }
 
     const applyInset = (activeElement: EventTarget | null) => {
-      const inset = getMobileVisualViewportBottomInset(
-        isWideScreen,
-        activeElement,
-      );
+      const inset = getVisualViewportBottomInset(activeElement);
       if (inset > 0) {
         frame.style.paddingBottom = `calc(env(safe-area-inset-bottom, 0px) + ${inset}px)`;
       } else {
@@ -296,7 +295,7 @@ function NavigationLayoutFrame({ sessionElement }: NavigationLayoutProps) {
       document.removeEventListener("focusin", handleFocusIn);
       document.removeEventListener("focusout", handleFocusOut);
     };
-  }, [isWideScreen]);
+  }, []);
 
   // Auto-collapse if viewport too narrow for expanded sidebar, or if user prefers collapsed
   const effectivelyCollapsed =

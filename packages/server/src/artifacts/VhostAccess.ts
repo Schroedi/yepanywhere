@@ -12,6 +12,10 @@ import { vhostExternalProtocol, type ArtifactVhost } from "./vhosts.js";
 const COOKIE = "ya_app_access";
 export const APP_ACCESS_QUERY = "ya_access";
 
+export type AppAccessTarget =
+  | ArtifactVhost
+  | { name: string; projectId: string; generation?: string; public?: boolean };
+
 /** Durable, app-scoped bearer links. Restart never rotates credentials. */
 export class VhostAccess {
   readonly ready: Promise<void>;
@@ -58,19 +62,29 @@ export class VhostAccess {
   private generation(name: string): number {
     return Object.hasOwn(this.generations, name) ? this.generations[name]! : 0;
   }
-  token(row: ArtifactVhost): string {
+  token(row: AppAccessTarget): string {
     return createHmac("sha256", this.secret)
       .update(
-        JSON.stringify([
-          "vhost-access-v1",
-          row.name,
-          row.port,
-          this.generation(row.name),
-        ]),
+        JSON.stringify(
+          "projectId" in row
+            ? [
+                "project-app-access-v1",
+                row.name,
+                row.projectId,
+                row.generation ?? null,
+                this.generation(row.name),
+              ]
+            : [
+                "vhost-access-v1",
+                row.name,
+                row.port,
+                this.generation(row.name),
+              ],
+        ),
       )
       .digest("base64url");
   }
-  async rotate(row: ArtifactVhost) {
+  async rotate(row: AppAccessTarget) {
     await this.ready;
     const operation = this.writing.then(async () => {
       const next = {
@@ -89,7 +103,7 @@ export class VhostAccess {
   /** Validate the URL bearer or a host-only cookie; never pass either upstream. */
   authorize(
     request: Request,
-    row: ArtifactVhost,
+    row: AppAccessTarget,
   ): { request: Request; cookie?: string } | null {
     const url = new URL(request.url);
     const bearer = url.searchParams.get(APP_ACCESS_QUERY);

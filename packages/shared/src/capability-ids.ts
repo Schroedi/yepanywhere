@@ -570,6 +570,18 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "personal-project-hiding",
     introducedIn: "0.9.4",
   },
+  projectService: {
+    id: 92,
+    direction: "server",
+    name: "project-service",
+    introducedIn: "0.9.4",
+  },
+  projectAppReservations: {
+    id: 93,
+    direction: "server",
+    name: "project-app-reservations",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

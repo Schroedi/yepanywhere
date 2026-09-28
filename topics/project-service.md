@@ -6,13 +6,14 @@
 
 Topic: project-service
 
-Status: **Backend foundation implemented; product integration pending.**
-The versioned declaration validator, contained static-entry lookup and
-project-owned sandbox runner exist. The runner serializes lifecycle actions,
-checks HTTP readiness through the private broker, persists launch identity and
-reports interrupted state after restart without adopting a PID. Native tests
-exercise startup, duplicate requests, confinement and owned shutdown. It is
-not yet wired to API routes or advertised to clients. User-directed scope, 2026-09-28:
+Status: **Project App, service lifecycle and project address settings implemented.**
+The App entry works in direct and relay clients, with separately admitted
+service and reservation APIs. The sandbox runner serializes lifecycle actions,
+checks readiness through its private broker and reports interrupted state after
+restart without adopting a PID. Desktop/phone browser checks cover the main
+viewer, composer handoff, retained canvas/draft and simulated viewport shrink.
+Native tablet keyboard acceptance remains in the linked keyboard gap.
+User-directed scope, 2026-09-28:
 project App access for limited users and the superuser, standardized template
 service declarations, optional vhost association, and audit-preserving removal.
 The [template integration gap](../gaps/project-template-standup.md) tracks
@@ -118,9 +119,12 @@ An optional, explicitly versioned `service` object is validated by the YA
 template loader. The template
 manifest's existing `formatVersion: 1`, file composition, `setup`, `build`,
 `test`, `preview`, `prepare`, and add-on contracts remain unchanged. Source
-format documentation, loader validation and capability admission must land
-together before templates ship this extension as supported. Source-library
-updates and capability admission remain pending.
+format documentation, loader validation and capability admission define the
+extension together. Existing source libraries may retain their older format:
+YA adapts only `{ "kind": "static", "dir": "dist" }` to a static entry
+`index.html`. It never infers process commands from legacy preview/start fields.
+The source library's server add-on must emit the versioned declaration before
+its process can use this lifecycle.
 
 Example for a template with an application server:
 
@@ -149,6 +153,13 @@ Example for a template with an application server:
 | `status` | Process only: YA probes the declared HTTP path through that launch's broker until the exact expected response or startup timeout. Never execute a template-supplied status command. Probe only the owned endpoint; redirects cannot turn this into an arbitrary fetch. |
 | `stop` | Process only: stop the owned process group with SIGTERM, wait `graceMs`, then report stopped or failed-to-stop. No arbitrary kill command, port-owner lookup, unrelated-process signaling or implicit SIGKILL. |
 | `serving` | Static uses `target: "static-root"`; process uses `target: "sandbox-loopback"`, `protocol: "http"`. This names the backend, not a public hostname, bearer, PID or host port. Vhost association lives separately in YA app data. |
+
+For process delivery without a wildcard hostname, `serving.basePathEnv` names
+an environment variable through which YA supplies the app's scoped URL prefix.
+Use `BASE_PATH` or an uppercase name ending in `_BASE_PATH`, excluding `YA_`,
+`YEP_` and `AGENT_`. The app must honor that prefix for navigation, assets and
+API calls; YA prefixes its readiness probe too. A generic root-relative app
+requires a dedicated hostname. YA does not rewrite arbitrary response bodies.
 
 A static template such as the initial App canvas declares:
 
@@ -208,10 +219,14 @@ broker after the app exits, and retains the declaration and name reservation.
 operator vhost hosting or claiming a public name. An authenticated project
 request selects the permitted app, and a scoped, isolated viewer delivery
 path proxies only its backend through the sandbox broker (or serves its static
-root). Direct and relay clients need the same product behavior. Relay carriage
-and a safe, separately isolated browser origin still require implementation;
-never iframe a host `127.0.0.1` URL or serve executable HTML under YA's API
-origin as a shortcut. A missing delivery capability reports Unavailable.
+root). Static apps use existing artifact grants. A process honoring
+`basePathEnv` uses `/p/<launch-token>/` on the isolated artifact origin, including
+the public artifact origin for relay clients. This bearer path is cookie-less:
+YA strips request credentials and response cookies, gives it an opaque sandbox
+origin and allows credential-free CORS for its own API calls. The token expires
+with the launch. Apps requiring cookies/storage or root-relative URLs use a
+dedicated app hostname instead. Missing safe delivery configuration fails
+explicitly; never iframe host loopback or serve executable HTML on YA's origin.
 
 **With a reserved vhost:** the configured tunnel/router carries requests to
 YA's app host handler, which authorizes the app request and forwards to that
@@ -232,9 +247,11 @@ Existing pieces verified in source on 2026-09-28:
   first service boundary; do not promise Vite HMR or WebSocket applications
   until [WebSocket forwarding](../gaps/vhost-websocket-forwarding.md) is closed.
 
-The separate project runner now reuses these sandbox facilities. Retained
-artifact association and address-reservation storage exists, but its API and
-delivery integration, main-pane UI and no-vhost relay delivery remain pending.
+The separate project runner reuses these sandbox facilities. Viewing never
+starts it. Settings refreshes status on entry and after lifecycle actions;
+explicit Reload renews the current target, without background replacement of
+an interacting iframe. A changed declaration is shown alongside the active
+launch; stopping that launch remains possible even if the new file is invalid.
 
 ## App address in project Settings
 
@@ -260,6 +277,14 @@ unchecked choice where allowed. A reservation grant does not imply publishing
 authority. Keep first-claim-wins persistence and superuser-only release from
 [project templates](project-templates.md#persistent-app-name-reservations).
 
+The initial implementation keeps every limited-owned project/reservation
+private, including an administrator's claim for that project. Fine-grained
+limited-user publication grants and the configurable ceiling remain future
+work. Release rotates the address bearer before freeing the claim. Static
+reservations redirect authorized opens to a contained artifact grant; process
+reservations proxy the same sandbox. Previous namespace rows stay visible in
+Settings while vhosts are enabled, and cannot silently be reassigned.
+
 ## Authorization and audit-preserving removal
 
 Reuse the authenticated YA principal and existing project grants; do not add
@@ -280,7 +305,8 @@ project. Restoration clears the marker with an audit event. See
 [limited users](limited-users.md#approved-project-removal-retention).
 
 Personal hiding and audit storage are implemented under
-`personal-project-hiding`. The administrator audit/restore UI is pending.
+`personal-project-hiding`; project App Settings shows retained removal records
+to the administrator and provides Restore with a fresh audit event.
 
 ## Delivery acceptance
 

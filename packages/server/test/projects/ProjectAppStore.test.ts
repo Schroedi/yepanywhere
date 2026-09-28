@@ -91,6 +91,9 @@ describe("retained project app state", () => {
         throw new Error("Publication denied");
       }),
     ).rejects.toThrow("Publication denied");
+    await expect(
+      restored.setServing("first", "apps.example", true, true, async () => {}),
+    ).rejects.toThrow("require a private link");
     expect(await restored.reservations("first")).toEqual([reservation]);
     await restored.setServing(
       "first",

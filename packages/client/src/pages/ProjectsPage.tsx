@@ -504,6 +504,10 @@ export function ProjectsPage() {
             <ul className="project-list-cards">
               {sortedProjects.map((project) => (
                 <ProjectCard
+                  appEnabled={serverHasCapability(
+                    version,
+                    SERVER_CAPABILITIES.projectService.name,
+                  )}
                   key={project.id}
                   project={project}
                   needsAttentionCount={

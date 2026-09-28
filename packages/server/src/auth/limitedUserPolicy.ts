@@ -308,6 +308,8 @@ export function decideLimitedRoute(
     const projectId = decodeSegment(projectScoped[1] as string);
     if (projectId === null) return { kind: "deny" };
     const rest = projectScoped[2] ?? "";
+    if (rest === "/app/open" && method === "POST")
+      return { kind: "project", projectId, required: "view" };
     if (rest === "/sessions" || rest === "/sessions/create") {
       // Creating a session in this project. Checked before the session-scoped
       // match below, whose `[^/]+` would otherwise read "create" as an id.

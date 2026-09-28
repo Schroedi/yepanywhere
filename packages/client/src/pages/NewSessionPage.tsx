@@ -6,10 +6,12 @@ import type {
 import {
   ALL_PERMISSION_MODES,
   PROJECT_CODE_NAMES_CAPABILITY,
+  SERVER_CAPABILITIES,
   serverHasCapability,
 } from "@yep-anywhere/shared";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { NewSessionForm } from "../components/NewSessionForm";
 import { PageHeader } from "../components/PageHeader";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
@@ -49,6 +51,7 @@ function parsePreferredPermissionMode(
 }
 
 export function NewSessionPage() {
+  const basePath = useRemoteBasePath();
   const { t } = useI18n();
   const { showToast } = useToastContext();
   const [incomingShareFiles, setIncomingShareFiles] = useState<readonly File[]>(
@@ -199,6 +202,15 @@ export function NewSessionPage() {
 
       <main className="page-scroll-container">
         <div className="page-content-inner new-session-page-shell">
+          {projectId &&
+            serverHasCapability(
+              version,
+              SERVER_CAPABILITIES.projectService.name,
+            ) && (
+              <Link to={`${basePath}/projects/${projectId}/app?compose=1`}>
+                {t("projectAppWhileComposing")}
+              </Link>
+            )}
           <NewSessionForm
             incomingShareFiles={incomingShareFiles}
             projectId={projectId}

@@ -50,6 +50,15 @@
   min-width: 0;
   overflow: hidden;
 }
+.appContent {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.appContent:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+}
 .splitter {
   position: absolute;
   left: 0;
@@ -98,6 +107,9 @@
   }
 }
 @media (max-width: 1099px) {
+  .pane.projectFullscreen {
+    inset: 0;
+  }
   .pane {
     position: absolute;
     inset: 0 0 0 24px;

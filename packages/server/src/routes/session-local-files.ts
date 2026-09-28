@@ -21,6 +21,7 @@ export function createSessionLocalFileRoutes(deps: {
   scanner: Pick<ProjectScanner, "listProjects">;
   scope: SessionPathScopeResolver;
   artifactServer: ArtifactServer;
+  onArtifactCreated?: (sessionId: string, path: string) => Promise<void>;
 }) {
   const routes = new Hono();
   const fileDeps = {
@@ -60,13 +61,16 @@ export function createSessionLocalFileRoutes(deps: {
       scanner: deps.scanner,
     }).resolveAllowedFilePath(scoped.hostPath);
     if (!allowed.ok) return c.json({ error: allowed.error }, allowed.status);
-    return c.json(
-      await deps.artifactServer.createGrant(
-        allowed.file.resolvedPath,
-        audience,
-        false,
-      ),
+    const grant = await deps.artifactServer.createGrant(
+      allowed.file.resolvedPath,
+      audience,
+      false,
     );
+    await deps.onArtifactCreated?.(
+      c.req.param("sessionId"),
+      allowed.file.resolvedPath,
+    );
+    return c.json(grant);
   });
   return routes;
 }

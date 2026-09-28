@@ -83,6 +83,13 @@ import { createProjectTemplateRoutes } from "./routes/project-templates.js";
 import { TemplateSourceService } from "./projects/TemplateSourceService.js";
 import { TemplateCreationService } from "./projects/TemplateCreationService.js";
 import { ProjectAppStore } from "./projects/ProjectAppStore.js";
+import {
+  ProjectServiceManager,
+  readProjectService,
+  projectServiceStaticApp,
+} from "./projects/ProjectServiceManager.js";
+import { ProjectAppDelivery } from "./artifacts/ProjectAppDelivery.js";
+import { createProjectAppRoutes } from "./routes/project-app.js";
 import { SESSION_COOKIE_NAME } from "./auth/routes.js";
 import { getCookie as getRequestCookie } from "hono/cookie";
 import { levelFor } from "./auth/limitedUserPolicy.js";
@@ -250,7 +257,10 @@ import { createLocalFileRoutes } from "./routes/local-file.js";
 import { createFileEditRoutes } from "./routes/file-edit.js";
 import { ArtifactRebuildService } from "./services/ArtifactRebuildService.js";
 import { createLocalImageRoutes } from "./routes/local-image.js";
-import { createLocalResourcePathPolicy } from "./routes/local-resource-policy.js";
+import {
+  createLocalResourcePathPolicy,
+  isPathInsideDirectory,
+} from "./routes/local-resource-policy.js";
 import { type UploadDeps, createUploadRoutes } from "./routes/upload.js";
 import { createSpeechRoutes } from "./routes/speech.js";
 import type { SpeechBackendInstallService } from "./services/voice/speechBackendInstall.js";
@@ -1131,6 +1141,41 @@ export function createApp(options: AppOptions): AppResult {
     allowedPaths: getAllowedFilePaths,
     includeProjects: shouldIncludeProjects,
   });
+  const projectServices = new ProjectServiceManager(effectiveDataDir);
+  const projectAppDelivery = new ProjectAppDelivery(
+    artifactServer,
+    projectServices,
+    projectAppStore,
+    async (projectId) => {
+      const project = await scanner.getProject(projectId);
+      if (!project) return null;
+      const declaration = await readProjectService(project.path);
+      if (declaration?.where.kind !== "static") return null;
+      return projectServiceStaticApp(project.path, declaration);
+    },
+  );
+  artifactServer.setProjectAppDelivery(projectAppDelivery);
+  app.route(
+    "/api",
+    createProjectAppRoutes({
+      scanner,
+      store: projectAppStore,
+      services: projectServices,
+      artifacts: artifactServer,
+      sessionAccess: sessionAccessResolver,
+      sessionPathScope,
+      activeGrants: getActiveLimitedGrants,
+      delivery: projectAppDelivery,
+      onVisibilityChanged: (projectId) =>
+        options.eventBus?.emit({
+          type: "projects-changed",
+          projectIds: [projectId],
+          timestamp: new Date().toISOString(),
+        }),
+      openService: (projectId, audience) =>
+        projectAppDelivery.open(projectId, audience),
+    }),
+  );
   app.route(
     "/api",
     createArtifactRoutes({
@@ -1138,6 +1183,16 @@ export function createApp(options: AppOptions): AppResult {
       scanner,
       settings: options.serverSettingsService,
       locked: options.artifacts !== undefined,
+      onArtifactCreated: async (path, projectId) => {
+        const candidates = projectId
+          ? [await scanner.getProject(projectId)]
+          : await scanner.listProjects();
+        const project = candidates
+          .filter((candidate) => candidate !== null)
+          .filter((candidate) => isPathInsideDirectory(path, candidate.path))
+          .sort((left, right) => right.path.length - left.path.length)[0];
+        if (project) await projectAppStore.associate(project.id, path);
+      },
     }),
   );
   app.route(
@@ -1148,6 +1203,11 @@ export function createApp(options: AppOptions): AppResult {
       scanner,
       scope: sessionPathScope,
       artifactServer,
+      onArtifactCreated: async (sessionId, path) => {
+        const session = await sessionAccessResolver.resolve(sessionId);
+        if (session && (await scanner.getProject(session.projectId)))
+          await projectAppStore.associate(session.projectId, path, sessionId);
+      },
     }),
   );
   app.route(
@@ -1236,6 +1296,7 @@ export function createApp(options: AppOptions): AppResult {
   let vocabularyKeyterms: VocabularyKeyterms | undefined;
   let unsubscribeVocabulary: (() => void) | undefined;
   const disposeSessionReaders = async (): Promise<void> => {
+    await projectServices.close();
     await projectAppStore.close();
     await templateCreations.close();
     await computerControl?.close();

@@ -109,6 +109,11 @@ const NewSessionPage = lazy(() =>
     default: NewSessionPage,
   })),
 );
+const ProjectAppPage = lazy(() =>
+  import("./pages/ProjectAppPage").then(({ ProjectAppPage }) => ({
+    default: ProjectAppPage,
+  })),
+);
 const ProjectsPage = lazy(() =>
   import("./pages/ProjectsPage").then(({ ProjectsPage }) => ({
     default: ProjectsPage,
@@ -366,6 +371,10 @@ if (import.meta.env.DEV && window.location.port === String(__VITE_DEV_PORT__)) {
                       element={routeModule(<SettingsLayout />)}
                     />
                     {/* Project-scoped pages */}
+                    <Route
+                      path="/projects/:projectId/app"
+                      element={routeModule(<ProjectAppPage />)}
+                    />
                     <Route
                       path="/projects/:projectId/workstreams"
                       element={routeModule(<WorkstreamsPage />)}

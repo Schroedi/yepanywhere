@@ -10,6 +10,7 @@ import { ProjectCodeNameEditor } from "./ProjectCodeNameEditor";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 
 interface ProjectCardProps {
+  appEnabled?: boolean;
   project: Project;
   /** Number of sessions needing approval/input in this project */
   needsAttentionCount: number;
@@ -57,6 +58,7 @@ function formatRelativeTime(timestamp: string): string {
  * Matches visual style of SessionListItem card mode.
  */
 export function ProjectCard({
+  appEnabled = false,
   project,
   needsAttentionCount,
   thinkingCount,
@@ -101,6 +103,21 @@ export function ProjectCard({
         data-project-card-link=""
       >
         <div className={styles.header}>
+          {appEnabled && (
+            <button
+              type="button"
+              className={styles.newSession}
+              aria-label={t("projectAppOpen")}
+              title={t("projectAppOpen")}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                navigate(`${basePath}/projects/${project.id}/app`);
+              }}
+            >
+              {t("projectAppLabel")}
+            </button>
+          )}
           {onOpenSettings && (
             <button
               type="button"

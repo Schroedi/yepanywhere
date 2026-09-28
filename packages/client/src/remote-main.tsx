@@ -226,6 +226,11 @@ const NewSessionPage = lazy(() =>
     default: NewSessionPage,
   })),
 );
+const ProjectAppPage = lazy(() =>
+  import("./pages/ProjectAppPage").then(({ ProjectAppPage }) => ({
+    default: ProjectAppPage,
+  })),
+);
 const ProjectsPage = lazy(() =>
   loadProjectsPageModule().then(({ ProjectsPage }) => ({
     default: ProjectsPage,
@@ -364,6 +369,10 @@ const APP_ROUTES = (
       }
     >
       <Route path="projects" element={routeModule(<ProjectsPage />)} />
+      <Route
+        path="projects/:projectId/app"
+        element={routeModule(<ProjectAppPage />)}
+      />
       <Route
         path="projects/:projectId/workstreams"
         element={routeModule(<WorkstreamsPage />)}

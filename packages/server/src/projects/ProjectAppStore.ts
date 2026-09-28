@@ -25,9 +25,11 @@ const reservationSchema = z.strictObject({
   reservedAt: z.string(),
   serving: z.boolean(),
   public: z.boolean(),
+  privateOnly: z.boolean().default(true),
 });
 const projectSchema = z.strictObject({
   latestArtifact: artifactSchema.optional(),
+  artifactHistory: z.array(artifactSchema).default([]),
   visibility: z.record(z.string(), z.boolean()),
   visibilityEvents: z.array(visibilityEventSchema),
 });
@@ -97,7 +99,7 @@ export class ProjectAppStore {
   ): z.infer<typeof projectSchema> {
     if (!Object.hasOwn(state.projects, projectId))
       Object.defineProperty(state.projects, projectId, {
-        value: { visibility: {}, visibilityEvents: [] },
+        value: { artifactHistory: [], visibility: {}, visibilityEvents: [] },
         enumerable: true,
         configurable: true,
         writable: true,
@@ -120,6 +122,10 @@ export class ProjectAppStore {
     sessionId?: string,
   ): Promise<ProjectArtifactAssociation> {
     return this.change((state) => {
+      const project = this.project(state, projectId);
+      const previous = project.latestArtifact;
+      if (previous?.path === path && previous.sessionId === sessionId)
+        return structuredClone(previous);
       const artifact = artifactSchema.parse({
         id: randomUUID(),
         path,
@@ -127,9 +133,24 @@ export class ProjectAppStore {
         associatedAt: new Date().toISOString(),
         order: state.nextAssociation++,
       });
-      this.project(state, projectId).latestArtifact = artifact;
+      if (previous) project.artifactHistory.push(previous);
+      project.latestArtifact = artifact;
       return structuredClone(artifact);
     });
+  }
+
+  async artifact(
+    projectId: string,
+    id: string,
+  ): Promise<ProjectArtifactAssociation | null> {
+    await this.ready;
+    if (!Object.hasOwn(this.state.projects, projectId)) return null;
+    const project = this.state.projects[projectId]!;
+    return structuredClone(
+      project.latestArtifact?.id === id
+        ? project.latestArtifact
+        : (project.artifactHistory.find((entry) => entry.id === id) ?? null),
+    );
   }
 
   async hiddenProjectIds(username: string): Promise<ReadonlySet<string>> {
@@ -188,11 +209,16 @@ export class ProjectAppStore {
     );
   }
 
+  async allReservations(): Promise<ProjectAppReservation[]> {
+    await this.ready;
+    return structuredClone(this.state.reservations);
+  }
+
   reserve(
     input: Pick<
       ProjectAppReservation,
       "namespace" | "name" | "projectId" | "owner"
-    >,
+    > & { privateOnly?: boolean },
     authorize: () => Promise<void>,
   ): Promise<ProjectAppReservation> {
     return this.change(async (state) => {
@@ -242,6 +268,8 @@ export class ProjectAppStore {
           entry.projectId === projectId && entry.namespace === namespace,
       );
       if (!row) throw new Error("Project has no reserved app address");
+      if (publicAccess && row.privateOnly)
+        throw new Error("This owner's apps require a private link");
       row.serving = serving;
       row.public = publicAccess;
       return structuredClone(row);
@@ -251,5 +279,18 @@ export class ProjectAppStore {
   async close(): Promise<void> {
     await this.ready;
     await this.writing;
+  }
+
+  release(
+    projectId: string,
+    namespace: string,
+    authorize: () => Promise<void>,
+  ): Promise<void> {
+    return this.change(async (state) => {
+      await authorize();
+      state.reservations = state.reservations.filter(
+        (row) => row.projectId !== projectId || row.namespace !== namespace,
+      );
+    });
   }
 }

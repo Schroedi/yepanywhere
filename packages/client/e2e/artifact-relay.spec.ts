@@ -249,6 +249,43 @@ test.afterAll(async () => {
   if (directory) await rm(directory, { recursive: true });
 });
 
+test("opens the project App latest artifact through the relay without vhosts", async ({
+  page,
+}) => {
+  const directApiRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/projects/"))
+      directApiRequests.push(request.url());
+  });
+  await page.goto(clientOrigin);
+  await page.getByTestId("relay-mode-button").click();
+  await page.getByTestId("relay-username-input").fill(username);
+  await page.getByTestId("srp-password-input").fill(password);
+  await page.getByText("Show Advanced Options", { exact: true }).click();
+  await page.getByTestId("custom-relay-url-input").fill(relayUrl);
+  await page.getByTestId("login-button").click();
+  await expect(page.getByTestId("relay-login-form")).not.toBeVisible({
+    timeout: 15000,
+  });
+  await page.goto(
+    `${clientOrigin}/-/relay/${username}/projects/${projectId}/app`,
+  );
+  const viewer = page.getByRole("region", { name: "Project App" });
+  await expect(viewer.locator("iframe")).toBeVisible();
+  await expect(viewer.locator("iframe")).toHaveAttribute(
+    "src",
+    new RegExp(`^${artifactOrigin}/a/`),
+  );
+  await expect(page.frameLocator("iframe").getByRole("status")).toHaveText(
+    "3 sample notes",
+  );
+  await viewer.getByRole("button", { name: "App settings" }).click();
+  await expect(viewer.getByRole("group", { name: "App address" })).toHaveCount(
+    0,
+  );
+  expect(directApiRequests).toEqual([]);
+});
+
 test("opens original interactive files through relay grants and a separate HTTPS origin", async ({
   page,
   context,

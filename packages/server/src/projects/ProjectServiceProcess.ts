@@ -25,6 +25,7 @@ export interface ProjectServiceCommand {
   startupTimeoutMs: number;
   stopGraceMs: number;
   sandboxStateRoot?: string;
+  basePath?: { env: string; value: string };
 }
 
 export type ProjectServiceProcessState =
@@ -73,8 +74,7 @@ export class ProjectServiceProcess {
         stateRoot: this.command.sandboxStateRoot,
       });
       if (
-        !sandbox ||
-        sandbox.enforcement.state !== "enforced" ||
+        sandbox?.enforcement.state !== "enforced" ||
         sandbox.enforcement.networkFirewall !== true
       )
         throw new Error(
@@ -83,6 +83,8 @@ export class ProjectServiceProcess {
       this.startup.signal.throwIfAborted();
       const environment = filterEnvForChildProcess(process.env);
       environment[this.command.portEnv] = String(this.port);
+      if (this.command.basePath)
+        environment[this.command.basePath.env] = this.command.basePath.value;
       // env changes cwd after Bubblewrap installs the anchored project mount.
       const wrapped = sandbox.wrapSpawn(
         "/usr/bin/env",
@@ -179,9 +181,10 @@ export class ProjectServiceProcess {
   stop(): Promise<void> {
     this.stopRequested = true;
     this.startup.abort();
-    return (this.stopping ??= this.stopChild().finally(() => {
+    this.stopping ??= this.stopChild().finally(() => {
       this.stopping = undefined;
-    }));
+    });
+    return this.stopping;
   }
 
   private async stopChild(): Promise<void> {

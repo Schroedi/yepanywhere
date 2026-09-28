@@ -204,6 +204,54 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  projectService: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectService.id,
+    name: "project-service",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Project App resolution, isolated delivery and sandboxed service lifecycle.",
+    clientFallback: "Hide project App and send no project App requests.",
+    serverContract: {
+      routes: [
+        "GET /api/projects/:projectId/app",
+        "POST /api/projects/:projectId/app/open",
+        "POST /api/projects/:projectId/app/start",
+        "POST /api/projects/:projectId/app/stop",
+        "POST /api/projects/:projectId/app/restore",
+      ],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers lack project-owned app services.",
+    },
+  },
+  projectAppReservations: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectAppReservations.id,
+    name: "project-app-reservations",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Retained first-claim project app addresses with separate administrator publication.",
+    clientFallback:
+      "Hide project address settings and send no reservation requests.",
+    serverContract: {
+      routes: [
+        "GET /api/projects/:projectId/app/address",
+        "POST /api/projects/:projectId/app/address/reserve",
+        "POST /api/projects/:projectId/app/address/serve",
+        "POST /api/projects/:projectId/app/address/release",
+      ],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers lack persistent project app addresses.",
+    },
+  },
   personalProjectHiding: {
     id: CAPABILITY_ID_ALLOCATIONS.personalProjectHiding.id,
     name: "personal-project-hiding",

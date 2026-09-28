@@ -1,4 +1,6 @@
 import { ComputerSessionSelection } from "./ComputerSessionSelection";
+import { useComposerVoiceRef } from "../hooks/useComposerVoiceRef";
+import type { ProjectAppTarget } from "../api/projectApp";
 import { TemplateProjectForm } from "./TemplateProjectForm";
 import { ComposerRecents } from "./ComposerRecents";
 import { PromptHistoryRail } from "./PromptHistoryRail";
@@ -302,6 +304,8 @@ function unprobedProviderRow(name: ProviderName): ProviderInfo {
 }
 
 export interface NewSessionFormProps {
+  projectApp?: ProjectAppTarget;
+  onVoiceControl?: (control: VoiceInputButtonRef | null) => void;
   projectId?: string;
   selectedProject?: Project | null;
   projects?: Project[];
@@ -389,6 +393,8 @@ function NewSessionOptionSection({
 }
 
 export function NewSessionForm({
+  projectApp,
+  onVoiceControl,
   projectId,
   selectedProject,
   projects = [],
@@ -522,6 +528,7 @@ export function NewSessionForm({
   const mainStackRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const voiceButtonRef = useRef<VoiceInputButtonRef>(null);
+  const sharedVoiceRef = useComposerVoiceRef(voiceButtonRef, onVoiceControl);
   const speechTurnIdRef = useRef<string | null>(null);
   const speechInsertionRangeRef = useRef<SpeechInsertionRange | null>(null);
   const activeSpeechTargetIdRef = useRef<string | null>(null);
@@ -2672,6 +2679,7 @@ export function NewSessionForm({
           `${basePath}/projects/${resolvedProjectId}/sessions/${sessionId}`,
           {
             state: createSessionNavigationState({
+              projectApp,
               initialStatus: {
                 owner: "self",
                 processId,
@@ -2754,6 +2762,7 @@ export function NewSessionForm({
       navigate,
       pendingFiles,
       projectInput,
+      projectApp,
       recapAfterSeconds,
       effectiveSandboxLevel,
       effectiveSandboxNetworkFirewall,
@@ -3654,7 +3663,7 @@ export function NewSessionForm({
               onPointerNearTrigger={() => voiceButtonRef.current?.prewarm?.()}
               trigger={
                 <VoiceInputButton
-                  ref={voiceButtonRef}
+                  ref={sharedVoiceRef}
                   onTranscript={handleVoiceTranscript}
                   onInterimTranscript={handleInterimTranscript}
                   onListeningStart={handleListeningStart}

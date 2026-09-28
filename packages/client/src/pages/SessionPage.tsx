@@ -76,6 +76,8 @@ import {
   SessionAppAction,
 } from "../components/SessionRightPane";
 import { useSessionRightPane } from "../hooks/useSessionRightPane";
+import { ProjectAppViewer } from "../components/ProjectAppViewer";
+import type { VoiceInputButtonRef } from "../components/VoiceInputButton";
 import { useCanUseBearerGrants } from "../hooks/useActingPrincipal";
 import { BtwAsideStickyCards } from "../components/BtwAsideStickyCards";
 import { ClientLogRecordingBadge } from "../components/ClientLogRecordingBadge";
@@ -560,6 +562,13 @@ function SessionPageContent({
   const initialTitle = navState?.initialTitle;
   const initialModel = navState?.initialModel;
   const initialProvider = navState?.initialProvider;
+  const [projectAppTarget] = useState(navState.projectApp);
+  const [projectAppOpen, setProjectAppOpen] = useState(!!navState.projectApp);
+  const [projectAppVoice, setProjectAppVoice] =
+    useState<VoiceInputButtonRef | null>(null);
+  const projectAppEnabled =
+    !!projectAppTarget &&
+    serverHasCapability(versionInfo, SERVER_CAPABILITIES.projectService.name);
   const clientTailParams = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return {
@@ -734,11 +743,22 @@ function SessionPageContent({
     sessionId,
     { projectId, fetchAppLinks: canUseBearerGrants },
   );
+  useEffect(() => {
+    if (rightPane.paneViewer?.id) setProjectAppOpen(false);
+  }, [rightPane.paneViewer?.id]);
   useLayoutEffect(() => {
     if (isDomLingerParked) return;
-    setRightPaneExpanded?.(rightPane.expanded);
+    setRightPaneExpanded?.(
+      rightPane.expanded || (projectAppEnabled && projectAppOpen),
+    );
     return () => setRightPaneExpanded?.(false);
-  }, [rightPane.expanded, isDomLingerParked, setRightPaneExpanded]);
+  }, [
+    rightPane.expanded,
+    projectAppEnabled,
+    projectAppOpen,
+    isDomLingerParked,
+    setRightPaneExpanded,
+  ]);
   const goalDetails = readInventoryGoalDetails(slashCommands);
   const currentGoal = goalDetails?.goalObjective;
   const sessionLoadingProgressText =
@@ -963,7 +983,10 @@ function SessionPageContent({
     locationSearch: location.search,
     sourceApi,
     effectiveProvider,
-    isWideScreen: isWideScreen && !rightPane.expanded,
+    isWideScreen:
+      isWideScreen &&
+      !rightPane.expanded &&
+      !(projectAppEnabled && projectAppOpen),
     permissionMode,
     liveModel: effectiveModelConfig?.model,
     sessionModel: session?.model,
@@ -5453,7 +5476,7 @@ function SessionPageContent({
   const content = (
     <MainContent
       isWideScreen={isWideScreen}
-      innerClassName={`${styles.workspace} ${rightPane.expanded ? styles.rightPane : ""}`}
+      innerClassName={`${styles.workspace} ${rightPane.expanded || (projectAppEnabled && projectAppOpen) ? styles.rightPane : ""}`}
     >
       <div className={styles.sessionColumn}>
         <header className="session-header">
@@ -5475,7 +5498,24 @@ function SessionPageContent({
                 </button>
               )}
               <HostIdentityMarker />
-              <SessionAppAction pane={rightPane} />
+              <SessionAppAction
+                pane={{
+                  ...rightPane,
+                  select: (url) => {
+                    setProjectAppOpen(false);
+                    return rightPane.select(url);
+                  },
+                }}
+              />
+              {projectAppEnabled && (
+                <button
+                  type="button"
+                  aria-pressed={projectAppOpen}
+                  onClick={() => setProjectAppOpen((value) => !value)}
+                >
+                  {t("projectAppLabel")}
+                </button>
+              )}
               {/* Project breadcrumb */}
               {project?.name && (
                 <div className="project-breadcrumb-wrapper">
@@ -6218,7 +6258,12 @@ function SessionPageContent({
                       inactive={isDomLingerParked}
                       onSendComment={handleSessionViewerCommentSend}
                       onOpenApp={
-                        rightPane.enabled ? rightPane.select : undefined
+                        rightPane.enabled
+                          ? (url) => {
+                              setProjectAppOpen(false);
+                              return rightPane.select(url);
+                            }
+                          : undefined
                       }
                       onAnnounceApp={rightPane.announce}
                       appConfig={rightPane.config}
@@ -6517,6 +6562,7 @@ function SessionPageContent({
                 !isAskUserQuestion
               ) && (
                 <MessageInput
+                  onVoiceControl={setProjectAppVoice}
                   questionAside={
                     !mainComposerForAside && !forkSummaryDraft
                       ? {
@@ -6730,9 +6776,25 @@ function SessionPageContent({
         </div>
       </div>
       <SessionRightPane
+        voice={projectAppVoice}
         pane={rightPane}
         wide={isWideScreen}
         fileContentRef={setRightPaneTarget}
+        projectAppOpen={projectAppEnabled && projectAppOpen}
+        onHideProjectApp={() => setProjectAppOpen(false)}
+        projectApp={
+          projectAppEnabled && projectId ? (
+            <ProjectAppViewer
+              projectId={projectId}
+              initialTarget={projectAppTarget}
+              voice={projectAppVoice}
+              onBack={() => setProjectAppOpen(false)}
+              onSession={() =>
+                navigate(`${basePath}/projects/${projectId}/app?compose=1`)
+              }
+            />
+          ) : undefined
+        }
       />
     </MainContent>
   );

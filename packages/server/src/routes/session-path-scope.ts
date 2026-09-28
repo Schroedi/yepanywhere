@@ -21,6 +21,8 @@ export interface SessionPathScope {
 export type SessionPathScopeResolver = (
   c: Context,
   requestedPath: string,
+  /** Retained source-session identity; the caller must first authorize it. */
+  sessionId?: string,
 ) => SessionPathScope | { status: 404; error: string };
 
 /** `path` under `root`, re-rooted at `hostRoot`; null when it is not under it. */
@@ -48,8 +50,7 @@ export function createSessionPathScopeResolver(deps: {
   allowedPaths: () => string[];
   includeProjects: () => boolean;
 }): SessionPathScopeResolver {
-  return (c, requestedPath) => {
-    const sessionId = c.req.param("sessionId") ?? "";
+  return (c, requestedPath, sessionId = c.req.param("sessionId") ?? "") => {
     const metadata = deps.sessionMetadataService?.getMetadata(sessionId);
     const principal = c.get(PRINCIPAL_VARIABLE) as Principal | undefined;
     const sandboxed =

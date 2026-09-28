@@ -1,0 +1,92 @@
+.viewer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+.header {
+  flex-wrap: nowrap;
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.frame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: white;
+}
+.details {
+  overflow: auto;
+  padding: 16px;
+  min-height: 0;
+}
+.details code {
+  overflow-wrap: anywhere;
+}
+.details label {
+  display: block;
+  margin-block: 12px;
+}
+.details button {
+  margin: 4px;
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.details input:not([type="checkbox"]) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  margin-top: 6px;
+}
+.details fieldset {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm, 4px);
+}
+.details dt {
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+.details dd {
+  margin: 4px 0 12px;
+}
+.workspace {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.composer {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+.appColumn {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+.concealed {
+  display: none;
+}

@@ -89,12 +89,19 @@ export function proxyLoopbackVhost(
             for (const item of value) headers.append(key, item);
           else headers.set(key, value);
         }
+        const noBody =
+          incoming.method === "HEAD" ||
+          [204, 205, 304].includes(res.statusCode ?? 0);
+        if (noBody) res.resume();
         resolve(
-          new Response(Readable.toWeb(res) as ReadableStream, {
-            status: res.statusCode ?? 502,
-            statusText: res.statusMessage,
-            headers,
-          }),
+          new Response(
+            noBody ? null : (Readable.toWeb(res) as ReadableStream),
+            {
+              status: res.statusCode ?? 502,
+              statusText: res.statusMessage,
+              headers,
+            },
+          ),
         );
       },
     );
@@ -109,8 +116,8 @@ export function proxyLoopbackVhost(
       req.end();
       return;
     }
-    Readable.fromWeb(
-      incoming.body as import("node:stream/web").ReadableStream,
-    ).pipe(req);
+    Readable.fromWeb(incoming.body as import("node:stream/web").ReadableStream)
+      .on("error", (error) => req.destroy(error))
+      .pipe(req);
   });
 }

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdir, open, readFile, realpath } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
@@ -19,7 +19,22 @@ const recordSchema = z.strictObject({
   error: z.string().optional(),
 });
 type ServiceRecord = z.infer<typeof recordSchema>;
-type LiveService = { record: ServiceRecord; process: ProjectServiceProcess };
+type LiveService = {
+  record: ServiceRecord;
+  process: ProjectServiceProcess;
+  token: string;
+  basePath: string;
+};
+
+export interface ProjectServiceUpstream {
+  projectId: string;
+  port: number;
+  brokerSocket: string;
+  generation: string;
+  token: string;
+  basePath: string;
+  entry: string;
+}
 
 /** Source files are untrusted and bounded; neither discovery nor status executes them. */
 export async function readProjectService(
@@ -44,8 +59,20 @@ export async function readProjectService(
     if (bytesRead === bytes.length)
       throw new Error("Service declaration exceeds 64 KiB");
     const value = z
-      .object({ service: projectServiceSchema.optional() })
+      .object({
+        service: projectServiceSchema.optional(),
+        kind: z.string().optional(),
+        dir: z.string().optional(),
+      })
       .parse(JSON.parse(bytes.subarray(0, bytesRead).toString("utf8")));
+    // Existing canvas templates have an explicit static output directory.
+    // Adapt that declaration only; never infer executable server commands.
+    if (!value.service && value.kind === "static" && value.dir)
+      return projectServiceSchema.parse({
+        version: 1,
+        where: { kind: "static", root: value.dir, entry: "index.html" },
+        serving: { target: "static-root" },
+      });
     return value.service ?? null;
   } finally {
     await handle.close();
@@ -109,18 +136,30 @@ export class ProjectServiceManager {
     }
   }
 
-  upstream(
-    projectId: string,
-  ): { port: number; brokerSocket: string; generation: string } | null {
+  upstream(projectId: string): ProjectServiceUpstream | null {
     const live = this.live.get(projectId);
     const brokerSocket = live?.process.brokerSocket;
     return live && brokerSocket
       ? {
+          projectId,
           port: live.process.port,
           brokerSocket,
           generation: live.record.generation,
+          token: live.token,
+          basePath: live.basePath,
+          entry: live.record.declaration.where.entry,
         }
       : null;
+  }
+
+  ownsLaunch(projectId: string): boolean {
+    return this.live.has(projectId);
+  }
+
+  upstreamForToken(token: string): ProjectServiceUpstream | null {
+    for (const [projectId, service] of this.live)
+      if (service.token === token) return this.upstream(projectId);
+    return null;
   }
 
   private serial<T>(
@@ -159,7 +198,11 @@ export class ProjectServiceManager {
       if (this.closed) throw new Error("Project services are shutting down");
       if (!previous && this.live.size >= 32)
         throw new Error("Project service limit reached (32)");
+      const token = randomBytes(24).toString("hex");
+      const basePath = declaration.serving.basePathEnv ? `/p/${token}/` : "";
       const service: LiveService = {
+        token,
+        basePath,
         record: {
           generation: randomUUID(),
           declaration,
@@ -172,11 +215,16 @@ export class ProjectServiceManager {
           cwd: declaration.where.cwd,
           argv: declaration.start.argv,
           portEnv: declaration.start.portEnv,
-          readyPath: declaration.status.path,
+          readyPath: basePath
+            ? `${basePath}${declaration.status.path.slice(1)}`
+            : declaration.status.path,
           readyStatus: declaration.status.readyStatus,
           startupTimeoutMs: declaration.status.startupTimeoutMs,
           stopGraceMs: declaration.stop.graceMs,
           sandboxStateRoot: join(this.dataDir, "session-sandboxes"),
+          basePath: declaration.serving.basePathEnv
+            ? { env: declaration.serving.basePathEnv, value: basePath }
+            : undefined,
         }),
       };
       this.live.set(projectId, service);
@@ -247,6 +295,13 @@ export async function projectServiceStaticEntry(
   projectPath: string,
   declaration: ProjectServiceDeclaration,
 ): Promise<string> {
+  return (await projectServiceStaticApp(projectPath, declaration)).entry;
+}
+
+export async function projectServiceStaticApp(
+  projectPath: string,
+  declaration: ProjectServiceDeclaration,
+): Promise<{ entry: string; root: string }> {
   if (declaration.where.kind !== "static")
     throw new Error("Expected a static app");
   const root = await realpath(projectPath);
@@ -257,5 +312,5 @@ export async function projectServiceStaticEntry(
     !isPathInsideDirectory(entry, servingRoot)
   )
     throw new Error("Static app escapes project");
-  return entry;
+  return { entry, root: servingRoot };
 }

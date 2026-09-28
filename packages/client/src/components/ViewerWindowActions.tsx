@@ -19,6 +19,7 @@ export function ViewerWindowActions({
   destructiveClose = false,
   closeDisabled = false,
   onReload,
+  copyNotice,
 }: {
   url: string;
   copyUrl?: string;
@@ -26,6 +27,7 @@ export function ViewerWindowActions({
   onMinimize?: () => void;
   /** Refetch the viewed document from disk; viewers never watch files. */
   onReload?: () => void;
+  copyNotice?: string;
   closeRef?: Ref<HTMLButtonElement>;
   className?: string;
   minimizeLabel?: string;
@@ -47,7 +49,7 @@ export function ViewerWindowActions({
       ? t("fileViewerCopied")
       : copied === "failed"
         ? t("viewerCopyLinkFailed")
-        : t("viewerLinkHint");
+        : (copyNotice ?? t("viewerLinkHint"));
   const icon = (path: string) => (
     <svg
       width="16"

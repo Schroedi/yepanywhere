@@ -3,7 +3,7 @@
 > Config-driven project creation from composable capability bases, with
 > vendored instructions, deterministic setup, and an automatic preparation
 > session. Superusers and permitted limited users can create projects;
-> retained App access remains pending.
+> retained App access uses the project service contract.
 
 Topic: project-templates
 
@@ -22,7 +22,8 @@ Settings now fetches ordered GitHub sources into private, revision-stamped
 snapshots, reads local overlays directly, and shows their combined inventory.
 Fresh-target materialization, setup, Git initialization, registration and
 preparation dispatch are connected for both principal kinds. Template permissions
-and project-confined setup are implemented; retained App access, personal-workspace
+and project-confined setup are implemented. Retained App access and project
+address settings are implemented under separate capabilities; personal-workspace
 scope and project-local identity remain open. See the
 [stand-up integration gap](../gaps/project-template-standup.md).
 
@@ -277,8 +278,9 @@ for `setup`, `build`, `test`, `preview`, a vendored `prepare` prompt, and
 `addons.server`. Activating the server adds `start`. Commands run in the
 project directory without shell interpolation. `.project-template/project.json`
 records entered name/description and composition provenance. The initial CLI
-consumes setup; YA creation now consumes it too. Persistent serving remains
-unimplemented.
+consumes setup; YA creation now consumes it too. YA adapts the legacy static
+declaration for App viewing. Process serving requires the versioned service
+declaration below; legacy preview/start commands are not inferred.
 
 ### Standard app and service declaration
 
@@ -289,9 +291,10 @@ explicit **where**, **start**, **status**, **stop**, and **serving** sections.
 Static App canvas declares its built root and entry without inventing a
 process; the activated server add-on declares a foreground command, readiness
 probe and owned-process stop policy. Existing setup/build/test and composition
-fields remain compatible. YA's loader validates the optional declaration;
-source-library updates and product integration remain pending. Today's
-creation capability does not advertise project-service support.
+fields remain compatible. YA's loader validates the optional declaration and
+the `project-service` capability admits its lifecycle and App viewer. The
+creation capability alone does not advertise project-service support. Source
+authors should emit this declaration when upgrading a server add-on.
 
 That topic also owns main-pane **Open app**, preferring the declared app and
 otherwise the latest authorized project artifact, and project Settings for
@@ -452,10 +455,12 @@ uses the existing app-scoped bearer; selecting Public is an explicit opt-in to
 hostname-only access and is refused for an owner whose Private apps only
 ceiling is enabled.
 
-The isolated mockup's **App names** layout was approved on 2026-09-21. Persistent
-reservation storage, concurrency and authorization remain unimplemented and
-are included in the stand-up gap. Host-provided static publication is a separate
-path and does not require this wildcard.
+Persistent reservation storage, concurrency and authorization are implemented
+under `project-app-reservations`. Project App Settings shows current and prior
+namespace associations, with administrator serving/release controls. Initially
+limited-owned apps are always private; the configurable publication ceiling,
+creation-time claim and global orphaned-name inventory remain in the stand-up
+gap. Host-provided static publication does not require this wildcard.
 
 ### Next delivery boundary
 
