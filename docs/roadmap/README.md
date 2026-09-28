@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-09-26.
+Last updated: 2026-09-28.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in
@@ -80,8 +80,9 @@ Desktop starts with nightly publication at 02:37 UTC, skipping unchanged
 packaged inputs, plus manual dispatch for recovery and validation. Same-app
 Stable/Latest selection and signed nightly publication are available. Windows
 installed-upgrade acceptance passed, including channel persistence and data
-preservation. Installed macOS upgrade acceptance remains blocked by the test
-VM's suspended-state restore failure, pending approval for recovery; see the
+preservation. The macOS VM resumed normally on 2026-09-28, clearing the earlier
+suspended-state restore blocker. Installed macOS upgrade acceptance remains
+pending; the manual-check regression was reproduced and locally fixed. See the
 [desktop release QA log](../testing/desktop-release-qa-log.md).
 Continuous per-commit desktop delivery remains a later extension of this
 foundation.
