@@ -274,7 +274,7 @@ percent-encoding is refused.
 | Inbox, Projects, Source Control, All Sessions | served, with every project and session outside the user's grants removed before pagination; All Sessions project options and aggregate statistics use the same scope |
 | Project Queue | global list and promote-now responses include only ordinary items, recovered items and project statuses (including blocker session titles) in granted projects; the route builds them from the user's grants so other projects' entries are never read for them, and a response-field allowlist backs that up. The global dispatch pause remains visible because it gates the user's own items. Promote-now needs `newSessionProjects` on the project in its path; pausing or resuming dispatch 403 |
 | Project Queue items | queuing needs `newSessionProjects`; a new-session target is held to the create rule (sandbox and its firewall forced, a firewall opt-out refused, lock applied, remote executor refused) and an existing-session target may name neither a remote executor nor a value outside the lock; a queued YA command 403. The item records the user, who alone may edit, retry, reorder, or delete it (404 otherwise). At dispatch their grants are read again: without `newSessionProjects` the item fails, an existing-session target must run sandboxed with its firewall on and be in the item's project or one they started, and the turn and any new session are attributed to them. Staged attachments are taken only from their own draft store and stay in it through restart, dispatch and cleanup; a reference from another account's store is refused (400), and a superuser edit of their item cannot add the superuser's drafts to it ([Project Queue § Attachments](project-queue.md#attachments)) |
-| settings | `GET /api/settings` only, answered with a projection holding the fields their client reads to render and default their own work; secrets and host inventory (webhook URL and token, remote executors, gateway and Ollama endpoints and start commands, file-access rules, the readiness command, global instructions) are withheld, and a field added later is withheld until listed. Every write and every settings subpath (browser-settings backup, remote executors, cache-billing events, file-access and host-awake status) 403 |
+| settings | `GET /api/settings` only, answered with a projection holding the fields their client reads to render and default their own work; secrets and host inventory (webhook URL and token, remote executors, gateway and Ollama endpoints and start commands, file-access rules, the readiness command, global instructions) are withheld, and a field added later is withheld until listed. Every write and every other settings subpath (browser-settings backup, remote executors, cache-billing events, file-access and host-awake status) 403; `GET /api/settings/limited-user-defaults` is theirs to read ([browser defaults](#browser-defaults-for-limited-users)) |
 | recents | the install's shared list, read filtered; clearing 403; `POST /api/recents/visit` answers `{recorded: false}` and records nothing |
 | activity REST (`/api/activity/*`) | 403: watcher status and every connected tab and browser profile are host inventory with no project to filter by |
 | user administration | 403 except `GET /api/users/me` and `POST /api/users/logout` |
@@ -473,6 +473,35 @@ completion they are refused (`useCanAdministerHost`). The frontend-changed
 reload banner stays, since reloading their own page is theirs to do. Hiding is
 cosmetic; the middleware above is the enforcement, and it refuses the restart,
 safe-restart, and Codex update routes.
+
+### Browser defaults for limited users
+
+User direction, 2026-09-28. The superuser sets browser-local preferences
+(theme, fonts, composer and speech options, and the rest of the portable
+list the Settings-menu backup carries) once for every limited user's
+browser, which each user may then change on their own device.
+
+- **Storage.** A second server-side slot beside the Settings-menu backup,
+  with the same shape and bounds, in `limited-user-browser-defaults.json`
+  under the data directory. `GET /api/settings/limited-user-defaults` is
+  open to limited users; `PUT` is the superuser's alone.
+- **Settings → Users** shows a *Browser defaults for limited users* panel
+  with the published list, one editable value per setting and a remove
+  control per row. *Load from my saved settings* replaces the list with the
+  superuser's Settings-menu backup, keeping only portable preferences;
+  *Save to limited user settings* publishes it with a new revision time.
+  Loading alone publishes nothing.
+- **Applying.** A limited user's client applies each published revision
+  once per browser, server and account, the next time it opens YA: listed
+  settings overwrite the browser's values, unlisted ones are left alone,
+  and keys outside the portable list are ignored. When any value changed,
+  the page reloads once so every reader picks them up. Later local changes
+  stand until the superuser saves again, when the new revision applies once
+  more. A storage failure restores the prior values and leaves the revision
+  unapplied for the next load. A superuser acting as a limited user is
+  skipped, since that browser's settings are the superuser's own.
+- **Older servers** lack the `limited-user-browser-defaults` capability:
+  the panel is hidden and limited users' clients request nothing.
 
 ### Usage
 

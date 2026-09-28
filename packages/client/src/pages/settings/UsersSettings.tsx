@@ -35,6 +35,7 @@ import {
   SharedLimitedUserInstructions,
   PerUserInstructions,
 } from "./LimitedUserInstructions";
+import { LimitedUserBrowserDefaults } from "./LimitedUserBrowserDefaults";
 
 /**
  * Settings → Users: the superuser's user-management surface.
@@ -147,6 +148,10 @@ export function UsersSettings() {
   const supportsInstructions = serverHasCapability(
     version,
     SERVER_CAPABILITIES.limitedUserInstructions.name,
+  );
+  const supportsBrowserDefaults = serverHasCapability(
+    version,
+    SERVER_CAPABILITIES.limitedUserBrowserDefaults.name,
   );
   const {
     settings,
@@ -431,6 +436,12 @@ export function UsersSettings() {
             />
           </div>
         )}
+
+      {supportsBrowserDefaults && editor === null && (
+        <div className="settings-group">
+          <LimitedUserBrowserDefaults />
+        </div>
+      )}
 
       {editor !== null && (
         <UserEditor

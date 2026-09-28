@@ -534,6 +534,29 @@ export const SERVER_CAPABILITIES = {
       reason: "Older servers do not apply limited-user prompt instructions.",
     },
   },
+  limitedUserBrowserDefaults: {
+    id: CAPABILITY_ID_ALLOCATIONS.limitedUserBrowserDefaults.id,
+    name: "limited-user-browser-defaults",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Server stores browser settings the superuser publishes for limited users' clients to apply once per revision.",
+    clientFallback:
+      "Hide the Users browser-defaults panel; limited users' clients fetch and apply nothing.",
+    serverContract: {
+      routes: [
+        "GET /api/settings/limited-user-defaults",
+        "PUT /api/settings/limited-user-defaults",
+      ],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers have no limited-user defaults slot to read or publish.",
+    },
+  },
   templatePreparationAttachments: {
     id: CAPABILITY_ID_ALLOCATIONS.templatePreparationAttachments.id,
     name: "template-preparation-attachments",

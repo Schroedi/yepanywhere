@@ -78,6 +78,12 @@ describe("limited-user route policy", () => {
     }
   });
 
+  it("reads the browser defaults published for them, never writes them", () => {
+    const url = "/api/settings/limited-user-defaults";
+    expect(decide("GET", url)).toEqual({ kind: "allow" });
+    expect(decide("PUT", url)).toEqual({ kind: "deny" });
+  });
+
   it("reads recents filtered, never clears them, and lets a visit through", () => {
     expect(decide("GET", "/api/recents?limit=5")).toEqual({
       kind: "allow-filtered",

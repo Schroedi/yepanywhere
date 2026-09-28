@@ -24,6 +24,7 @@ import { useCanAdministerHost } from "./hooks/useActingPrincipal";
 import { useActivityBusConnection } from "./hooks/useActivityBusConnection";
 import { useNeedsAttentionBadge } from "./hooks/useNeedsAttentionBadge";
 import { useSyncNotifyInAppSetting } from "./hooks/useNotifyInApp";
+import { useLimitedUserBrowserDefaults } from "./hooks/useLimitedUserBrowserDefaults";
 import { useOnboarding } from "./hooks/useOnboarding";
 import { primeProviderCache } from "./hooks/useProviders";
 import {
@@ -98,6 +99,9 @@ function AppContent({ children }: Props) {
 
   // Sync notifyInApp setting to service worker on app startup and SW restarts
   useSyncNotifyInAppSetting();
+
+  // A limited user's browser takes the superuser's published defaults once.
+  useLimitedUserBrowserDefaults();
 
   // Update tab title with needs-attention badge count (uses InboxContext)
   useNeedsAttentionBadge(hostIdentityIcon ?? undefined);

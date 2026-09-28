@@ -495,6 +495,8 @@ export interface AppOptions {
   browserProfileService?: BrowserProfileService;
   /** Explicit server-stored backup of portable browser UI settings */
   browserSettingsBackupService?: BrowserSettingsBackupService;
+  /** Browser settings the superuser publishes to limited users' clients */
+  limitedUserBrowserDefaultsService?: BrowserSettingsBackupService;
   /** ServerSettingsService for server-wide settings */
   serverSettingsService?: ServerSettingsService;
   /** Persistent server secret used to mint per-session wake credentials. */
@@ -3123,6 +3125,16 @@ export function createApp(options: AppOptions): AppResult {
       "/api/settings/browser-backup",
       createBrowserSettingsBackupRoutes({
         browserSettingsBackupService: options.browserSettingsBackupService,
+      }),
+    );
+  }
+  if (options.limitedUserBrowserDefaultsService) {
+    // Same slot shape as the backup above; limitedUserPolicy lets limited
+    // users read it and refuses their writes.
+    app.route(
+      "/api/settings/limited-user-defaults",
+      createBrowserSettingsBackupRoutes({
+        browserSettingsBackupService: options.limitedUserBrowserDefaultsService,
       }),
     );
   }

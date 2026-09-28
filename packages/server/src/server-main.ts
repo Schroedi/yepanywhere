@@ -680,6 +680,10 @@ hostAwakeForShutdown = hostAwakeService;
 const browserSettingsBackupService = new BrowserSettingsBackupService({
   dataDir: config.dataDir,
 });
+const limitedUserBrowserDefaultsService = new BrowserSettingsBackupService({
+  dataDir: config.dataDir,
+  fileName: "limited-user-browser-defaults.json",
+});
 const workstreamService = new WorkstreamService({
   dataDir: config.dataDir,
   eventBus,
@@ -829,6 +833,8 @@ async function startServer() {
   markStartup("hostAwakeService initialized");
   await browserSettingsBackupService.initialize();
   markStartup("browserSettingsBackupService initialized");
+  await limitedUserBrowserDefaultsService.initialize();
+  markStartup("limitedUserBrowserDefaultsService initialized");
   await workstreamService.initialize();
   markStartup("workstreamService initialized");
   await sharingService.initialize();
@@ -1150,6 +1156,7 @@ async function startServer() {
     connectedBrowsers: connectedBrowsersService,
     browserProfileService,
     browserSettingsBackupService,
+    limitedUserBrowserDefaultsService,
     serverSettingsService,
     sessionWakeSecret,
     getSessionWakeBaseUrl: (executor) =>

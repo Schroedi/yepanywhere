@@ -299,6 +299,11 @@ export function decideLimitedRoute(
     // administration and falls to the default deny below.
     return isRead ? { kind: "allow" } : { kind: "deny" };
   }
+  if (path === "/api/settings/limited-user-defaults") {
+    // The browser defaults published for limited users are theirs to read;
+    // only the superuser publishes them.
+    return isRead ? { kind: "allow" } : { kind: "deny" };
+  }
   if (hasPrefix(path, PUBLIC_GET_PREFIXES)) {
     return isRead ? { kind: "allow" } : { kind: "deny" };
   }
