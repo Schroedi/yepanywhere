@@ -64,6 +64,10 @@ separation, and safe new-tab behavior in [active-content security](active-conten
 App content never shares the authenticated YA origin. On phones the viewer
 fills the main pane; Settings is a separate full-width view.
 
+A session in a project that declares an app offers the same **App** toggle in
+its header even when it was not opened from the project App entry; it starts
+closed and opens this viewer in the right pane.
+
 **New session** creates one session in this project using the user's normal
 provider/model defaults and enforced locks, with the viewed app already open
 in its full-height right pane when the viewport has room. The microphone is

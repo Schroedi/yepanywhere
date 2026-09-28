@@ -165,6 +165,7 @@ import { useSessionLoadingProgress } from "../hooks/useSessionLoadingProgress";
 import type { SessionLoadProgress } from "../hooks/useSessionMessages";
 import { useSessionPerformanceSettings } from "../hooks/useSessionPerformanceSettings";
 import { useSessionToolbarPresence } from "../hooks/useSessionToolbarPresence";
+import { useProjectDeclaresApp } from "../hooks/useProjectDeclaresApp";
 import { useVersion } from "../hooks/useVersion";
 import { useSessionSpeechVocabulary } from "../hooks/useSessionSpeechVocabulary";
 import type { DraftTextChangeMetadata } from "../lib/commentAnchors";
@@ -567,9 +568,18 @@ function SessionPageContent({
   const [projectAppOpen, setProjectAppOpen] = useState(!!navState.projectApp);
   const [projectAppVoice, setProjectAppVoice] =
     useState<VoiceInputButtonRef | null>(null);
+  const projectServiceSupported = serverHasCapability(
+    versionInfo,
+    SERVER_CAPABILITIES.projectService.name,
+  );
+  // Arriving from the project's App entry names a target; otherwise a project
+  // that declares a root app still offers it, closed until asked for.
+  const projectDeclaresApp = useProjectDeclaresApp(
+    projectId,
+    projectServiceSupported && !projectAppTarget,
+  );
   const projectAppEnabled =
-    !!projectAppTarget &&
-    serverHasCapability(versionInfo, SERVER_CAPABILITIES.projectService.name);
+    projectServiceSupported && (!!projectAppTarget || projectDeclaresApp);
   const clientTailParams = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return {
