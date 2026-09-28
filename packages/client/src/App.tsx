@@ -115,8 +115,8 @@ function AppContent({ children }: Props) {
   return (
     <>
       <ConnectionBar />
-      <StorageFilesystemBanner />
-      <DesktopProviderNotice />
+      {canAdministerHost && <StorageFilesystemBanner />}
+      {canAdministerHost && <DesktopProviderNotice />}
       {!authLoading &&
         (!authEnabled || isAuthenticated) &&
         canAdministerHost && <LocalRuntimeNotice />}

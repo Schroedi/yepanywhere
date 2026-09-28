@@ -124,7 +124,7 @@ function ConnectedAppContentInner({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <StorageFilesystemBanner />
+      {canAdministerHost && <StorageFilesystemBanner />}
       {canAdministerHost && (
         <RemoteCompatibilityNotices
           versionInfo={versionInfo}
