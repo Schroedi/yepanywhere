@@ -432,6 +432,60 @@ function LimitedUserView({
   );
 }
 
+/**
+ * The project-root grant, with a hint saying what the current value grants.
+ * An empty field is no grant, and the server discards a relative path as no
+ * grant too, so both states are spelled out rather than left to a greyed
+ * placeholder that reads like a default.
+ */
+function ProjectRootField({
+  projectRoot,
+  username,
+  onChange,
+}: {
+  projectRoot: string;
+  username: string;
+  onChange: (projectRoot: string) => void;
+}) {
+  const { t } = useI18n();
+  const root = projectRoot.trim().replace(/\/+$/, "");
+  const suggestion = root === "" && username ? `~/${username}` : "";
+  const hint =
+    root === ""
+      ? t("usersProjectRootEmptyHint")
+      : !root.startsWith("/") && !root.startsWith("~")
+        ? t("usersProjectRootRelativeHint")
+        : t("usersProjectRootSetHint", { example: `${root}/my-project` });
+
+  return (
+    <>
+      <label className={styles.field}>
+        <span>{t("usersProjectRootLabel")}</span>
+        <span className={styles.inputRow}>
+          <input
+            className={styles.input}
+            value={projectRoot}
+            placeholder={t("usersProjectRootPlaceholder")}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(event) => onChange(event.target.value)}
+          />
+          {suggestion && (
+            <button
+              type="button"
+              className="settings-button"
+              onClick={() => onChange(suggestion)}
+            >
+              {t("usersProjectRootUseSuggestion", { path: suggestion })}
+            </button>
+          )}
+        </span>
+      </label>
+      <p className="settings-hint">{hint}</p>
+    </>
+  );
+}
+
 interface UserEditorProps {
   /** The username being edited, or null when creating. */
   editing: string | null;
@@ -540,20 +594,11 @@ function UserEditor({
       )}
 
       <p className={styles.subhead}>{t("usersProjectRootHeading")}</p>
-      <label className={styles.field}>
-        <span>{t("usersProjectRootLabel")}</span>
-        <input
-          className={styles.input}
-          value={draft.projectRoot}
-          placeholder={t("usersProjectRootPlaceholder")}
-          autoComplete="off"
-          spellCheck={false}
-          onChange={(event) =>
-            onDraftChange({ ...draft, projectRoot: event.target.value })
-          }
-        />
-      </label>
-      <p className="settings-hint">{t("usersProjectRootHint")}</p>
+      <ProjectRootField
+        projectRoot={draft.projectRoot}
+        username={editing ?? draft.username.trim()}
+        onChange={(projectRoot) => onDraftChange({ ...draft, projectRoot })}
+      />
 
       <label className={styles.field}>
         <span>{t("usersJoinOffsetLabel")}</span>
