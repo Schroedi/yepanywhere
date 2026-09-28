@@ -57,6 +57,7 @@ function findVisibleMatch(
 
 export function useSearchMatchHighlight(inert: boolean) {
   const cleanupRef = useRef<(() => void) | null>(null);
+  const renewHighlightRef = useRef<(() => void) | null>(null);
   const rowRef = useRef<HTMLElement | null>(null);
   const landedRef = useRef(false);
   // Bumped by every clear. A reveal captures it before its asynchronous
@@ -132,6 +133,7 @@ export function useSearchMatchHighlight(inert: boolean) {
           passive: true,
         });
       renewHighlight();
+      renewHighlightRef.current = renewHighlight;
       let pendingFrame: number | null = null;
       const observer = new MutationObserver(() => {
         if (pendingFrame !== null) return;
@@ -146,6 +148,7 @@ export function useSearchMatchHighlight(inert: boolean) {
         subtree: true,
       });
       cleanupRef.current = () => {
+        renewHighlightRef.current = null;
         clearTimeout(idleTimer);
         clearTimeout(fadeTimer);
         for (const type of events)
@@ -177,6 +180,7 @@ export function useSearchMatchHighlight(inert: boolean) {
   const markSearchMatchLanded = useCallback(() => {
     landedRef.current = true;
     armLanded();
+    renewHighlightRef.current?.();
   }, [armLanded]);
   return {
     beginSearchMatchReveal,

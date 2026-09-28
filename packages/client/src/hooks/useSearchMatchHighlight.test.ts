@@ -47,6 +47,8 @@ describe("useSearchMatchHighlight", () => {
     const arrive = result.current.beginSearchMatchReveal();
     vi.advanceTimersByTime(10000);
     arrive(row, scrollport, "ready", false);
+    vi.advanceTimersByTime(1900);
+    result.current.markSearchMatchLanded();
     vi.advanceTimersByTime(1999);
     expect(row.className).not.toMatch(/fading/);
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift" }));
