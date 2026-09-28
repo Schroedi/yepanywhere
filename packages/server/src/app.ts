@@ -974,7 +974,7 @@ export function createApp(options: AppOptions): AppResult {
     createProjectTemplateRoutes(
       templateSources,
       templateCreations,
-      async (context, path, body) => {
+      async (context, path, body, method = "POST") => {
         const headers = new Headers(context.req.raw.headers);
         headers.set("Content-Type", "application/json");
         headers.delete("Content-Length");
@@ -982,7 +982,7 @@ export function createApp(options: AppOptions): AppResult {
         headers.delete("Accept-Encoding");
         return app.request(
           new Request(new URL(path, context.req.url), {
-            method: "POST",
+            method,
             headers,
             body: JSON.stringify(body),
           }),

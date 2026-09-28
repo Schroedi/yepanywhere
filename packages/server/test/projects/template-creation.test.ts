@@ -15,6 +15,7 @@ import {
 import { createApp } from "../setup/create-app.js";
 import { MockClaudeSDK } from "../../src/sdk/mock.js";
 import { ProjectMetadataService } from "../../src/metadata/ProjectMetadataService.js";
+import { SessionMetadataService } from "../../src/metadata/SessionMetadataService.js";
 import { LimitedUsersService } from "../../src/auth/LimitedUsersService.js";
 import { probeSessionSandboxAvailability } from "../../src/session-sandbox.js";
 
@@ -250,6 +251,7 @@ it("serves ready choices and creates through HTTP without accepting a forged sou
   expect(dispatched).toEqual([
     "/api/projects",
     "/api/projects/created/sessions",
+    "/api/sessions/prepared/metadata",
   ]);
 });
 
@@ -343,6 +345,10 @@ it("enforces source-qualified grants, owner-only operations and real sandboxed l
       async (_context, path, body) => {
         if (path === "/api/projects")
           return Response.json({ project: { id: "owned" } });
+        if (path === "/api/sessions/prepared/metadata") {
+          expect(body).toEqual({ title: "Make a game" });
+          return Response.json({ updated: true });
+        }
         launches++;
         expect(body).toMatchObject({
           provider: "claude",
@@ -502,6 +508,10 @@ it("stops an in-flight setup on shutdown and records an interruption", async () 
 
 it("wires the production creation route through project registration and session launch", async () => {
   await source();
+  const sessionMetadataService = new SessionMetadataService({
+    dataDir: join(root, "data"),
+  });
+  await sessionMetadataService.initialize();
   const projectMetadataService = new ProjectMetadataService({
     dataDir: join(root, "data"),
   });
@@ -509,6 +519,7 @@ it("wires the production creation route through project registration and session
   const instance = createApp({
     sdk: new MockClaudeSDK(),
     projectMetadataService,
+    sessionMetadataService,
     dataDir: join(root, "data"),
     projectsDir: join(root, "sessions"),
   });

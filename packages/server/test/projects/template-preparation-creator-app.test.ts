@@ -218,6 +218,7 @@ it("records a limited creator on the preparation session and sandboxes it", asyn
     }),
   ]);
   expect(metadata).toMatchObject({
+    customTitle: "Draw things",
     createdByUser: "archer",
     sandboxLevel: "project-write",
     sandboxNetworkFirewall: true,
@@ -233,4 +234,5 @@ it("records no creator on the superuser's preparation session", async () => {
   expect(launches).toHaveLength(1);
   expect(metadata).toBeDefined();
   expect(metadata?.createdByUser).toBeUndefined();
+  expect(metadata?.customTitle).toBe("Draw things");
 }, 40_000);
