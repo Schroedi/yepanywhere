@@ -22,7 +22,9 @@ knowing another account's batch and attachment IDs grants no access. Direct
 WebSocket uploads and relay uploads retain the account's staging store through
 completion and cancellation. Template preparation accepts staged references,
 creates its session, materializes those references under the normal storage
-policy, then sends the preparation message with the attachments.
+policy, then sends the preparation message with the attachments. Project Queue
+items keep their staged attachments in the queuing account's store
+([Project Queue](project-queue.md#attachments)).
 
 The composer offers recent prompts and a scrollable upload gallery, retained
 only in this browser and separated by server and acting username. It keeps up
@@ -31,8 +33,6 @@ recent upload stages a fresh copy; it does not reuse another session's access.
 The paperclip opens the native picker; right-click or a downward swipe opens
 the gallery, which also offers the picker. These are recent uploads saved by
 the new-session/project composers, not a server-wide attachment inventory.
-Account-owned draft transfer through Project Queue remains in
-[its gap](../gaps/limited-user-queued-draft-attachments.md).
 
 New-session and standalone project-template composers show recent prompts as
 a column of small dashes at the left edge of the text box. Each 14×2 px dash

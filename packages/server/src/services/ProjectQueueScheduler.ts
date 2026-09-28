@@ -30,6 +30,7 @@ import {
 import type { AttachmentStagingService } from "../uploads/AttachmentStagingService.js";
 import {
   type ProjectQueueService,
+  queueItemAttachmentStore,
   queuedYaCommandToRun,
 } from "./ProjectQueueService.js";
 import {
@@ -1249,14 +1250,15 @@ export class ProjectQueueScheduler {
     if (!this.options.attachmentStagingService) {
       throw new Error("Attachment staging service is unavailable");
     }
-    return this.options.attachmentStagingService.materializeQueueAttachmentsForSession(
-      {
-        queueItemId: item.id,
-        refs: stagedAttachments.refs,
-        projectPath: item.projectPath,
-        sessionId,
-      },
-    );
+    return queueItemAttachmentStore(
+      this.options.attachmentStagingService,
+      item,
+    ).materializeQueueAttachmentsForSession({
+      queueItemId: item.id,
+      refs: stagedAttachments.refs,
+      projectPath: item.projectPath,
+      sessionId,
+    });
   }
 
   private toUserMessage(

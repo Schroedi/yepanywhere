@@ -580,6 +580,30 @@ export class AttachmentStagingService {
     return true;
   }
 
+  /** Delete one attachment only while it is still owned by this queue item. */
+  async deleteQueueAttachment(
+    queueItemId: string,
+    id: string,
+  ): Promise<boolean> {
+    await this.ensureInitialized();
+    if (!isSafeUploadPathSegment(queueItemId)) {
+      throw new Error("Invalid queue item id");
+    }
+    const record = this.records.get(id);
+    if (
+      record?.owner.type !== "project-queue" ||
+      record.owner.queueItemId !== queueItemId
+    ) {
+      return false;
+    }
+    await rm(record.path, { force: true }).catch(() => {});
+    await this.withMutation(async () => {
+      this.records.delete(id);
+      await this.saveIndex();
+    });
+    return true;
+  }
+
   async deleteQueueAttachments(queueItemId: string): Promise<number> {
     await this.ensureInitialized();
     if (!isSafeUploadPathSegment(queueItemId)) {
