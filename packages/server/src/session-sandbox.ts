@@ -18,7 +18,7 @@ import {
   writeFile,
   type FileHandle,
 } from "node:fs/promises";
-import { homedir, networkInterfaces } from "node:os";
+import { homedir, networkInterfaces, tmpdir } from "node:os";
 import {
   basename,
   dirname,
@@ -54,8 +54,12 @@ const IP_CANDIDATES = [
   "/usr/bin/ip",
   "/bin/ip",
 ] as const;
+const NSENTER_CANDIDATES = ["/usr/bin/nsenter", "/bin/nsenter"] as const;
 const NETWORK_LAUNCHER_PATH = fileURLToPath(
   new URL("./session-sandbox-network-launcher.mjs", import.meta.url),
+);
+const PORT_BROKER_PATH = fileURLToPath(
+  new URL("./session-sandbox-port-broker.mjs", import.meta.url),
 );
 const NETWORK_BLOCKED_IPV4_DESTINATIONS = [
   "0.0.0.0/8",
@@ -352,6 +356,57 @@ interface SessionSandboxNetworkTools {
   ipPath: string;
 }
 
+interface SessionSandboxPortBroker {
+  nsenterPath: string;
+  nodePath: string;
+  script: string;
+  directory: string;
+}
+
+/**
+ * Host directory of firewalled sandboxes' loopback port brokers. It is under
+ * host /tmp because every sandbox replaces /tmp with its own private one, so
+ * no sandbox can reach another's broker.
+ */
+export function sandboxPortBrokerDirectory(): string {
+  return join(tmpdir(), `ya-sandbox-ports-${process.getuid?.() ?? "user"}`);
+}
+
+/** The broker socket of the firewalled launch whose launcher pid is `pid`. */
+export function sandboxPortBrokerSocketPath(pid: number): string {
+  return join(sandboxPortBrokerDirectory(), `${pid}.sock`);
+}
+
+/**
+ * The broker a firewalled launch starts, or undefined when app exposure is
+ * unavailable here. Host /tmp is shared with other accounts, so the directory
+ * is used only when it is a real directory this account owns with no group
+ * or other access; anything else could let another account plant a socket.
+ */
+async function resolveSessionSandboxPortBroker(): Promise<
+  SessionSandboxPortBroker | undefined
+> {
+  const nsenter = await findTrustedSystemExecutable(NSENTER_CANDIDATES);
+  const script = await stat(PORT_BROKER_PATH).catch(() => undefined);
+  if (!nsenter.path || !script?.isFile()) return undefined;
+  const directory = sandboxPortBrokerDirectory();
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  const info = lstatSync(directory);
+  if (
+    !info.isDirectory() ||
+    (process.getuid !== undefined && info.uid !== process.getuid()) ||
+    (info.mode & 0o077) !== 0
+  ) {
+    return undefined;
+  }
+  return {
+    nsenterPath: nsenter.path,
+    nodePath: process.execPath,
+    script: PORT_BROKER_PATH,
+    directory,
+  };
+}
+
 function blockedIpv4Destinations(): string[] {
   const destinations = new Set<string>(NETWORK_BLOCKED_IPV4_DESTINATIONS);
   for (const addresses of Object.values(networkInterfaces())) {
@@ -370,6 +425,7 @@ function buildNetworkLauncherArgs(options: {
   bwrapArgs: readonly string[];
   blockedDestinations: readonly string[];
   passProjectFd: boolean;
+  portBroker?: SessionSandboxPortBroker;
   command: string;
   commandArgs: readonly string[];
 }): string[] {
@@ -383,6 +439,7 @@ function buildNetworkLauncherArgs(options: {
       bwrapArgs: options.bwrapArgs,
       blockedDestinations: options.blockedDestinations,
       passProjectFd: options.passProjectFd,
+      ...(options.portBroker ? { portBroker: options.portBroker } : {}),
     }),
     options.command,
     ...options.commandArgs,
@@ -1271,6 +1328,9 @@ export async function prepareSessionSandbox(
   const blockedDestinations = networkFirewall
     ? blockedIpv4Destinations()
     : undefined;
+  const portBroker = networkFirewall
+    ? await resolveSessionSandboxPortBroker()
+    : undefined;
   const {
     providerStateDir,
     cacheDir,
@@ -1411,6 +1471,7 @@ export async function prepareSessionSandbox(
                 bwrapArgs: launchArgs,
                 blockedDestinations,
                 passProjectFd: true,
+                ...(portBroker ? { portBroker } : {}),
                 command,
                 commandArgs: args,
               })
