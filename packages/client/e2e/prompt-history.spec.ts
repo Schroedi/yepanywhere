@@ -101,7 +101,7 @@ for (const mobile of [false, true]) {
       await target.focus();
       await target.press("Enter");
       await expect(input).toHaveValue(
-        "Let the rider turn around.Before\nLet the rider turn around.\nAfter",
+        "Let the rider turn around.\nBefore\nLet the rider turn around.\nAfter",
       );
       let value = await input.inputValue();
       await input.press("ControlOrMeta+End");
@@ -126,7 +126,7 @@ for (const mobile of [false, true]) {
       await page.mouse.down();
       await page.mouse.move(box.x + 14, box.y + 24);
       await page.mouse.up();
-      lines[10] = `Let the rider turn around.${lines[10]}`;
+      lines[10] = `Let the rider turn around.\n${lines[10]}`;
       await expect(input).toHaveValue(lines.join("\n"));
       await input.evaluate((node: HTMLTextAreaElement) => {
         node.readOnly = true;
@@ -144,3 +144,10 @@ for (const mobile of [false, true]) {
     }
   });
 }
+test("prompt rail stays hidden until enabled", async ({ page }) => {
+  await page.goto(`${base}e2e/fixtures/prompt-history.html?rail=off`);
+  await expect(page.getByRole("textbox", { name: "Prompt" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Recent prompts" })).toHaveCount(
+    0,
+  );
+});

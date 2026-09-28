@@ -34,12 +34,18 @@ The paperclip opens the native picker; right-click or a downward swipe opens
 the gallery, which also offers the picker. These are recent uploads saved by
 the new-session/project composers, not a server-wide attachment inventory.
 
-New-session and standalone project-template composers show recent prompts as
-a column of small dashes at the left edge of the text box. Each 14×2 px dash
+With the browser-local Appearance setting *Recent prompt rail* on (off by
+default: dragging prompts in is a YA-novel interaction), new-session and
+standalone project-template composers show recent prompts as a column of
+small dashes at the left edge of the text box; off, neither composer shows
+it or reads prompt history for it. Each 14×2 px dash
 has a 36×36 px activation target, enlarged to 44×44 px for a coarse pointer.
 Hover, keyboard focus or touch press previews the prompt; dragging shrinks
 the preview to half size and follows the pointer. A caret shows the text
-insertion position. Release inside inserts without replacing existing text;
+insertion position. Inserted text lands on its own line: a newline separates
+it from text before or after it on the same line, and no newline is added
+on a side that already ends a line or has no text. Release inside inserts without
+replacing existing text;
 release outside, pointer cancellation or Escape dismisses without editing.
 Enter or Space inserts at the composer's saved cursor. Read-only and disabled
 composers refuse insertion. The rail scrolls through up to 50 prompts and

@@ -132,6 +132,7 @@ import { useWiderConversationActivityPreviews } from "../../hooks/useWiderConver
 import { useWorkflowTags } from "../../hooks/useWorkflowTags";
 import { usePdfjsRendererSetting } from "../../hooks/usePdfjsRendererSetting";
 import { useTranscriptMarginNavigation } from "../../hooks/useTranscriptMarginNavigation";
+import { useComposerPromptRail } from "../../hooks/useComposerPromptRail";
 import { useSessionRightPaneSetting } from "../../hooks/useSessionRightPaneSetting";
 import { usePanelSlideAnimations } from "../../hooks/usePanelSlideAnimations";
 import { useAcliCommentarySetting } from "../../hooks/useAcliCommentarySetting";
@@ -247,6 +248,8 @@ export function AppearanceSettings() {
     transcriptMarginNavigationEnabled,
     setTranscriptMarginNavigationEnabled,
   } = useTranscriptMarginNavigation();
+  const { composerPromptRailEnabled, setComposerPromptRailEnabled } =
+    useComposerPromptRail();
   const { panelSlideAnimations, setPanelSlideAnimations } =
     usePanelSlideAnimations();
   const { acliCommentaryEnabled, setAcliCommentaryEnabled } =
@@ -400,6 +403,7 @@ export function AppearanceSettings() {
       transcriptMarginNavigationEnabled,
       setTranscriptMarginNavigationEnabled,
     ),
+    undoEntry(composerPromptRailEnabled, setComposerPromptRailEnabled),
     undoEntry(panelSlideAnimations, setPanelSlideAnimations),
     undoEntry(acliCommentaryEnabled, setAcliCommentaryEnabled),
     undoEntry(tooltipDelayMs, setTooltipDelayMs),
@@ -819,6 +823,23 @@ export function AppearanceSettings() {
                 setTranscriptMarginNavigationEnabled(event.target.checked)
               }
               aria-label={t("appearanceTranscriptMarginNavigationTitle")}
+            />
+            <span className="toggle-slider" />
+          </label>
+        </SettingsItem>
+        <SettingsItem
+          label={t("appearanceComposerPromptRailTitle")}
+          description={t("appearanceComposerPromptRailDescription")}
+          keywords={["recent", "prompt", "history", "drag", "rail", "composer"]}
+        >
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={composerPromptRailEnabled}
+              onChange={(event) =>
+                setComposerPromptRailEnabled(event.target.checked)
+              }
+              aria-label={t("appearanceComposerPromptRailTitle")}
             />
             <span className="toggle-slider" />
           </label>
