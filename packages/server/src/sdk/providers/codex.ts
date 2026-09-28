@@ -177,7 +177,10 @@ import type {
   SummaryGenerationRequest,
   SummaryGenerationResult,
 } from "./types.js";
-import { inactiveProviderSessionOptionsResult } from "./types.js";
+import {
+  agentServerEnvironmentFor,
+  inactiveProviderSessionOptionsResult,
+} from "./types.js";
 import {
   type SessionSandboxRuntime,
   withSessionSandboxAgentContext,
@@ -2737,6 +2740,8 @@ export class CodexProvider implements AgentProvider {
     const codexEnv = agentctlSessionEnvBridge.extendEnv({
       ...this.getCodexEnv(),
       ...options.agentEnvironment,
+      // Never minted for a sandboxed launch; refuse here too.
+      ...agentServerEnvironmentFor(options),
     });
     if (options.resumeSessionId) {
       // The bridge only reaches bash tool shells that source BASH_ENV, which

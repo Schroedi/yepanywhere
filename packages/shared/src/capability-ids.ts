@@ -552,6 +552,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "sidebar-session-categories",
     introducedIn: "0.9.4",
   },
+  agentServerAccess: {
+    id: 89,
+    direction: "server",
+    name: "agent-server-access",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

@@ -200,6 +200,12 @@ export interface StartSessionOptions {
   agentSelf?: boolean;
   /** Trusted owner-supplied child environment; never a client request field. */
   agentEnvironment?: Record<string, string>;
+  /**
+   * This launch's operator API token (`AGENT_SERVER_TOKEN`), set only for an
+   * unsandboxed local launch. It enters the provider process environment and
+   * nothing else: never the Bash bridge file, a remote executor, or a log.
+   */
+  agentServerEnvironment?: Record<string, string>;
   /** Working directory for the session */
   cwd: string;
   /** Initial message to send (optional - session can wait for message) */
@@ -614,6 +620,24 @@ export interface AgentProvider {
     /** Provider-owned durable file; internal hint for immediate discovery. */
     filePath?: string;
   }>;
+}
+
+/**
+ * The operator API token environment this launch may carry: none for a remote
+ * executor or a YA session sandbox. A provider-runtime worker receives the
+ * sandbox only as `sessionSandboxOptions`, so both forms are checked.
+ */
+export function agentServerEnvironmentFor(
+  options: StartSessionOptions,
+): Record<string, string> | undefined {
+  if (
+    options.executor ||
+    options.sessionSandbox ||
+    options.sessionSandboxOptions?.level === "project-write"
+  ) {
+    return undefined;
+  }
+  return options.agentServerEnvironment;
 }
 
 /**

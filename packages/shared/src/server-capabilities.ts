@@ -204,6 +204,28 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  agentServerAccess: {
+    id: CAPABILITY_ID_ALLOCATIONS.agentServerAccess.id,
+    name: "agent-server-access",
+    kind: "permanent",
+    area: "localAccess",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Optionally give unsandboxed superuser agent sessions an in-memory bearer token (AGENT_SERVER_TOKEN) for this server's API.",
+    clientFallback:
+      "Hide the Local Access toggle and send no agentServerAccessEnabled.",
+    serverContract: {
+      routes: ["GET /api/settings", "PATCH /api/settings"],
+      requestFields: ["agentServerAccessEnabled"],
+      responseFields: ["settings.agentServerAccessEnabled"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers neither store the setting nor accept agent bearer tokens.",
+    },
+  },
   sidebarSessionCategories: {
     id: CAPABILITY_ID_ALLOCATIONS.sidebarSessionCategories.id,
     name: "sidebar-session-categories",
@@ -3133,6 +3155,8 @@ export const NON_HUMAN_USER_TURN_CAPABILITY =
   SERVER_CAPABILITIES.nonHumanUserTurn.name;
 export const SESSION_CONTENT_SEARCH_CAPABILITY =
   SERVER_CAPABILITIES.sessionContentSearch.name;
+export const AGENT_SERVER_ACCESS_CAPABILITY =
+  SERVER_CAPABILITIES.agentServerAccess.name;
 export const SIDEBAR_SESSION_CATEGORIES_CAPABILITY =
   SERVER_CAPABILITIES.sidebarSessionCategories.name;
 export const SESSION_CREATION_PROVENANCE_CAPABILITY =

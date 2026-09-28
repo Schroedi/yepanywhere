@@ -97,6 +97,7 @@ import {
   getSessionSandboxAvailability,
 } from "./session-sandbox.js";
 import { updateAllowedHosts } from "./middleware/allowed-hosts.js";
+import { AgentServerTokens } from "./auth/AgentServerTokens.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { structuredErrorHandler } from "./middleware/error-handler.js";
 import {
@@ -781,6 +782,23 @@ export function createApp(options: AppOptions): AppResult {
   app.use("/api/*", corsMiddleware);
   app.use("/api/*", requireCustomHeader);
 
+  // Operator API tokens for unsandboxed superuser agent sessions
+  // (topics/agent-session-access.md § Operator API token). Turning the
+  // setting off revokes every token, so turning it on again revives none.
+  const agentServerTokens = new AgentServerTokens(
+    () =>
+      options.serverSettingsService?.getSetting("agentServerAccessEnabled") ===
+      true,
+  );
+  options.serverSettingsService?.onSettingsChanged((settings, previous) => {
+    if (
+      previous.agentServerAccessEnabled &&
+      !settings.agentServerAccessEnabled
+    ) {
+      agentServerTokens.revokeAll();
+    }
+  });
+
   // Auth middleware (if authService is provided)
   // The middleware checks authService.isEnabled() dynamically
   if (options.authService) {
@@ -791,6 +809,7 @@ export function createApp(options: AppOptions): AppResult {
         authDisabled: options.authDisabled,
         desktopAuthToken: options.desktopAuthToken,
         desktopBootstrapService: options.desktopBootstrapService,
+        agentServerTokens,
       }),
     );
   }
@@ -1694,6 +1713,7 @@ export function createApp(options: AppOptions): AppResult {
           Promise.resolve()
       : undefined,
     onSuccessfulProviderSession: options.onSuccessfulProviderSession,
+    mintAgentServerAccess: () => agentServerTokens.mint(),
     getSessionChildEnv: (sessionId, executor) => {
       const wakeBaseUrl = options.getSessionWakeBaseUrl?.(executor);
       const browserDebugConnection =

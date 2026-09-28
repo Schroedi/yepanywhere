@@ -1807,6 +1807,8 @@ export interface ServerSettings {
   clientLogCollectionRequested?: boolean;
   /** Whether approve/deny decisions are written to the server audit log */
   approvalAuditLogEnabled?: boolean;
+  /** Whether unsandboxed superuser sessions get an in-memory API token */
+  agentServerAccessEnabled?: boolean;
   /** Whether users may create public read-only share links */
   publicSharesEnabled?: boolean;
   /** Whether limited users exist beside the superuser (topics/limited-users.md) */

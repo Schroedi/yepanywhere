@@ -124,6 +124,10 @@ import {
 import { HeartbeatSweepScheduler, earliestDueAt } from "./heartbeatSchedule.js";
 import { persistedSandboxFromProcess } from "./sessionSandboxMetadata.js";
 import {
+  AGENT_SERVER_TOKEN_ENV,
+  type AgentServerAccess,
+} from "../auth/AgentServerTokens.js";
+import {
   type QueuedRequestInfo,
   type QueuedResponse,
   WorkerQueue,
@@ -561,6 +565,11 @@ export interface SupervisorOptions {
     sessionId: string,
     executor?: string,
   ) => Record<string, string>;
+  /**
+   * Mint an operator API token for one launch, or nothing while the setting
+   * is off. Called only for unsandboxed local launches.
+   */
+  mintAgentServerAccess?: () => AgentServerAccess | undefined;
   /** Callback invoked when a process observes a model's real context window. */
   onContextWindowObserved?: (
     model: string,
@@ -626,6 +635,13 @@ export interface SupervisorOptions {
 
 export type { SessionDoneResult };
 
+/** The provider environment that hands a launch its operator API token. */
+function agentServerEnvironment(
+  access: AgentServerAccess | undefined,
+): Record<string, string> | undefined {
+  return access ? { [AGENT_SERVER_TOKEN_ENV]: access.token } : undefined;
+}
+
 export class Supervisor {
   computerControl?: import("../computer-control/service.js").ComputerControlService;
   private processes: Map<string, Process> = new Map();
@@ -654,6 +670,12 @@ export class Supervisor {
   private onSessionExecutor?: OnSessionExecutorCallback;
   private onSuccessfulProviderSession?: OnSuccessfulProviderSessionCallback;
   private getSessionChildEnv?: SupervisorOptions["getSessionChildEnv"];
+  private mintAgentServerAccess?: SupervisorOptions["mintAgentServerAccess"];
+  /** Each live process's operator API token, revoked when it unregisters. */
+  private readonly agentServerAccessByProcess = new Map<
+    string,
+    AgentServerAccess
+  >();
   private onContextWindowObserved?: (
     model: string,
     contextWindow: number,
@@ -768,6 +790,7 @@ export class Supervisor {
     this.onSessionExecutor = options.onSessionExecutor;
     this.onSuccessfulProviderSession = options.onSuccessfulProviderSession;
     this.getSessionChildEnv = options.getSessionChildEnv;
+    this.mintAgentServerAccess = options.mintAgentServerAccess;
     this.onContextWindowObserved = options.onContextWindowObserved;
     this.onSessionSummary = options.onSessionSummary;
     this.recoverSessionLaunchSettings = options.recoverSessionLaunchSettings;
@@ -1240,6 +1263,11 @@ export class Supervisor {
         resumeSessionId,
       ),
     );
+    const agentServerAccess = this.agentServerAccessForLaunch(
+      Boolean(sessionSandbox) ||
+        modelSettings?.sandboxLevel === "project-write",
+      modelSettings?.executor,
+    );
     const truncation = this.resolveLaunchTruncation(
       resumeSessionId,
       "claude",
@@ -1266,6 +1294,7 @@ export class Supervisor {
         ? (sessionId) =>
             this.getSessionChildEnv?.(sessionId, modelSettings?.executor) ?? {}
         : undefined,
+      agentServerEnvironment: agentServerEnvironment(agentServerAccess),
       sessionSandbox,
       onProviderRetentionChange: () =>
         this.handleProviderRetentionChanged(processHolder),
@@ -1365,6 +1394,7 @@ export class Supervisor {
 
     const process = new Process(iterator, options);
     processHolder.process = process;
+    this.holdAgentServerAccess(process, agentServerAccess);
     this.observeProcessEvents(process);
     await this.consumePendingRewind(process, resumeSessionId, truncation);
 
@@ -2044,6 +2074,11 @@ export class Supervisor {
         resumeSessionId,
       ),
     );
+    const agentServerAccess = this.agentServerAccessForLaunch(
+      Boolean(sessionSandbox) ||
+        modelSettings?.sandboxLevel === "project-write",
+      modelSettings?.executor,
+    );
     const truncation = this.resolveLaunchTruncation(
       resumeSessionId,
       "claude",
@@ -2070,6 +2105,7 @@ export class Supervisor {
         ? (sessionId) =>
             this.getSessionChildEnv?.(sessionId, modelSettings?.executor) ?? {}
         : undefined,
+      agentServerEnvironment: agentServerEnvironment(agentServerAccess),
       sessionSandbox,
       onProviderRetentionChange: () =>
         this.handleProviderRetentionChanged(processHolder),
@@ -2169,6 +2205,7 @@ export class Supervisor {
 
     const process = new Process(iterator, options);
     processHolder.process = process;
+    this.holdAgentServerAccess(process, agentServerAccess);
     this.observeProcessEvents(process);
     await this.consumePendingRewind(process, resumeSessionId, truncation);
 
@@ -2251,6 +2288,11 @@ export class Supervisor {
       modelSettings,
       activeProvider,
     );
+    const agentServerAccess = this.agentServerAccessForLaunch(
+      Boolean(sessionSandbox) ||
+        modelSettings?.sandboxLevel === "project-write",
+      modelSettings?.executor,
+    );
     const truncation = this.resolveLaunchTruncation(
       resumeSessionId,
       activeProvider.name,
@@ -2284,6 +2326,7 @@ export class Supervisor {
         ? (sessionId) =>
             this.getSessionChildEnv?.(sessionId, modelSettings?.executor) ?? {}
         : undefined,
+      agentServerEnvironment: agentServerEnvironment(agentServerAccess),
       sessionSandbox,
       sessionSandboxOptions,
       shouldEmitLiveDeltas: () =>
@@ -2406,6 +2449,7 @@ export class Supervisor {
 
     const process = new Process(iterator, options);
     processHolder.process = process;
+    this.holdAgentServerAccess(process, agentServerAccess);
     this.observeProcessEvents(process);
     activateCallbacks?.();
     await this.consumePendingRewind(process, resumeSessionId, truncation);
@@ -2493,6 +2537,11 @@ export class Supervisor {
       modelSettings,
       activeProvider,
     );
+    const agentServerAccess = this.agentServerAccessForLaunch(
+      Boolean(sessionSandbox) ||
+        modelSettings?.sandboxLevel === "project-write",
+      modelSettings?.executor,
+    );
     const truncation = this.resolveLaunchTruncation(
       resumeSessionId,
       activeProvider.name,
@@ -2524,6 +2573,7 @@ export class Supervisor {
         ? (sessionId) =>
             this.getSessionChildEnv?.(sessionId, modelSettings?.executor) ?? {}
         : undefined,
+      agentServerEnvironment: agentServerEnvironment(agentServerAccess),
       sessionSandbox,
       sessionSandboxOptions,
       shouldEmitLiveDeltas: () =>
@@ -2646,6 +2696,7 @@ export class Supervisor {
 
     const process = new Process(iterator, options);
     processHolder.process = process;
+    this.holdAgentServerAccess(process, agentServerAccess);
     this.observeProcessEvents(process);
     activateCallbacks?.();
     await this.consumePendingRewind(process, resumeSessionId, truncation);
@@ -5514,7 +5565,31 @@ export class Supervisor {
     }
   }
 
+  /**
+   * An operator API token for a launch that may hold one: local and outside
+   * any YA session sandbox. A limited user's launch is always sandboxed.
+   */
+  private agentServerAccessForLaunch(
+    sandboxed: boolean,
+    executor: string | undefined,
+  ): AgentServerAccess | undefined {
+    if (sandboxed || executor) return undefined;
+    return this.mintAgentServerAccess?.();
+  }
+
+  /** Tie a launch's token to its process, or revoke it if none started. */
+  private holdAgentServerAccess(
+    process: Process | null,
+    access: AgentServerAccess | undefined,
+  ): void {
+    if (!access) return;
+    if (process) this.agentServerAccessByProcess.set(process.id, access);
+    else access.revoke();
+  }
+
   private unregisterProcess(process: Process): void {
+    this.agentServerAccessByProcess.get(process.id)?.revoke();
+    this.agentServerAccessByProcess.delete(process.id);
     this.assertProviderOwnershipSettled(process, "unregister");
     this.observedProcessIds.delete(process.id);
     this.compactThresholdCheckedAssistantVersion.delete(process.id);

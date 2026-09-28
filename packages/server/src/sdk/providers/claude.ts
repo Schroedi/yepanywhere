@@ -95,6 +95,7 @@ import type {
 } from "./types.js";
 import {
   PROVIDER_SESSION_OPTION_KEYS,
+  agentServerEnvironmentFor,
   resolveProviderSessionOptions,
 } from "./types.js";
 import {
@@ -1924,6 +1925,9 @@ export class ClaudeProvider implements AgentProvider {
     const baseClaudeEnv = {
       ...this.getEnv(options.model),
       ...options.agentEnvironment,
+      // The Supervisor never mints one for a sandboxed or remote launch;
+      // refusing here too keeps the token out if that ever changes.
+      ...agentServerEnvironmentFor(options),
       ...autoCompactOverrideEnv,
     };
     const claudeEnv = agentctlSessionEnvBridge

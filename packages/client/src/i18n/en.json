@@ -3418,6 +3418,8 @@
   "fileAccessNone": "none",
   "localAccessApprovalAuditTitle": "Approval audit log",
   "localAccessApprovalAuditDescription": "Append explicit approve and deny decisions, including tool inputs and commands, to logs/approval-decisions.jsonl.",
+  "localAccessAgentServerAccessTitle": "Sessions can use the YA API",
+  "localAccessAgentServerAccessDescription": "Give each unsandboxed session you start a private token (AGENT_SERVER_TOKEN) that calls this server's API as you. It is held only in memory and in that session's environment, never in a file, so sandboxed sessions cannot find it. It ends with the session or a server restart. An agent holding it can do anything you can.",
   "localAccessApprovalAuditUnsupportedDescription": "This server logs approval decisions but cannot toggle that behavior. Update the server to control it.",
   "localAccessRequirePasswordTitle": "Require Password",
   "localAccessRequirePasswordDescription": "Require a password to access this server",

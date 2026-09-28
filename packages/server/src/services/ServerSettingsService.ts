@@ -123,6 +123,12 @@ export interface ServerSettings {
   clientLogCollectionRequested: boolean;
   /** Whether approve/deny decisions are written to logs/approval-decisions.jsonl */
   approvalAuditLogEnabled: boolean;
+  /**
+   * Whether unsandboxed superuser agent sessions receive an in-memory API
+   * token (AGENT_SERVER_TOKEN). Default off
+   * (topics/agent-session-access.md § Operator API token).
+   */
+  agentServerAccessEnabled: boolean;
   /** Whether users may create public read-only share links */
   publicSharesEnabled: boolean;
   /**
@@ -344,6 +350,7 @@ export const DEFAULT_SERVER_SETTINGS: ServerSettings = {
   persistRemoteSessionsToDisk: false,
   clientLogCollectionRequested: false,
   approvalAuditLogEnabled: false,
+  agentServerAccessEnabled: false,
   publicSharesEnabled: false,
   limitedUsersEnabled: false,
   workstreamsEnabled: false,

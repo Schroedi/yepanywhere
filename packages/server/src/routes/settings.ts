@@ -321,6 +321,9 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
       if (typeof body.approvalAuditLogEnabled === "boolean") {
         updates.approvalAuditLogEnabled = body.approvalAuditLogEnabled;
       }
+      if (typeof body.agentServerAccessEnabled === "boolean") {
+        updates.agentServerAccessEnabled = body.agentServerAccessEnabled;
+      }
       if (typeof body.publicSharesEnabled === "boolean") {
         updates.publicSharesEnabled = body.publicSharesEnabled;
       }
