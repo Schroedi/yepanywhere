@@ -40,3 +40,11 @@ workspace run failed only this server test, with empty version stdout;
 5,283 other server tests passed. The isolated Pi contract passed in 10.7s.
 The full-suite failure remains unresolved.
 Contributing-model: 6-Astra
+
+Observed 2026-09-28 during project-template placement mockup verification:
+`pnpm test` failed the version probe with empty output and the effort-retry
+case with `error` instead of `result`; 5,979 server tests passed. Shared,
+relay and push-broker suites passed; the recursive run stopped at the server
+failure. No provider/runtime files changed in the mockup slice. These failures
+were recorded rather than changing installed-Pi behavior for a UI prototype.
+Contributing-model: 6-Astra

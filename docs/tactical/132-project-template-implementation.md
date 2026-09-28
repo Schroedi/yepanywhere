@@ -6,6 +6,15 @@ Contributing-model: 6-Astra.
 
 ## Implementation checkpoint — 2026-09-21
 
+Placement revision, user-directed 2026-09-28: always show the template radio
+palette, including a single choice. New session supports entering a new project
+name or expanding New project inline, preserving the prompt and session
+settings without page navigation. The isolated fixture is
+`packages/client/mockups/project-template-placement/`; it is a mockup-first
+delivery, not production creation. The optional artwork specification remains
+in [its sketch](../../gaps/sketches/project-template-artwork.md).
+Contributing-model: 6-Astra.
+
 The user authorized implementation and expanded the default limited-user
 selection to every current default-source template: App canvas, Storybook,
 and Web page. All three remain draft until their content review/admission.
@@ -201,7 +210,7 @@ settings. Server-side None / Selected / Any grants are authoritative:
   project root defaults to Any; without one, to None (user-directed
   2026-09-28; see [project templates](../../topics/project-templates.md#limited-user-permissions)).
   Missing/draft/unavailable selections do not fall back to another template.
-- One permitted available choice is automatic; multiple choices show cards.
+- Always show the radio palette; one permitted available choice is preselected.
   No arbitrary source, script, grant or parent-directory fields for limited users.
 - Create in, the Personal directory and Current project only write scopes, and
   the one-time migration of existing limited users follow the
@@ -288,7 +297,10 @@ Use the existing Projects page, AddProjectForm and Settings components with
 English i18n keys, supported-server gates and normal loading/error semantics.
 Superusers get From template / Existing directory, name, intent and parent.
 Limited users get name and intent under their configured root. Template cards
-appear only with multiple choices and preserve entered fields on selection.
+always appear, including for a single choice, and preserve entered fields on
+selection. New session offers inline project creation with the same palette;
+its project selector may use a dropdown trigger. Do not navigate away from the
+form or lose its entered prompt and provider/model settings.
 Use muted illustrative placeholders, not prefilled requirements. Preserve the
 existing owner display such as `alex / Sketch garden`; no mandatory username
 in the project's own name or directory leaf.

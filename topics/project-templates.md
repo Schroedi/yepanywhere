@@ -245,10 +245,25 @@ future work, and buying/configuring a custom domain is optional.
 
 Projects gains a **New project** surface with **From template** and **Existing
 directory** modes for the superuser. Template creation asks for name, intent,
-and parent directory; a single available template is applied automatically.
+and parent directory. Always show the template radio palette, including one
+available template (preselected); do not hide it or replace it with a dropdown.
 Existing-directory registration keeps its present behavior. The current
 proposal fixture lives in `packages/client/mockups/project-templates/` and
 reuses the real existing-directory form and settings section component.
+
+The 2026-09-28 placement revision lives in
+`packages/client/mockups/project-template-placement/`. New session may use a
+compact project-menu trigger: typing a new project name offers creation, and a
+quick New project action expands the name and template palette in place. Keep
+the entered prompt, project name, provider and model when expanding, collapsing
+or switching templates. Creation must not navigate away and require returning
+to the session form. One Create & prepare action creates the project and its
+preparation session; it must not create a second empty session. The new fixture
+illustrates placement only; production integration remains pending.
+
+[Template artwork](../gaps/sketches/project-template-artwork.md) sketches
+source-provided thumbnails and compact icons beyond the existing preview image
+contract. Its proposed icon convention is not part of format version 1 yet.
 
 **Create & prepare** explicitly authorizes the following sequence:
 
@@ -297,8 +312,8 @@ defaults to Any configured template, so creation works with whatever the
 enabled sources offer; a user without one defaults to None (user-directed
 2026-09-28, replacing the 2026-09-21 default of Selected with the three then
 current templates). Narrowing to Selected or None is the superuser's explicit
-choice. Exactly one permitted available template is applied without a picker;
-multiple templates offer a chooser. A removed/unavailable/draft template never
+choice. Show every permitted available choice in the radio palette, even when
+only one is available. A removed/unavailable/draft template never
 silently falls back to another. Limited users cannot supply a source, script,
 arbitrary directory or permission grant: the superuser's configured project
 root is enforced at creation, and the new project belongs to that user.
@@ -308,10 +323,10 @@ owns the one-time migration of existing limited users to these defaults, the
 Create in workspace and sandbox modes, and the **Private apps only** ceiling
 this creation flow enforces.
 
-The proposed chooser uses compact radio cards above the creation form: title,
+The proposed chooser uses compact radio cards in the creation form: title,
 one-line purpose, and a visible selected state. The selection updates the
 template details and preserves the entered project name/intent. Both superuser
-and limited-user flows use it when more than one permitted template is available;
+and limited-user flows always show it when a permitted template is available;
 limited users still supply only name and intent. Both content prototypes exist
 in the authoring library; neither draft is production-admitted yet.
 

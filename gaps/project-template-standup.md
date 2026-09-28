@@ -28,6 +28,15 @@ Materialization and production admission remain open.
 
 ## What a user sees today
 
+User-directed placement revision (2026-09-28): New project always shows template
+choices as a radio palette, even for one choice. New session may use a dropdown
+trigger but must accept a new project name and offer quick inline creation
+without navigating away. The mockup-first fixture is
+`packages/client/mockups/project-template-placement/`; it does not close this
+runtime gap. Optional template-provided thumbnails/icons have a separate
+[specification sketch](sketches/project-template-artwork.md).
+Contributing-model: 6-Astra.
+
 With templates enabled, Settings → Project templates fetches and validates the
 default source and lists App canvas, Web page and Storybook, each marked
 **Draft — unavailable for creation**. Nothing else in YA offers a template: New
