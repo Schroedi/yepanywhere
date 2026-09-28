@@ -106,6 +106,16 @@
     padding-left: 8px;
   }
 }
+/* Full view: the app alone fills the window, over the sidebar and session,
+   until its Back minimizes it. Fixed, so it escapes the workspace grid. */
+.pane.fullView {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  padding-left: 0;
+  border-left: none;
+  box-shadow: none;
+}
 @media (max-width: 1099px) {
   .pane.projectFullscreen {
     inset: 0;

@@ -165,6 +165,7 @@ import { useSessionLoadingProgress } from "../hooks/useSessionLoadingProgress";
 import type { SessionLoadProgress } from "../hooks/useSessionMessages";
 import { useSessionPerformanceSettings } from "../hooks/useSessionPerformanceSettings";
 import { useSessionToolbarPresence } from "../hooks/useSessionToolbarPresence";
+import { useLongPress } from "../hooks/useLongPress";
 import { useProjectDeclaresApp } from "../hooks/useProjectDeclaresApp";
 import { useVersion } from "../hooks/useVersion";
 import { useSessionSpeechVocabulary } from "../hooks/useSessionSpeechVocabulary";
@@ -566,6 +567,12 @@ function SessionPageContent({
   const initialProvider = navState?.initialProvider;
   const [projectAppTarget] = useState(navState.projectApp);
   const [projectAppOpen, setProjectAppOpen] = useState(!!navState.projectApp);
+  // Full view hides the session and sidebar behind the app until Back.
+  const [projectAppFull, setProjectAppFull] = useState(false);
+  const projectAppPress = useLongPress(() => {
+    setProjectAppOpen(true);
+    setProjectAppFull(true);
+  });
   const [projectAppVoice, setProjectAppVoice] =
     useState<VoiceInputButtonRef | null>(null);
   const projectServiceSupported = serverHasCapability(
@@ -5574,7 +5581,12 @@ function SessionPageContent({
                 <button
                   type="button"
                   aria-pressed={projectAppOpen}
-                  onClick={() => setProjectAppOpen((value) => !value)}
+                  title={t("projectAppFullViewHint")}
+                  {...projectAppPress.handlers}
+                  onClick={projectAppPress.click(() => {
+                    setProjectAppFull(false);
+                    setProjectAppOpen((value) => !value);
+                  })}
                 >
                   {t("projectAppLabel")}
                 </button>
@@ -6844,14 +6856,26 @@ function SessionPageContent({
         wide={isWideScreen}
         fileContentRef={setRightPaneTarget}
         projectAppOpen={projectAppEnabled && projectAppOpen}
-        onHideProjectApp={() => setProjectAppOpen(false)}
+        fullView={projectAppEnabled && projectAppOpen && projectAppFull}
+        onHideProjectApp={() =>
+          projectAppFull ? setProjectAppFull(false) : setProjectAppOpen(false)
+        }
         projectApp={
           projectAppEnabled && projectId ? (
             <ProjectAppViewer
               projectId={projectId}
               initialTarget={projectAppTarget}
               voice={projectAppVoice}
-              onBack={() => setProjectAppOpen(false)}
+              // From full view, Back returns to the session with the app
+              // still beside it; from the pane, it closes the app.
+              onBack={() =>
+                projectAppFull
+                  ? setProjectAppFull(false)
+                  : setProjectAppOpen(false)
+              }
+              onFullView={
+                projectAppFull ? undefined : () => setProjectAppFull(true)
+              }
               onSession={() =>
                 navigate(`${basePath}/projects/${projectId}/app?compose=1`)
               }

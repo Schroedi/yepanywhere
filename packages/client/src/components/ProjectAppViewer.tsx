@@ -46,6 +46,7 @@ export function ProjectAppViewer({
   voice,
   onVoice,
   initialSettings = false,
+  onFullView,
 }: {
   projectId: string;
   initialTarget?: ProjectAppTarget;
@@ -55,6 +56,8 @@ export function ProjectAppViewer({
   voice?: VoiceInputButtonRef | null;
   onVoice?: () => void;
   initialSettings?: boolean;
+  /** Offered in a session pane: fill the whole window with the app. */
+  onFullView?: () => void;
 }) {
   const { version } = useVersion();
   const { t } = useI18n();
@@ -187,6 +190,16 @@ export function ProjectAppViewer({
           {view?.label ?? t("projectAppLabel")}
         </span>
         <div className={`${headerStyles.actions} ${actions.actions}`}>
+          {onFullView && (
+            <button
+              type="button"
+              title={t("projectAppFullView")}
+              aria-label={t("projectAppFullView")}
+              onClick={onFullView}
+            >
+              <Glyph path="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            </button>
+          )}
           {info?.canExecute && onSession && (
             <button
               type="button"

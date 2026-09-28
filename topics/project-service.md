@@ -72,7 +72,11 @@ reports the first; older servers omit it and `canExecute` governs both.
 
 A session in a project that declares an app offers the same **App** toggle in
 its header even when it was not opened from the project App entry; it starts
-closed and opens this viewer in the right pane.
+closed and opens this viewer in the right pane. Holding that button (or
+right-clicking it), or the viewer's full-view button, opens **full view**:
+the same pane, frame kept live, covers the session and sidebar until Back
+or Escape returns it beside the session (maintainer direction, 2026-09-28,
+for kid-friendly tablet use).
 
 **New session** creates one session in this project using the user's normal
 provider/model defaults and enforced locks, with the viewed app already open

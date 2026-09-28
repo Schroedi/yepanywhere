@@ -104,6 +104,9 @@ test.afterAll(async () => {
 test("project App fills the pane and retains canvas and composer across phone switches", async ({
   page,
 }) => {
+  // Three viewports, a session start, full view and app addresses outgrow
+  // the default 15s; the first transcript fetch alone has taken 5s.
+  test.setTimeout(60_000);
   for (const size of [
     { width: 1200, height: 600 },
     { width: 1000, height: 600 },
@@ -197,7 +200,8 @@ test("project App fills the pane and retains canvas and composer across phone sw
   const sessionApp = page.getByRole("region", { name: "Project App" });
   await expect(sessionApp.locator("iframe")).toBeVisible();
   await expect(
-    page.getByText("Mock response (no scenario)", { exact: true }),
+    // Not exact: the transcript renders the reply inside list markup.
+    page.getByText("Mock response (no scenario)").first(),
     // The first transcript fetch took at least 5s on the isolated fixture.
   ).toBeVisible({ timeout: 15000 });
   await page.mouse.move(10, 10);
@@ -205,6 +209,38 @@ test("project App fills the pane and retains canvas and composer across phone sw
     (await sessionApp.locator("iframe").boundingBox())!.height,
   ).toBeGreaterThan(390);
   await recordUiCapture(page, "project-app-session-1200");
+  // Full view covers the session and sidebar with the same live frame, and
+  // Back returns to the session with the app still beside it.
+  await sessionApp.locator("iframe").evaluate((frame) => {
+    frame.dataset.kept = "yes";
+  });
+  await sessionApp.getByRole("button", { name: "Full view" }).click();
+  await expect
+    .poll(async () => (await sessionApp.boundingBox())!.width)
+    .toBeGreaterThan(1190);
+  expect((await sessionApp.boundingBox())!.x).toBeLessThan(1);
+  await expect(sessionApp.locator("iframe[data-kept=yes]")).toBeVisible();
+  await recordUiCapture(page, "project-app-full-1200");
+  await sessionApp.getByRole("button", { name: "Back" }).click();
+  await expect
+    .poll(async () => (await sessionApp.boundingBox())!.width)
+    .toBeLessThan(900);
+  await expect(sessionApp.locator("iframe[data-kept=yes]")).toBeVisible();
+  // Holding the header's App button opens full view directly.
+  await sessionApp.getByRole("button", { name: "Back" }).click();
+  await expect(sessionApp.locator("iframe")).toBeHidden();
+  const appButton = page.getByRole("button", { name: "App", exact: true });
+  await appButton.hover();
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await sessionApp.boundingBox())!.width)
+    .toBeGreaterThan(1190);
+  await page.keyboard.press("Escape");
+  await expect
+    .poll(async () => (await sessionApp.boundingBox())!.width)
+    .toBeLessThan(900);
   // Only the app-address configuration changes; the server and app stay live.
   instance.artifactServer.config.vhostPublicRoot = "apps.example";
   await page.goto(`${base}/projects/${projectId}/app?settings=1`);

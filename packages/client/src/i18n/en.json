@@ -43,6 +43,8 @@
   "projectAppOpen": "Open app",
   "projectAppLabel": "App",
   "projectAppBack": "Back",
+  "projectAppFullView": "Full view",
+  "projectAppFullViewHint": "App: tap to show beside the session, hold for full view",
   "projectAppNewSession": "New session in this project",
   "projectAppMicStart": "Start microphone",
   "projectAppMicStop": "Stop microphone",

@@ -75,6 +75,7 @@ export function SessionRightPane({
   voice,
   pane,
   wide,
+  fullView = false,
   fileContentRef,
 }: {
   projectApp?: ReactNode;
@@ -83,6 +84,8 @@ export function SessionRightPane({
   voice?: VoiceInputButtonRef | null;
   pane: Pane;
   wide: boolean;
+  /** Cover the whole window, sidebar and session too, until minimized. */
+  fullView?: boolean;
   fileContentRef?: Ref<HTMLDivElement>;
 }) {
   const { panelSlideDurationMs } = usePanelSlideAnimations();
@@ -99,6 +102,7 @@ export function SessionRightPane({
       pane={content ?? pane}
       expanded={pane.expanded || projectAppOpen}
       wide={wide}
+      fullView={fullView}
       fileContentRef={fileContentRef}
     />
   );
@@ -113,6 +117,7 @@ function SessionRightPaneContent({
   pane,
   expanded,
   wide,
+  fullView,
   fileContentRef,
 }: {
   projectApp?: ReactNode;
@@ -122,6 +127,7 @@ function SessionRightPaneContent({
   pane: Pane;
   expanded: boolean;
   wide: boolean;
+  fullView: boolean;
   fileContentRef?: Ref<HTMLDivElement>;
 }) {
   const { t } = useI18n();
@@ -186,14 +192,24 @@ function SessionRightPaneContent({
     return () =>
       document.removeEventListener("securitypolicyviolation", blocked);
   }, [url]);
+  // The pane's ancestors stack below the desktop sidebar, so full view hides
+  // the sidebar rather than trying to paint over it.
   useEffect(() => {
-    if (wide || !expanded || pane.paneViewer) return;
+    if (!fullView) return;
+    document.documentElement.dataset.appFullView = "";
+    return () => {
+      delete document.documentElement.dataset.appFullView;
+    };
+  }, [fullView]);
+  useEffect(() => {
+    // Full view covers everything, so Escape leaves it at any width.
+    if ((wide && !fullView) || !expanded || pane.paneViewer) return;
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") hide?.();
     };
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [wide, expanded, hide, pane.paneViewer]);
+  }, [wide, fullView, expanded, hide, pane.paneViewer]);
   function resize(value: number) {
     const next = Math.max(280, Math.min(maxWidth, value));
     setWidth(next);
@@ -215,8 +231,8 @@ function SessionRightPaneContent({
         aria-hidden={!expanded}
         inert={!expanded}
         data-resizing={dragging}
-        style={wide ? { width: visibleWidth } : undefined}
-        className={`${styles.pane} ${!expanded ? styles.hidden : ""} ${projectAppOpen ? styles.projectFullscreen : ""}`}
+        style={wide && !fullView ? { width: visibleWidth } : undefined}
+        className={`${styles.pane} ${!expanded ? styles.hidden : ""} ${projectAppOpen ? styles.projectFullscreen : ""} ${fullView ? styles.fullView : ""}`}
       >
         {wide && (
           <div
