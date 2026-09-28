@@ -181,9 +181,12 @@ remains independent defense in depth, now the operator's choice.
 
 `auth.json` fails closed, and so do `limited-users.json` and
 `remote-access.json`. Each is saved by atomic replacement, never rewritten in
-place, and shutdown waits for their pending saves (and the relay session
-cache's) before exiting. A file that exists but cannot be read, or an
-`auth.json` with an unrecognized version, stops startup with an error naming
+place, and only when its content changes: checking a login does not write
+`auth.json` (it once stamped a last-active time and saved on every request),
+and shutdown itself writes none of them. It only waits for saves already
+under way (and the relay session cache's) before exiting. A file that
+exists but cannot be read, or an `auth.json` with an unrecognized version,
+stops startup with an error naming
 it; the file is left as it is. Only a missing file means never configured.
 The relay session cache (`remote-sessions.json`) alone still starts fresh
 when unreadable, since losing it only asks relay clients to sign in again.

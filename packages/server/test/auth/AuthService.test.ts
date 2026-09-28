@@ -154,6 +154,26 @@ describe("AuthService unreadable state", () => {
     expect(service.hasAccount()).toBe(false);
   });
 
+  it("does not rewrite auth.json when a login is checked", async () => {
+    const service = new AuthService({
+      dataDir: testDir,
+      cookieSecret: "test-secret",
+    });
+    await service.initialize();
+    const sessionId = await service.createSession("agent");
+    await service.flushPendingWrites();
+    const filePath = path.join(testDir, "auth.json");
+    const before = await fs.stat(filePath);
+    for (let check = 0; check < 5; check++) {
+      await expect(service.validateSession(sessionId)).resolves.toBe(true);
+    }
+    // Waiting, like shutdown does, must not itself write either.
+    await service.waitForPendingWrites();
+    const after = await fs.stat(filePath);
+    expect(after.ino).toBe(before.ino);
+    expect(after.mtimeMs).toBe(before.mtimeMs);
+  });
+
   it("saves by replacing the file, never truncating it in place", async () => {
     const service = new AuthService({
       dataDir: testDir,

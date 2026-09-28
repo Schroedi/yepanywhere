@@ -59,9 +59,9 @@ export class RemoteAccessService {
   private saver = createCoalescingSaver(() => this.doSave());
   private save = this.saver.save;
 
-  /** Wait until the latest in-memory remote access state is durable. */
-  async flushPendingWrites(): Promise<void> {
-    await this.saver.flush();
+  /** Wait for saves already queued; never starts a write. */
+  async waitForPendingWrites(): Promise<void> {
+    await this.saver.idle();
   }
 
   constructor(options: RemoteAccessServiceOptions) {

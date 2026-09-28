@@ -416,6 +416,11 @@ export class LimitedUsersService {
     await this.saver.flush();
   }
 
+  /** Wait for saves already queued; unlike a flush, never starts a write. */
+  async waitForPendingWrites(): Promise<void> {
+    await this.saver.idle();
+  }
+
   private async doSave(): Promise<void> {
     const content = JSON.stringify(this.state, null, 2);
     // Atomic: an in-place write interrupted by shutdown leaves an empty file.

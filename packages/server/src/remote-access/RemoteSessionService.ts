@@ -101,9 +101,9 @@ export class RemoteSessionService {
   private persistSessionsToDisk: boolean;
   private saver = createCoalescingSaver(() => this.doSave());
 
-  /** Wait until the latest in-memory relay session state is durable. */
-  async flushPendingWrites(): Promise<void> {
-    await this.saver.flush();
+  /** Wait for saves already queued; never starts a write. */
+  async waitForPendingWrites(): Promise<void> {
+    await this.saver.idle();
   }
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
   private initialized = false;

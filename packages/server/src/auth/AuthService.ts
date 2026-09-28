@@ -285,8 +285,14 @@ export class AuthService {
   }
 
   /**
-   * Validate a session ID and update last active time.
+   * Validate a session ID.
    * Returns true if valid, false if expired or not found.
+   *
+   * A valid check writes nothing. It used to stamp `lastActiveAt` and save
+   * auth.json on every authenticated request, though nothing reads that field
+   * (expiry follows `createdAt`), which kept the credential file under
+   * constant rewrite; a restart during one of those saves once emptied it.
+   * auth.json now changes only when a credential or login does.
    */
   async validateSession(sessionId: string): Promise<boolean> {
     const verifier = sessionVerifier(sessionId);
@@ -304,11 +310,6 @@ export class AuthService {
       await this.save();
       return false;
     }
-
-    // Update last active time (debounced via save)
-    session.lastActiveAt = new Date().toISOString();
-    // Don't await save here to avoid blocking every request
-    void this.save();
 
     return true;
   }
@@ -371,6 +372,11 @@ export class AuthService {
   /** Wait until the latest in-memory authentication state is durable. */
   async flushPendingWrites(): Promise<void> {
     await this.saver.flush();
+  }
+
+  /** Wait for saves already queued; unlike a flush, never starts a write. */
+  async waitForPendingWrites(): Promise<void> {
+    await this.saver.idle();
   }
 
   /**
