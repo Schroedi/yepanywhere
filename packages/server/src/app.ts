@@ -2035,7 +2035,10 @@ export function createApp(options: AppOptions): AppResult {
       getClientDefaults: () =>
         options.serverSettingsService?.getSetting("clientDefaults"),
       getSessionSandboxAvailability: async (availabilityOptions) => ({
-        ...(await getSessionSandboxAvailability(availabilityOptions)),
+        ...(await getSessionSandboxAvailability({
+          ...availabilityOptions,
+          stateRoot: join(effectiveDataDir, "session-sandboxes"),
+        })),
         localAuthEnforced: isLocalAuthEnforced(),
       }),
       desktopRuntime: options.desktopRuntime,

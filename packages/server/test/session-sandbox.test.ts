@@ -18,7 +18,7 @@ import {
 } from "node:fs/promises";
 import { networkInterfaces, tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { SessionMetadataService } from "../src/metadata/SessionMetadataService.js";
 import { AuthService } from "../src/auth/AuthService.js";
 import { SESSION_COOKIE_NAME } from "../src/auth/routes.js";
@@ -35,8 +35,13 @@ import { ClaudeSessionReader } from "../src/sessions/reader.js";
 import { ClaudeProvider } from "../src/sdk/providers/claude.js";
 import type { UrlProjectId } from "@yep-anywhere/shared";
 
+// The availability probe mounts throwaway state under its state root; keep
+// that out of the real YA data directory.
+const probeStateRoot = await mkdtemp(join(tmpdir(), "ya-sandbox-probe-"));
+afterAll(() => rm(probeStateRoot, { recursive: true }));
 const hostSandboxAvailable =
-  (await probeSessionSandboxAvailability()).state === "available";
+  (await probeSessionSandboxAvailability({ stateRoot: probeStateRoot }))
+    .state === "available";
 async function isTrustedSystemFile(path: string): Promise<boolean> {
   return stat(path)
     .then(
@@ -222,6 +227,7 @@ describe("session sandbox", { timeout: 20_000 }, () => {
       // so the others are never run and need not be installed.
       const failingHelpers = {
         platform: "linux" as const,
+        stateRoot: join(root, "state"),
         unsharePath: "/usr/bin/false",
         slirp4netnsPath: "/usr/bin/false",
         ipPath: "/usr/bin/false",
@@ -242,8 +248,34 @@ describe("session sandbox", { timeout: 20_000 }, () => {
       });
       expect(unexplained.state).toBe("probe-failed");
       expect(unexplained.blocker).toBeUndefined();
+      // A failed probe still removes its throwaway state.
+      expect(await readdir(join(root, "state"))).toEqual([]);
     },
   );
+
+  t("probes the launch mounts and removes its throwaway state", async () => {
+    const root = await fixtureRoot();
+    const stateRoot = join(root, "state");
+    await expect(
+      probeSessionSandboxAvailability({ stateRoot }),
+    ).resolves.toMatchObject({ state: "available" });
+    expect(await readdir(stateRoot)).toEqual([]);
+  });
+
+  t("reports unavailable when a launch mount cannot be installed", async () => {
+    // The launch mounts its private resolver over the host's resolver path.
+    // A path whose directory is missing from the read-only host view cannot
+    // take that mount, so every launch would fail; the probe must say so.
+    // Outside /tmp, which the sandbox replaces with a writable directory.
+    const root = await fixtureRoot(process.cwd());
+    const stateRoot = join(root, "state");
+    const availability = await probeSessionSandboxAvailability({
+      stateRoot,
+      resolvConfPath: join(root, "missing", "resolv.conf"),
+    });
+    expect(availability.state).toBe("probe-failed");
+    expect(await readdir(stateRoot)).toEqual([]);
+  });
 
   trustedFalseIt("reports a trusted but unusable Linux backend", async () => {
     await expect(

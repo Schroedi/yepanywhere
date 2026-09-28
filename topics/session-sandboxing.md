@@ -175,7 +175,13 @@ capability.
 Preflight is advisory and cached briefly for routine version reads; it has no
 background polling loop. A fresh version request rechecks it. The probe covers
 Bubblewrap, `unshare`, `slirp4netns`, the route utility, and a real namespace
-setup. Every requested `project-write` launch repeats the authoritative checks
+setup built from the same Bubblewrap arguments a firewalled Claude launch uses:
+the project descriptor bind, private provider-state, cache and temporary
+binds, the provider-host runtime mask, and the private resolver mount. It
+mounts throwaway directories created under the launch's private-state root
+and removes them whether or not the probe passes, so a host whose launches
+would all fail at a mount is not advertised as available. Every requested
+`project-write` launch repeats the authoritative checks
 with the final project, private-state, and network policy. Capability or
 preflight staleness must therefore produce a closed launch failure, never an
 unlocked provider process.
