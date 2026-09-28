@@ -645,6 +645,14 @@ effort changes made by the superuser.
   noisy guest can throttle the host; the server's own per-identity SRP
   limiter already exists to contain that.
 
+  **Password managers (2026-09-28).** The form labels the routing field
+  **Server name** and keeps it out of autofill; **Log in as** is the visible
+  `autocomplete="username"` field, so a browser saves and restores the
+  identity with its password. A blank identity signs in as the owner and is
+  filled with the server name before the browser records the login. This
+  browser's saved relay hosts remember every identity used per server, so a
+  restored identity also restores the server name, on edit or at submit.
+
   **Identity lookup and timing.** The server resolves the `srp_hello`
   identity by a constant-time map lookup of username to salt and verifier
   before the one modular exponentiation SRP needs per attempt, so cost does
