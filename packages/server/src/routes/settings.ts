@@ -4,6 +4,8 @@
 
 import {
   CODEX_REASONING_SUMMARIES,
+  limitedUserInstructionsError,
+  type LimitedUserInstructions,
   CODEX_PLAN_TOOL_MODES,
   CODEX_CYBER_ACCESS_PROGRAMS,
   MAX_HEARTBEAT_TURN_TEXT_LENGTH,
@@ -642,6 +644,15 @@ export function createSettingsRoutes(deps: SettingsRoutesDeps) {
           return c.json({ error: "Invalid fileAccess setting" }, 400);
         }
         updates.fileAccess = parsed;
+      }
+
+      if ("limitedUserInstructions" in body) {
+        const error = limitedUserInstructionsError(
+          body.limitedUserInstructions,
+        );
+        if (error) return c.json({ error }, 400);
+        updates.limitedUserInstructions =
+          body.limitedUserInstructions as LimitedUserInstructions;
       }
 
       // Handle globalInstructions string (free-form text, or undefined/null/"" to clear)

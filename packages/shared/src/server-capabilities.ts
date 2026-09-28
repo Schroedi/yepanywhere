@@ -508,6 +508,32 @@ export const SERVER_CAPABILITIES = {
         "Superuser template creation does not imply limited-user authorization or confinement.",
     },
   },
+  limitedUserInstructions: {
+    id: CAPABILITY_ID_ALLOCATIONS.limitedUserInstructions.id,
+    name: "limited-user-instructions",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Shared append/replace instructions and per-user appended blocks for limited-user launches.",
+    clientFallback:
+      "Hide instruction controls and omit limitedUserInstructions and instructionBlocks from requests.",
+    serverContract: {
+      routes: [
+        "GET /api/settings",
+        "PUT /api/settings",
+        "GET /api/users",
+        "POST /api/users",
+        "PATCH /api/users/:username",
+      ],
+      requestFields: ["limitedUserInstructions", "instructionBlocks"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers do not apply limited-user prompt instructions.",
+    },
+  },
   templatePreparationAttachments: {
     id: CAPABILITY_ID_ALLOCATIONS.templatePreparationAttachments.id,
     name: "template-preparation-attachments",

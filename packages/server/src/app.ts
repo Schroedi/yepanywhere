@@ -71,6 +71,7 @@ import type { AuthService } from "./auth/AuthService.js";
 import { createAuthRoutes } from "./auth/routes.js";
 import type { UserUsageService } from "./auth/UserUsageService.js";
 import type { LimitedUsersService } from "./auth/LimitedUsersService.js";
+import { limitedUserInstructionsForLaunch } from "./auth/limitedUserInstructions.js";
 import { limitedActivityEvent } from "./auth/activityEventAccess.js";
 import { SessionAccessResolver } from "./auth/sessionAccess.js";
 import type { SubscriptionAccessTarget } from "./routes/ws-relay-handlers.js";
@@ -1810,6 +1811,12 @@ export function createApp(options: AppOptions): AppResult {
 
   supervisor = new Supervisor({
     projectDisplayName,
+    getLimitedUserInstructions: (username) =>
+      limitedUserInstructionsForLaunch(
+        username,
+        limitedUsersService,
+        options.serverSettingsService,
+      ),
     onProcessInventoryChanged: () => {
       // Gateway services that opted into auto-stop need to know when their
       // last session goes away; the live process list is that answer.

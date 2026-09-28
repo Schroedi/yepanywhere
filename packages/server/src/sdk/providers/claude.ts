@@ -1360,6 +1360,31 @@ export class ClaudeProvider implements AgentProvider {
     return disallowedTools ? { disallowedTools } : {};
   }
 
+  /** Apply at every confined query, including resumes and helper forks. */
+  private getSessionToolOptions(
+    model: string | undefined,
+    sandbox: SessionSandboxRuntime | undefined,
+  ): Pick<
+    Options,
+    "settings" | "disallowedTools" | "strictMcpConfig" | "mcpServers"
+  > {
+    const settings = this.getSettings(model);
+    if (!sandbox) {
+      return { settings, ...this.getDisallowedToolOptions(model) };
+    }
+    return {
+      settings: {
+        ...settings,
+        disableClaudeAiConnectors: true,
+        allowedMcpServers: [],
+        deniedMcpServers: [{ serverUrl: "*" }],
+      },
+      strictMcpConfig: true,
+      mcpServers: {},
+      disallowedTools: [...(this.getDisallowedTools(model) ?? []), "mcp__*"],
+    };
+  }
+
   /**
    * Normalize a live SDK model catalog and update this provider instance only.
    * Gateway subclasses may replace the SDK's built-in-plus-gateway catalog
@@ -1393,6 +1418,31 @@ export class ClaudeProvider implements AgentProvider {
           append: globalInstructions,
         }
       : { type: "preset" as const, preset: "claude_code" as const };
+  }
+
+  private getSessionSystemPrompt(
+    globalInstructions: string | undefined,
+    sandbox: SessionSandboxRuntime | undefined,
+  ): Options["systemPrompt"] {
+    const instructions = sandbox?.instructions;
+    if (instructions && !instructions.startFromDefault) {
+      return {
+        type: "custom",
+        prompt:
+          withSessionSandboxAgentContext(instructions.text, sandbox) ?? "",
+        snapshot: false,
+      };
+    }
+    const append = [globalInstructions, instructions?.text]
+      .filter(Boolean)
+      .join("\n\n");
+    const prompt = this.getSystemPrompt(
+      withSessionSandboxAgentContext(append, sandbox),
+    );
+    if (!instructions || !prompt) return prompt;
+    return typeof prompt === "string"
+      ? { type: "custom", prompt, snapshot: false }
+      : { ...prompt, snapshot: false };
   }
 
   private async runControlProbe<T>(
@@ -1646,20 +1696,27 @@ export class ClaudeProvider implements AgentProvider {
           permissionMode: "default",
           pathToClaudeCodeExecutable: resolveLocalClaudeCodeExecutable(),
           env: this.getEnv(request.model),
-          settings: this.getSettings(request.model),
-          ...this.getDisallowedToolOptions(request.model),
+          ...this.getSessionToolOptions(request.model, request.sessionSandbox),
           model: normalizeClaudeLaunchModel(request.model),
           resume: request.generatorSessionId,
           maxTurns: 1,
           spawnClaudeCodeProcess: request.sessionSandbox
             ? createSandboxedClaudeSpawn(request.sessionSandbox)
             : undefined,
-          systemPrompt:
-            request.purpose === "session-retitle"
-              ? "You are a title helper. Reply with the session title only, no preamble."
-              : request.purpose === "recap"
-                ? "You are a recap helper. Reply with the recap text only, no preamble."
-                : "You are a handoff summary helper. Reply with the summary text only, no preamble.",
+          systemPrompt: {
+            type: "custom",
+            snapshot: false,
+            prompt: [
+              request.sessionSandbox?.instructions?.text,
+              request.purpose === "session-retitle"
+                ? "You are a title helper. Reply with the session title only, no preamble."
+                : request.purpose === "recap"
+                  ? "You are a recap helper. Reply with the recap text only, no preamble."
+                  : "You are a handoff summary helper. Reply with the summary text only, no preamble.",
+            ]
+              .filter(Boolean)
+              .join("\n\n"),
+          },
         },
       });
 
@@ -1804,11 +1861,9 @@ export class ClaudeProvider implements AgentProvider {
             interrupt: true,
           }),
           // Must match the session's own system prompt to reuse its cache.
-          systemPrompt: this.getSystemPrompt(
-            withSessionSandboxAgentContext(
-              options.globalInstructions,
-              options.sessionSandbox,
-            ),
+          systemPrompt: this.getSessionSystemPrompt(
+            options.globalInstructions,
+            options.sessionSandbox,
           ),
           settingSources: ["user", "project", "local"],
           includePartialMessages: false,
@@ -1820,8 +1875,7 @@ export class ClaudeProvider implements AgentProvider {
           effort: options.effort,
           pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable,
           env: options.env,
-          settings: this.getSettings(options.model),
-          ...this.getDisallowedToolOptions(options.model),
+          ...this.getSessionToolOptions(options.model, options.sessionSandbox),
           spawnClaudeCodeProcess,
         },
       });
@@ -2227,11 +2281,9 @@ export class ClaudeProvider implements AgentProvider {
               ? "default"
               : (options.permissionMode ?? "default"),
           canUseTool,
-          systemPrompt: this.getSystemPrompt(
-            withSessionSandboxAgentContext(
-              options.globalInstructions,
-              sessionSandbox,
-            ),
+          systemPrompt: this.getSessionSystemPrompt(
+            options.globalInstructions,
+            sessionSandbox,
           ),
           settingSources: ["user", "project", "local"],
           includePartialMessages: true,
@@ -2246,8 +2298,7 @@ export class ClaudeProvider implements AgentProvider {
           pathToClaudeCodeExecutable,
           // Filter env to exclude npm_*, yep-anywhere specific, and other irrelevant vars
           env: claudeEnv,
-          settings: this.getSettings(options.model),
-          ...this.getDisallowedToolOptions(options.model),
+          ...this.getSessionToolOptions(options.model, sessionSandbox),
           hooks: {
             Stop: [
               {

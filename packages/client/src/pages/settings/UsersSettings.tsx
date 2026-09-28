@@ -11,6 +11,7 @@ import {
   SERVER_CAPABILITIES,
   serverHasCapability,
   templateGrantFor,
+  instructionBlocksError,
 } from "@yep-anywhere/shared";
 import { api } from "../../api/client";
 import { useActingPrincipal } from "../../hooks/useActingPrincipal";
@@ -26,6 +27,14 @@ import { UserUsageTable } from "./UserUsageTable";
 import styles from "./UsersSettings.module.css";
 import { UserTemplateGrant } from "./UserTemplateGrant";
 import { useVersion } from "../../hooks/useVersion";
+import {
+  instructionBlockDrafts,
+  type InstructionBlockDraft,
+} from "./InstructionBlocks";
+import {
+  SharedLimitedUserInstructions,
+  PerUserInstructions,
+} from "./LimitedUserInstructions";
 
 /**
  * Settings → Users: the superuser's user-management surface.
@@ -49,6 +58,7 @@ interface DraftState {
   effort: string;
   projectRoot: string;
   templateCreation?: TemplateCreationGrant;
+  instructionBlocks: InstructionBlockDraft[];
 }
 
 const EMPTY_DRAFT: DraftState = {
@@ -60,6 +70,7 @@ const EMPTY_DRAFT: DraftState = {
   model: "",
   effort: "",
   projectRoot: "",
+  instructionBlocks: [],
 };
 
 function draftFromUser(user: LimitedUserSummary): DraftState {
@@ -77,10 +88,15 @@ function draftFromUser(user: LimitedUserSummary): DraftState {
     effort: user.lock.effort ?? "",
     projectRoot: user.projectRoot ?? "",
     templateCreation: templateGrantFor(user),
+    instructionBlocks: instructionBlockDrafts(user.instructionBlocks ?? []),
   };
 }
 
-function grantsFromDraft(draft: DraftState, supportsTemplates: boolean) {
+function grantsFromDraft(
+  draft: DraftState,
+  supportsTemplates: boolean,
+  supportsInstructions: boolean,
+) {
   const newSessionProjects: string[] = [];
   const joinProjects: string[] = [];
   const viewProjects: string[] = [];
@@ -102,6 +118,11 @@ function grantsFromDraft(draft: DraftState, supportsTemplates: boolean) {
     // Always sent, so clearing the field revokes the grant.
     projectRoot: draft.projectRoot.trim(),
     ...(supportsTemplates ? { templateCreation: templateGrantFor(draft) } : {}),
+    ...(supportsInstructions
+      ? {
+          instructionBlocks: draft.instructionBlocks.map((block) => block.text),
+        }
+      : {}),
   };
 }
 
@@ -123,9 +144,14 @@ export function UsersSettings() {
     SERVER_CAPABILITIES.limitedUserProjectTemplates.name,
   );
   useSettingsPaneTitle(t("settingsUsersTitle"));
+  const supportsInstructions = serverHasCapability(
+    version,
+    SERVER_CAPABILITIES.limitedUserInstructions.name,
+  );
   const {
     settings,
     updateSetting,
+    updateSettings,
     isLoading: settingsLoading,
   } = useServerSettings();
   const {
@@ -190,7 +216,15 @@ export function UsersSettings() {
     setBusy(true);
     setError(null);
     try {
-      const grants = grantsFromDraft(draft, supportsTemplates);
+      const grants = grantsFromDraft(
+        draft,
+        supportsTemplates,
+        supportsInstructions,
+      );
+      if (supportsInstructions) {
+        const invalid = instructionBlocksError(grants.instructionBlocks);
+        if (invalid) throw new Error(invalid);
+      }
       if (editor?.kind === "edit") {
         await api.updateUser(editor.username, {
           ...grants,
@@ -273,102 +307,136 @@ export function UsersSettings() {
   return (
     <SettingsSection
       title={t("settingsUsersTitle")}
-      description={t("settingsUsersDescription")}
+      description={
+        supportsInstructions ? undefined : t("settingsUsersDescription")
+      }
       keywords={["limited users", "accounts", "guest", "sandbox", "grants"]}
     >
       {/* First, because it is the decision the rest of the pane depends on.
           Turning it off keeps the records and refuses their logins. */}
-      <SettingsItem
-        label={t("advancedLimitedUsersTitle")}
-        description={t("advancedLimitedUsersDescription")}
-        keywords={["limited users", "accounts", "enable", "disable"]}
-      >
-        <label className="toggle-switch">
-          <input
-            type="checkbox"
-            checked={enabled}
-            disabled={settingsLoading || busy}
-            onChange={(event) =>
-              void updateSetting("limitedUsersEnabled", event.target.checked)
-            }
-          />
-          <span className="toggle-slider" />
-        </label>
-      </SettingsItem>
-
-      <div className="settings-group">
-        <p className="settings-hint">{t("usersTrustWarning")}</p>
-        {loaded && users.length === 0 ? (
-          <p className="settings-hint">{t("usersEmpty")}</p>
-        ) : (
-          <ul className={styles.userList}>
-            {users.map((user) => {
-              const lock = lockSummary(user);
-              return (
-                <li key={user.username} className={styles.userRow}>
-                  <div className={styles.userInfo}>
-                    <strong className={styles.userName}>{user.username}</strong>
-                    <span className={styles.userMeta}>
-                      {t("usersGrantSummary", {
-                        newSession: user.newSessionProjects.length,
-                        join: user.joinProjects.length,
-                        view: user.viewProjects.length,
-                      })}
-                      {lock ? ` · ${lock}` : ""}
-                    </span>
-                  </div>
-                  <div className={styles.userActions}>
-                    <button
-                      type="button"
-                      className="settings-button"
-                      disabled={busy}
-                      onClick={() => void switchTo(user.username)}
-                    >
-                      {t("usersActAs")}
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-button"
-                      disabled={busy}
-                      onClick={() => {
-                        setEditor({ kind: "edit", username: user.username });
-                        setDraft(draftFromUser(user));
-                      }}
-                    >
-                      {t("usersEdit")}
-                    </button>
-                    <button
-                      type="button"
-                      className="settings-button settings-button-danger-subtle"
-                      disabled={busy}
-                      onClick={() => void remove(user.username)}
-                    >
-                      {t("usersDelete")}
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        {editor === null && (
-          <button
-            type="button"
-            className="settings-button"
-            disabled={busy}
-            onClick={() => {
-              setEditor({ kind: "create" });
-              setDraft(EMPTY_DRAFT);
-            }}
+      {(!supportsInstructions || editor === null) && (
+        <details
+          className={styles.account}
+          open={!supportsInstructions || !enabled}
+        >
+          <summary>{t("usersAccessSettings")}</summary>
+          <SettingsItem
+            label={t("advancedLimitedUsersTitle")}
+            description={t("advancedLimitedUsersDescription")}
+            keywords={["limited users", "accounts", "enable", "disable"]}
           >
-            {t("usersAddUser")}
-          </button>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={enabled}
+                disabled={settingsLoading || busy}
+                onChange={(event) =>
+                  void updateSetting(
+                    "limitedUsersEnabled",
+                    event.target.checked,
+                  )
+                }
+              />
+              <span className="toggle-slider" />
+            </label>
+          </SettingsItem>
+          <p className="settings-hint">{t("usersTrustWarning")}</p>
+        </details>
+      )}
+
+      {(!supportsInstructions || editor === null) && (
+        <div className="settings-group">
+          {loaded && users.length === 0 ? (
+            <p className="settings-hint">{t("usersEmpty")}</p>
+          ) : (
+            <ul className={styles.userList}>
+              {users.map((user) => {
+                const lock = lockSummary(user);
+                return (
+                  <li key={user.username} className={styles.userRow}>
+                    <div className={styles.userInfo}>
+                      <strong className={styles.userName}>
+                        {user.username}
+                      </strong>
+                      <span className={styles.userMeta}>
+                        {t("usersGrantSummary", {
+                          newSession: user.newSessionProjects.length,
+                          join: user.joinProjects.length,
+                          view: user.viewProjects.length,
+                        })}
+                        {lock ? ` · ${lock}` : ""}
+                      </span>
+                    </div>
+                    <div className={styles.userActions}>
+                      <button
+                        type="button"
+                        className="settings-button"
+                        disabled={busy}
+                        onClick={() => void switchTo(user.username)}
+                      >
+                        {t("usersActAs")}
+                      </button>
+                      <button
+                        type="button"
+                        className="settings-button"
+                        disabled={busy}
+                        onClick={() => {
+                          setEditor({ kind: "edit", username: user.username });
+                          setDraft(draftFromUser(user));
+                        }}
+                      >
+                        {t("usersEdit")}
+                      </button>
+                      <button
+                        type="button"
+                        className="settings-button settings-button-danger-subtle"
+                        disabled={busy}
+                        onClick={() => void remove(user.username)}
+                      >
+                        {t("usersDelete")}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {editor === null && (
+            <button
+              type="button"
+              className="settings-button"
+              disabled={busy}
+              onClick={() => {
+                setEditor({ kind: "create" });
+                setDraft(EMPTY_DRAFT);
+              }}
+            >
+              {t("usersAddUser")}
+            </button>
+          )}
+        </div>
+      )}
+
+      {supportsInstructions &&
+        editor === null &&
+        !settingsLoading &&
+        settings && (
+          <div className="settings-group">
+            <SharedLimitedUserInstructions
+              value={settings.limitedUserInstructions}
+              onSave={(limitedUserInstructions) =>
+                updateSettings({ limitedUserInstructions })
+              }
+            />
+          </div>
         )}
-      </div>
 
       {editor !== null && (
         <UserEditor
+          key={editor.kind === "edit" ? editor.username : "new"}
+          supportsInstructions={supportsInstructions}
+          sharedInstructions={settings?.limitedUserInstructions}
           supportsTemplates={supportsTemplates}
           editing={editor.kind === "edit" ? editor.username : null}
           draft={draft}
@@ -502,6 +570,10 @@ function ProjectRootField({
 }
 
 interface UserEditorProps {
+  supportsInstructions: boolean;
+  sharedInstructions:
+    | import("@yep-anywhere/shared").LimitedUserInstructions
+    | undefined;
   supportsTemplates: boolean;
   /** The username being edited, or null when creating. */
   editing: string | null;
@@ -514,6 +586,8 @@ interface UserEditorProps {
 }
 
 function UserEditor({
+  supportsInstructions,
+  sharedInstructions,
   supportsTemplates,
   editing,
   draft,
@@ -540,170 +614,188 @@ function UserEditor({
           : t("usersAddUser")}
       </h3>
 
-      {!editing && (
-        <label className={styles.field}>
-          <span>{t("usersUsernameLabel")}</span>
-          <input
-            className={styles.input}
-            value={draft.username}
-            placeholder={t("usersUsernamePlaceholder")}
-            autoComplete="off"
-            onChange={(event) =>
-              onDraftChange({ ...draft, username: event.target.value })
-            }
-          />
-        </label>
-      )}
-      <label className={styles.field}>
-        <span>
-          {editing ? t("usersNewPasswordLabel") : t("usersPasswordLabel")}
-        </span>
-        <input
-          className={styles.input}
-          type="password"
-          value={draft.password}
-          placeholder={
-            editing
-              ? t("usersNewPasswordPlaceholder")
-              : t("usersPasswordPlaceholder")
-          }
-          autoComplete="new-password"
-          onChange={(event) =>
-            onDraftChange({ ...draft, password: event.target.value })
-          }
-        />
-      </label>
+      <details
+        className={styles.account}
+        open={!supportsInstructions || !editing}
+      >
+        <summary>{t("usersAccountAndAccess")}</summary>
+        <div className={styles.accountFields}>
+          {!editing && (
+            <label className={styles.field}>
+              <span>{t("usersUsernameLabel")}</span>
+              <input
+                className={styles.input}
+                value={draft.username}
+                placeholder={t("usersUsernamePlaceholder")}
+                autoComplete="off"
+                onChange={(event) =>
+                  onDraftChange({ ...draft, username: event.target.value })
+                }
+              />
+            </label>
+          )}
+          <label className={styles.field}>
+            <span>
+              {editing ? t("usersNewPasswordLabel") : t("usersPasswordLabel")}
+            </span>
+            <input
+              className={styles.input}
+              type="password"
+              value={draft.password}
+              placeholder={
+                editing
+                  ? t("usersNewPasswordPlaceholder")
+                  : t("usersPasswordPlaceholder")
+              }
+              autoComplete="new-password"
+              onChange={(event) =>
+                onDraftChange({ ...draft, password: event.target.value })
+              }
+            />
+          </label>
 
-      <p className={styles.subhead}>{t("usersProjectsHeading")}</p>
-      {projects.length === 0 ? (
-        <p className="settings-hint">{t("usersNoProjects")}</p>
-      ) : (
-        <ul className={styles.projectList}>
-          {projects.map((project) => (
-            <li key={project.id} className={styles.projectRow}>
-              <span className={styles.projectName} title={project.path}>
-                {project.name}
-              </span>
+          <p className={styles.subhead}>{t("usersProjectsHeading")}</p>
+          {projects.length === 0 ? (
+            <p className="settings-hint">{t("usersNoProjects")}</p>
+          ) : (
+            <ul className={styles.projectList}>
+              {projects.map((project) => (
+                <li key={project.id} className={styles.projectRow}>
+                  <span className={styles.projectName} title={project.path}>
+                    {project.name}
+                  </span>
+                  <select
+                    className={styles.select}
+                    value={draft.access[project.id] ?? "none"}
+                    aria-label={project.name}
+                    onChange={(event) =>
+                      onDraftChange({
+                        ...draft,
+                        access: {
+                          ...draft.access,
+                          [project.id]: event.target
+                            .value as ProjectAccessLevel,
+                        },
+                      })
+                    }
+                  >
+                    <option value="none">{t("usersAccessNone")}</option>
+                    <option value="view">{t("usersAccessView")}</option>
+                    <option value="join">{t("usersAccessJoin")}</option>
+                    <option value="new-session">
+                      {t("usersAccessNewSession")}
+                    </option>
+                  </select>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <p className={styles.subhead}>{t("usersProjectRootHeading")}</p>
+          <ProjectRootField
+            projectRoot={draft.projectRoot}
+            username={editing ?? draft.username.trim()}
+            onChange={(projectRoot) => onDraftChange({ ...draft, projectRoot })}
+          />
+          {supportsTemplates && (
+            <UserTemplateGrant
+              value={templateGrantFor(draft)}
+              onChange={(templateCreation) =>
+                onDraftChange({ ...draft, templateCreation })
+              }
+            />
+          )}
+
+          <label className={styles.field}>
+            <span>{t("usersJoinOffsetLabel")}</span>
+            <input
+              className={styles.input}
+              type="number"
+              min={JOIN_STALE_OFFSET_MIN_MINUTES}
+              max={JOIN_STALE_OFFSET_MAX_MINUTES}
+              value={draft.joinStaleOffsetMinutes}
+              onChange={(event) =>
+                onDraftChange({
+                  ...draft,
+                  joinStaleOffsetMinutes: Number(event.target.value),
+                })
+              }
+            />
+          </label>
+          <p className="settings-hint">{t("usersJoinOffsetHint")}</p>
+
+          <p className={styles.subhead}>{t("usersLockHeading")}</p>
+          <p className="settings-hint">{t("usersLockHint")}</p>
+          <div className={styles.lockRow}>
+            <label className={styles.field}>
+              <span>{t("usersLockProvider")}</span>
               <select
                 className={styles.select}
-                value={draft.access[project.id] ?? "none"}
-                aria-label={project.name}
+                value={draft.provider}
                 onChange={(event) =>
                   onDraftChange({
                     ...draft,
-                    access: {
-                      ...draft.access,
-                      [project.id]: event.target.value as ProjectAccessLevel,
-                    },
+                    provider: event.target.value,
+                    model: "",
                   })
                 }
               >
-                <option value="none">{t("usersAccessNone")}</option>
-                <option value="view">{t("usersAccessView")}</option>
-                <option value="join">{t("usersAccessJoin")}</option>
-                <option value="new-session">
-                  {t("usersAccessNewSession")}
-                </option>
+                <option value="">{t("usersLockUnset")}</option>
+                {providers.map((provider) => (
+                  <option key={provider.name} value={provider.name}>
+                    {provider.displayName}
+                  </option>
+                ))}
               </select>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <p className={styles.subhead}>{t("usersProjectRootHeading")}</p>
-      <ProjectRootField
-        projectRoot={draft.projectRoot}
-        username={editing ?? draft.username.trim()}
-        onChange={(projectRoot) => onDraftChange({ ...draft, projectRoot })}
-      />
-      {supportsTemplates && (
-        <UserTemplateGrant
-          value={templateGrantFor(draft)}
-          onChange={(templateCreation) =>
-            onDraftChange({ ...draft, templateCreation })
+            </label>
+            <label className={styles.field}>
+              <span>{t("usersLockModel")}</span>
+              <select
+                className={styles.select}
+                value={draft.model}
+                disabled={!draft.provider}
+                onChange={(event) =>
+                  onDraftChange({ ...draft, model: event.target.value })
+                }
+              >
+                <option value="">{t("usersLockUnset")}</option>
+                {models.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span>{t("usersLockEffort")}</span>
+              <select
+                className={styles.select}
+                value={draft.effort}
+                onChange={(event) =>
+                  onDraftChange({ ...draft, effort: event.target.value })
+                }
+              >
+                <option value="">{t("usersLockUnset")}</option>
+                {EFFORT_OPTIONS.map((effort) => (
+                  <option key={effort} value={effort}>
+                    {effort}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+      </details>
+      {supportsInstructions && (
+        <PerUserInstructions
+          shared={sharedInstructions}
+          blocks={draft.instructionBlocks}
+          disabled={busy}
+          onChange={(instructionBlocks) =>
+            onDraftChange({ ...draft, instructionBlocks })
           }
         />
       )}
-
-      <label className={styles.field}>
-        <span>{t("usersJoinOffsetLabel")}</span>
-        <input
-          className={styles.input}
-          type="number"
-          min={JOIN_STALE_OFFSET_MIN_MINUTES}
-          max={JOIN_STALE_OFFSET_MAX_MINUTES}
-          value={draft.joinStaleOffsetMinutes}
-          onChange={(event) =>
-            onDraftChange({
-              ...draft,
-              joinStaleOffsetMinutes: Number(event.target.value),
-            })
-          }
-        />
-      </label>
-      <p className="settings-hint">{t("usersJoinOffsetHint")}</p>
-
-      <p className={styles.subhead}>{t("usersLockHeading")}</p>
-      <p className="settings-hint">{t("usersLockHint")}</p>
-      <div className={styles.lockRow}>
-        <label className={styles.field}>
-          <span>{t("usersLockProvider")}</span>
-          <select
-            className={styles.select}
-            value={draft.provider}
-            onChange={(event) =>
-              onDraftChange({
-                ...draft,
-                provider: event.target.value,
-                model: "",
-              })
-            }
-          >
-            <option value="">{t("usersLockUnset")}</option>
-            {providers.map((provider) => (
-              <option key={provider.name} value={provider.name}>
-                {provider.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={styles.field}>
-          <span>{t("usersLockModel")}</span>
-          <select
-            className={styles.select}
-            value={draft.model}
-            disabled={!draft.provider}
-            onChange={(event) =>
-              onDraftChange({ ...draft, model: event.target.value })
-            }
-          >
-            <option value="">{t("usersLockUnset")}</option>
-            {models.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={styles.field}>
-          <span>{t("usersLockEffort")}</span>
-          <select
-            className={styles.select}
-            value={draft.effort}
-            onChange={(event) =>
-              onDraftChange({ ...draft, effort: event.target.value })
-            }
-          >
-            <option value="">{t("usersLockUnset")}</option>
-            {EFFORT_OPTIONS.map((effort) => (
-              <option key={effort} value={effort}>
-                {effort}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
       {error && <p className="form-error">{error}</p>}
       <div className={styles.editorActions}>
         <button

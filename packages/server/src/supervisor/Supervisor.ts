@@ -544,6 +544,9 @@ export type RecoverSessionLaunchSettingsCallback = (
 const INITIAL_RECONCILE_DELAYS_MS = [1000, 3000] as const;
 
 export interface SupervisorOptions {
+  getLimitedUserInstructions?: (
+    username: string,
+  ) => import("@yep-anywhere/shared").ResolvedLimitedUserInstructions;
   /** Agent provider interface; null disables registry-backed provider discovery. */
   provider?: AgentProvider | null;
   /** Legacy SDK interface for mock SDK */
@@ -769,6 +772,7 @@ export class Supervisor {
   private toolResultMediaStore?: ToolResultMediaStore;
   private dirtyFileEditorService?: DirtyFileEditorService;
   private sandboxStateRoot?: string;
+  private getLimitedUserInstructions?: SupervisorOptions["getLimitedUserInstructions"];
   // In-flight forked recaps, keyed by process id. The AbortController cancels
   // the generator-fork helper turn when the parent becomes active again, so a
   // returning user's new turn is never shadowed by a stale recap. See
@@ -828,6 +832,7 @@ export class Supervisor {
     this.toolResultMediaStore = options.toolResultMediaStore;
     this.dirtyFileEditorService = options.dirtyFileEditorService;
     this.sandboxStateRoot = options.sandboxStateRoot;
+    this.getLimitedUserInstructions = options.getLimitedUserInstructions;
     this.activationCoordinator = new SessionActivationCoordinator({
       defaultPermissionMode: this.defaultPermissionMode,
       sessionMetadataService: this.sessionMetadataService,
@@ -885,7 +890,15 @@ export class Supervisor {
     modelSettings: ModelSettings | undefined,
     resumeSessionId: string | undefined,
   ): PrepareSessionSandboxOptions {
+    const username =
+      (resumeSessionId
+        ? this.sessionMetadataService?.getMetadata(resumeSessionId)
+            ?.createdByUser
+        : undefined) ?? modelSettings?.instructionUsername;
     return {
+      instructions: username
+        ? this.getLimitedUserInstructions?.(username)
+        : undefined,
       level: modelSettings?.sandboxLevel,
       networkFirewall: modelSettings?.sandboxNetworkFirewall,
       provider,
@@ -3195,6 +3208,12 @@ export class Supervisor {
       throw new Error(`${provider.name} does not support transcript fork`);
     }
     const sessionSandbox = await prepareSessionSandbox({
+      instructions: this.newSessionSandboxOptions(
+        provider.name,
+        options.projectPath,
+        undefined,
+        options.sessionId,
+      ).instructions,
       level: options.sandboxLevel,
       networkFirewall: options.sandboxNetworkFirewall,
       provider: provider.name,

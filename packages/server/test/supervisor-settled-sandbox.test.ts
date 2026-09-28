@@ -33,6 +33,7 @@ function metadataService(): SessionMetadataService {
       sandboxNetworkFirewall: true,
       sandboxStateKey: "project-settled",
       sandboxProjectPath: "/srv/sandboxed-project",
+      createdByUser: "alice",
     },
     [PLAIN]: {},
   };
@@ -75,6 +76,10 @@ describe("Supervisor settled session sandbox", () => {
       provider: refusingProvider(),
       sessionMetadataService: metadataService(),
       idleTimeoutMs: 60_000,
+      getLimitedUserInstructions: (username) => ({
+        startFromDefault: false,
+        text: `Instructions for ${username}`,
+      }),
     });
   });
 
@@ -100,6 +105,10 @@ describe("Supervisor settled session sandbox", () => {
         networkFirewall: true,
         stateKey: "project-settled",
         projectPath: "/srv/sandboxed-project",
+        instructions: {
+          startFromDefault: false,
+          text: "Instructions for alice",
+        },
       }),
     ]);
   });
@@ -163,5 +172,19 @@ describe("Supervisor settled session sandbox", () => {
     expect(sandboxRequests).toEqual([
       expect.objectContaining({ level: undefined, projectPath: "/srv/plain" }),
     ]);
+  });
+
+  it("resolves new-session instructions before ownership metadata exists", async () => {
+    await expect(
+      supervisor.createSession("/srv/new-project", undefined, {
+        providerName: "claude",
+        sandboxLevel: "project-write",
+        instructionUsername: "bobby",
+      }),
+    ).rejects.toThrow("sandboxed-launch");
+    expect(sandboxRequests[0]?.instructions).toEqual({
+      startFromDefault: false,
+      text: "Instructions for bobby",
+    });
   });
 });

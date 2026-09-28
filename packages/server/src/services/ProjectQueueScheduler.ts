@@ -1302,6 +1302,7 @@ export class ProjectQueueScheduler {
       : { thinking: undefined, effort: undefined };
     const globalInstructions = this.options.getGlobalInstructions?.();
     return {
+      instructionUsername: item.createdByUser,
       ...(target.model && target.model !== "default"
         ? { model: target.model }
         : {}),

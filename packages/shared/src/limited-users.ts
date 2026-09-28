@@ -12,6 +12,70 @@ export const LIMITED_USERNAME_MIN_LENGTH = 3;
 export const LIMITED_USERNAME_MAX_LENGTH = 32;
 export const LIMITED_USER_MIN_PASSWORD_LENGTH = 8;
 
+export const MAX_INSTRUCTION_BLOCKS = 32;
+export const MAX_INSTRUCTION_CHARACTERS = 10_000;
+export const DEFAULT_LIMITED_USER_INSTRUCTION =
+  'When using any external image/video generation API or MCP tool, enable the provider\'s safety filtering at its strictest setting (e.g. moderation="auto", enable_safety_checker=true, safety_filter_level="block_most"). Never disable a safety checker. Prefer providers with server-side filtering.';
+
+export interface LimitedUserInstructions {
+  startFromDefault: boolean;
+  blocks: string[];
+}
+
+export interface ResolvedLimitedUserInstructions {
+  startFromDefault: boolean;
+  text: string;
+}
+
+export function defaultLimitedUserInstructions(): LimitedUserInstructions {
+  return { startFromDefault: true, blocks: [DEFAULT_LIMITED_USER_INSTRUCTION] };
+}
+
+/** Validate instruction blocks without trimming or silently truncating text. */
+export function instructionBlocksError(value: unknown): string | null {
+  if (
+    !Array.isArray(value) ||
+    value.some((block) => typeof block !== "string")
+  ) {
+    return "Instruction blocks must be a list of strings";
+  }
+  if (value.length > MAX_INSTRUCTION_BLOCKS) {
+    return `Use at most ${MAX_INSTRUCTION_BLOCKS} instruction blocks`;
+  }
+  if (
+    value.reduce((length, block) => length + block.length, 0) >
+    MAX_INSTRUCTION_CHARACTERS
+  ) {
+    return `Instructions must total at most ${MAX_INSTRUCTION_CHARACTERS} characters`;
+  }
+  return null;
+}
+
+export function resolveLimitedUserInstructions(
+  shared: LimitedUserInstructions,
+  userBlocks: string[] = [],
+): ResolvedLimitedUserInstructions {
+  return {
+    startFromDefault: shared.startFromDefault,
+    text: [...shared.blocks, ...userBlocks]
+      .filter((block) => block.trim())
+      .join("\n\n"),
+  };
+}
+
+export function limitedUserInstructionsError(value: unknown): string | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !("startFromDefault" in value) ||
+    typeof value.startFromDefault !== "boolean" ||
+    !("blocks" in value)
+  ) {
+    return "Instructions require startFromDefault and blocks";
+  }
+  return instructionBlocksError(value.blocks);
+}
+
 /** Lowest and highest join-freshness offsets a superuser may configure. */
 export const JOIN_STALE_OFFSET_MIN_MINUTES = -5;
 export const JOIN_STALE_OFFSET_MAX_MINUTES = 60;
@@ -112,6 +176,8 @@ export interface LimitedUserGrants {
    */
   projectRoot?: string;
   templateCreation?: TemplateCreationGrant;
+  /** Appended after the shared limited-user instructions on each launch. */
+  instructionBlocks?: string[];
 }
 
 /** A limited user as any API returns it. Never carries credential material. */

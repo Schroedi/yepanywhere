@@ -14,6 +14,13 @@ Topic: limited-users
 Status: **v1 delivered (2026-09-20); the rest remains proposal.** See
 § Delivery v1 — Settings → Users for the committed contract.
 
+The superuser can configure shared append/replace instruction blocks and
+per-user appended blocks in Settings → Users. The implemented ordering,
+defaults, provider mapping, relaunch timing and compatibility contract live
+under [limited-user instructions](session-sandboxing.md#limited-user-instructions).
+Every sandboxed Claude-family session also disables MCP servers and connectors,
+independently of that editable prompt text.
+
 The implemented template-creation extension is specified in
 [project templates](project-templates.md#limited-user-permissions): server-enforced
 None / Selected / Any permissions in Settings → Users. A configured creation

@@ -3284,7 +3284,9 @@ export class CodexProvider implements AgentProvider {
       signal.addEventListener("abort", stopMessageWait, { once: true });
       let isFirstMessage = !options.resumeSessionId;
       const globalContext = withSessionSandboxAgentContext(
-        options.globalInstructions,
+        options.sessionSandbox?.instructions?.startFromDefault === false
+          ? undefined
+          : options.globalInstructions,
         options.sessionSandbox,
       );
 
@@ -3872,7 +3874,11 @@ export class CodexProvider implements AgentProvider {
       cwd: options.cwd,
       ...this.buildThreadPermissionParams(policy),
       config: this.buildThreadConfigOverrides(options),
+      ...this.limitedUserThreadInstructions(options.sessionSandbox),
       experimentalRawEvents: false,
+      ...(options.sessionSandbox?.instructions?.startFromDefault === false
+        ? { baseInstructions: "" }
+        : {}),
       ...(options.computerControl
         ? {
             dynamicTools: [
@@ -3903,6 +3909,7 @@ export class CodexProvider implements AgentProvider {
       cwd: options.cwd,
       ...this.buildThreadPermissionParams(policy),
       config: this.buildThreadConfigOverrides(options),
+      ...this.limitedUserThreadInstructions(options.sessionSandbox),
     };
     if (experimentalApiEnabled && !includeTurns) {
       params.excludeTurns = true;
@@ -3915,6 +3922,7 @@ export class CodexProvider implements AgentProvider {
       sessionId: string;
       cwd: string;
       lastTurnId?: string;
+      sessionSandbox?: SessionSandboxRuntime;
     },
     policy: CodexThreadPolicy,
     experimentalApiEnabled = false,
@@ -3925,6 +3933,7 @@ export class CodexProvider implements AgentProvider {
       cwd: options.cwd,
       ...this.buildThreadPermissionParams(policy),
       config: this.buildThreadConfigOverrides({}),
+      ...this.limitedUserThreadInstructions(options.sessionSandbox),
     };
     if (experimentalApiEnabled) {
       params.excludeTurns = true;
@@ -3932,11 +3941,16 @@ export class CodexProvider implements AgentProvider {
     return params;
   }
 
-  /**
-   * Maps a legacy message-id fork anchor to the completed turn the fork keeps
-   * through. Undefined means the anchor ends the thread, so the fork copies
-   * everything, including a turn that may still be in progress.
-   */
+  private limitedUserThreadInstructions(
+    sandbox?: SessionSandboxRuntime,
+  ): Pick<ThreadStartParams, "developerInstructions"> {
+    const instructions = sandbox?.instructions;
+    if (!instructions) return {};
+    // Saved threads retain their base prompt; editable text must not be frozen into it.
+    return { developerInstructions: instructions.text };
+  }
+
+  /** Maps a legacy message-id fork anchor to the last completed turn to keep. */
   private async resolveCodexForkLastTurnId(
     appServer: CodexAppServerClient,
     sessionId: string,

@@ -29,7 +29,12 @@ servers and connectors disabled for every sandboxed Claude session, regardless
 of limited-user status. It is proposed behavior, not evidence of enforcement.
 The safety instruction remains editable and is not itself a security boundary.
 
-## Implementation questions retained for the next step
+## Implementation follow-through
+
+The production implementation is documented in
+[Session sandboxing](../../../../topics/session-sandboxing.md#additional-launch-restrictions-and-instructions).
+These were the design questions carried into implementation; this fixture stays
+an isolated proposal, while production browser captures exercise Settings → Users.
 
 - Map base replacement and appending to each supported provider's actual launch
   and instruction-loading mechanisms. In particular, distinguish built-in

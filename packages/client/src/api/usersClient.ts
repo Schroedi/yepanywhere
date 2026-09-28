@@ -19,6 +19,7 @@ export interface LimitedUserDraft {
   /** Directory the user may create projects under; empty revokes the grant. */
   projectRoot?: string;
   templateCreation?: TemplateCreationGrant;
+  instructionBlocks?: string[];
   disabled?: boolean;
 }
 

@@ -249,6 +249,67 @@ rather than adding a feature, and it reaches Codex only through the hidden
 prefix YA already uses for global instructions. Ordinary denied operations
 still surface through normal command/tool failures.
 
+## Additional launch restrictions and instructions
+
+### Claude MCP and connectors
+
+Every sandboxed Claude-family launch disables configured MCP servers and
+auto-fetched Claude.ai connectors. Fresh launches, resumes, prompt-cache
+refreshes and fork-backed helpers apply the same restriction, including homes
+bootstrapped before this feature existed. The SDK receives strict MCP config
+with an empty server map, `disableClaudeAiConnectors: true`, an empty server
+allowlist, a remote-server deny rule, and `mcp__*` disallowed tools. Ordinary
+unsandboxed sessions retain their provider configuration. This restriction is
+independent of the editable instructions below.
+
+### Limited-user instructions
+
+Settings → Users lets the superuser edit shared instruction blocks for all
+limited users and additional blocks on each user's record. Blocks concatenate
+in displayed order with a blank line between nonempty blocks: shared first,
+then per-user. Text is preserved; each list permits at most 32 blocks and
+10,000 characters in total. Invalid saves fail without truncation. An empty
+list deliberately contributes no text. Per-user lists default empty.
+
+The editable shared default is:
+
+> When using any external image/video generation API or MCP tool, enable the provider's safety filtering at its strictest setting (e.g. moderation="auto", enable_safety_checker=true, safety_filter_level="block_most"). Never disable a safety checker. Prefer providers with server-side filtering.
+
+**Start from default**, checked initially, retains the provider's base prompt.
+Unchecked requests replacement. Claude uses its preset plus append or a custom
+prompt, with prompt snapshots disabled for limited users so relaunches adopt
+edits. Codex uses developer instructions for editable text and an empty base
+prompt for a newly created replacement session. Codex persists its original
+base prompt in saved threads: changing the checkbox requires a new Codex
+session; text edits still apply on resume. Forks retain the source base choice.
+The UI states this distinction.
+
+Project instruction files (`CLAUDE.md`, `AGENTS.md`), provider-managed policy,
+and the sandbox boundary statement remain separate from the base prompt.
+These controls neither rewrite those files nor remove their instructions.
+The safety text is cooperative guidance, not an OS security boundary.
+
+The session creator selects the per-user list, independent of who later joins
+the session. New direct, queued and template-preparation launches resolve the
+trusted acting username before provider creation. Resumes, background wakes
+and helpers use persisted `createdByUser`. A deleted account cannot silently
+resume with its instructions omitted. Saving settings does not mutate a
+running process; the next launch resolves current text. The provider worker
+receives a per-launch value, never a per-user write to the project-shared
+provider home, preventing cross-user prompt contamination.
+
+The permanent `limited-user-instructions` capability covers shared
+`limitedUserInstructions: { startFromDefault, blocks }` in `/api/settings`
+and `instructionBlocks` in user records and create/update requests. Supported
+stable releases 0.9.0, 0.9.1 and 0.9.2 lack these fields. Older servers show no
+new controls and receive neither field; existing capabilities keep their
+meaning. The maintainer approved this compatibility plan on 2026-09-28.
+
+**Decision:** use provider launch parameters rather than rewriting a sandbox
+home's global boot file. Homes are shared by project, whereas these blocks
+belong to a principal and must be resolved afresh per process. Native launch
+parameters also keep user-editable prompt text distinct from provider config.
+
 ## Existing Sandbox Vocabulary
 
 YA already has two related but narrower mechanisms:

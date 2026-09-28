@@ -1813,6 +1813,7 @@ export interface ServerSettings {
   publicSharesEnabled?: boolean;
   /** Whether limited users exist beside the superuser (topics/limited-users.md) */
   limitedUsersEnabled?: boolean;
+  limitedUserInstructions?: import("@yep-anywhere/shared").LimitedUserInstructions;
   /** Whether experimental workstream surfaces and APIs are enabled */
   workstreamsEnabled?: boolean;
   /** Whether experimental live Source Control filesystem monitoring is enabled. */

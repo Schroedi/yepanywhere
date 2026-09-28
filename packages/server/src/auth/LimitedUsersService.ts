@@ -24,6 +24,7 @@ import {
   clampJoinStaleOffsetMinutes,
   limitedUserPasswordError,
   limitedUsernameError,
+  instructionBlocksError,
 } from "@yep-anywhere/shared";
 import { deriveDecoySalt, generateVerifier } from "../crypto/srp-server.js";
 import { createCoalescingSaver } from "../lib/coalescingSaver.js";
@@ -81,6 +82,7 @@ export interface LimitedUserInput {
   lock?: LimitedUserLock;
   projectRoot?: string;
   templateCreation?: TemplateCreationGrant;
+  instructionBlocks?: string[];
   disabled?: boolean;
 }
 
@@ -110,6 +112,12 @@ function normalizeProjectList(value: unknown): string[] {
   return [...seen];
 }
 
+function parseInstructionBlocks(value: unknown): string[] {
+  const error = instructionBlocksError(value);
+  if (error) throw new Error(error);
+  return [...(value as string[])];
+}
+
 function normalizeLock(value: unknown): LimitedUserLock {
   if (!value || typeof value !== "object") return {};
   const source = value as Record<string, unknown>;
@@ -137,6 +145,7 @@ export function toLimitedUserSummary(
     joinStaleOffsetMinutes: record.joinStaleOffsetMinutes,
     lock: { ...record.lock },
     templateCreation: structuredClone(templateGrantFor(record)),
+    instructionBlocks: [...(record.instructionBlocks ?? [])],
     ...(record.projectRoot ? { projectRoot: record.projectRoot } : {}),
   };
 }
@@ -182,6 +191,9 @@ export class LimitedUsersService {
             record.joinStaleOffsetMinutes ?? 0,
           ),
           lock: normalizeLock(record.lock),
+          instructionBlocks: parseInstructionBlocks(
+            record.instructionBlocks ?? [],
+          ),
           templateCreation:
             record.templateCreation === undefined
               ? templateGrantFor(record)
@@ -283,6 +295,9 @@ export class LimitedUsersService {
     const passwordError = limitedUserPasswordError(input.password ?? "");
     if (passwordError) throw new Error(passwordError);
     const password = input.password as string;
+    const instructionBlocks = parseInstructionBlocks(
+      input.instructionBlocks ?? [],
+    );
     const templateCreation =
       input.templateCreation === undefined
         ? templateGrantFor({
@@ -302,6 +317,7 @@ export class LimitedUsersService {
         input.joinStaleOffsetMinutes ?? 0,
       ),
       lock: normalizeLock(input.lock),
+      instructionBlocks,
       templateCreation,
       ...(normalizeProjectRoot(input.projectRoot)
         ? { projectRoot: normalizeProjectRoot(input.projectRoot) }
@@ -319,6 +335,11 @@ export class LimitedUsersService {
   ): Promise<LimitedUserSummary> {
     const record = this.state.users[username];
     if (!record) throw new Error("User not found");
+
+    const instructionBlocks =
+      input.instructionBlocks === undefined
+        ? undefined
+        : parseInstructionBlocks(input.instructionBlocks);
 
     const templateCreation =
       input.templateCreation === undefined
@@ -350,6 +371,8 @@ export class LimitedUsersService {
     if (input.lock !== undefined) {
       record.lock = normalizeLock(input.lock);
     }
+    if (instructionBlocks !== undefined)
+      record.instructionBlocks = instructionBlocks;
     if (input.projectRoot !== undefined) {
       record.projectRoot = normalizeProjectRoot(input.projectRoot);
     }

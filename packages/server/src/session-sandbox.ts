@@ -143,6 +143,7 @@ export interface SessionSandboxSpawn {
 }
 
 export interface SessionSandboxRuntime {
+  readonly instructions?: import("@yep-anywhere/shared").ResolvedLimitedUserInstructions;
   readonly enforcement: SessionSandboxEnforcement;
   readonly stateKey: string;
   /** Canonical project path whose writable bind defines this sandbox. */
@@ -170,6 +171,7 @@ export interface SessionSandboxRuntime {
 }
 
 export interface PrepareSessionSandboxOptions {
+  instructions?: import("@yep-anywhere/shared").ResolvedLimitedUserInstructions;
   level: SessionSandboxLevel | undefined;
   /** Public-only egress boundary; absent defaults on for project-write. */
   networkFirewall?: boolean;
@@ -1504,6 +1506,7 @@ export async function prepareSessionSandbox(
     launchArgs: readonly string[],
     sessionEnvBridgeMounted: boolean,
   ): SessionSandboxRuntime => ({
+    instructions: options.instructions,
     stateKey,
     projectPath,
     transcriptDir,

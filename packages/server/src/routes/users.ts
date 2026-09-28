@@ -56,6 +56,7 @@ interface UserBody {
   lock?: { provider?: string; model?: string; effort?: string };
   projectRoot?: string;
   templateCreation?: TemplateCreationGrant;
+  instructionBlocks?: string[];
   disabled?: boolean;
 }
 
@@ -234,6 +235,7 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
         lock: body.lock,
         projectRoot: body.projectRoot,
         templateCreation: body.templateCreation,
+        instructionBlocks: body.instructionBlocks,
         disabled: body.disabled,
       });
       // A new account starts with no logins, even one reusing the name of a
@@ -278,6 +280,7 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
         lock: body.lock,
         projectRoot: body.projectRoot,
         templateCreation: body.templateCreation,
+        instructionBlocks: body.instructionBlocks,
         disabled: body.disabled,
       });
       // A replaced password ends every login the old one opened.

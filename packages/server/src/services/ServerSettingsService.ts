@@ -35,6 +35,7 @@ import type {
 } from "@yep-anywhere/shared";
 import {
   DEFAULT_CACHE_MISS_BILLING_SETTINGS,
+  defaultLimitedUserInstructions,
   DEFAULT_CLAUDE_STEER_BACKGROUND_BASH,
   DEFAULT_CODEX_REASONING_SUMMARY,
   DEFAULT_HEARTBEAT_TURN_TEXT,
@@ -136,6 +137,7 @@ export interface ServerSettings {
    * superuser. Default off (topics/limited-users.md § Delivery v1).
    */
   limitedUsersEnabled?: boolean;
+  limitedUserInstructions?: import("@yep-anywhere/shared").LimitedUserInstructions;
   /** Whether experimental workstream surfaces and APIs are enabled */
   workstreamsEnabled?: boolean;
   /** Whether experimental live Source Control filesystem monitoring is enabled. */
@@ -353,6 +355,7 @@ export const DEFAULT_SERVER_SETTINGS: ServerSettings = {
   agentServerAccessEnabled: false,
   publicSharesEnabled: false,
   limitedUsersEnabled: false,
+  limitedUserInstructions: defaultLimitedUserInstructions(),
   workstreamsEnabled: false,
   liveWorktreeMonitoringEnabled: defaultLiveWorktreeMonitoringEnabled(),
   sourceReviewSubmissionsEnabled: true,

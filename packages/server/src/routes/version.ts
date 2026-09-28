@@ -389,6 +389,7 @@ const BASE_CAPABILITIES: string[] = [
   SERVER_CAPABILITIES.projectTemplateSources.name,
   SERVER_CAPABILITIES.projectTemplateCreation.name,
   SERVER_CAPABILITIES.limitedUserProjectTemplates.name,
+  SERVER_CAPABILITIES.limitedUserInstructions.name,
   SERVER_CAPABILITIES.templatePreparationAttachments.name,
   SERVER_CAPABILITIES.sidebarSessionCategories.name,
   SERVER_CAPABILITIES.agentServerAccess.name,

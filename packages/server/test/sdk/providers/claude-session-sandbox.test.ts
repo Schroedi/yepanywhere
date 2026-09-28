@@ -55,7 +55,9 @@ describe("Claude sandboxed launch", { timeout: 20_000 }, () => {
     query.mockReset();
   });
 
-  async function prepare() {
+  async function prepare(
+    instructions?: import("@yep-anywhere/shared").ResolvedLimitedUserInstructions,
+  ) {
     const root = join(scratch, `case-${caseIndex++}`);
     const projectPath = join(root, "project");
     const claudeHome = join(root, "claude-home");
@@ -70,6 +72,7 @@ describe("Claude sandboxed launch", { timeout: 20_000 }, () => {
       provider: "claude",
       projectPath,
       stateRoot: join(root, "state"),
+      instructions,
     });
     if (!sessionSandbox) throw new Error("sandbox runtime was not prepared");
     return { projectPath, sessionSandbox };
@@ -134,6 +137,18 @@ describe("Claude sandboxed launch", { timeout: 20_000 }, () => {
         await session.abort();
       }
       expect(seen).toEqual([before, "sess-claude"]);
+      expect(query).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            strictMcpConfig: true,
+            mcpServers: {},
+            settings: expect.objectContaining({
+              disableClaudeAiConnectors: true,
+            }),
+            disallowedTools: expect.arrayContaining(["mcp__*"]),
+          }),
+        }),
+      );
     },
   );
 
@@ -188,5 +203,44 @@ describe("Claude sandboxed launch", { timeout: 20_000 }, () => {
       preset: "claude_code",
       append: "Be terse.",
     });
+    expect(query.mock.lastCall?.[0].options.strictMcpConfig).toBeUndefined();
+    expect(
+      query.mock.lastCall?.[0].options.settings?.disableClaudeAiConnectors,
+    ).toBeUndefined();
   });
+
+  t.each([true, false])(
+    "applies limited-user instructions with startFromDefault=%s",
+    async (startFromDefault) => {
+      const { projectPath, sessionSandbox } = await prepare({
+        startFromDefault,
+        text: "Shared instruction.\n\nUser instruction.",
+      });
+      const systemPrompt = await launchSystemPrompt({
+        cwd: projectPath,
+        globalInstructions: "Owner defaults.",
+        sessionSandbox,
+      });
+      expect(systemPrompt).toMatchObject(
+        startFromDefault
+          ? {
+              type: "preset",
+              snapshot: false,
+              append: expect.stringMatching(
+                /^Owner defaults\.\n\nShared instruction\.\n\nUser instruction\./,
+              ),
+            }
+          : {
+              type: "custom",
+              snapshot: false,
+              prompt: expect.stringMatching(
+                /^Shared instruction\.\n\nUser instruction\./,
+              ),
+            },
+      );
+      expect(JSON.stringify(systemPrompt)).toContain("Session sandbox");
+      if (!startFromDefault)
+        expect(JSON.stringify(systemPrompt)).not.toContain("Owner defaults");
+    },
+  );
 });
