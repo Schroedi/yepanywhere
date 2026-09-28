@@ -166,7 +166,7 @@ import type { SessionLoadProgress } from "../hooks/useSessionMessages";
 import { useSessionPerformanceSettings } from "../hooks/useSessionPerformanceSettings";
 import { useSessionToolbarPresence } from "../hooks/useSessionToolbarPresence";
 import { useLongPress } from "../hooks/useLongPress";
-import { useProjectDeclaresApp } from "../hooks/useProjectDeclaresApp";
+import { useProjectAppUpdates } from "../hooks/useProjectAppUpdates";
 import { useVersion } from "../hooks/useVersion";
 import { useSessionSpeechVocabulary } from "../hooks/useSessionSpeechVocabulary";
 import type { DraftTextChangeMetadata } from "../lib/commentAnchors";
@@ -579,14 +579,6 @@ function SessionPageContent({
     versionInfo,
     SERVER_CAPABILITIES.projectService.name,
   );
-  // Arriving from the project's App entry names a target; otherwise a project
-  // that declares a root app still offers it, closed until asked for.
-  const projectDeclaresApp = useProjectDeclaresApp(
-    projectId,
-    projectServiceSupported && !projectAppTarget,
-  );
-  const projectAppEnabled =
-    projectServiceSupported && (!!projectAppTarget || projectDeclaresApp);
   const clientTailParams = useMemo(() => {
     const params = new URLSearchParams(location.search);
     return {
@@ -746,6 +738,17 @@ function SessionPageContent({
   );
   const providerRuntimeStatus =
     useProviderRuntimeStatusForSession(actualSessionId);
+  // Arriving from the project's App entry names a target; otherwise a project
+  // that declares a root app still offers it, closed until asked for, and
+  // opens it when a turn ends with the app newly declared or rebuilt.
+  const projectDeclaresApp = useProjectAppUpdates(
+    projectId,
+    projectServiceSupported,
+    processState === "in-turn" || processState === "waiting-input",
+    () => setProjectAppOpen(true),
+  );
+  const projectAppEnabled =
+    projectServiceSupported && (!!projectAppTarget || projectDeclaresApp);
   const [rightPaneTarget, setRightPaneTarget] = useState<HTMLDivElement | null>(
     null,
   );
