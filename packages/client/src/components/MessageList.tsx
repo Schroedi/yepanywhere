@@ -2372,6 +2372,7 @@ export const MessageList = memo(function MessageList({
     searchState: userTurnNavSearchState,
     renderSearchPanel,
     closeSearch,
+    getCommittedSearchTargetId,
     getSelectedSearchAnchorId,
     getSelectedSearchTargetId,
     handleSearchArrowKey,
@@ -3667,7 +3668,7 @@ export const MessageList = memo(function MessageList({
   const {
     beginSearchMatchReveal,
     clearSearchMatchHighlight,
-    releaseSearchMatchHighlightOnInput,
+    markSearchMatchLanded,
   } = useSearchMatchHighlight(inert);
   const revealSearchMatch = useCallback(
     (targetId: string, showMotionCue: boolean) => {
@@ -3729,30 +3730,35 @@ export const MessageList = memo(function MessageList({
     setRetainedProgressiveWindowKey(null);
   }, [progressiveRenderCycleKey]);
 
-  const commitSearchJump = useCallback(
+  const closeSearchAtMatch = useCallback(
     (targetId: string) => {
-      completeProgressiveReveal();
-      jumpToSearchTarget(targetId, false);
-      preserveScrollAfterTranscriptHeightChange(
-        () => {
-          closeSearch(false);
-          releaseSearchMatchHighlightOnInput();
-          requestAnimationFrame(() => {
-            revealSearchMatch(targetId, false);
-          });
-        },
-        targetId,
-        true,
-      );
+      if (settleSearchJumpFrameRef.current !== null) {
+        cancelAnimationFrame(settleSearchJumpFrameRef.current);
+        settleSearchJumpFrameRef.current = null;
+      }
+      flushSync(() => {
+        completeProgressiveReveal();
+        preserveScrollAfterTranscriptHeightChange(
+          () => closeSearch(false),
+          targetId,
+          true,
+        );
+      });
+      markSearchMatchLanded();
     },
     [
       closeSearch,
       completeProgressiveReveal,
-      jumpToSearchTarget,
       preserveScrollAfterTranscriptHeightChange,
-      releaseSearchMatchHighlightOnInput,
-      revealSearchMatch,
+      markSearchMatchLanded,
     ],
+  );
+  const commitSearchJump = useCallback(
+    (targetId: string) => {
+      closeSearchAtMatch(targetId);
+      jumpToSearchTarget(targetId, false);
+    },
+    [closeSearchAtMatch, jumpToSearchTarget],
   );
 
   const startSearch = useCallback(
@@ -3899,7 +3905,9 @@ export const MessageList = memo(function MessageList({
         event.preventDefault();
         event.stopPropagation();
         stopSearchArrowRepeat();
-        closeSearch(true);
+        const committedTargetId = getCommittedSearchTargetId();
+        if (committedTargetId) closeSearchAtMatch(committedTargetId);
+        else closeSearch(true);
         return;
       }
       if (event.key === "Enter") {
@@ -3946,7 +3954,7 @@ export const MessageList = memo(function MessageList({
       if (!selectedAnchorId || !selectedTargetId) return;
       event.preventDefault();
       stopSearchArrowRepeat();
-      handleSearchMatchSelect(selectedAnchorId, selectedTargetId, true);
+      closeSearchAtMatch(selectedTargetId);
     };
     // The toolbar's search button: open in the last-used scope, or return
     // focus to the open search. The synchronous commit mounts the input
@@ -3970,9 +3978,10 @@ export const MessageList = memo(function MessageList({
       window.removeEventListener("keyup", handleKeyUp, true);
     };
   }, [
-    handleSearchMatchSelect,
+    closeSearchAtMatch,
     closeSearch,
     commitSearchJump,
+    getCommittedSearchTargetId,
     getSelectedSearchAnchorId,
     getSelectedSearchTargetId,
     handleSearchArrowKey,

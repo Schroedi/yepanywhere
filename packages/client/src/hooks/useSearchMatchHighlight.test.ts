@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useSearchMatchHighlight } from "./useSearchMatchHighlight";
 
 function mountRow() {
@@ -15,23 +15,21 @@ function mountRow() {
 
 describe("useSearchMatchHighlight", () => {
   afterEach(() => {
+    vi.useRealTimers();
     document.body.replaceChildren();
   });
 
-  it("does not let a reveal begun before the reader's key repaint after it", () => {
+  it("does not let a reveal begun before a clear repaint after it", () => {
     const { result } = renderHook(() => useSearchMatchHighlight(false));
     const { row, scrollport } = mountRow();
 
     act(() => {
       result.current.beginSearchMatchReveal()(row, scrollport, "ready", false);
-      result.current.releaseSearchMatchHighlightOnInput();
     });
     expect(row.dataset.searchMatch).toBe("true");
 
-    // The committed jump's settle reveal is still waiting on its scroll when
-    // the reader presses a key and dismisses the landing.
     const lateReveal = result.current.beginSearchMatchReveal();
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift" }));
+    result.current.clearSearchMatchHighlight();
     expect(row.dataset.searchMatch).toBeUndefined();
 
     lateReveal(row, scrollport, "ready", false);
@@ -40,5 +38,24 @@ describe("useSearchMatchHighlight", () => {
     // A reveal begun after the clear still highlights normally.
     result.current.beginSearchMatchReveal()(row, scrollport, "ready", false);
     expect(row.dataset.searchMatch).toBe("true");
+  });
+
+  it("starts the idle fade on arrival and renews it on reader activity", () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useSearchMatchHighlight(false));
+    const { row, scrollport } = mountRow();
+    const arrive = result.current.beginSearchMatchReveal();
+    vi.advanceTimersByTime(10000);
+    arrive(row, scrollport, "ready", false);
+    vi.advanceTimersByTime(1999);
+    expect(row.className).not.toMatch(/fading/);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift" }));
+    vi.advanceTimersByTime(1999);
+    expect(row.className).not.toMatch(/fading/);
+    vi.advanceTimersByTime(1);
+    expect(row.className).toMatch(/fading/);
+    expect(row.dataset.searchMatch).toBe("true");
+    vi.advanceTimersByTime(3000);
+    expect(row.dataset.searchMatch).toBeUndefined();
   });
 });

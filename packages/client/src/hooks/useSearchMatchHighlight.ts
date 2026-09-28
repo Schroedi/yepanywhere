@@ -70,20 +70,10 @@ export function useSearchMatchHighlight(inert: boolean) {
     cleanupRef.current = null;
   }, []);
   const armLanded = useCallback(() => {
-    const cleanup = cleanupRef.current;
     const row = rowRef.current;
-    if (!cleanup || !row) return;
+    if (!row) return;
     row.classList.add(styles.landed!);
-    const events = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
-    const release = () => clearSearchMatchHighlight();
-    for (const type of events)
-      window.addEventListener(type, release, { capture: true, passive: true });
-    cleanupRef.current = () => {
-      for (const type of events)
-        window.removeEventListener(type, release, { capture: true });
-      cleanup();
-    };
-  }, [clearSearchMatchHighlight]);
+  }, []);
   useEffect(() => {
     if (inert) clearSearchMatchHighlight();
     return clearSearchMatchHighlight;
@@ -118,6 +108,30 @@ export function useSearchMatchHighlight(inert: boolean) {
         }
       };
       paint(true);
+      let idleTimer: ReturnType<typeof setTimeout>;
+      let fadeTimer: ReturnType<typeof setTimeout> | undefined;
+      const renewHighlight = () => {
+        clearTimeout(idleTimer);
+        clearTimeout(fadeTimer);
+        row.classList.remove(styles.fading!);
+        idleTimer = setTimeout(() => {
+          row.classList.add(styles.fading!);
+          fadeTimer = setTimeout(clearSearchMatchHighlight, 3000);
+        }, 2000);
+      };
+      const events = [
+        "pointerdown",
+        "pointermove",
+        "keydown",
+        "wheel",
+        "touchstart",
+      ] as const;
+      for (const type of events)
+        window.addEventListener(type, renewHighlight, {
+          capture: true,
+          passive: true,
+        });
+      renewHighlight();
       let pendingFrame: number | null = null;
       const observer = new MutationObserver(() => {
         if (pendingFrame !== null) return;
@@ -132,16 +146,20 @@ export function useSearchMatchHighlight(inert: boolean) {
         subtree: true,
       });
       cleanupRef.current = () => {
+        clearTimeout(idleTimer);
+        clearTimeout(fadeTimer);
+        for (const type of events)
+          window.removeEventListener(type, renewHighlight, { capture: true });
         observer.disconnect();
         if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
-        row.classList.remove(styles.target!, styles.landed!);
+        row.classList.remove(styles.target!, styles.landed!, styles.fading!);
         if (rowRef.current === row) rowRef.current = null;
         delete row.dataset.searchMatch;
         if (supportsHighlight) CSS.highlights.delete("session-isearch");
       };
       if (landedRef.current) armLanded();
     },
-    [armLanded],
+    [armLanded, clearSearchMatchHighlight],
   );
   /** Bind a highlight to the current generation; a later clear voids it. */
   const beginSearchMatchReveal = useCallback(() => {
@@ -156,18 +174,13 @@ export function useSearchMatchHighlight(inert: boolean) {
       highlightSearchMatch(row, scrollport, query, caseSensitive);
     };
   }, [highlightSearchMatch]);
-  // Once search has closed, the highlight only marks where the jump landed;
-  // the reader's next deliberate input shows they have seen it. Programmatic
-  // settle scrolls do not count, so listen for input rather than scroll.
-  // A re-reveal after the close (layout settling) repaints the same landing,
-  // so the landed state is sticky until the highlight is cleared.
-  const releaseSearchMatchHighlightOnInput = useCallback(() => {
+  const markSearchMatchLanded = useCallback(() => {
     landedRef.current = true;
     armLanded();
   }, [armLanded]);
   return {
     beginSearchMatchReveal,
     clearSearchMatchHighlight,
-    releaseSearchMatchHighlightOnInput,
+    markSearchMatchLanded,
   };
 }
