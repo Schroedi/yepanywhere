@@ -253,7 +253,7 @@ percent-encoding is refused.
 | public shares, app links, devices, bang commands, absolute-path file reads, file editing and artifact rebuild (`/api/file-edit*`), server admin, relay/remote-access config | 403; the session page neither polls share status nor fetches app links for them, so no refusal takes the place of a control |
 | images a session read (an Explored image strip and its viewer) | read with the session: served from the session's stored copy through its media route, never by the host-path image read, which also cannot see a sandbox's private `/tmp` |
 | refreshing a session's list preview (`refresh-preview`) | anyone who may read the session; it recomputes the excerpt and launches nothing |
-| pre-session draft uploads, validation and deletion | allowed only in the acting account's isolated draft store |
+| pre-session draft uploads, validation and deletion | allowed only in the acting account's isolated draft store. A relay upload socket selects the store the same way its tunneled requests resolve the principal, so the owner's relay identity stages into the superuser's store |
 
 Session-to-project resolution for session-scoped paths uses the live process
 first and the session catalog second — the same retained catalog All Sessions
