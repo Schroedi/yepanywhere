@@ -429,8 +429,9 @@ Nav entries a limited user cannot use are hidden, and the sidebar session
 list shows only sessions in their accessible projects plus sessions they
 started. Host-administration notices are not shown to a limited user: the
 server-changed reload banner, the Codex update prompt, the YA server
-update/compatibility notices, the desktop missing-provider notice, and the
-network-filesystem storage warning (`useCanAdministerHost`). The frontend-changed
+update/compatibility notices, the desktop missing-provider notice, the
+network-filesystem storage warning, and the first-run onboarding wizard, whose
+completion they are refused (`useCanAdministerHost`). The frontend-changed
 reload banner stays, since reloading their own page is theirs to do. Hiding is
 cosmetic; the middleware above is the enforcement, and it refuses the restart,
 safe-restart, and Codex update routes.

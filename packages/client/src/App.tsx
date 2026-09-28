@@ -49,6 +49,18 @@ const OnboardingWizard = lazy(() =>
   })),
 );
 
+/**
+ * First-run setup is the host owner's: its steps configure the install, and
+ * a limited user is refused completing it, so they would meet it on every
+ * load of a host whose owner never finished it (topics/limited-users.md,
+ * host-administration notices).
+ */
+function HostOnboardingWizard({ onComplete }: { onComplete: () => void }) {
+  return useCanAdministerHost() ? (
+    <OnboardingWizard onComplete={onComplete} />
+  ) : null;
+}
+
 interface Props {
   children: ReactNode;
 }
@@ -176,7 +188,7 @@ export function App({ children }: Props) {
                 <AppContent>{children}</AppContent>
                 <Suspense fallback={null}>
                   {!disableOnboarding && !isLoading && showWizard && (
-                    <OnboardingWizard onComplete={completeOnboarding} />
+                    <HostOnboardingWizard onComplete={completeOnboarding} />
                   )}
                   {!disableCliUpdateNotifications &&
                     !isLoading &&
