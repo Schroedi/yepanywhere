@@ -6,7 +6,13 @@
 
 Topic: project-service
 
-Status: **Specified, not implemented.** User-directed scope, 2026-09-28:
+Status: **Backend foundation implemented; product integration pending.**
+The versioned declaration validator, contained static-entry lookup and
+project-owned sandbox runner exist. The runner serializes lifecycle actions,
+checks HTTP readiness through the private broker, persists launch identity and
+reports interrupted state after restart without adopting a PID. Native tests
+exercise startup, duplicate requests, confinement and owned shutdown. It is
+not yet wired to API routes or advertised to clients. User-directed scope, 2026-09-28:
 project App access for limited users and the superuser, standardized template
 service declarations, optional vhost association, and audit-preserving removal.
 The [template integration gap](../gaps/project-template-standup.md) tracks
@@ -108,12 +114,13 @@ explain that sharing is unavailable rather than sending unsupported requests.
 ## Standard declaration: where, start, status, stop, serving
 
 Templates keep `.project-template/app.json` as their source-owned declaration.
-Add an optional, explicitly versioned `service` object; the following is the
-selected extension, not a field accepted by today's loader. The template
+An optional, explicitly versioned `service` object is validated by the YA
+template loader. The template
 manifest's existing `formatVersion: 1`, file composition, `setup`, `build`,
 `test`, `preview`, `prepare`, and add-on contracts remain unchanged. Source
 format documentation, loader validation and capability admission must land
-together before templates ship this extension as supported.
+together before templates ship this extension as supported. Source-library
+updates and capability admission remain pending.
 
 Example for a template with an application server:
 
@@ -138,7 +145,7 @@ Example for a template with an application server:
 | Section | Contract |
 | --- | --- |
 | `where` | Discriminated `static` or `process`. Process `cwd` is project-relative and `entry` is an app-relative URL path. Static declares `root` and a relative file `entry`. Resolve symlinks and reject project escapes, absolute filesystem paths and external entry URLs. |
-| `start` | Process only: nonempty argv, no implicit shell, run in canonical `cwd`. YA allocates a private-namespace port and passes its decimal value through the named `portEnv`; the server must honor it, bind loopback and stay foreground. No daemonizing or user-service escape. |
+| `start` | Process only: nonempty argv, no implicit shell, run in canonical `cwd`. YA allocates a private-namespace port and passes its decimal value through `portEnv`: `PORT` or an uppercase name ending in `_PORT`, excluding `YA_`, `YEP_` and `AGENT_` names. This cannot overwrite executable-loader or control-plane variables. The server must honor it, bind loopback and stay foreground. No daemonizing or user-service escape. |
 | `status` | Process only: YA probes the declared HTTP path through that launch's broker until the exact expected response or startup timeout. Never execute a template-supplied status command. Probe only the owned endpoint; redirects cannot turn this into an arbitrary fetch. |
 | `stop` | Process only: stop the owned process group with SIGTERM, wait `graceMs`, then report stopped or failed-to-stop. No arbitrary kill command, port-owner lookup, unrelated-process signaling or implicit SIGKILL. |
 | `serving` | Static uses `target: "static-root"`; process uses `target: "sandbox-loopback"`, `protocol: "http"`. This names the backend, not a public hostname, bearer, PID or host port. Vhost association lives separately in YA app data. |
@@ -225,8 +232,8 @@ Existing pieces verified in source on 2026-09-28:
   first service boundary; do not promise Vite HMR or WebSocket applications
   until [WebSocket forwarding](../gaps/vhost-websocket-forwarding.md) is closed.
 
-The durable project runner, association store, main-pane UI and no-vhost relay
-delivery are not implemented by those existing session facilities.
+The separate project runner now reuses these sandbox facilities. The association
+store, main-pane UI and no-vhost relay delivery remain pending.
 
 ## App address in project Settings
 
@@ -285,6 +292,9 @@ superuser still sees the project, sessions, service and reservation.
 
 Advertise new project-service and reservation behavior under separate precise
 capabilities; existing template or session-app capabilities do not imply it.
-The supported-release corpus and fallback review remain an implementation
-gate. Older servers keep existing project/session behavior and receive no
-new requests. Rendered mockups establish layout only, not these guarantees.
+Compatibility plan approved by the user on 2026-09-28 (`Qcompat`): reviewed
+stable releases v0.9.0, v0.9.1 and v0.9.2 lack this contract. Introduce separate
+capabilities for App/service routes, reservations and personal project hiding.
+Absent a capability, keep existing project/session behavior and send no new
+requests. Do not broaden existing capability meanings. Rendered mockups
+establish layout only, not these guarantees.

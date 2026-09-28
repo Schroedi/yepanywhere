@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { projectServiceSchema } from "@yep-anywhere/shared";
 import { prepareSessionSandbox } from "../session-sandbox.js";
 import { z } from "zod";
 import { filterEnvForChildProcess } from "../sdk/providers/env-filter.js";
@@ -37,6 +38,7 @@ const runtimeSchema = z.object({
   prepare: localPath,
   start: argv.optional(),
   addons: z.record(z.string(), argv).optional(),
+  service: projectServiceSchema.optional(),
 });
 export type TemplateRuntime = z.infer<typeof runtimeSchema>;
 

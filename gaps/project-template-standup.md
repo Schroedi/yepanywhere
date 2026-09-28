@@ -81,6 +81,14 @@ project; the grant UI is not useful before creation exists.
 
 ## Remaining integration
 
+Backend foundation landed, 2026-09-28: YA validates the optional versioned
+service declaration and has a project-owned sandbox runner with private-broker
+readiness, serialized lifecycle actions and persisted interrupted/stop state.
+Twelve focused tests pass, including real sandbox launches. API admission,
+association storage, delivery, project UI and source-library updates remain
+unimplemented; this does not make the App entry available.
+Contributing-model: 6-Astra.
+
 - User-directed, 2026-09-28: implement the standardized declaration and
   main-pane App / project Settings surface in
   [project service](../topics/project-service.md). Reuse the existing sandbox

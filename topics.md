@@ -408,3 +408,5 @@
   authorization behind a sticky sidebar Users section.
 - desktop-downloads - Stable desktop installer redirects and one public
   downloads page for the macOS and Windows beta apps.
+- project-service - Project-owned app declarations, sandbox lifecycle, main-pane
+  viewing, retained address reservations and personal project removal.

@@ -1572,3 +1572,8 @@ export {
 export { asRecord, isRecord } from "./plain-record.js";
 
 export { PDFJS_VERSION } from "./pdfjs.js";
+
+export {
+  projectServiceSchema,
+  type ProjectServiceDeclaration,
+} from "./project-service.js";

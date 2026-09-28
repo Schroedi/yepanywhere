@@ -289,8 +289,9 @@ explicit **where**, **start**, **status**, **stop**, and **serving** sections.
 Static App canvas declares its built root and entry without inventing a
 process; the activated server add-on declares a foreground command, readiness
 probe and owned-process stop policy. Existing setup/build/test and composition
-fields remain compatible. This extension still needs source-format and loader
-implementation; today's creation capability does not advertise it.
+fields remain compatible. YA's loader validates the optional declaration;
+source-library updates and product integration remain pending. Today's
+creation capability does not advertise project-service support.
 
 That topic also owns main-pane **Open app**, preferring the declared app and
 otherwise the latest authorized project artifact, and project Settings for
