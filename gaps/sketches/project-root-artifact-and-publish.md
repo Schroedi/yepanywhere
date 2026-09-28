@@ -14,6 +14,10 @@ automatically or toggles from the App action, and stays associated and
 re-activatable after an intervening artifact such as a mockup takes the pane.
 Automatic display is scoped to the principal it belongs to: shown when
 logged in as that limited user (and to the superuser), without a public name.
+YA serves it, and proxies an app or artifact that a sandboxed session or the
+project's sandboxed app process serves, through to that logged-in principal
+over whatever carries their YA login, localhost or relay, with no vhost
+entry and no Publish (see the sandboxed serving section below).
 
 **Hostname serving is an extraordinary manual step.** A project **Publish**
 action adds a vhost entry for an untaken name, or updates one the same
