@@ -4599,6 +4599,126 @@ describe("Sessions metadata route", () => {
     expect(abortProcess).toHaveBeenCalledWith("proc-old");
   });
 
+  it("redirects a cold session's turn into a new sandboxed handoff session", async () => {
+    // topics/limited-users.md § Freshness: the source is neither compacted
+    // nor interrupted, and the lock and sandbox apply to the new session.
+    const project = createProject();
+    const startSession = vi.fn(async () => ({
+      id: "proc-new",
+      sessionId: "sess-new",
+      projectId: project.id,
+      provider: "codex",
+      model: "gpt-5",
+      permissionMode: "default",
+      modeVersion: 0,
+    }));
+    const interruptProcess = vi.fn();
+    const abortProcess = vi.fn();
+    const routes = createSessionsRoutes({
+      supervisor: {
+        getProcessForSession: vi.fn(() => ({
+          id: "proc-old",
+          provider: "codex",
+          resolvedModel: "gpt-5.5",
+          state: { type: "idle", since: new Date() },
+          getMessageHistory: vi.fn(() => [
+            {
+              type: "user",
+              uuid: "u1",
+              timestamp: "2026-04-24T20:00:00.000Z",
+              message: { role: "user", content: "build me a maze game" },
+            },
+          ]),
+        })),
+        startSession,
+        interruptProcess,
+        abortProcess,
+      } as unknown as SessionsDeps["supervisor"],
+      scanner: {
+        getOrCreateProject: vi.fn(async () => project),
+      } as unknown as SessionsDeps["scanner"],
+      readerFactory: vi.fn(
+        () =>
+          ({
+            getSessionSummary: vi.fn(async () => null),
+          }) as unknown as ISessionReader,
+      ),
+      sessionMetadataService: {
+        getProvider: vi.fn(() => "codex"),
+        getRequestedModel: vi.fn(() => undefined),
+        getExecutor: vi.fn(() => undefined),
+        getMetadata: vi.fn(() => ({
+          customTitle: "Maze game",
+          sandboxLevel: "project-write",
+          effectiveLaunchSettings: {
+            schemaVersion: 1,
+            revision: 1,
+            permissionMode: "default",
+            requestedModel: "gpt-5.5",
+            effort: "high",
+          },
+        })),
+        updateMetadata: vi.fn(async () => undefined),
+      } as unknown as NonNullable<SessionsDeps["sessionMetadataService"]>,
+    });
+    const app = new Hono<{
+      Variables: Record<typeof PRINCIPAL_VARIABLE, Principal>;
+    }>();
+    app.use("*", async (c, next) => {
+      c.set(PRINCIPAL_VARIABLE, {
+        kind: "limited",
+        username: "alice",
+        grants: {
+          newSessionProjects: [project.id],
+          joinProjects: [],
+          viewProjects: [],
+          joinStaleOffsetMinutes: 0,
+          lock: { model: "gpt-5" },
+        },
+        switched: false,
+        locked: true,
+        via: "direct",
+      });
+      await next();
+    });
+    app.route("/", routes);
+
+    const response = await app.request(
+      `/projects/${project.id}/sessions/sess-1/stale-handoff`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "what is a volcano?" }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      sessionId: "sess-new",
+      staleHandoffFrom: "sess-1",
+    });
+    expect(interruptProcess).not.toHaveBeenCalled();
+    expect(abortProcess).not.toHaveBeenCalled();
+    expect(startSession).toHaveBeenCalledWith(
+      project.path,
+      expect.anything(),
+      "default",
+      expect.objectContaining({
+        providerName: "codex",
+        model: "gpt-5",
+        effort: "high",
+        sandboxLevel: "project-write",
+        sandboxNetworkFirewall: true,
+        instructionUsername: "alice",
+      }),
+      expect.anything(),
+    );
+    const text = startSession.mock.calls[0]?.[1].text as string;
+    expect(text).toContain("may be a new, independent request");
+    expect(text).toContain("build me a maze game");
+    expect(text.endsWith("## New Message\n\nwhat is a volcano?")).toBe(true);
+  });
+
   it("does not allow a handoff restart to weaken the source sandbox", async () => {
     const project = createProject();
     const startSession = vi.fn();

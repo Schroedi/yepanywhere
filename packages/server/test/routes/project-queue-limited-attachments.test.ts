@@ -271,6 +271,7 @@ describe("Project Queue attachments of limited users", () => {
       attachmentStagingService: staging,
       getLimitedUserGrants: (username) =>
         username === "alice" ? grantsFor(projectId) : null,
+      isSessionFreshForLimitedTurn: async () => true,
       idleGraceMs: 1,
     });
     try {

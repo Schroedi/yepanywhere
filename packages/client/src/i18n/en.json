@@ -1441,6 +1441,8 @@
   "sessionTerminated": "Session terminated",
   "sessionTerminateFailed": "Failed to terminate: {message}",
   "sessionHandoffStarted": "Handoff session started",
+  "sessionStaleHandoffStarted": "That session had gone idle, so your message started a new session",
+  "sessionStaleHandoffQueued": "That session had gone idle, so your message will start a new session when a worker is free",
   "sessionCompactRequested": "Compaction requested",
   "sessionCompactTurnActive": "Unavailable until this turn finishes, including tool waits.",
   "sessionCompactFailed": "Failed to request compaction: {message}",

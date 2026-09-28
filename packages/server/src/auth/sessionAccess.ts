@@ -1,6 +1,6 @@
 /**
  * Resolve which project a session belongs to, who started it, whether it runs
- * sandboxed, and whether it is still fresh enough for a limited user to join.
+ * sandboxed, and whether it is still fresh enough for a limited user's turn.
  *
  * Contract: topics/limited-users.md § Delivery v1 — Authorization.
  *
@@ -215,13 +215,13 @@ export class SessionAccessResolver {
   /**
    * Whether the session is fresh enough for a limited user to send turns to
    * it right now. Freshness alone: the middleware also requires the session
-   * to run sandboxed.
+   * to run sandboxed. Who started the session does not matter — the cost of
+   * a cold turn is the same in the user's own session.
    */
-  canJoin(
+  isFresh(
     facts: SessionAccessFacts,
-    options: { username: string; offsetMinutes: number },
+    options: { offsetMinutes: number },
   ): boolean {
-    if (facts.createdByUser === options.username) return true;
     return isSessionFreshForJoin({
       provider: facts.provider,
       lastActivityMs: facts.lastActivityMs,

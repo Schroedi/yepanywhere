@@ -42,10 +42,16 @@ export type LimitedRouteDecision =
     }
   /**
    * Allowed when the session's project grants at least `required`. A `join`
-   * requirement additionally needs the session to run sandboxed, and to be
-   * fresh unless the user started it.
+   * requirement additionally needs the session to run sandboxed. A request
+   * that `startsTurn` — makes the provider answer on the session's existing
+   * context — also needs the session to be fresh, whoever started it.
    */
-  | { kind: "session"; sessionId: string; required: RequiredAccess }
+  | {
+      kind: "session";
+      sessionId: string;
+      required: RequiredAccess;
+      startsTurn?: boolean;
+    }
   /** Allowed, and the response is a list the caller must filter. */
   | { kind: "allow-filtered"; filter: FilteredListKind };
 
@@ -207,7 +213,32 @@ const NEW_SESSION_SESSION_ACTIONS = new Set([
   "metadata",
   // Materializing staged attachments into a session's first turn.
   "attachments",
+  // A turn sent to a cold session, redirected into a new session seeded with
+  // a handoff; the source session launches nothing.
+  "stale-handoff",
 ]);
+
+/**
+ * Actions that make the provider answer on the session's existing context:
+ * a turn, an answer that continues one, or a resume carrying one. On a cold
+ * session each re-reads the whole context without the prompt cache, which is
+ * the cost the freshness cutoff exists to stop. Removing or steering a
+ * deferred message is judged by its method below.
+ */
+const TURN_STARTING_ACTIONS = new Set([
+  "messages",
+  "input",
+  "approve",
+  "approvals",
+  "queue",
+  "resume",
+]);
+
+function startsTurn(action: string, method: string): boolean {
+  if (TURN_STARTING_ACTIONS.has(action)) return true;
+  // POST /deferred/:tempId/steer delivers a deferred message; DELETE drops it.
+  return action === "deferred" && method === "POST";
+}
 
 /** What a session-scoped mutation needs, or null when it is refused. */
 function sessionMutationRequirement(
@@ -225,6 +256,18 @@ function sessionMutationRequirement(
     return "new-session";
   }
   return null;
+}
+
+function sessionMutationDecision(
+  sessionId: string,
+  action: string,
+  method: string,
+): LimitedRouteDecision {
+  const required = sessionMutationRequirement(action, method);
+  if (!required) return { kind: "deny" };
+  return startsTurn(action, method)
+    ? { kind: "session", sessionId, required, startsTurn: true }
+    : { kind: "session", sessionId, required };
 }
 
 export interface LimitedRouteRequest {
@@ -330,10 +373,7 @@ export function decideLimitedRoute(
       if (isRead) {
         return { kind: "session", sessionId, required: "view" };
       }
-      const required = sessionMutationRequirement(action, method);
-      return required
-        ? { kind: "session", sessionId, required }
-        : { kind: "deny" };
+      return sessionMutationDecision(sessionId, action, method);
     }
     return {
       kind: "project",
@@ -375,10 +415,7 @@ export function decideLimitedRoute(
     if (sessionId === null) return { kind: "deny" };
     const action = (sessionScoped[3] ?? "").split("/")[0] ?? "";
     if (isRead) return { kind: "session", sessionId, required: "view" };
-    const required = sessionMutationRequirement(action, method);
-    return required
-      ? { kind: "session", sessionId, required }
-      : { kind: "deny" };
+    return sessionMutationDecision(sessionId, action, method);
   }
   if (path === "/api/inbox" || path.startsWith("/api/inbox/")) {
     return isRead

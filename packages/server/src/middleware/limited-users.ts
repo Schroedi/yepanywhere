@@ -427,17 +427,23 @@ export function createLimitedUsersMiddleware(
           );
         }
         if (
-          decision.required === "join" &&
-          !options.sessionAccess.canJoin(facts, {
-            username: principal.username,
+          decision.startsTurn &&
+          !options.sessionAccess.isFresh(facts, {
             offsetMinutes: principal.grants.joinStaleOffsetMinutes,
           })
         ) {
+          // A turn on a cold session re-reads its whole context without the
+          // prompt cache, whoever started it. Where the user may start
+          // sessions, the client redirects the turn into a new one seeded
+          // with a handoff (the `stale-handoff` action) instead.
           return c.json(
             {
               error:
                 "This session has gone cold; start a new session instead of resuming it",
               reason: "stale-session",
+              ...(level === "new-session"
+                ? { staleRedirect: "stale-handoff" }
+                : {}),
             },
             403,
           );

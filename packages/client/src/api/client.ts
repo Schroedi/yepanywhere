@@ -854,6 +854,48 @@ export const api = {
       }),
     }),
 
+  /**
+   * Deliver a turn the server refused because its session went cold as the
+   * first turn of a new session seeded with a handoff of the old one
+   * (topics/limited-users.md § Freshness). The server chooses the launch
+   * settings: the user's lock, else the old session's.
+   */
+  staleHandoffSession: (
+    projectId: string,
+    sessionId: string,
+    message: string,
+    options: {
+      mode?: PermissionMode;
+      tempId?: string;
+      clientTimestamp?: number;
+      messageMetadata?: UserMessageMetadata;
+    },
+    attachments?: UploadedFile[],
+  ) =>
+    fetchJSON<{
+      sessionId: string;
+      processId: string;
+      projectId: string;
+      provider?: ProviderName;
+      model?: string;
+      title?: string;
+      permissionMode: PermissionMode;
+      appliedPermissionMode?: PermissionMode;
+      modeVersion: number;
+      recapAfterSeconds?: number;
+      serverTimestamp: number;
+    }>(`/projects/${projectId}/sessions/${sessionId}/stale-handoff`, {
+      method: "POST",
+      body: JSON.stringify({
+        message,
+        mode: options.mode,
+        tempId: options.tempId,
+        clientTimestamp: options.clientTimestamp,
+        messageMetadata: options.messageMetadata,
+        attachments,
+      }),
+    }),
+
   restartSession: (
     projectId: string,
     sessionId: string,

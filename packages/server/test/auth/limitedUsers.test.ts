@@ -158,6 +158,13 @@ describe("limited-user route policy", () => {
       kind: "session",
       sessionId: "s1",
       required: "join",
+      startsTurn: true,
+    });
+    // Changing the permission mode joins the session without a turn.
+    expect(decide("PUT", "/api/sessions/s1/mode")).toEqual({
+      kind: "session",
+      sessionId: "s1",
+      required: "join",
     });
     expect(decide("POST", "/api/projects/abc/sessions/s1/fork")).toEqual({
       kind: "session",
@@ -167,11 +174,17 @@ describe("limited-user route policy", () => {
   });
 
   it("allows only listed session actions, whose launches apply the launch policy", () => {
+    expect(decide("POST", "/api/projects/abc/sessions/s1/resume")).toEqual({
+      kind: "session",
+      sessionId: "s1",
+      required: "new-session",
+      startsTurn: true,
+    });
     for (const action of [
-      "resume",
       "reactivate",
       "fork",
       "clone",
+      "stale-handoff",
       "attachments/staging/materialize",
     ]) {
       expect(
@@ -695,8 +708,19 @@ describe("limited-user middleware", () => {
         provider: string;
         lastActivityMs: number;
         sandboxLevel?: string;
+        createdByUser?: string;
       }
     >([
+      [
+        "own",
+        {
+          projectId: "view-project",
+          provider: "codex",
+          lastActivityMs: 0,
+          sandboxLevel: "project-write",
+          createdByUser: "alice",
+        },
+      ],
       [
         "fresh",
         {
@@ -723,6 +747,7 @@ describe("limited-user middleware", () => {
         })),
       getSessionMetadata: (sessionId) => ({
         sandboxLevel: sessions.get(sessionId)?.sandboxLevel,
+        createdByUser: sessions.get(sessionId)?.createdByUser,
       }),
       now,
     });
@@ -804,6 +829,14 @@ describe("limited-user middleware", () => {
     app.post("/api/sessions/:sessionId/messages", (c) => c.json({ ok: true }));
     app.put("/api/sessions/:sessionId/mode", (c) => c.json({ ok: true }));
     app.post("/api/sessions/:sessionId/input", (c) => c.json({ ok: true }));
+    app.post("/api/sessions/:sessionId/mark-seen", (c) => c.json({ ok: true }));
+    app.post("/api/projects/:projectId/sessions/:sessionId/resume", (c) =>
+      c.json({ ok: true }),
+    );
+    app.post(
+      "/api/projects/:projectId/sessions/:sessionId/stale-handoff",
+      (c) => c.json({ ok: true }),
+    );
     app.get("/api/issues", (c) => c.json({ issues: [] }));
     return app;
   };
@@ -936,9 +969,48 @@ describe("limited-user middleware", () => {
       method: "POST",
     });
     expect(response.status).toBe(403);
-    expect(((await response.json()) as { reason?: string }).reason).toBe(
-      "stale-session",
-    );
+    const body = (await response.json()) as {
+      reason?: string;
+      staleRedirect?: string;
+    };
+    expect(body.reason).toBe("stale-session");
+    // A join grant cannot start the session a redirect would need.
+    expect(body.staleRedirect).toBeUndefined();
+  });
+
+  it("applies the cutoff to a session the user started, and to its resume", async () => {
+    const cold = await buildApp({ now: () => 30 * 60 * 1000 });
+    for (const path of [
+      "/api/sessions/own/messages",
+      "/api/projects/view-project/sessions/own/resume",
+    ]) {
+      const response = await cold.request(path, { method: "POST" });
+      expect(response.status, path).toBe(403);
+      expect(await response.json(), path).toMatchObject({
+        reason: "stale-session",
+        staleRedirect: "stale-handoff",
+      });
+    }
+
+    const fresh = await buildApp({ now: () => 5 * 60 * 1000 });
+    expect(
+      (
+        await fresh.request("/api/projects/view-project/sessions/own/resume", {
+          method: "POST",
+        })
+      ).status,
+    ).toBe(200);
+  });
+
+  it("leaves actions that start no turn open on a cold session", async () => {
+    const cold = await buildApp({ now: () => 30 * 60 * 1000 });
+    for (const [method, path] of [
+      ["POST", "/api/sessions/own/mark-seen"],
+      ["PUT", "/api/sessions/own/mode"],
+      ["POST", "/api/projects/view-project/sessions/own/stale-handoff"],
+    ] as const) {
+      expect((await cold.request(path, { method })).status, path).toBe(200);
+    }
   });
 
   it("refuses every join action on a fresh session outside the sandbox", async () => {
@@ -1087,9 +1159,7 @@ describe("session access resolver", () => {
     });
     const facts = await resolver.resolve("resumed");
     expect(facts?.lastActivityMs).toBe(now - hours(3));
-    expect(
-      facts && resolver.canJoin(facts, { username: "alice", offsetMinutes: 0 }),
-    ).toBe(false);
+    expect(facts && resolver.isFresh(facts, { offsetMinutes: 0 })).toBe(false);
   });
 
   it("dates a live process by its last provider message", async () => {
@@ -1104,9 +1174,7 @@ describe("session access resolver", () => {
       now: () => now,
     });
     const facts = await resolver.resolve("running");
-    expect(
-      facts && resolver.canJoin(facts, { username: "alice", offsetMinutes: 0 }),
-    ).toBe(false);
+    expect(facts && resolver.isFresh(facts, { offsetMinutes: 0 })).toBe(false);
   });
 
   it("takes a live process's sandbox over the level its metadata recorded", async () => {

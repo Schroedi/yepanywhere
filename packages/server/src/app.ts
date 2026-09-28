@@ -2032,6 +2032,15 @@ export function createApp(options: AppOptions): AppResult {
         };
       },
       getLimitedUserGrants: getActiveLimitedGrants,
+      isSessionFreshForLimitedTurn: async (sessionId, grants) => {
+        const facts = await sessionAccessResolver.resolve(sessionId);
+        return (
+          facts !== null &&
+          sessionAccessResolver.isFresh(facts, {
+            offsetMinutes: grants.joinStaleOffsetMinutes,
+          })
+        );
+      },
       onSessionStarted: async ({ item, process }) => {
         if (item.target.type !== "new-session") return;
         const metadata = options.sessionMetadataService;

@@ -205,6 +205,15 @@ export interface ProjectQueueSchedulerOptions {
    * item a limited user queued can run.
    */
   getLimitedUserGrants?: (username: string) => LimitedUserGrants | null;
+  /**
+   * Whether a limited user's queued turn may still resume an existing session
+   * under the freshness cutoff (topics/limited-users.md § Freshness). Without
+   * this option no limited user's existing-session item can run.
+   */
+  isSessionFreshForLimitedTurn?: (
+    sessionId: string,
+    grants: LimitedUserGrants,
+  ) => Promise<boolean>;
   onSessionStarted?: (args: {
     item: ProjectQueueItem;
     process: ProjectQueueProcessSnapshot;
@@ -1103,6 +1112,17 @@ export class ProjectQueueScheduler {
         item.target,
       );
       if (refused) throw new Error(refused.error);
+      // Judged at dispatch, not enqueue: an item that waited past the
+      // cutoff would otherwise resume a cold session at full cost.
+      const fresh = await this.options.isSessionFreshForLimitedTurn?.(
+        item.target.sessionId,
+        grants,
+      );
+      if (!fresh) {
+        throw new Error(
+          "The target session has gone cold; queue a new session instead",
+        );
+      }
     }
     if (yaCommand) {
       // A YA-emulated command is not provider text; the composer deliberately

@@ -210,7 +210,7 @@ only needs the read-only extras.
 
 ### Freshness
 
-A session in a join project is joinable while
+A session is fresh for a limited user while
 `now − lastActivity ≤ providerCacheWarmMinutes + joinStaleOffsetMinutes`.
 `lastActivity` is the running process's last provider message; before the
 process has seen one (a session just resumed) and for a session with no
@@ -219,10 +219,41 @@ neither is not fresh.
 `providerCacheWarmMinutes` is a believed prompt-cache-warm window per
 provider, shipped as **60 for Claude-family providers and 10 for everything
 else, Codex included** — the same zero point the stale-session cutoff above
-describes. Outside the window the session is visible but read-only for that
-user, with the reason stated; starting a new session stays available where
-`newSessionProjects` allows it. v1 does not implement the redirect-into-a-new-
-session behavior described above; it refuses the turn instead.
+describes.
+
+The cutoff **always applies** to a limited user (user-directed 2026-09-28):
+to sessions they started themselves exactly as to anyone else's, whether the
+session still has a live process or must be resumed, and whatever grants
+they hold. It gates every request that makes the provider answer on the
+session's existing context — a turn (`messages`), an answer or approval
+that continues one (`input`, `approve`, `approvals`), a queued or steered
+deferred message (`queue`, `POST deferred/…/steer`), and `resume` — and a
+Project Queue existing-session item, judged at dispatch. Actions that start
+no provider work stay open on a cold session: reading, marking seen,
+interrupting, changing the permission mode, uploading, opening its sandbox
+apps and artifact previews, dropping a deferred message, and reactivating a
+process without a turn. A refused request answers 403 with reason
+`stale-session`; a refused Project Queue item fails, saying the session has
+gone cold.
+
+**Redirect into a new session.** Where the user holds `newSessionProjects`
+on the session's project, the refusal also carries
+`staleRedirect: "stale-handoff"`, and the client resends the same message
+to `POST …/sessions/:id/stale-handoff`. That starts a **new session** in the
+same project whose first turn is a YA-generated handoff of the old one — the
+bounded transcript the manual Handoff builds, with its Source Session block
+— introduced as context for a message that **may be a new, independent
+request**, followed by the user's message under **New Message**. That
+framing is specific to this redirect; the manual Handoff keeps its own. The
+new session is the user's own, launched under the same policy as session
+create (sandbox and firewall forced, the lock applied, this host only),
+otherwise inheriting the old session's provider, model and effort. The old
+session is left exactly as it was: not compacted, interrupted, or resumed,
+since each would spend the cold context this exists to avoid. The client
+then opens the new session. With only a join grant there is no redirect:
+the session is read-only for that user, with the reason stated. The
+composer does not yet say before sending that a message will start a new
+session.
 
 ### Approved project removal retention
 
@@ -265,10 +296,11 @@ percent-encoding is refused.
 | rename, caption, or code name | only a project the user owns, which also needs its `newSessionProjects` grant, else 403: these are one value every principal sees, so a grant to start sessions in someone else's project is no say in how it is presented. For every principal, an id naming no listed project is 404 and nothing is stored |
 | remove a project | owner and `newSessionProjects` checks still apply; persist a personal hidden marker and audit event instead of hiding the canonical project. List projections omit it for that user, while direct access follows unchanged grants. Superuser removal retains its existing global-hide meaning |
 | session create in a project | `newSessionProjects` only; sandbox forced, with its network firewall on when the request names none; a request with `sandboxNetworkFirewall: false` 403, stating that the firewall stays on; lock applied; a remote executor or computer control is refused |
-| resume or reactivate a session | `newSessionProjects` on its project; the session must already run sandboxed with its network firewall on, and on this host, else 403; the lock applies as at create, replacing the session's model and effort with locked ones |
+| resume or reactivate a session | `newSessionProjects` on its project; the session must already run sandboxed with its network firewall on, and on this host, else 403; the lock applies as at create, replacing the session's model and effort with locked ones. A resume carries a turn, so it must also be fresh, else 403 with reason `stale-session` ([Freshness](#freshness)) |
+| redirect a cold session's turn (`stale-handoff`) | `newSessionProjects` on its project; starts a new session under the create rule, seeded with a handoff of this one ([Freshness](#freshness)) |
 | fork or clone a session | `newSessionProjects` on its project; the copy is recorded as the user's own; running it is a resume, under the row above |
 | any other session action that starts a provider process (restart, recap, retitle, fork-after-summary, rewind, clearloop, resuming or steering a restart-paused queued message, session bang commands) and moving a session to another project | 403: only listed session actions are open, and each listed one that launches applies this launch policy |
-| turn/approval/interrupt/permission-mode change on a session | the session's project in `newSessionProjects` or `joinProjects`, **and** the session runs sandboxed with its network firewall on (its live process enforces both, or with no process its last launch recorded both), else 403 with reason `unsandboxed-session`, **and** it is fresh or started by this user, else 403 with reason `stale-session` |
+| turn/approval/interrupt/permission-mode change on a session | the session's project in `newSessionProjects` or `joinProjects`, **and** the session runs sandboxed with its network firewall on (its live process enforces both, or with no process its last launch recorded both), else 403 with reason `unsandboxed-session`, **and**, for a request that starts provider work (a turn, an answer or approval, a delivered deferred message), it is fresh — whoever started it — else 403 with reason `stale-session` ([Freshness](#freshness)) |
 | any session the user started | always at least readable, including after its project grant is removed |
 | Issues & PRs (`/api/issues*`) | 403, and the nav entry is hidden: it spends the host's ticket-system credentials |
 | Inbox, Projects, Source Control, All Sessions | served, with every project and session outside the user's grants removed before pagination; All Sessions project options and aggregate statistics use the same scope |
@@ -710,9 +742,11 @@ A limited user creates projects only where the superuser said they may.
 
 Viewers-versus-editors semantics beyond the three lists, session guests,
 template-only project creation, the Settings → Limited Users grants recap
-and summary line, HTTP Basic, per-user server sockets, the stale-session
-redirect (v1 refuses instead), and mid-session lock enforcement for model or
-effort changes made by the superuser.
+and summary line, HTTP Basic, per-user server sockets, the composer's
+before-send notice that a message to a cold session will start a new one
+(the redirect itself is delivered; see [Freshness](#freshness)), the
+superuser's own opt-in to the cutoff, and mid-session lock enforcement for
+model or effort changes made by the superuser.
 
 ## Principals and login
 

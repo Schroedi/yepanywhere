@@ -52,6 +52,7 @@ import {
 } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import { isStaleSessionRedirect } from "../api/refusal";
 import { getUiCreationProvenance } from "../lib/sessionCreationProvenance";
 import { createSessionApi } from "../api/sessionClient";
 import type { BangCommandHandlers } from "../components/BangCommandDisplayObject";
@@ -2751,6 +2752,58 @@ function SessionPageContent({
         tempId,
         message: err instanceof Error ? err.message : String(err),
       });
+
+      // The session went cold under the limited-user freshness cutoff: the
+      // server refused the turn and says it belongs in a new session seeded
+      // with a handoff of this one (topics/limited-users.md § Freshness).
+      if (isStaleSessionRedirect(err)) {
+        try {
+          const started = await api.staleHandoffSession(
+            projectId,
+            sessionId,
+            outgoingText,
+            {
+              mode: permissionMode,
+              tempId,
+              clientTimestamp,
+              messageMetadata: metadata,
+            },
+            uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
+          );
+          removePendingMessage(tempId);
+          if (!localControl) setProcessState("idle");
+          confirmSubmission();
+          if (!started.sessionId) {
+            // Accepted but waiting for a free worker; it appears in the
+            // session list when it starts.
+            showToast(t("sessionStaleHandoffQueued"), "success");
+            return true;
+          }
+          showToast(t("sessionStaleHandoffStarted"), "success");
+          navigate(
+            `${basePath}/projects/${started.projectId}/sessions/${started.sessionId}`,
+            {
+              state: createSessionNavigationState({
+                initialStatus: {
+                  owner: "self",
+                  processId: started.processId,
+                  permissionMode: started.permissionMode,
+                  appliedPermissionMode: started.appliedPermissionMode,
+                  modeVersion: started.modeVersion,
+                  recapAfterSeconds: started.recapAfterSeconds,
+                },
+                initialTitle: started.title,
+                initialModel: started.model,
+                initialProvider: started.provider ?? effectiveProvider,
+              }),
+            },
+          );
+          return true;
+        } catch (redirectErr) {
+          // Reported by the toast below, like any other send failure.
+          finalError = redirectErr;
+        }
+      }
 
       // Check if process is dead (404) - auto-retry with resumeSession
       const is404 =
