@@ -134,6 +134,54 @@ it("creates and commits a real starter, then dispatches intent once across retri
   ).rejects.toThrow("different request");
 });
 
+it("names the limited owner of each started preparation session", async () => {
+  const data = join(root, "data");
+  const directory = join(data, "project-template-operations");
+  await mkdir(directory, { recursive: true });
+  const record = (fields: Record<string, unknown>) =>
+    JSON.stringify({
+      request: {
+        operationId: randomUUID(),
+        sourceId: "local",
+        templateId: "app",
+        path: join(root, "project"),
+        name: "Garden",
+        intent: "Draw",
+      },
+      log: "",
+      ...fields,
+    });
+  await writeFile(
+    join(directory, `${randomUUID()}.json`),
+    record({
+      phase: "started",
+      sessionId: "archer-session",
+      ownerUsername: "archer",
+    }),
+  );
+  // The superuser's own creations and ones that never started a session name
+  // no owner to restore.
+  await writeFile(
+    join(directory, `${randomUUID()}.json`),
+    record({
+      phase: "started",
+      sessionId: "owner-session",
+      ownerUsername: null,
+    }),
+  );
+  await writeFile(
+    join(directory, `${randomUUID()}.json`),
+    record({ phase: "failed", ownerUsername: "archer" }),
+  );
+  const service = new TemplateCreationService(
+    data,
+    new TemplateSourceService(data),
+  );
+  expect(await service.startedSessionOwners()).toEqual([
+    { sessionId: "archer-session", ownerUsername: "archer" },
+  ]);
+});
+
 it("revalidates local source edits before allocating any project", async () => {
   const sources = await source();
   await rm(join(root, "source/templates/app/file-0"));

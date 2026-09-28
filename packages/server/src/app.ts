@@ -921,6 +921,25 @@ export function createApp(options: AppOptions): AppResult {
     effectiveDataDir,
     templateSources,
   );
+  // Restore the creator a queued preparation start failed to record, so the
+  // session reaches its user's sidebar group and ownership-based reads.
+  if (options.sessionMetadataService) {
+    const metadata = options.sessionMetadataService;
+    void templateCreations
+      .startedSessionOwners()
+      .then(async (owners) => {
+        for (const { sessionId, ownerUsername } of owners) {
+          if (metadata.getMetadata(sessionId)?.createdByUser) continue;
+          await metadata.recordSessionCreator(sessionId, ownerUsername);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error(
+          "[TemplateCreation] Failed to restore preparation session creators:",
+          error,
+        );
+      });
+  }
   app.route(
     "/api",
     createProjectTemplateSourceRoutes(effectiveDataDir, templateSources),
