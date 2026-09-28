@@ -52,6 +52,8 @@ export interface LimitedUsersMiddlewareOptions {
   ) => Promise<string | null>;
   /** Secret used to sign the acting-user cookie. */
   getCookieSecret: () => string;
+  /** Personal list visibility; does not change direct project/session access. */
+  getHiddenProjectIds?: (username: string) => Promise<ReadonlySet<string>>;
 }
 
 function limitedPrincipal(
@@ -354,6 +356,17 @@ export function createLimitedUsersMiddleware(
 
     const isAccessible = (projectId: string) =>
       levelFor(principal.grants, projectId) !== "none";
+    const filterVisible = async (
+      response: Response,
+      filter: FilteredListKind,
+    ) => {
+      const hidden = await options.getHiddenProjectIds?.(principal.username);
+      return filterResponse(
+        response,
+        filter,
+        (projectId) => isAccessible(projectId) && !hidden?.has(projectId),
+      );
+    };
 
     switch (decision.kind) {
       case "deny":
@@ -364,7 +377,7 @@ export function createLimitedUsersMiddleware(
       case "allow-filtered": {
         await next();
         if (c.res) {
-          c.res = await filterResponse(c.res, decision.filter, isAccessible);
+          c.res = await filterVisible(c.res, decision.filter);
         }
         return;
       }
@@ -378,7 +391,7 @@ export function createLimitedUsersMiddleware(
         }
         await next();
         if (decision.filter && c.res) {
-          c.res = await filterResponse(c.res, decision.filter, isAccessible);
+          c.res = await filterVisible(c.res, decision.filter);
         }
         return;
       }

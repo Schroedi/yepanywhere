@@ -82,6 +82,7 @@ import { createProjectTemplateSourceRoutes } from "./routes/project-template-sou
 import { createProjectTemplateRoutes } from "./routes/project-templates.js";
 import { TemplateSourceService } from "./projects/TemplateSourceService.js";
 import { TemplateCreationService } from "./projects/TemplateCreationService.js";
+import { ProjectAppStore } from "./projects/ProjectAppStore.js";
 import { SESSION_COOKIE_NAME } from "./auth/routes.js";
 import { getCookie as getRequestCookie } from "hono/cookie";
 import { levelFor } from "./auth/limitedUserPolicy.js";
@@ -738,6 +739,7 @@ export function createApp(options: AppOptions): AppResult {
   const effectiveDataDir =
     options.dataDir ??
     join(process.env.HOME ?? process.env.USERPROFILE ?? ".", ".yep-anywhere");
+  const projectAppStore = new ProjectAppStore(effectiveDataDir);
   const computerControl = options.serverSettingsService
     ? new ComputerControlService(
         options.serverSettingsService,
@@ -871,6 +873,8 @@ export function createApp(options: AppOptions): AppResult {
       "/api/*",
       createLimitedUsersMiddleware({
         getActiveGrants: getActiveLimitedGrants,
+        getHiddenProjectIds: (username) =>
+          projectAppStore.hiddenProjectIds(username),
         sessionAccess: sessionAccessResolver,
         getSuperuserIdentity: () =>
           options.remoteAccessService?.getUsername() ?? null,
@@ -1232,6 +1236,7 @@ export function createApp(options: AppOptions): AppResult {
   let vocabularyKeyterms: VocabularyKeyterms | undefined;
   let unsubscribeVocabulary: (() => void) | undefined;
   const disposeSessionReaders = async (): Promise<void> => {
+    await projectAppStore.close();
     await templateCreations.close();
     await computerControl?.close();
     conversationSubscriptions?.close();
@@ -2246,6 +2251,7 @@ export function createApp(options: AppOptions): AppResult {
     "/api/projects",
     createProjectsRoutes({
       scanner,
+      projectAppStore,
       readerFactory,
       supervisor,
       externalTracker,

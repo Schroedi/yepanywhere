@@ -232,8 +232,9 @@ Existing pieces verified in source on 2026-09-28:
   first service boundary; do not promise Vite HMR or WebSocket applications
   until [WebSocket forwarding](../gaps/vhost-websocket-forwarding.md) is closed.
 
-The separate project runner now reuses these sandbox facilities. The association
-store, main-pane UI and no-vhost relay delivery remain pending.
+The separate project runner now reuses these sandbox facilities. Retained
+artifact association and address-reservation storage exists, but its API and
+delivery integration, main-pane UI and no-vhost relay delivery remain pending.
 
 ## App address in project Settings
 
@@ -277,6 +278,9 @@ user's project lists and selectors; it does not revoke access grants.
 The superuser sees “Removed from archer's view” and can inspect the retained
 project. Restoration clears the marker with an audit event. See
 [limited users](limited-users.md#approved-project-removal-retention).
+
+Personal hiding and audit storage are implemented under
+`personal-project-hiding`. The administrator audit/restore UI is pending.
 
 ## Delivery acceptance
 

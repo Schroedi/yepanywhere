@@ -204,6 +204,26 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  personalProjectHiding: {
+    id: CAPABILITY_ID_ALLOCATIONS.personalProjectHiding.id,
+    name: "personal-project-hiding",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Limited-user project removal hides the project only from that user's lists, retaining canonical metadata, files and audit history.",
+    clientFallback:
+      "Keep the existing project removal label and confirmation without promising personal-only removal; send no new request.",
+    serverContract: {
+      routes: ["DELETE /api/projects/:projectId", "GET /api/projects"],
+      responseFields: ["personal"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers hide a limited user's project globally.",
+    },
+  },
   agentServerAccess: {
     id: CAPABILITY_ID_ALLOCATIONS.agentServerAccess.id,
     name: "agent-server-access",

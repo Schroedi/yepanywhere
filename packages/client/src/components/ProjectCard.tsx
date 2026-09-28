@@ -23,6 +23,7 @@ interface ProjectCardProps {
   basePath?: string;
   /** Called when the user asks to remove the project from YA lists */
   onDeleteProject?: (project: Project) => void;
+  deleteLabel?: string;
   /** Called when the user opens this project's defaults */
   onOpenSettings?: (project: Project) => void;
   /** Persists an inline edit to this project's short code name. */
@@ -63,6 +64,7 @@ export function ProjectCard({
   hasQueueWarning = false,
   basePath = "",
   onDeleteProject,
+  deleteLabel,
   onOpenSettings,
   onUpdateCodeName,
   onUpdateCaption,
@@ -129,8 +131,8 @@ export function ProjectCard({
               className={styles.deleteTrigger}
               onClick={handleDeleteProject}
               disabled={isDeleting}
-              title={t("projectsDelete")}
-              aria-label={t("projectsDelete")}
+              title={deleteLabel ?? t("projectsDelete")}
+              aria-label={deleteLabel ?? t("projectsDelete")}
             >
               <svg
                 width="16"

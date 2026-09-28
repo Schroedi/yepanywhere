@@ -7,6 +7,7 @@ import {
   PROJECT_SESSION_DEFAULTS_CAPABILITY,
   type ProjectQueueMessage,
   serverHasCapability,
+  SERVER_CAPABILITIES,
 } from "@yep-anywhere/shared";
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -64,6 +65,12 @@ export function ProjectsPage() {
   );
   const { projectCodeNamesEnabled } = useProjectCodeNamePreferences();
   const { principal } = useActingPrincipal();
+  const personalRemoval =
+    principal.username !== null &&
+    serverHasCapability(
+      version,
+      SERVER_CAPABILITIES.personalProjectHiding.name,
+    );
   const newProjectBase = newProjectBaseFor(principal);
   const inboxCountsByProject = useInboxCountsByProject();
   const [showAddForm, setShowAddForm] = useState(false);
@@ -190,7 +197,12 @@ export function ProjectsPage() {
   const handleDeleteProject = async (project: Project) => {
     if (
       !confirm(
-        t("projectsDeleteConfirm", { name: projectDisplayName(project) }),
+        t(
+          personalRemoval
+            ? "projectsRemoveFromMyProjectsConfirm"
+            : "projectsDeleteConfirm",
+          { name: projectDisplayName(project) },
+        ),
       )
     ) {
       return;
@@ -506,6 +518,11 @@ export function ProjectsPage() {
                   }
                   basePath={basePath}
                   onDeleteProject={handleDeleteProject}
+                  deleteLabel={
+                    personalRemoval
+                      ? t("projectsRemoveFromMyProjects")
+                      : undefined
+                  }
                   onOpenSettings={
                     supportsProjectSessionDefaults
                       ? setSettingsProject

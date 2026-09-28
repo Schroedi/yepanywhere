@@ -219,7 +219,8 @@ session behavior described above; it refuses the turn instead.
 
 ### Approved project removal retention
 
-User-directed, 2026-09-28; **not yet implemented**. A limited user's project
+User-directed, 2026-09-28; **personal removal and retained audit storage
+implemented; administrator audit/restore UI pending**. A limited user's project
 delete action only removes the project from that user's view. Label it
 **Remove from my projects** and explain that files and history remain. Store
 the personal hidden marker and an actor/time audit event in YA app data.
@@ -227,8 +228,10 @@ Project lists and selectors honor it across reconnects and restarts; it does
 not revoke grants or erase the canonical project, sessions, ownership or
 audit records. The superuser retains visibility, including who removed it
 and when, and can restore it with a recorded action. Do not implicitly stop
-its app or release a reserved hostname. The current v1 removal row below
-describes the old shared-removal boundary, which this direction must replace.
+its app or release a reserved hostname. The `personal-project-hiding`
+capability guarantees these removal semantics; older servers retain their
+existing removal label and confirmation. The administrator audit/restore
+surface remains part of project App integration.
 The [project service contract](project-service.md) and existing
 [template integration gap](../gaps/project-template-standup.md) track this
 auditability requirement together with project App access.
@@ -252,7 +255,8 @@ percent-encoding is refused.
 |---|---|
 | any API path not on the v1 allowlist | 403 |
 | `GET` of a project-scoped path | allowed when the project is in any of the three lists, else 404 |
-| rename, caption, code name, or remove a project | only a project the user owns, which also needs its `newSessionProjects` grant, else 403: these are one value every principal sees, so a grant to start sessions in someone else's project is no say in how it is presented. For every principal, an id naming no listed project is 404 and nothing is stored |
+| rename, caption, or code name | only a project the user owns, which also needs its `newSessionProjects` grant, else 403: these are one value every principal sees, so a grant to start sessions in someone else's project is no say in how it is presented. For every principal, an id naming no listed project is 404 and nothing is stored |
+| remove a project | owner and `newSessionProjects` checks still apply; persist a personal hidden marker and audit event instead of hiding the canonical project. List projections omit it for that user, while direct access follows unchanged grants. Superuser removal retains its existing global-hide meaning |
 | session create in a project | `newSessionProjects` only; sandbox forced, with its network firewall on when the request names none; a request with `sandboxNetworkFirewall: false` 403, stating that the firewall stays on; lock applied; a remote executor or computer control is refused |
 | resume or reactivate a session | `newSessionProjects` on its project; the session must already run sandboxed with its network firewall on, and on this host, else 403; the lock applies as at create, replacing the session's model and effort with locked ones |
 | fork or clone a session | `newSessionProjects` on its project; the copy is recorded as the user's own; running it is a resume, under the row above |

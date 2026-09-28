@@ -381,6 +381,7 @@ export const RESUME_PROTOCOL_VERSION = 3;
 export const REMOTE_COMPATIBILITY_LEVEL = 10;
 
 const BASE_CAPABILITIES: string[] = [
+  SERVER_CAPABILITIES.personalProjectHiding.name,
   SERVER_CAPABILITIES.fileSourceEditing.name,
   SERVER_CAPABILITIES.limitedUsers.name,
   SERVER_CAPABILITIES.projectTemplateSources.name,

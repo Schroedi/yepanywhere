@@ -40,6 +40,14 @@ runtime gap. Optional template-provided thumbnails/icons have a separate
 [specification sketch](sketches/project-template-artwork.md).
 Contributing-model: 6-Astra.
 
+Personal removal landed, 2026-09-28: a limited owner's DELETE now persists a
+personal hidden marker and actor/time event, without changing canonical
+project metadata. List projections honor it after reconnect; direct access
+still follows grants. The Projects confirmation is capability-gated. Retained
+artifact identity and first-claim-wins reservation storage also exist, but
+association and serving routes plus administrator audit/restore UI remain
+pending. Contributing-model: 6-Astra.
+
 With templates enabled and a ready source configured, permitted users can create a
 project and start preparation through either entry point. The chooser rereads
 mapped SVG images when reopened. Its source must have been explicitly updated

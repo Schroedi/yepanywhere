@@ -796,6 +796,8 @@
   "projectsAddFailed": "Failed to add project",
   "projectCardNewSession": "New session",
   "projectsDelete": "Remove project",
+  "projectsRemoveFromMyProjects": "Remove from my projects",
+  "projectsRemoveFromMyProjectsConfirm": "Remove {name} from your projects? The administrator retains the project, files, sessions and audit history. Its app keeps running.",
   "projectsDeleteConfirm": "Remove {name} from YA's project list? This won't delete project files or source directories.",
   "projectsDeleteFailed": "Failed to remove project",
   "projectsEmptyTitle": "No projects yet",

@@ -564,6 +564,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "session-scoped-local-files",
     introducedIn: "0.9.4",
   },
+  personalProjectHiding: {
+    id: 91,
+    direction: "server",
+    name: "personal-project-hiding",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [
