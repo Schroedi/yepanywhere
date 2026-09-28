@@ -1,37 +1,13 @@
 .shell {
-  min-height: 100vh;
+  height: 100dvh;
   display: grid;
-  grid-template-columns: 205px minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
-  background: var(--bg-primary, #faf9f6);
+  grid-template-columns: 40px minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--bg-primary);
   color: var(--text-primary);
   font:
     14px / 1.45 system-ui,
     sans-serif;
-}
-.shell button,
-.shell select,
-.shell input {
-  font: inherit;
-}
-.shell button,
-.shell select {
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 7px 12px;
-  color: inherit;
-  background: var(--bg-secondary);
-  cursor: pointer;
-}
-.shell button:focus-visible,
-.shell input:focus-visible,
-.shell select:focus-visible {
-  outline: 2px solid #008762;
-  outline-offset: 2px;
-}
-.shell button:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 .shell h1 {
   font-size: 22px;
@@ -47,66 +23,100 @@
   margin: 5px 0 12px;
   color: var(--text-secondary);
 }
-.review {
-  grid-column: 1 / -1;
-  display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
-  align-items: center;
-  padding: 10px 18px;
-  border-bottom: 1px solid var(--border-color);
+.settings button,
+.projectList button,
+.header button,
+.composer button,
+.sessionHeader button,
+.share button,
+.empty button,
+.review select {
+  font: inherit;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 6px 10px;
+  color: inherit;
   background: var(--bg-secondary);
+  cursor: pointer;
+}
+.shell button:focus-visible,
+.shell input:focus-visible,
+.shell select:focus-visible,
+.shell textarea:focus-visible {
+  outline: 2px solid #008762;
+  outline-offset: 2px;
+}
+.shell button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.review {
+  position: fixed;
+  bottom: 5px;
+  left: 5px;
+  z-index: 20;
   font-size: 12px;
+}
+.review > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 3px 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+.review > div {
+  position: absolute;
+  bottom: 32px;
+  left: 0;
+  width: 300px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 25px #0006;
 }
 .review label {
   display: flex;
   align-items: center;
-  gap: 7px;
-}
-.review select {
-  padding: 4px;
+  gap: 8px;
 }
 .sidebar {
   border-right: 1px solid var(--border-color);
   display: flex;
+  align-items: center;
   flex-direction: column;
-  padding: 18px 12px;
-  gap: 7px;
+  padding: 10px 3px;
+  gap: 20px;
+  background: var(--bg-secondary);
 }
-.sidebar > span,
-.sidebar > button {
-  padding: 10px;
-  text-align: left;
-  font-size: 13px;
-}
-.sidebar > small {
-  margin-top: auto;
-  padding: 20px 10px 0;
+.sidebar button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
   color: var(--text-secondary);
-}
-.sidebar .selected {
-  background: var(--bg-tertiary);
-  border-color: transparent;
+  background: transparent;
+  cursor: pointer;
 }
 .brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: Georgia, serif;
-  padding: 0 6px 20px;
-}
-.brand b {
   background: #008864;
   color: white;
-  padding: 0 5px;
   border-radius: 4px;
-  font: 21px system-ui;
+  padding: 0 5px;
+  font-size: 19px;
 }
 .main {
   min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
 }
 .header {
-  padding: 15px 22px;
+  padding: 12px 22px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -126,121 +136,117 @@
   color: var(--text-secondary);
   font-size: 12px;
 }
-.viewer {
-  margin: 20px 24px 0;
-  border: 1px solid var(--border-color);
-  border-radius: 9px;
-  overflow: hidden;
-}
-.toolbar,
-.viewerFooter {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 9px 14px;
-  background: var(--bg-secondary);
-}
-.toolbar .actions {
-  margin-left: auto;
-}
 .appLayout {
+  height: 100%;
   min-width: 0;
 }
-.mobilePane {
-  display: none;
-}
-.bandTitle {
+.viewer {
+  height: 100%;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
-.bandActions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-left: auto;
+.toolbar {
+  flex-wrap: nowrap;
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
 }
-.bandActions button {
-  font-size: 12px;
-  padding: 6px 9px;
+.toolbarIdentity {
+  flex: 1 1 0;
+  min-width: 0;
 }
-.bandActions .mic {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  background: #008764;
-  border-color: #008764;
-  min-width: 34px;
+.viewerTitle {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-sm);
+}
+.toolbar .activeMic {
+  color: #ff7f73;
 }
 .share {
   padding: 16px;
   background: var(--bg-secondary);
-  border-top: 1px solid var(--border-color);
   border-bottom: 1px solid var(--border-color);
   font-size: 12px;
 }
 .sessionLayout {
+  height: 100%;
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(350px, 1.2fr);
-  min-height: 460px;
-  padding: 18px;
-  gap: 16px;
+  grid-template-columns: minmax(270px, 1fr) minmax(400px, 1.1fr);
+  gap: 0;
 }
 .sessionLayout .viewer {
-  margin: 0;
-}
-.sessionLayout .canvas {
-  padding: 18px 14px;
-}
-.sessionLayout .appTitle {
-  flex-direction: column;
+  border-left: 1px solid var(--border-color);
 }
 .conversation {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
-.conversation > div > p {
+.sessionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  height: 34px;
+  border-bottom: 1px solid var(--border-color);
   font-size: 12px;
+  box-sizing: border-box;
 }
-.sessionIntro {
-  margin-top: 35px !important;
-  font-size: 14px;
+.sessionHeader button {
+  padding: 1px 7px;
+}
+.transcript {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 25px 18px;
+}
+.transcript small {
+  color: var(--text-secondary);
 }
 .composer {
-  margin-top: auto;
-  padding: 12px;
+  margin: 8px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-}
-.composer label {
-  display: block;
-  font-size: 12px;
+  border-radius: 7px;
+  background: var(--bg-secondary);
+  overflow: hidden;
 }
 .composer textarea {
   box-sizing: border-box;
   width: 100%;
   background: transparent;
   border: 0;
+  color: var(--text-primary);
   resize: vertical;
   font: inherit;
-  padding: 10px 0;
+  padding: 12px;
+  min-height: 100px;
 }
-.recording {
+.composerBar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 10px;
-  color: #b34737;
-}
-.recording small {
-  display: block;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
   color: var(--text-secondary);
-  font-size: 10px;
+}
+.composerBar button {
+  width: 30px;
+  height: 28px;
+  padding: 0;
+}
+.speechMethod,
+.recording {
+  margin-left: auto;
+}
+.recording {
+  color: #ff8d82;
 }
 .actions {
   display: flex;
@@ -252,7 +258,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #24644f;
+  color: #64b59a;
   font-size: 12px;
   white-space: nowrap;
 }
@@ -264,9 +270,11 @@
   background: currentColor;
 }
 .canvas {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   background: #f7faef;
-  min-height: 350px;
-  padding: 20px 28px 12px;
+  padding: 26px 32px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -277,6 +285,7 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 10px;
 }
 .appTitle > span {
@@ -290,7 +299,9 @@
 }
 .drawing {
   width: 100%;
-  height: 208px;
+  flex: 1;
+  min-height: 120px;
+  max-height: 65vh;
 }
 .typing {
   width: min(450px, 100%);
@@ -307,20 +318,12 @@
   border-radius: 7px;
   background: #fffef8;
   color: #314e46;
+  font: inherit;
 }
 .canvasHint {
   color: #63776c;
   margin-top: 10px;
   font-size: 11px;
-}
-.viewerFooter {
-  justify-content: space-between;
-  color: var(--text-secondary);
-  font-size: 11px;
-}
-.viewerFooter button {
-  font-size: 11px;
-  padding: 4px 8px;
 }
 .settings,
 .projectList {
@@ -421,7 +424,7 @@
   border: 1px solid #c99274;
   border-radius: 7px;
   margin-top: 18px;
-  background: #fff9ef;
+  background: var(--bg-secondary);
 }
 .fixture {
   margin-top: 20px;
@@ -458,13 +461,19 @@
   padding: 22px;
   text-align: center;
 }
+
 .notice {
-  padding: 8px 24px;
-}
-.disclaimer {
-  padding: 0 24px;
-  font-size: 10px;
-  margin: 12px 0 !important;
+  position: fixed;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  font-size: 12px;
+  max-width: 85vw;
+  z-index: 10;
 }
 @media (max-width: 700px) {
   .shell {
@@ -473,109 +482,43 @@
   .sidebar {
     display: none;
   }
-  .review {
-    gap: 8px 13px;
-    padding: 10px 12px;
-  }
-  .review > strong {
-    width: 100%;
-  }
-  .review select {
-    max-width: 150px;
-    min-height: 34px;
-  }
   .header {
-    padding: 12px;
-    gap: 10px;
+    padding: 10px;
+    gap: 8px;
     flex-wrap: wrap;
-  }
-  .header strong {
-    font-size: 14px;
   }
   .header .owner {
     display: none;
   }
-  .header .gear {
-    padding: 8px;
-  }
-  .viewer {
-    margin: 14px 10px 0;
-  }
-  .toolbar {
-    gap: 8px;
-    padding: 8px;
-    font-size: 12px;
-  }
-  .bandTitle {
-    width: 100%;
-  }
-  .bandTitle > button:last-child {
-    margin-left: auto;
-  }
-  .bandActions {
-    margin-left: 0;
-    width: 100%;
-    gap: 5px;
-  }
-  .bandActions button {
-    padding: 7px;
-  }
   .sessionLayout {
-    display: flex;
-    flex-direction: column;
-    padding: 14px;
+    display: block;
+    position: relative;
   }
   .conversation {
-    min-height: 350px;
+    height: 100%;
   }
   .sessionLayout .viewer {
-    order: -1;
+    position: absolute;
+    inset: 0;
+    border: 0;
   }
-  .sessionLayout .toolbar {
-    flex-wrap: nowrap;
+  .sessionLayout:not([data-pane-expanded="true"]) .viewer {
+    visibility: hidden;
+    pointer-events: none;
   }
-  .sessionLayout .bandTitle {
-    width: auto;
-  }
-  .sessionLayout .bandTitle > button {
-    display: none;
-  }
-  .sessionLayout .mobilePane {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-left: auto;
-  }
-  .sessionLayout:not([data-pane-expanded="true"]) .canvas,
-  .sessionLayout:not([data-pane-expanded="true"]) .viewerFooter,
-  .sessionLayout:not([data-pane-expanded="true"]) .bandActions {
-    display: none;
-  }
-  .sessionLayout[data-pane-expanded="true"] .viewer {
-    position: fixed;
-    inset: 125px 8px 8px 25px;
-    z-index: 5;
-    overflow: auto;
-    background: var(--bg-primary, #faf9f6);
-    box-shadow: -12px 0 35px #0003;
-  }
-  .shell button {
-    min-height: 40px;
+  .sessionLayout[data-pane-expanded="true"] .conversation {
+    visibility: hidden;
+    pointer-events: none;
   }
   .canvas {
-    padding: 22px 14px;
-    min-height: 400px;
+    padding: 24px 16px;
   }
   .appTitle {
     flex-direction: column;
     align-items: flex-start;
   }
   .drawing {
-    height: 235px;
-  }
-  .viewerFooter {
-    padding: 10px;
-    gap: 4px;
+    min-height: 200px;
   }
   .settings,
   .projectList {
@@ -590,8 +533,5 @@
   }
   .remove {
     align-items: flex-start;
-  }
-  .disclaimer {
-    padding: 0 14px;
   }
 }

@@ -42,11 +42,15 @@ Mint a fresh scoped viewing grant on an authorized open. Expired grants can be
 renewed; missing files or a vanished session-private filesystem are explicitly
 unavailable. Association does not imply copying an ephemeral artifact forever.
 
-The main pane retains a compact **YA control band**, like the in-session
-viewer: Back, target title/status, Reload, Open in new tab, Copy link, Share,
-New session, a microphone button and Settings. New tab, Back and new-session
-entry are single presses, not buried in an overflow menu. On phones, wrap the
-band into two deliberate rows instead of hiding those primary actions.
+The project **App** entry opens the viewer itself, filling the available
+main-pane height. Reuse the in-session right pane's thin top band, shared
+viewer header, icon-button sizes, title truncation and window actions. Do not
+surround it with a project header, inset card, margins or a second status band.
+Back, Reload, Open in new tab and Copy link retain their viewer treatment;
+add New session, Share, Settings and the microphone in that same top band.
+New tab, Back, new session and mic are direct icon actions with accessible
+labels. Keep the icon band thin, truncating its title when space is tight;
+service details stay in Settings.
 Closing it changes navigation only. Stop is a separate service control in
 Settings. Use the existing iframe sandbox, credential
 separation, and safe new-tab behavior in [active-content security](active-content-security.md).
@@ -55,17 +59,39 @@ fills the main pane; Settings is a separate full-width view.
 
 **New session** creates one session in this project using the user's normal
 provider/model defaults and enforced locks, with the viewed app already open
-in its right pane. The microphone variant performs the same transition and
-starts the normal voice-input flow in that session's composer. It does not
+in its full-height right pane when the viewport has room. The microphone is
+on the app viewer's thin top bar, both in the project App view and when the app
+is in-session. It delegates to the usual composer speech transaction; it is
+not a separate recording form, modal, transcript buffer or send policy. From
+the project App entry it establishes one new project-session context and
+starts that composer's voice flow. Once in-session, it controls that same
+composer rather than creating another session on each press. It does not
 submit an empty turn or send speech before the ordinary voice/send policy
 allows it. Request microphone permission through the existing flow; denial
 leaves a usable text composer and the app. Guard duplicate taps and carry a
 stable target identity, renewing its viewer grant rather than copying a stale
 URL. This explicit action authorizes the pane opening for the new session
-without changing the user's global right-pane preference. On a narrow screen,
-retain the app in the right drawer and show the voice composer while recording;
-the normal App action recalls the drawer. A covered composer must not hide
-recording state or Stop recording.
+without changing the user's global right-pane preference.
+
+Preserve the selected STT backend and all current
+[composer speech behavior](mic-button-speech-ui.md), including Grok Smart Turn
+when enabled, command handling, speech insertion, manual-edit holds, grace
+windows and follow-up listening. Do not force manual Send as part of the App
+entry. Both mic affordances reflect one capture state and stop the same
+transaction. Speech startup does not require summoning the software keyboard.
+
+Small phones normally have no simultaneous pane layout: App is full-screen,
+and the conversation/composer is a separate full-screen surface. Switching
+between them preserves the app and draft; it does not leave a shrunken app
+card or a sliver of conversation. The app top bar retains recording/stop
+access while its session is listening. Tablets may use the ordinary
+full-height side-by-side viewer when space permits; native keyboard behavior
+must not be presented as a guarantee of a keyboard confined to the session
+column.
+
+Canvas sizing under temporary keyboard occlusion and preserving the current
+composer-adjacent session content are tracked in the
+[keyboard-awareness gap](../gaps/sketches/keyboard-aware-app-and-session-viewport.md).
 
 **Copy link** copies an authorized, current viewer link; it does not publish
 or reserve anything. Explain when that link grants transferable access and

@@ -2,6 +2,9 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { ProjectCard } from "../../src/components/ProjectCard";
+import { ViewerWindowActions } from "../../src/components/ViewerWindowActions";
+import headerStyles from "../../src/components/ViewerHeader.module.css";
+import windowStyles from "../../src/components/ViewerWindowActions.module.css";
 import { I18nProvider } from "../../src/i18n";
 import type { Project } from "../../src/types";
 import "../../src/styles/index.css";
@@ -38,6 +41,7 @@ function ServiceMockup() {
   const [sharing, setSharing] = useState(false);
   const [message, setMessage] = useState("");
   const [paneExpanded, setPaneExpanded] = useState(false);
+  const [smartTurn, setSmartTurn] = useState(true);
   const newSession = (microphone: boolean) => {
     setView("session");
     setVoice(microphone);
@@ -56,86 +60,111 @@ function ServiceMockup() {
   };
   return (
     <div className={styles.shell}>
-      <nav className={styles.review} aria-label="Mockup scenarios">
-        <strong>Design preview</strong>
-        <label>
-          View{" "}
-          <select
-            aria-label="Preview view"
-            value={view}
-            onChange={(e) => setView(e.target.value)}
-          >
-            <option value="app">Main-pane app</option>
-            <option value="settings">Project settings</option>
-            <option value="projects">Projects</option>
-          </select>
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={limited}
-            onChange={(e) => setLimited(e.target.checked)}
-          />
-          Limited user
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={vhosts}
-            onChange={(e) => setVhosts(e.target.checked)}
-          />
-          Vhosts enabled
-        </label>
-        <label>
-          Content{" "}
-          <select
-            aria-label="Content scenario"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-          >
-            <option value="service">Project service</option>
-            <option value="static">Static app</option>
-            <option value="artifact">Latest artifact only</option>
-          </select>
-        </label>
-      </nav>
-      <aside className={styles.sidebar}>
-        <div className={styles.brand}>
-          <b>Y</b> yepanywhere
+      <details className={styles.review}>
+        <summary aria-label="Mockup scenarios" title="Mockup scenarios">
+          ◈
+        </summary>
+        <div>
+          <strong>Layout mockup · No real recording or requests</strong>
+          <label>
+            View{" "}
+            <select
+              aria-label="Preview view"
+              value={view}
+              onChange={(e) => setView(e.target.value)}
+            >
+              <option value="app">Main-pane app</option>
+              <option value="session">Session + app</option>
+              <option value="settings">Project settings</option>
+              <option value="projects">Projects</option>
+            </select>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={limited}
+              onChange={(e) => setLimited(e.target.checked)}
+            />
+            Limited user
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={vhosts}
+              onChange={(e) => setVhosts(e.target.checked)}
+            />
+            Vhosts enabled
+          </label>
+          <label>
+            Content{" "}
+            <select
+              aria-label="Content scenario"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+            >
+              <option value="service">Project service</option>
+              <option value="static">Static app</option>
+              <option value="artifact">Latest artifact only</option>
+            </select>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={smartTurn}
+              onChange={(e) => setSmartTurn(e.target.checked)}
+            />
+            Grok Smart Turn enabled
+          </label>
         </div>
-        <span>＋ &nbsp; New Session</span>
-        <span>▱ &nbsp; Inbox</span>
-        <span>▤ &nbsp; All Sessions</span>
+      </details>
+      <aside className={styles.sidebar}>
+        <span className={styles.brand}>Y</span>
         <button
           type="button"
-          className={styles.selected}
+          title="Projects"
+          aria-label="Projects"
           onClick={() => setView("projects")}
         >
-          ⌂ &nbsp; Projects
+          ⌂
         </button>
-        <span>⑂ &nbsp; Source Control</span>
-        <span>⚙ &nbsp; Settings</span>
-        <small>{limited ? "Signed in as archer" : "Superuser"}</small>
+        <button
+          type="button"
+          title="New session"
+          aria-label="New project session"
+          onClick={() => newSession(false)}
+        >
+          ＋
+        </button>
+        <button
+          type="button"
+          title="Project settings"
+          aria-label="Project settings"
+          onClick={settings}
+        >
+          ⚙
+        </button>
       </aside>
       <main className={styles.main}>
-        <header className={styles.header}>
-          <button
-            type="button"
-            className={styles.back}
-            onClick={() => setView("projects")}
-          >
-            ‹ Projects
-          </button>
-          <strong>scooter parkour</strong>
-          <span className={styles.owner}>archer</span>
-          <button
-            type="button"
-            className={styles.gear}
-            onClick={view === "settings" ? openApp : settings}
-          >
-            {view === "settings" ? "Open app ↗" : "⚙ Settings"}
-          </button>
-        </header>
+        {(view === "projects" || view === "settings") && (
+          <header className={styles.header}>
+            <button
+              type="button"
+              className={styles.back}
+              onClick={() => setView("projects")}
+            >
+              ‹ Projects
+            </button>
+            <strong>scooter parkour</strong>
+            <span className={styles.owner}>archer</span>
+            <button
+              type="button"
+              className={styles.gear}
+              onClick={view === "settings" ? openApp : settings}
+            >
+              {view === "settings" ? "Open app ↗" : "⚙ Settings"}
+            </button>
+          </header>
+        )}
         {view === "projects" ? (
           <section className={styles.projectList}>
             <h1>Projects</h1>
@@ -397,46 +426,57 @@ function ServiceMockup() {
                 className={styles.conversation}
                 aria-label="New project session"
               >
-                <div>
-                  <h2>New session</h2>
-                  <p>scooter parkour · Your default provider</p>
-                </div>
-                <p className={styles.sessionIntro}>
-                  What would you like to change?
-                  <br />
-                  Your app is open alongside this session.
-                </p>
-                <div className={styles.composer}>
-                  {voice && (
-                    <div className={styles.recording}>
-                      <span>
-                        ● Listening… <small>Preview</small>
-                      </span>
-                      <button type="button" onClick={() => setVoice(false)}>
-                        Stop recording
-                      </button>
-                    </div>
-                  )}
-                  <label>
-                    Message
-                    <textarea
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      placeholder={
-                        voice
-                          ? "Your words will appear here…"
-                          : "Ask for a change…"
-                      }
-                      rows={3}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    disabled={!message.trim()}
-                    onClick={() => setNotice("Preview only — no message sent.")}
-                  >
-                    Send
+                <div className={styles.sessionHeader}>
+                  <button type="button" onClick={() => setPaneExpanded(true)}>
+                    App
                   </button>
+                  <span>scooter parkour · New session</span>
+                </div>
+                <div className={styles.transcript}>
+                  <p>What would you like to change?</p>
+                  <small>Your app stays attached to this session.</small>
+                </div>
+                <div className={styles.composer}>
+                  <textarea
+                    aria-label="Message"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder={voice ? "Listening…" : "Message…"}
+                    rows={3}
+                  />
+                  <div className={styles.composerBar}>
+                    <span>Codex · Default</span>
+                    <span
+                      className={voice ? styles.recording : styles.speechMethod}
+                    >
+                      Grok{smartTurn ? " · Smart Turn" : ""}
+                      {voice ? " · listening" : ""}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={
+                        voice
+                          ? "Stop composer recording"
+                          : "Start composer recording"
+                      }
+                      title={voice ? "Stop recording" : "Record"}
+                      onClick={() => setVoice(!voice)}
+                    >
+                      {voice ? "■" : "●"}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Send message"
+                      disabled={!message.trim()}
+                      onClick={() =>
+                        setNotice(
+                          "Mockup only — production uses the ordinary composer send path.",
+                        )
+                      }
+                    >
+                      ↑
+                    </button>
+                  </div>
                 </div>
               </section>
             )}
@@ -448,109 +488,143 @@ function ServiceMockup() {
                   : "Project main-pane app"
               }
             >
-              <div className={styles.toolbar}>
-                <div className={styles.bandTitle}>
+              <header className={`${headerStyles.header} ${styles.toolbar}`}>
+                <div className={windowStyles.actions}>
                   <button
                     type="button"
-                    aria-label="Back to projects"
-                    onClick={() => setView("projects")}
-                  >
-                    ‹
-                  </button>
-                  <strong>
-                    {target === "artifact" ? "Latest artifact" : "Project app"}
-                  </strong>
-                  <span className={styles.status}>{status}</span>
-                  <button
-                    type="button"
-                    aria-label="Reload app"
-                    onClick={() => setNotice("Preview reloaded")}
+                    aria-label={
+                      view === "session"
+                        ? "Back to session"
+                        : "Back to projects"
+                    }
+                    title={
+                      view === "session"
+                        ? "Back to session"
+                        : "Back to projects"
+                    }
+                    onClick={() =>
+                      view === "session"
+                        ? setPaneExpanded(false)
+                        : setView("projects")
+                    }
                   >
                     <svg
                       width="16"
                       height="16"
-                      viewBox="0 0 24 24"
+                      viewBox="0 0 16 16"
                       fill="none"
                       stroke="currentColor"
-                      strokeWidth="1.8"
+                      strokeWidth="1.5"
                       aria-hidden="true"
                     >
-                      <path d="M20 7v5h-5M20 12a8 8 0 1 0-2 5M20 7v5" />
+                      <path d="m10 3-5 5 5 5" />
                     </svg>
                   </button>
                 </div>
-                {view === "session" && (
-                  <div className={styles.mobilePane}>
+                <span
+                  className={`${headerStyles.identity} ${styles.toolbarIdentity}`}
+                >
+                  <span className={styles.viewerTitle}>
+                    {target === "artifact"
+                      ? "skate-study.html"
+                      : "scooter parkour"}
+                  </span>
+                </span>
+                <div className={headerStyles.actions}>
+                  <div className={windowStyles.actions}>
                     <button
                       type="button"
-                      onClick={() => setPaneExpanded(!paneExpanded)}
+                      aria-label={
+                        voice && view === "session"
+                          ? "Stop recording"
+                          : "Start a new session with microphone"
+                      }
+                      title={
+                        voice && view === "session"
+                          ? "Stop recording · Grok"
+                          : "Dictate · New project session"
+                      }
+                      aria-pressed={voice && view === "session"}
+                      className={
+                        voice && view === "session"
+                          ? styles.activeMic
+                          : undefined
+                      }
+                      onClick={() =>
+                        view === "session" ? setVoice(!voice) : newSession(true)
+                      }
                     >
-                      {paneExpanded ? "Back to session" : "View app"}
-                    </button>
-                    {paneExpanded && voice && (
-                      <button type="button" onClick={() => setVoice(false)}>
-                        Stop voice recording
-                      </button>
-                    )}
-                  </div>
-                )}
-                <div className={styles.bandActions}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setNotice(
-                        "Preview only — production opens the isolated app in a new tab.",
-                      )
-                    }
-                  >
-                    New tab ↗
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setNotice(
-                        "Preview only — copies a fresh app-scoped link without publishing.",
-                      )
-                    }
-                  >
-                    Copy link
-                  </button>
-                  <button
-                    type="button"
-                    aria-expanded={sharing}
-                    onClick={() => setSharing(!sharing)}
-                  >
-                    Share
-                  </button>
-                  {view !== "session" && (
-                    <>
-                      <button type="button" onClick={() => newSession(false)}>
-                        ＋ Session
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.mic}
-                        aria-label="Start a new session with microphone"
-                        title="New session with microphone"
-                        onClick={() => newSession(true)}
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        aria-hidden="true"
                       >
-                        <svg
-                          width="16"
-                          height="19"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          aria-hidden="true"
-                        >
-                          <rect x="9" y="2" width="6" height="12" rx="3" />
-                          <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" />
-                        </svg>
-                      </button>
-                    </>
-                  )}
+                        <rect x="9" y="2" width="6" height="12" rx="3" />
+                        <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="New session with app"
+                      title="New session with app"
+                      onClick={() => newSession(false)}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        aria-hidden="true"
+                      >
+                        <path d="M8 3v10M3 8h10" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Share"
+                      title="Share"
+                      aria-expanded={sharing}
+                      onClick={() => setSharing(!sharing)}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        aria-hidden="true"
+                      >
+                        <path d="M8 10V2m-3 3 3-3 3 3M3 8v6h10V8" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="App settings"
+                      title="App settings"
+                      onClick={settings}
+                    >
+                      ⋯
+                    </button>
+                  </div>
+                  <ViewerWindowActions
+                    url="./index.html"
+                    onReload={() => setNotice("Mockup reloaded")}
+                    reloadLabel="Reload app"
+                    onMoveOut={() =>
+                      setNotice("Opened the mockup in a new tab")
+                    }
+                    onClose={() => setView("projects")}
+                    closeLabel="Back to projects"
+                  />
                 </div>
-              </div>
+              </header>
               {sharing && (
                 <div className={styles.share}>
                   <h2>Share {target === "artifact" ? "artifact" : "app"}</h2>
@@ -701,20 +775,6 @@ function ServiceMockup() {
                   </span>
                 </div>
               )}
-              <footer className={styles.viewerFooter}>
-                <span>
-                  {target === "artifact"
-                    ? "Associated 2 minutes ago · preparation session"
-                    : target === "static"
-                      ? "Built app · dist/index.html"
-                      : "Running in project sandbox"}
-                </span>
-                <button type="button" onClick={settings}>
-                  {vhosts && reserved
-                    ? "App address · Reserved"
-                    : "App settings"}
-                </button>
-              </footer>
             </section>
           </div>
         )}
@@ -723,10 +783,6 @@ function ServiceMockup() {
             {notice}
           </p>
         )}
-        <p className={styles.disclaimer}>
-          Interactive layout mockup · App illustration and all controls are
-          local previews.
-        </p>
       </main>
     </div>
   );
