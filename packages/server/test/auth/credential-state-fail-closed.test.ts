@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { LimitedUsersService } from "../../src/auth/LimitedUsersService.js";
+import { ProjectMetadataService } from "../../src/metadata/ProjectMetadataService.js";
 import { RemoteAccessService } from "../../src/remote-access/RemoteAccessService.js";
 
 // Credential state never starts "fresh" from a file it cannot read: that
@@ -28,6 +29,12 @@ describe("credential state that cannot be read", () => {
     {
       file: "remote-access.json",
       create: (dataDir: string) => new RemoteAccessService({ dataDir }),
+    },
+    {
+      // Not a credential, but its project ownership backs limited users'
+      // grants.
+      file: "project-metadata.json",
+      create: (dataDir: string) => new ProjectMetadataService({ dataDir }),
     },
   ];
 
