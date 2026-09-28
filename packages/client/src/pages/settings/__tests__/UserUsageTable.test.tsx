@@ -6,7 +6,7 @@ import {
   type UsageTokenBucket,
   type UsageTotals,
 } from "@yep-anywhere/shared";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { I18nProvider } from "../../../i18n";
 import { UserUsageTable, formatTokenCount, formatUsd } from "../UserUsageTable";
@@ -14,6 +14,10 @@ import { UserUsageTable, formatTokenCount, formatUsd } from "../UserUsageTable";
 /** Contract: topics/limited-users.md § Delivery v1 — Usage. */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** The superuser's row label and its breakdown table captions. */
+const OWNER = "superuser";
+const OWNER_BY_MODEL = `${OWNER} by model`;
+const OWNER_BY_PROJECT = `${OWNER} by project`;
 
 function bucket(overrides: Partial<UsageTokenBucket>): UsageTokenBucket {
   return {
@@ -69,29 +73,79 @@ function renderTable(value: UsageReport) {
 
 afterEach(cleanup);
 
+/** The data cells of one row, found by table caption and row header. */
+function rowCells(caption: string, rowHeader: string): string[] {
+  const table = screen
+    .getAllByRole("table")
+    .find(
+      (candidate) =>
+        candidate.querySelector("caption")?.textContent === caption,
+    );
+  if (!table) throw new Error(`no table captioned ${caption}`);
+  const row = [...table.querySelectorAll("tbody tr")].find(
+    (candidate) => candidate.querySelector("th")?.textContent === rowHeader,
+  );
+  if (!row) throw new Error(`no row ${rowHeader} in ${caption}`);
+  return [...row.querySelectorAll("td")].map((cell) => cell.textContent ?? "");
+}
+
 describe("UserUsageTable", () => {
-  it("names the calendar days the ledger spans in the all-recorded column", () => {
+  it("names the calendar days the ledger spans in the all-recorded window", () => {
     renderTable(report());
-    expect(screen.getByText("All recorded (14 days)")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "All recorded (14 days)" }),
+    ).toBeTruthy();
   });
 
   it("says 7 days rather than 'last week', which reads as a calendar week", () => {
     renderTable(report());
-    expect(screen.getByText("Over last 7 days")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Over last 7 days" }),
+    ).toBeTruthy();
     expect(screen.queryByText("Last week")).toBeNull();
   });
 
-  it("shows a model's cost in its own output tokens with dollars beside it", () => {
+  it("puts each total in its own column, one row per user", () => {
     renderTable(report());
-    // Both windows render the same totals, so the line appears twice.
-    expect(screen.getAllByText(/opus ≈2,400 out \$0\.06/).length).toBe(2);
+    expect(rowCells("All recorded (14 days)", OWNER)).toEqual([
+      "4h 25m",
+      "8",
+      "141",
+      "4,913",
+      "12.0k",
+    ]);
   });
 
-  it("shows a cross-model project bucket dollars alone", () => {
+  it("switches every table to the chosen window", () => {
+    const lastWeek = totals({ sessions: 2, turns: 30 });
+    renderTable(
+      report({
+        users: [{ username: null, total: totals(), lastWeek }],
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Over last 7 days" }));
+    expect(rowCells("Over last 7 days", OWNER).slice(1, 3)).toEqual([
+      "2",
+      "30",
+    ]);
+  });
+
+  it("shows a model's output-token equivalent and dollars in columns", () => {
     renderTable(report());
-    const line = screen.getAllByText(/yepanywhere/)[0];
-    expect(line?.textContent).toContain("$0.06");
-    expect(line?.textContent).not.toContain("out");
+    expect(rowCells(OWNER_BY_MODEL, "opus")).toEqual([
+      "2,400",
+      "$0.06",
+      "12.0k",
+    ]);
+  });
+
+  it("marks a figure the report does not have instead of omitting it", () => {
+    renderTable(report());
+    expect(rowCells(OWNER_BY_PROJECT, "yepanywhere")).toEqual([
+      "—",
+      "$0.06",
+      "12.0k",
+    ]);
   });
 
   it("shows raw volume for a bucket with neither figure", () => {
@@ -110,7 +164,7 @@ describe("UserUsageTable", () => {
         users: [{ username: null, total: unpriced, lastWeek: unpriced }],
       }),
     );
-    expect(screen.getAllByText(/qwen-local 12\.0k/).length).toBe(2);
+    expect(rowCells(OWNER_BY_MODEL, "qwen-local")).toEqual(["—", "—", "12.0k"]);
   });
 
   it("omits every token line when nothing was charged", () => {
@@ -124,10 +178,9 @@ describe("UserUsageTable", () => {
         users: [{ username: null, total: noTokens, lastWeek: noTokens }],
       }),
     );
-    // The header hint mentions tokens; the cell must not.
     expect(screen.queryByText(/by model/)).toBeNull();
     expect(screen.queryByText(/by project/)).toBeNull();
-    expect(screen.queryByText(/^[\d.,]+[kM]? tokens$/)).toBeNull();
+    expect(rowCells("All recorded (14 days)", OWNER)[4]).toBe("—");
   });
 
   it("says nothing is recorded rather than reporting an empty span", () => {

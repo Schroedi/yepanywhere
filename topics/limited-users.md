@@ -547,10 +547,15 @@ this install and how much.
   costliest first, with unpriced ones after the priced ones by raw volume.
 - **The report.** `GET /api/users/usage`, superuser only, returns per-user
   totals and the same totals restricted to the last seven days, plus the
-  timestamp of the earliest record. Settings → Users renders it as one row
-  per principal with the superuser included. The all-recorded column names the
+  timestamp of the earliest record. Settings → Users renders it as tables
+  for one window at a time, chosen by a switch: a totals table with one row
+  per principal (superuser included) and a column each for time, sessions,
+  turns, words and tokens, then per-principal tables splitting tokens by
+  model and by project, with a column each for the output-token equivalent,
+  the estimated dollars and the volume. A missing figure shows as "—" rather
+  than disappearing. The all-recorded window names the
   **calendar days** the ledger spans, counting both ends, because the reader's
-  question is which days are in here; the other column says "7 days" rather
+  question is which days are in here; the other window says "7 days" rather
   than "last week", which a reader otherwise takes for the last whole calendar
   week. A user with a record of nothing is listed by the
   report but not shown in the table; the ledger starts empty on an existing
