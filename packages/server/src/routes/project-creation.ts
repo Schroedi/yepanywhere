@@ -46,6 +46,21 @@ async function hasCommitIdentity(cwd: string): Promise<boolean> {
   }
 }
 
+/** Initializes only a newly allocated directory, retaining the host's commit identity. */
+export async function initializeProjectGit(
+  projectPath: string,
+  trackFiles = false,
+): Promise<void> {
+  await runGit(projectPath, ["init"]);
+  if (trackFiles) await runGit(projectPath, ["add", "--all"]);
+  const identified = await hasCommitIdentity(projectPath);
+  await runGit(
+    projectPath,
+    ["commit", "--allow-empty", "-m", INITIAL_COMMIT_MESSAGE],
+    identified ? undefined : { env: { ...FALLBACK_COMMIT_IDENTITY } },
+  );
+}
+
 /** A limited user's project: they own it and are held to `projectRoot`. */
 export interface ProjectCreationOwner {
   username: string;
@@ -220,13 +235,7 @@ export async function ensureProjectDirectory(
   }
 
   try {
-    await runGit(projectPath, ["init"]);
-    const identified = await hasCommitIdentity(projectPath);
-    await runGit(
-      projectPath,
-      ["commit", "--allow-empty", "-m", INITIAL_COMMIT_MESSAGE],
-      identified ? undefined : { env: { ...FALLBACK_COMMIT_IDENTITY } },
-    );
+    await initializeProjectGit(projectPath);
   } catch (error) {
     // The directory exists and is the user's now; leaving it without a
     // repository is better than deleting a path we just handed them.

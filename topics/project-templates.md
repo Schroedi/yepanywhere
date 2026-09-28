@@ -2,24 +2,55 @@
 
 > Config-driven project creation from composable capability bases, with
 > vendored instructions, deterministic setup, and an automatic preparation
-> session. Source retrieval is implemented; project creation remains pending.
+> session. Superuser creation is implemented; restricted creation and retained
+> App access remain pending.
 
 Topic: project-templates
 
-Status: **Source settings implemented; project creation pending (2026-09-21).**
+Status: **Superuser creation implemented; broader integration open (2026-09-28).**
 The implementation handoff is
 [usable template projects](../docs/tactical/132-project-template-implementation.md).
 The authoring library is the `project-templates` directory of the default
 source, [graehl/agents](https://github.com/graehl/agents/tree/master/project-templates).
-Its manifests remain `draft` while the portable-instruction review is open.
+The App canvas closure was admitted locally in agents commit `090e72b`;
+other closures remain draft until their portable-instruction review finishes.
 YA now has a native library loader and composer in `packages/server/src/projects/template-library.ts`, with no Python
 runtime dependency. It validates the complete inventory without executing setup,
 retains the loaded file bytes, and refuses drafts through its creation accessor.
 Settings now fetches ordered GitHub sources into private, revision-stamped
 snapshots, reads local overlays directly, and shows their combined inventory.
-Materialization, creation routes
-and template permissions remain unimplemented. See the
+Fresh-target materialization, setup, Git initialization, registration and
+preparation dispatch are connected for superusers. Template permissions,
+restricted setup, retained App access and project-local identity remain open. See the
 [stand-up integration gap](../gaps/project-template-standup.md).
+
+### Implemented creation boundary
+
+`project-template-creation` gates the superuser radio palette in Projects and
+the inline New project expansion in New session. Older servers receive none
+of its requests. Choices include only ready closures. Optional composed
+`.project-template/icon.svg` and `.project-template/preview.svg` are rendered as
+images, never inline markup. Reopening a chooser rereads its choices while
+preserving edited fields. Local source edits are revalidated on that read;
+GitHub sources still require an explicit Fetch / update before new bytes appear.
+
+`POST /api/project-templates/operations` accepts a client UUID, source/template
+identity, fresh project path, name, intent and session settings. The operation
+retains its validated bytes, allocates the directory exclusively, executes setup
+as argv with bounded output, verifies the built starter, initializes Git using
+the existing project-creation identity policy, and calls the normal project and
+session routes. The selected provider/model and launch policies therefore use
+the normal session boundary. Local execution without attachments is the current
+creation boundary; the form explains incompatible selections before submission.
+
+Operations persist beneath `dataDir/project-template-operations`. Repeating an
+identical UUID returns its existing outcome; changing its request is refused.
+The tab retains its pending request across reloads. Existing and partial
+directories are never overwritten. A server restart reports unfinished work as
+interrupted rather than replaying side effects. Graceful shutdown stops owned
+setup process trees. `started` means the preparation session was dispatched,
+not that the agent finished successfully. Live preparation, queue reconciliation
+and abrupt-crash process cleanup still need the broader acceptance work.
 
 ## Current contract — config-driven templates
 

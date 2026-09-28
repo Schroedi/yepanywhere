@@ -1,10 +1,59 @@
 # Usable projects from approved templates
 
-Status: implementation started, 2026-09-21. Native library loading/composition
-and source settings are implemented; production creation remains unimplemented.
+Status: superuser creation implemented, 2026-09-28; full acceptance remains open.
 Contributing-model: 6-Astra.
 
-## Implementation checkpoint — 2026-09-21
+## Current implementation checkpoint — 2026-09-28
+
+The working implementation now connects the superuser radio palette and inline
+New session expansion to native materialization, setup, initial Git commit,
+real project registration and session launch. The new capability is
+`project-template-creation`; template/workspace permissions and human identity
+still need their separate contracts. No shared server was restarted or published.
+
+App canvas and its dependency closure were admitted in agents `090e72b` after
+review. Native YA creation against that local source runs dependency install,
+typecheck, tests and build and leaves a clean initial Git commit. The production
+HTTP integration test reaches the normal project/session routes, using a mock
+SDK only at the provider boundary. The browser test creates a real fixture
+project through the form and reloads during creation, then reaches its one
+preparation session. No live provider preparation or usable App-pane claim yet.
+
+The operation journal refuses overwrite and replay. It preserves failed files,
+stops setup during graceful shutdown, returns the same result for concurrent
+retries, and reports unfinished disk state as interrupted after restart. The
+browser keeps the same request UUID across reload. Full queue reconciliation,
+crash recovery of dispatched session identity and abrupt-crash subprocess
+cleanup remain unfinished; do not call this complete crash recovery.
+
+User-directed icon refresh now rereads chooser data when reopened. The source's
+manifest must map `icon.svg` to `.project-template/icon.svg`; GitHub changes
+require Fetch / update first, while local edits are read directly. The server
+test edits the actual local SVG and verifies changed bytes in the next response.
+
+Verification: full unit tests pass (6,343 client, 5,989 server, 916 shared,
+130 relay, 44 push broker; 15 server tests skipped). Lint, formatting,
+typechecking and the capability audit pass. Six active browser cases pass,
+including native creation/reload and the v0.8.0/v0.8.1 no-request fallback;
+the optional network-fetch case is skipped. Native App canvas setup also passes
+with the canonical filtered child environment and no npm environment warnings.
+No LSP diagnostics were available.
+
+Captures at 1200×600, 1000×600 and 375×812 were inspected sequentially under
+`.artifacts/ui-testing/2026-09-28-template-source-icons/`. These supersede the
+earlier captures that mistakenly substituted green plus-sign placeholders.
+The corrected layout captures read the actual three SVG files in the source
+library, with fixture choice metadata. The creation case uses a real temporary
+source and the isolated mock provider. Neither claims live model execution.
+
+Remaining scope: admit Web page/Storybook, limited-user grants and migration,
+restricted setup and workspace scopes, App pane/reservations/runtime lifecycle,
+project-local human identity, and the live-provider/direct/relay/portability
+acceptance below. Existing projects must not be modified or templates silently
+enabled. Source retrieval is still opt-in/default-off.
+Contributing-model: 6-Astra.
+
+## Earlier implementation checkpoint — 2026-09-21
 
 Placement revision, user-directed 2026-09-28: always show the template radio
 palette, including a single choice. New session supports entering a new project
@@ -381,3 +430,4 @@ do not push or deploy without authorization. No running job is handed over.
 The UI approval removes the visual-design blocker, not these integration tests.
 
 Source session: codex | 01a0c113-abb9-7b72-96a6-c00ee8ab67c5
+Source session: codex | 01a0e5bb-2e7b-7f33-9caa-c8cf712dfed8

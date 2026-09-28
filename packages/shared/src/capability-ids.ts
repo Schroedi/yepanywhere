@@ -528,6 +528,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "session-creation-provenance",
     introducedIn: "0.9.3",
   },
+  projectTemplateCreation: {
+    id: 85,
+    direction: "server",
+    name: "project-template-creation",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

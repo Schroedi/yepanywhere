@@ -32,7 +32,7 @@ const sourceEntry = z.strictObject({
     (value) =>
       githubRepository.test(value) ||
       // biome-ignore lint/suspicious/noControlCharactersInRegex: Local paths must reject ASCII control bytes.
-      (!/[\x00-\x1f]/.test(value) &&
+      (!/[\x00-\x1f]/.test(value) && // oxlint-disable-line no-control-regex -- Reject ASCII control bytes.
         (isAbsolute(value) || value.startsWith("~/"))),
     "Expected a GitHub repository or an absolute local directory",
   ),
@@ -40,7 +40,7 @@ const sourceEntry = z.strictObject({
     (value) =>
       value === "" ||
       // biome-ignore lint/suspicious/noControlCharactersInRegex: Content paths must reject ASCII control bytes.
-      (!/[\\:\x00-\x1f]/.test(value) &&
+      (!/[\\:\x00-\x1f]/.test(value) && // oxlint-disable-line no-control-regex -- Reject ASCII control bytes.
         value
           .split("/")
           .every(
@@ -478,6 +478,28 @@ export class TemplateSourceService {
 
   async waitForRetrieval(): Promise<void> {
     await this.operation;
+  }
+
+  /** Revalidates mutable sources and loads the admitted revisions for creation. */
+  async creationLibrary(): Promise<TemplateLibrary> {
+    const state = await this.current();
+    if (!state.config.enabled || state.phase !== "ready" || !state.snapshot)
+      throw new Error(
+        "Project template sources are not ready; check Settings → Project templates",
+      );
+    const admitted = this.state;
+    const library = await TemplateLibrary.loadSources(
+      state.snapshot.sources.map((source) => ({
+        id: source.id,
+        repository: source.directory,
+        contentPath: source.contentPath,
+      })),
+    );
+    if (this.state !== admitted)
+      throw new Error(
+        "Project template sources changed during validation; retry creation",
+      );
+    return library;
   }
 
   private async retrieve(

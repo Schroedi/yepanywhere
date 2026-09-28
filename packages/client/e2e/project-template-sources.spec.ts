@@ -155,6 +155,10 @@ for (const release of ["0.8.0", "0.8.1"])
       requests++;
       await route.fulfill({ status: 404 });
     });
+    await page.route("**/api/project-templates/**", async (route) => {
+      requests++;
+      await route.fulfill({ status: 404 });
+    });
     await page.goto(`${baseURL}/settings/project-templates`);
     await expect(
       page.getByRole("searchbox", { name: "Search settings" }),
@@ -163,6 +167,20 @@ for (const release of ["0.8.0", "0.8.1"])
       page.locator('[data-provider-host-degraded="true"]'),
     ).toBeVisible();
     await expect(page.getByLabel("Enable project templates")).toHaveCount(0);
+    await page.goto(`${baseURL}/projects`);
+    await page
+      .getByRole("button", { name: "Add Project", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "From template", exact: true }),
+    ).toHaveCount(0);
+    await page.goto(`${baseURL}/new-session`);
+    await expect(
+      page.locator('[data-provider-host-degraded="true"]'),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "New project", exact: true }),
+    ).toHaveCount(0);
     expect(requests).toBe(0);
   });
 

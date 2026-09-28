@@ -1,12 +1,12 @@
-# YA cannot instantiate the composable App canvas template
+# Project-template integration remains incomplete
 
 The source library and local materializer exist in the default source's
 [`project-templates`](https://github.com/graehl/agents/tree/master/project-templates)
-directory. YA registers directories and can explicitly create
-a missing directory through `packages/server/src/routes/projects.ts`, but does
-not materialize templates. Its client `AddProjectForm` has no template mode.
-Settings → Users has a project-root grant but no template
-selection. The local Python authoring CLI is not a shipped YA integration.
+directory. YA now offers superuser creation through a radio palette in Projects
+and an inline New session expansion. Native setup, Git initialization,
+registration and preparation dispatch are connected. Settings → Users still
+has a project-root grant but no template selection, and App-pane integration,
+restricted setup and the full recovery contract remain unfinished.
 
 The agreed format and product behavior live in
 [project templates](../topics/project-templates.md#current-contract--config-driven-templates).
@@ -14,17 +14,18 @@ This gap tracks the unimplemented YA half. All existing UI prototypes were
 approved on 2026-09-21; the
 [implementation handoff](../docs/tactical/132-project-template-implementation.md)
 compiles the delivery sequence and acceptance boundary. The prototype manifests
-are draft pending the separate
-agents instruction-library review; production must not silently allow drafts.
+require the separate agents instruction-library review; production must not
+silently allow drafts. The App canvas closure was admitted locally in agents
+`090e72b`; remaining closures and remote publication are separate work.
 
 The native loader/composer now exists in
 `packages/server/src/projects/template-library.ts`; its conformance tests cover
 inventory validation, ordering, collisions, text overrides, source containment
-and draft refusal. It composes all three current authoring templates but is not
-wired to runtime creation. Settings now accepts an ordered GitHub/local source
+and draft refusal. It materializes ready closures through the creation operation.
+Settings accepts an ordered GitHub/local source
 list, pins fetched revisions, relocates retrieved repository aliases and
 validates the combined inventory. Local overlays are read directly.
-Materialization and production admission remain open.
+See tactical 132's current checkpoint for verification and exact remaining work.
 
 ## What a user sees today
 
@@ -37,14 +38,13 @@ runtime gap. Optional template-provided thumbnails/icons have a separate
 [specification sketch](sketches/project-template-artwork.md).
 Contributing-model: 6-Astra.
 
-With templates enabled, Settings → Project templates fetches and validates the
-default source and lists App canvas, Web page and Storybook, each marked
-**Draft — unavailable for creation**. Nothing else in YA offers a template: New
-Session and Add project have no template mode, and Settings → Users has no
-template grant (the "Allowed templates" control exists only in the
-`packages/client/mockups/project-templates` prototype). A limited user with a
-project root can only name a directory. Reported by the maintainer
-2026-09-28 as missing templates and missing "allowed templates" options.
+With templates enabled and a ready source configured, superusers can create a
+project and start preparation through either entry point. The chooser rereads
+mapped SVG images when reopened. Its source must have been explicitly updated
+to receive remote changes. Limited users still cannot create from templates:
+Settings → Users has no template grant, and a user with a project root can only
+name a directory. The original missing-template report was made on 2026-09-28.
+The remaining limited-user, App and recovery acceptance keeps this gap open.
 
 ## Plan to close
 
@@ -57,16 +57,12 @@ program and its `gaps/portable-capability-bases.md`. What remains is
 implementation. Ship it as vertical slices, each usable and
 releasable on its own:
 
-1. **Admit one template (agents side, tactical §1).** Review the App canvas
-   dependency closure in `~/agents/project-templates` and promote it from
-   draft to ready; Web page and Storybook follow when reviewed. Until a
-   template is ready, every later slice has nothing to create from.
-2. **Superuser creation end to end (§3, §5).** A server creation endpoint that
-   materializes the validated revision into a fresh target, runs setup,
-   initializes Git, registers the project and dispatches the one preparation
-   turn with the intent, with crash-safe retry. Add a New project template
-   mode behind a capability, shown to the superuser only. Closure evidence:
-   create App canvas through the UI with no manual steps.
+1. **Content admission (§1).** App canvas is admitted locally. Review Web page
+   and Storybook before promoting their complete dependency closures.
+2. **Superuser creation acceptance (§3, §5).** The native endpoint and both
+   forms are implemented and verified through a real browser with a mock
+   provider. Complete live App canvas preparation and recovery verification;
+   reconcile queued launches and abrupt crashes without duplicate preparation.
 3. **Grants (§2).** Server-enforced None / Selected / Any on the limited-user
    record and in Settings → Users, defaulting to Any when the user has a
    project root (user-directed 2026-09-28), with the one-time migration of
@@ -83,23 +79,18 @@ project; the grant UI is not useful before creation exists.
 
 ## Remaining integration
 
-- Revalidate direct local sources before creation. Bind future creation grants to
+- Bind future creation grants to
   the effective source and template identity, including shadowing across the
   ordered list. Efficient retrieval and cache retention have their own
   [gap](project-template-selective-retrieval.md).
-- Connect the format consumer to materialization and scripted stand-up using the
-  reference compiler's conformance cases: multiple bases, order constraints,
-  exact-content/mode coalescing, root AGENTS hash deduplication, explicit
-  overrides, source symlink confinement, portable destinations and fresh target.
-- Connect setup argv, progress/logs, Git initialization, registration, ownership
-  and app-name reservation. Define retry/crash recovery so requests cannot
-  overwrite a target, create two projects, or dispatch preparation twice.
+- Extend the native materialization/setup checks to supported platforms and
+  restricted principals. Complete durable setup-log checkpoints, queued launch
+  reconciliation, ownership and app-name reservation. Existing operation IDs
+  already prevent replay and fresh allocation refuses existing targets; abrupt
+  crashes must also account for surviving setup processes and dispatched sessions.
 - Vendor declared skills into normal project discovery directories with their
   complete resources. Verify discovery/invocation in supported harnesses and
   beginner-facing README onboarding, including under limited-user permissions.
-- Display the optional composed `.project-template/preview.svg` in the chooser
-  as an image, without setup execution or inline SVG injection. Keep a
-  title/description-only presentation for templates without an illustration.
 - Persist wildcard app-name reservations independently of running ports and
   project lifetime. First successful claim wins; only the superuser clears
   a reservation. Settings → Apps shows owners and retained orphaned entries.
@@ -125,9 +116,9 @@ project; the grant UI is not useful before creation exists.
   none retains a broader principal's writable mounts. Preserve private runtime
   state, network confinement and unsupported-host refusal. Reject missing
   roots and symlink escapes.
-- Implement the approved New project UI and exact older-server capability gate.
-  Apply the approved supported-release capability/fallback plan recorded in
-  tactical 132; existing capabilities retain their meanings.
+- Extend the implemented New project UI and older-server capability gate to
+  the remaining limited-user and workspace contracts recorded in tactical 132;
+  existing capabilities retain their meanings.
 
 ## Closure evidence
 

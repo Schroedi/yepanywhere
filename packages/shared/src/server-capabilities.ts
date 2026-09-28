@@ -318,6 +318,30 @@ export const SERVER_CAPABILITIES = {
         "Older servers have no template source retrieval or configuration surface.",
     },
   },
+  projectTemplateCreation: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectTemplateCreation.id,
+    name: "project-template-creation",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Superuser creation from ready templates with retained operation status and preparation dispatch.",
+    clientFallback:
+      "Keep directory creation and send no template choice or creation requests.",
+    serverContract: {
+      routes: [
+        "GET /api/project-templates/choices",
+        "GET /api/project-templates/operations/:id",
+        "POST /api/project-templates/operations",
+      ],
+      routeModules: ["packages/server/src/routes/project-templates.ts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Older servers cannot create template projects.",
+    },
+  },
   speechBackendSetup: {
     id: CAPABILITY_ID_ALLOCATIONS.speechBackendSetup.id,
     name: "speech-backend-setup",

@@ -1,4 +1,7 @@
 import { ComputerSessionSelection } from "./ComputerSessionSelection";
+import { TemplateProjectForm } from "./TemplateProjectForm";
+import templateStyles from "./TemplateProjectForm.module.css";
+import { useProjectTemplateChoices } from "../hooks/useProjectTemplateChoices";
 import {
   DEFAULT_PROVIDER,
   SERVER_CAPABILITIES,
@@ -400,6 +403,15 @@ export function NewSessionForm({
 }: NewSessionFormProps) {
   const { t } = useI18n();
   const sessionDefaultCopy = getSessionDefaultControlCopy(t);
+  const [creatingTemplateProject, setCreatingTemplateProject] = useState(false);
+  const { choices: templateChoices } = useProjectTemplateChoices(
+    creatingTemplateProject,
+  );
+  const [templateProjectBusy, setTemplateProjectBusy] = useState(false);
+  const handleTemplateBusyChange = useCallback((busy: boolean) => {
+    setTemplateProjectBusy(busy);
+    if (busy) setCreatingTemplateProject(true);
+  }, []);
   const navigate = useNavigate();
   const basePath = useRemoteBasePath();
   const { relayTransport, relayedServerSpeechAvailable } =
@@ -2325,6 +2337,8 @@ export function NewSessionForm({
       // not a reason to refuse the start.
       if (
         (!hasContent && !composerMuted) ||
+        creatingTemplateProject ||
+        templateProjectBusy ||
         isStarting ||
         !hasSelectedProviderModel
       )
@@ -2689,6 +2703,8 @@ export function NewSessionForm({
       draftControls,
       computerControlEligible,
       computerSelected,
+      creatingTemplateProject,
+      templateProjectBusy,
       effectiveEffortLevel,
       effectiveExecutor,
       effectivePermissionMode,
@@ -2726,6 +2742,7 @@ export function NewSessionForm({
   );
 
   const handleQueueProjectSession = async (messageOverride?: unknown) => {
+    if (creatingTemplateProject || templateProjectBusy) return;
     const override =
       typeof messageOverride === "string" ? messageOverride : undefined;
     if (override === undefined && deferSpeechDelivery("project-queue")) {
@@ -3592,7 +3609,12 @@ export function NewSessionForm({
             <button
               type="button"
               onClick={handleQueueProjectSession}
-              disabled={isStarting || !canQueueProjectSession}
+              disabled={
+                isStarting ||
+                creatingTemplateProject ||
+                templateProjectBusy ||
+                !canQueueProjectSession
+              }
               className="send-button project-queue-button new-session-project-queue-button"
               aria-label={describePrefixedDelivery(
                 t("toolbarProjectQueueLabel"),
@@ -3608,7 +3630,12 @@ export function NewSessionForm({
           <button
             type="button"
             onClick={handleStartSession}
-            disabled={isStarting || !canStart}
+            disabled={
+              isStarting ||
+              creatingTemplateProject ||
+              templateProjectBusy ||
+              !canStart
+            }
             className="send-button new-session-submit-button"
             aria-label={describePrefixedDelivery(
               launch?.startLabel ?? t("newSessionStartAction"),
@@ -3753,20 +3780,87 @@ export function NewSessionForm({
         </datalist>
       </div>
 
-      {isProjectChooserExpanded && projectPanelRows && (
-        <div
-          id="new-session-project-panel"
-          className="new-session-project-panel"
-        >
-          <p className="new-session-project-field-hint">
-            {t("newSessionProjectPathHint")}
-          </p>
-
-          <div className="new-session-project-suggestions">
-            {projectPanelRows}
+      {templateChoices?.enabled && !launch && (
+        <div className={templateStyles.expansion}>
+          <button
+            type="button"
+            aria-expanded={creatingTemplateProject}
+            className={templateStyles.secondary}
+            disabled={templateProjectBusy}
+            onClick={() => setCreatingTemplateProject((value) => !value)}
+          >
+            {t("templateNewProject")}
+          </button>
+          <div hidden={!creatingTemplateProject}>
+            <TemplateProjectForm
+              key={clientSummarySourceKey}
+              templates={templateChoices.templates}
+              projects={projects}
+              pathBase={newProjectBase}
+              initialName={
+                projects.some((project) => project.path === projectInput)
+                  ? ""
+                  : projectInput
+              }
+              intent={message}
+              onBusyChange={handleTemplateBusyChange}
+              disabledReason={
+                pendingFiles.length > 0
+                  ? t("templateAttachmentsUnsupported")
+                  : effectiveExecutor
+                    ? t("templateLocalOnly")
+                    : !hasSelectedProviderModel
+                      ? t("templateSelectProvider")
+                      : undefined
+              }
+              sessionSettings={{
+                mode: effectivePermissionMode,
+                provider: selectedProvider ?? undefined,
+                model: selectedModel ?? undefined,
+                thinking: toThinkingOption(
+                  effectiveThinkingMode,
+                  effectiveEffortLevel,
+                ),
+                showThinking: getShowThinkingSetting(),
+                sandboxLevel: effectiveSandboxLevel,
+                sandboxNetworkFirewall: effectiveSandboxNetworkFirewall,
+                recapMode: resolveRecapMode(
+                  selectedProviderInfo,
+                  selectedRecapMode,
+                ),
+                recapAfterSeconds,
+                promptSuggestionMode: resolvePromptSuggestionMode(
+                  selectedProviderInfo,
+                  selectedPromptSuggestionMode,
+                ),
+                helperSideModel,
+              }}
+              onStarted={(createdProjectId, sessionId) => {
+                draftControls.clearDraft();
+                navigate(
+                  `${basePath}/projects/${createdProjectId}/sessions/${sessionId}`,
+                );
+              }}
+            />
           </div>
         </div>
       )}
+      {isProjectChooserExpanded &&
+        projectPanelRows &&
+        !creatingTemplateProject && (
+          <div
+            id="new-session-project-panel"
+            className="new-session-project-panel"
+          >
+            <p className="new-session-project-field-hint">
+              {t("newSessionProjectPathHint")}
+            </p>
+
+            <div className="new-session-project-suggestions">
+              {projectPanelRows}
+            </div>
+          </div>
+        )}
     </div>
   );
   const workstreamChooser =

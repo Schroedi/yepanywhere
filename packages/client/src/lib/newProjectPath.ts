@@ -94,13 +94,14 @@ export function pathForProjectName(
   name: string,
   base: string,
   projects: readonly NamedProject[],
+  reuseExisting = true,
 ): string {
   const key = name.trim().toLowerCase();
   if (!key) return "";
   const existing = projects.find(
     (project) => project.name.trim().toLowerCase() === key,
   );
-  if (existing) return existing.path;
+  if (reuseExisting && existing) return existing.path;
   const directory = directoryNameFor(name);
   if (!directory) return "";
   const taken = new Set(

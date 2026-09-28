@@ -73,6 +73,9 @@ import { createLimitedUsersMiddleware } from "./middleware/limited-users.js";
 import { createUsersRoutes } from "./routes/users.js";
 import { createPdfjsRoutes } from "./routes/pdfjs.js";
 import { createProjectTemplateSourceRoutes } from "./routes/project-template-source.js";
+import { createProjectTemplateRoutes } from "./routes/project-templates.js";
+import { TemplateSourceService } from "./projects/TemplateSourceService.js";
+import { TemplateCreationService } from "./projects/TemplateCreationService.js";
 import { SESSION_COOKIE_NAME } from "./auth/routes.js";
 import { getCookie as getRequestCookie } from "hono/cookie";
 import { levelFor } from "./auth/limitedUserPolicy.js";
@@ -885,7 +888,38 @@ export function createApp(options: AppOptions): AppResult {
     app.route("/api", createComputerControlRoutes(computerControl));
     app.route("/api", createComputerControlReleaseRoutes(computerControl));
   }
-  app.route("/api", createProjectTemplateSourceRoutes(effectiveDataDir));
+  const templateSources = new TemplateSourceService(effectiveDataDir);
+  const templateCreations = new TemplateCreationService(
+    effectiveDataDir,
+    templateSources,
+  );
+  app.route(
+    "/api",
+    createProjectTemplateSourceRoutes(effectiveDataDir, templateSources),
+  );
+  app.route(
+    "/api",
+    createProjectTemplateRoutes(
+      templateSources,
+      templateCreations,
+      async (context, path, body) => {
+        const headers = new Headers(context.req.raw.headers);
+        headers.set("Content-Type", "application/json");
+        headers.delete("Content-Length");
+        // In-process responses are consumed directly, without fetch's decompression.
+        headers.delete("Accept-Encoding");
+        return app.request(
+          new Request(new URL(path, context.req.url), {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+          }),
+          undefined,
+          context.env,
+        );
+      },
+    ),
+  );
   app.route("/api", createPdfjsRoutes(new PdfjsAssetCache(effectiveDataDir)));
   // Auth routes (always mounted if authService is provided)
   // This allows checking auth status and enabling/disabling from settings
@@ -1068,6 +1102,7 @@ export function createApp(options: AppOptions): AppResult {
   let vocabularyKeyterms: VocabularyKeyterms | undefined;
   let unsubscribeVocabulary: (() => void) | undefined;
   const disposeSessionReaders = async (): Promise<void> => {
+    await templateCreations.close();
     await computerControl?.close();
     conversationSubscriptions?.close();
     focusedSessionWatchManager.dispose();

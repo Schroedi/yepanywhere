@@ -11,6 +11,8 @@ import {
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
+import { TemplateProjectForm } from "../components/TemplateProjectForm";
+import { useProjectTemplateChoices } from "../hooks/useProjectTemplateChoices";
 import {
   AddProjectForm,
   type AddProjectRequest,
@@ -65,6 +67,10 @@ export function ProjectsPage() {
   const newProjectBase = newProjectBaseFor(principal);
   const inboxCountsByProject = useInboxCountsByProject();
   const [showAddForm, setShowAddForm] = useState(false);
+  const { choices: templateChoices, error: templateError } =
+    useProjectTemplateChoices(showAddForm);
+  const [existingDirectory, setExistingDirectory] = useState(false);
+  const [templateProjectBusy, setTemplateProjectBusy] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -349,23 +355,78 @@ export function ProjectsPage() {
                 {t("projectsAdd")}
               </button>
             ) : (
-              <AddProjectForm
-                projects={projects}
-                pathBase={newProjectBase}
-                chooseName={supportsProjectNames}
-                chooseCodeName={
-                  supportsProjectNames &&
-                  supportsProjectCodeNames &&
-                  projectCodeNamesEnabled
+              <div
+                className={
+                  templateChoices?.enabled ? formStyles.form : undefined
                 }
-                adding={adding}
-                error={addError}
-                onSubmit={(request) => void handleAddProject(request)}
-                onCancel={() => {
-                  setShowAddForm(false);
-                  setAddError(null);
-                }}
-              />
+              >
+                {templateChoices?.enabled && (
+                  <div className={formStyles.actions}>
+                    <button
+                      type="button"
+                      aria-pressed={!existingDirectory}
+                      onClick={() => setExistingDirectory(false)}
+                    >
+                      {t("templateFromTemplate")}
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={existingDirectory}
+                      disabled={templateProjectBusy}
+                      onClick={() => setExistingDirectory(true)}
+                    >
+                      {t("templateExistingDirectory")}
+                    </button>
+                  </div>
+                )}
+                {templateError && <p role="alert">{templateError}</p>}
+                {templateChoices?.enabled && (
+                  <div hidden={existingDirectory}>
+                    <TemplateProjectForm
+                      templates={templateChoices.templates}
+                      projects={projects}
+                      pathBase={newProjectBase}
+                      onBusyChange={setTemplateProjectBusy}
+                      onStarted={(projectId, sessionId) => {
+                        void refetch();
+                        navigate(
+                          `${basePath}/projects/${projectId}/sessions/${sessionId}`,
+                        );
+                      }}
+                    />
+                  </div>
+                )}
+                <div hidden={templateChoices?.enabled && !existingDirectory}>
+                  <AddProjectForm
+                    projects={projects}
+                    pathBase={newProjectBase}
+                    chooseName={supportsProjectNames}
+                    chooseCodeName={
+                      supportsProjectNames &&
+                      supportsProjectCodeNames &&
+                      projectCodeNamesEnabled
+                    }
+                    adding={adding}
+                    error={addError}
+                    onSubmit={(request) => void handleAddProject(request)}
+                    onCancel={() => {
+                      setShowAddForm(false);
+                      setAddError(null);
+                    }}
+                  />
+                </div>
+                {templateChoices?.enabled && !existingDirectory && (
+                  <div className={formStyles.actions}>
+                    <button
+                      type="button"
+                      disabled={templateProjectBusy}
+                      onClick={() => setShowAddForm(false)}
+                    >
+                      {t("projectsCancel")}
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
           {deleteError && <div className={formStyles.error}>{deleteError}</div>}
