@@ -84,6 +84,35 @@ describe("limited-user route policy", () => {
     expect(decide("PUT", url)).toEqual({ kind: "deny" });
   });
 
+  it("dictates through the configured backends but never administers them", () => {
+    for (const [method, url] of [
+      ["GET", "/api/speech/ws"],
+      ["POST", "/api/speech/transcribe"],
+      ["POST", "/api/speech/prewarm"],
+      ["POST", "/api/speech/xai-client-secret"],
+    ] as const) {
+      expect(decide(method, url), `${method} ${url}`).toEqual({
+        kind: "allow",
+      });
+    }
+    for (const [method, url] of [
+      // The raw key would outlive the session; the secret expires.
+      ["POST", "/api/speech/xai-client-key"],
+      ["GET", "/api/speech/backends"],
+      ["POST", "/api/speech/backends/restart"],
+      ["POST", "/api/speech/backends/ya-whisper/install"],
+      ["POST", "/api/speech/backends/ya-whisper/gpu"],
+      ["GET", "/api/speech/vocabulary"],
+      ["PUT", "/api/speech/vocabulary"],
+      ["POST", "/api/speech/ws"],
+      ["GET", "/api/speech/transcribe"],
+    ] as const) {
+      expect(decide(method, url), `${method} ${url}`).toEqual({
+        kind: "deny",
+      });
+    }
+  });
+
   it("reads recents filtered, never clears them, and lets a visit through", () => {
     expect(decide("GET", "/api/recents?limit=5")).toEqual({
       kind: "allow-filtered",
@@ -858,6 +887,12 @@ describe("limited-user middleware", () => {
       (c) => c.json({ ok: true }),
     );
     app.get("/api/issues", (c) => c.json({ issues: [] }));
+    app.post("/api/speech/transcribe", (c) => c.json({ text: "hi" }));
+    app.post("/api/speech/xai-client-secret", (c) =>
+      c.json({ clientSecret: "ephemeral" }),
+    );
+    app.post("/api/speech/xai-client-key", (c) => c.json({ apiKey: "raw" }));
+    app.get("/api/speech/backends", (c) => c.json({ catalog: [] }));
     return app;
   };
 
@@ -877,6 +912,15 @@ describe("limited-user middleware", () => {
   afterEach(async () => {
     await service.flushPendingWrites();
     await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  it("lets a limited login dictate but not administer speech", async () => {
+    const app = await buildApp();
+    const post = (url: string) => app.request(url, { method: "POST" });
+    expect((await post("/api/speech/transcribe")).status).toBe(200);
+    expect((await post("/api/speech/xai-client-secret")).status).toBe(200);
+    expect((await post("/api/speech/xai-client-key")).status).toBe(403);
+    expect((await app.request("/api/speech/backends")).status).toBe(403);
   });
 
   it("answers 404, not 403, for a project outside the grants", async () => {

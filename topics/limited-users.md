@@ -360,6 +360,7 @@ percent-encoding is refused.
 | Project Queue | global list and promote-now responses include only ordinary items, recovered items and project statuses (including blocker session titles) in granted projects; the route builds them from the user's grants so other projects' entries are never read for them, and a response-field allowlist backs that up. The global dispatch pause remains visible because it gates the user's own items. Promote-now needs `newSessionProjects` on the project in its path; pausing or resuming dispatch 403 |
 | Project Queue items | queuing needs `newSessionProjects`; a new-session target is held to the create rule (sandbox and its firewall forced, a firewall opt-out refused, lock applied, remote executor refused) and an existing-session target may name neither a remote executor nor a value outside the lock; a queued YA command 403. The item records the user, who alone may edit, retry, reorder, or delete it (404 otherwise). At dispatch their grants are read again: without `newSessionProjects` the item fails, an existing-session target must run sandboxed with its firewall on and be in the item's project or one they started, and the turn and any new session are attributed to them. Staged attachments are taken only from their own draft store and stay in it through restart, dispatch and cleanup; a reference from another account's store is refused (400), and a superuser edit of their item cannot add the superuser's drafts to it ([Project Queue § Attachments](project-queue.md#attachments)) |
 | settings | `GET /api/settings` only, answered with a projection holding the fields their client reads to render and default their own work; secrets and host inventory (webhook URL and token, remote executors, gateway and Ollama endpoints and start commands, file-access rules, the readiness command, global instructions) are withheld, and a field added later is withheld until listed. Every write and every other settings subpath (browser-settings backup, remote executors, cache-billing events, file-access and host-awake status) 403; `GET /api/settings/limited-user-defaults` is theirs to read ([browser defaults](#browser-defaults-for-limited-users)) |
+| speech | dictation through the backends the superuser configured: the streaming socket (`GET /api/speech/ws`, and the relayed speech channel), `POST /api/speech/transcribe` and `/prewarm`, and `POST /api/speech/xai-client-secret`, the five-minute xAI secret the direct Grok method streams with. A fresh browser starts on the server-wide speech default in `/api/version` `clientDefaults`, as any client does. `POST /api/speech/xai-client-key` 403 even when the superuser shares the raw key with their own browsers, since a limited user could keep it; backend setup (`/api/speech/backends*`) and the learned vocabulary (`/api/speech/vocabulary*`), drawn from every session's text, 403 |
 | recents | the install's shared list, read filtered; clearing 403; `POST /api/recents/visit` answers `{recorded: false}` and records nothing |
 | activity REST (`/api/activity/*`) | 403: watcher status and every connected tab and browser profile are host inventory with no project to filter by |
 | user administration | 403 except `GET /api/users/me` and `POST /api/users/logout` |
@@ -539,7 +540,12 @@ for, so nothing about limited users appears anywhere else until one exists.
   denied, so a category they cannot operate is hidden rather than shipped
   inert — Local Access otherwise waits forever on `/api/network-binding`,
   which they may not call. They keep Appearance, Toolbar, Message delivery,
-  Notifications, Users, and About. Like the route policy, the list is
+  Speech, Notifications, Users, and About. Speech shows them its
+  browser-local dictation choices (backend among those the server
+  advertises, their own xAI key, capture and Smart Turn options) but not
+  the learned vocabulary or backend setup, which are the superuser's; their
+  backend choice is saved in their browser only, since the server-wide
+  speech default is a settings write. Like the route policy, the list is
   default-deny: a category added later is hidden from limited users until
   someone lists it. A hidden category does not render from a typed URL
   either. Until the server has named the acting principal, Settings offers

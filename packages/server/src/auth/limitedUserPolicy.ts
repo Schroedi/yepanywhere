@@ -154,6 +154,22 @@ const READ_ONLY_STATUS_PATHS: readonly string[] = [
   "/api/dev/safe-restart",
 ];
 
+/**
+ * Dictation through the speech backends the superuser configured: the
+ * streaming socket, batch transcription, a model prewarm, and the short-lived
+ * xAI client secret the direct Grok method streams with. The raw xAI key
+ * route stays refused even where the superuser shares it with their own
+ * browsers, since a limited user could keep it; backend setup (install, GPU,
+ * restart, and a status naming the host's working directory) and the learned
+ * vocabulary, drawn from every session's text, stay the superuser's.
+ */
+const SPEECH_USE_ROUTES: readonly string[] = [
+  "GET /api/speech/ws",
+  "POST /api/speech/transcribe",
+  "POST /api/speech/prewarm",
+  "POST /api/speech/xai-client-secret",
+];
+
 const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 function hasPrefix(path: string, prefixes: readonly string[]): boolean {
@@ -350,6 +366,9 @@ export function decideLimitedRoute(
   }
   if (hasPrefix(path, PUBLIC_GET_PREFIXES)) {
     return isRead ? { kind: "allow" } : { kind: "deny" };
+  }
+  if (SPEECH_USE_ROUTES.includes(`${method} ${path}`)) {
+    return { kind: "allow" };
   }
 
   const projectScoped = path.match(/^\/api\/projects\/([^/]+)(\/.*)?$/);
