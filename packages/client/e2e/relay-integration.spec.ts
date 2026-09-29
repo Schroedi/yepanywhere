@@ -799,8 +799,11 @@ test.describe("Full Relay Integration", () => {
     const stored = await page.evaluate(() =>
       localStorage.getItem("yep-anywhere-remote-credentials"),
     );
-    await page.clock.install();
-    await page.clock.pauseAt(new Date());
+    // Install and pause against one captured timestamp. A fresh Date after
+    // install can already be behind the browser clock on a loaded CI worker.
+    const clockStart = Date.now();
+    await page.clock.install({ time: clockStart });
+    await page.clock.pauseAt(clockStart + 10_000);
     blocked = true;
     await Promise.all(
       sockets.map((socket) =>

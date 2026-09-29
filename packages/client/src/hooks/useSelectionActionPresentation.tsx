@@ -19,6 +19,7 @@ import {
 import type { CommentAnchor } from "../lib/commentAnchors";
 import { writeClipboardRichText, writeClipboardText } from "../lib/clipboard";
 import { getSemanticHtmlClipboardPayload } from "../lib/semanticHtmlClipboard";
+import { getSelectionPlainText } from "../lib/selectionClipboard";
 import { SESSION_FILE_COMMENT_MODE_ATTR } from "../lib/sessionFileComments";
 import { useI18n } from "../i18n";
 import {
@@ -66,17 +67,7 @@ function selectionUsesSessionFileCommentMode(
 }
 
 function selectionText(snapshot: SelectionActionSnapshot): string {
-  return snapshot.snippets
-    .map((snippet, index) => {
-      if (snippet.sourceStart !== undefined) return snippet.selectedText;
-      const range = snapshot.ranges[index];
-      if (!range) return snippet.selectedText;
-      return (
-        getSemanticHtmlClipboardPayload(snapshot.root, [range])?.text ??
-        snippet.selectedText
-      );
-    })
-    .join("\n\n");
+  return getSelectionPlainText(snapshot.snippets);
 }
 
 function selectionSource(snapshot: SelectionActionSnapshot): string {

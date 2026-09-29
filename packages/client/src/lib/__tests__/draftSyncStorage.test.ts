@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EMPTY_DRAFT,
   type DraftRead,
+  type DraftSnapshot,
   type DraftWrite,
   type DraftWriteResult,
 } from "@yep-anywhere/shared";
@@ -12,7 +13,10 @@ import {
   draftPayloadToStorage,
   draftStorage,
   setDraftAccount,
+  subscribeDraftStorage,
 } from "../draftSyncStorage";
+import { subscribeDraftPresenceChanges } from "../draftPresenceEvents";
+import { setSyncedDraftSessionIds } from "../syncedDraftPresence";
 import type { SourceTransport } from "../transport/types";
 const key = "draft-new-session:local";
 const raw = (text: string) => JSON.stringify({ version: 1, text });
@@ -28,13 +32,23 @@ function server(owner = "") {
     ticket: "ticket",
   };
   let next = 0;
+  let indexedSessionIds: string[] = [];
   const receipts = new Map<string, DraftWriteResult>();
   let hold:
     | ((value: DraftWriteResult) => Promise<DraftWriteResult>)
     | undefined;
   const fetch = vi.fn(async (path: string, init?: RequestInit) => {
     if (path.startsWith("/drafts/index"))
-      return { owner, entries: [], next: null, sequence: next };
+      return {
+        owner,
+        entries: indexedSessionIds.map((sessionId) => ({
+          slot: { kind: "session" as const, sessionId },
+          revision: "r",
+          empty: false,
+        })),
+        next: null,
+        sequence: next,
+      };
     if (path.startsWith("/drafts/changes")) return { sequence: next };
     if (path.endsWith("/read")) return structuredClone(current);
     if (path.endsWith("/write") || path.endsWith("/clear")) {
@@ -77,6 +91,9 @@ function server(owner = "") {
     transport,
     fetch,
     get: () => current.snapshot,
+    index: (ids: string[]) => {
+      indexedSessionIds = ids;
+    },
     remote: (text: string) => {
       current = {
         snapshot: {
@@ -94,12 +111,16 @@ function server(owner = "") {
   };
 }
 const clients: DraftSyncClient[] = [];
+const subscriptions: Array<() => void> = [];
 beforeEach(() => {
   localStorage.clear();
   setDraftAccount("local", "");
+  setSyncedDraftSessionIds("local", new Set());
   vi.useFakeTimers();
 });
 afterEach(() => {
+  for (const unsubscribe of subscriptions) unsubscribe();
+  subscriptions.length = 0;
   for (const client of clients) client.stop();
   clients.length = 0;
   document.body.innerHTML = "";
@@ -111,7 +132,293 @@ function client(s: ReturnType<typeof server>) {
   clients.push(c);
   return c;
 }
+function observe(key: string) {
+  const unsubscribe = subscribeDraftStorage(key, () => {});
+  subscriptions.push(unsubscribe);
+  return unsubscribe;
+}
+function metadataKey(key: string) {
+  return `draft-sync-v1:local::${encodeURIComponent(key)}`;
+}
+function seedAcknowledged(key: string, snapshot: DraftSnapshot) {
+  const value = raw(snapshot.payload.fields.text ?? "");
+  localStorage.setItem(key, value);
+  localStorage.setItem(
+    metadataKey(key),
+    JSON.stringify({ raw: value, base: snapshot }),
+  );
+}
 describe("local-first snapshot synchronization", () => {
+  it("evicts acknowledged drafts after the last editor closes and restores their base offline", async () => {
+    const s = server(),
+      c = client(s);
+    s.remote("saved text");
+    seedAcknowledged(key, s.get());
+    const stored = localStorage.getItem(metadataKey(key));
+    const ready = vi
+      .spyOn(s.transport.status, "getSnapshot")
+      .mockReturnValue({ state: "disconnected" } as ReturnType<
+        SourceTransport["status"]["getSnapshot"]
+      >);
+    const first = observe(key),
+      second = observe(key);
+    c.start();
+    await c.refresh();
+    const e = c.entries.get(key)!;
+    first();
+    expect(c.entries.get(key)).toBe(e);
+    second();
+    expect(c.entries.has(key)).toBe(false);
+    expect(localStorage.getItem(key)).toBe(raw("saved text"));
+    expect(localStorage.getItem(metadataKey(key))).toBe(stored);
+    const reopen = observe(key);
+    const restored = c.entries.get(key)!;
+    expect(restored).not.toBe(e);
+    expect(restored.saved.base).toEqual(s.get());
+    expect(draftStorage.getItem(key)).toBe(raw("saved text"));
+    // Three-way merge must use the restored base, not concatenate the old draft.
+    draftStorage.setItem(key, raw("edited offline"));
+    s.remote("");
+    ready.mockReturnValue({ state: "ready" } as ReturnType<
+      SourceTransport["status"]["getSnapshot"]
+    >);
+    await c.refresh();
+    await c.sync(restored);
+    expect(s.get().payload.fields.text).toBe("edited offline");
+    reopen();
+    expect(c.entries.has(key)).toBe(false);
+  });
+  it("does not retain a corpus of acknowledged drafts on startup", async () => {
+    const s = server(),
+      c = client(s);
+    s.remote("saved text");
+    for (let i = 0; i < 500; i++) {
+      const slotKey = `draft-new-session:local:project-${i}`;
+      seedAcknowledged(slotKey, {
+        ...s.get(),
+        slot: { kind: "new-session", projectId: `project-${i}` },
+      });
+    }
+    const storedKeys = localStorage.length;
+    c.start();
+    await c.refresh();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(c.entries.size).toBe(0);
+    expect(localStorage.length).toBe(storedKeys);
+    expect(
+      s.fetch.mock.calls.some(
+        ([path]) => path.endsWith("/read") || path.endsWith("/write"),
+      ),
+    ).toBe(false);
+    expect(localStorage.getItem("draft-new-session:local:project-499")).toBe(
+      raw("saved text"),
+    );
+  });
+  it("keeps wildcard-observed drafts until their last matching editor closes", () => {
+    const s = server(),
+      c = client(s);
+    s.remote("saved text");
+    seedAcknowledged(key, s.get());
+    const wildcard = observe("draft-new-session:local*");
+    const exact = observe(key);
+    c.start();
+    exact();
+    expect(c.entries.has(key)).toBe(true);
+    wildcard();
+    expect(c.entries.has(key)).toBe(false);
+  });
+  it.each(["dirty", "pending", "alternative", "submitted", "pending-send"])(
+    "protects %s state when its editor closes",
+    async (kind) => {
+      const s = server(),
+        c = client(s);
+      s.remote("base");
+      seedAcknowledged(key, s.get());
+      const saved = JSON.parse(localStorage.getItem(metadataKey(key))!);
+      if (kind === "dirty") localStorage.setItem(key, raw("offline edit"));
+      if (kind === "pending")
+        saved.pending = {
+          slot: { kind: "new-session" },
+          baseRevision: "base",
+          ticket: "ticket",
+          operationId: "retry-this-operation",
+          payload: s.get().payload,
+        };
+      if (kind === "alternative")
+        saved.alternative = {
+          fields: { text: "sibling tab" },
+          attachments: [],
+        };
+      if (kind === "submitted")
+        saved.submitted = {
+          payload: s.get().payload,
+          revision: s.get().revision,
+        };
+      if (kind === "pending-send")
+        localStorage.setItem(
+          key,
+          JSON.stringify({
+            version: 1,
+            text: "base",
+            pendingSendAt: Date.now(),
+          }),
+        );
+      localStorage.setItem(metadataKey(key), JSON.stringify(saved));
+      vi.spyOn(s.transport.status, "getSnapshot").mockReturnValue({
+        state: "disconnected",
+      } as ReturnType<SourceTransport["status"]["getSnapshot"]>);
+      const unsubscribe = observe(key);
+      c.start();
+      const e = c.entries.get(key)!;
+      unsubscribe();
+      expect(c.entries.get(key)).toBe(e);
+      expect(localStorage.getItem(metadataKey(key))).toBe(
+        JSON.stringify(saved),
+      );
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(c.entries.get(key)).toBe(e);
+    },
+  );
+  it("keeps a save in flight after navigation, then evicts only once newer typing is acknowledged", async () => {
+    const s = server(),
+      c = client(s);
+    const unsubscribe = observe(key);
+    c.start();
+    await c.refresh();
+    draftStorage.setItem(key, raw("first"));
+    const e = c.entries.get(key)!;
+    let release!: (value: DraftWriteResult) => void;
+    let accepted!: DraftWriteResult;
+    s.hold((value) => {
+      accepted = value;
+      return new Promise((resolve) => {
+        release = resolve;
+      });
+    });
+    const saving = c.sync(e);
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    unsubscribe();
+    expect(c.entries.get(key)).toBe(e);
+    draftStorage.setItem(key, raw("second"));
+    s.hold(undefined);
+    release(accepted);
+    await saving;
+    expect(c.entries.get(key)).toBe(e);
+    await c.sync(e);
+    expect(s.get().payload.fields.text).toBe("second");
+    expect(localStorage.getItem(key)).toBe(raw("second"));
+    expect(c.entries.has(key)).toBe(false);
+  });
+  it("keeps focused remote changes and local storage failures after navigation", async () => {
+    const s = server(),
+      c = client(s);
+    const unsubscribe = observe(key);
+    c.start();
+    await c.refresh();
+    draftStorage.setItem(key, raw("desktop"));
+    const e = c.entries.get(key)!;
+    const input = document.createElement("textarea");
+    document.body.append(input);
+    input.focus();
+    s.remote("phone");
+    await c.sync(e);
+    unsubscribe();
+    expect(c.entries.get(key)).toBe(e);
+    expect(e.remote).toBeDefined();
+    c.accept(e);
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("Full", "QuotaExceededError");
+    });
+    c.edit(key, raw("memory only"));
+    await c.sync(e);
+    expect(e.error).toBe("local");
+    expect(c.entries.get(key)).toBe(e);
+    expect(draftStorage.getItem(key)).toBe(raw("memory only"));
+  });
+  it("keeps a conditional clear in flight after navigation and releases its acknowledged empty entry", async () => {
+    const s = server(),
+      c = client(s);
+    const unsubscribe = observe(key);
+    c.start();
+    await c.refresh();
+    draftStorage.setItem(key, raw("send this"));
+    const e = c.entries.get(key)!;
+    await c.sync(e);
+    draftStorage.setItem(
+      key,
+      JSON.stringify({
+        version: 1,
+        text: "send this",
+        pendingSendAt: Date.now(),
+      }),
+    );
+    await e.submissionTask;
+    let release!: (value: DraftWriteResult) => void;
+    let accepted!: DraftWriteResult;
+    s.hold((value) => {
+      accepted = value;
+      return new Promise((resolve) => {
+        release = resolve;
+      });
+    });
+    const clearing = c.confirm(key);
+    await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+    draftStorage.removeItem(key);
+    unsubscribe();
+    expect(c.entries.get(key)).toBe(e);
+    s.hold(undefined);
+    release(accepted);
+    await clearing;
+    expect(c.entries.has(key)).toBe(false);
+    expect(localStorage.getItem(key)).toBeNull();
+    expect(
+      JSON.parse(localStorage.getItem(metadataKey(key))!).base.payload,
+    ).toEqual(EMPTY_DRAFT);
+  });
+  it("releases entries and timers when the source coordinator stops", async () => {
+    const s = server(),
+      c = client(s);
+    c.start();
+    draftStorage.setItem(key, raw("offline edit"));
+    c.stop();
+    expect(c.entries.size).toBe(0);
+    const requests = s.fetch.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(s.fetch.mock.calls.length).toBe(requests);
+    expect(localStorage.getItem(key)).toBe(raw("offline edit"));
+    expect(localStorage.getItem(metadataKey(key))).toContain("offline edit");
+  });
+  it("publishes only index presence changes while preserving evicted local drafts", async () => {
+    const s = server(),
+      c = client(s);
+    const sessionKey = "draft-message-local-draft";
+    seedAcknowledged(sessionKey, {
+      ...s.get(),
+      slot: { kind: "session", sessionId: "local-draft" },
+      payload: { fields: { text: "local text" }, attachments: [] },
+    });
+    s.index(["local-draft", "remote-draft"]);
+    const changes = vi.fn();
+    subscriptions.push(subscribeDraftPresenceChanges(changes));
+    c.start();
+    await c.refresh();
+    expect(changes).toHaveBeenCalledTimes(2);
+    expect(c.entries.has(sessionKey)).toBe(false);
+    changes.mockClear();
+    await c.refresh();
+    expect(changes).not.toHaveBeenCalled();
+    s.index([]);
+    await c.refresh();
+    expect(
+      changes.mock.calls.map(([change]) => [
+        change.sessionDraft.sessionId,
+        change.hasContent,
+      ]),
+    ).toEqual([
+      ["local-draft", true],
+      ["remote-draft", false],
+    ]);
+  });
   it("keeps edits made while a save waits for its acknowledgement", async () => {
     const s = server(),
       c = client(s);

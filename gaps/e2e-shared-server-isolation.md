@@ -30,5 +30,11 @@ server, and the pair needs more independent repetitions and full-suite evidence.
 All 13 remote-login cases passed in the first full local one-worker run with
 the isolated server; that run had two unrelated E2E failures elsewhere.
 
+The 2026-09-29 draft-sync CI run exposed another shared-state path: a spec left
+a synced composer draft for seeded `mock-session-001`, and later fresh browser
+contexts loaded that draft from the shared server. The common browser fixture
+now clears that seeded slot before each case using it. This is a focused repair;
+other mutable server state still needs the audit above.
+
 Found 2026-09-27 while comparing local two-worker execution with isolated CI
 shards.

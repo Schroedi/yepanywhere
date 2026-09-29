@@ -50,6 +50,7 @@ interface Entry {
   error?: string;
   submissionTask?: Promise<void>;
   waitForSync?: Promise<void>;
+  confirmations?: number;
 }
 const owners = new Map<string, string>();
 const clients = new Map<string, DraftSyncClient>();
@@ -294,10 +295,24 @@ export function subscribeDraftStorage(
   if (address && !key.endsWith("*")) clients.get(address.source)?.observe(key);
   if (key.endsWith("*"))
     for (const client of clients.values()) void client.refresh();
+  let subscribed = true;
   return () => {
+    if (!subscribed) return;
+    subscribed = false;
     set.delete(listener);
     if (!set.size) listeners.delete(key);
+    if (address && !key.endsWith("*"))
+      clients.get(address.source)?.release(key);
+    if (key.endsWith("*"))
+      for (const client of clients.values()) client.releaseInactive();
   };
+}
+function observed(key: string): boolean {
+  if (listeners.has(key)) return true;
+  for (const candidate of listeners.keys())
+    if (candidate.endsWith("*") && key.startsWith(candidate.slice(0, -1)))
+      return true;
+  return false;
 }
 export const draftStorage = {
   keys(): string[] {
@@ -446,6 +461,44 @@ export class DraftSyncClient {
     const e = this.register(key);
     if (e) this.schedule(e, 0);
   }
+  /** Only discard memory that can be reconstructed without losing sync work. */
+  release(key: string): void {
+    const e = this.entries.get(key);
+    if (
+      !e ||
+      observed(key) ||
+      e.running ||
+      e.waitForSync ||
+      e.submissionTask ||
+      e.confirmations ||
+      e.saved.pending ||
+      e.saved.submitted ||
+      e.saved.alternative ||
+      e.remote ||
+      e.needsRecovery ||
+      e.error ||
+      !draftPayloadEqual(
+        payload(e.address, e.saved.raw),
+        e.saved.base?.payload ?? EMPTY_DRAFT,
+      ) ||
+      (e.address.format === "envelope" &&
+        readDraftEnvelopeValue(e.saved.raw).envelope?.pendingSendAt !==
+          undefined)
+    )
+      return;
+    try {
+      // A failed local write or a sibling-tab edit must not discard our copy.
+      if (localStorage.getItem(physical(key, e.address)) !== e.saved.raw)
+        return;
+    } catch {
+      return;
+    }
+    if (e.timer) clearTimeout(e.timer);
+    this.entries.delete(key);
+  }
+  releaseInactive(): void {
+    for (const key of this.entries.keys()) this.release(key);
+  }
   edit(key: string, raw: string | null): void {
     const e = this.register(key);
     if (!e) return;
@@ -495,6 +548,7 @@ export class DraftSyncClient {
   async sync(e: Entry): Promise<void> {
     if (
       this.stopped ||
+      this.entries.get(e.key) !== e ||
       e.running ||
       (this.started && !this.identified) ||
       e.saved.alternative ||
@@ -607,6 +661,7 @@ export class DraftSyncClient {
       e.running = false;
       e.waitForSync = undefined;
       finishSync();
+      if (this.started) this.release(e.key);
     }
   }
   private ackSubmitted(e: Entry, result: DraftWriteResult): void {
@@ -749,6 +804,7 @@ export class DraftSyncClient {
   async confirm(key: string): Promise<void> {
     const e = this.register(key);
     if (!e) return;
+    e.confirmations = (e.confirmations ?? 0) + 1;
     const submitted = e.saved.submitted;
     const captured = submitted?.payload ?? payload(e.address, e.saved.raw);
     if (!submitted) this.beginSubmit(e);
@@ -787,9 +843,11 @@ export class DraftSyncClient {
       if (e.error !== "local") e.error = "sync";
       status();
     } finally {
+      e.confirmations = (e.confirmations ?? 1) - 1;
       e.saved.submitted = undefined;
       this.persist(e);
       this.schedule(e, 0);
+      if (this.started) this.release(key);
     }
   }
   resume(key: string): void {
@@ -853,13 +911,7 @@ export class DraftSyncClient {
           revisions.set(key, item.revision);
           const e =
             this.entries.get(key) ??
-            ([...listeners.keys()].some(
-              (k) =>
-                k === key ||
-                (k.endsWith("*") && key.startsWith(k.slice(0, -1))),
-            )
-              ? this.register(key)
-              : null);
+            (observed(key) ? this.register(key) : null);
           if (e && e.saved.base?.revision !== item.revision)
             this.schedule(e, 0);
         }
@@ -868,15 +920,20 @@ export class DraftSyncClient {
       const previous = getSyncedDraftSessionIds(this.source);
       setSyncedDraftSessionIds(this.source, sessionIds);
       for (const sessionId of new Set([...previous, ...sessionIds])) {
+        if (previous.has(sessionId) === sessionIds.has(sessionId)) continue;
         const key = draftLocalKey(this.source, { kind: "session", sessionId });
-        const local = this.entries.get(key);
+        const address = draftAddress(key)!;
+        let localHasContent = previous.has(sessionId);
+        try {
+          localHasContent = draftHasContent(
+            payload(address, draftStorage.getItem(key)),
+          );
+        } catch {
+          // Storage failure must not erase the last known local badge.
+        }
         publishDraftPresenceChange({
           storageKey: key,
-          hasContent:
-            sessionIds.has(sessionId) ||
-            !!(
-              local && draftHasContent(payload(local.address, local.saved.raw))
-            ),
+          hasContent: sessionIds.has(sessionId) || localHasContent,
           sessionDraft: {
             sourceKey: this.source as ClientSummarySourceKey,
             sessionId,
@@ -947,14 +1004,18 @@ export class DraftSyncClient {
     this.started = true;
     clients.set(this.source, this);
     try {
-      for (const key of draftStorage.keys())
-        if (draftAddress(key)?.source === this.source) this.register(key);
+      const keys = new Set(draftStorage.keys());
       const metaPrefix = `draft-sync-v1:${encodeURIComponent(this.source)}:${encodeURIComponent(this.owner)}:`;
       for (let i = 0; i < localStorage.length; i++) {
         const stored = localStorage.key(i);
         if (stored?.startsWith(metaPrefix))
-          this.register(decodeURIComponent(stored.slice(metaPrefix.length)));
+          keys.add(decodeURIComponent(stored.slice(metaPrefix.length)));
       }
+      for (const key of keys)
+        if (draftAddress(key)?.source === this.source) {
+          this.register(key);
+          this.release(key);
+        }
     } catch {
       /* Observed inputs remain usable in memory without browser storage. */
     }
@@ -974,6 +1035,7 @@ export class DraftSyncClient {
     this.abort.abort();
     if (this.retry) clearTimeout(this.retry);
     for (const e of this.entries.values()) if (e.timer) clearTimeout(e.timer);
+    this.entries.clear();
     this.unstatus?.();
     window.removeEventListener("focus", this.wake);
     document.removeEventListener("visibilitychange", this.wake);

@@ -330,7 +330,7 @@ describe("AppearanceSettings", () => {
       name: "Copy selected text button",
     });
     const sourceToggle = screen.getByRole<HTMLInputElement>("checkbox", {
-      name: "Copy selected source",
+      name: "Copy selected Markdown",
     });
     const richToggle = screen.getByRole<HTMLInputElement>("checkbox", {
       name: "Copy selected rich text",
@@ -346,7 +346,7 @@ describe("AppearanceSettings", () => {
 
     expect(quoteToggle.checked).toBe(true);
     expect(textToggle.checked).toBe(false);
-    expect(sourceToggle.checked).toBe(false);
+    expect(sourceToggle.checked).toBe(true);
     expect(richToggle.checked).toBe(false);
     expect(newSessionToggle.checked).toBe(false);
     expect(quoteRow?.previousElementSibling?.textContent).toContain(
@@ -366,9 +366,10 @@ describe("AppearanceSettings", () => {
         ?.querySelector("svg"),
     ).toBeTruthy();
     expect(
-      sourceRow?.querySelector('[data-selection-action-specimen="source"]')
-        ?.textContent,
-    ).toBe("</>");
+      sourceRow
+        ?.querySelector('[data-selection-action-specimen="source"]')
+        ?.querySelector("svg"),
+    ).toBeTruthy();
     expect(
       richRow?.querySelector('[data-selection-action-specimen="rich"]')
         ?.textContent,
@@ -392,7 +393,7 @@ describe("AppearanceSettings", () => {
       "true",
     );
     expect(localStorage.getItem(UI_KEYS.selectionSourceCopyActionEnabled)).toBe(
-      "true",
+      "false",
     );
     expect(localStorage.getItem(UI_KEYS.selectionRichCopyActionEnabled)).toBe(
       "true",

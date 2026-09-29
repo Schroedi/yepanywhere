@@ -405,6 +405,11 @@ The Hono launcher uses attach-or-start:
 5. If identity or cleanup cannot be proved, fail closed rather than unlinking a
    socket and creating a concurrent owner.
 
+A host started by this launcher remains classified as started when it becomes
+available during the second bounded discovery window. A different process's
+compatible host is classified as attached; that distinction preserves the
+macOS launcher lease through a slow startup.
+
 Replacing a nonresponsive host may interrupt active provider turns and reports
 that outcome. Endpoint absence alone never authorizes killing an unverified
 process.

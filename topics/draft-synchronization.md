@@ -39,6 +39,25 @@ slot, coalesced refreshes and a bounded ten-second change long-poll. Stops abort
 requests and dispose listeners/timers. Session badges use paginated metadata;
 opening a surface fetches its body. Typing does not enumerate all browser keys.
 
+Closing the last editor releases an inactive draft's in-memory entry once its
+local contents match the acknowledged snapshot and browser storage holds that
+same value. Exact-field and multi-field observers both keep their entries live.
+Dirty drafts, in-flight saves/clears, retry operations, pending remote/sibling
+changes, unresolved sends/recovery, and storage failures prevent eviction. A
+save that finishes after navigation releases its entry only after acknowledging
+the latest local edit. Cleanup runs at editor/source lifecycle and sync completion
+boundaries rather than adding a periodic sweep or work to each keystroke.
+
+Eviction preserves browser-local draft contents and sync metadata, including the
+acknowledged revision/base and recovery copies. Reopening restores that state
+even offline and refreshes the remote body when connected. Startup releases
+already acknowledged, unobserved entries instead of retaining every persisted
+draft body; unsynchronized and unresolved work remains available to the existing
+background coordinator. Source shutdown releases the coordinator's entry map
+alongside its subscriptions and timers. An unchanged server metadata index emits
+no duplicate session draft-presence notifications; remote presence changes still
+preserve locally stored drafts, including evicted ones.
+
 ## Revisions and conflicts
 
 An accepted changed snapshot advances an opaque UUID revision once, covering
@@ -61,6 +80,8 @@ union new IDs and respect removal of a base attachment.
 A remote change never replaces a focused input, its selection, or IME input.
 The notice **Combine drafts** applies the pending change against the latest
 local text on explicit activation. Sibling-tab edits receive the same treatment.
+The notice leaves page controls outside its button clickable, including controls
+that appear beneath the notice at narrow widths.
 This conservatively pauses remote application while any text editor is focused.
 Ordinary unfocused handoff requires no conflict dialog. Combining text never
 submits it to a provider.

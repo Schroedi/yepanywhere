@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test as base } from "@playwright/test";
@@ -248,6 +249,7 @@ export async function waitForRelayStatus(
 
 // Extended test fixtures
 interface TestFixtures {
+  resetMockDraft: undefined;
   baseURL: string;
   maintenanceURL: string;
   wsURL: string;
@@ -259,6 +261,64 @@ interface TestFixtures {
 
 // Extend base test with dynamic baseURL and maintenanceURL
 export const test = base.extend<TestFixtures>({
+  resetMockDraft: [
+    // biome-ignore lint/correctness/noEmptyPattern: Playwright fixture pattern requires empty destructure
+    async ({}, use) => {
+      // The shared server survives between cases, while browser contexts start
+      // empty. Clear the seeded session's synced draft before another case uses it.
+      const serverURL = `http://localhost:${getServerPort()}`;
+      const headers = {
+        "Content-Type": "application/json",
+        "X-Yep-Anywhere": "true",
+      };
+      const slot = { kind: "session", sessionId: "mock-session-001" };
+      const read = await fetch(`${serverURL}/api/drafts/read`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ slot }),
+      });
+      // The optional SQLite route or the seeded session catalog can be absent
+      // on a supported local runtime; then the client cannot load this draft.
+      if (read.status !== 404) {
+        if (!read.ok)
+          throw new Error(
+            `Draft fixture read failed: ${read.status} ${await read.text()}`,
+          );
+        const { snapshot, ticket } = (await read.json()) as {
+          snapshot: {
+            revision: string | null;
+            payload: { fields: Record<string, string>; attachments: unknown[] };
+          };
+          ticket: string;
+        };
+        if (
+          snapshot.revision !== null &&
+          (Object.values(snapshot.payload.fields).some((value) =>
+            value.trim(),
+          ) ||
+            snapshot.payload.attachments.length > 0)
+        ) {
+          const clear = await fetch(`${serverURL}/api/drafts/clear`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              slot,
+              baseRevision: snapshot.revision,
+              ticket,
+              operationId: randomUUID(),
+            }),
+          });
+          if (!clear.ok)
+            throw new Error(`Draft fixture clear failed: ${clear.status}`);
+          const result = (await clear.json()) as { outcome: string };
+          if (result.outcome !== "accepted")
+            throw new Error(`Draft fixture clear was ${result.outcome}`);
+        }
+      }
+      await use(undefined);
+    },
+    { auto: true },
+  ],
   page: async ({ page }, use) => {
     await use(page);
     // A completed assertion does not imply intercepted background requests

@@ -7,6 +7,8 @@ import { startDraftBrowserServer } from "../../server/test/drafts/browserServer"
 let api: Awaited<ReturnType<typeof startDraftBrowserServer>>;
 let server: Awaited<ReturnType<typeof createTestViteServer>>;
 let base: string;
+// The handoff test exercises multiple real debounce windows.
+test.setTimeout(60_000);
 test.beforeAll(async () => {
   api = await startDraftBrowserServer();
   server = await createTestViteServer({

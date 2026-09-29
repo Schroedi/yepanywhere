@@ -38,6 +38,8 @@ YA process and data directory for its credential-mutating cases. The run's
 temporary directory isolates the default services from the developer's data
 and from other runs; it does not isolate cases using those default services
 from one another. There is no suite-wide server reset between cases.
+The common fixture clears the seeded `mock-session-001` server draft before
+each case, preventing that slot from crossing fresh browser contexts.
 
 This is a significant reliability gap. With one worker, files run serially;
 cleanup can make the usual order pass while concealing an order dependency.

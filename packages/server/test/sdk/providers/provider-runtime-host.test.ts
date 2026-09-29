@@ -449,6 +449,8 @@ describe.skipIf(!nativeHostSupported)("ProviderRuntimeHost", () => {
     expect(existsSync(join(runtimeRoot, "host.json"))).toBe(false);
   });
 
+  // CI reached the default 5,000 ms limit on 2026-09-29 while starting and
+  // discovering the child host; allow 4x that observed lower bound.
   it("publishes one private stable descriptor for a foreground host", async () => {
     const runtimeRoot = await mkdtemp(
       join(runtimeTmpDir, "provider-host-stable-"),
@@ -572,7 +574,7 @@ describe.skipIf(!nativeHostSupported)("ProviderRuntimeHost", () => {
     expect(existsSync(paths.controlSocketPath)).toBe(false);
     expect(existsSync(paths.tokenPath)).toBe(false);
     expect(existsSync(paths.lockPath)).toBe(false);
-  });
+  }, 20_000);
 
   it("consumes only fresh private recent-runtime recovery state", async () => {
     const runtimeRoot = await mkdtemp(

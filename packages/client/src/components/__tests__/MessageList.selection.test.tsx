@@ -73,7 +73,7 @@ function SelectableActivityModal() {
 }
 
 describe("MessageList selection and copy", () => {
-  it("copies rendered assistant selections as source markdown", () => {
+  it("copies rendered assistant selections as visible text", () => {
     render(
       <MessageList
         messages={[
@@ -100,7 +100,7 @@ describe("MessageList selection and copy", () => {
     const { event, setData } = dispatchCopyEvent();
 
     expect(event.defaultPrevented).toBe(true);
-    expect(setData).toHaveBeenCalledWith("text/plain", "1. Second item");
+    expect(setData).toHaveBeenCalledWith("text/plain", "Second item");
   });
 
   it("offers text, source, quote, and new-session actions for a selection", () => {
@@ -124,7 +124,7 @@ describe("MessageList selection and copy", () => {
 
     expect(
       screen.getAllByRole("menuitem").map((item) => item.textContent),
-    ).toEqual(["Copy text", "Copy source", "Quote reply", "New session"]);
+    ).toEqual(["Copy text", "Copy Markdown", "Quote reply", "New session"]);
     fireEvent.click(screen.getByRole("menuitem", { name: "New session" }));
     expect(onStartNewSessionFromSelection).toHaveBeenCalledWith(
       "> Selected text",
@@ -229,7 +229,7 @@ describe("MessageList selection and copy", () => {
 
     selectAgain();
     fireEvent.contextMenu(selectedElement, { clientX: 0, clientY: 0 });
-    fireEvent.click(screen.getByRole("menuitem", { name: "Copy source" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy Markdown" }));
     expect(writeText).toHaveBeenLastCalledWith("1. Selected source");
   });
 
@@ -486,7 +486,7 @@ describe("MessageList selection and copy", () => {
 
     expect(
       await screen.findByRole("button", {
-        name: "Copy source",
+        name: "Copy Markdown",
       }),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Quote reply" })).toBeNull();
@@ -595,7 +595,7 @@ describe("MessageList selection and copy", () => {
     });
 
     const sourceButton = await screen.findByRole("button", {
-      name: "Copy source",
+      name: "Copy Markdown",
     });
     const cluster = sourceButton.closest(
       '[data-selection-action-cluster="true"]',
@@ -638,7 +638,7 @@ describe("MessageList selection and copy", () => {
     fireEvent.contextMenu(selectedElement, { clientX: 0, clientY: 0 });
     expect(
       screen.getAllByRole("menuitem").map((item) => item.textContent),
-    ).toEqual(["Copy text", "Copy source", "Quote reply", "New session"]);
+    ).toEqual(["Copy text", "Copy Markdown", "Quote reply", "New session"]);
     fireEvent.click(
       screen.getByRole("button", { name: "Dismiss selected text actions" }),
     );
@@ -686,7 +686,7 @@ describe("MessageList selection and copy", () => {
     fireEvent.contextMenu(selectedElement, { clientX: 0, clientY: 0 });
     expect(
       screen.getAllByRole("menuitem").map((item) => item.textContent),
-    ).toEqual(["Copy text", "Copy source", "New session"]);
+    ).toEqual(["Copy text", "Copy Markdown", "New session"]);
     fireEvent.click(
       screen.getByRole("button", { name: "Dismiss selected text actions" }),
     );
@@ -909,7 +909,7 @@ describe("MessageList selection and copy", () => {
       clipboardData: { setData },
     });
 
-    expect(setData).toHaveBeenCalledWith("text/plain", "# Modal heading");
+    expect(setData).toHaveBeenCalledWith("text/plain", "Modal heading");
   });
 
   it("docks the tappable quote action above the mobile composer", async () => {
@@ -944,6 +944,14 @@ describe("MessageList selection and copy", () => {
       name: "Quote reply",
     });
     expect(actionSlot.contains(quoteButton)).toBe(true);
+    const markdownButton = screen.getByRole("button", {
+      name: "Copy Markdown",
+    });
+    expect(actionSlot.contains(markdownButton)).toBe(true);
+    expect(
+      markdownButton.compareDocumentPosition(quoteButton) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(
       quoteButton.closest('[data-selection-action-cluster="true"]'),
     ).toBeTruthy();
@@ -956,10 +964,6 @@ describe("MessageList selection and copy", () => {
 
   it("copies stored source from the mobile selection action", async () => {
     mockPointerCoarse(true);
-    window.localStorage.setItem(
-      UI_KEYS.selectionSourceCopyActionEnabled,
-      "true",
-    );
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -994,7 +998,7 @@ describe("MessageList selection and copy", () => {
     fireEvent.pointerUp(selectedElement, { clientX: 180, clientY: 120 });
 
     const sourceButton = await screen.findByRole("button", {
-      name: "Copy source",
+      name: "Copy Markdown",
     });
     expect(actionSlot.contains(sourceButton)).toBe(true);
 

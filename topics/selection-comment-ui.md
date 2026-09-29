@@ -127,7 +127,7 @@ The early Phase 1 gaps were fixed 2026-06-23, verified in the running app.
 - **Quote circle** — the circled `>` affordance that triggers quote-comment.
   Two placements: floating next to a live selection, and one per paragraph.
 - **Selection action cluster** — the non-obscuring row of enabled circles for a
-  live selection: neutral copy icon for visible text, blue `</>` source copy,
+  live selection: neutral copy icon for visible text, blue Markdown copy icon,
   purple `Aa` rich copy, green `>` quote reply, and green `+` new session.
 
 The vernacular here is GitHub's "quote reply" (`>` blockquotes), which is the
@@ -147,8 +147,11 @@ menu.
 2. **Action cluster near a selection.** Enabled circles appear beside a live
    selection without covering it. The green `>` focuses the composer (raising
    the soft keyboard on touch) and runs the same quote-comment. Optional
-   copy, `</>`, `Aa`, and `+` actions copy visible text, copy source, copy
-   semantic rich text, or open a same-project new-session composer. A control
+   plain copy, `Aa`, and `+` actions copy visible text, copy
+   semantic rich text, or open a same-project new-session composer. The blue
+   **Copy Markdown** icon defaults visible and preserves source formatting for
+   both short and long selections. On mobile it sits above quote reply in the
+   docked stack above the composer; native Copy uses visible text. A control
    press preserves a snapshot of the selected source snippets and DOM ranges,
    so the action remains valid when the native highlight collapses during the
    press. The cluster never replays intermediate positions from a burst of
@@ -158,7 +161,7 @@ menu.
    press starts a fresh selection. Editable controls retain native selected-text
    dragging for moving text within the composer or another field.
 3. **Context menu over selected text.** Right-clicking inside a non-empty,
-   registered selection opens direct **Copy text**, **Copy source**, **Quote
+   registered selection opens direct **Copy text**, **Copy Markdown**, **Quote
    reply**, and **New session** rows, omitting actions whose destination is not
    available. This full menu does not depend on which compact bubble actions
    are enabled. A right-click outside the selected range retains its ordinary
@@ -240,11 +243,11 @@ entries in the durable Source Review accumulator.
 The **Appearance** rows immediately after `> Reply Buttons` separately control
 selection quote, visible-text copy, source copy, rich copy, and new session.
 Each row shows the actual enabled circle in its final color and style next to
-its caption, description, and toggle. Selection quote remains on by default to
-preserve the established behavior; the four additional circles are
-default-off. Disabling selection quote also disables the type-over-selection
-trigger, but does not affect the paragraph reply-button mode. Hiding the source
-copy circle never changes the default source-aware `Ctrl/Cmd+C` behavior or the
+its caption, description, and toggle. Selection quote and Markdown copy are
+on by default; visible-text copy, rich copy and new session remain default-off.
+Disabling selection quote also disables the type-over-selection trigger, but
+does not affect the paragraph reply-button mode. Hiding the Markdown copy
+circle never changes the default visible-text `Ctrl/Cmd+C` behavior or the
 complete context menu.
 
 **Source means pre-render input, not Markdown specifically.** A registered
@@ -363,13 +366,10 @@ The genuinely hard parts already exist for copy-selection-as-markdown and the
   selectedText, { textBefore })` in `lib/markdownSelectionCopy.ts` already maps
   a rendered selection back to its markdown source, and every agent text block
   registers its source via `registerMarkdownCopySource` (TextBlock).
-  `copyMarkdownSelectionToClipboard` already walks the
-  `[data-markdown-copy-source]` elements a selection crosses and joins per-block
-  snippets with `\n\n`. Factor the snippet extraction out of the clipboard
-  writer into a shared `extractMarkdownSnippetsFromSelection(root)` returning
-  the per-block snippets plus their source elements/ranges; copy and
-  quote-comment both call it. (Render-boundary principle: extend the generator,
-  do not post-process the DOM.)
+  `extractMarkdownSnippetsFromSelection(root)` walks the registered source
+  elements and returns per-block snippets plus source elements/ranges.
+  Markdown copy and quote-comment consume that projection; ordinary Copy
+  serializes the same ranges as visible text through `getSelectionPlainText`.
 - **"Two newlines if the composer is non-empty."** `appendComposerTransferDraft`
   in `pages/SessionPage.tsx` *is* this rule, already used by the `/btw`
   transfer. Quote insertion = `appendComposerTransferDraft(getDraft(),
@@ -409,7 +409,7 @@ The selection pipeline has three typed owners behind the stable
   anchors, and updates the highlight registry without rendering historical
   rows.
 - `useSelectionActionCapture` owns selection snapshots, geometry and placement,
-  global selection/pointer/resize/scroll listeners, native source-aware copy,
+  global selection/pointer/resize/scroll listeners, native visible-text copy,
   and coarse-pointer transcript shielding.
 - `useSelectionActionPresentation` owns preferences, action dispatch, the full
   selected-text context menu, mobile docking, local-surface portals, and the
