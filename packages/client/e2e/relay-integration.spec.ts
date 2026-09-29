@@ -32,6 +32,8 @@ import {
   waitForRelayStatus,
 } from "./fixtures.js";
 
+import { recordUiCapture } from "./support/ui-capture.js";
+
 // Test credentials
 // Relay username is also used as SRP identity
 const TEST_RELAY_USERNAME = "e2e-relay-test";
@@ -765,7 +767,151 @@ test.describe("Full Relay Integration", () => {
     await expect(page.locator(`a[href="${relayAppPath()}"]`)).toBeVisible();
   });
 
-  test("old relay resume session falls back to fresh login", async ({
+  test("recovers an exhausted relay connection on renewed activity without losing input", async ({
+    page,
+    remoteClientURL,
+    relayWsURL,
+  }) => {
+    let blocked = false;
+    let failures = 0;
+    const sockets: import("@playwright/test").WebSocketRoute[] = [];
+    const messages: string[] = [];
+    page.on("console", (message) => messages.push(message.text()));
+    await page.routeWebSocket(relayWsURL, (socket) => {
+      if (blocked) {
+        failures++;
+        socket.onMessage(() =>
+          socket.send(
+            JSON.stringify({ type: "client_error", reason: "server_offline" }),
+          ),
+        );
+      } else {
+        sockets.push(socket);
+        socket.connectToServer();
+      }
+    });
+    await loginViaRelay(page, remoteClientURL, relayWsURL);
+    await page.goto(remoteRelayUrl(remoteClientURL, "settings"));
+    const search = page.getByRole("searchbox", { name: "Search settings" });
+    await expect(search).toBeVisible();
+    await search.pressSequentially("theme");
+    await expect(search).toHaveValue("theme");
+    const stored = await page.evaluate(() =>
+      localStorage.getItem("yep-anywhere-remote-credentials"),
+    );
+    await page.clock.install();
+    await page.clock.pauseAt(new Date());
+    blocked = true;
+    await Promise.all(
+      sockets.map((socket) =>
+        socket.close({ code: 1012, reason: "Test connection interrupted" }),
+      ),
+    );
+    await expect
+      .poll(() => messages.some((message) => message.includes("attempt 1/10")))
+      .toBe(true);
+    for (let attempt = 1; attempt <= 10; attempt++) {
+      await page.clock.fastForward(31000);
+      await expect.poll(() => failures).toBeGreaterThanOrEqual(attempt);
+      await expect
+        .poll(
+          () =>
+            messages.filter((message) =>
+              message.startsWith(
+                "[ConnectionManager:source-secure] reconnect failed:",
+              ),
+            ).length,
+        )
+        .toBe(attempt);
+    }
+    await expect
+      .poll(() =>
+        messages.some((message) =>
+          message.includes("rapid retry budget exhausted"),
+        ),
+      )
+      .toBe(true);
+    // Exhaustion keeps the mounted page; signals coalesce into one new attempt.
+    await expect(search).toHaveValue("theme");
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem("yep-anywhere-remote-credentials"),
+      ),
+    ).toBe(stored);
+    // Advance scheduling without making the authenticated proof timestamp
+    // five minutes newer than the real server clock.
+    await page.clock.setFixedTime(new Date());
+    blocked = false;
+    const resumeCount = messages.filter((message) =>
+      message.includes("Session resumed successfully"),
+    ).length;
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event("online"));
+      window.dispatchEvent(new Event("focus"));
+    });
+    await expect
+      .poll(
+        () =>
+          messages.filter((message) =>
+            message.includes("Session resumed successfully"),
+          ).length,
+      )
+      .toBe(resumeCount + 1);
+    const pongCount = messages.filter((message) =>
+      message.includes("pong received"),
+    ).length;
+    await page.evaluate(() =>
+      document.dispatchEvent(new Event("visibilitychange")),
+    );
+    await expect
+      .poll(
+        () =>
+          messages.filter((message) => message.includes("pong received"))
+            .length,
+      )
+      .toBe(pongCount + 1);
+    await expect(search).toHaveValue("theme");
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.clock.resume();
+    await search.evaluate((element) => {
+      const input = element as HTMLInputElement;
+      const samples: Array<{ ms: number; present: boolean }> = [];
+      let started = 0;
+      input.addEventListener("keydown", () => {
+        started = performance.now();
+        // Concurrent real socket health traffic while acknowledging typing.
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      input.addEventListener("input", () => {
+        const expected = input.value;
+        requestAnimationFrame(() => {
+          samples.push({
+            ms: performance.now() - started,
+            present: input.value.startsWith(expected),
+          });
+          input.dataset.typingSamples = JSON.stringify(samples);
+        });
+      });
+    });
+    await search.pressSequentially(" color", { delay: 20 });
+    await expect(search).toHaveValue("theme color");
+    await expect
+      .poll(
+        async () =>
+          JSON.parse((await search.getAttribute("data-typing-samples")) ?? "[]")
+            .length,
+      )
+      .toBe(6);
+    const samples = JSON.parse(
+      (await search.getAttribute("data-typing-samples")) ?? "[]",
+    ) as Array<{ ms: number; present: boolean }>;
+    expect(samples.every((sample) => sample.present && sample.ms <= 100)).toBe(
+      true,
+    );
+  });
+
+  test("old relay resume rejection explains why fresh login is needed", async ({
     page,
     remoteClientURL,
     relayWsURL,
@@ -816,9 +962,20 @@ test.describe("Full Relay Integration", () => {
 
     await page.goto(`${remoteClientURL}/${TEST_RELAY_USERNAME}/projects`);
 
-    await expect(page.locator('[data-testid="relay-login-form"]')).toBeVisible({
-      timeout: 10000,
-    });
+    await expect(
+      page.getByText("Sign in required", { exact: true }),
+    ).toBeVisible();
+    for (const [name, size] of [
+      ["desktop", { width: 1000, height: 600 }],
+      ["phone", { width: 375, height: 812 }],
+    ] as const) {
+      await page.setViewportSize(size);
+      await recordUiCapture(page, `resume-rejected-${name}`, size);
+    }
+    await page.getByRole("button", { name: "Go to Login" }).click();
+    await expect(
+      page.locator('[data-testid="relay-login-form"]'),
+    ).toBeVisible();
     expect(new URL(page.url()).searchParams.get("returnTo")).toBe(
       relayAppPath(),
     );

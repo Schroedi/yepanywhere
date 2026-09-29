@@ -4224,5 +4224,13 @@
   "advancedLimitedUsersTitle": "Limited users (preview)",
   "advancedLimitedUsersDescription": "Create password-protected accounts for trusted family or collaborators and grant them selected projects. This preview helps prevent accidental access; it is not hardened isolation for hostile or untrusted users. Their agent sessions always run sandboxed.",
   "usersTrustWarning": "Use limited users only with people you trust. Do not rely on this preview as a security boundary between mutually untrusted users.",
-  "loginUsernameOptional": "Username (leave blank for owner)"
+  "loginUsernameOptional": "Username (leave blank for owner)",
+  "hostOfflineHintResumeRejected": "Sign in again to establish a new session with this server.",
+  "hostOfflineTitleResumeRejected": "Sign in required",
+  "hostOfflineMessageResumeRejected": "The server rejected the saved session. Sign in again to reconnect.",
+  "hostOfflineTitleResumeTimeout": "Server did not respond",
+  "hostOfflineMessageResumeTimeout": "The session resume request timed out. Your saved session has been kept so we can try again.",
+  "hostOfflineTitleResumeVerification": "Connection verification failed",
+  "hostOfflineMessageResumeVerification": "The server response could not be verified. Automatic recovery has stopped; your saved session has been kept.",
+  "hostOfflineHintResumeVerification": "Check the server and connection details before trying to sign in again."
 }
