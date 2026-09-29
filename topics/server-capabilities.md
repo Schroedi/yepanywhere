@@ -10,6 +10,15 @@ Topic: server-capabilities
 
 ## Source Of Truth
 
+The optional `session.effectiveLaunchSettings` response snapshot uses field
+presence rather than a new capability or handshake, approved by the maintainer
+on 2026-09-29. The core release corpus v0.8.0, v0.8.1, v0.9.0, v0.9.1 and
+v0.9.2 lacks that snapshot. Without it, the client retains the previous resume
+request mapping and browser-local fallback. With it, dormant controls use the
+saved values and resume sends only deliberate overrides through existing
+request fields. No new endpoint or existing capability meaning changes. See
+[session defaults](session-defaults.md#per-session-live-picks-vs-global-defaults).
+
 `limited-user-path-grants` (permanent ID 96, version-implied from 0.9.4) owns
 the `pathGrants` field on `POST`/`PATCH /api/users` and in user records.
 Older servers ignore the field, so a directory grant would look saved and

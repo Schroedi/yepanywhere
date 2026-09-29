@@ -3038,6 +3038,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         sandboxPolicy: sessionSummary?.sandboxPolicy,
         contextUsage: sessionSummary?.contextUsage,
         effectiveModelSettings: effectiveModelSettingsFromMetadata(metadata),
+        effectiveLaunchSettings: metadata?.effectiveLaunchSettings,
         nonHumanUserTurn: nonHumanUserTurnField(
           deps.sessionMetadataService,
           sessionId,
@@ -3584,6 +3585,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             model: process.resolvedModel,
             effectiveModelSettings:
               effectiveModelSettingsFromMetadata(metadata),
+            effectiveLaunchSettings: metadata?.effectiveLaunchSettings,
             contextUsage,
             ...(providerChildren ? { providerChildren } : {}),
           },
@@ -4011,6 +4013,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         // Model comes from the session reader (extracted from JSONL)
         model: session.model,
         effectiveModelSettings: effectiveModelSettingsFromMetadata(metadata),
+        effectiveLaunchSettings: metadata?.effectiveLaunchSettings,
         lastSeenAt,
         hasUnread,
         ...(providerChildren ? { providerChildren } : {}),

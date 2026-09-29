@@ -1033,6 +1033,7 @@ export type {
   SessionCreationProvenance,
   AppSession,
   SessionEffectiveModelSettings,
+  EffectiveSessionLaunchSettings,
   SessionMetadataPayload,
   SessionMetadataResponse,
   SessionQueuedMessageKind,

@@ -14,8 +14,7 @@ import {
   type DurableRecapMessage,
   type DurableLocalCommandMessage,
   type DurableSyntheticDoneMessage,
-  type EffortLevel,
-  type PermissionMode,
+  type EffectiveSessionLaunchSettings,
   type ProviderName,
   type PromptSuggestionMode,
   type RecapMode,
@@ -25,7 +24,6 @@ import {
   type SessionRewindRecord,
   type SessionSandboxLevel,
   type SlashCommand,
-  type ThinkingConfig,
   type TranscriptDisplayObject,
   type UrlProjectId,
   type WorkstreamId,
@@ -36,22 +34,7 @@ import {
 } from "@yep-anywhere/shared";
 import { createCoalescingSaver } from "../lib/coalescingSaver.js";
 
-export interface EffectiveSessionLaunchSettings {
-  /** Record schema, independent of the containing metadata-file schema. */
-  schemaVersion: 1;
-  /** Monotonic session-local revision for ordered client/server updates. */
-  revision: number;
-  /** Standing permission selector restored when YA owns a new process. */
-  permissionMode: PermissionMode;
-  /** Exact YA model token, including "default"; null means provider default. */
-  requestedModel: string | null;
-  /** Provider-visible service tier; null means provider/default behavior. */
-  serviceTier: string | null;
-  /** Effective thinking configuration; null means disabled/default behavior. */
-  thinking: ThinkingConfig | null;
-  /** Effective effort selection; null means provider/default behavior. */
-  effort: EffortLevel | null;
-}
+export type { EffectiveSessionLaunchSettings } from "@yep-anywhere/shared";
 
 export type EffectiveSessionLaunchSettingsValue = Omit<
   EffectiveSessionLaunchSettings,

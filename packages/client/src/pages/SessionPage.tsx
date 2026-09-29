@@ -77,6 +77,7 @@ import {
   SessionAppAction,
 } from "../components/SessionRightPane";
 import { useSessionRightPane } from "../hooks/useSessionRightPane";
+import { useSessionThinkingSelection } from "../hooks/useSessionThinkingSelection";
 import { ProjectAppViewer } from "../components/ProjectAppViewer";
 import type { VoiceInputButtonRef } from "../components/VoiceInputButton";
 import { useCanUseBearerGrants } from "../hooks/useActingPrincipal";
@@ -214,11 +215,14 @@ import {
   registerSemanticUiComposerExecutors,
 } from "../lib/semanticUiActions";
 import {
-  liveThinkingSelectionFromProcess,
   thinkingOptionFromProcess,
   thinkingOptionFromSelection,
 } from "../lib/liveThinkingConfig";
 import { getPersistentEditApprovalResponse } from "../lib/permissionModes";
+import {
+  sessionResumeOverrides,
+  stoppedSessionPermissionMode,
+} from "../lib/sessionResumeSettings";
 import { buildConversationHandoffPrefill } from "../lib/sessionDetail/conversationHandoff";
 import { getSessionConnectionBarStatus } from "../lib/sessionConnectionBar";
 import { getCachedWebTranscriptProjection } from "../lib/webTranscriptProjection";
@@ -695,7 +699,8 @@ function SessionPageContent({
     setIsCompacting,
     pendingInputRequest,
     actualSessionId,
-    permissionMode,
+    permissionMode: browserPermissionMode,
+    permissionModeOverride,
     loading,
     sessionLoadProgress,
     error,
@@ -736,6 +741,15 @@ function SessionPageContent({
     streamingMarkdownCallbacks,
     sessionOptions,
   );
+  const savedLaunchSettings = session?.effectiveLaunchSettings;
+  const permissionMode =
+    status.owner === "self"
+      ? browserPermissionMode
+      : stoppedSessionPermissionMode(
+          browserPermissionMode,
+          permissionModeOverride,
+          savedLaunchSettings?.permissionMode,
+        );
   const providerRuntimeStatus =
     useProviderRuntimeStatusForSession(actualSessionId);
   // Arriving from the project's App entry names a target; otherwise a project
@@ -924,10 +938,15 @@ function SessionPageContent({
     () =>
       resolveSessionModelConfig(
         liveModelConfig,
-        session?.effectiveModelSettings,
+        savedLaunchSettings ?? session?.effectiveModelSettings,
         latestCodexConfigAck,
       ),
-    [latestCodexConfigAck, liveModelConfig, session?.effectiveModelSettings],
+    [
+      latestCodexConfigAck,
+      liveModelConfig,
+      savedLaunchSettings,
+      session?.effectiveModelSettings,
+    ],
   );
 
   const [scrollTrigger, setScrollTrigger] = useState(0);
@@ -1347,20 +1366,26 @@ function SessionPageContent({
   const supportsThinkingToggle =
     currentProviderInfo?.supportsThinkingToggle ?? true;
   const { generallySupportsSteering, supportsSteerNow } = providerCapabilities;
-  const liveThinkingSelection = useMemo(() => {
-    if (status.owner !== "self" || !effectiveModelConfig) {
-      return null;
-    }
-    return liveThinkingSelectionFromProcess(
-      effectiveModelConfig.thinking,
-      effectiveModelConfig.effort,
-      currentProviderInfo,
-    );
-  }, [currentProviderInfo, effectiveModelConfig, status.owner]);
+  const {
+    selection: liveThinkingSelection,
+    thinkingOverride,
+    setStoppedSelection,
+  } = useSessionThinkingSelection(
+    `${sourceRuntime.sourceKey}/${sessionId}`,
+    status.owner === "self",
+    status.owner === "self" ||
+      savedLaunchSettings ||
+      session?.effectiveModelSettings
+      ? effectiveModelConfig
+      : null,
+    currentProviderInfo,
+  );
   const getImplicitComposerThinking = useCallback(() => {
+    if (thinkingOverride !== undefined) return thinkingOverride;
     const hasRetainedSessionModelConfig =
       status.owner === "self" ||
       liveModelConfig !== null ||
+      savedLaunchSettings !== undefined ||
       session?.effectiveModelSettings !== undefined;
     if (hasRetainedSessionModelConfig) {
       if (!effectiveModelConfig) {
@@ -1377,9 +1402,34 @@ function SessionPageContent({
     currentProviderInfo,
     effectiveModelConfig,
     liveModelConfig,
+    savedLaunchSettings,
     session?.effectiveModelSettings,
     status.owner,
+    thinkingOverride,
   ]);
+  const getResumeSettings = useCallback(
+    (explicitThinking?: ThinkingOption) =>
+      sessionResumeOverrides(
+        savedLaunchSettings !== undefined,
+        {
+          mode: permissionMode,
+          model: session?.model ?? getModelSetting(),
+          thinking: getImplicitComposerThinking(),
+        },
+        {
+          mode: permissionModeOverride,
+          thinking: explicitThinking ?? thinkingOverride,
+        },
+      ),
+    [
+      savedLaunchSettings,
+      permissionMode,
+      session?.model,
+      getImplicitComposerThinking,
+      permissionModeOverride,
+      thinkingOverride,
+    ],
+  );
 
   // Unified Clone/Fork requires both the provider primitive and the server's
   // real-user-turn intent resolver. Older servers get no unsupported request.
@@ -2650,10 +2700,7 @@ function SessionPageContent({
 
       const requestSentAtMs = Date.now();
       if (status.owner === "none") {
-        // Resume the session with current permission mode and model settings
-        // Use session's existing model if available (important for non-Claude providers),
-        // otherwise fall back to user's model preference for new Claude sessions
-        const model = session?.model ?? getModelSetting();
+        // Saved settings stay server-owned; only deliberate edits override them.
         // Use effectiveProvider to ensure correct provider even if session data hasn't loaded
         // effectiveProvider = session?.provider ?? initialProvider (from navigation state)
         const result = await api.resumeSession(
@@ -2661,9 +2708,7 @@ function SessionPageContent({
           sessionId,
           outgoingText,
           {
-            mode: permissionMode,
-            model,
-            thinking,
+            ...getResumeSettings(prepared.thinking),
             showThinking,
             provider: effectiveProvider,
             executor: session?.executor,
@@ -2832,16 +2877,13 @@ function SessionPageContent({
           err.message.includes("No active process"));
       if (is404) {
         try {
-          const model = session?.model ?? getModelSetting();
           const retryRequestSentAtMs = Date.now();
           const result = await api.resumeSession(
             projectId,
             sessionId,
             outgoingText,
             {
-              mode: permissionMode,
-              model,
-              thinking,
+              ...getResumeSettings(prepared.thinking),
               provider: effectiveProvider,
               executor: session?.executor,
             },
@@ -3353,15 +3395,12 @@ function SessionPageContent({
           err.message.includes("Process terminated"));
       if (isProcessUnavailable) {
         try {
-          const model = session?.model ?? getModelSetting();
           const result = await api.resumeSession(
             projectId,
             sessionId,
             outgoingText,
             {
-              mode: permissionMode,
-              model,
-              thinking,
+              ...getResumeSettings(prepared.thinking),
               provider: effectiveProvider,
               executor: session?.executor,
             },
@@ -3684,16 +3723,17 @@ function SessionPageContent({
             : {
                 type: "existing-session",
                 sessionId,
-                mode: permissionMode,
-                model: session?.model ?? getModelSetting(),
-                thinking,
+                ...getResumeSettings(prepared.thinking),
                 showThinking,
                 provider: effectiveProvider,
                 executor: session?.executor,
               },
         message: {
           text: outgoingText,
-          mode: permissionMode,
+          mode:
+            targetType === "new-session"
+              ? permissionMode
+              : getResumeSettings(prepared.thinking).mode,
           ...(yaCommand ? { yaCommand } : {}),
           ...(uploadedAttachments.length > 0
             ? { attachments: uploadedAttachments }
@@ -4191,9 +4231,6 @@ function SessionPageContent({
 
   const handleLiveThinkingChange = useCallback(
     async (mode: ThinkingMode, effortLevel: EffortLevel) => {
-      if (status.owner !== "self" || !currentOwnedProcessId) {
-        return;
-      }
       const nextThinking = thinkingOptionFromSelection(mode, effortLevel);
       const verdict = await guardEffortChange(
         nextThinking,
@@ -4205,6 +4242,10 @@ function SessionPageContent({
           : undefined,
       );
       if (verdict === "skip") return;
+      if (status.owner !== "self" || !currentOwnedProcessId) {
+        setStoppedSelection({ mode, effortLevel });
+        return;
+      }
       try {
         const result = await api.setProcessConfig(currentOwnedProcessId, {
           thinking: nextThinking,
@@ -4247,6 +4288,7 @@ function SessionPageContent({
       currentOwnedProcessId,
       guardEffortChange,
       liveThinkingSelection,
+      setStoppedSelection,
       reconnectStream,
       showToast,
       status.owner,
