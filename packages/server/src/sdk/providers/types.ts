@@ -529,7 +529,9 @@ export interface AgentProvider {
    * For local providers (Codex with Ollama), this queries the local model list.
    * For cloud providers (Claude, Gemini), this returns a static list.
    */
-  getAvailableModels(): Promise<ModelInfo[]>;
+  getAvailableModels(options?: {
+    forceRefresh?: boolean;
+  }): Promise<ModelInfo[]>;
 
   /**
    * Read account/subscription quota windows without creating a provider turn.

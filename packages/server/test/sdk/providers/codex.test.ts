@@ -29,7 +29,7 @@ import {
   it,
   vi,
 } from "vitest";
-import type { CodexPlanToolMode } from "@yep-anywhere/shared";
+import type { CodexPlanToolMode, ModelInfo } from "@yep-anywhere/shared";
 import { compileTranscriptProjection } from "@yep-anywhere/shared/transcript/compiler";
 import { getLogger } from "../../../src/logging/logger.js";
 import { getCodexCommonPaths } from "../../../src/sdk/cli-detection.js";
@@ -281,6 +281,38 @@ describe("CodexProvider", () => {
     it("should return boolean", async () => {
       const isAuth = await provider.isAuthenticated();
       expect(typeof isAuth).toBe("boolean");
+    });
+  });
+
+  describe("getAvailableModels", () => {
+    it("bypasses the hour-long catalog cache on a forced refresh", async () => {
+      const testProvider = new CodexProvider();
+      const modelProbe = vi
+        .fn<() => Promise<ModelInfo[]>>()
+        .mockResolvedValueOnce([{ id: "gpt-6-astra", name: "Astra" }])
+        .mockResolvedValueOnce([{ id: "gpt-6.1-sol", name: "Sol 6.1" }]);
+      const internals = testProvider as unknown as {
+        isCodexCliInstalled: () => Promise<boolean>;
+        getModelsFromAppServer: () => Promise<ModelInfo[]>;
+      };
+      internals.isCodexCliInstalled = vi.fn(async () => true);
+      internals.getModelsFromAppServer = modelProbe;
+
+      expect((await testProvider.getAvailableModels())[0]?.id).toBe(
+        "gpt-6-astra",
+      );
+      expect((await testProvider.getAvailableModels())[0]?.id).toBe(
+        "gpt-6-astra",
+      );
+      expect(modelProbe).toHaveBeenCalledTimes(1);
+
+      expect(
+        (await testProvider.getAvailableModels({ forceRefresh: true }))[0]?.id,
+      ).toBe("gpt-6.1-sol");
+      expect((await testProvider.getAvailableModels())[0]?.id).toBe(
+        "gpt-6.1-sol",
+      );
+      expect(modelProbe).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -6586,6 +6618,32 @@ describe("CodexProvider Event Normalization", () => {
       subtype: "turn_aborted",
       content: "Conversation interrupted",
       codexTurnId: "turn-1",
+    });
+
+    const deniedTurnMessages = provider.convertNotificationToSDKMessages(
+      {
+        method: "turn/completed",
+        params: {
+          threadId: "thread-1",
+          turn: {
+            id: "turn-2",
+            items: [],
+            status: "interrupted",
+            error: {
+              message: "Guardian denied too many actions",
+              codexErrorInfo: "tooManyDenials",
+            },
+          },
+        },
+      },
+      "session-1",
+      new Map(),
+      liveEventState,
+    );
+    expect(deniedTurnMessages[0]).toMatchObject({
+      type: "system",
+      subtype: "turn_aborted",
+      content: "Guardian denied too many actions",
     });
 
     const renderItems = compileTranscriptProjection([

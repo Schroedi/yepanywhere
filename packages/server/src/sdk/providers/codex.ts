@@ -1264,6 +1264,7 @@ export class CodexProvider implements AgentProvider {
     expiresAt: number;
     installationSourceVersion: string;
   } | null = null;
+  private modelCacheReadGeneration = 0;
   private getConfiguredReasoningSummary: () => CodexReasoningSummary = () =>
     DEFAULT_CODEX_REASONING_SUMMARY;
   private getConfiguredPlanToolMode: () => CodexPlanToolMode = () =>
@@ -1287,6 +1288,7 @@ export class CodexProvider implements AgentProvider {
   setCodexPath(codexPath: string | undefined): void {
     this.config.codexPath = codexPath;
     this.modelCache = null;
+    this.modelCacheReadGeneration += 1;
   }
 
   setReasoningSummaryGetter(getter: () => CodexReasoningSummary): void {
@@ -1422,16 +1424,21 @@ export class CodexProvider implements AgentProvider {
    * Get available models for Codex cloud.
    * Queries Codex app-server's model/list endpoint with a static fallback.
    */
-  async getAvailableModels(): Promise<ModelInfo[]> {
+  async getAvailableModels(options?: {
+    forceRefresh?: boolean;
+  }): Promise<ModelInfo[]> {
     return this.installationCoordinator.withReadLease(
       CODEX_INSTALLATION_FAMILY,
-      () => this.getAvailableModelsWithLease(),
+      () => this.getAvailableModelsWithLease(options?.forceRefresh === true),
     );
   }
 
-  private async getAvailableModelsWithLease(): Promise<ModelInfo[]> {
+  private async getAvailableModelsWithLease(
+    forceRefresh: boolean,
+  ): Promise<ModelInfo[]> {
     const now = Date.now();
     const installationSourceVersion = this.getModelCatalogCacheKey();
+    if (forceRefresh) this.modelCache = null;
     if (
       this.modelCache &&
       this.modelCache.expiresAt > now &&
@@ -1439,6 +1446,7 @@ export class CodexProvider implements AgentProvider {
     ) {
       return this.modelCache.models;
     }
+    const readGeneration = ++this.modelCacheReadGeneration;
 
     let models: ModelInfo[] = [];
     if (await this.isCodexCliInstalled()) {
@@ -1449,11 +1457,13 @@ export class CodexProvider implements AgentProvider {
       models = await this.getFallbackCodexModels();
     }
 
-    this.modelCache = {
-      models,
-      expiresAt: now + MODEL_CACHE_TTL_MS,
-      installationSourceVersion,
-    };
+    if (readGeneration === this.modelCacheReadGeneration) {
+      this.modelCache = {
+        models,
+        expiresAt: Date.now() + MODEL_CACHE_TTL_MS,
+        installationSourceVersion,
+      };
+    }
 
     return models;
   }
@@ -5696,7 +5706,7 @@ export class CodexProvider implements AgentProvider {
               subtype: "turn_aborted",
               session_id: sessionId,
               uuid: `codex-turn-interrupted-${params.turn.id}`,
-              content: "Conversation interrupted",
+              content: params.turn.error?.message || "Conversation interrupted",
               reason: "interrupted",
               isSynthetic: true,
               sourceEvent: notification.method,
