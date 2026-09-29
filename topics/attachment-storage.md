@@ -26,6 +26,13 @@ policy, then sends the preparation message with the attachments. Project Queue
 items keep their staged attachments in the queuing account's store
 ([Project Queue](project-queue.md#attachments)).
 
+On servers advertising `draft-sync-v1`, completed staging references follow
+[draft synchronization](draft-synchronization.md). Current synced references and
+their seven-day release grace protect originals from deletion and staging TTL.
+Queue transfer copies protected originals; a draft may reference several batches
+owned by the same account. Upload progress and unfinished bytes remain local to
+the uploading device.
+
 The composer offers recent prompts and a scrollable upload gallery, retained
 only in this browser and separated by server and acting username. It keeps up
 to 50 prompts and 50 uploaded files within a 100 MiB file budget. Choosing a

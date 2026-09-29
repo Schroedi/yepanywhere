@@ -1,11 +1,16 @@
 # Local-first draft synchronization
 
-Status: design direction approved; implementation not started. The maintainer
-requested this tactical and its commit on 2026-09-29. This records the
-2026-09-23 discussion and the subsequent design decisions; it does not authorize
-implementation in the documentation session. Exact wire contracts and the
-release-corpus compatibility review remain prerequisites below.
+Status: implemented in source on 2026-09-29, following the maintainer's explicit
+end-to-end implementation request. The durable contract and exact rollout,
+retention and verification details now live in
+[Draft synchronization](../../topics/draft-synchronization.md). This completed
+plan is retained as the design record; its illustrative wire shapes are
+superseded by that contract and the shared types.
 
+The implementation deliberately treats project hiding/archiving as reversible,
+not context deletion. There is no permanent session/project-delete action to
+hook; externally missing contexts become inaccessible and remain quota-bounded.
+Account deletion purges owned draft state.
 ## Motivation and accepted direction
 
 A draft started on a phone currently stays in that browser. Moving to a desktop
@@ -381,57 +386,57 @@ editing the wire contract. Never reuse an older capability for new semantics.
 
 ### 1 — Specify draft slots and finish compatibility review
 
-- [ ] Inventory all persisted input surfaces and their current submit/clear
+- [x] Inventory all persisted input surfaces and their current submit/clear
   semantics, including local legacy formats and account/source binding.
-- [ ] Create the owning topic; record the approved default and conservative
+- [x] Create the owning topic; record the approved default and conservative
   conflict behavior, plus precise handling of focused/dirty remote updates.
-- [ ] Finalize typed payloads, slot identities, routes/events, receipts,
+- [x] Finalize typed payloads, slot identities, routes/events, receipts,
   expired-base handling, send metadata, and numerical resource limits.
-- [ ] Review the release corpus, exact capability ownership and fallback.
+- [x] Review the release corpus, exact capability ownership and fallback.
 
 ### 2 — Build the shared local draft service
 
-- [ ] Add one local envelope/state machine and thin surface adapters while
+- [x] Add one local envelope/state machine and thin surface adapters while
   preserving local-only behavior before networking is enabled.
-- [ ] Persist base, current draft and immutable outstanding operation together;
+- [x] Persist base, current draft and immutable outstanding operation together;
   support reload, cross-tab changes, pending sends, and source/account switches.
-- [ ] Keep keystroke handling and persistence independent of transcript renders,
+- [x] Keep keystroke handling and persistence independent of transcript renders,
   network scheduling, and remote-state application.
 
 ### 3 — Persist revisioned server snapshots
 
-- [ ] Add append-only SQLite migrations and prepared-statement lifecycle.
-- [ ] Implement atomic conditional writes, no-op handling, durable bounded
+- [x] Add append-only SQLite migrations and prepared-statement lifecycle.
+- [x] Implement atomic conditional writes, no-op handling, durable bounded
   operation receipts, generations/write epochs, and authorized snapshot reads.
-- [ ] Add bounded enumeration, owner-scoped notifications, and disposal paths.
+- [x] Add bounded enumeration, owner-scoped notifications, and disposal paths.
   Do not advertise production support until the remaining contract is complete.
 
 ### 4 — Connect background sync and conflict recovery
 
-- [ ] Implement debounce/max-wait scheduling, one in-flight operation per slot,
+- [x] Implement debounce/max-wait scheduling, one in-flight operation per slot,
   lost-response retries, reconnect snapshots, and pending local draft discovery.
-- [ ] Implement base-aware text/structured reconciliation and safe application
+- [x] Implement base-aware text/structured reconciliation and safe application
   to editors. Preserve newer local typing after every acknowledgement.
-- [ ] Migrate all inventoried local draft surfaces through adapters; preserve
+- [x] Migrate all inventoried local draft surfaces through adapters; preserve
   existing server-owned review records and unrelated local settings.
-- [ ] Add recovery for unknown old bases and initial local/server collisions.
+- [x] Add recovery for unknown old bases and initial local/server collisions.
 
 ### 5 — Integrate attachments and submission
 
-- [ ] Support multiple same-account staging batches per synced snapshot.
-- [ ] Protect shared references from stale chip deletions, old-client deletes,
+- [x] Support multiple same-account staging batches per synced snapshot.
+- [x] Protect shared references from stale chip deletions, old-client deletes,
   TTL cleanup, queue transfers, and in-flight submission races.
-- [ ] Add revision-specific clear at each delivery family's acceptance boundary
+- [x] Add revision-specific clear at each delivery family's acceptance boundary
   without changing submitted content or claiming durable provider delivery.
-- [ ] Prove failure recovery across upload, save, send, transfer and restart.
+- [x] Prove failure recovery across upload, save, send, transfer and restart.
 
 ### 6 — Bound retention and enable the capability
 
-- [ ] Implement indexed cleanup with chosen caps and safe expired-retry rules.
-- [ ] Complete old/new client/server fallback and account authorization tests.
-- [ ] Advertise support only after the whole v1 contract is available; run
+- [x] Implement indexed cleanup with chosen caps and safe expired-retry rules.
+- [x] Complete old/new client/server fallback and account authorization tests.
+- [x] Advertise support only after the whole v1 contract is available; run
   capability auditing and record rollout evidence in the topic.
-- [ ] Update roadmap status only if this work is separately scheduled; retire
+- [x] Update roadmap status only if this work is separately scheduled; retire
   the tactical after completion and migration of durable content.
 
 ## Verification and completion criteria

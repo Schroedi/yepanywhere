@@ -1,3 +1,4 @@
+import { DRAFT_STORAGE_EVENT } from "../lib/draftSyncStorage";
 import { ComputerSessionSelection } from "./ComputerSessionSelection";
 import { useComposerVoiceRef } from "../hooks/useComposerVoiceRef";
 import type { ProjectAppTarget } from "../api/projectApp";
@@ -780,23 +781,45 @@ export function NewSessionForm({
       return;
     }
 
+    const syncEnabled = serverHasCapability(
+      versionInfo,
+      SERVER_CAPABILITIES.draftSync.name,
+    );
     if (
+      !syncEnabled &&
       pendingFilesRef.current.some(
         (file) => file.kind === "uploading" || isPendingStagedFile(file),
       )
-    ) {
+    )
       return;
-    }
+    if (syncEnabled)
+      setPendingFiles(
+        (prev) => [
+          ...prev.filter((file) => !isPendingStagedFile(file)),
+          ...state.refs.map(
+            (ref): PendingStagedFile => ({ ...ref, kind: "staged" }),
+          ),
+        ],
+        { persistDraft: false, revokeRemovedPreviewUrls: true },
+      );
 
     const hydrationId = draftAttachmentHydrationRef.current + 1;
     draftAttachmentHydrationRef.current = hydrationId;
 
     try {
       const refs = await validateDraftAttachmentRefs(sourceTransport, state);
-      if (draftAttachmentHydrationRef.current !== hydrationId) {
+      if (
+        draftAttachmentHydrationRef.current !== hydrationId ||
+        JSON.stringify(draftControls.getAttachmentState()?.refs) !==
+          JSON.stringify(state.refs)
+      ) {
         return;
       }
 
+      if (syncEnabled && refs.length !== state.refs.length) {
+        showToast(t("sessionDraftAttachmentsUnavailable"), "info");
+        return;
+      }
       const nextState: DraftAttachmentState | null =
         refs.length > 0
           ? {
@@ -823,7 +846,15 @@ export function NewSessionForm({
         },
       );
     } catch (err) {
-      if (draftAttachmentHydrationRef.current !== hydrationId) {
+      if (
+        draftAttachmentHydrationRef.current !== hydrationId ||
+        JSON.stringify(draftControls.getAttachmentState()?.refs) !==
+          JSON.stringify(state.refs)
+      ) {
+        return;
+      }
+      if (syncEnabled) {
+        showToast(t("sessionDraftAttachmentsUnavailable"), "info");
         return;
       }
       console.warn(
@@ -849,12 +880,24 @@ export function NewSessionForm({
     setPendingFiles,
     showToast,
     supportsProjectQueue,
+    versionInfo,
     t,
   ]);
 
   useEffect(() => {
     void newSessionDraftKey;
     void hydrateDraftAttachments();
+  }, [hydrateDraftAttachments, newSessionDraftKey]);
+  useEffect(() => {
+    const changed = (event: Event) => {
+      if (
+        (event as CustomEvent<{ key: string }>).detail.key ===
+        newSessionDraftKey
+      )
+        void hydrateDraftAttachments();
+    };
+    window.addEventListener(DRAFT_STORAGE_EVENT, changed);
+    return () => window.removeEventListener(DRAFT_STORAGE_EVENT, changed);
   }, [hydrateDraftAttachments, newSessionDraftKey]);
 
   const addPendingFiles = useCallback(
@@ -2318,7 +2361,7 @@ export function NewSessionForm({
       }
 
       const batchId = stagedRefs[0]?.batchId;
-      if (!batchId || stagedRefs.some((ref) => ref.batchId !== batchId)) {
+      if (!batchId) {
         throw new Error("Draft attachments are split across staging batches");
       }
 

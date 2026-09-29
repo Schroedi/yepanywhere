@@ -310,6 +310,15 @@ export function decideLimitedRoute(
   const method = request.method.toUpperCase();
   const isRead = READ_METHODS.has(method);
 
+  if (
+    (method === "POST" &&
+      ["/api/drafts/read", "/api/drafts/write", "/api/drafts/clear"].includes(
+        path,
+      )) ||
+    (method === "GET" &&
+      ["/api/drafts/index", "/api/drafts/changes"].includes(path))
+  )
+    return { kind: "allow" };
   if (path === "/health") return { kind: "allow" };
   if (path === "/api/ws") {
     // The websocket upgrade itself. What may be subscribed over it, and what

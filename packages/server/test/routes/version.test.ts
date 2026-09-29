@@ -270,3 +270,13 @@ describe("Version Routes", () => {
     ).toContain(PROVIDER_HOST_CONTROL_CAPABILITY);
   });
 });
+
+it("advertises draft synchronization only when its SQLite-backed store is ready", () => {
+  expect(getServerCapabilities()).not.toContain("draft-sync-v1");
+  expect(
+    getServerCapabilities({ getDraftSyncAvailable: () => false }),
+  ).not.toContain("draft-sync-v1");
+  expect(
+    getServerCapabilities({ getDraftSyncAvailable: () => true }),
+  ).toContain("draft-sync-v1");
+});

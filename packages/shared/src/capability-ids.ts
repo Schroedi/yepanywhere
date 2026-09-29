@@ -636,6 +636,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "project-live-preview",
     introducedIn: "0.9.4",
   },
+  draftSync: {
+    id: 103,
+    direction: "server",
+    name: "draft-sync-v1",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

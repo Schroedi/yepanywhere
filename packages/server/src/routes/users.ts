@@ -32,6 +32,7 @@ import { getAuthenticatedSrpTransport } from "../middleware/authenticated-transp
 import { recordAuthEvent } from "../security/authAuditLog.js";
 
 export interface UsersRoutesDeps {
+  forgetDrafts?: (username: string) => void;
   limitedUsers: LimitedUsersService;
   authService: AuthService;
   isEnabled: () => boolean;
@@ -362,6 +363,7 @@ export function createUsersRoutes(deps: UsersRoutesDeps): Hono {
     await deps.revokeUserLogins(username);
     // Deleting a user takes their usage history with them.
     await deps.userUsage?.forgetUser(username);
+    deps.forgetDrafts?.(username);
     return c.json({ success: true });
   });
 

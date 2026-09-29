@@ -490,6 +490,7 @@ export interface DeviceBridgeStatus {
 }
 
 export interface VersionRouteOptions {
+  getDraftSyncAvailable?: () => boolean;
   vhostAppControlAvailable?: boolean;
   getExperimentalConversationAvailable?: () => boolean;
   /** Read retained startup state; never probe storage in the version route. */
@@ -579,6 +580,8 @@ function getCapabilitiesForDeviceBridgeState(
 
 export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   const capabilities: string[] = [...BASE_CAPABILITIES];
+  if (options?.getDraftSyncAvailable?.())
+    capabilities.push(SERVER_CAPABILITIES.draftSync.name);
   capabilities.push(SERVER_CAPABILITIES.vhostBearerAccess.name);
   if (options?.vhostAppControlAvailable)
     capabilities.push(SERVER_CAPABILITIES.vhostAppControl.name);

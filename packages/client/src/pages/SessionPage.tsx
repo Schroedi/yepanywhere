@@ -1,3 +1,4 @@
+import { DRAFT_STORAGE_EVENT } from "../lib/draftSyncStorage";
 import { SessionIssuesLink } from "../components/SessionIssuesLink";
 import { useNonHumanUserTurnNavigation } from "../hooks/useNonHumanUserTurnNavigation";
 import { useSessionMessageNavigation } from "../hooks/useSessionMessageNavigation";
@@ -4471,12 +4472,29 @@ function SessionPageContent({
         return;
       }
 
+      const syncEnabled = serverHasCapability(
+        versionInfo,
+        SERVER_CAPABILITIES.draftSync.name,
+      );
+      if (syncEnabled)
+        setComposerAttachments(state.refs, {
+          persistDraft: false,
+          revokeRemovedPreviewUrls: true,
+        });
       const hydrationId = draftAttachmentHydrationRef.current + 1;
       draftAttachmentHydrationRef.current = hydrationId;
 
       try {
         const refs = await validateDraftAttachmentRefs(sourceTransport, state);
-        if (draftAttachmentHydrationRef.current !== hydrationId) {
+        if (
+          draftAttachmentHydrationRef.current !== hydrationId ||
+          JSON.stringify(controls.getAttachmentState()?.refs) !==
+            JSON.stringify(state.refs)
+        ) {
+          return;
+        }
+        if (syncEnabled && refs.length !== state.refs.length) {
+          showToast(t("sessionDraftAttachmentsUnavailable"), "info");
           return;
         }
         const nextState = createComposerDraftAttachmentState(refs);
@@ -4487,7 +4505,15 @@ function SessionPageContent({
           revokeRemovedPreviewUrls: true,
         });
       } catch (err) {
-        if (draftAttachmentHydrationRef.current !== hydrationId) {
+        if (
+          draftAttachmentHydrationRef.current !== hydrationId ||
+          JSON.stringify(controls.getAttachmentState()?.refs) !==
+            JSON.stringify(state.refs)
+        ) {
+          return;
+        }
+        if (syncEnabled) {
+          showToast(t("sessionDraftAttachmentsUnavailable"), "info");
           return;
         }
         console.warn(
@@ -4508,6 +4534,7 @@ function SessionPageContent({
       setComposerAttachments,
       showToast,
       stagedAttachmentUploadsEnabled,
+      versionInfo,
       t,
     ],
   );
@@ -4557,6 +4584,16 @@ function SessionPageContent({
   useEffect(() => {
     void sessionDraftKey;
     void hydrateDraftAttachments();
+  }, [hydrateDraftAttachments, sessionDraftKey]);
+  useEffect(() => {
+    const changed = (event: Event) => {
+      if (
+        (event as CustomEvent<{ key: string }>).detail.key === sessionDraftKey
+      )
+        void hydrateDraftAttachments();
+    };
+    window.addEventListener(DRAFT_STORAGE_EVENT, changed);
+    return () => window.removeEventListener(DRAFT_STORAGE_EVENT, changed);
   }, [hydrateDraftAttachments, sessionDraftKey]);
 
   const transferBtwTurnToMotherComposer = useCallback(

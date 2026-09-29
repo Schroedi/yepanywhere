@@ -1,4 +1,10 @@
 {
+  "draftSyncLocalFailure": "Your draft could not be saved on this device. Keep this page open.",
+  "draftSyncRecovery": "A saved draft needs recovery. Your text is retained.",
+  "draftSyncRetry": "Retry",
+  "draftSyncWaiting": "Draft saved locally. Sync is waiting.",
+  "draftSyncPending": "Another device changed a draft. Your text is retained.",
+  "draftSyncReview": "Combine drafts",
   "usersInstructionsEmpty": "No additional instructions.",
   "usersInstructionLabel": "Instruction {number}",
   "usersInstructionPlaceholder": "Write an instruction…",

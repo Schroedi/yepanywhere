@@ -1,3 +1,5 @@
+import { DraftStore } from "./drafts/DraftStore.js";
+import { createDraftRoutes } from "./routes/drafts.js";
 import { ConversationSubscriptions } from "./experimental/conversation-subscriptions.js";
 import { ComputerControlService } from "./computer-control/service.js";
 import { createComputerControlRoutes } from "./routes/computer-control.js";
@@ -769,6 +771,25 @@ export function createApp(options: AppOptions): AppResult {
     onError: (error) =>
       console.warn("[DiscoverySqlite] Storage failed:", error),
   });
+  const draftDatabase = discoverySqlite.getDatabase();
+  let draftStore: DraftStore | undefined;
+  if (draftDatabase) {
+    try {
+      draftStore = new DraftStore(draftDatabase);
+    } catch (error) {
+      console.warn("[DraftSync] Storage unavailable:", error);
+    }
+  }
+  const draftCleanup = draftStore
+    ? setInterval(() => {
+        try {
+          draftStore?.cleanup();
+        } catch (error) {
+          console.warn("[DraftSync] Cleanup failed:", error);
+        }
+      }, 60_000)
+    : undefined;
+  draftCleanup?.unref();
   const projectStoragePolicy =
     options.projectStoragePolicy ??
     new ProjectStoragePolicy({
@@ -784,6 +805,10 @@ export function createApp(options: AppOptions): AppResult {
       maxUploadSizeBytes: options.maxUploadSizeBytes,
       storagePolicy: projectStoragePolicy,
     });
+  if (draftStore)
+    attachmentStagingService.setDraftProtection(
+      (username, id) => draftStore?.protects(username ?? "", id) ?? false,
+    );
   options.projectQueueService?.setAttachmentStagingService(
     attachmentStagingService,
   );
@@ -911,6 +936,7 @@ export function createApp(options: AppOptions): AppResult {
     app.route(
       "/api/users",
       createUsersRoutes({
+        forgetDrafts: (username) => draftStore?.deleteOwner(username),
         limitedUsers: limitedUsersService,
         authService,
         isEnabled: isLimitedUsersEnabled,
@@ -1354,6 +1380,8 @@ export function createApp(options: AppOptions): AppResult {
     options.speechBackendRegistry?.setVocabularySource(undefined);
     await vocabularyKeyterms?.close();
     await vocabularyLearning?.close();
+    if (draftCleanup) clearInterval(draftCleanup);
+    draftStore?.close();
     discoverySqlite.close();
     await retainedCollections?.dispose();
     await projectQueueScheduler?.dispose();
@@ -2214,6 +2242,7 @@ export function createApp(options: AppOptions): AppResult {
       getExperimentalConversationAvailable: () =>
         Boolean(conversationSubscriptions),
       getSqliteStatus: () => discoverySqlite.getStatus(),
+      getDraftSyncAvailable: () => Boolean(draftStore),
       getIssueAssociationsAvailable: () => Boolean(issueIndexer),
       vhostAppControlAvailable,
       getArtifactViewerStatus: () => ({
@@ -2675,6 +2704,16 @@ export function createApp(options: AppOptions): AppResult {
     "/api/experimental/conversation",
     createExperimentalConversationRoutes(conversationSubscriptions),
   );
+  if (draftStore)
+    app.route(
+      "/api/drafts",
+      createDraftRoutes({
+        store: draftStore,
+        staging: attachmentStagingService,
+        scanner,
+        sessions: sessionAccessResolver,
+      }),
+    );
   const issueDatabase = discoverySqlite.getDatabase();
   if (issueDatabase && options.serverSettingsService) {
     const catalog = retainedCollections;

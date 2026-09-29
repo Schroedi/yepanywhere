@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  draftSync: {
+    name: "draft-sync-v1",
+    index: CAPABILITY_ID_ALLOCATIONS.draftSync.id,
+    introducedIn: "0.9.4",
+  },
   vhostBearerAccess: {
     name: "vhost-bearer-access",
     index: CAPABILITY_ID_ALLOCATIONS.vhostBearerAccess.id,
@@ -910,6 +915,35 @@ export const SERVER_CAPABILITIES = {
       kind: "permanent",
       reason:
         "The allocation remains reserved when the experimental API is promoted or retired.",
+    },
+  },
+  draftSync: {
+    id: CAPABILITY_ID_ALLOCATIONS.draftSync.id,
+    name: "draft-sync-v1",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.draftSync.id,
+    },
+    description:
+      "Account-owned local-first drafts with conditional saves, clears and protected staged attachments.",
+    clientFallback:
+      "Keep local drafts and existing uploads; send no draft synchronization requests.",
+    serverContract: {
+      routes: [
+        "POST /api/drafts/read",
+        "POST /api/drafts/write",
+        "POST /api/drafts/clear",
+        "GET /api/drafts/index",
+        "GET /api/drafts/changes",
+      ],
+      routeModules: ["packages/server/src/routes/drafts.ts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Requires ready SQLite draft storage.",
     },
   },
   issueSessionAssociations: {
