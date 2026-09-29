@@ -120,6 +120,7 @@ import {
   settingsCategoryIcons,
 } from "./SettingsCategoryIcons";
 import { CommittedRangeInput } from "../../components/ui/CommittedRangeInput";
+import { InnerHtml } from "../../components/ui/InnerHtml";
 import { CommittedRangeNumberInput } from "../../components/ui/CommittedRangeNumberInput";
 import { SelectionActionButton } from "../../components/ui/SelectionActionCluster";
 import {
@@ -1941,12 +1942,11 @@ export function AppearanceSettings() {
                   </pre>
                   <p>
                     Inline math:{" "}
-                    <span
+                    {/* KaTeX output from a static settings preview sample. */}
+                    <InnerHtml
+                      as="span"
                       className="output-preview-math"
-                      // biome-ignore lint/security/noDangerouslySetInnerHtml: KaTeX output is generated from a static settings preview sample
-                      dangerouslySetInnerHTML={{
-                        __html: outputInlineMathHtml,
-                      }}
+                      trustedHtml={outputInlineMathHtml}
                     />
                   </p>
                   <ul>

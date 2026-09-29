@@ -38,6 +38,7 @@ import {
   renderFixedFontMath,
   renderFixedFontRichContent,
 } from "../../ui/FixedFontMathToggle";
+import { InnerHtml } from "../../ui/InnerHtml";
 import { RenderModeGlyph } from "../../ui/RenderModeGlyph";
 import type {
   ImageFile,
@@ -122,11 +123,8 @@ function getReadInputLineRange(input: ReadInput): {
 function renderReadMathPanel(html: string) {
   return (
     <div className="file-viewer-code fixed-font-rendered-panel">
-      <div
-        className="fixed-font-rendered__content"
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: KaTeX output is trusted HTML from local rendering
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+      {/* KaTeX output is trusted HTML from local rendering. */}
+      <InnerHtml className="fixed-font-rendered__content" trustedHtml={html} />
     </div>
   );
 }

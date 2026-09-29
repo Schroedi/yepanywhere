@@ -163,6 +163,33 @@ menu.
    clears that old range before the browser chooses its text-drag path, so the
    press starts a fresh selection. Editable controls retain native selected-text
    dragging for moving text within the composer or another field.
+
+   **Drag selection during live activity.** A primary mouse drag in the
+   transcript runs from the press point to the pointer however much agent
+   activity (streamed text, tool rows, status, new turns) arrives while the
+   button is held, and on release the range stays selected for Ctrl+C. Three
+   mechanisms own this:
+   - *The view holds still under a held button.* A press on transcript
+     content while following stops following for the press, so new output
+     does not slide text out from under the pointer. Releasing within 3 px of
+     the press (a click) resumes following; a drag leaves the view where the
+     reader selected, as any transcript selection does.
+   - *Unchanged markup never touches the DOM.* React 19 rewrites
+     `innerHTML` whenever a `dangerouslySetInnerHTML` object is new, even for
+     identical markup, and a rewrite under the drag's start makes the browser
+     restart the selection at the pointer on every move (observed live: the
+     highlight collapsed before release). Every such prop goes through
+     `InnerHtml`/`useInnerHtml` or a module constant, enforced by a source
+     test, and imperative streaming writes go through
+     `setInnerHtmlIfChanged`.
+   - *The drag keeps its start.* `useTranscriptDragSelection` records the
+     caret the browser placed on press. While the browser's drag keeps
+     starting there it writes nothing; once a move shows the browser lost that
+     start, it cancels the remaining moves' default handling and spans press
+     point → pointer itself through release. Word/line-granularity drags,
+     Shift-extension, and presses on interactive controls stay native.
+
+   Regression: `packages/client/e2e/selection-during-activity.spec.ts`.
 3. **Context menu over selected text.** Right-clicking inside a non-empty,
    registered selection opens direct **Copy text**, **Copy Markdown**, **Quote
    reply**, and **New session** rows, omitting actions whose destination is not

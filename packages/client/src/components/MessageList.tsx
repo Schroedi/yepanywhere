@@ -44,6 +44,7 @@ import { useMessageListSelectionQuote } from "../hooks/useMessageListSelectionQu
 import { useRelativeNow } from "../hooks/useRelativeNow";
 import { useRecentProjectPathLinks } from "../hooks/useRecentProjectPathLinks";
 import { useTranscriptRenderWindow } from "../hooks/useTranscriptRenderWindow";
+import { useTranscriptDragSelection } from "../hooks/useTranscriptDragSelection";
 import { useTranscriptMarginNavigation } from "../hooks/useTranscriptMarginNavigation";
 import { useI18n } from "../i18n";
 import {
@@ -473,6 +474,8 @@ const BOTTOM_FOLLOW_VIEWPORT_FRACTION = 0.45;
 const FOLLOW_CATCH_UP_DELAYS_MS = [50, 120, 240, 480, 960, 1600, 2400];
 const SEND_CATCH_UP_DELAYS_MS = [80, 240, 640];
 const TOUCH_SCROLL_CANCEL_THRESHOLD_PX = 6;
+/** A follow-pausing press that moves less than this was a click. */
+const FOLLOW_PRESS_CLICK_DISTANCE_PX = 3;
 const USER_TURN_NAV_SCROLL_OFFSET_PX = 12;
 const USER_TURN_NAV_VISIBILITY_TOLERANCE_PX = 1;
 const EMPTY_RENDER_ID_SET: ReadonlySet<string> = new Set();
@@ -1681,6 +1684,9 @@ export const MessageList = memo(function MessageList({
   const lastHeightRef = useRef(0);
   const lastFollowScrollTopRef = useRef(0);
   const touchStartYRef = useRef<number | null>(null);
+  // A primary-button press on transcript content that interrupted follow,
+  // with where it started, so a plain click can resume following.
+  const followPressRef = useRef<{ x: number; y: number } | null>(null);
   const followUpScrollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const forcedCurrentScrollTimersRef = useRef<ReturnType<typeof setTimeout>[]>(
     [],
@@ -4319,8 +4325,20 @@ export const MessageList = memo(function MessageList({
     };
 
     const handlePointerDown = (event: PointerEvent) => {
+      followPressRef.current = null;
       if (event.button !== 0 || isInteractiveScrollTarget(event.target)) {
         return;
+      }
+      if (
+        event.pointerType === "mouse" &&
+        shouldAutoScrollRef.current &&
+        event.target instanceof Node &&
+        content.contains(event.target)
+      ) {
+        // Hold the view still while the button is down: following new output
+        // would slide the text out from under a drag selection in progress.
+        stopFollowingForUserScroll(container);
+        followPressRef.current = { x: event.clientX, y: event.clientY };
       }
       const scrollbarWidth = container.offsetWidth - container.clientWidth;
       if (scrollbarWidth <= 0) {
@@ -4333,6 +4351,20 @@ export const MessageList = memo(function MessageList({
         // the explicit transcript gesture own subsequent native page keys
         // instead of leaving them attached to the composer or document body.
         container.focus({ preventScroll: true });
+      }
+    };
+
+    const handlePointerRelease = (event: PointerEvent) => {
+      const press = followPressRef.current;
+      followPressRef.current = null;
+      if (!press) return;
+      // A click resumes following; a drag leaves the view where the reader
+      // made their selection, as any selection in the transcript does.
+      if (
+        Math.hypot(event.clientX - press.x, event.clientY - press.y) <
+        FOLLOW_PRESS_CLICK_DISTANCE_PX
+      ) {
+        scrollToBottom(container);
       }
     };
 
@@ -4394,6 +4426,8 @@ export const MessageList = memo(function MessageList({
       passive: true,
     });
     container.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("pointerup", handlePointerRelease, true);
+    document.addEventListener("pointercancel", handlePointerRelease, true);
     document.addEventListener("selectionchange", handleSelectionChange);
     document.addEventListener("keydown", handleKeyDown, true);
 
@@ -4404,6 +4438,9 @@ export const MessageList = memo(function MessageList({
       container.removeEventListener("touchend", handleTouchEnd);
       container.removeEventListener("touchcancel", handleTouchEnd);
       container.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("pointerup", handlePointerRelease, true);
+      document.removeEventListener("pointercancel", handlePointerRelease, true);
+      followPressRef.current = null;
       document.removeEventListener("selectionchange", handleSelectionChange);
       document.removeEventListener("keydown", handleKeyDown, true);
       if (keyboardOlderLoadFrameRef.current !== null) {
@@ -4411,7 +4448,8 @@ export const MessageList = memo(function MessageList({
         keyboardOlderLoadFrameRef.current = null;
       }
     };
-  }, [inert, stopFollowingForUserScroll]);
+  }, [inert, scrollToBottom, stopFollowingForUserScroll]);
+  useTranscriptDragSelection(containerRef, isInteractiveScrollTarget, inert);
 
   // Follow both content changes and space reserved by composer-adjacent panels.
   useEffect(() => {
