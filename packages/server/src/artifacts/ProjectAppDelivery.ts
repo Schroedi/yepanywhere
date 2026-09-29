@@ -5,7 +5,7 @@ import type {
   ProjectAppReservation,
 } from "../projects/ProjectAppStore.js";
 import type {
-  ProjectServiceManager,
+  ProjectServices,
   ProjectServiceUpstream,
 } from "../projects/ProjectServiceManager.js";
 import type { ArtifactServer } from "./ArtifactServer.js";
@@ -25,7 +25,7 @@ export class ProjectAppDelivery {
   readonly ready: Promise<void>;
   constructor(
     private readonly artifacts: ArtifactServer,
-    private readonly services: ProjectServiceManager,
+    private readonly services: ProjectServices,
     private readonly store: ProjectAppStore,
     private readonly staticApp?: (
       projectId: string,
@@ -42,12 +42,19 @@ export class ProjectAppDelivery {
 
   async refreshHosts(): Promise<void> {
     const rows = await this.store.allReservations();
-    this.artifacts.registerProjectHosts(
-      rows.flatMap((row) => [
+    const live = await this.services.listUpstreams();
+    this.artifacts.registerProjectHosts([
+      ...rows.flatMap((row) => [
         `${row.name}.localhost`,
         `${row.name}.${row.namespace}`,
       ]),
-    );
+      ...live.flatMap((upstream) => [
+        `app-${upstream.token}.localhost`,
+        ...(this.artifacts.config.vhostPublicRoot
+          ? [`app-${upstream.token}.${this.artifacts.config.vhostPublicRoot}`]
+          : []),
+      ]),
+    ]);
   }
 
   async validateConfig(config: ArtifactConfig): Promise<void> {
@@ -64,7 +71,7 @@ export class ProjectAppDelivery {
   ): Promise<ProjectAppView> {
     await this.ready;
     await this.artifacts.ready;
-    const upstream = this.services.upstream(projectId);
+    const upstream = await this.services.upstream(projectId);
     if (!upstream)
       throw new HTTPException(409, {
         message: "Project service is not running",
@@ -163,7 +170,7 @@ export class ProjectAppDelivery {
     proxy = proxyLoopbackVhost,
   ): Promise<Response> {
     await this.ready;
-    const upstream = this.services.upstreamForToken(token);
+    const upstream = await this.services.upstreamForToken(token);
     if (!upstream?.basePath)
       return new Response("Project app unavailable", { status: 404 });
     const url = new URL(request.url);
@@ -273,11 +280,11 @@ export class ProjectAppDelivery {
         public: reservation.public,
       };
       upstream = reservation.serving
-        ? this.services.upstream(reservation.projectId)
+        ? await this.services.upstream(reservation.projectId)
         : null;
     } else {
       const match = /^app-([a-f0-9]{48})\./.exec(hostname ?? "");
-      upstream = match ? this.services.upstreamForToken(match[1]!) : null;
+      upstream = match ? await this.services.upstreamForToken(match[1]!) : null;
       if (!upstream)
         return new Response("Project app unavailable", { status: 503 });
       const localHost = `app-${upstream.token}.localhost`;

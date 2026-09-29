@@ -22,7 +22,10 @@ export class VhostAccess {
   private secret = randomBytes(32);
   private generations: Record<string, number> = {};
   private writing = Promise.resolve();
-  constructor(private readonly directory?: string) {
+  constructor(
+    private readonly directory?: string,
+    private readonly onRevoke?: (row: AppAccessTarget) => void,
+  ) {
     this.ready = this.load();
   }
   private async load() {
@@ -96,6 +99,7 @@ export class VhostAccess {
         await writeFileAtomically(file, JSON.stringify(next));
       }
       this.generations = next;
+      this.onRevoke?.(row);
     });
     this.writing = operation;
     await operation;

@@ -10,7 +10,7 @@ import { isPathInsideDirectory } from "../routes/local-resource-policy.js";
 import { writeFileAtomically } from "../utils/writeFileAtomically.js";
 import { ProjectServiceProcess } from "./ProjectServiceProcess.js";
 
-const recordSchema = z.strictObject({
+export const projectServiceRecordSchema = z.strictObject({
   generation: z.string().uuid(),
   declaration: projectServiceSchema,
   desired: z.enum(["running", "stopped"]),
@@ -18,8 +18,16 @@ const recordSchema = z.strictObject({
   updatedAt: z.string(),
   error: z.string().optional(),
   mode: z.enum(["app", "live-preview"]).default("app"),
+  owner: z.enum(["server", "provider-host"]).default("server"),
 });
-type ServiceRecord = z.infer<typeof recordSchema>;
+type ServiceRecord = z.infer<typeof projectServiceRecordSchema>;
+export type ProjectServices = {
+  [K in keyof ProjectServiceManager]: ProjectServiceManager[K] extends (
+    ...args: infer A
+  ) => infer R
+    ? (...args: A) => R | Promise<Awaited<R>>
+    : ProjectServiceManager[K];
+};
 type LiveService = {
   record: ServiceRecord;
   process: ProjectServiceProcess;
@@ -95,7 +103,11 @@ export class ProjectServiceManager {
   private closed = false;
   private readonly directory: string;
 
-  constructor(private readonly dataDir: string) {
+  constructor(
+    private readonly dataDir: string,
+    private readonly owner: "server" | "provider-host" = "server",
+    private readonly onSpawn?: (pid: number) => () => void,
+  ) {
     this.directory = join(dataDir, "project-services");
   }
 
@@ -127,10 +139,17 @@ export class ProjectServiceManager {
         error: live.process.error,
       };
     try {
-      const saved = recordSchema.parse(
+      const saved = projectServiceRecordSchema.parse(
         JSON.parse(await readFile(this.file(projectId), "utf8")),
       );
       if (["starting", "running", "stopping"].includes(saved.observed)) {
+        if (saved.owner === "provider-host" && this.owner === "server")
+          return {
+            ...saved,
+            observed: "failed",
+            error:
+              "App belongs to the provider host; enable hosting to inspect or stop it",
+          };
         return {
           ...saved,
           observed: "stopped",
@@ -165,6 +184,13 @@ export class ProjectServiceManager {
     return this.live.has(projectId);
   }
 
+  listUpstreams(): ProjectServiceUpstream[] {
+    return [...this.live.keys()].flatMap((projectId) => {
+      const upstream = this.upstream(projectId);
+      return upstream ? [upstream] : [];
+    });
+  }
+
   upstreamForToken(token: string): ProjectServiceUpstream | null {
     for (const [projectId, service] of this.live)
       if (service.token === token) return this.upstream(projectId);
@@ -196,6 +222,15 @@ export class ProjectServiceManager {
     return this.serial(projectId, async () => {
       if (this.closed) throw new Error("Project services are shutting down");
       await authorize();
+      const saved = await this.status(projectId);
+      if (
+        saved?.owner === "provider-host" &&
+        this.owner === "server" &&
+        saved.desired === "running"
+      )
+        throw new Error(
+          "App belongs to the provider host; enable hosting before starting another app",
+        );
       const previous = this.live.get(projectId);
       if (
         previous?.process.state === "running" &&
@@ -221,6 +256,7 @@ export class ProjectServiceManager {
         token,
         basePath,
         record: {
+          owner: this.owner,
           mode,
           generation: randomUUID(),
           declaration,
@@ -228,22 +264,25 @@ export class ProjectServiceManager {
           observed: "starting",
           updatedAt: new Date().toISOString(),
         },
-        process: new ProjectServiceProcess({
-          projectPath,
-          cwd: declaration.where.cwd,
-          argv: declaration.start.argv,
-          portEnv: declaration.start.portEnv,
-          readyPath: basePath
-            ? `${basePath}${declaration.status.path.slice(1)}`
-            : declaration.status.path,
-          readyStatus: declaration.status.readyStatus,
-          startupTimeoutMs: declaration.status.startupTimeoutMs,
-          stopGraceMs: declaration.stop.graceMs,
-          sandboxStateRoot: join(this.dataDir, "session-sandboxes"),
-          basePath: declaration.serving.basePathEnv
-            ? { env: declaration.serving.basePathEnv, value: basePath }
-            : undefined,
-        }),
+        process: new ProjectServiceProcess(
+          {
+            projectPath,
+            cwd: declaration.where.cwd,
+            argv: declaration.start.argv,
+            portEnv: declaration.start.portEnv,
+            readyPath: basePath
+              ? `${basePath}${declaration.status.path.slice(1)}`
+              : declaration.status.path,
+            readyStatus: declaration.status.readyStatus,
+            startupTimeoutMs: declaration.status.startupTimeoutMs,
+            stopGraceMs: declaration.stop.graceMs,
+            sandboxStateRoot: join(this.dataDir, "session-sandboxes"),
+            basePath: declaration.serving.basePathEnv
+              ? { env: declaration.serving.basePathEnv, value: basePath }
+              : undefined,
+          },
+          this.onSpawn,
+        ),
       };
       this.live.set(projectId, service);
       try {
@@ -271,6 +310,12 @@ export class ProjectServiceManager {
       if (!service) {
         const saved = await this.status(projectId);
         if (!saved) return null;
+        if (
+          saved.owner === "provider-host" &&
+          this.owner === "server" &&
+          saved.desired === "running"
+        )
+          throw new Error("Enable provider hosting to stop its app");
         const stopped = {
           ...saved,
           desired: "stopped" as const,

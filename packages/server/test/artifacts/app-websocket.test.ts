@@ -114,3 +114,23 @@ it("refuses missing credentials and cross-origin cookie upgrades before upstream
     expect(wss.clients.size).toBe(0);
   }
 });
+
+it("revokes an established socket without stopping its app", async () => {
+  const { artifacts, address, token } = await setup();
+  const socket = new WebSocket(`${address}?ya_access=${token}`, {
+    headers: { host: "canvas.localhost:4402" },
+  });
+  await once(socket, "open");
+  const closed = once(socket, "close");
+  await artifacts.vhostAccess.rotate(artifacts.config.vhosts![0]!);
+  await closed;
+  const replacement = new WebSocket(
+    `${address}?ya_access=${artifacts.vhostAccess.token(artifacts.config.vhosts![0]!)}`,
+    { headers: { host: "canvas.localhost:4402" } },
+  );
+  await once(replacement, "open");
+  const echoed = once(replacement, "message");
+  replacement.send("still running");
+  expect(String((await echoed)[0])).toBe("still running");
+  replacement.close();
+});

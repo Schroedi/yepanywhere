@@ -131,8 +131,9 @@ Contributing-model: 6-Astra.
   static app and optional Live preview service. Persistent artifact association,
   the YA-owned sandbox runner and manual address publication are implemented
   under [project service](../topics/project-service.md); they do not depend on
-  retaining a preparation session's loopback server. Surviving YA itself
-  restarting remains an optional [lifecycle direction](sketches/app-lifecycle.md).
+  retaining a preparation session's loopback server. With provider hosting
+  enabled, apps survive Hono replacement under the
+  [managed lifecycle](../topics/project-service.md#managed-app-lifetime).
 - Approved administrator controls, 2026-09-28: a per-limited-user choice of
   whether standard harness-global instructions are imported into its isolated
   harness home, and administrator-editable instructions before and after

@@ -239,8 +239,9 @@ files, launch competing builds, or reload the frame on a timer. Failed updates
 remain visible through Vite's error overlay; the previous working page is not
 replaced by a broken `dist/` build. Startup errors retain a bounded log tail.
 Preview processes have the same explicit lifetime as other project services;
-turn the toggle off to release their watchers. YA restart reports interruption
-and requires another explicit start.
+turn the toggle off to release their watchers. With provider hosting enabled,
+preview survives replacement of the web server while its host remains alive.
+Loss of the runtime owner requires another explicit start.
 
 **Decision:** use the template's existing dev server rather than a second YA
 build watcher. This preserves framework HMR and error handling, and confines
@@ -276,12 +277,60 @@ widen it. Reuse the enforced sandbox launcher and private runtime directories
 rather than treating `cwd` as confinement. Static output may be read and
 served by YA without executing project code on the host.
 
-Persist declaration identity and desired/observed state in YA app data. A YA
-restart reconciles an authenticated, owned runtime before reporting Running;
-otherwise mark it stopped/interrupted. Never adopt an unrelated listener or
-trust a recycled PID. Provider-host survival is a later implementation choice,
-not a claim of automatic restart. Stop tears down the owned sandbox and
-broker after the app exits, and retains the declaration and name reservation.
+Persist declaration identity, runtime owner and desired/observed state in YA
+app data. Never adopt an unrelated listener or trust a recycled PID. Stop tears
+down the owned sandbox and broker after the app exits, retaining the declaration,
+working files and name reservation.
+
+### Managed app lifetime
+
+When a compatible provider host is enabled and registered, it owns one app
+worker, separate from provider-session workers. That worker runs the same
+project service manager and sandbox launcher. Hono replacement (including Safe
+Reload) reconnects through authenticated host RPC to the same launch, broker,
+port and token. Startup restores transient app-host routing as well as reserved
+names, so an existing app link remains usable. Closing Hono releases its client;
+it does not stop hosted apps. Stopping the provider host or its terminal owner
+stops its apps. This is survival of the web server, not survival of a machine
+reboot or a full wrapper/host shutdown.
+
+The private `project-services` feature is negotiated before use. Execution
+authorization stays in Hono: the worker asks the current request's registered
+controller to recheck grants at each queued lifecycle boundary. Disconnect or
+revocation refuses pending execution. Host loss fails explicitly and never
+starts an in-process replacement. A failed app worker is not automatically
+replaced inside the same host; restarting the host performs owned cleanup first.
+The owner bounds requests at 128, data directories at 32, and apps per data
+directory at 32. It uses no idle polling or heartbeat per app.
+
+With hosting intentionally disabled or unsupported, the existing in-process
+manager remains available and stops apps with Hono. Persisted host ownership
+prevents this mode from duplicating or pretending to stop an app that may still
+belong to a live host: enable hosting again to inspect or stop it. Missing owner
+fields in older records mean in-process ownership. After owner loss, persisted
+state reports interruption; automatic relaunch is not implemented.
+
+Provider hosting supports Linux and macOS Node source launches; Unix-domain
+IPC is not Linux-specific. Project service execution still requires the
+existing enforced project-write sandbox and network firewall, currently Linux.
+Neither hosting nor fallback relaxes that requirement. Static apps need no
+runner and remain independently available.
+
+Project Settings and Settings → Apps show app state and explicit Start/Stop
+separately from reserved-address serving. Dismissing the pane changes neither.
+Link authorization is independent: configured app-bearer revocation invalidates
+old links/cookies and closes app WebSockets, but does not stop the process or
+delete data. Launch links last until the owned launch ends; persistent hostname
+links have no automatic expiry. Optional timed app links remain in
+[app access](../gaps/app-artifact-access-control.md). Artifact grants retain
+their separate expiry and declared file-ownership rules; app lifecycle actions
+never infer permission to delete working files from a path, command or port.
+
+**Decision:** reuse the optional provider host as app parent rather than adding
+an always-running app daemon or tying apps to a provider session. This reuses
+authenticated discovery, process identity and terminal cleanup while allowing
+ordinary non-hosted installations. Apps retain independent project sandboxes;
+no agent queue or provider-session lifetime is shared.
 
 ## Two delivery paths, one sandbox target
 

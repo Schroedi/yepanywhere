@@ -148,7 +148,9 @@ export class ArtifactServer {
       ...(options.protectedPaths ?? []),
       options.homeDirectory ?? homedir(),
     ];
-    this.vhostAccess = new VhostAccess(options.stateDir);
+    this.vhostAccess = new VhostAccess(options.stateDir, (row) =>
+      this.appSockets.revokeApp(row.name),
+    );
     this.ready = Promise.all([this.restore(), this.vhostAccess.ready]).then(
       () => {},
     );

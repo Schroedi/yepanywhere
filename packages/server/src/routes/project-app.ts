@@ -23,7 +23,7 @@ import {
   readProjectService,
   projectServiceStaticEntry,
   projectServiceStaticApp,
-  type ProjectServiceManager,
+  type ProjectServices,
 } from "../projects/ProjectServiceManager.js";
 import type { ProjectScanner } from "../projects/scanner.js";
 import type { Principal } from "../auth/principal.js";
@@ -41,7 +41,7 @@ const openRequest = z.strictObject({
 export function createProjectAppRoutes(deps: {
   scanner: Pick<ProjectScanner, "getProject" | "listProjects">;
   store: ProjectAppStore;
-  services: ProjectServiceManager;
+  services: ProjectServices;
   artifacts: ArtifactServer;
   sessionAccess: SessionAccessResolver;
   sessionPathScope: SessionPathScopeResolver;
@@ -145,7 +145,7 @@ export function createProjectAppRoutes(deps: {
       info.error = error instanceof Error ? error.message : String(error);
     }
     const runtime = await deps.services.status(project.id);
-    if (runtime && deps.services.ownsLaunch(project.id)) {
+    if (runtime && (await deps.services.ownsLaunch(project.id))) {
       info.mode = runtime.mode;
       info.activeDeclaration = runtime.declaration;
       info.restartRequired =
@@ -313,7 +313,7 @@ export function createProjectAppRoutes(deps: {
       id = association.id;
       kind = "artifact";
     } else {
-      if (deps.services.upstream(project.id))
+      if (await deps.services.upstream(project.id))
         return c.json(await deps.openService(project.id, request.audience));
       const declaration = await readProjectService(project.path);
       if (!declaration)

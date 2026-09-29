@@ -2,15 +2,21 @@ import { request, type IncomingMessage } from "node:http";
 import { connect } from "node:net";
 import type { Duplex } from "node:stream";
 import { outgoingHeaders, type proxyLoopbackVhost } from "./vhost-proxy.js";
+import { hostnameFromHostHeader } from "./vhosts.js";
 
 export type AppProxy = typeof proxyLoopbackVhost;
 
 /** Own upgrades separately from YA control sockets; dispatch retains HTTP authorization. */
 export class AppWebSocketProxy {
-  private readonly connections = new Set<() => void>();
+  private readonly connections = new Map<() => void, string>();
 
   close(): void {
-    for (const close of this.connections) close();
+    for (const close of this.connections.keys()) close();
+  }
+
+  revokeApp(name: string): void {
+    for (const [close, host] of this.connections)
+      if (host.startsWith(`${name}.`)) close();
   }
 
   async handle(
@@ -41,7 +47,10 @@ export class AppWebSocketProxy {
       timer = setTimeout(close, 5 * 60_000);
       timer.unref();
     };
-    this.connections.add(close);
+    this.connections.set(
+      close,
+      hostnameFromHostHeader(incoming.headers.host ?? "") ?? "",
+    );
     socket.on("error", close);
     socket.on("close", close);
     const reject = (status: number) => {

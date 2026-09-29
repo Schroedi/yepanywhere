@@ -469,7 +469,8 @@ leftmost entry is only as trustworthy as the proxy that wrote it.
 
 **Copy app link** and **Revoke existing links** live beside each saved vhost.
 Revocation durably increments that app's generation and rejects old URLs and
-cookies on subsequent requests. It does not stop the app or erase already
+cookies on subsequent requests and closes established app WebSockets. It does
+not stop the app or erase already
 received content. App links have no automatic expiry in this version.
 Browsers that prohibit embedded cookies may require opening the signed link
 in a new tab; broader browser verification remains tracked in the access gap.
@@ -494,8 +495,9 @@ upstream; upstream Set-Cookie is not forwarded in a 101 response.
 
 The upstream is the configured loopback port or the active sandbox's broker,
 never a target supplied by the upgrade request. Authorization is checked on
-each connection; revocation rejects subsequent connections, not already
-received data. Connections are capped at 128, handshakes at ten seconds, and
+each connection; revocation closes that hostname's established connections and
+rejects subsequent connections, without erasing already received data.
+Connections are capped at 128, handshakes at ten seconds, and
 idle connections at five minutes. Disconnect, upstream exit, app-server close,
 and serving-configuration changes tear down owned sockets. Stopping the owned
 service closes its broker connections. HTTP/SSE continue through their existing

@@ -48,7 +48,10 @@ export class ProjectServiceProcess {
   private started = false;
   private stopRequested = false;
 
-  constructor(private readonly command: ProjectServiceCommand) {}
+  constructor(
+    private readonly command: ProjectServiceCommand,
+    private readonly onSpawn?: (pid: number) => () => void,
+  ) {}
 
   get brokerSocket(): string | undefined {
     return this.child?.pid && this.state === "running"
@@ -103,6 +106,7 @@ export class ProjectServiceProcess {
         wrapped.release();
       }
       this.child = child;
+      let releaseOwnership: (() => void) | undefined;
       child.stdin?.end();
       for (const [stream, source] of [
         [child.stdout, "stdout"],
@@ -121,6 +125,7 @@ export class ProjectServiceProcess {
           this.state = "failed";
         });
         child.once("close", (code, signal) => {
+          releaseOwnership?.();
           if (this.state === "stopping") this.state = "stopped";
           else {
             this.state = "failed";
@@ -130,6 +135,7 @@ export class ProjectServiceProcess {
           done();
         });
       });
+      if (child.pid) releaseOwnership = this.onSpawn?.(child.pid);
       const deadline = Date.now() + this.command.startupTimeoutMs;
       while (Date.now() < deadline) {
         this.startup.signal.throwIfAborted();

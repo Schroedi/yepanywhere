@@ -91,6 +91,7 @@ import {
   projectServiceStaticApp,
 } from "./projects/ProjectServiceManager.js";
 import { ProjectAppDelivery } from "./artifacts/ProjectAppDelivery.js";
+import { HostedProjectServices } from "./projects/HostedProjectServices.js";
 import { projectAppPublicAllowed } from "./projects/projectAppPolicy.js";
 import { createProjectAccessRoutes } from "./routes/project-access.js";
 import { createProjectAppRoutes } from "./routes/project-app.js";
@@ -1162,7 +1163,9 @@ export function createApp(options: AppOptions): AppResult {
     allowedPaths: getAllowedFilePaths,
     includeProjects: shouldIncludeProjects,
   });
-  const projectServices = new ProjectServiceManager(effectiveDataDir);
+  const projectServices = isProviderRuntimeHostAvailable()
+    ? new HostedProjectServices(effectiveDataDir)
+    : new ProjectServiceManager(effectiveDataDir);
   const projectAppDelivery = new ProjectAppDelivery(
     artifactServer,
     projectServices,
