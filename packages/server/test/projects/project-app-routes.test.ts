@@ -151,6 +151,49 @@ function post(action: string, body: unknown = {}) {
   });
 }
 
+it("restricts inventory to administrators and retains orphan names for token-revoking release", async () => {
+  const orphanId = toUrlProjectId(join(root, "gone"));
+  await store.reserve(
+    {
+      projectId: orphanId,
+      namespace: "old.example",
+      name: "retained",
+      owner: "archer",
+    },
+    async () => {},
+  );
+  expect((await app.request("/api/project-apps")).status).toBe(403);
+  const release = () =>
+    app.request("/api/project-apps/address/release", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: orphanId, namespace: "old.example" }),
+    });
+  expect((await release()).status).toBe(403);
+  principal = { kind: "superuser" };
+  const inventory = await (await app.request("/api/project-apps")).json();
+  expect(inventory.projects).toHaveLength(1);
+  expect(inventory.projects[0]).toMatchObject({
+    projectId,
+    owner: "archer",
+    info: { state: "ready" },
+  });
+  expect(inventory.reservations).toMatchObject([
+    { projectId: orphanId, name: "retained" },
+  ]);
+  expect(await services.status(projectId)).toBeNull();
+  const rotate = vi.spyOn(artifacts.vhostAccess, "rotate");
+  expect((await release()).status).toBe(200);
+  expect(rotate).toHaveBeenCalledWith({
+    name: "retained",
+    projectId: orphanId,
+  });
+  expect(await store.allReservations()).toEqual([]);
+  expect(
+    (await (await app.request(`/api/projects/${projectId}/app`)).json()).state,
+  ).toBe("ready");
+});
+
 it("enforces public publishing and private-link retrieval independently, including revocation", async () => {
   artifacts.config.vhostPublicRoot = "apps.example";
   artifacts.config.publicOrigin = "https://artifacts.example";

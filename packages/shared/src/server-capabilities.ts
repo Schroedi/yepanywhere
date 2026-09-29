@@ -204,6 +204,29 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  projectAppInventory: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectAppInventory.id,
+    name: "project-app-inventory",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Administrator inventory of project apps and retained addresses.",
+    clientFallback:
+      "Keep port forwards and show an update note without inventory requests.",
+    serverContract: {
+      routes: [
+        "GET /api/project-apps",
+        "POST /api/project-apps/address/release",
+      ],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers lack global app inventory and orphan reservation release.",
+    },
+  },
   projectService: {
     id: CAPABILITY_ID_ALLOCATIONS.projectService.id,
     name: "project-service",

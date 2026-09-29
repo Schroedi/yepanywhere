@@ -103,6 +103,76 @@ test.afterAll(async () => {
   if (directory) await rm(directory, { recursive: true });
 });
 
+test("app inventory sits below port forwards and manages addresses inline", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  instance.artifactServer.config.vhostPublicRoot = "apps.example";
+  instance.artifactServer.config.vhosts = [
+    { name: "plannotator", port: 19432 },
+  ];
+  for (const size of [
+    { width: 1200, height: 600 },
+    { width: 1000, height: 600 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(size);
+    await page.goto(`${base}/settings/apps`);
+    const inventory = page.getByRole("region", {
+      name: "Project apps",
+      exact: true,
+    });
+    await expect(inventory.getByText("canvas", { exact: true })).toBeVisible();
+    await inventory
+      .getByRole("button", { name: "Manage", exact: true })
+      .click();
+    await expect(inventory.getByText("App: ready").first()).toBeVisible();
+    await expect(inventory.locator("iframe")).toHaveCount(0);
+    await expect(
+      inventory.getByRole("button", { name: "Start app" }),
+    ).toHaveCount(0);
+    const name = inventory.getByRole("textbox", {
+      name: "App name",
+      exact: true,
+    });
+    let typed = "";
+    for (const character of `garden-${size.width}`) {
+      typed += character;
+      await name.pressSequentially(character);
+      await expect(name).toHaveValue(typed, { timeout: 100 });
+    }
+    await inventory
+      .getByRole("button", { name: "Reserve address", exact: true })
+      .click();
+    await expect(
+      inventory.getByRole("button", { name: "Copy viewer link" }),
+    ).toBeVisible();
+    await inventory
+      .getByRole("button", { name: "Serve at this address", exact: true })
+      .click();
+    await expect(
+      inventory.getByRole("button", {
+        name: "Stop serving at this address",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await inventory.scrollIntoViewIfNeeded();
+    expect(
+      await inventory.evaluate(
+        (element) => element.scrollWidth <= element.clientWidth,
+      ),
+    ).toBe(true);
+    await recordUiCapture(page, `project-app-inventory-${size.width}`);
+    page.once("dialog", (dialog) => dialog.accept());
+    await inventory
+      .getByRole("button", { name: "Release address", exact: true })
+      .click();
+    await expect(name).toBeVisible();
+  }
+  instance.artifactServer.config.vhostPublicRoot = undefined;
+  instance.artifactServer.config.vhosts = [];
+});
+
 // Real browser layout, iframe retention and key-by-key acknowledgement cannot
 // be established by the route/component tests of the same API contracts.
 test("project App fills the pane and retains canvas and composer across phone switches", async ({

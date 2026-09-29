@@ -139,6 +139,23 @@ export interface ProjectAppInfo {
   removedFrom: Array<{ username: string; at: string }>;
 }
 
+export interface ProjectAppInventory {
+  projects: Array<{
+    projectId: string;
+    name: string;
+    path: string;
+    owner?: string;
+    info: ProjectAppInfo;
+  }>;
+  /** Retained claims also include unavailable projects and previous namespaces. */
+  reservations: Array<{
+    projectId: string;
+    namespace: string;
+    name: string;
+    owner: string;
+  }>;
+}
+
 export interface ProjectAppView {
   id: string;
   kind: "static" | "artifact" | "service";

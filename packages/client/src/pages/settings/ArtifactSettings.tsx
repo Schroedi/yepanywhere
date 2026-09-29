@@ -9,6 +9,7 @@ import styles from "./ArtifactSettings.module.css";
 import { useVhostAccess } from "../../hooks/useVhostAccess";
 import { sessionVhostApp } from "../../lib/sessionVhostApps";
 import { writeClipboardText } from "../../lib/clipboard";
+import { ProjectAppInventorySection } from "./ProjectAppInventorySection";
 
 export function ArtifactSettings() {
   const { sourceKey } = useCurrentSourceRuntime();
@@ -426,6 +427,7 @@ function ArtifactSettingsForm({
           </>
         )}
       </fieldset>
+      <ProjectAppInventorySection />
       {status.locked && <p>{t("artifactLocked")}</p>}
       {saving && <p role="status">{t("artifactSaving")}</p>}
       {message && <p role="status">{message}</p>}

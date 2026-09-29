@@ -92,6 +92,12 @@ export const docsNavigation: DocsNavSection[] = [
           "Make reusable project starters and share a template source.",
       },
       {
+        path: "/docs/project-apps",
+        title: "Project apps and vhosts",
+        description:
+          "Manage app services, reserved addresses and local port forwards.",
+      },
+      {
         path: "/docs/notifications-and-voice",
         title: "Notifications and voice",
         description: "Stay responsive and talk to agents from a phone.",

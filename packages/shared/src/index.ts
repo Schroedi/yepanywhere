@@ -1579,4 +1579,5 @@ export {
   type ProjectAppInfo,
   type ProjectAppView,
   type ProjectAppAddresses,
+  type ProjectAppInventory,
 } from "./project-service.js";

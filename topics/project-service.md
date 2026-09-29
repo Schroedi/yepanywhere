@@ -290,6 +290,25 @@ launch; stopping that launch remains possible even if the new file is invalid.
 
 ## App address in project Settings
 
+Administrators see **Project apps** immediately below manual Vhosts in
+Settings → Apps. This is a second surface for the same lifecycle/address
+controls, not a second service configuration. Inventory loads on entry and
+explicit Refresh, with no idle polling. It includes declarations (including
+invalid or missing builds), owned launches and retained reservations. Old-domain
+and unavailable-project reservations remain visible; administrator release
+rotates the address bearer and frees the claim without deleting files or
+stopping a service. Static apps have no Start/Stop control.
+
+`project-app-inventory` (ID 101, version-implied from 0.9.4) owns administrator
+GET `/api/project-apps` and POST `/api/project-apps/address/release`. The existing
+principal boundary denies both to limited users. Maintainer approval on
+2026-09-29 covers v0.9.0–v0.9.2, which lack the contract: older servers retain
+manual Vhosts and an update note; clients make no inventory request.
+
+Static reserved-address opens redirect to an isolated artifact bearer. Access
+changes apply at the reserved address on the next request; previously issued
+artifact grants retain their independent expiry/revocation lifecycle.
+
 Hide the entire vhost section when server vhost serving is disabled or the
 server lacks the required capability. Retain any previous association in
 storage; disabling the feature does not release a name. Re-enabling displays

@@ -97,8 +97,9 @@ API admission, association storage, direct/relay delivery and the full-height
 project/session App UI are implemented. Native sandbox and browser checks cover
 these paths. Existing static source declarations are adapted; source-library
 server add-ons still need the versioned service declaration. Fine-grained
-creation-time reservations and global orphaned-name inventory remain broader
-template work. Publication grants and private-link copy controls landed on
+creation-time reservations remain broader template work. Administrator app
+inventory and retained orphan-name release are available in Settings → Apps.
+Publication grants and private-link copy controls landed on
 2026-09-28, with server-enforced owner permissions and live revocation.
 Contributing-model: 6-Astra.
 

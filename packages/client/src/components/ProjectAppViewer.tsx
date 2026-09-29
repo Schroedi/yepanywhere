@@ -48,6 +48,8 @@ export function ProjectAppViewer({
   initialSettings = false,
   onFullView,
   presentation = "viewer",
+  onInfoChanged,
+  onAddressesChanged,
 }: {
   projectId: string;
   initialTarget?: ProjectAppTarget;
@@ -61,6 +63,8 @@ export function ProjectAppViewer({
   onFullView?: () => void;
   /** Inline project settings use the same controls without opening an app. */
   presentation?: "viewer" | "settings";
+  onInfoChanged?: (info: ProjectAppInfo) => void;
+  onAddressesChanged?: (addresses: ProjectAppAddresses) => void;
 }) {
   const { version } = useVersion();
   const { t } = useI18n();
@@ -165,9 +169,13 @@ export function ProjectAppViewer({
     setError("");
     try {
       await operation();
-      await refresh();
-      if (addressesSupported && (settings || sharing))
-        setAddresses(await projectAppApi.addresses(projectId));
+      const next = await refresh();
+      onInfoChanged?.(next);
+      if (addressesSupported && (settings || sharing)) {
+        const nextAddresses = await projectAppApi.addresses(projectId);
+        setAddresses(nextAddresses);
+        onAddressesChanged?.(nextAddresses);
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {

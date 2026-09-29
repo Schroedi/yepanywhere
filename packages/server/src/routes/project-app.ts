@@ -6,6 +6,7 @@ import {
   type ProjectAppInfo,
   type ProjectAppView,
   type ProjectAppAddresses,
+  type ProjectAppInventory,
 } from "@yep-anywhere/shared";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -25,6 +26,8 @@ import {
   type ProjectServiceManager,
 } from "../projects/ProjectServiceManager.js";
 import type { ProjectScanner } from "../projects/scanner.js";
+import type { Principal } from "../auth/principal.js";
+import type { Project } from "../supervisor/types.js";
 import { createLocalResourcePathPolicy } from "./local-resource-policy.js";
 import type { SessionPathScopeResolver } from "./session-path-scope.js";
 
@@ -80,9 +83,7 @@ export function createProjectAppRoutes(deps: {
     return project;
   };
 
-  routes.get("/projects/:projectId/app", async (c) => {
-    const project = await authorize(c);
-    const principal = principalFor(c);
+  const appInfo = async (project: Project, principal: Principal) => {
     const latest = await deps.store.latestArtifact(project.id);
     const history =
       principal.kind === "superuser"
@@ -161,7 +162,68 @@ export function createProjectAppRoutes(deps: {
       principal.kind === "superuser" ||
       principal.grants.allowPrivateAppLinks !== false;
     if (!info.canCopyLink) info.canShare = false;
-    return c.json(info);
+    return info;
+  };
+
+  routes.get("/projects/:projectId/app", async (c) => {
+    return c.json(await appInfo(await authorize(c), principalFor(c)));
+  });
+
+  const administrator = (c: Context) => {
+    if (principalFor(c).kind !== "superuser")
+      throw new HTTPException(403, {
+        message: "Administrator access required",
+      });
+  };
+  routes.get("/project-apps", async (c) => {
+    administrator(c);
+    const reservations = await deps.store.allReservations();
+    const reservedProjects = new Set(reservations.map((row) => row.projectId));
+    const inventory: ProjectAppInventory = { projects: [], reservations };
+    // Bound filesystem work; opening Settings must not start a service or watcher.
+    const projects = await deps.scanner.listProjects();
+    for (let offset = 0; offset < projects.length; offset += 8) {
+      const batch = await Promise.all(
+        projects.slice(offset, offset + 8).map(async (project) => {
+          const info = await appInfo(project, principalFor(c));
+          return {
+            projectId: project.id,
+            name: project.name,
+            path: project.path,
+            owner: project.ownerUsername,
+            info,
+          };
+        }),
+      );
+      inventory.projects.push(
+        ...batch.filter(
+          (row) =>
+            row.info.state !== "none" || reservedProjects.has(row.projectId),
+        ),
+      );
+    }
+    inventory.projects.sort(
+      (a, b) =>
+        a.name.localeCompare(b.name) || a.projectId.localeCompare(b.projectId),
+    );
+    return c.json(inventory);
+  });
+  routes.post("/project-apps/address/release", async (c) => {
+    administrator(c);
+    const parsed = z
+      .strictObject({
+        projectId: z.string().min(1),
+        namespace: z.string().min(1),
+      })
+      .safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success)
+      return c.json({ error: "Expected projectId and namespace" }, 400);
+    await releaseAddress(
+      parsed.data.projectId,
+      parsed.data.namespace,
+      async () => administrator(c),
+    );
+    return c.json({ released: true });
   });
 
   routes.post("/projects/:projectId/app/start", async (c) => {
@@ -456,18 +518,27 @@ export function createProjectAppRoutes(deps: {
       .strictObject({ namespace: z.string().min(1) })
       .safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: "Expected namespace" }, 400);
-    await deps.store.release(project.id, parsed.data.namespace, async () => {
-      await publisher(c, true);
-      const row = (await deps.store.reservations(project.id)).find(
-        (entry) => entry.namespace === parsed.data.namespace,
+    await releaseAddress(project.id, parsed.data.namespace, () =>
+      publisher(c, true),
+    );
+    return c.json({ released: true });
+  });
+  async function releaseAddress(
+    projectId: string,
+    namespace: string,
+    authorizeRelease: () => Promise<void>,
+  ) {
+    await deps.store.release(projectId, namespace, async () => {
+      await authorizeRelease();
+      const row = (await deps.store.reservations(projectId)).find(
+        (entry) => entry.namespace === namespace,
       );
       if (row)
         await deps.artifacts.vhostAccess.rotate({
           name: row.name,
-          projectId: project.id,
+          projectId,
         });
     });
-    return c.json({ released: true });
-  });
+  }
   return routes;
 }

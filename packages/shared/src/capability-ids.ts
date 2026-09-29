@@ -624,6 +624,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "project-app-address-links",
     introducedIn: "0.9.4",
   },
+  projectAppInventory: {
+    id: 101,
+    direction: "server",
+    name: "project-app-inventory",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [
