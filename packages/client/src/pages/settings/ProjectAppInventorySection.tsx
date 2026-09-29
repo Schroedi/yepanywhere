@@ -24,6 +24,7 @@ export function ProjectAppInventorySection() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string>();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Refresh and address release deliberately invalidate the inventory through revision.
   useEffect(() => {
     if (!supported) return;
     let active = true;
