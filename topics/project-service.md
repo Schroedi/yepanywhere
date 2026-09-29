@@ -17,9 +17,8 @@ User-directed scope, 2026-09-28:
 project App access for limited users and the superuser, standardized template
 service declarations, optional vhost association, and audit-preserving removal.
 The [template integration gap](../gaps/project-template-standup.md) tracks
-delivery. This topic refines the
-[root-artifact and Publish direction](../gaps/sketches/project-root-artifact-and-publish.md);
-the interactive fixture is `packages/client/mockups/project-service/`.
+delivery. This topic owns the implemented root-artifact and manual publication
+direction; the interactive fixture is `packages/client/mockups/project-service/`.
 
 ## Project App and Settings
 

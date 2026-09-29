@@ -122,15 +122,17 @@ Contributing-model: 6-Astra.
 - Template boilerplate becomes the session title; provide a meaningful
   title/preview from the user's intent without hiding the actual setup
   instructions from the transcript.
-- The App canvas preparation prompt serves the starter only on "an available
-  loopback port" for its own checks and then stops it. A sandboxed session's
+- The original App canvas preparation prompt served the starter only on an
+  available loopback port for its own checks. A sandboxed session's
   loopback server is now offered in the App pane, a limited user's included,
   once its URL appears in command output
   ([sandboxed session apps](../topics/session-right-pane.md#sandboxed-session-apps)),
-  so the prompt should leave the preview running and echo its
-  `http://127.0.0.1:<port>/` URL. The app still dies with the provider
-  process; the persistent root artifact, a YA-owned runner and Publish are
-  [sketched](sketches/project-root-artifact-and-publish.md).
+  independently of project App delivery. The template now declares its built
+  static app and optional Live preview service. Persistent artifact association,
+  the YA-owned sandbox runner and manual address publication are implemented
+  under [project service](../topics/project-service.md); they do not depend on
+  retaining a preparation session's loopback server. Surviving YA itself
+  restarting remains an optional [lifecycle direction](sketches/app-lifecycle.md).
 - Approved administrator controls, 2026-09-28: a per-limited-user choice of
   whether standard harness-global instructions are imported into its isolated
   harness home, and administrator-editable instructions before and after

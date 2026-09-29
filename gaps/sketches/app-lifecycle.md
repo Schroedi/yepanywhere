@@ -15,6 +15,16 @@ and process-stop results. Persist authorization/lifecycle state across YA
 restart, while clearly distinguishing an independently exited app from an
 expired or revoked link. Automatic process restart is a separate future policy.
 
+Project-owned services now have the explicit start/stop, retained state and
+private-broker delivery contract in [project service](../../topics/project-service.md).
+They are independent of provider sessions, but stop with YA. The remaining
+optional persistence direction is to host the runner in the provider-host
+process, or another YA-owned supervisor, so a live app can survive YA server
+restart. Reconnect only to an authenticated owned generation; never adopt a
+PID or listener merely because it matches a persisted record. Until then,
+YA reports interruption and requires explicit Start. This preserves the
+nonessential persistence follow-up from the retired root-artifact sketch.
+
 See [session right pane](../../topics/session-right-pane.md),
 [access control](../app-artifact-access-control.md),
 [restart durability](../../topics/active-content-security.md#private-app-links), and
