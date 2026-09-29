@@ -91,19 +91,36 @@ describe("retained project app state", () => {
         throw new Error("Publication denied");
       }),
     ).rejects.toThrow("Publication denied");
+    const limited = async () => ({ allowed: false, superuser: false });
     await expect(
-      restored.setServing("first", "apps.example", true, true, async () => {}),
+      restored.setServing("first", "apps.example", true, true, limited),
     ).rejects.toThrow("require a private link");
     expect(await restored.reservations("first")).toEqual([reservation]);
+    await restored.setServing("first", "apps.example", true, false, limited);
+    expect(await restored.reservations("first")).toMatchObject([
+      { serving: true, public: false },
+    ]);
+    // Superuser public access survives a limited user's unchanged re-save and
+    // is discarded when public access is turned off.
     await restored.setServing(
       "first",
       "apps.example",
       true,
-      false,
-      async () => {},
+      true,
+      async () => ({
+        allowed: true,
+        superuser: true,
+      }),
     );
+    const keep = async () => ({ allowed: true, superuser: false });
+    await restored.setServing("first", "apps.example", false, true, keep);
     expect(await restored.reservations("first")).toMatchObject([
-      { serving: true, public: false },
+      { serving: false, public: true, superuserPublic: true },
+    ]);
+    await restored.setServing("first", "apps.example", false, false, keep);
+    await restored.setServing("first", "apps.example", false, true, keep);
+    expect(await restored.reservations("first")).toMatchObject([
+      { public: true, superuserPublic: false },
     ]);
     await restored.close();
   });

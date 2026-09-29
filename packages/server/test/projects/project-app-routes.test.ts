@@ -520,12 +520,34 @@ it("gates reservations, prefixes limited claims, and separates claiming from adm
   principal = { kind: "superuser" };
   const target = { name: "archer-canvas", projectId };
   const oldToken = artifacts.vhostAccess.token(target);
+  // The owner lacks public-app permission; the superuser is not capped by it.
   expect(
     (await post("address/serve", { serving: true, public: true })).status,
-  ).toBe(403);
+  ).toBe(200);
+  expect((await (await get()).json()).reservations[0]).toMatchObject({
+    public: true,
+    privateOnly: false,
+  });
+  expect(
+    (
+      await delivery.dispatchHost(
+        new Request("https://archer-canvas.apps.example/"),
+      )
+    ).status,
+  ).not.toBe(401);
   expect(
     (await post("address/serve", { serving: true, public: false })).status,
   ).toBe(200);
+  expect(await store.reservations(projectId)).toMatchObject([
+    { public: false, superuserPublic: false },
+  ]);
+  expect(
+    (
+      await delivery.dispatchHost(
+        new Request("https://archer-canvas.apps.example/"),
+      )
+    ).status,
+  ).toBe(401);
   artifacts.config.vhostPublicRoot = "new.example";
   expect(await (await get()).json()).toMatchObject({
     namespace: "new.example",

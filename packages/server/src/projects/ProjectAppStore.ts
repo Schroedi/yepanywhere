@@ -26,6 +26,8 @@ const reservationSchema = z.strictObject({
   serving: z.boolean(),
   public: z.boolean(),
   privateOnly: z.boolean().default(true),
+  /** Public access the superuser chose; the owner's permission cannot cap it. */
+  superuserPublic: z.boolean().default(false),
 });
 const projectSchema = z.strictObject({
   latestArtifact: artifactSchema.optional(),
@@ -228,6 +230,7 @@ export class ProjectAppStore {
         reservedAt: new Date().toISOString(),
         serving: false,
         public: false,
+        superuserPublic: false,
       });
       const existing = state.reservations.find(
         (row) =>
@@ -259,17 +262,21 @@ export class ProjectAppStore {
     namespace: string,
     serving: boolean,
     publicAccess: boolean,
-    authorize: () => Promise<void> | Promise<boolean>,
+    authorize: () => Promise<{ allowed: boolean; superuser: boolean }>,
   ): Promise<ProjectAppReservation> {
     return this.change(async (state) => {
-      const publicPermission = await authorize();
+      const { allowed, superuser } = await authorize();
       const row = state.reservations.find(
         (entry) =>
           entry.projectId === projectId && entry.namespace === namespace,
       );
       if (!row) throw new Error("Project has no reserved app address");
-      if (publicAccess && row.privateOnly && publicPermission !== true)
+      if (publicAccess && row.privateOnly && !allowed)
         throw new Error("This owner's apps require a private link");
+      // A limited user who keeps an app public retains the superuser's
+      // choice; turning public access off discards it.
+      row.superuserPublic =
+        publicAccess && (superuser || (row.public && row.superuserPublic));
       row.serving = serving;
       row.public = publicAccess;
       return structuredClone(row);

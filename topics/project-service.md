@@ -424,11 +424,16 @@ unchecked choice where allowed. A reservation grant does not imply publishing
 authority. Keep first-claim-wins persistence and superuser-only release from
 [project templates](project-templates.md#persistent-app-name-reservations).
 
-The limited project owner's current public-app permission is the ceiling,
-including an administrator's claim for that project. Revocation makes existing
-addresses require a token again at the next request. A private-only app shows
-an explanation instead of an inert Public checkbox. Where public access is
-allowed, **Save access** applies the checkbox without changing serving state.
+The limited project owner's current public-app permission is the ceiling for
+public access a limited user chose. Revocation makes such addresses require a
+token again at the next request. The superuser is not capped by it
+(user-directed 2026-09-29): public access the superuser saves is recorded as
+theirs and served regardless of the owner's permission. A limited user
+re-saving it unchanged keeps it; turning public access off discards it. A
+private-only app shows an explanation instead of an inert Public checkbox,
+and a user without publishing permission is told the administrator can make
+the app public. Where public access is allowed, **Save access** applies the
+checkbox without changing serving state.
 
 **Allow copying private app links** defaults on independently of publication.
 Authorized users see the current address URL and Copy viewer link beside it;

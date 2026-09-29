@@ -494,9 +494,10 @@ test("project App fills the pane and retains canvas and composer across phone sw
     await expect(
       settings.getByRole("button", { name: "Copy viewer link" }),
     ).toBeVisible();
+    // The superuser may make any app public, whatever its owner may do.
     await expect(
       settings.getByRole("checkbox", { name: "Public — no link required" }),
-    ).toHaveCount(0);
+    ).toBeVisible();
     await expect(settings.getByRole("alert")).toHaveCount(0);
     expect(
       await settings.evaluate(

@@ -129,6 +129,40 @@ it("renders address controls inline and saves visibility without stopping servin
       .getAttribute("href"),
   ).toBe(row.url);
 });
+it("tells a user without publishing permission who can make the app public", async () => {
+  mock.fetch.mockImplementation(async (path: string) => {
+    if (path.endsWith("/address"))
+      return {
+        enabled: true,
+        namespace: "apps.example",
+        canPublish: false,
+        reservations: [
+          {
+            name: "archer-canvas",
+            namespace: "apps.example",
+            owner: "archer",
+            serving: true,
+            public: false,
+            privateOnly: true,
+          },
+        ],
+      };
+    return { state: "ready", declaration: null, removedFrom: [] };
+  });
+  render(
+    <I18nProvider>
+      <ProjectAppViewer projectId="test" presentation="settings" />
+    </I18nProvider>,
+  );
+  expect(
+    await screen.findByText(
+      /Public access \(no link required\) needs the administrator/,
+    ),
+  ).toBeTruthy();
+  expect(
+    screen.queryByRole("checkbox", { name: "Public — no link required" }),
+  ).toBeNull();
+});
 it("sends no App requests to an older server", () => {
   mock.version = "0.9.2";
   render(

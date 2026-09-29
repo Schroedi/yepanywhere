@@ -409,7 +409,8 @@ export function createProjectAppRoutes(deps: {
               );
               const row = {
                 ...stored,
-                privateOnly: !allowed,
+                // The superuser may make any app public.
+                privateOnly: principal.kind !== "superuser" && !allowed,
                 public: stored.public && allowed,
               };
               const canCopy =
@@ -504,8 +505,10 @@ export function createProjectAppRoutes(deps: {
       (row) => row.namespace === current,
     );
     if (!reservation) return c.json({ error: "Reserve an address first" }, 409);
+    const superuser = principalFor(c).kind === "superuser";
     if (
       parsed.data.public &&
+      !superuser &&
       !projectAppPublicAllowed(
         project.ownerUsername,
         reservation,
@@ -522,16 +525,18 @@ export function createProjectAppRoutes(deps: {
         async () => {
           await publisher(c);
           const freshProject = await authorize(c, "new-session");
-          const allowed = projectAppPublicAllowed(
-            freshProject.ownerUsername,
-            reservation,
-            deps.activeGrants,
-          );
+          const allowed =
+            superuser ||
+            projectAppPublicAllowed(
+              freshProject.ownerUsername,
+              reservation,
+              deps.activeGrants,
+            );
           if (parsed.data.public && !allowed)
             throw new HTTPException(403, {
               message: "This owner's apps require a private link",
             });
-          return allowed;
+          return { allowed, superuser };
         },
       ),
     );

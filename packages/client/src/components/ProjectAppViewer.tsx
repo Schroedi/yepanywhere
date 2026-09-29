@@ -530,6 +530,11 @@ export function ProjectAppViewer({
                           />
                         </div>
                       )}
+                    {!addresses.canPublish &&
+                      !row.public &&
+                      row.namespace === addresses.namespace && (
+                        <p>{t("projectAppPublicNeedsAdministrator")}</p>
+                      )}
                     {addresses.canPublish && (
                       <>
                         {row.namespace === addresses.namespace && (

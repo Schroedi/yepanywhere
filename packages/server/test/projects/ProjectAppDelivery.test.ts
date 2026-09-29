@@ -106,7 +106,10 @@ createServer((req, res) => {
       },
       async () => {},
     );
-    await store.setServing("static", "localhost", true, false, async () => {});
+    await store.setServing("static", "localhost", true, false, async () => ({
+      allowed: false,
+      superuser: false,
+    }));
     const delivery = new ProjectAppDelivery(
       artifacts,
       services,
@@ -204,13 +207,10 @@ createServer((req, res) => {
       expect(
         (await artifacts.dispatchHost(new Request(reservedUrl)))?.status,
       ).toBe(503);
-      await store.setServing(
-        "project",
-        "localhost",
-        true,
-        false,
-        async () => {},
-      );
+      await store.setServing("project", "localhost", true, false, async () => ({
+        allowed: false,
+        superuser: false,
+      }));
       expect(
         (await artifacts.dispatchHost(new Request(reservedUrl)))?.status,
       ).toBe(200);
