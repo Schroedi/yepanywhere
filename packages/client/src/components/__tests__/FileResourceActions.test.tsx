@@ -17,6 +17,20 @@ import {
   useStartNewSessionWithPrefillAction,
 } from "../FileResourceActions";
 
+const versionState = vi.hoisted(() => ({
+  capabilities: [] as string[],
+}));
+vi.mock("../../hooks/useVersion", () => ({
+  useVersion: () => ({
+    version: {
+      current: "0.0.0-dev",
+      capabilities: versionState.capabilities,
+    },
+    loading: false,
+    error: null,
+  }),
+}));
+
 /** Global class names forbidden by this component's CSS Module ownership. */
 const REMOVED_LEGACY_CLASSES = [
   "file-path-context-overlay",
@@ -60,6 +74,35 @@ describe("FilePathContextMenu", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+  });
+
+  it("opens an outside path's Source Control browser in a new tab", () => {
+    versionState.capabilities = ["local-source-browse"];
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+    const { onClose } = renderMenu({
+      localSource: { projectId: "cHJvag", path: "/tmp/demo/a b.ts" },
+    });
+
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Open in Source Control" }),
+    );
+
+    expect(open).toHaveBeenCalledWith(
+      "/projects/cHJvag/browse?path=%2Ftmp%2Fdemo%2Fa+b.ts",
+      "_blank",
+      "noopener",
+    );
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("omits Open in Source Control on a server without the capability", () => {
+    versionState.capabilities = [];
+    renderMenu({ localSource: { projectId: "cHJvag", path: "/tmp/a.ts" } });
+
+    expect(
+      screen.queryByRole("menuitem", { name: "Open in Source Control" }),
+    ).toBeNull();
   });
 
   it("portals the overlay and menu directly into the body", () => {

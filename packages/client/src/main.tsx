@@ -74,6 +74,11 @@ const EmulatorPage = lazy(() =>
 const FilePage = lazy(() =>
   import("./pages/FilePage").then(({ FilePage }) => ({ default: FilePage })),
 );
+const LocalSourcePage = lazy(() =>
+  import("./pages/LocalSourcePage").then(({ LocalSourcePage }) => ({
+    default: LocalSourcePage,
+  })),
+);
 const ViewerModePage = lazy(() =>
   import("./pages/ViewerModePage").then(({ ViewerModePage }) => ({
     default: ViewerModePage,
@@ -406,6 +411,10 @@ if (import.meta.env.DEV && window.location.port === String(__VITE_DEV_PORT__)) {
                     <Route
                       path="/projects/:projectId/file"
                       element={routeModule(<FilePage />)}
+                    />
+                    <Route
+                      path="/projects/:projectId/browse"
+                      element={routeModule(<LocalSourcePage />)}
                     />
                     <Route
                       path="/file-view"

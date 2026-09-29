@@ -642,6 +642,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "draft-sync-v1",
     introducedIn: "0.9.4",
   },
+  localSourceBrowse: {
+    id: 104,
+    direction: "server",
+    name: "local-source-browse",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

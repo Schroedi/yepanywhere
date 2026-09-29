@@ -2983,6 +2983,8 @@ export function createApp(options: AppOptions): AppResult {
       scanner,
       dataDir: effectiveDataDir,
       dirtyFileEditorService: options.dirtyFileEditorService,
+      allowedPaths: getAllowedFilePaths,
+      includeProjects: shouldIncludeProjects,
     }),
   );
   app.route("/api/projects", createGitIncomingCommitsRoutes({ scanner }));

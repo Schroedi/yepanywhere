@@ -1,10 +1,13 @@
+import { SERVER_CAPABILITIES, serverHasCapability } from "@yep-anywhere/shared";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useOptionalToastContext } from "../contexts/ToastContext";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { beginTooltipSuppression } from "../hooks/useTooltipAppearance";
+import { useVersion } from "../hooks/useVersion";
 import { useI18n } from "../i18n";
+import { toBrowserAppHref } from "../lib/appHref";
 import { useClientSummarySourceKey } from "../lib/clientSummaryStore";
 import { downloadBlob } from "../lib/imageActions";
 import { isMarkdownLikeFile } from "../lib/markdownFiles";
@@ -52,6 +55,8 @@ export interface ResourceContextMenuProps {
   onCopyPublicUrl?: () => void;
   onCopyViewerLink?: () => void;
   download?: ResourceDownload;
+  /** An outside path whose checkout or directory may open in a new tab. */
+  localSource?: LocalSourceTarget;
   onOpen: () => void;
   onOpenPreview?: () => void;
   onOpenSource?: () => void;
@@ -150,6 +155,65 @@ export function useStartNewSessionFromFile(
   return useCallback(() => {
     startNewSession(projectId, filePath);
   }, [filePath, projectId, startNewSession]);
+}
+
+/** An absolute path outside `projectId` that Source Control can browse. */
+export interface LocalSourceTarget {
+  projectId: string;
+  path: string;
+}
+
+/**
+ * The target for a path's menu: absolute, outside the project, and not in a
+ * public share. Deciding this needs no server state, so links stay free of
+ * version lookups until a menu actually opens.
+ */
+export function localSourceTarget(
+  projectId: string,
+  absolutePath: string | null,
+  projectRelativePath: string | null,
+  inPublicShare: boolean,
+): LocalSourceTarget | undefined {
+  return !inPublicShare && !projectRelativePath && absolutePath
+    ? { projectId, path: absolutePath }
+    : undefined;
+}
+
+/**
+ * Opens the target's checkout or directory in a new tab of Source Control's
+ * current-files browser. Mounted only inside an open menu, so the capability
+ * lookup costs nothing for the many links that are never right-clicked; it
+ * renders nothing on a server without `local-source-browse`.
+ */
+function OpenLocalSourceMenuItem({
+  target,
+  onHover,
+  select,
+}: {
+  target: LocalSourceTarget;
+  onHover?: () => void;
+  select: (action: () => void) => void;
+}) {
+  const { t } = useI18n();
+  const basePath = useRemoteBasePath();
+  const { version } = useVersion();
+  if (!serverHasCapability(version, SERVER_CAPABILITIES.localSourceBrowse.name))
+    return null;
+  const open = () => {
+    const params = new URLSearchParams({ path: target.path });
+    window.open(
+      toBrowserAppHref(
+        `${basePath}/projects/${target.projectId}/browse?${params.toString()}`,
+      ),
+      "_blank",
+      "noopener",
+    );
+  };
+  return (
+    <FilePathContextMenuItem onHover={onHover} onSelect={() => select(open)}>
+      {t("fileLinkMenuOpenInSourceControl" as never)}
+    </FilePathContextMenuItem>
+  );
 }
 
 /**
@@ -272,6 +336,7 @@ export function ResourceContextMenu({
   onCopyPublicUrl,
   onCopyViewerLink,
   download,
+  localSource,
   onOpen,
   onOpenPreview,
   onOpenSource,
@@ -301,6 +366,7 @@ export function ResourceContextMenu({
     1 +
     Number(Boolean(download)) +
     Number(Boolean(canStartNewSession && onStartNewSession)) +
+    Number(Boolean(localSource)) +
     Number(Boolean(onCopyImage)) +
     Number(Boolean(onCopyProjectRelativePath)) +
     Number(Boolean(onCopyPublicUrl)) +
@@ -406,6 +472,13 @@ export function ResourceContextMenu({
             >
               {t("fileLinkMenuNewSession" as never)}
             </FilePathContextMenuItem>
+          ) : null}
+          {localSource ? (
+            <OpenLocalSourceMenuItem
+              target={localSource}
+              onHover={usesHoverFlyout ? () => setPanel("root") : undefined}
+              select={select}
+            />
           ) : null}
           {hasCopyActions ? <div className={styles.separator} /> : null}
           {onCopyImage ? (

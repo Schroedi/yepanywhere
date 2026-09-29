@@ -209,6 +209,28 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  localSourceBrowse: {
+    id: CAPABILITY_ID_ALLOCATIONS.localSourceBrowse.id,
+    name: "local-source-browse",
+    kind: "permanent",
+    area: "gitStatus",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "The working-tree file inventory accepts an allowed absolute path outside the project and browses a snapshot of its checkout or directory.",
+    clientFallback:
+      "Hide Open in Source Control on paths outside the project and send no root request.",
+    serverContract: {
+      routes: ["GET /api/projects/:projectId/git/working-tree-files"],
+      requestFields: ["root"],
+      responseFields: ["root"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers ignore root and would list the session project instead of the requested directory.",
+    },
+  },
   projectLivePreview: {
     id: CAPABILITY_ID_ALLOCATIONS.projectLivePreview.id,
     name: "project-live-preview",

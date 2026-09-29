@@ -68,6 +68,9 @@ const loadEmulatorPageModule = cachedModule(
   () => import("./pages/EmulatorPage"),
 );
 const loadFilePageModule = cachedModule(() => import("./pages/FilePage"));
+const loadLocalSourcePageModule = cachedModule(
+  () => import("./pages/LocalSourcePage"),
+);
 const loadGitStatusPageModule = cachedModule(
   () => import("./pages/GitStatusPage"),
 );
@@ -172,6 +175,11 @@ const EmulatorPage = lazy(() =>
 );
 const FilePage = lazy(() =>
   loadFilePageModule().then(({ FilePage }) => ({ default: FilePage })),
+);
+const LocalSourcePage = lazy(() =>
+  loadLocalSourcePageModule().then(({ LocalSourcePage }) => ({
+    default: LocalSourcePage,
+  })),
 );
 const ViewerModePage = lazy(() =>
   import("./pages/ViewerModePage").then(({ ViewerModePage }) => ({
@@ -287,6 +295,7 @@ const initialRemoteModuleLoaders: Record<
   directLoginPage: loadDirectLoginPageModule,
   emulatorPage: loadEmulatorPageModule,
   filePage: loadFilePageModule,
+  localSourcePage: loadLocalSourcePageModule,
   gitStatusPage: loadGitStatusPageModule,
   globalSessionsPage: loadGlobalSessionsPageModule,
   hostPickerPage: loadHostPickerPageModule,
@@ -399,6 +408,10 @@ const APP_ROUTES = (
       <Route
         path="projects/:projectId/file"
         element={routeModule(<FilePage />)}
+      />
+      <Route
+        path="projects/:projectId/browse"
+        element={routeModule(<LocalSourcePage />)}
       />
       <Route path="file-view" element={routeModule(<ViewerModePage />)} />
       <Route

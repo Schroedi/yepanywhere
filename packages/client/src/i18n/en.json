@@ -3777,6 +3777,7 @@
   "fileLinkMenuOpen": "Open",
   "fileLinkMenuBack": "Back",
   "fileLinkMenuNewSession": "New session",
+  "fileLinkMenuOpenInSourceControl": "Open in Source Control",
   "fileLinkMenuCopy": "Copy",
   "fileLinkMenuCopyImage": "Copy image",
   "fileLinkMenuCopyProjectRelativePath": "Copy project-relative path",

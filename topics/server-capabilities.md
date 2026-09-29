@@ -19,6 +19,13 @@ saved values and resume sends only deliberate overrides through existing
 request fields. No new endpoint or existing capability meaning changes. See
 [session defaults](session-defaults.md#per-session-live-picks-vs-global-defaults).
 
+`local-source-browse` (permanent ID 104, version-implied from 0.9.4) owns the
+`root` query and response field on
+`GET /api/projects/:projectId/git/working-tree-files`. Older servers ignore
+`root` and would list the session project instead, so clients hide **Open in
+Source Control** on outside paths and send no `root` request. See
+[source control](source-control.md#browsing-a-path-outside-the-project).
+
 `limited-user-path-grants` (permanent ID 96, version-implied from 0.9.4) owns
 the `pathGrants` field on `POST`/`PATCH /api/users` and in user records.
 Older servers ignore the field, so a directory grant would look saved and

@@ -543,6 +543,7 @@ export type {
   GitWorktreeCoverage,
   GitWorktreeDeltaEvent,
   GitWorktreeDirectory,
+  LocalSourceRoot,
   GitWorktreeDirectoryChange,
   GitWorktreeGeneration,
   GitWorktreePathChange,
