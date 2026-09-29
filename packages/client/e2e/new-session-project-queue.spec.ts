@@ -87,9 +87,7 @@ async function assertQueueFollowsSelector(
   await expect(queue).toContainText("2 queued");
   await expect(queue).toContainText("Review the responsive queue placement");
   await expect(queue).toContainText("Verify durable queued-session feedback");
-  await expect(queue.getByRole("img", { name: "claude-opus-4-6" })).toHaveCount(
-    2,
-  );
+  await expect(queue.getByRole("img", { name: "opus-4-6" })).toHaveCount(2);
 
   const selectorBox = await selector.boundingBox();
   const queueBox = await queue.boundingBox();
@@ -111,9 +109,7 @@ async function assertProjectsQueueBadges(
 ) {
   const queue = page.getByRole("region", { name: "Project Queue" });
   await expect(queue).toBeVisible();
-  await expect(queue.getByRole("img", { name: "claude-opus-4-6" })).toHaveCount(
-    2,
-  );
+  await expect(queue.getByRole("img", { name: "opus-4-6" })).toHaveCount(2);
 }
 
 test("keeps the selected project queue beneath the selector", async ({
