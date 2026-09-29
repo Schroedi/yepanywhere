@@ -19,6 +19,9 @@ export function useSessionThinkingSelection(
     selection: LiveThinkingSelection;
   } | null>(null);
   useEffect(() => {
+    // Either transition starts a new lifetime for the stopped-session override.
+    void sessionKey;
+    void owned;
     setPending(null);
   }, [sessionKey, owned]);
   const override =

@@ -2184,7 +2184,9 @@ describe("CodexProvider app-server lifecycle", () => {
         }
       })();
 
-      await waitForFakeCodexRequest(logPath, "turn/start");
+      // Full macOS Node 24 runs exceeded the old 2s subprocess-start bound.
+      // 8s allows 4x that measured limit; this assertion checks lifecycle, not speed.
+      await waitForFakeCodexRequest(logPath, "turn/start", 8000);
       expect(session.steer).toBeDefined();
       expect(
         await waitForSuccessfulSteer(session, {

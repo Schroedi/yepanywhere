@@ -128,7 +128,10 @@ it("revokes an established socket without stopping its app", async () => {
     `${address}?ya_access=${artifacts.vhostAccess.token(artifacts.config.vhosts![0]!)}`,
     { headers: { host: "canvas.localhost:4402" } },
   );
+  // The upstream sends its request metadata before it echoes application data.
+  const greeting = once(replacement, "message");
   await once(replacement, "open");
+  await greeting;
   const echoed = once(replacement, "message");
   replacement.send("still running");
   expect(String((await echoed)[0])).toBe("still running");
