@@ -234,6 +234,10 @@ test.beforeAll(async () => {
   await expect.poll(() => relayClient.getState().status).toBe("waiting");
 });
 
+test.beforeEach(() => {
+  artifactRequests.length = 0;
+});
+
 test.afterAll(async () => {
   relayClient?.stop();
   if (relay) await relay.close();
