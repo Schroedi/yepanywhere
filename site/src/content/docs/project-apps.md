@@ -92,11 +92,17 @@ A reserved hostname's tunnel or router reaches YA first. YA checks private
 link or public-access policy, then serves the static app or forwards to the
 sandboxed process. Making the address public changes access, not confinement.
 
-HTTP and server-sent events work through this path. WebSocket upgrades are
-currently unsupported, including development features that depend on them.
-Process apps need Start after a YA restart; a retained reservation alone does
-not restart them. A configured hostname also needs working DNS and tunnel
-routing, separately from the app's readiness.
+HTTP, server-sent events and WebSockets work through this path, including
+Live preview's hot module replacement (HMR). Process apps currently require
+Linux's project sandbox and network firewall.
+
+With the optional [provider host](/docs/updating#keep-work-running-during-server-reloads)
+enabled, process apps and Live preview survive a web-server reload with the
+same process and URL. Without it, they stop with the web server. Stopping the
+host itself also stops its apps; choose Start to run them again. These actions
+retain working files, and a retained reservation alone does not restart an app.
+A configured hostname also needs working DNS and tunnel routing, separately
+from the app's readiness.
 
 Static address opens redirect to an expiring artifact link. Taking the address
 private or releasing it changes access through that address; already issued
