@@ -369,6 +369,13 @@ Left open as product behavior, not a test defect: a reader's selection that
 ends at a block boundary next to the results moves when results arrive. No
 contract covers it yet.
 
+2026-09-29 — a full local browser run at `3a0281f83` again failed the desktop
+arriving-match/title-resize case (`all-sessions-search.spec.ts:765`). Its line
+812 width/text-change product was -2700 instead of positive. The phone case
+passed. This recurrence remains unclassified; no timeout was raised and no
+layout change was made as part of the app-controls publication.
+Contributing-model: 6-Astra.
+
 Retire this file once CI stays green on this spec.
 
 Found 2026-09-15 while reporting source CI after publishing the catch-up fix.
