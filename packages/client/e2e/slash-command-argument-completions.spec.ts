@@ -19,7 +19,8 @@ test.use({ serviceWorkers: "block" });
 
 let devServer: ViteDevServer;
 let devUrl: string;
-test.beforeAll(async () => {
+test.beforeAll(async ({ workerServer }) => {
+  void workerServer;
   const port = Number.parseInt(
     readFileSync(join(e2ePaths.tempDir, "port"), "utf8"),
     10,

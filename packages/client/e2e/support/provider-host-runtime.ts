@@ -57,10 +57,8 @@ export async function stopProviderHostRuntime(
       !existsSync(join(runtimeDir, "host.json"))
     )
       return;
-    console.warn(
-      `[E2E] Could not stop provider host in ${runtimeDir}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
+    throw new Error(`Could not stop E2E provider host in ${runtimeDir}`, {
+      cause: error,
+    });
   }
 }

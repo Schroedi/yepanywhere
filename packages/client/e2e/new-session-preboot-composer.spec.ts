@@ -1,27 +1,9 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { expect, test as base, type Page, type Route } from "@playwright/test";
-import { getE2ERunDirectory } from "./support/run-directory.js";
+import type { Page, Route } from "@playwright/test";
+import { expect, test } from "./fixtures.js";
 import { recordUiCapture } from "./support/ui-capture.js";
 
-// A tab opened on /new-session is typeable from the HTML alone; the app's
-// composer takes the text over when it mounts. See
-// topics/early-typing-handoff.md § Pre-boot composer.
-// These cases own no session draft: use the run's isolated server directly
-// rather than the shared seeded-session cleanup fixture.
-const test = base.extend({
-  // biome-ignore lint/correctness/noEmptyPattern: Playwright fixture pattern requires empty destructure
-  baseURL: async ({}, use) => {
-    const directory = getE2ERunDirectory();
-    if (!directory) throw new Error("E2E run directory unavailable");
-    const port = readFileSync(join(directory, "port"), "utf-8").trim();
-    await use(`http://127.0.0.1:${port}`);
-  },
-  page: async ({ page }, use) => {
-    await use(page);
-    if (!page.isClosed()) await page.unrouteAll({ behavior: "wait" });
-  },
-});
+// These cases own no seeded session draft.
+test.use({ draftSessionIds: [] });
 test.use({ serviceWorkers: "block" });
 
 /** Hold every script request until released, so only inline code runs. */

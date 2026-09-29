@@ -1,3 +1,7 @@
+import {
+  routeWithDrain,
+  drainManagedRoutes,
+} from "./support/managed-routes.js";
 import { mkdirSync, writeFileSync, appendFileSync, unlinkSync } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
@@ -52,7 +56,7 @@ test("All Sessions keeps every typed character with a large title catalog", asyn
 }) => {
   test.setTimeout(60000);
   saveSession("typing-fixture", "typing");
-  await page.route(/\/api\/sessions\?/, async (route) => {
+  await routeWithDrain(page, /\/api\/sessions\?/, async (route) => {
     const response = await route.fetch();
     const data = await response.json();
     const seed = data.sessions?.find(
@@ -259,7 +263,7 @@ for (const viewport of [
   }) => {
     saveSession(`provenance-${viewport.name}`, `provenance ${viewport.name}`);
     await page.setViewportSize(viewport);
-    await page.route(/\/api\/sessions\?/, async (route) => {
+    await routeWithDrain(page, /\/api\/sessions\?/, async (route) => {
       const response = await route.fetch();
       const data = await response.json();
       const seed = data.sessions?.find(
@@ -351,13 +355,17 @@ for (const viewport of [
     // concurrent acquisitions, so once four requests are held no further one
     // can arrive, and a wave that spends two slots on the same session would
     // otherwise wait for a fourth distinct id that can never come.
-    await page.route("**/api/sessions/content-search", async (route) => {
-      requests.push(route.request().postDataJSON());
-      const distinct = new Set(requests.map((request) => request.sessionId));
-      if (distinct.size >= 4 || requests.length >= 4) release();
-      await gate;
-      await route.continue();
-    });
+    await routeWithDrain(
+      page,
+      "**/api/sessions/content-search",
+      async (route) => {
+        requests.push(route.request().postDataJSON());
+        const distinct = new Set(requests.map((request) => request.sessionId));
+        if (distinct.size >= 4 || requests.length >= 4) release();
+        await gate;
+        await route.continue();
+      },
+    );
     try {
       await search.fill("quasarneedle");
       await page.getByRole("checkbox", { name: /^User/ }).check();
@@ -468,7 +476,7 @@ for (const viewport of [
       )
       .toEqual(fixtureIds);
     const requested = new Set<string>();
-    await page.route(/\/api\/sessions\?/, async (route) => {
+    await routeWithDrain(page, /\/api\/sessions\?/, async (route) => {
       // The sidebar's starred feed uses this endpoint too. It has no seed
       // session and does not need the injected unsupported-provider row.
       if (
@@ -499,33 +507,37 @@ for (const viewport of [
         },
       });
     });
-    await page.route("**/api/sessions/content-search", async (route) => {
-      const { sessionId } = route.request().postDataJSON();
-      requested.add(sessionId);
-      if (sessionId === `coverage-error-${viewport.name}`) {
-        return route.fulfill({
-          json: {
-            matches: [],
-            done: true,
-            partial: true,
-            bytesRead: 0,
-            unavailable:
-              "Malformed transcript record; remaining records unavailable",
-            diagnostics: [
-              {
-                id: "broken.jsonl:1048577",
-                sourcePath: "/fixture/broken.jsonl",
-                byteOffset: 1048577,
-                messageId: "nearby-turn",
-                message:
-                  "broken.jsonl at byte 1048577: Malformed transcript record",
-              },
-            ],
-          },
-        });
-      }
-      await route.continue();
-    });
+    await routeWithDrain(
+      page,
+      "**/api/sessions/content-search",
+      async (route) => {
+        const { sessionId } = route.request().postDataJSON();
+        requested.add(sessionId);
+        if (sessionId === `coverage-error-${viewport.name}`) {
+          return route.fulfill({
+            json: {
+              matches: [],
+              done: true,
+              partial: true,
+              bytesRead: 0,
+              unavailable:
+                "Malformed transcript record; remaining records unavailable",
+              diagnostics: [
+                {
+                  id: "broken.jsonl:1048577",
+                  sourcePath: "/fixture/broken.jsonl",
+                  byteOffset: 1048577,
+                  messageId: "nearby-turn",
+                  message:
+                    "broken.jsonl at byte 1048577: Malformed transcript record",
+                },
+              ],
+            },
+          });
+        }
+        await route.continue();
+      },
+    );
     await page.setViewportSize(viewport);
     await page.goto(`${baseURL}/sessions`);
     await page
@@ -620,6 +632,7 @@ for (const viewport of [
     );
     // The session list keeps polling. Let intercepted requests finish before
     // Playwright closes the page, or a route can be fulfilled after teardown.
+    await drainManagedRoutes(page);
     await page.unrouteAll({ behavior: "wait" });
   });
 
@@ -639,14 +652,18 @@ for (const viewport of [
       release = resolve;
     });
     let requests = 0;
-    await page.route("**/api/sessions/content-search", async (route) => {
-      requests++;
-      const response = await route.fetch();
-      const batch = await response.json();
-      if (route.request().postDataJSON().sessionId === id && batch.done)
-        await gate;
-      await route.fulfill({ response });
-    });
+    await routeWithDrain(
+      page,
+      "**/api/sessions/content-search",
+      async (route) => {
+        requests++;
+        const response = await route.fetch();
+        const batch = await response.json();
+        if (route.request().postDataJSON().sessionId === id && batch.done)
+          await gate;
+        await route.fulfill({ response });
+      },
+    );
     try {
       await page.goto(`${baseURL}/sessions?q=quasarneedle`);
       await page.getByRole("checkbox", { name: /^User/ }).check();
@@ -779,11 +796,15 @@ for (const viewport of [
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route("**/api/sessions/content-search", async (route) => {
-      const response = await route.fetch();
-      await gate;
-      await route.fulfill({ response });
-    });
+    await routeWithDrain(
+      page,
+      "**/api/sessions/content-search",
+      async (route) => {
+        const response = await route.fetch();
+        await gate;
+        await route.fulfill({ response });
+      },
+    );
     try {
       await page.goto(`${baseURL}/sessions`);
       const search = page.getByRole("searchbox", {

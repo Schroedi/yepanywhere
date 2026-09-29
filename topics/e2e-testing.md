@@ -39,7 +39,11 @@ temporary directory isolates the default services from the developer's data
 and from other runs; it does not isolate cases using those default services
 from one another. There is no suite-wide server reset between cases.
 The common fixture clears the seeded `mock-session-001` server draft before
-each case, preventing that slot from crossing fresh browser contexts.
+each case. Specs using another seeded composer session declare its IDs with
+`test.use({ draftSessionIds: [...] })`; the reset uses that spec's server URL,
+including isolated server overrides. A browser-only harness with no server
+draft can declare an empty list. Fresh browser contexts alone do not reset
+server drafts.
 
 This is a significant reliability gap. With one worker, files run serially;
 cleanup can make the usual order pass while concealing an order dependency.
@@ -105,8 +109,9 @@ turn a failing full CI run into a pass, and CI retries do not make an
 intermittent assertion healthy. Visual verification and capture remain owned by
 [UI testing](ui-testing.md), including a user's explicit visual-QA handoff.
 
-The full-app Playwright configuration uses one worker because local workers
-share its test services. For CI parallelism, separate shards can each start
+The full-app Playwright configuration still defaults to one worker. Run-scoped
+services share mutable state, while the opt-in worker fixture below isolates
+parallel files. For CI parallelism, separate shards can each start
 their own services on isolated runners while keeping one worker per shard.
 This isolates shards from one another, but cases *within* a shard still share
 its server and must not depend on their execution order.
@@ -114,6 +119,57 @@ Compare the slower shard's wall time with the single-job gate and also report
 the sum of shard job times as runner cost. A partial local run stopped by the
 failure limit is not a valid speed comparison; the current measurements are in
 [the E2E cost ledger](../docs/testing/e2e-ci-cost-ledger.md).
+
+### Worker-owned services (CI validation pending)
+
+Set `YEP_E2E_SERVER_SCOPE=worker` to exercise worker isolation. Builds and the
+remote-client Vite/preview servers remain invocation-owned; each worker starts
+its own seeded YA profile and relay only when a fixture needs them. The default
+worker count remains one until full-suite and comparable CI evidence supports
+a change. Keep `--retries=0` in diagnostic parallel runs so a retry cannot hide
+shared state.
+
+Paths derive from Playwright's `TEST_WORKER_INDEX` before spec imports, rather
+than from a test callback. A replacement worker after failure gets fresh
+transcripts, projects, credentials, settings and databases. Hooks that inspect
+seeded files or the server port must request the worker-scoped `workerServer`
+fixture explicitly; test-auto fixtures run after `beforeAll`.
+
+Listener health is insufficient readiness for file mutation. Production
+defers provider watcher attachment after binding, so a write made earlier can
+enter the initial baseline without notifying an already-enumerated catalog.
+Worker setup waits for named Claude/Codex/Gemini observation and completed
+baselines in maintenance `/status`, then for a settled seeded catalog. Reading
+these diagnostics never activates watchers or probes provider storage. Keep
+live discovery and append assertions unchanged.
+
+Custom YA servers own separate provider-host runtime directories and clear
+inherited host connections. Their short run-owned runtime paths avoid Unix
+socket length limits. Await `disposeYaServerProcess` before removing storage;
+restart preserves its profile and host. Atomic recovery records let global
+teardown reclaim detached children after worker failure, and failed cleanup
+retains its recovery state. On Unix, recovery validates the recorded process
+identity and waits for the whole process group, including descendants after
+the leader exits. Windows uses bounded `taskkill /T /F`; detached-tree recovery
+and PID-reuse protection are weaker there and are not established by Unix
+tests. Worker ownership prevents concurrent mutation;
+each spec must still undo state it leaves for the next case on that worker.
+
+Fetch-then-fulfill route handlers use `routeWithDrain` when they can remain
+active after assertions. The page fixture settles all managed callbacks
+before removing interception patterns and reports handler errors. In
+Playwright 1.58, `unrouteAll({ behavior: "wait" })` alone can force-continue a
+sibling request while its callback still awaits a fetch response.
+
+A full local run on 2026-09-29 passed 345 cases with 12 platform/device skips,
+two workers and no retries in 8.0 minutes, including teardown. This establishes
+one passing schedule on macOS; comparable Linux CI runs are still required
+before changing the default. The historical run-scoped failures above remain
+the reason for this migration.
+
+`pnpm e2e:typecheck` checks the Playwright specs, configurations and support
+modules with Node and browser types. Root `pnpm typecheck` includes this gate;
+Playwright's transpilation alone does not check fixture contracts.
 
 ## Measuring value, time, and instability
 

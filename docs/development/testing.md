@@ -24,6 +24,11 @@ cd site && npm run build   # Astro check + build (or: pnpm site:build from root)
 
 Fix any errors before considering the task complete.
 
+Root `pnpm typecheck` includes `pnpm e2e:typecheck`, which checks all client
+Playwright specs, configurations and support modules through
+`packages/client/tsconfig.e2e.json`. Keep fixture and startup changes in that
+strict gate; Playwright strips types without checking them.
+
 The general CI unit-test job runs `pnpm test`. Android unit, lint, build, and
 instrumentation coverage belongs to the dedicated Android App workflow so its
 Gradle work does not contend with the JavaScript workspace test processes.

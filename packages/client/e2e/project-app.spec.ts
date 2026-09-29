@@ -26,6 +26,9 @@ let base: string;
 let projectId: string;
 
 test.beforeAll(async () => {
+  // CI36630063508 paid cold Vite transforms plus the real 2.57s namespace
+  // probe during the first iframe assertion. Readiness owns those operations.
+  test.setTimeout(30_000);
   const scratch = resolve(clientRoot, "../../.artifacts/project-app-browser");
   await mkdir(scratch, { recursive: true });
   directory = await mkdtemp(join(scratch, "run-"));
@@ -88,6 +91,22 @@ test.beforeAll(async () => {
     port: address.port,
     localOrigin: `http://artifacts.localhost:${address.port}`,
   });
+  await Promise.all([
+    vite.warmupRequest("/src/main.tsx"),
+    process.platform === "linux"
+      ? (async () => {
+          const response = await fetch(`${base}/api/version`, {
+            signal: AbortSignal.timeout(10_000),
+          });
+          expect(response.ok).toBe(true);
+          const version = await response.json();
+          expect(
+            version.sessionSandboxing,
+            JSON.stringify(version.sessionSandboxing),
+          ).toMatchObject({ state: "available", backend: "bubblewrap" });
+        })()
+      : Promise.resolve(),
+  ]);
 });
 test.afterAll(async () => {
   await presentUiCaptures();
@@ -111,6 +130,10 @@ test.afterAll(async () => {
 test("Live preview reloads Vite changes through the sandbox app proxy", async ({
   page,
 }) => {
+  test.skip(
+    process.platform !== "linux",
+    "Project-write sandbox requires Linux and Bubblewrap",
+  );
   test.setTimeout(60_000);
   const project = join(directory, "canvas");
   const manifest = join(project, ".project-template/app.json");
@@ -167,7 +190,10 @@ test("Live preview reloads Vite changes through the sandbox app proxy", async ({
   try {
     await page.goto(`${base}/projects/${projectId}/app`);
     const app = page.getByRole("region", { name: "Project App" });
-    await expect(app.locator("iframe")).toBeVisible();
+    // The failed CI trace rendered this first frame just after the 5s bound.
+    // Keep a bounded cold-page allowance; HMR and later frame checks retain
+    // their own deadlines and the Linux sandbox remains a required case.
+    await expect(app.locator("iframe")).toBeVisible({ timeout: 15_000 });
     let connected = false;
     page.on("websocket", (socket) =>
       socket.on("framereceived", ({ payload }) => {

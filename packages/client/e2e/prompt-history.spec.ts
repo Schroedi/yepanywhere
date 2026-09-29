@@ -104,7 +104,10 @@ for (const mobile of [false, true]) {
         "Let the rider turn around.\nBefore\nLet the rider turn around.\nAfter",
       );
       let value = await input.inputValue();
-      await input.press("ControlOrMeta+End");
+      await input.focus();
+      await input.evaluate((node: HTMLTextAreaElement) =>
+        node.setSelectionRange(node.value.length, node.value.length),
+      );
       for (const char of " Typing remains immediate.") {
         value += char;
         await input.pressSequentially(char);

@@ -1,9 +1,12 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { PublicSessionShareResponse } from "@yep-anywhere/shared";
+import {
+  toUrlProjectId,
+  type PublicSessionShareResponse,
+} from "@yep-anywhere/shared";
 import { expect, test } from "./fixtures.js";
 
-const projectId = Buffer.from("/project").toString("base64url");
+const projectId = toUrlProjectId("/project");
 const attachmentPath =
   "/app-data/projects/0123456789abcdef0123456789abcdef/attachments/source-session/12345678-1234-1234-1234-123456789abc_image.svg";
 const timestamp = "2026-09-07T00:00:00.000Z";

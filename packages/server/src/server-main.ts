@@ -1904,6 +1904,7 @@ async function startServer() {
           responseSerialization: relayResponseSerializationDiagnostics(),
         },
         background: {
+          providerSessionWatchers: providerSessionWatchers.getDiagnostics(),
           externalSessionTracker: externalTracker?.getDiagnostics() ?? null,
           liveWorktree: projectWorktreeSubscriptionManager.diagnostics(),
         },

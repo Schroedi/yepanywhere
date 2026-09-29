@@ -6,7 +6,7 @@ import { e2ePaths, expect, test } from "./fixtures.js";
 import {
   restartYaServerProcess,
   startYaServerProcess,
-  stopYaServerProcess,
+  disposeYaServerProcess,
   type YaServerProcess,
 } from "./support/ya-server-process.js";
 
@@ -461,6 +461,6 @@ test("restores the high-water position after a server restart and reload", async
       })
       .toBeLessThanOrEqual(2);
   } finally {
-    stopYaServerProcess(server);
+    await disposeYaServerProcess(server);
   }
 });

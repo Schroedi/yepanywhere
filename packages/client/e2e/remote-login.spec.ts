@@ -11,7 +11,7 @@ import { InstallService } from "../../server/src/services/InstallService.js";
 import type { YaServerProcess } from "./support/ya-server-process.js";
 import {
   startYaServerProcess,
-  stopYaServerProcess,
+  disposeYaServerProcess,
 } from "./support/ya-server-process.js";
 import {
   configureRemoteAccess,
@@ -24,7 +24,7 @@ import {
 // Remote login changes server-wide credentials. Give this file its own YA
 // process and data directory while reusing the run's remote client build.
 const test = baseTest.extend<
-  Record<string, never>,
+  Record<never, never>,
   { remoteLoginServer: YaServerProcess }
 >({
   remoteLoginServer: [
@@ -47,7 +47,7 @@ const test = baseTest.extend<
       try {
         await use(server);
       } finally {
-        stopYaServerProcess(server);
+        await disposeYaServerProcess(server);
       }
     },
     { scope: "worker" },

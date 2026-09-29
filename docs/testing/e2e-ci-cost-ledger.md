@@ -239,3 +239,32 @@ method. Compare passing-job median and high-percentile wall time at comparable
 case counts and revisions, and report first-attempt failures, retry passes,
 and persistent failures separately. Keep the unique browser or transport
 assertions beside each removed or moved case in the tactical plan.
+
+
+### Worker isolation campaign — 2026-09-29
+
+The full worker-owned suite passed locally on macOS with `--workers=2
+--retries=0`: 345 passed, 12 platform/device cases skipped, 8.0 minutes.
+Teardown completed and removed the invocation profile. This is a complete
+schedule, unlike the earlier failure-limited parallel trials; it is still
+one local observation rather than a CI speed or flake-rate estimate.
+
+A refreshed CI history query used the workflow-runs API with an explicit
+`main` branch filter, then job timestamps for each exact revision. Thirteen
+passing two-shard pairs from September 27–29 had a slower-shard median of
+12m36s, nearest-rank p90 of 14m37s and median combined job time of 23m29s.
+Case counts and source changed across that window, so it is a prioritization
+baseline rather than a controlled comparison. The next comparison retains
+the two shards and changes only the worker scope/count on a fixed test source.
+Record start skew separately from service/test time and report retries as well
+as final passes.
+
+The first unit-storage fix's [CI run 36630063508](https://github.com/kzahel/yepanywhere/actions/runs/36630063508)
+passed the general unit job in 7m52s and shard 2 in 12m58s. Shard 1 failed the
+real Linux live-preview case: its cold iframe became ready just after the
+five-second assertion in the retry trace. The harness now warms the actual
+Vite module and validates sandbox availability before navigation; only the
+first cold-frame assertion has a measured 15-second allowance. That workflow
+also failed an Intel macOS native-host descriptor wait without child output.
+The native fixture now reports child exits and bounded stdout/stderr at the
+same deadline; no speculative production timeout was increased.

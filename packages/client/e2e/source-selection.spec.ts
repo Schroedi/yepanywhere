@@ -245,7 +245,7 @@ async function dragSelectAndCopy(
     () => document.getSelection()?.toString() ?? "",
   );
   await page.evaluate(() => navigator.clipboard.writeText(""));
-  await page.keyboard.press("Control+c");
+  await page.keyboard.press("ControlOrMeta+c");
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   return { copied, selected };
 }

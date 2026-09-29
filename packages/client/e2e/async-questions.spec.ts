@@ -9,7 +9,7 @@ import {
 import { createTestViteServer as createServer } from "./support/vite-server";
 import {
   startYaServerProcess,
-  stopYaServerProcess,
+  disposeYaServerProcess,
 } from "./support/ya-server-process";
 
 test.use({ serviceWorkers: "block" });
@@ -808,6 +808,6 @@ test("async questions preserve context, drafts, scroll and ordinary delivery", a
     replyGate.release?.();
     await page.unrouteAll({ behavior: "wait" });
     await source.close();
-    stopYaServerProcess(backend);
+    await disposeYaServerProcess(backend);
   }
 });

@@ -55,7 +55,7 @@ test("two-device handoff, sequential typing, offline reload and conditional send
     // A remote revision arrives while actual key events continue under 1,000-row activity.
     await inputA.evaluate((node) => {
       node.addEventListener("keydown", (event) => {
-        if (event.key.length !== 1) return;
+        if (!(event instanceof KeyboardEvent) || event.key.length !== 1) return;
         const start = performance.now();
         node.addEventListener(
           "input",

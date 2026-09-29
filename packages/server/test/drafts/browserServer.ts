@@ -48,7 +48,7 @@ export async function startDraftBrowserServer() {
     url: `http://127.0.0.1:${address.port}`,
     store,
     close: async () => {
-      server.closeAllConnections?.();
+      if ("closeAllConnections" in server) server.closeAllConnections();
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),
       );

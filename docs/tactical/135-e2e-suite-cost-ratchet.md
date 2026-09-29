@@ -243,3 +243,29 @@ have been diagnosed and repaired, the suite has a stable measurement ledger,
 the high-time specs have been reviewed, and a comparable CI window shows lower
 median and high-percentile job time without a higher retry-pass rate or lost
 boundary coverage.
+
+
+### Worker isolation foundation — 2026-09-29
+
+The opt-in worker scope owns mutable YA/relay profiles and process lifetimes.
+Startup waits for provider observation baselines and a settled retained
+catalog, rather than only an HTTP listener. Recovery records preserve original
+Unix process identities; partial starts, restarts and teardown attempt every
+owned actor and retain evidence on cleanup failure. Browser route callbacks
+drain before page disposal. Seeded composer drafts reset in their actual
+server scope. The entire Playwright harness now joins root strict typechecking.
+
+A full local macOS run passed 345 cases with 12 platform/device skips, two
+workers and no retries in 8.0 minutes. No browser cases were removed. The
+Linux-only live-preview sandbox remains required in CI; its cold readiness
+probe is explicit. Existing one-worker/two-shard CI is the next control before
+changing worker topology. Compare fixed source revisions, startup and test
+steps, retries, slower-shard wall time and combined runner time; do not treat
+the local run as a CI speed estimate.
+
+The broader audit also fixed per-app persisted storage in full server test
+fixtures and moved session-filtering HTTP assertions to owned real scanners
+and readers. Catalog publication now invalidates the authorization projection
+without waiting for its five-second fallback TTL, with fail-closed regressions
+for stale positive mappings and event delivery. These are isolation and
+correctness changes, not removed coverage or longer general timeouts.

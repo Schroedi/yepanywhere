@@ -36,5 +36,16 @@ contexts loaded that draft from the shared server. The common browser fixture
 now clears that seeded slot before each case using it. This is a focused repair;
 other mutable server state still needs the audit above.
 
+The 2026-09-29 worker fixture now owns seeded profiles, YA processes, relay
+state and provider-host runtimes per Playwright worker; replacement workers
+receive new profiles. Shared builds and remote-client servers remain
+invocation-owned. Managed routes drain before page disposal, seeded draft
+slots reset before use, and startup waits for real watcher baselines and a
+settled catalog. A full local two-worker run with no retries passed 345 cases
+and skipped 12 platform/device cases in 8.0 minutes, with successful process
+and storage cleanup. `YEP_E2E_SERVER_SCOPE=worker` remains opt-in until
+comparable Linux CI and repeated parallel schedules establish the migration.
+The run-scoped default and one-worker-per-shard CI still leave this gap open.
+
 Found 2026-09-27 while comparing local two-worker execution with isolated CI
 shards.

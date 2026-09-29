@@ -8,7 +8,7 @@ import {
 import { createTestViteServer } from "./support/vite-server";
 import {
   startYaServerProcess,
-  stopYaServerProcess,
+  disposeYaServerProcess,
 } from "./support/ya-server-process";
 import { recordUiCapture } from "./support/ui-capture";
 
@@ -221,6 +221,6 @@ test("read toggles stay synchronized across sidebar, session menu and inbox", as
   } finally {
     await page.goto("about:blank");
     await source.close();
-    stopYaServerProcess(backend);
+    await disposeYaServerProcess(backend);
   }
 });
