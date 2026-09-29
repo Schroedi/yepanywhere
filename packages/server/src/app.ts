@@ -900,6 +900,7 @@ export function createApp(options: AppOptions): AppResult {
       };
     },
     // The one retained catalog All Sessions and Inbox read, built below.
+    getCatalogVersion: () => retainedCollections?.getVersion(),
     readCatalogRows: async () => {
       if (!retainedCollections) {
         throw new Error("Session catalog read before the app was built");

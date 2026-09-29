@@ -379,7 +379,10 @@ host-wide routes.
 
 Session-to-project resolution for session-scoped paths uses the live process
 first and the session catalog second — the same retained catalog All Sessions
-and Inbox read, re-read at most every few seconds. A session that resolves to
+and Inbox read. Its access projection refreshes when that retained catalog
+publishes a different epoch or generation; otherwise unknown-id and failed-read
+bursts remain throttled to one read every five seconds. The publication identity
+is read from memory and never initiates provider discovery. A session that resolves to
 no project, including one the catalog files under two projects, is refused. List filtering is by project only: a session the user started in a
 project whose grant was later removed stays directly readable but no longer
 appears in their lists. Sessions the user starts are recorded with `createdByUser` in

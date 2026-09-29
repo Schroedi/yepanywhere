@@ -1203,6 +1203,159 @@ describe("session access resolver", () => {
   const hours = (count: number) => count * 60 * 60 * 1000;
   const now = hours(10);
 
+  it("observes newly published sessions and revoked identities inside the TTL", async () => {
+    let version = "epoch:1";
+    let rows: Array<{ sessionId: string; projectId: string }> = [];
+    let reads = 0;
+    const resolver = new SessionAccessResolver({
+      getLiveSession: () => undefined,
+      getSessionMetadata: () => undefined,
+      getCatalogVersion: () => version,
+      readCatalogRows: async () => {
+        reads += 1;
+        return rows;
+      },
+      now: () => now,
+    });
+    expect(await resolver.resolve("new-session")).toBeNull();
+    expect(await resolver.resolve("another-missing-id")).toBeNull();
+    expect(reads).toBe(1);
+    rows = [{ sessionId: "new-session", projectId: "owned-project" }];
+    version = "epoch:2";
+    expect((await resolver.resolve("new-session"))?.projectId).toBe(
+      "owned-project",
+    );
+    expect(reads).toBe(2);
+    rows.push({ sessionId: "new-session", projectId: "other-project" });
+    version = "epoch:3";
+    expect(await resolver.resolve("new-session")).toBeNull();
+    rows = [];
+    version = "replacement-epoch:0";
+    expect(await resolver.resolve("new-session")).toBeNull();
+    expect(reads).toBe(4);
+  });
+
+  it("throttles failed catalog reads per version and retries on publication", async () => {
+    let version = "epoch:1";
+    let reads = 0;
+    const resolver = new SessionAccessResolver({
+      getLiveSession: () => undefined,
+      getSessionMetadata: () => undefined,
+      getCatalogVersion: () => version,
+      readCatalogRows: async () => {
+        reads += 1;
+        if (reads === 1) throw new Error("catalog read failed");
+        return [{ sessionId: "published", projectId: "owned-project" }];
+      },
+      now: () => now,
+    });
+    await expect(resolver.resolve("published")).rejects.toThrow(
+      "catalog read failed",
+    );
+    expect(await resolver.resolve("published")).toBeNull();
+    expect(reads).toBe(1);
+    version = "epoch:2";
+    expect((await resolver.resolve("published"))?.projectId).toBe(
+      "owned-project",
+    );
+    expect(reads).toBe(2);
+  });
+
+  it("does not consume a publication that races an in-flight read", async () => {
+    let version = "epoch:1";
+    let reads = 0;
+    let release!: (
+      rows: Array<{ sessionId: string; projectId: string }>,
+    ) => void;
+    const pendingRows = new Promise<
+      Array<{ sessionId: string; projectId: string }>
+    >((resolve) => {
+      release = resolve;
+    });
+    const resolver = new SessionAccessResolver({
+      getLiveSession: () => undefined,
+      getSessionMetadata: () => undefined,
+      getCatalogVersion: () => version,
+      readCatalogRows: async () => {
+        reads += 1;
+        return reads === 1
+          ? pendingRows
+          : [{ sessionId: "published", projectId: "owned-project" }];
+      },
+      now: () => now,
+    });
+    const first = resolver.resolve("published");
+    const coalesced = resolver.resolve("missing");
+    version = "epoch:2";
+    release([]);
+    expect((await first)?.projectId).toBe("owned-project");
+    expect(await coalesced).toBeNull();
+    expect(reads).toBe(2);
+    expect((await resolver.resolve("published"))?.projectId).toBe(
+      "owned-project",
+    );
+    expect(reads).toBe(2);
+  });
+
+  it("does not reuse obsolete positive facts after a failed refresh", async () => {
+    let version = "epoch:1";
+    let reads = 0;
+    const resolver = new SessionAccessResolver({
+      getLiveSession: () => undefined,
+      getSessionMetadata: () => undefined,
+      getCatalogVersion: () => version,
+      readCatalogRows: async () => {
+        reads += 1;
+        if (reads > 1) throw new Error("replacement unreadable");
+        return [{ sessionId: "allowed", projectId: "granted" }];
+      },
+      now: () => now,
+    });
+    expect((await resolver.resolve("allowed"))?.projectId).toBe("granted");
+    version = "epoch:2";
+    await expect(resolver.resolve("allowed")).rejects.toThrow(
+      "replacement unreadable",
+    );
+    expect(await resolver.resolve("allowed")).toBeNull();
+    expect(await resolver.resolve("allowed")).toBeNull();
+    expect(reads).toBe(2);
+  });
+
+  it("keeps fully observed live sessions independent of catalog publication and failures", async () => {
+    const resolver = new SessionAccessResolver({
+      getLiveSession: () => ({
+        projectId: "live-project",
+        lastActivityMs: now,
+      }),
+      getSessionMetadata: () => undefined,
+      getCatalogVersion: () => "new-publication",
+      readCatalogRows: async () => {
+        throw new Error("must not read catalog");
+      },
+      now: () => now,
+    });
+    expect((await resolver.resolve("live"))?.projectId).toBe("live-project");
+    expect(resolver.resolveKnown("live")?.projectId).toBe("live-project");
+  });
+
+  it("does not return an old positive mapping when both bounded reads are superseded", async () => {
+    let generation = 1;
+    let reads = 0;
+    const resolver = new SessionAccessResolver({
+      getLiveSession: () => undefined,
+      getSessionMetadata: () => undefined,
+      getCatalogVersion: () => `epoch:${generation}`,
+      readCatalogRows: async () => {
+        reads += 1;
+        generation += 1;
+        return [{ sessionId: "old", projectId: "granted" }];
+      },
+      now: () => now,
+    });
+    expect(await resolver.resolve("old")).toBeNull();
+    expect(reads).toBe(2);
+  });
+
   it("dates a live process that has seen no provider message by its catalog row", async () => {
     const resolver = new SessionAccessResolver({
       getLiveSession: () => ({
