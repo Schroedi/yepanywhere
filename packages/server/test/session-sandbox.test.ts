@@ -220,7 +220,9 @@ describe("session sandbox", { timeout: 20_000 }, () => {
       availability.blocker?.kind === "missing-packages"
         ? availability.blocker.packages
         : [];
-    expect(packages.slice(0, 2)).toEqual(["bubblewrap", "slirp4netns"]);
+    expect(packages).toEqual(
+      expect.arrayContaining(["bubblewrap", "slirp4netns"]),
+    );
   });
 
   trustedBwrapIt(

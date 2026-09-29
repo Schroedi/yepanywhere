@@ -1,4 +1,11 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -404,29 +411,39 @@ it("enforces source-qualified grants, owner-only operations and real sandboxed l
   expect((await post(request)).status).toBe(409);
   await users.update("archer", { templateCreation: { mode: "any" } });
   const availability = await probeSessionSandboxAvailability();
-  expect((await post(request)).status).toBe(202);
-  await service.wait(request.operationId);
-  const outcome = await service.get(request.operationId);
-  if (availability.state === "available") {
-    expect(await readFile(outside, "utf8")).toBe("protected");
-    expect(outcome, outcome?.error).toMatchObject({
-      phase: "started",
-      ownerUsername: "archer",
-    });
-    expect(launches).toBe(1);
-    expect(await readFile(join(request.path, "dist/index.html"), "utf8")).toBe(
-      "Ready",
-    );
-  } else {
-    expect(outcome).toMatchObject({ phase: "failed" });
+  const response = await post(request);
+  // Non-Linux hosts refuse admission before creating a sandbox operation.
+  if (availability.state === "unsupported-platform") {
+    expect(response.status).toBe(409);
     expect(launches).toBe(0);
+    expect(await service.get(request.operationId)).toBeNull();
+  } else {
+    expect(response.status).toBe(202);
+    await service.wait(request.operationId);
+    const outcome = await service.get(request.operationId);
+    if (availability.state === "available") {
+      expect(await readFile(outside, "utf8")).toBe("protected");
+      expect(outcome, outcome?.error).toMatchObject({
+        phase: "started",
+        ownerUsername: "archer",
+      });
+      expect(launches).toBe(1);
+      expect(
+        await readFile(join(request.path, "dist/index.html"), "utf8"),
+      ).toBe("Ready");
+    } else {
+      expect(outcome).toMatchObject({ phase: "failed" });
+      expect(launches).toBe(0);
+    }
   }
   username = "other";
   expect(
     (await app.request(`/project-templates/operations/${request.operationId}`))
       .status,
   ).toBe(404);
-  expect((await post(request)).status).toBe(404);
+  expect((await post(request)).status).toBe(
+    availability.state === "unsupported-platform" ? 409 : 404,
+  );
   await users.update("other", { templateCreation: { mode: "none" } });
   expect((await app.request("/project-templates/choices")).status).toBe(403);
 }, 30_000);
@@ -563,7 +580,7 @@ it("wires the production creation route through project registration and session
     ).json();
     expect(project.project).toMatchObject({
       name: "Wired",
-      path: request.path,
+      path: await realpath(request.path),
     });
     expect(await readFile(join(request.path, "dist/index.html"), "utf8")).toBe(
       "Ready",

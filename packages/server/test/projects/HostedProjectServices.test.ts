@@ -26,12 +26,15 @@ import {
   initializeProviderRuntimeHost,
 } from "../../src/sdk/providers/provider-runtime-host.js";
 
-it.each(["shutdown", "worker-loss"])(
+const sandboxAvailable =
+  (await probeSessionSandboxAvailability()).state === "available";
+
+it.skipIf(!sandboxAvailable).each(["shutdown", "worker-loss"])(
   "keeps the same sandbox app across controller replacement and cleans up on %s",
   {
     timeout: 30_000,
   },
-  async (termination, context) => {
+  async (termination) => {
     const root = await realpath(
       await mkdtemp(
         join(
@@ -63,15 +66,6 @@ it.each(["shutdown", "worker-loss"])(
       return { artifacts, delivery };
     };
     try {
-      if (
-        (
-          await probeSessionSandboxAvailability({
-            stateRoot: join(root, "probe"),
-          })
-        ).state !== "available"
-      ) {
-        context.skip();
-      }
       await mkdir(join(project, ".project-template"), { recursive: true });
       await writeFile(
         join(project, ".project-template/app.json"),
