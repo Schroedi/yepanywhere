@@ -90,6 +90,7 @@ jobs:
           test/scripts/provider-host-ownership.test.mjs
           test/scripts/provider-host-system.test.mjs
           test/scripts/e2e-host-launch.test.ts
+          test/scripts/e2e-offline-runtime.test.ts
           test/sdk/providers/provider-runtime-host.test.ts
           test/sdk/providers/provider-host-status.test.ts
           --maxWorkers=1 --testTimeout=20000
@@ -309,12 +310,15 @@ jobs:
         env:
           YEP_E2E_SERVER_SCOPE: worker
         run: pnpm test:e2e --reporter=list,github --max-failures=5 --workers=2 --shard=${{ matrix.shard }}/2
-      - name: Preserve browser failure evidence
-        if: failure()
+      - name: Preserve browser failure and retry evidence
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: e2e-failures-shard-${{ matrix.shard }}-${{ github.run_attempt }}
-          path: packages/client/test-results/
+          path: |
+            packages/client/test-results/**/trace.zip
+            packages/client/test-results/**/test-failed-*.png
+            packages/client/test-results/**/error-context.md
           if-no-files-found: ignore
           retention-days: 7
 
