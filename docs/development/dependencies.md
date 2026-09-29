@@ -15,7 +15,7 @@ upstream fix.
 
 When a transitive dep has no direct upgrade path, prefer a pnpm override. Pin it
 exactly if a newer major would escape the parent's declared range — `fast-uri`
-is pinned to `3.1.6` rather than `^3.1.6` because 4.x is published and `ajv`
+is pinned to `3.1.7` rather than `^3.1.7` because 4.x is published and `ajv`
 declares `^3.0.1`. When the parent's declared range already contains the patched
 version, no override is needed: refresh the lockfile with
 `pnpm -r update <pkg> --depth=Infinity` (plain `pnpm update` skips transitive
@@ -24,6 +24,11 @@ direct dependents instead: `jsdom@25` (client tests only) stayed on
 `ws@8.19.0`, inside two `ws` advisories, although its `^8.18.0` range admits
 the patched 8.21. The scoped `"jsdom>ws": "^8.21.3"` override moves only that
 edge. Drop it when a newer jsdom resolves a patched `ws` without it.
+
+The 2026-09-29 audit refresh moves `fast-uri` to 3.1.7 and the MCP SDK's
+`express-rate-limit -> ip-address` edge to 10.7.2 (within its `^10.2.0`
+range). This resolves GHSA-qw65-cvwx-89v3, GHSA-58mr-gqgx-xq4g,
+GHSA-rpw4-54j3-4h4q, and GHSA-2vr4-cq9g-pvrc without new audit exclusions.
 
 ### Install-script allowlist
 

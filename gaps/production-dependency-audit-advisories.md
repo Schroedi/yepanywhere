@@ -1,14 +1,4 @@
-# Production dependency audit reports actionable and ignored advisories
-
-2026-09-29 — CI on `3a0281f83` fails `pnpm audit --prod` with four additional
-non-ignored findings: `fast-uri` GHSA-qw65-cvwx-89v3 and GHSA-58mr-gqgx-xq4g,
-and `ip-address` GHSA-rpw4-54j3-4h4q and GHSA-2vr4-cq9g-pvrc. See
-[origin CI](https://github.com/kzahel/yepanywhere/actions/runs/36500646148) and
-[mirror CI](https://github.com/graehl/yepanywhere/actions/runs/36500649461).
-The app-controls publish changed no dependency manifest or lockfile. These
-findings still need consuming-path review and an appropriate dependency fix;
-they were not dismissed as unreachable or folded into the UI change.
-Contributing-model: 6-Astra.
+# Production dependency audit has two documented suppressions
 
 `pnpm audit --prod` currently reports two ignored advisories:
 
