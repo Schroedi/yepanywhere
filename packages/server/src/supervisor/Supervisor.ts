@@ -703,6 +703,9 @@ export class Supervisor {
   }
   private onSessionSummary?: OnSessionSummaryCallback;
   private recoverSessionLaunchSettings?: RecoverSessionLaunchSettingsCallback;
+  private backgroundTasksStopped = false;
+  private backgroundStop: Promise<void> | undefined;
+  private heartbeatInterruptTasks = new Set<Promise<void>>();
   private staleCheckTimer: ReturnType<typeof setInterval>;
   private getHeartbeatTurnSettings?: (
     sessionId: string,
@@ -853,6 +856,9 @@ export class Supervisor {
         ),
       onSuccessfulProviderSession: this.onSuccessfulProviderSession,
     });
+    if (!this.provider && !this.sdk && !this.realSdk) {
+      throw new Error("Either provider, sdk, or realSdk must be provided");
+    }
     this.staleCheckTimer = setInterval(
       () => this.terminateStaleProcesses(),
       STALE_CHECK_INTERVAL_MS,
@@ -877,10 +883,21 @@ export class Supervisor {
       LIVENESS_PROBE_CHECK_INTERVAL_MS,
     );
     this.livenessProbeTimer.unref();
+  }
 
-    if (!this.provider && !this.sdk && !this.realSdk) {
-      throw new Error("Either provider, sdk, or realSdk must be provided");
-    }
+  /** Release this supervisor's timers without terminating provider owners. */
+  stopBackgroundTasks(): Promise<void> {
+    if (this.backgroundStop) return this.backgroundStop;
+    this.backgroundTasksStopped = true;
+    clearInterval(this.staleCheckTimer);
+    clearInterval(this.livenessProbeTimer);
+    for (const timer of this.patientCheckTimers.values()) clearTimeout(timer);
+    this.patientCheckTimers.clear();
+    this.backgroundStop = (async () => {
+      await this.heartbeatScheduler.stopAndDrain();
+      await Promise.allSettled(this.heartbeatInterruptTasks);
+    })();
+    return this.backgroundStop;
   }
 
   /** Sandbox request for a new or resumed provider process. */
@@ -4152,10 +4169,12 @@ export class Supervisor {
    * without an event, in which case no timer is armed at all.
    */
   private async runHeartbeatSweep(now: number): Promise<number | null> {
+    if (this.backgroundTasksStopped) return null;
     const log = getLogger();
     let dueAtMs: number | null = null;
 
     for (const process of this.processes.values()) {
+      if (this.backgroundTasksStopped) return null;
       if (this.isAutomationPausedUntilUserTurn(process.sessionId)) {
         continue;
       }
@@ -4199,6 +4218,7 @@ export class Supervisor {
     let dueAtMs: number | null = null;
     const candidates = (await this.getHeartbeatTurnCandidates?.()) ?? [];
     for (const candidate of candidates) {
+      if (this.backgroundTasksStopped) return null;
       dueAtMs = earliestDueAt(
         dueAtMs,
         await this.queueHeartbeatTurnForCandidate(candidate, now, log),
@@ -4233,6 +4253,7 @@ export class Supervisor {
    * churn cannot make heartbeats cost more than the fixed tick they replaced.
    */
   private requestHeartbeatSweep(): void {
+    if (this.backgroundTasksStopped) return;
     if (this.heartbeatScheduler.isArmedWithin(HEARTBEAT_RECHECK_MS)) return;
     if (!this.hasHeartbeatWork()) return;
     this.heartbeatScheduler.requestSweepWithin(HEARTBEAT_RECHECK_MS);
@@ -4244,6 +4265,7 @@ export class Supervisor {
    * if it had settled.
    */
   notifyHeartbeatScheduleChanged(): void {
+    if (this.backgroundTasksStopped) return;
     this.heartbeatCandidateDueAtMs = 0;
     this.heartbeatScheduler.requestSweepWithin(HEARTBEAT_RECHECK_MS);
   }
@@ -4355,6 +4377,7 @@ export class Supervisor {
     process: Process,
     delayMs: number,
   ): void {
+    if (this.backgroundTasksStopped) return;
     const existing = this.patientCheckTimers.get(process.id);
     if (existing) {
       clearTimeout(existing);
@@ -4454,7 +4477,7 @@ export class Supervisor {
     }
 
     if (action.type === "interrupt") {
-      void this.interruptHeartbeatTurnForProcess(process, {
+      const interrupt = this.interruptHeartbeatTurnForProcess(process, {
         now,
         log,
         text,
@@ -4465,6 +4488,21 @@ export class Supervisor {
         forceIdleMs: action.forceIdleMs,
         livenessStatus: liveness.derivedStatus,
       });
+      this.heartbeatInterruptTasks.add(interrupt);
+      void interrupt.then(
+        () => this.heartbeatInterruptTasks.delete(interrupt),
+        (error) => {
+          this.heartbeatInterruptTasks.delete(interrupt);
+          log.error(
+            {
+              event: "heartbeat_interrupt_failed",
+              sessionId: process.sessionId,
+              error,
+            },
+            "Heartbeat interrupt failed",
+          );
+        },
+      );
       return blockedAtMs;
     }
 
@@ -4533,6 +4571,8 @@ export class Supervisor {
         preamble: FORCED_HEARTBEAT_INTERRUPT_PREAMBLE,
       },
     );
+
+    if (this.backgroundTasksStopped) return;
 
     if (interrupted) {
       log.warn(
@@ -4726,7 +4766,7 @@ export class Supervisor {
       void process
         .probeLiveness()
         .then((probe) => {
-          if (!probe) {
+          if (this.backgroundTasksStopped || !probe) {
             return;
           }
           const event =

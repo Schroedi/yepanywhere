@@ -1,3 +1,4 @@
+import { trackFixtureSupervisor } from "./app-fixture-lifecycle.js";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -26,13 +27,16 @@ export function createApp(options: AppOptions): AppResult {
   // distinct database for each app; restart tests can still share an explicit
   // dataDir. The file's hermetic setup owns cleanup of these directories.
   const dataDir = options.dataDir ?? join(root!, `app-${randomUUID()}`);
-  return createProductionApp({
+  const result = createProductionApp({
     codexSessionsDir: join(EMPTY_PROVIDER_ROOT, "codex"),
     geminiSessionsDir: join(EMPTY_PROVIDER_ROOT, "gemini"),
     grokSessionsDir: join(EMPTY_PROVIDER_ROOT, "grok"),
     piSessionsDir: join(EMPTY_PROVIDER_ROOT, "pi"),
     provider: null,
+    getLatestVersion: async () => null,
     ...options,
     dataDir,
   });
+  trackFixtureSupervisor(result.supervisor);
+  return result;
 }

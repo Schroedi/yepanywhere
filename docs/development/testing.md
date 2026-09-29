@@ -55,7 +55,16 @@ The production constructor reads its `dataDir` option, not `YEP_DATA_DIR`;
 setting the environment alone does not isolate these fixtures. Pass an
 explicit `dataDir` only when the test needs an owned persisted profile, such
 as a restart or shared-storage scenario. Dispose app services before removing
-their fixture directories.
+their fixture directories. The wrapper also drains supervisor maintenance at
+file teardown; explicit app disposal joins that work before closing storage.
+Restore fake timers before leaving a test that admits asynchronous maintenance
+work, so teardown can drain its promises rather than wait on a frozen clock.
+The wrapper injects an offline latest-version lookup. Browser server processes
+use a fixture preload that supplies the update endpoint's real 204 no-update
+response while forwarding other HTTP traffic. Version-route contract tests own
+their explicit update responses; general tests never require public update
+service availability. Client unit setup clears local/session storage before
+invalidating preference caches, so earlier cases cannot choose later defaults.
 
 ## Cross-Platform Behavior And Tests
 

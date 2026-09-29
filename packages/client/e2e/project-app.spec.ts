@@ -26,8 +26,8 @@ let base: string;
 let projectId: string;
 
 test.beforeAll(async () => {
-  // CI36630063508 paid cold Vite transforms plus the real 2.57s namespace
-  // probe during the first iframe assertion. Readiness owns those operations.
+  // CI36630063508 paid cold Vite transforms plus 2.57s of version readiness
+  // (sandbox probe and update check). Readiness owns those operations.
   test.setTimeout(30_000);
   const scratch = resolve(clientRoot, "../../.artifacts/project-app-browser");
   await mkdir(scratch, { recursive: true });

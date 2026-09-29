@@ -276,7 +276,10 @@ import {
   DiscoverySqliteService,
   type SqliteMode,
 } from "./storage/discovery-sqlite.js";
-import { createVersionRoutes } from "./routes/version.js";
+import {
+  createVersionRoutes,
+  type VersionRouteOptions,
+} from "./routes/version.js";
 import { createProviderHostRoutes } from "./routes/provider-host.js";
 import { createWorkstreamRoutes } from "./routes/workstreams.js";
 import { WS_INTERNAL_AUTHENTICATED } from "./middleware/internal-auth.js";
@@ -376,6 +379,8 @@ import {
 import { LifecycleWebhookService } from "./webhooks/LifecycleWebhookService.js";
 
 export interface AppOptions {
+  /** Owned update-service lookup for embedded applications and test fixtures. */
+  getLatestVersion?: VersionRouteOptions["getLatestVersion"];
   artifacts?: ArtifactConfig;
   /** Explicit provider override; null suppresses ambient provider discovery. */
   provider?: AgentProvider | null;
@@ -570,7 +575,7 @@ export interface AppResult {
   readerFactory: (project: Project) => ISessionReader;
   /** Close cached session readers and their owned parser workers. */
   disposeSessionReaders: () => Promise<void>;
-  /** Stop session/inactivity push generation before provider shutdown. */
+  /** Stop push generation and supervisor automation before provider shutdown. */
   stopNotifications: () => void;
   /** Shared resolver used by the artifact route and glossary subscriptions. */
   glossaryIndexService: GlossaryIndexService;
@@ -1368,6 +1373,7 @@ export function createApp(options: AppOptions): AppResult {
   let vocabularyKeyterms: VocabularyKeyterms | undefined;
   let unsubscribeVocabulary: (() => void) | undefined;
   const disposeSessionReaders = async (): Promise<void> => {
+    await supervisor.stopBackgroundTasks();
     await projectServices.close();
     await projectAppStore.close();
     await templateCreations.close();
@@ -1839,6 +1845,9 @@ export function createApp(options: AppOptions): AppResult {
   const stopNotifications = () => {
     pushNotifier?.dispose();
     inactivityPushNotifier?.dispose();
+    // Fence automation before provider shutdown; reader disposal joins work
+    // already admitted before closing its metadata/catalog dependencies.
+    void supervisor.stopBackgroundTasks();
   };
 
   const clearloopService = options.sessionMetadataService
@@ -2240,6 +2249,7 @@ export function createApp(options: AppOptions): AppResult {
   app.route(
     "/api/version",
     createVersionRoutes({
+      getLatestVersion: options.getLatestVersion,
       getExperimentalConversationAvailable: () =>
         Boolean(conversationSubscriptions),
       getSqliteStatus: () => discoverySqlite.getStatus(),

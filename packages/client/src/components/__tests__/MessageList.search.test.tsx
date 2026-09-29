@@ -115,7 +115,11 @@ function installSearchGeometry(rowOffsets: Record<string, number>) {
   const observer = new MutationObserver(installRowGeometry);
   observer.observe(messageList, { childList: true, subtree: true });
 
-  return { scrollTo, stop: () => observer.disconnect() };
+  return {
+    scrollTo,
+    getScrollTop: () => scrollTop,
+    stop: () => observer.disconnect(),
+  };
 }
 
 function deferred<T>() {
@@ -390,6 +394,12 @@ describe("MessageList reverse search", () => {
         container.querySelectorAll("[data-render-id]").length,
       ).toBeLessThanOrEqual(48);
 
+      // Own geometry before the initial layout settles. Otherwise its queued
+      // bottom positioning can consume newly installed metrics during search.
+      const { scrollTo, getScrollTop, stop } = installSearchGeometry({
+        [targetId]: 900,
+      });
+      await waitFor(() => expect(getScrollTop()).toBe(1600));
       fireEvent.keyDown(window, { key: shortcut, ctrlKey: true });
       const input = await screen.findByRole("textbox", { name: inputName });
       fireEvent.change(input, { target: { value: needle } });
@@ -398,8 +408,6 @@ describe("MessageList reverse search", () => {
           container.querySelector(`[data-render-id="${targetId}"]`),
         ).not.toBeNull();
       });
-      const { scrollTo } = installSearchGeometry({ [targetId]: 900 });
-
       fireEvent.keyDown(window, { key: "Enter" });
 
       await waitFor(() => {
@@ -409,9 +417,11 @@ describe("MessageList reverse search", () => {
         ).not.toBeNull();
       });
       expect(scrollTo).toHaveBeenCalledWith({ top: 812, behavior: "auto" });
+      expect(getScrollTop()).toBe(812);
       expect(
         container.querySelectorAll("[data-render-id]").length,
       ).toBeLessThanOrEqual(48);
+      stop();
     },
   );
 

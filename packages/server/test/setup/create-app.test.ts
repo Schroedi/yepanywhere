@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DraftRead } from "@yep-anywhere/shared";
 import type { AppResult } from "../../src/app.js";
 import { MockClaudeSDK } from "../../src/sdk/mock.js";
@@ -10,6 +10,7 @@ const apps: AppResult[] = [];
 const slot = { kind: "new-session" };
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
   await Promise.all(apps.splice(0).map((app) => app.disposeSessionReaders()));
 });
 
@@ -59,6 +60,31 @@ async function writeDraft(app: AppResult): Promise<void> {
 }
 
 describe("full-app test fixture storage", () => {
+  it("answers version requests without contacting an external update service", async () => {
+    const network = vi.fn(() => {
+      throw new Error("Unexpected external fetch");
+    });
+    vi.stubGlobal("fetch", network);
+    const app = fixture();
+    const response = await app.app.request("/api/version?fresh=true");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      latest: null,
+      updateAvailable: false,
+    });
+    expect(network).not.toHaveBeenCalled();
+  });
+
+  it("stops supervisor automation before closing the app's storage", async () => {
+    const app = fixture();
+    app.stopNotifications();
+    expect(app.supervisor.getHeartbeatScheduleMetrics().armedAtMs).toBeNull();
+    await app.disposeSessionReaders();
+    apps.splice(apps.indexOf(app), 1);
+    app.supervisor.notifyHeartbeatScheduleChanged();
+    expect(app.supervisor.getHeartbeatScheduleMetrics().armedAtMs).toBeNull();
+  });
+
   it("does not let a default fixture read another fixture's draft", async () => {
     const first = fixture();
     await writeDraft(first);

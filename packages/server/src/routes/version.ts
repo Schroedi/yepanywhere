@@ -253,7 +253,7 @@ function isPathInside(candidate: string, parent: string): boolean {
   );
 }
 
-const UPDATE_SERVER_URL = "https://updates.yepanywhere.com/version";
+export const UPDATE_SERVER_URL = "https://updates.yepanywhere.com/version";
 
 // Cache for update server check (24 hour TTL for routine app traffic)
 let cachedLatestVersion: { version: string; timestamp: number } | null = null;
@@ -491,6 +491,8 @@ export interface DeviceBridgeStatus {
 }
 
 export interface VersionRouteOptions {
+  /** Owned update lookup; the default uses the public update service. */
+  getLatestVersion?: typeof getLatestVersion;
   getDraftSyncAvailable?: () => boolean;
   vhostAppControlAvailable?: boolean;
   getExperimentalConversationAvailable?: () => boolean;
@@ -709,9 +711,13 @@ export function createVersionRoutes(options?: VersionRouteOptions): Hono {
     // For dev versions like "v0.1.7-3-g050bfd2", extract base version "v0.1.7"
     // to compare against the update server.
     const baseVersion = current.split("-")[0] || current;
-    const latest = await getLatestVersion(baseVersion, options?.installId, {
-      forceRefresh: fresh,
-    });
+    const latest = await (options?.getLatestVersion ?? getLatestVersion)(
+      baseVersion,
+      options?.installId,
+      {
+        forceRefresh: fresh,
+      },
+    );
     const updateAvailable = latest ? isNewerSemver(baseVersion, latest) : false;
 
     const info: VersionInfo = {

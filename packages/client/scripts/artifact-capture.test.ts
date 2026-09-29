@@ -123,6 +123,9 @@ async function serverFixture({
 }
 
 describe("portable artifact capture", () => {
+  // CI36641621916 took 3903ms; two full local runs with concurrent typechecks
+  // exceeded 5000ms. This cold Chromium/two-viewport capture tests output,
+  // not latency; its budget is 3x the observed timeout floor.
   it("captures a standalone bundle in both standard sizes without YA", async () => {
     const files = await fixture();
     const result = await captureArtifact({
@@ -153,7 +156,7 @@ describe("portable artifact capture", () => {
       `${result.markdown}\n`,
     );
     await expect(captureArtifact(files)).rejects.toThrow("EEXIST");
-  });
+  }, 15000);
 
   it.each([{ configured: false }, { available: false }, { capable: false }])(
     "skips health and grants when delivery is absent: %j",

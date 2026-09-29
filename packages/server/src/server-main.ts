@@ -283,6 +283,9 @@ async function gracefulShutdown(signal: string): Promise<void> {
   }
 
   if (supervisorForShutdown) {
+    // Join a heartbeat launch admitted before the early stop fence so its
+    // provider is included in the abort/detach inventory below.
+    await supervisorForShutdown.stopBackgroundTasks();
     const processes = supervisorForShutdown.getAllProcesses();
     if (processes.length > 0) {
       console.log(

@@ -246,8 +246,7 @@ export default async function globalSetup() {
         "exec",
         "tsx",
         "--import",
-        pathToFileURL(join(__dirname, "support", "record-host-launch.mjs"))
-          .href,
+        pathToFileURL(join(__dirname, "support", "fixture-runtime.mjs")).href,
         "--conditions",
         "source",
         "src/index.ts",
