@@ -43,6 +43,15 @@ ignored stdin rather than inheriting a test runner's socket-backed stdin. See
 [subprocess environment boundaries](../../topics/subprocess-environment.md) for the
 runtime and hermetic-test contract.
 
+Full server-app tests import `test/setup/create-app.ts`, rather than the
+production constructor directly. The wrapper gives each app its own storage
+under the test file's hermetic data root, as well as empty provider histories.
+The production constructor reads its `dataDir` option, not `YEP_DATA_DIR`;
+setting the environment alone does not isolate these fixtures. Pass an
+explicit `dataDir` only when the test needs an owned persisted profile, such
+as a restart or shared-storage scenario. Dispose app services before removing
+their fixture directories.
+
 ## Cross-Platform Behavior And Tests
 
 Treat Linux, macOS, and Windows as supported development targets. Code and

@@ -412,3 +412,5 @@
   viewing, retained address reservations and personal project removal.
 - draft-synchronization - Immediate local draft persistence plus revisioned,
   account-scoped server sync, shared attachments, and bounded recovery.
+- ci-test-isolation - Worker-owned E2E state and hermetic app fixtures, with
+  measured CI cost and reliability checks.
