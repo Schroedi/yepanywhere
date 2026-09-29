@@ -885,9 +885,10 @@ test.describe("Full Relay Integration", () => {
       });
       input.addEventListener("input", () => {
         const expected = input.value;
+        const keyStarted = started;
         requestAnimationFrame(() => {
           samples.push({
-            ms: performance.now() - started,
+            ms: performance.now() - keyStarted,
             present: input.value.startsWith(expected),
           });
           input.dataset.typingSamples = JSON.stringify(samples);
