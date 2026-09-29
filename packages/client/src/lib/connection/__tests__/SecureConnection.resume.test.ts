@@ -14,15 +14,10 @@ describe.each(["relay", "direct"] as const)("%s resume evidence", (mode) => {
       return SecureConnection.forResumeOnlyWithSocket(socket, resumeSession, {
         onSessionEstablished: established,
       });
-    vi.stubGlobal(
-      "WebSocket",
-      class {
-        constructor() {
-          queueMicrotask(() => socket.onopen?.());
-          return socket;
-        }
-      },
-    );
+    vi.stubGlobal("WebSocket", function WebSocketMock() {
+      queueMicrotask(() => socket.onopen?.());
+      return socket;
+    });
     const connection = SecureConnection.forResumeOnly(resumeSession, {
       onSessionEstablished: established,
     });
