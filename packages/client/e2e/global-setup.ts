@@ -1085,6 +1085,57 @@ export default async function globalSetup() {
   );
   console.log(`[E2E] Created play report session at ${playReportSessionFile}`);
 
+  // Enough turns that the transcript renders through its row window, so a
+  // selection test exercises rows mounting and unmounting around it.
+  // Each turn carries many assistant messages so the loaded tail alone
+  // exceeds the window's activation weight.
+  const windowedSelectionParts = 12;
+  const windowedSelectionMessages = Array.from({ length: 30 }, (_, turn) => {
+    const at = (step: number) =>
+      new Date(Date.UTC(2026, 0, 3, 0, turn, step)).toISOString();
+    return [
+      {
+        type: "user",
+        ...(turn === 0 ? { cwd: mockProjectPath } : {}),
+        message: {
+          role: "user",
+          content: `Windowed selection request ${turn}`,
+        },
+        timestamp: at(0),
+        uuid: `windowed-selection-user-${turn}`,
+        ...(turn > 0
+          ? {
+              parentUuid: `windowed-selection-assistant-${turn - 1}-${windowedSelectionParts - 1}`,
+            }
+          : {}),
+      },
+      ...Array.from({ length: windowedSelectionParts }, (_, part) => ({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: `Windowed reply ${turn} part ${part} carries enough prose to wrap across the transcript column.`,
+            },
+          ],
+        },
+        timestamp: at(part + 1),
+        uuid: `windowed-selection-assistant-${turn}-${part}`,
+        parentUuid:
+          part === 0
+            ? `windowed-selection-user-${turn}`
+            : `windowed-selection-assistant-${turn}-${part - 1}`,
+      })),
+    ];
+  }).flat();
+  writeFileSync(
+    join(mockSessionDir, "windowed-selection-001.jsonl"),
+    windowedSelectionMessages
+      .map((message) => JSON.stringify(message))
+      .join("\n"),
+  );
+
   const sourceSelectionSessionFile = join(
     mockSessionDir,
     "source-selection-001.jsonl",
