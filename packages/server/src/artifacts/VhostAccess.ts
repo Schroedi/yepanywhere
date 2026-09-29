@@ -126,7 +126,8 @@ export class VhostAccess {
     if (
       !row.public &&
       !bearer &&
-      !["GET", "HEAD", "OPTIONS"].includes(request.method) &&
+      (!["GET", "HEAD", "OPTIONS"].includes(request.method) ||
+        request.headers.has("upgrade")) &&
       request.headers.get("origin") !== browserOrigin
     )
       return null;

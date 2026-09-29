@@ -1,9 +1,10 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { realpath } from "node:fs/promises";
-import { createServer, type Server } from "node:http";
+import { createServer, type Server, type IncomingMessage } from "node:http";
 import { homedir } from "node:os";
 import { basename, dirname, extname, relative, resolve } from "node:path";
-import { Readable } from "node:stream";
+import { Readable, type Duplex } from "node:stream";
+import { AppWebSocketProxy } from "./AppWebSocketProxy.js";
 import { getRequestListener } from "@hono/node-server";
 import { ARTIFACT_SANDBOX, ARTIFACT_TAB_PROTOCOL } from "@yep-anywhere/shared";
 import { FRAME_FIND_AGENT_SCRIPT } from "@yep-anywhere/shared/find/frameFindAgent.generated";
@@ -127,6 +128,7 @@ export class ArtifactServer {
   private readonly projectHosts = new Set<string>();
   private listener: Server | undefined;
   private listening = false;
+  private readonly appSockets = new AppWebSocketProxy();
 
   private readonly store: GrantStore;
   private readonly protectedPaths: readonly (string | undefined)[];
@@ -499,12 +501,17 @@ export class ArtifactServer {
   async dispatchHost(
     request: Request,
     clientAddress?: string,
+    proxy = proxyLoopbackVhost,
   ): Promise<Response | null> {
     const host = request.headers.get("host") ?? new URL(request.url).host;
     if (this.projectAppDelivery) {
       await this.projectAppDelivery.ready;
       if (this.projectHosts.has(hostnameFromHostHeader(host) ?? ""))
-        return this.projectAppDelivery.dispatchHost(request, clientAddress);
+        return this.projectAppDelivery.dispatchHost(
+          request,
+          clientAddress,
+          proxy,
+        );
     }
     const sessionApp = this.matchesVhost(host)
       ? undefined
@@ -539,7 +546,7 @@ export class ArtifactServer {
           );
         brokerSocket = upstream;
       }
-      const response = await proxyLoopbackVhost(
+      const response = await proxy(
         authorized.request,
         vhost.port,
         clientAddress,
@@ -551,8 +558,24 @@ export class ArtifactServer {
         response.headers.append("Set-Cookie", authorized.cookie);
       return response;
     }
-    if (this.matchesHost(host)) return this.app.fetch(request);
+    if (this.matchesHost(host)) {
+      if (request.headers.has("upgrade")) {
+        const token = /^\/p\/([a-f0-9]{48})\//.exec(
+          new URL(request.url).pathname,
+        )?.[1];
+        return token && this.projectAppDelivery
+          ? this.projectAppDelivery.dispatchPath(request, token, proxy)
+          : new Response("No app WebSocket target", { status: 404 });
+      }
+      return this.app.fetch(request);
+    }
     return null;
+  }
+
+  handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void {
+    void this.appSockets.handle(request, socket, head, (incoming, proxy) =>
+      this.dispatchHost(incoming, request.socket.remoteAddress, proxy),
+    );
   }
 
   async configure(config: ArtifactConfig): Promise<void> {
@@ -563,6 +586,7 @@ export class ArtifactServer {
     );
     const previous = this.config;
     await this.projectAppDelivery?.validateConfig(config);
+    this.appSockets.close();
     const deliveryChanged =
       config.port !== previous.port ||
       config.localOrigin !== previous.localOrigin ||
@@ -609,6 +633,9 @@ export class ArtifactServer {
         }),
       );
       this.listener = listener;
+      listener.on("upgrade", (request, socket, head) =>
+        this.handleUpgrade(request, socket, head),
+      );
       listener.once("error", reject);
       listener.listen(this.config.port, "127.0.0.1", () => {
         listener.removeListener("error", reject);
@@ -619,6 +646,7 @@ export class ArtifactServer {
   }
 
   async close(): Promise<void> {
+    this.appSockets.close();
     // Startup restores and writes state under stateDir; closing before that
     // settles lets a caller remove the directory mid-write. Its failure is
     // already reported by the constructor.

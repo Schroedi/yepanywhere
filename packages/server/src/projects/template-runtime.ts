@@ -39,6 +39,12 @@ const runtimeSchema = z.object({
   start: argv.optional(),
   addons: z.record(z.string(), argv).optional(),
   service: projectServiceSchema.optional(),
+  livePreview: projectServiceSchema
+    .refine(
+      (service) => service.where.kind === "process",
+      "Live preview requires a process",
+    )
+    .optional(),
 });
 export type TemplateRuntime = z.infer<typeof runtimeSchema>;
 

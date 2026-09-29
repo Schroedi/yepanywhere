@@ -101,6 +101,9 @@ export const projectServiceSchema = z.union([
 export type ProjectServiceDeclaration = z.infer<typeof projectServiceSchema>;
 
 export interface ProjectAppInfo {
+  /** Explicit template dev service; gated by project-live-preview. */
+  livePreview?: ProjectServiceDeclaration;
+  mode?: "app" | "live-preview";
   projectId: string;
   declaration: ProjectServiceDeclaration | null;
   state:

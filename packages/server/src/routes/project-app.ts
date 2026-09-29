@@ -121,6 +121,8 @@ export function createProjectAppRoutes(deps: {
     };
     try {
       info.declaration = await readProjectService(project.path);
+      info.livePreview =
+        (await readProjectService(project.path, "live-preview")) ?? undefined;
       if (info.declaration?.where.kind === "static") {
         const entry = await projectServiceStaticEntry(
           project.path,
@@ -144,10 +146,12 @@ export function createProjectAppRoutes(deps: {
     }
     const runtime = await deps.services.status(project.id);
     if (runtime && deps.services.ownsLaunch(project.id)) {
+      info.mode = runtime.mode;
       info.activeDeclaration = runtime.declaration;
       info.restartRequired =
-        JSON.stringify(info.declaration) !==
-        JSON.stringify(runtime.declaration);
+        JSON.stringify(
+          runtime.mode === "live-preview" ? info.livePreview : info.declaration,
+        ) !== JSON.stringify(runtime.declaration);
       info.state = runtime.observed;
       info.generation = runtime.generation;
       info.updatedAt = runtime.updatedAt;
@@ -227,10 +231,31 @@ export function createProjectAppRoutes(deps: {
   });
 
   routes.post("/projects/:projectId/app/start", async (c) => {
-    const project = await authorize(c, "view");
-    await deps.services.start(project.id, project.path, async () => {
-      await authorize(c, "view");
-    });
+    const text = await c.req.text();
+    let body: unknown = {};
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        return c.json({ error: "Expected JSON start options" }, 400);
+      }
+    }
+    const parsed = z
+      .strictObject({ mode: z.enum(["app", "live-preview"]).default("app") })
+      .safeParse(body);
+    if (!parsed.success)
+      return c.json({ error: "Expected app or live-preview mode" }, 400);
+    const required =
+      parsed.data.mode === "live-preview" ? "new-session" : "view";
+    const project = await authorize(c, required);
+    await deps.services.start(
+      project.id,
+      project.path,
+      async () => {
+        await authorize(c, required);
+      },
+      parsed.data.mode,
+    );
     return c.json({ started: true });
   });
   routes.post("/projects/:projectId/app/stop", async (c) => {

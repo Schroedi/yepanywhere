@@ -397,6 +397,7 @@ const BASE_CAPABILITIES: string[] = [
   SERVER_CAPABILITIES.limitedUserNoProjectSessions.name,
   SERVER_CAPABILITIES.projectAppAddressLinks.name,
   SERVER_CAPABILITIES.projectAppInventory.name,
+  SERVER_CAPABILITIES.projectLivePreview.name,
   SERVER_CAPABILITIES.templatePreparationAttachments.name,
   SERVER_CAPABILITIES.sidebarSessionCategories.name,
   SERVER_CAPABILITIES.agentServerAccess.name,

@@ -1580,6 +1580,8 @@ async function startServer() {
     });
 
     attachUnifiedUpgradeHandler(server, {
+      appUpgrade: (request, socket, head) =>
+        artifactServer.handleUpgrade(request, socket, head),
       frontendProxy,
       isApiPath: (urlPath) => urlPath.startsWith("/api"),
       app,

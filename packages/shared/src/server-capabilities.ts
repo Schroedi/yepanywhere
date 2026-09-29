@@ -204,6 +204,27 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  projectLivePreview: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectLivePreview.id,
+    name: "project-live-preview",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Template-declared sandboxed live preview and authorized app WebSockets.",
+    clientFallback:
+      "Hide Live preview and send no live-preview start requests; retain built app and Reload.",
+    serverContract: {
+      routes: ["POST /api/projects/:projectId/app/start"],
+      responseFields: ["projectApp.livePreview", "projectApp.mode"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older app servers have neither a dev-service mode nor app WebSocket forwarding.",
+    },
+  },
   projectAppInventory: {
     id: CAPABILITY_ID_ALLOCATIONS.projectAppInventory.id,
     name: "project-app-inventory",

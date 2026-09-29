@@ -23,6 +23,10 @@
   border: 0;
   background: white;
 }
+.viewer .livePreviewToggle[aria-pressed="true"] {
+  background: var(--accent-color);
+  color: var(--accent-contrast);
+}
 .details {
   overflow: auto;
   padding: 16px;

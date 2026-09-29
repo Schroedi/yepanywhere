@@ -132,6 +132,38 @@ describe("project service ownership", { timeout: 25_000 }, () => {
 
   const native = available ? it : it.skip;
   native(
+    "starts the explicit live preview instead of the static app and retains its mode",
+    async () => {
+      const project = await fixture(staticService);
+      await writeFile(
+        join(project, ".project-template/app.json"),
+        JSON.stringify({ service: staticService, livePreview: processService }),
+      );
+      await writeFile(
+        join(project, "server.mjs"),
+        `import { createServer } from 'node:http'; createServer((_req, res) => res.end('ready')).listen(Number(process.env.PORT), '127.0.0.1');`,
+      );
+      manager = new ProjectServiceManager(join(root, "live-preview-data"));
+      const runtime = await manager.start(
+        "live",
+        project,
+        async () => {},
+        "live-preview",
+      );
+      expect(runtime).toMatchObject({
+        mode: "live-preview",
+        observed: "running",
+        declaration: processService,
+      });
+      expect(
+        (await manager.start("live", project, async () => {}, "live-preview"))
+          .generation,
+      ).toBe(runtime.generation);
+      await manager.stop("live", async () => {});
+      expect(await readProjectService(project)).toEqual(staticService);
+    },
+  );
+  native(
     "coalesces starts, rechecks authority, survives provider independence and records stop",
     async () => {
       const project = await fixture(processService);

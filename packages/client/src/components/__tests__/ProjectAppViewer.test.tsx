@@ -9,13 +9,23 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n";
 import { ProjectAppViewer } from "../ProjectAppViewer";
 
-const mock = vi.hoisted(() => ({ version: "0.9.4", fetch: vi.fn() }));
+const mock = vi.hoisted(() => ({
+  version: "0.9.4",
+  denyLivePreview: false,
+  fetch: vi.fn(),
+}));
 vi.mock("../../hooks/useVersion", () => ({
-  useVersion: () => ({ version: { current: mock.version } }),
+  useVersion: () => ({
+    version: {
+      current: mock.version,
+      deniedCapabilityBits: mock.denyLivePreview ? [[3, 64]] : [],
+    },
+  }),
 }));
 vi.mock("../../api/sourceApiFetch", () => ({ fetchJSON: mock.fetch }));
 beforeEach(() => {
   mock.version = "0.9.4";
+  mock.denyLivePreview = false;
   mock.fetch.mockReset().mockImplementation(async (path: string) =>
     path.endsWith("/open")
       ? {
@@ -39,6 +49,39 @@ beforeEach(() => {
   );
 });
 afterEach(cleanup);
+it.each([false, true])(
+  "gates live preview start requests when denied=%s",
+  async (denied) => {
+    mock.denyLivePreview = denied;
+    const original = mock.fetch.getMockImplementation()!;
+    mock.fetch.mockImplementation(async (...args) => {
+      const value = await original(...args);
+      if (String(args[0]).endsWith("/app"))
+        return { ...value, livePreview: { where: { kind: "process" } } };
+      return value;
+    });
+    render(
+      <I18nProvider>
+        <ProjectAppViewer projectId="test" presentation="settings" />
+      </I18nProvider>,
+    );
+    await screen.findByText("App: ready");
+    if (denied) {
+      expect(screen.queryByRole("button", { name: "Live preview" })).toBeNull();
+      expect(
+        mock.fetch.mock.calls.some(([path]) => path.endsWith("/start")),
+      ).toBe(false);
+    } else {
+      fireEvent.click(screen.getByRole("button", { name: "Live preview" }));
+      await waitFor(() =>
+        expect(mock.fetch).toHaveBeenCalledWith("/projects/test/app/start", {
+          method: "POST",
+          body: JSON.stringify({ mode: "live-preview" }),
+        }),
+      );
+    }
+  },
+);
 it("renders address controls inline and saves visibility without stopping serving", async () => {
   const row = {
     name: "canvas",

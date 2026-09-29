@@ -157,7 +157,11 @@ export class ProjectAppDelivery {
   }
 
   /** Bearer path for base-path-aware apps, under the opaque artifact sandbox. */
-  async dispatchPath(request: Request, token: string): Promise<Response> {
+  async dispatchPath(
+    request: Request,
+    token: string,
+    proxy = proxyLoopbackVhost,
+  ): Promise<Response> {
     await this.ready;
     const upstream = this.services.upstreamForToken(token);
     if (!upstream?.basePath)
@@ -193,7 +197,7 @@ export class ProjectAppDelivery {
       body: request.body,
       ...(request.body ? { duplex: "half" } : {}),
     });
-    const response = await proxyLoopbackVhost(
+    const response = await proxy(
       incoming,
       upstream.port,
       undefined,
@@ -210,10 +214,11 @@ export class ProjectAppDelivery {
   async dispatchHost(
     request: Request,
     clientAddress?: string,
+    proxy = proxyLoopbackVhost,
   ): Promise<Response> {
     let response: Response;
     try {
-      response = await this.dispatchHostResponse(request, clientAddress);
+      response = await this.dispatchHostResponse(request, clientAddress, proxy);
     } catch (error) {
       // A broken source declaration or missing static build is an unavailable
       // app, not an exception escaping the public listener or a host-path leak.
@@ -228,6 +233,7 @@ export class ProjectAppDelivery {
   private async dispatchHostResponse(
     request: Request,
     clientAddress?: string,
+    proxy = proxyLoopbackVhost,
   ): Promise<Response> {
     await this.ready;
     await this.artifacts.ready;
@@ -322,7 +328,7 @@ export class ProjectAppDelivery {
         headers: { Location: appEntry(upstream) },
       });
     } else {
-      response = await proxyLoopbackVhost(
+      response = await proxy(
         authorized.request,
         upstream.port,
         clientAddress,

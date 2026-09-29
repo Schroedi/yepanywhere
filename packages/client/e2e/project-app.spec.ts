@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import { toUrlProjectId } from "@yep-anywhere/shared";
 import { createTestViteServer } from "./support/vite-server";
@@ -16,6 +16,7 @@ import { recordUiCapture, presentUiCaptures } from "./support/ui-capture";
 
 const clientRoot = resolve(import.meta.dirname, "..");
 const requireServer = createRequire(join(clientRoot, "../server/package.json"));
+const requireClient = createRequire(join(clientRoot, "package.json"));
 const { getRequestListener } = requireServer("@hono/node-server");
 let vite: Awaited<ReturnType<typeof createTestViteServer>>;
 let instance: ReturnType<typeof createApp>;
@@ -75,6 +76,9 @@ test.beforeAll(async () => {
     }),
   });
   listener = createServer(getRequestListener(instance.app.fetch));
+  listener.on("upgrade", (req, socket, head) =>
+    instance.artifactServer.handleUpgrade(req, socket, head),
+  );
   await new Promise<void>((ready) => listener.listen(0, "127.0.0.1", ready));
   const address = listener.address();
   if (!address || typeof address === "string")
@@ -87,20 +91,131 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => {
   await presentUiCaptures();
+  if (instance) {
+    for (const process of instance.supervisor.getAllProcesses())
+      await instance.supervisor.abortProcess(process.id);
+    instance.stopNotifications();
+    await instance.disposeSessionReaders();
+    await instance.artifactServer.close();
+  }
   if (listener) {
     listener.closeAllConnections();
     await new Promise<void>((ready, reject) =>
       listener.close((error) => (error ? reject(error) : ready())),
     );
   }
-  if (instance) {
-    for (const process of instance.supervisor.getAllProcesses())
-      await instance.supervisor.abortProcess(process.id);
-    instance.stopNotifications();
-    await instance.disposeSessionReaders();
-  }
   if (vite) await vite.close();
   if (directory) await rm(directory, { recursive: true });
+});
+
+test("Live preview reloads Vite changes through the sandbox app proxy", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  const project = join(directory, "canvas");
+  const manifest = join(project, ".project-template/app.json");
+  // Vite's config bundler chooses the nearest node_modules for its scratch;
+  // keep that write inside the same project boundary as an installed template.
+  await mkdir(join(project, "node_modules"), { recursive: true });
+  await writeFile(
+    join(project, "index.html"),
+    '<html><body><h1>Live garden</h1><script type="module" src="./main.js"></script></body></html>',
+  );
+  await writeFile(
+    join(project, "main.js"),
+    'document.querySelector("h1").textContent = "Live garden one";',
+  );
+  await writeFile(
+    join(project, "vite.config.mjs"),
+    `export default { base: process.env.BASE_PATH, cacheDir: '.vite', server: { host: '127.0.0.1', port: Number(process.env.PORT), strictPort: true, allowedHosts: true, cors: true } };`,
+  );
+  await writeFile(
+    manifest,
+    JSON.stringify({
+      kind: "static",
+      dir: "dist",
+      livePreview: {
+        version: 1,
+        where: { kind: "process", cwd: ".", entry: "/" },
+        start: {
+          argv: [
+            process.execPath,
+            join(
+              dirname(requireClient.resolve("vite/package.json")),
+              "bin/vite.js",
+            ),
+            "--config",
+            "vite.config.mjs",
+          ],
+          portEnv: "PORT",
+        },
+        status: {
+          probe: "http",
+          path: "/",
+          readyStatus: 200,
+          startupTimeoutMs: 30000,
+        },
+        stop: { signal: "SIGTERM", graceMs: 5000 },
+        serving: {
+          target: "sandbox-loopback",
+          protocol: "http",
+          basePathEnv: "BASE_PATH",
+        },
+      },
+    }),
+  );
+  try {
+    await page.goto(`${base}/projects/${projectId}/app`);
+    const app = page.getByRole("region", { name: "Project App" });
+    await expect(app.locator("iframe")).toBeVisible();
+    let connected = false;
+    page.on("websocket", (socket) =>
+      socket.on("framereceived", ({ payload }) => {
+        if (String(payload) === '{"type":"connected"}') connected = true;
+      }),
+    );
+    const started = page.waitForResponse((response) =>
+      response.url().endsWith("/app/start"),
+    );
+    await app
+      .getByRole("button", { name: "Live preview", exact: true })
+      .click();
+    const startResponse = await started;
+    expect(startResponse.ok(), await startResponse.text()).toBe(true);
+    const frame = page.frameLocator('iframe[title="Project app"]');
+    await expect(
+      frame.getByRole("heading", { name: "Live garden one" }),
+    ).toBeVisible({ timeout: 30000 });
+    // Wait for the real proxied HMR connection before writing; no manual reload.
+    await expect.poll(() => connected).toBe(true);
+    await writeFile(
+      join(project, "main.js"),
+      'document.querySelector("h1").textContent = "Live garden two";',
+    );
+    await expect(
+      frame.getByRole("heading", { name: "Live garden two" }),
+    ).toBeVisible({ timeout: 10000 });
+    for (const size of [
+      { width: 1200, height: 600 },
+      { width: 375, height: 812 },
+    ]) {
+      await page.setViewportSize(size);
+      await expect(
+        app.getByRole("button", { name: "Live preview", exact: true }),
+      ).toHaveAttribute("aria-pressed", "true");
+      await recordUiCapture(page, `project-live-preview-${size.width}`);
+    }
+    await app
+      .getByRole("button", { name: "Live preview", exact: true })
+      .click();
+    await expect(
+      page
+        .frameLocator('iframe[title="index.html"]')
+        .getByRole("heading", { name: "Sketch garden" }),
+    ).toBeVisible();
+  } finally {
+    await writeFile(manifest, JSON.stringify({ kind: "static", dir: "dist" }));
+  }
 });
 
 test("app inventory sits below port forwards and manages addresses inline", async ({

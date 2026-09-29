@@ -280,6 +280,40 @@ it("opens a static app on the isolated artifact origin without starting any proc
   ).toBe(404);
 });
 
+it("requires execution authority for live preview and rejects invalid start options", async () => {
+  const start = vi.spyOn(services, "start").mockResolvedValue({
+    generation: "preview-generation",
+    declaration: {
+      version: 1,
+      where: { kind: "process", cwd: ".", entry: "/" },
+      start: { argv: ["npm", "run", "dev"], portEnv: "PORT" },
+      status: {
+        probe: "http",
+        path: "/",
+        readyStatus: 200,
+        startupTimeoutMs: 1000,
+      },
+      stop: { signal: "SIGTERM", graceMs: 1000 },
+      serving: { target: "sandbox-loopback", protocol: "http" },
+    },
+    desired: "running",
+    observed: "running",
+    updatedAt: "2026-09-29T00:00:00.000Z",
+    mode: "live-preview",
+  });
+  expect((await post("start", { mode: "live-preview" })).status).toBe(403);
+  expect(start).not.toHaveBeenCalled();
+  expect((await post("start", { mode: "unknown" })).status).toBe(400);
+  grants.newSessionProjects = [projectId];
+  expect((await post("start", { mode: "live-preview" })).status).toBe(200);
+  expect(start).toHaveBeenCalledWith(
+    projectId,
+    projectPath,
+    expect.any(Function),
+    "live-preview",
+  );
+});
+
 it("reports static entry changes and omits the stamp when the entry is missing", async () => {
   const entry = join(projectPath, "dist/index.html");
   const info = async () =>

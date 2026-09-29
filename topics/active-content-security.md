@@ -473,8 +473,33 @@ cookies on subsequent requests. It does not stop the app or erase already
 received content. App links have no automatic expiry in this version.
 Browsers that prohibit embedded cookies may require opening the signed link
 in a new tab; broader browser verification remains tracked in the access gap.
-Vhost WebSocket proxying remains unsupported (501 after authorization; 401
-without it), rather than bypassing the gate.
+WebSocket upgrades use the same app gate, as described below.
+
+### App WebSocket access
+
+The Node main listener and separate artifact listener route app upgrades to
+`AppWebSocketProxy`, through the same `ArtifactServer` / `ProjectAppDelivery`
+authorization path as HTTP. Configured vhosts, session app hosts, project app
+hosts and scoped `/p/<launch-token>/` services are supported. Static `/a/`
+grants are not socket capabilities; neither artifact hosts nor artifact origins
+gain access to YA's control WebSockets.
+
+Private host upgrades require the app bearer or its host cookie. Cookie-only
+upgrades additionally require the exact app Origin, preventing cross-site
+WebSocket hijacking; an opaque Origin must use the explicit bearer instead.
+Path-based service upgrades use the unguessable active launch path, including
+from an opaque iframe. All YA credentials and app-access credentials are
+stripped before forwarding. Only WebSocket handshake fields return from the
+upstream; upstream Set-Cookie is not forwarded in a 101 response.
+
+The upstream is the configured loopback port or the active sandbox's broker,
+never a target supplied by the upgrade request. Authorization is checked on
+each connection; revocation rejects subsequent connections, not already
+received data. Connections are capped at 128, handshakes at ten seconds, and
+idle connections at five minutes. Disconnect, upstream exit, app-server close,
+and serving-configuration changes tear down owned sockets. Stopping the owned
+service closes its broker connections. HTTP/SSE continue through their existing
+proxy; a synthetic Fetch upgrade without a raw socket still refuses with 501.
 
 The 32-byte random signing key is created once under
 `{dataDir}/artifacts/app-access.key`; generations live in `app-access.json`.
@@ -556,8 +581,10 @@ permits only YA's nonce-authorized selection script and a validated target-id
 message to the parent. That message can open source; it cannot write or invoke
 a script. Producer scripts and event handlers are removed.
 
-The artifact handler exposes only GET/HEAD health and granted files. `/api`,
-`/public-api`, desktop bootstrap, and WebSocket upgrades are unavailable.
+The static artifact handler exposes only GET/HEAD health and granted files.
+The separate `/p/<launch-token>/` service route supports app HTTP/WebSockets
+as described above. `/api`, `/public-api`, desktop bootstrap, and YA control
+WebSocket upgrades remain unavailable on artifact hosts.
 Registered artifact hostnames stay excluded from YA host/CORS/WebSocket trust
 until process exit, including after disable/reconfiguration and with wildcard
 allowed-host settings. Opaque `Origin: null` is also rejected once an artifact

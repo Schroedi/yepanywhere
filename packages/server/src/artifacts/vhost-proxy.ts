@@ -15,7 +15,7 @@ const HOP_BY_HOP = new Set([
   "http2-settings",
 ]);
 
-function outgoingHeaders(
+export function outgoingHeaders(
   request: Request,
   clientAddress: string | undefined,
 ): Record<string, string | string[]> {

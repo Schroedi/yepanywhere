@@ -147,6 +147,8 @@ export class ProjectServiceProcess {
         this.error ??= error instanceof Error ? error.message : String(error);
       if (this.child) await this.stop();
       this.state = cancelled ? "stopped" : "failed";
+      if (!cancelled && this.log.trim())
+        this.error = `${this.error}\n${this.log.slice(-4096).trim()}`;
       throw new Error(this.error ?? "Project service start was cancelled");
     }
   }

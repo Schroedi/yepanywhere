@@ -17,6 +17,7 @@ const recordSchema = z.strictObject({
   observed: z.enum(["starting", "running", "stopping", "stopped", "failed"]),
   updatedAt: z.string(),
   error: z.string().optional(),
+  mode: z.enum(["app", "live-preview"]).default("app"),
 });
 type ServiceRecord = z.infer<typeof recordSchema>;
 type LiveService = {
@@ -39,6 +40,7 @@ export interface ProjectServiceUpstream {
 /** Source files are untrusted and bounded; neither discovery nor status executes them. */
 export async function readProjectService(
   projectPath: string,
+  mode: "app" | "live-preview" = "app",
 ): Promise<ProjectServiceDeclaration | null> {
   const root = await realpath(projectPath);
   let file: string;
@@ -61,10 +63,17 @@ export async function readProjectService(
     const value = z
       .object({
         service: projectServiceSchema.optional(),
+        livePreview: projectServiceSchema
+          .refine(
+            (service) => service.where.kind === "process",
+            "Live preview requires a process",
+          )
+          .optional(),
         kind: z.string().optional(),
         dir: z.string().optional(),
       })
       .parse(JSON.parse(bytes.subarray(0, bytesRead).toString("utf8")));
+    if (mode === "live-preview") return value.livePreview ?? null;
     // Existing canvas templates have an explicit static output directory.
     // Adapt that declaration only; never infer executable server commands.
     if (!value.service && value.kind === "static" && value.dir)
@@ -182,18 +191,26 @@ export class ProjectServiceManager {
     projectId: string,
     projectPath: string,
     authorize: () => Promise<void>,
+    mode: "app" | "live-preview" = "app",
   ): Promise<ServiceRecord> {
     return this.serial(projectId, async () => {
       if (this.closed) throw new Error("Project services are shutting down");
       await authorize();
       const previous = this.live.get(projectId);
-      if (previous?.process.state === "running")
+      if (
+        previous?.process.state === "running" &&
+        previous.record.mode === mode
+      )
         return (await this.status(projectId))!;
+      const declaration = await readProjectService(projectPath, mode);
+      if (!declaration || !("start" in declaration))
+        throw new Error(
+          "Project has no process service declaration for this mode",
+        );
+      if (previous?.process.state === "running")
+        throw new Error("Stop the current app before changing preview mode");
       // A failed stop still owns its process: retry termination before any replacement.
       if (previous) await previous.process.stop();
-      const declaration = await readProjectService(projectPath);
-      if (!declaration || !("start" in declaration))
-        throw new Error("Project has no process service declaration");
       await authorize();
       if (this.closed) throw new Error("Project services are shutting down");
       if (!previous && this.live.size >= 32)
@@ -204,6 +221,7 @@ export class ProjectServiceManager {
         token,
         basePath,
         record: {
+          mode,
           generation: randomUUID(),
           declaration,
           desired: "running",

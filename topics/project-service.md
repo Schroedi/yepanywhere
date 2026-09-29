@@ -222,6 +222,42 @@ probe supplies configuration; observed status is YA-owned runtime data.
 Settings shows the entry/root or command as read-only details, not a limited
 user form accepting host paths or arbitrary targets.
 
+## Live preview
+
+An optional top-level `livePreview` in `.project-template/app.json` contains
+a version-1 **process** service declaration, separate from the built `service`.
+The canvas/web-app template supplies `npm run dev`, `PORT`, and `BASE_PATH`.
+The App toolbar's **Live preview** toggle starts that explicit command through
+the same project sandbox, readiness probe, broker, and owned-process teardown.
+It requires project execution authority. Merely viewing an app never starts a
+watcher. Stop an existing normal service before selecting a different mode;
+duplicate starts of the same mode reuse the current generation. Turning off
+Live preview stops that process and reopens the declared built app.
+
+The development server owns source watching and update delivery. Vite hot
+updates or full page reloads both satisfy live preview; YA does not poll source
+files, launch competing builds, or reload the frame on a timer. Failed updates
+remain visible through Vite's error overlay; the previous working page is not
+replaced by a broken `dist/` build. Startup errors retain a bounded log tail.
+Preview processes have the same explicit lifetime as other project services;
+turn the toggle off to release their watchers. YA restart reports interruption
+and requires another explicit start.
+
+**Decision:** use the template's existing dev server rather than a second YA
+build watcher. This preserves framework HMR and error handling, and confines
+the process through the existing service owner. The static build remains
+available without running a watcher.
+
+`project-live-preview` (ID 102, introduced in 0.9.4) owns `mode: "live-preview"`
+on POST `/api/projects/:projectId/app/start`, `livePreview` and `mode` on App
+information, and app WebSocket forwarding. The maintainer approved the optional
+compatibility plan on 2026-09-29: stable v0.9.0, v0.9.1 and v0.9.2 lack it.
+Without it, clients hide Live preview and never send its start mode; ordinary
+App and Reload keep their previous gates. Existing capability meanings do not
+change. Templates declare availability, not permission to execute on viewing.
+Existing projects need the new declaration and port/base-path-aware dev config;
+updating a template source does not rewrite their files.
+
 ## Runtime ownership and confinement
 
 YA owns one launch generation per project service, independently of provider
@@ -278,9 +314,11 @@ Existing pieces verified in source on 2026-09-28:
 - `artifacts/vhost-proxy.ts` (`proxyLoopbackVhost`) can use that broker socket.
   Current session App links mint a transient private app host and require app
   serving to be configured; they are not the no-vhost project delivery path.
-- That proxy refuses WebSocket upgrades with 501. Ordinary HTTP/SSE is the
-  first service boundary; do not promise Vite HMR or WebSocket applications
-  until [WebSocket forwarding](../gaps/vhost-websocket-forwarding.md) is closed.
+- Raw WebSocket upgrades now dispatch through the same app authorization and
+  sandbox broker as HTTP, on both the main and separate artifact listeners.
+  The `/p/<launch-token>/` path also carries Vite HMR without configured vhosts.
+  Static artifact paths and YA control endpoints are not app WebSocket targets.
+  See [app WebSocket access](active-content-security.md#app-websocket-access).
 
 The separate project runner reuses these sandbox facilities. Viewing never
 starts it. Settings refreshes status on entry and after lifecycle actions;

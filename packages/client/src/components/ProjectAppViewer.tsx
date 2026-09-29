@@ -78,6 +78,10 @@ export function ProjectAppViewer({
     SERVER_CAPABILITIES.projectAppReservations.name,
   );
   const [info, setInfo] = useState<ProjectAppInfo | null>(null);
+  const livePreviewSupported = serverHasCapability(
+    version,
+    SERVER_CAPABILITIES.projectLivePreview.name,
+  );
   const [target, setTarget] = useState<ProjectAppTarget | undefined>(
     initialTarget,
   );
@@ -183,9 +187,10 @@ export function ProjectAppViewer({
     }
   }
   const details = settings || sharing;
+  const declaration = info?.activeDeclaration ?? info?.declaration;
   const command =
-    info?.declaration && "start" in info.declaration
-      ? info.declaration.start.argv.join(" ")
+    declaration && "start" in declaration
+      ? declaration.start.argv.join(" ")
       : undefined;
   return (
     <section
@@ -269,6 +274,36 @@ export function ProjectAppViewer({
               <Glyph path="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6" />
             </button>
           </div>
+          {livePreviewSupported &&
+            info?.livePreview &&
+            info.canExecute &&
+            targetKind === "app" && (
+              <div className={actions.actions}>
+                <button
+                  type="button"
+                  className={`${actions.textAction} ${styles.livePreviewToggle}`}
+                  aria-pressed={info.mode === "live-preview"}
+                  disabled={
+                    busy ||
+                    (!!info.activeDeclaration && info.mode !== "live-preview")
+                  }
+                  onClick={() =>
+                    void perform(async () => {
+                      await projectAppApi.action(
+                        projectId,
+                        info.mode === "live-preview" ? "stop" : "start",
+                        info.mode === "live-preview"
+                          ? {}
+                          : { mode: "live-preview" },
+                      );
+                      setReload((value) => value + 1);
+                    })
+                  }
+                >
+                  {t("projectAppLivePreview")}
+                </button>
+              </div>
+            )}
           {view && (
             <ViewerWindowActions
               url={view.url}
@@ -285,7 +320,7 @@ export function ProjectAppViewer({
           )}
         </AppViewerToolbar>
       )}
-      <div className={styles.details} hidden={!details && !!view}>
+      <div className={styles.details} hidden={!details && !!view && !error}>
         {!supported ? (
           <p>{t("projectAppUpdateRequired")}</p>
         ) : (
@@ -300,6 +335,25 @@ export function ProjectAppViewer({
                 </p>
                 {info?.error && <p>{info.error}</p>}
                 {info?.restartRequired && <p>{t("projectAppChanged")}</p>}
+                {livePreviewSupported &&
+                  info?.livePreview &&
+                  info.canExecute &&
+                  !info.activeDeclaration && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void perform(async () => {
+                          await projectAppApi.action(projectId, "start", {
+                            mode: "live-preview",
+                          });
+                          setReload((value) => value + 1);
+                        })
+                      }
+                    >
+                      {t("projectAppLivePreview")}
+                    </button>
+                  )}
                 {info &&
                   (info.activeDeclaration
                     ? info.canExecute
@@ -330,19 +384,19 @@ export function ProjectAppViewer({
                 {info?.state === "none" && !info.latestArtifact && (
                   <p>{t("projectAppEmpty")}</p>
                 )}
-                {info?.declaration && (
+                {declaration && (
                   <dl>
                     <dt>{t("projectAppDirectory")}</dt>
                     <dd>
                       <code>
-                        {info.declaration.where.kind === "static"
-                          ? info.declaration.where.root
-                          : info.declaration.where.cwd}
+                        {declaration.where.kind === "static"
+                          ? declaration.where.root
+                          : declaration.where.cwd}
                       </code>
                     </dd>
                     <dt>{t("projectAppEntry")}</dt>
                     <dd>
-                      <code>{info.declaration.where.entry}</code>
+                      <code>{declaration.where.entry}</code>
                     </dd>
                     {command && (
                       <>

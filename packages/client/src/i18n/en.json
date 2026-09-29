@@ -73,6 +73,7 @@
   "projectAppState": "App: {state}",
   "projectAppChanged": "The declaration changed. Stop and start to use it.",
   "projectAppWorking": "Working…",
+  "projectAppLivePreview": "Live preview",
   "projectAppStart": "Start app",
   "projectAppStop": "Stop app",
   "projectAppEmpty": "No app or artifact yet.",
