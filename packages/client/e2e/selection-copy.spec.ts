@@ -83,6 +83,40 @@ for (const mobile of [false, true]) {
         .toBe(
           "> Continue the **Android preview** in `/Users/project`.\n>\n> Keep test data disposable.",
         );
+      for (const [testId, word] of [
+        ["plain-selection", "assistant"],
+        ["user-selection", "command"],
+        ["raw-selection", "source"],
+      ]) {
+        await page.getByTestId(testId!).evaluate((element, selectedWord) => {
+          const walker = document.createTreeWalker(
+            element,
+            NodeFilter.SHOW_TEXT,
+          );
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const text = node as Text;
+            const start = text.data.indexOf(selectedWord!);
+            if (start < 0) continue;
+            const range = document.createRange();
+            range.setStart(text, start);
+            range.setEnd(text, start + selectedWord!.length);
+            const selection = document.getSelection()!;
+            selection.removeAllRanges();
+            selection.addRange(range);
+            document.dispatchEvent(new Event("selectionchange"));
+            return;
+          }
+          throw new Error("Selected word not found");
+        }, word);
+        await expect(copy).not.toBeVisible();
+        await expect(
+          page.getByRole("button", { name: "Quote reply", exact: true }),
+        ).toBeVisible();
+        await page.keyboard.press("ControlOrMeta+c");
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+          word,
+        );
+      }
       const input = page.getByRole("textbox", { name: "Message" });
       await input.focus();
       let expected = "";

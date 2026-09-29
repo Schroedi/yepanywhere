@@ -746,7 +746,7 @@
   "appearanceSelectionTextCopyActionTitle": "Copy selected text button",
   "appearanceSelectionTextCopyActionDescription": "Show the neutral copy circle for the selected visible text. The complete selection menu remains available on right-click.",
   "appearanceSelectionSourceCopyActionTitle": "Copy selected Markdown",
-  "appearanceSelectionSourceCopyActionDescription": "Show the blue copy circle for selected Markdown, including formatting from rendered content. On mobile it appears above quote reply. Ordinary Copy and Ctrl/Cmd+C copy visible text.",
+  "appearanceSelectionSourceCopyActionDescription": "Show the blue copy circle when selected rendered text has Markdown formatting to preserve. Plain messages and raw source omit it. On mobile it appears above quote reply. Ordinary Copy and Ctrl/Cmd+C copy visible text.",
   "appearanceSelectionRichCopyActionTitle": "Copy selected rich text",
   "appearanceSelectionRichCopyActionDescription": "Show the purple Aa circle for semantic HTML plus visible plain text, without viewer presentation styles.",
   "appearanceSelectionNewSessionActionTitle": "New session from selection button",

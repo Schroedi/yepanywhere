@@ -74,6 +74,15 @@ function selectionSource(snapshot: SelectionActionSnapshot): string {
   return snapshot.snippets.map((snippet) => snippet.markdown).join("\n\n");
 }
 
+function selectionHasMarkdownFormatting(
+  snapshot: SelectionActionSnapshot,
+): boolean {
+  return snapshot.snippets.some(
+    (snippet) =>
+      !snippet.isLiteral && snippet.markdown !== snippet.selectedText,
+  );
+}
+
 function selectionQuote(snapshot: SelectionActionSnapshot): string {
   return snapshot.anchors.map((anchor) => anchor.quotedText).join("\n\n");
 }
@@ -182,10 +191,15 @@ export function useSelectionActionPresentation({
   ]);
 
   const actionsForSnapshot = useCallback(
-    (snapshot: SelectionActionSnapshot) =>
-      selectionUsesSessionFileCommentMode(snapshot)
-        ? enabledSelectionActions.filter((action) => action.kind !== "quote")
-        : enabledSelectionActions,
+    (snapshot: SelectionActionSnapshot) => {
+      const hasMarkdown = selectionHasMarkdownFormatting(snapshot);
+      const fileCommentMode = selectionUsesSessionFileCommentMode(snapshot);
+      return enabledSelectionActions.filter(
+        (action) =>
+          (action.kind !== "source" || hasMarkdown) &&
+          (action.kind !== "quote" || !fileCommentMode),
+      );
+    },
     [enabledSelectionActions],
   );
   const actionCountForSnapshot = useCallback(
@@ -281,13 +295,14 @@ export function useSelectionActionPresentation({
             activateSelectionAction("text", snapshot);
           },
         },
-        {
+      ];
+      if (selectionHasMarkdownFormatting(snapshot))
+        actions.push({
           label: t("sessionCopySelectionSource" as never),
           onSelect: () => {
             activateSelectionAction("source", snapshot);
           },
-        },
-      ];
+        });
       if (onQuoteSelection && !selectionUsesSessionFileCommentMode(snapshot)) {
         actions.push({
           label: t("sessionQuoteSelection" as never),

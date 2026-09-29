@@ -46,6 +46,8 @@ export interface MarkdownSelectionSnippet {
   selectedText: string;
   sourceElement: HTMLElement;
   range: Range;
+  /** Literal displays already expose source syntax; no Markdown alternative. */
+  isLiteral?: boolean;
   sourceStart?: number;
   sourceEnd?: number;
   sourceLocation?: SelectionSourceLocation;
@@ -68,7 +70,10 @@ export interface MarkdownCopySourceContext {
 interface RegisteredMarkdownCopySource {
   source: string;
   context?: MarkdownCopySourceContext;
+  mode: CopySourceMode;
 }
+
+export type CopySourceMode = "rendered" | "literal";
 
 const markdownCopySources = new WeakMap<
   HTMLElement,
@@ -129,9 +134,10 @@ export function registerMarkdownCopySource(
   element: HTMLElement,
   source: string,
   context?: MarkdownCopySourceContext,
+  mode: CopySourceMode = "rendered",
 ): () => void {
   element.setAttribute(MARKDOWN_COPY_SOURCE_ATTR, "true");
-  markdownCopySources.set(element, { source, context });
+  markdownCopySources.set(element, { source, context, mode });
 
   return () => {
     markdownCopySources.delete(element);
@@ -181,14 +187,24 @@ export function extractMarkdownSnippetsFromSelection(
       const exactSourceSelection = sourceRange
         ? source.slice(sourceRange.start, sourceRange.end)
         : null;
+      const isLiteral =
+        registeredSource.mode === "literal" ||
+        rangeText.preferExactSource ||
+        sourceRange !== null;
       const markdown =
         exactSourceSelection ??
-        getMarkdownForVisibleSelection(source, rangeText.sourceSelectedText, {
-          textBefore: rangeText.textBefore,
-          preferExactSource: rangeText.preferExactSource,
-          preferRenderedSource:
-            rangeText.sourceSelectedText !== rangeText.selectedText,
-        }) ??
+        (isLiteral
+          ? rangeText.selectedText
+          : getMarkdownForVisibleSelection(
+              source,
+              rangeText.sourceSelectedText,
+              {
+                textBefore: rangeText.textBefore,
+                preferExactSource: rangeText.preferExactSource,
+                preferRenderedSource:
+                  rangeText.sourceSelectedText !== rangeText.selectedText,
+              },
+            )) ??
         rangeText.selectedText;
       const normalized = trimBoundaryNewlines(markdown);
       if (normalized.trim()) {
@@ -197,6 +213,7 @@ export function extractMarkdownSnippetsFromSelection(
           selectedText: exactSourceSelection ?? rangeText.selectedText,
           sourceElement: element,
           range: rangeText.range,
+          isLiteral,
           sourceStart: sourceRange?.start,
           sourceEnd: sourceRange?.end,
           sourceLocation: sourceRange
@@ -232,6 +249,7 @@ export function getMarkdownSnippetForElement(
     selectedText: element.innerText || element.textContent || source,
     sourceElement: element,
     range,
+    isLiteral: registeredSource?.mode === "literal",
     sourceLocation: getSelectionSourceLocation(
       source,
       trimBoundaryNewlines(source),
@@ -268,7 +286,9 @@ export function getMarkdownSnippetForSubElement(
   const textBefore = beforeRange.toString();
 
   const markdown =
-    getMarkdownForVisibleSelection(source, selectedText, { textBefore }) ??
+    (registeredSource?.mode === "literal"
+      ? selectedText
+      : getMarkdownForVisibleSelection(source, selectedText, { textBefore })) ??
     selectedText;
   const normalized = trimBoundaryNewlines(markdown);
   if (!normalized.trim()) {
@@ -279,6 +299,7 @@ export function getMarkdownSnippetForSubElement(
     selectedText,
     sourceElement,
     range,
+    isLiteral: registeredSource?.mode === "literal",
     sourceLocation: getSelectionSourceLocation(
       source,
       normalized,

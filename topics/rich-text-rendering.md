@@ -217,7 +217,15 @@ as the fallback when the authored span cannot be aligned. Highlighted source
 with exact offsets remains exact, and rendered math retains original TeX
 expressions and delimiters when recoverable unambiguously.
 
-Copy Markdown defaults visible unless explicitly hidden in Appearance settings.
+Copy Markdown defaults enabled unless explicitly hidden in Appearance settings.
+Its selection button and context-menu row appear only when at least one selected
+rendered span has an authored Markdown representation different from its visible
+text. Unformatted selections, literal user messages and raw source views omit
+this redundant action. Literal displays copy the selected characters exactly,
+even when a partial selection lies inside text containing Markdown punctuation.
+A selection spanning literal and formatted rendered content keeps Markdown copy
+available for the combined selection. Other applicable selection actions remain
+available.
 On mobile transcript selections its copy icon sits above quote reply in the
 existing action stack above the composer. Tapping uses the stored selection,
 including after the native highlight collapses. Ordinary Copy always uses

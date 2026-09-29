@@ -149,9 +149,12 @@ menu.
    the soft keyboard on touch) and runs the same quote-comment. Optional
    plain copy, `Aa`, and `+` actions copy visible text, copy
    semantic rich text, or open a same-project new-session composer. The blue
-   **Copy Markdown** icon defaults visible and preserves source formatting for
+   **Copy Markdown** icon defaults enabled and preserves source formatting for
    both short and long selections. On mobile it sits above quote reply in the
-   docked stack above the composer; native Copy uses visible text. A control
+   docked stack above the composer; native Copy uses visible text. Both the
+   icon and context-menu row appear only when selected rendered content has
+   Markdown formatting to preserve. Literal user messages, raw source and
+   unformatted selections omit this action; other applicable actions remain. A control
    press preserves a snapshot of the selected source snippets and DOM ranges,
    so the action remains valid when the native highlight collapses during the
    press. The cluster never replays intermediate positions from a burst of

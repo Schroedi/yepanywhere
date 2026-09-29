@@ -73,6 +73,94 @@ function SelectableActivityModal() {
 }
 
 describe("MessageList selection and copy", () => {
+  it("hides Markdown copy for a partial user selection containing literal syntax", async () => {
+    mockPointerCoarse(true);
+    const onQuoteSelection = vi.fn(() => "> command\n");
+    render(
+      <MessageList
+        messages={[
+          userMessage("user-1", "Use `long_command` and **literal** text."),
+        ]}
+        onQuoteSelection={onQuoteSelection}
+      />,
+    );
+    const element = screen.getByText(
+      "Use `long_command` and **literal** text.",
+    );
+    const node = element.firstChild as Text;
+    const start = node.data.indexOf("command");
+    const range = document.createRange();
+    range.setStart(node, start);
+    range.setEnd(node, start + "command".length);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    fireEvent.pointerDown(element, { clientX: 100, clientY: 120 });
+    fireEvent.pointerUp(element, { clientX: 180, clientY: 120 });
+    const quote = await screen.findByRole("button", { name: "Quote reply" });
+    expect(screen.queryByRole("button", { name: "Copy Markdown" })).toBeNull();
+    expect(
+      extractMarkdownSnippetsFromSelection(
+        document.querySelector(".message-list")!,
+      )[0],
+    ).toMatchObject({
+      markdown: "command",
+      selectedText: "command",
+      isLiteral: true,
+    });
+    fireEvent.contextMenu(element, {
+      clientX: 0,
+      clientY: 0,
+      pointerType: "mouse",
+    });
+    expect(
+      screen.queryByRole("menuitem", { name: "Copy Markdown" }),
+    ).toBeNull();
+    fireEvent.click(quote);
+    expect(onQuoteSelection).toHaveBeenCalledWith("> command\n");
+  });
+
+  it("offers Markdown copy only when the selected part has formatting", async () => {
+    mockPointerCoarse(false);
+    render(
+      <MessageList
+        messages={[
+          assistantMessage("assistant-1", "Plain text and **formatted text**."),
+        ]}
+        markdownAugments={{
+          "assistant-1": {
+            html: "<p>Plain text and <strong>formatted text</strong>.</p>",
+          },
+        }}
+        onQuoteSelection={() => ""}
+      />,
+    );
+    const strong = screen.getByText("formatted text");
+    const paragraph = strong.parentElement!;
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(paragraph.firstChild!, 0);
+    range.setEnd(paragraph.firstChild!, "Plain text".length);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    fireEvent.pointerDown(paragraph, { clientX: 100, clientY: 120 });
+    fireEvent.pointerUp(paragraph, { clientX: 180, clientY: 120 });
+    await screen.findByRole("button", { name: "Quote reply" });
+    expect(screen.queryByRole("button", { name: "Copy Markdown" })).toBeNull();
+    range.selectNodeContents(strong);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    fireEvent.pointerDown(strong, { clientX: 100, clientY: 120 });
+    fireEvent.pointerUp(strong, { clientX: 180, clientY: 120 });
+    expect(
+      await screen.findByRole("button", { name: "Copy Markdown" }),
+    ).toBeTruthy();
+    fireEvent.contextMenu(strong, { clientX: 0, clientY: 0 });
+    expect(
+      screen.getByRole("menuitem", { name: "Copy Markdown" }),
+    ).toBeTruthy();
+  });
+
   it("copies rendered assistant selections as visible text", () => {
     render(
       <MessageList
@@ -124,7 +212,7 @@ describe("MessageList selection and copy", () => {
 
     expect(
       screen.getAllByRole("menuitem").map((item) => item.textContent),
-    ).toEqual(["Copy text", "Copy Markdown", "Quote reply", "New session"]);
+    ).toEqual(["Copy text", "Quote reply", "New session"]);
     fireEvent.click(screen.getByRole("menuitem", { name: "New session" }));
     expect(onStartNewSessionFromSelection).toHaveBeenCalledWith(
       "> Selected text",
@@ -469,7 +557,10 @@ describe("MessageList selection and copy", () => {
 
     render(
       <MessageList
-        messages={[assistantMessage("assistant-1", "Selected text")]}
+        messages={[assistantMessage("assistant-1", "**Selected text**")]}
+        markdownAugments={{
+          "assistant-1": { html: "<p><strong>Selected text</strong></p>" },
+        }}
         onQuoteSelection={onQuoteSelection}
       />,
     );
@@ -543,7 +634,12 @@ describe("MessageList selection and copy", () => {
 
     render(
       <MessageList
-        messages={[assistantMessage("assistant-1", "Right edge selection")]}
+        messages={[assistantMessage("assistant-1", "**Right edge selection**")]}
+        markdownAugments={{
+          "assistant-1": {
+            html: "<p><strong>Right edge selection</strong></p>",
+          },
+        }}
         onQuoteSelection={() => "> Right edge selection\n"}
       />,
     );
@@ -638,7 +734,7 @@ describe("MessageList selection and copy", () => {
     fireEvent.contextMenu(selectedElement, { clientX: 0, clientY: 0 });
     expect(
       screen.getAllByRole("menuitem").map((item) => item.textContent),
-    ).toEqual(["Copy text", "Copy Markdown", "Quote reply", "New session"]);
+    ).toEqual(["Copy text", "Quote reply", "New session"]);
     fireEvent.click(
       screen.getByRole("button", { name: "Dismiss selected text actions" }),
     );
@@ -686,7 +782,7 @@ describe("MessageList selection and copy", () => {
     fireEvent.contextMenu(selectedElement, { clientX: 0, clientY: 0 });
     expect(
       screen.getAllByRole("menuitem").map((item) => item.textContent),
-    ).toEqual(["Copy text", "Copy Markdown", "New session"]);
+    ).toEqual(["Copy text", "New session"]);
     fireEvent.click(
       screen.getByRole("button", { name: "Dismiss selected text actions" }),
     );
@@ -944,14 +1040,7 @@ describe("MessageList selection and copy", () => {
       name: "Quote reply",
     });
     expect(actionSlot.contains(quoteButton)).toBe(true);
-    const markdownButton = screen.getByRole("button", {
-      name: "Copy Markdown",
-    });
-    expect(actionSlot.contains(markdownButton)).toBe(true);
-    expect(
-      markdownButton.compareDocumentPosition(quoteButton) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Copy Markdown" })).toBeNull();
     expect(
       quoteButton.closest('[data-selection-action-cluster="true"]'),
     ).toBeTruthy();

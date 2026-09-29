@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { I18nProvider } from "../../src/i18n";
 import { useSelectionActionPresentation } from "../../src/hooks/useSelectionActionPresentation";
 import { useQuoteableTextSource } from "../../src/hooks/useQuoteableTextSource";
+import { UserPromptBlock } from "../../src/components/blocks/UserPromptBlock";
 import "../../src/styles/index.css";
 import "../../src/styles/renderers.css";
 
@@ -16,7 +17,12 @@ function Fixture() {
   const root = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const source = useQuoteableTextSource<HTMLDivElement>(
-    "> Continue the **Android preview** in `/Users/project`.\n>\n> Keep test data disposable.",
+    "Copy this into the new session:\n\n> Continue the **Android preview** in `/Users/project`.\n>\n> Keep test data disposable.\n\nPlain assistant text.",
+  );
+  const rawSource = useQuoteableTextSource<HTMLPreElement>(
+    "**literal_source**",
+    undefined,
+    "literal",
   );
   const [value, setValue] = useState("");
   const [tick, setTick] = useState(0);
@@ -61,7 +67,16 @@ function Fixture() {
             </p>
             <p>Keep test data disposable.</p>
           </blockquote>
+          <p data-testid="plain-selection">Plain assistant text.</p>
         </div>
+        <div data-testid="user-selection">
+          <UserPromptBlock
+            content={[{ type: "text", text: "Use `long_command` literally." }]}
+          />
+        </div>
+        <pre ref={rawSource} data-testid="raw-selection">
+          {"**literal_source**"}
+        </pre>
         {Array.from({ length: 250 }, (_, i) => (
           <HistoryBlock key={i} index={i} />
         ))}

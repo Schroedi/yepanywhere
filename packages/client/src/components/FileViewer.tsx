@@ -788,6 +788,7 @@ export const FileViewer = memo(function FileViewer({
     fileViewerBodyRef,
     diffActive ? undefined : fileData?.content,
     quoteableSourceContext,
+    showPreview ? "rendered" : "literal",
   );
   const startNewSessionWithPrefill = useStartNewSessionWithPrefillAction();
   const startNewSessionFromSelection = useCallback(

@@ -1146,8 +1146,13 @@ export function FixedFontMathToggle({
     if (!element || !quoteSourceText.trim()) {
       return;
     }
-    return registerMarkdownCopySource(element, quoteSourceText);
-  }, [quoteSourceText]);
+    return registerMarkdownCopySource(
+      element,
+      quoteSourceText,
+      undefined,
+      showRendered && rendered.changed ? "rendered" : "literal",
+    );
+  }, [quoteSourceText, showRendered, rendered.changed]);
 
   const handleRenderedClick = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
