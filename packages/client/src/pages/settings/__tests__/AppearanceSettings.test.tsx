@@ -36,6 +36,19 @@ describe("AppearanceSettings", () => {
     invalidateLocalStorageValues();
   });
 
+  it("keeps project-app composing off independently of the right pane", () => {
+    localStorage.setItem(UI_KEYS.sessionRightPane, "true");
+    renderAppearanceSettings();
+    const toggle = screen.getByRole("checkbox", {
+      name: "Show project app while composing",
+    });
+    expect((toggle as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(toggle);
+    expect(localStorage.getItem(UI_KEYS.projectAppComposing)).toBe("true");
+    fireEvent.click(toggle);
+    expect(localStorage.getItem(UI_KEYS.projectAppComposing)).toBe("false");
+  });
+
   it("keeps style and delay in one row and valid delay edits select themed", () => {
     const { container } = renderAppearanceSettings();
     const row = container.querySelector(".tooltip-settings-actions");

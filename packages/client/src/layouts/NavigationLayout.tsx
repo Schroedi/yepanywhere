@@ -13,10 +13,6 @@ import styles from "./NavigationLayout.module.css";
 import { Sidebar, SidebarToggleIcon } from "../components/Sidebar";
 import { GlossaryProjectProvider } from "../contexts/GlossaryContext";
 import { MOBILE_KEYBOARD_OPEN_VIEWPORT_RATIO } from "../lib/mobileKeyboardViewport";
-import {
-  isNewSessionPathname,
-  prebootComposerShown,
-} from "../lib/prebootComposer";
 import { useSidebarPreference } from "../hooks/useSidebarPreference";
 import { usePanelSlideAnimations } from "../hooks/usePanelSlideAnimations";
 import {
@@ -215,11 +211,7 @@ function NavigationLayoutFrame({ sessionElement }: NavigationLayoutProps) {
     forceExpandedSidebar,
     /^(?:\/-\/relay\/[^/]+)?\/settings(?:\/|$)/.test(location.pathname)
       ? "collapsed"
-      : prebootComposerShown() && isNewSessionPathname(location.pathname)
-        ? // A tab opened onto the composer: loading the sidebar would compete
-          // with it and move the field the user is already typing into.
-          "minimized"
-        : null,
+      : null,
   );
   const {
     width: sidebarWidth,

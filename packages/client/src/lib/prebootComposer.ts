@@ -13,18 +13,12 @@
  */
 
 const OVERLAY_ID = "yep-preboot-composer";
-const SHOWN_ATTRIBUTE = "data-preboot-composer";
 const STASH_KEY = "yep-preboot-composer-text";
 
 export interface PrebootComposerText {
   text: string;
   selectionStart: number;
   selectionEnd: number;
-}
-
-/** True when this document opened with the pre-boot composer on screen. */
-export function prebootComposerShown(): boolean {
-  return document.documentElement.hasAttribute(SHOWN_ATTRIBUTE);
 }
 
 /** True when this pathname is the route the pre-boot composer stands in for. */

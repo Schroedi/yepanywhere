@@ -21,6 +21,7 @@ import {
   useHoverCardAppearance,
 } from "../../hooks/useHoverCardAppearance";
 import { estimateHoverCardPromptLines } from "../../components/sessionHoverCardLines";
+import { useProjectAppComposing } from "../../hooks/useProjectAppComposing";
 import { useDeveloperMode } from "../../hooks/useDeveloperMode";
 import { useFloatingActionButtonEnabled } from "../../hooks/useFloatingActionButtonEnabled";
 import {
@@ -240,6 +241,8 @@ export function AppearanceSettings() {
   } = useWiderConversationActivityPreviews();
   const { glossaryHintsEnabled, setGlossaryHintsEnabled } = useGlossaryHints();
   const { workflowTagsEnabled, setWorkflowTagsEnabled } = useWorkflowTags();
+  const { projectAppComposingEnabled, setProjectAppComposingEnabled } =
+    useProjectAppComposing();
   const { sessionRightPaneEnabled, setSessionRightPaneEnabled } =
     useSessionRightPaneSetting();
   const { pdfjsRendererEnabled, setPdfjsRendererEnabled } =
@@ -399,6 +402,7 @@ export function AppearanceSettings() {
     undoEntry(glossaryHintsEnabled, setGlossaryHintsEnabled),
     undoEntry(workflowTagsEnabled, setWorkflowTagsEnabled),
     undoEntry(sessionRightPaneEnabled, setSessionRightPaneEnabled),
+    undoEntry(projectAppComposingEnabled, setProjectAppComposingEnabled),
     undoEntry(
       transcriptMarginNavigationEnabled,
       setTranscriptMarginNavigationEnabled,
@@ -856,6 +860,23 @@ export function AppearanceSettings() {
                 setSessionRightPaneEnabled(event.target.checked)
               }
               aria-label={t("appearanceSessionRightPaneTitle")}
+            />
+            <span className="toggle-slider" />
+          </label>
+        </SettingsItem>
+        <SettingsItem
+          label={t("projectAppWhileComposing")}
+          description={t("appearanceProjectAppComposingDescription")}
+          keywords={["project", "app", "new session", "compose"]}
+        >
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={projectAppComposingEnabled}
+              onChange={(event) =>
+                setProjectAppComposingEnabled(event.target.checked)
+              }
+              aria-label={t("projectAppWhileComposing")}
             />
             <span className="toggle-slider" />
           </label>

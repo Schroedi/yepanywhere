@@ -39,6 +39,7 @@ export const UI_KEYS = {
   outputToolPreviewLineCount: "yep-anywhere-output-tool-preview-line-count",
   tabSize: "yep-anywhere-tab-size",
   contentMaxWidth: "yep-anywhere-content-max-width",
+  projectAppComposing: "yep-anywhere-project-app-composing-enabled",
   sessionRightPane: "yep-anywhere-session-right-pane-enabled",
   sessionRightPaneWidth: "yep-anywhere-session-right-pane-width",
   pdfjsRenderer: "yep-anywhere-pdfjs-renderer-enabled",

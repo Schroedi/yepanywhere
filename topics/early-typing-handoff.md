@@ -126,9 +126,12 @@ its own composer.
    rather than becoming a newline, because the app's Enter would have sent;
    Shift+Enter still adds a newline. On a coarse pointer, Enter is a newline,
    as in the app.
-6. **The tab starts with the sidebar minimized** (unsaved; see
-   [UI architecture](ui-architecture.md#desktop-sidebar-display-modes)), so
-   loading the sidebar neither competes with the composer nor moves it.
+6. **The tab honors the saved sidebar mode**, including on reload (see
+   [UI architecture](ui-architecture.md#desktop-sidebar-display-modes)). The
+   pre-boot field reserves the saved desktop sidebar width, including the
+   collapsed rail or minimized mode, rather than hiding navigation. An explicit
+   `?sidebar=expanded` overrides the saved mode; responsive width limits still
+   apply.
 7. **Geometry follows the page.** The pre-boot textarea sits where the form's
    textarea will be at each width, including the reader's content width, so
    the handoff does not visibly move the text. Its copy is English only: the

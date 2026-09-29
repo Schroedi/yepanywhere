@@ -109,6 +109,7 @@
   "projectAppName": "App name",
   "projectAppReserve": "Reserve address",
   "projectAppReserveHint": "Reserving does not start or publish the app.",
+  "appearanceProjectAppComposingDescription": "Show a link on New Session to compose beside the selected project’s app. Off by default.",
   "projectAppWhileComposing": "Show project app while composing",
   "templateSubmitting": "Submitting project creation…",
   "templateElapsed": "{seconds}s elapsed",

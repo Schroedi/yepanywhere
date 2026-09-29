@@ -27,6 +27,7 @@ import { useRecentSessions } from "../hooks/useRecentSessions";
 import { useI18n } from "../i18n";
 import { MainContent, useNavigationLayout } from "../layouts";
 import { useToastContext } from "../contexts/ToastContext";
+import { useProjectAppComposing } from "../hooks/useProjectAppComposing";
 
 const RECENT_PROJECT_SESSION_LIMIT = 30;
 const DETACHED_PROJECT_PARAM = "detached";
@@ -71,6 +72,7 @@ export function NewSessionPage() {
   const requestedDetached =
     !projectId && searchParams.get(DETACHED_PROJECT_PARAM) === "1";
   const { openSidebar, isWideScreen } = useNavigationLayout();
+  const { projectAppComposingEnabled } = useProjectAppComposing();
 
   useIncomingShareFiles(setIncomingShareFiles, {
     onError: () => showToast(t("incomingShareAttachmentUnavailable"), "error"),
@@ -202,7 +204,8 @@ export function NewSessionPage() {
 
       <main className="page-scroll-container">
         <div className="page-content-inner new-session-page-shell">
-          {projectId &&
+          {projectAppComposingEnabled &&
+            projectId &&
             serverHasCapability(
               version,
               SERVER_CAPABILITIES.projectService.name,

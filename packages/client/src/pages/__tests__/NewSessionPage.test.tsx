@@ -10,10 +10,11 @@ import {
 import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BROWSER_LOCAL_KEYS } from "../../lib/storageKeys";
+import { BROWSER_LOCAL_KEYS, UI_KEYS } from "../../lib/storageKeys";
 import { NewSessionPage } from "../NewSessionPage";
 
-const { projectsState, recentSessionsState } = vi.hoisted(() => ({
+const { projectsState, recentSessionsState, versionState } = vi.hoisted(() => ({
+  versionState: { capabilities: [] as string[] },
   projectsState: {
     projects: [
       {
@@ -88,7 +89,7 @@ vi.mock("../../hooks/useDocumentTitle", () => ({
 }));
 
 vi.mock("../../hooks/useVersion", () => ({
-  useVersion: () => ({ version: { capabilities: [] } }),
+  useVersion: () => ({ version: versionState }),
 }));
 
 vi.mock("../../hooks/useProjects", () => ({
@@ -184,6 +185,7 @@ describe("NewSessionPage", () => {
       value: localStorageMock,
     });
     window.localStorage.clear();
+    versionState.capabilities = [];
     projectsState.loading = false;
     recentSessionsState.recentSessions = [];
     recentSessionsState.isLoading = false;
@@ -193,6 +195,34 @@ describe("NewSessionPage", () => {
     cleanup();
     window.localStorage.clear();
     vi.clearAllMocks();
+  });
+
+  it("hides app composing by default even on a capable server", () => {
+    versionState.capabilities = ["project-service"];
+    localStorage.setItem(UI_KEYS.sessionRightPane, "true");
+    renderPage("/new-session?projectId=project-1");
+    expect(
+      screen.queryByRole("link", { name: "projectAppWhileComposing" }),
+    ).toBeNull();
+  });
+
+  it("shows app composing only after opting into app composing", () => {
+    versionState.capabilities = ["project-service"];
+    localStorage.setItem(UI_KEYS.projectAppComposing, "true");
+    renderPage("/new-session?projectId=project-1");
+    expect(
+      screen
+        .getByRole("link", { name: "projectAppWhileComposing" })
+        .getAttribute("href"),
+    ).toBe("/projects/project-1/app?compose=1");
+  });
+
+  it("keeps app composing hidden when the server lacks support", () => {
+    localStorage.setItem(UI_KEYS.projectAppComposing, "true");
+    renderPage("/new-session?projectId=project-1");
+    expect(
+      screen.queryByRole("link", { name: "projectAppWhileComposing" }),
+    ).toBeNull();
   });
 
   it("uses the stored recent project when opened without a project", async () => {
