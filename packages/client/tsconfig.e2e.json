@@ -3,11 +3,13 @@
   "compilerOptions": {
     "types": ["node"],
     "noEmit": true,
+    "allowJs": true,
     "allowImportingTsExtensions": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable", "DOM.AsyncIterable"]
   },
   "include": [
     "e2e/**/*.ts",
+    "e2e/**/*.mjs",
     "playwright*.config.ts",
     "src/vite-env.d.ts",
     "src/lib/routeRetention.ts"

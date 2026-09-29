@@ -148,7 +148,11 @@ inherited host connections. Their short run-owned runtime paths avoid Unix
 socket length limits. Await `disposeYaServerProcess` before removing storage;
 restart preserves its profile and host. Atomic recovery records let global
 teardown reclaim detached children after worker failure, and failed cleanup
-retains its recovery state. On Unix, recovery validates the recorded process
+retains its recovery state. An E2E-only spawn observer records detached host
+launches before readiness, covering crashes before `host.json` publication.
+An incomplete launch receipt fails cleanup and retains evidence; descriptor
+absence alone cannot establish successful reclamation. The observer preserves
+the real attach/start path and restart lifetime. On Unix, recovery validates the recorded process
 identity and waits for the whole process group, including descendants after
 the leader exits. Windows uses bounded `taskkill /T /F`; detached-tree recovery
 and PID-reuse protection are weaker there and are not established by Unix

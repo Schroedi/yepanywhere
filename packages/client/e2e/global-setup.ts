@@ -2,7 +2,7 @@ import { registerSharedServiceProcess } from "./support/shared-service-process.j
 import { execFileSync, execSync, spawn } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { ensureColorEmojiFont } from "../scripts/emoji-font.js";
 
 import { providerHostRuntimeDir } from "./support/provider-host-runtime.js";
@@ -242,7 +242,16 @@ export default async function globalSetup() {
     console.log("[E2E] Starting main server...");
     const serverProcess = spawn(
       "pnpm",
-      ["exec", "tsx", "--conditions", "source", "src/index.ts"],
+      [
+        "exec",
+        "tsx",
+        "--import",
+        pathToFileURL(join(__dirname, "support", "record-host-launch.mjs"))
+          .href,
+        "--conditions",
+        "source",
+        "src/index.ts",
+      ],
       {
         cwd: serverRoot,
         env: {

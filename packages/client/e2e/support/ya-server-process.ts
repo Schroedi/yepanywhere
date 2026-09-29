@@ -19,6 +19,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const repoRoot = join(__dirname, "..", "..", "..", "..");
 const serverRoot = join(repoRoot, "packages", "server");
+const hostLaunchObserver = pathToFileURL(
+  join(__dirname, "record-host-launch.mjs"),
+).href;
 const tsxLoader = pathToFileURL(
   createRequire(import.meta.url).resolve("tsx"),
 ).href;
@@ -308,7 +311,15 @@ export async function startYaServerProcess(
 
   const child = spawn(
     process.execPath,
-    ["--import", tsxLoader, "--conditions", "source", "src/index.ts"],
+    [
+      "--import",
+      tsxLoader,
+      "--import",
+      hostLaunchObserver,
+      "--conditions",
+      "source",
+      "src/index.ts",
+    ],
     {
       cwd: serverRoot,
       env: childEnv,
@@ -393,7 +404,15 @@ export async function restartYaServerProcess(
   };
   const child = spawn(
     process.execPath,
-    ["--import", tsxLoader, "--conditions", "source", "src/index.ts"],
+    [
+      "--import",
+      tsxLoader,
+      "--import",
+      hostLaunchObserver,
+      "--conditions",
+      "source",
+      "src/index.ts",
+    ],
     {
       cwd: serverRoot,
       env: childEnv,

@@ -20,15 +20,21 @@ export async function registerSharedServiceProcess(
       runtimeDir: options.runtimeDir,
     });
   } catch (error) {
-    const cleanup = await Promise.allSettled([
-      terminateChildProcess(child, options.label),
-      options.runtimeDir
-        ? stopProviderHostRuntime(options.runtimeDir)
-        : Promise.resolve(),
-    ]);
-    const failures = cleanup.flatMap((result) =>
-      result.status === "rejected" ? [result.reason] : [],
-    );
+    const failures: unknown[] = [];
+    try {
+      await terminateChildProcess(child, options.label);
+    } catch (cleanup) {
+      failures.push(cleanup);
+    }
+    // Stop the launcher first so it cannot create another detached host while
+    // recovery enumerates launch receipts. Still attempt both on failure.
+    if (options.runtimeDir) {
+      try {
+        await stopProviderHostRuntime(options.runtimeDir);
+      } catch (cleanup) {
+        failures.push(cleanup);
+      }
+    }
     if (failures.length)
       throw new AggregateError(
         [error, ...failures],
