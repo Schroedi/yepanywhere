@@ -13,3 +13,8 @@ the assertion. The failing capture is retained in the Playwright run directory
 
 Found 2026-09-29 while reporting post-publication browser checks.
 Contributing-model: 6-Astra.
+
+2026-09-30: still deterministic on this host with identical frames (549 →
+489.42) on a focused rerun and on upstream `87f933c97`; GitHub CI passed the
+same commits, so the failure is host-dependent.
+Contributing-model: opus-5.5
