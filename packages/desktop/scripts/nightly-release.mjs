@@ -113,6 +113,17 @@ export function selectVerifiedCommit(runs, isAncestor) {
   });
 }
 
+export function listMainPushRuns(listPage) {
+  const runs = [];
+  for (let page = 1; ; page++) {
+    // Filter locally: GitHub's filtered run search can omit recent runs once
+    // its search result cap is reached. The workflow inventory has no such cap.
+    const batch = listPage(page);
+    runs.push(...batch.filter((run) => run.head_branch === "main" && run.event === "push"));
+    if (runs.length >= 100 || batch.length < 100) return runs.slice(0, 100);
+  }
+}
+
 /** A rerun can revoke newer CI eligibility; it cannot roll Latest backward. */
 export function canAdvanceVerifiedSource(previous, candidate, isAncestor) {
   if (isAncestor(previous, candidate)) return true;
@@ -134,16 +145,17 @@ function select() {
   const repo = process.env.GITHUB_REPOSITORY;
   // Require main's newest run for that SHA to pass, including reruns. Never
   // choose the scheduler's current HEAD while a different commit was verified.
-  const runs = api(
-    `repos/${repo}/actions/workflows/ci.yml/runs?branch=main&event=push&per_page=100`,
-    ".workflow_runs | map({id, head_sha, status, conclusion})",
-  );
+  const runs = listMainPushRuns((page) => api(
+    `repos/${repo}/actions/workflows/ci.yml/runs?per_page=100&page=${page}`,
+    ".workflow_runs | map({id, head_sha, head_branch, event, status, conclusion})",
+  ));
   const candidate = selectVerifiedCommit(
     runs,
     (sha) => isGitAncestor(sha, "origin/main"),
   );
   if (!candidate)
     throw new Error("No verified main commit in the latest 100 CI runs");
+  console.log(`Verified source: CI ${candidate.id} at ${candidate.head_sha}`);
   const releases = [];
   for (let page = 1; ; page++) {
     const batch = api(

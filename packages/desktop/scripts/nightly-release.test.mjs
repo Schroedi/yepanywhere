@@ -14,12 +14,30 @@ import {
   canAdvanceVerifiedSource,
   isDesktopInput,
   latestPublished,
+  listMainPushRuns,
   nightlyIdentity,
   selectVerifiedCommit,
 } from "./nightly-release.mjs";
 import { validateRelease } from "./desktop-release.mjs";
 
 const sha = "a".repeat(40);
+test("nightly reads the run inventory and filters main pushes across pages", () => {
+  const other = { head_branch: "feature", event: "push" };
+  const pr = { head_branch: "main", event: "pull_request" };
+  const dispatch = { head_branch: "main", event: "workflow_dispatch" };
+  const main = (id) => ({ id, head_branch: "main", event: "push" });
+  const pages = [
+    [main("newest"), pr, dispatch, ...Array(97).fill(other)],
+    [main("older"), other],
+  ];
+  const requested = [];
+  assert.deepEqual(listMainPushRuns((page) => {
+    requested.push(page);
+    return pages[page - 1];
+  }), [main("newest"), main("older")]);
+  assert.deepEqual(requested, [1, 2]);
+  assert.equal(listMainPushRuns(() => Array.from({ length: 100 }, (_, i) => main(i))).length, 100);
+});
 test("nightly cannot republish older source when newer CI eligibility changes", () => {
   const history = ["old-green", "published", "new-green"];
   const ancestor = (base, tip) =>

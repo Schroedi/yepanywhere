@@ -20,3 +20,12 @@ inspect repository release/tag policies or use a deliberately configured
 release App credential after establishing the missing authority.
 
 Found 2026-09-30 while investigating remaining CI failures.
+
+The forward-source verification exposed a separate run-discovery defect:
+[manual nightly 36714371983](https://github.com/kzahel/yepanywhere/actions/runs/36714371983)
+skipped because its filtered GitHub run search omitted the now-green
+[CI 36712930735](https://github.com/kzahel/yepanywhere/actions/runs/36712930735).
+The same live API's unfiltered workflow inventory included it. The selector
+now pages that inventory and filters the latest 100 main pushes locally; the
+live selector check chooses `2d2f524d5` correctly. This repairs source discovery,
+but draft authorization still requires a nightly that reaches release creation.

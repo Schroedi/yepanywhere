@@ -39,3 +39,9 @@ was relaxed. The newer CI 36702832972 passed Windows on the preceding source.
 The configured local Windows testbed is unavailable, so a source CI Windows
 run is still needed to classify the earlier 20-second timeout and verify the
 native implementation. Lifecycle repair alone does not establish its cause.
+
+Source [CI 36712930735](https://github.com/kzahel/yepanywhere/actions/runs/36712930735/job/109878806076)
+now passes all 43 Windows computer-control assertions on the first attempt.
+The extraction case took 4,341ms under the unchanged parallel invocation and
+20-second test budget. This verifies the native repair on Windows; the earlier
+20-second stall remains unclassified unless its new bounded diagnostics recur.

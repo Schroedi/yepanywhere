@@ -340,8 +340,9 @@ packaged desktop inputs differ from the last successfully published Latest.
 Client, server, shared, desktop, bundled helper and build/dependency changes
 qualify; documentation, marketing and test-only changes do not.
 
-The selector chooses the newest eligible `main` commit whose general CI run
-passed and pins that exact SHA throughout the existing desktop packaging
+The selector reads the workflow run inventory and filters `main` push runs
+locally, avoiding GitHub's capped filtered-search results. It chooses the
+newest eligible `main` commit whose general CI run passed and pins that exact SHA throughout the existing desktop packaging
 workflow. Failed or pending newer commits are not packaged merely because they
 are branch HEAD. A missing verified candidate fails rather than publishing
 unverified source. Source history must advance from the published Latest:
