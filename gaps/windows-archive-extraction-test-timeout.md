@@ -1,4 +1,4 @@
-# Windows archive extraction test can exceed its five-second timeout
+# Windows archive extraction test still exceeds its measured timeout
 
 Graehl's computer-control Windows job failed the test “native extraction
 rejects traversal and handles a valid ZIP” in
@@ -14,3 +14,19 @@ deciding whether the integration test needs a longer explicit deadline.
 
 Found 2026-09-16 while reporting source CI after speech-backend publication.
 This Windows test issue is outside the speech implementation scope.
+
+2026-09-30: the test now has an explicit 20,000ms budget, based on the earlier
+5,000ms failure and successful 3,348ms/4,051ms observations. It nevertheless
+timed out at 20,003ms in
+[CI 36692427921](https://github.com/kzahel/yepanywhere/actions/runs/36692427921/job/109812489685).
+The same job's first Windows process-ownership case took 24,140ms; its later
+cases took roughly one second. These observations do not establish contention
+or identify the blocked extraction stage.
+
+Capture elapsed times for child spawn, traversal rejection, valid extraction
+and child exit, with bounded stderr on failure. Compare a serial native-file
+run against the current parallel invocation before changing another timeout.
+The native PowerShell helper permits 120 seconds per child while the test
+permits 20 seconds for two calls, so also verify cancellation joins child exit
+before the fixture directory is removed. No extraction assertion or deadline
+was changed during the browser module-loading repair.

@@ -17,7 +17,7 @@ import {
   useStartNewSessionFromFileAction,
   useStartNewSessionWithPrefillAction,
 } from "../FileResourceActions";
-import { fileApi } from "../../api/fileClient";
+import { api } from "../../api/client";
 
 const versionState = vi.hoisted(() => ({
   capabilities: [] as string[],
@@ -381,7 +381,7 @@ describe("useStartNewSessionWithPrefillAction", () => {
 
   it("opens a host file's session in the project that owns it", async () => {
     versionState.capabilities = ["file-owner-project"];
-    const lookup = vi.spyOn(fileApi, "getFileOwner").mockResolvedValue({
+    const lookup = vi.spyOn(api, "getFileOwner").mockResolvedValue({
       owner: {
         projectId: "project-b" as never,
         projectPath: "/work/b",
@@ -403,7 +403,7 @@ describe("useStartNewSessionWithPrefillAction", () => {
 
   it("keeps the linking project for unowned files and older servers", async () => {
     const lookup = vi
-      .spyOn(fileApi, "getFileOwner")
+      .spyOn(api, "getFileOwner")
       .mockResolvedValue({ owner: null });
     const { result } = renderHook(() => useStartNewSessionFromFileAction());
     versionState.capabilities = ["file-owner-project"];

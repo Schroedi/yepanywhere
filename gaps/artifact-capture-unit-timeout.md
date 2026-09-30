@@ -15,3 +15,11 @@ larger budget is appropriate, follow `topics/test-time-budgets.md` and include
 the observed 5000 ms timeout in the measured maximum.
 
 Found 2026-09-29 while verifying dormant-session settings restoration.
+
+2026-09-30: a Node 24.19.0 full workspace run during the file-API module repair
+timed out two more cases at 5,000ms: `skips health and grants when delivery is
+absent: {"capable":false}` and `takes the session's announced artifact origin
+without asking the server`. Browser and typechecking verification overlapped
+that run. The logs still do not identify a blocked capture phase, so no
+deadline or capture behavior was changed. Keep phase timing and first-attempt
+full-suite evidence as the next diagnostic step.

@@ -2,7 +2,7 @@ import { SERVER_CAPABILITIES, serverHasCapability } from "@yep-anywhere/shared";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { fileApi } from "../api/fileClient";
+import { api } from "../api/client";
 import { useOptionalToastContext } from "../contexts/ToastContext";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { beginTooltipSuppression } from "../hooks/useTooltipAppearance";
@@ -162,7 +162,7 @@ export function useStartNewSessionFromFileAction() {
         startNewSession(projectId, filePath);
         return;
       }
-      void fileApi
+      void api
         .getFileOwner(projectId, filePath)
         .then(({ owner }) =>
           owner

@@ -1480,8 +1480,18 @@ export const api = {
 
   ...pushSettingsApi,
 
-  // File API
-  ...fileApi,
+  // sourceApiFetch -> sourceRuntime imports this facade. Defer method lookup
+  // so entering through fileClient does not read its uninitialized binding.
+  getFileOwner: (...args: Parameters<typeof fileApi.getFileOwner>) =>
+    fileApi.getFileOwner(...args),
+  getFile: (...args: Parameters<typeof fileApi.getFile>) =>
+    fileApi.getFile(...args),
+  getFileMetadata: (...args: Parameters<typeof fileApi.getFileMetadata>) =>
+    fileApi.getFileMetadata(...args),
+  getFileRawUrl: (...args: Parameters<typeof fileApi.getFileRawUrl>) =>
+    fileApi.getFileRawUrl(...args),
+  expandDiffContext: (...args: Parameters<typeof fileApi.expandDiffContext>) =>
+    fileApi.expandDiffContext(...args),
 
   // Git status API
   ...gitApi,
