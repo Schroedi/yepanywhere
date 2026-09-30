@@ -8,10 +8,12 @@ import {
 } from "@yep-anywhere/shared";
 import {
   DraftSyncClient,
+  acceptPendingDrafts,
   draftAddress,
   draftPayloadFromStorage,
   draftPayloadToStorage,
   draftStorage,
+  draftSyncPending,
   setDraftAccount,
   subscribeDraftStorage,
 } from "../draftSyncStorage";
@@ -227,7 +229,7 @@ describe("local-first snapshot synchronization", () => {
     wildcard();
     expect(c.entries.has(key)).toBe(false);
   });
-  it.each(["dirty", "pending", "alternative", "submitted", "pending-send"])(
+  it.each(["dirty", "pending", "submitted", "pending-send"])(
     "protects %s state when its editor closes",
     async (kind) => {
       const s = server(),
@@ -243,11 +245,6 @@ describe("local-first snapshot synchronization", () => {
           ticket: "ticket",
           operationId: "retry-this-operation",
           payload: s.get().payload,
-        };
-      if (kind === "alternative")
-        saved.alternative = {
-          fields: { text: "sibling tab" },
-          attachments: [],
         };
       if (kind === "submitted")
         saved.submitted = {
@@ -564,26 +561,70 @@ describe("local-first snapshot synchronization", () => {
     await c.confirm(key);
     expect(s.get().payload.fields.text).toBe("other device's next draft");
   });
-  it("keeps a sibling tab's update pending while typing", async () => {
+  it("adopts a sibling tab's keystrokes without echoing or concatenating them", async () => {
     const s = server(),
       c = client(s);
-    localStorage.setItem(key, raw("own typing"));
+    const changed = vi.fn();
+    subscriptions.push(subscribeDraftStorage(key, changed));
+    localStorage.setItem(key, raw("c"));
     c.start();
     await c.refresh();
     const input = document.createElement("textarea");
     document.body.append(input);
     input.focus();
-    localStorage.setItem(key, raw("sibling typing"));
-    window.dispatchEvent(
-      new StorageEvent("storage", { key, newValue: raw("sibling typing") }),
+    const setItem = vi.spyOn(localStorage, "setItem");
+    // The sibling tab writes the shared storage on every keystroke.
+    for (const text of ["co", "cod", "codex", "codex updated."]) {
+      localStorage.setItem(key, raw(text));
+      window.dispatchEvent(
+        new StorageEvent("storage", { key, newValue: raw(text) }),
+      );
+    }
+    const siblingWrites = 4;
+    expect(setItem).toHaveBeenCalledTimes(siblingWrites);
+    expect(draftStorage.getItem(key)).toBe(raw("codex updated."));
+    expect(changed).toHaveBeenCalledTimes(4);
+    expect(draftSyncPending("local")).toEqual([]);
+    input.blur();
+    setItem.mockRestore();
+    await c.sync(c.register(key)!);
+    expect(s.get().payload.fields.text).toBe("codex updated.");
+  });
+  it("retries a failed browser write when the notice's retry is chosen", async () => {
+    const s = server(),
+      c = client(s);
+    c.start();
+    await c.refresh();
+    const e = c.register(key)!;
+    const full = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("Full", "QuotaExceededError");
+    });
+    c.edit(key, raw("kept in memory"));
+    expect(draftSyncPending().map((p) => p.error)).toEqual(["local"]);
+    c.accept(e);
+    expect(e.error).toBe("local");
+    full.mockRestore();
+    acceptPendingDrafts();
+    expect(e.error).toBeUndefined();
+    expect(localStorage.getItem(key)).toBe(raw("kept in memory"));
+    expect(draftSyncPending()).toEqual([]);
+    await c.sync(e);
+    expect(s.get().payload.fields.text).toBe("kept in memory");
+  });
+  it("drops a stored sibling merge left by earlier builds", () => {
+    const s = server(),
+      c = client(s);
+    localStorage.setItem(key, raw("codex"));
+    localStorage.setItem(
+      metadataKey(key),
+      JSON.stringify({
+        base: null,
+        alternative: { fields: { text: "codex\n\ncode" }, attachments: [] },
+      }),
     );
     const e = c.register(key)!;
-    expect(draftStorage.getItem(key)).toBe(raw("own typing"));
-    expect(e.saved.alternative?.fields.text).toContain("sibling typing");
-    c.accept(e);
-    await c.sync(e);
-    expect(s.get().payload.fields.text).toContain("own typing");
-    expect(s.get().payload.fields.text).toContain("sibling typing");
+    expect("alternative" in e.saved).toBe(false);
+    expect(draftSyncPending()).toEqual([]);
   });
   it("refuses to sync when the server's acting account differs from the client", async () => {
     const s = server("alice"),

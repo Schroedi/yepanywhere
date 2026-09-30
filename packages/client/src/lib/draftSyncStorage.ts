@@ -31,7 +31,6 @@ interface Saved {
   base: DraftSnapshot | null;
   pending?: DraftWrite;
   recovery?: string | null;
-  alternative?: DraftPayload;
   submitted?: {
     payload: DraftPayload;
     revision: string | null;
@@ -373,9 +372,7 @@ export function draftSyncPending(source?: string): Array<{
     .filter((c) => !source || c.source === source)
     .flatMap((c) =>
       [...c.entries.values()]
-        .filter(
-          (e) => e.remote || e.saved.alternative || e.error || e.needsRecovery,
-        )
+        .filter((e) => e.remote || e.error || e.needsRecovery)
         .map((e) => ({
           key: e.key,
           error: e.error,
@@ -436,7 +433,12 @@ export class DraftSyncClient {
       const meta = JSON.parse(
         localStorage.getItem(this.metaKey(key)) ?? "null",
       );
-      if (meta) saved = { ...meta, raw: saved.raw };
+      if (meta) {
+        // Earlier builds stored sibling-tab merges here; the storage value
+        // already holds that text, and replaying the merge duplicates it.
+        const { alternative: _sibling, ...kept } = meta;
+        saved = { ...kept, raw: saved.raw };
+      }
     } catch {}
     const e: Entry = {
       key,
@@ -473,7 +475,6 @@ export class DraftSyncClient {
       e.confirmations ||
       e.saved.pending ||
       e.saved.submitted ||
-      e.saved.alternative ||
       e.remote ||
       e.needsRecovery ||
       e.error ||
@@ -551,7 +552,6 @@ export class DraftSyncClient {
       this.entries.get(e.key) !== e ||
       e.running ||
       (this.started && !this.identified) ||
-      e.saved.alternative ||
       this.transport.status.getSnapshot().state !== "ready" ||
       e.remote ||
       e.needsRecovery ||
@@ -685,19 +685,20 @@ export class DraftSyncClient {
     }
     notify(e.key);
   }
-  accept(e: Entry): void {
-    if (e.saved.alternative) {
-      const alternative = e.saved.alternative;
-      e.saved.alternative = undefined;
-      this.apply(
-        e,
-        mergeDrafts(
-          e.saved.base?.payload ?? EMPTY_DRAFT,
-          payload(e.address, e.saved.raw),
-          alternative,
-        ),
-      );
+  /** Retry storing this tab's current value after a failed browser write. */
+  private retryLocal(e: Entry): void {
+    const key = physical(e.key, e.address);
+    try {
+      if (e.saved.raw === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, e.saved.raw);
+      localStorage.setItem(this.metaKey(e.key), JSON.stringify(e.saved));
+      e.error = undefined;
+    } catch {
+      e.error = "local";
     }
+  }
+  accept(e: Entry): void {
+    if (e.error === "local") this.retryLocal(e);
     if (e.needsRecovery) {
       if (e.saved.submitted)
         this.apply(
@@ -977,27 +978,37 @@ export class DraftSyncClient {
   private wake = () => {
     void this.refresh();
   };
+  /**
+   * Every tab of this origin shares one browser storage, so a sibling tab's
+   * write is the newest local value rather than a divergent replica: adopt
+   * it, never merge it. Merging against this tab's older base and writing the
+   * result back re-entered every sibling's handler, appending the whole draft
+   * again on each keystroke until storage filled and the browser stalled.
+   * Adoption never writes, so no tab can echo another's change.
+   */
   private storage = (event: StorageEvent) => {
-    if (event.key) {
-      for (const e of this.entries.values())
-        if (physical(e.key, e.address) === event.key) {
-          const incoming = payload(e.address, event.newValue);
-          const local = payload(e.address, e.saved.raw);
-          if (draftPayloadEqual(incoming, local)) return;
-          const merged = mergeDrafts(
-            e.saved.base?.payload ?? EMPTY_DRAFT,
-            local,
-            incoming,
-          );
-          if (editing()) {
-            e.saved.alternative = merged;
-            this.persist(e);
-            status();
-          } else {
-            this.apply(e, merged);
-            this.schedule(e, 0);
-          }
-        }
+    if (!event.key) return;
+    for (const e of this.entries.values()) {
+      if (physical(e.key, e.address) === event.key) {
+        if (e.saved.raw === event.newValue) return;
+        e.saved.raw = event.newValue;
+        // The sibling's stored value supersedes a write this tab failed to store.
+        if (e.error === "local") e.error = undefined;
+        notify(e.key);
+        this.schedule(e, 3000);
+        status();
+        return;
+      }
+      if (this.metaKey(e.key) === event.key) {
+        // Share the sibling's acknowledged base so a later server merge sees
+        // the sibling's synced text as common ancestry, not a conflict.
+        if (e.running || !event.newValue) return;
+        try {
+          const base = (JSON.parse(event.newValue) as Partial<Saved>).base;
+          if (base !== undefined) e.saved.base = base;
+        } catch {}
+        return;
+      }
     }
   };
   start(): void {

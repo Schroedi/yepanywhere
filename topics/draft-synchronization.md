@@ -79,7 +79,19 @@ union new IDs and respect removal of a base attachment.
 
 A remote change never replaces a focused input, its selection, or IME input.
 The notice **Combine drafts** applies the pending change against the latest
-local text on explicit activation. Sibling-tab edits receive the same treatment.
+local text on explicit activation.
+
+Sibling tabs are not another device. Every tab of an origin shares one browser
+storage, so a sibling's write is the newest local value: a tab adopts it, shares
+the sibling's acknowledged base, and never merges or writes it back. Merging it
+against a tab's older base and storing the result re-entered every sibling's
+storage handler, appending the whole draft again on each keystroke until storage
+filled and the browser stalled (observed 2026-09-30). Metadata that an earlier
+build stored as a pending sibling merge is discarded on load.
+
+A failed browser write shows its own notice; **Retry** writes the tab's current
+value and metadata again and clears the notice once storage accepts them. A
+sibling's later successful write of the same draft also clears it.
 The notice leaves page controls outside its button clickable, including controls
 that appear beneath the notice at narrow widths.
 This conservatively pauses remote application while any text editor is focused.
