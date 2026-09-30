@@ -33,7 +33,7 @@ import org.junit.runner.RunWith
 class WebClientActivityTest {
     @Test
     fun nativeHostDescribesAndroidOverWebMessage() {
-        ActivityScenario.launch(WebClientActivity::class.java).use { scenario ->
+        launchClient().use { scenario ->
             awaitJavaScript(scenario, "document.readyState", "\"complete\"")
             assertEquals("\"object\"", evaluateJavaScript(scenario, "typeof window.yaNative"))
 
@@ -72,7 +72,7 @@ class WebClientActivityTest {
 
     @Test
     fun notificationStatusIsBoundedAndPermissionRequiresUserAction() {
-        ActivityScenario.launch(WebClientActivity::class.java).use { scenario ->
+        launchClient().use { scenario ->
             awaitJavaScript(scenario, "document.readyState", "\"complete\"")
             requestNativeMethod(scenario, "notification-status", "notifications.status")
             awaitJavaScript(
@@ -117,7 +117,7 @@ class WebClientActivityTest {
         } else {
             null
         }
-        ActivityScenario.launch(WebClientActivity::class.java).use { scenario ->
+        launchClient().use { scenario ->
             awaitJavaScript(scenario, "document.readyState", "\"complete\"")
             scenario.onActivity { activity -> activity.onUserInteraction() }
             postNativeMethod(
@@ -154,7 +154,7 @@ class WebClientActivityTest {
 
     @Test
     fun nativeHostIsAbsentFromAnUnapprovedOrigin() {
-        ActivityScenario.launch(WebClientActivity::class.java).use { scenario ->
+        launchClient().use { scenario ->
             awaitJavaScript(scenario, "document.readyState", "\"complete\"")
             scenario.onActivity { activity ->
                 activity.findViewById<WebView>(R.id.web_client).apply {
@@ -183,7 +183,7 @@ class WebClientActivityTest {
 
     @Test
     fun nativeHostDoesNotReplyToASubframe() {
-        ActivityScenario.launch(WebClientActivity::class.java).use { scenario ->
+        launchClient().use { scenario ->
             awaitJavaScript(scenario, "document.readyState", "\"complete\"")
             evaluateJavaScript(
                 scenario,
@@ -247,7 +247,7 @@ class WebClientActivityTest {
 
     @Test
     fun activityRecreationRestoresTheClientAndNativeHost() {
-        ActivityScenario.launch(WebClientActivity::class.java).use { scenario ->
+        launchClient().use { scenario ->
             awaitJavaScript(scenario, "document.readyState", "\"complete\"")
 
             scenario.recreate()
@@ -260,7 +260,7 @@ class WebClientActivityTest {
 
     @Test
     fun rotationRestoresTheClientAndNativeHost() {
-        ActivityScenario.launch(WebClientActivity::class.java).use { scenario ->
+        launchClient().use { scenario ->
             awaitJavaScript(scenario, "document.readyState", "\"complete\"")
             try {
                 scenario.onActivity { activity ->
@@ -281,7 +281,7 @@ class WebClientActivityTest {
 
     @Test
     fun backNavigatesWebHistoryBeforeFinishingTheActivity() {
-        ActivityScenario.launch(WebClientActivity::class.java).use { scenario ->
+        launchClient().use { scenario ->
             awaitJavaScript(scenario, "document.readyState", "\"complete\"")
             awaitJavaScript(scenario, "window.location.pathname", "\"/login\"")
             val initialUrl = evaluateJavaScript(scenario, "window.location.href")
@@ -320,7 +320,7 @@ class WebClientActivityTest {
             intending(hasAction(Intent.ACTION_VIEW)).respondWith(
                 ActivityResult(Activity.RESULT_OK, null),
             )
-            ActivityScenario.launch(WebClientActivity::class.java).use { scenario ->
+            launchClient().use { scenario ->
                 awaitJavaScript(scenario, "document.readyState", "\"complete\"")
                 evaluateJavaScript(
                     scenario,
@@ -336,6 +336,16 @@ class WebClientActivityTest {
         } finally {
             Intents.release()
         }
+    }
+
+    private fun launchClient(): ActivityScenario<WebClientActivity> {
+        // Control-plane tests have no native profile. Start at the stable login
+        // route so a / -> /login redirect cannot discard the test's reply state.
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val intent = Intent(context, WebClientActivity::class.java).setData(
+            android.net.Uri.parse("${WebClientConfig.fromBuild().origin}/login"),
+        )
+        return ActivityScenario.launch(intent)
     }
 
     private fun requestHostDescription(

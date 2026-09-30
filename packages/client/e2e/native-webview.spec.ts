@@ -16,7 +16,8 @@ for (const viewport of [
     baseURL,
     remoteClientURL,
   }, testInfo) => {
-    test.setTimeout(60_000);
+    // Full-suite observations: 4.1 s desktop, 4.0 s phone. Inherit the
+    // 15 s test budget (~3.7x observed maximum), including capture work.
     await page.setViewportSize(viewport);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -101,7 +102,7 @@ for (const viewport of [
     const skip = page.locator(".onboarding-skip-all");
     if (await skip.isVisible().catch(() => false)) await skip.click();
     const composer = page.locator("textarea[data-composer-input]");
-    await expect(composer).toBeVisible({ timeout: 25_000 });
+    await expect(composer).toBeVisible();
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page.locator(".message-list")).toBeVisible();
 

@@ -109,6 +109,8 @@ class YaNativeWebAppInstrumentedTest {
             assertEquals(200, runBlocking { sibling.request("GET", "/version").status })
             scenario.moveToState(Lifecycle.State.RESUMED)
             await(scenario, "document.body.textContent.includes('Preview message 50')")
+            evaluate(scenario, "if (!document.querySelector('.sidebar-switch-host')) document.querySelector('.sidebar-toggle')?.click(); true")
+            await(scenario, "!!document.querySelector('.sidebar-switch-host')")
             evaluate(scenario, "document.querySelector('.sidebar-switch-host').click(); true")
             val device = UiDevice.getInstance(instrumentation)
             assertTrue("Switch Host did not open native management", device.wait(Until.hasObject(By.text("Servers")), 5_000))
@@ -134,6 +136,13 @@ class YaNativeWebAppInstrumentedTest {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
         var actual = ""
         while (System.nanoTime() < deadline) {
+            // Reload can discard an evaluateJavascript callback sent to the
+            // departing renderer. Wait for the replacement native handshake.
+            var ready = false
+            scenario.onActivity { activity ->
+                ready = activity.nativeTransportDiagnostics() != null && activity.findViewById<WebView>(R.id.web_client).progress == 100
+            }
+            if (!ready) { Thread.sleep(100); continue }
             actual = evaluate(scenario, script)
             if (actual == "true") return
             Thread.sleep(100)
