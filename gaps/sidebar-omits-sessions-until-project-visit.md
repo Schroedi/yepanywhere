@@ -55,6 +55,14 @@ at 16:30:23 was a question awaiting the maintainer. It kept a fresh
 seen it and assumed there were no active sessions. An owned session waiting
 for input is exactly what the sidebar must never hide.
 
+Further evidence from the maintainer, same day. The session was known to be
+active and known to have been started from YA's New session. It was absent
+from both the sidebar's last-24-hours and starred sections. It was not hidden
+as a duplicate title. Opening Agents or Projects located it easily. So the
+server knows the session and other client views list it; the omission is in
+the sidebar feed's rows or its client-side membership, not in discovery or
+the session catalog.
+
 Additional candidate owners, beyond those above: the temporary-to-canonical
 id remap (`session_id_mapping_updated`) reaching a client whose list holds
 neither id; and a client resuming after a long idle with a retained
