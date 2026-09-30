@@ -83,3 +83,36 @@ query that does list it.
 
 Found 2026-09-30 while diagnosing a publish blocked by an active peer the
 maintainer could not see. Contributing-model: opus-5.5
+
+## Diagnosis — 2026-09-30
+
+The sidebar reads `summaryMode=retained`, answered by
+`readRetainedSessionItems` (`packages/server/src/routes/retained-session-collections.ts`)
+straight from session-catalog rows. `useSidebarSessionOrder` places a row by
+the latest of this browser's own interaction record, `lastHumanTurnAt` and
+`createdAt`; a row with none of them has time 0 and files under Older.
+
+- No catalog row carries `lastHumanTurnAt` (0 of 1,457 rows in the live
+  catalog), and the retained read never sets it. The full-walk route does.
+  So in retained mode the sidebar cannot place a session by a turn sent from
+  another device. A browser idle for a day files such sessions by creation
+  time or by its own old records.
+- A Claude row gets `createdAt` only from a cached summary
+  (`readFileRow` in `sessions/catalog-adapters/collection-catalog-adapters.ts`).
+  Without one, the title and recency come from bounded head/tail reads and
+  `createdAt` is omitted. A live session is appended to constantly, so it
+  rarely has a cached summary: 49 rows lacked `createdAt`, and they were the
+  newest Claude sessions, including `49c4a527`, the current session and the
+  2026-09-28 `ec451911` case above.
+- The current session showed only because this browser recorded sends to it.
+  `49c4a527` was started from this browser, but its first send was recorded
+  before the temporary id became canonical, so it had no local record either.
+
+Fix owner: the catalog row, so the retained read keeps the full walk's
+contract. Carry `createdAt` from the transcript head's first timestamp and
+`lastHumanTurnAt` from the summary or the tail window (the same per-entry
+human-turn test the summary uses). Pass both through the retained read. Bump
+`FILE_ROW_FORMAT` so existing rows are re-read. Separately, move a local
+interaction record from a temporary id to its canonical id on remap.
+
+Diagnosed 2026-09-30. Contributing-model: opus-5.5
