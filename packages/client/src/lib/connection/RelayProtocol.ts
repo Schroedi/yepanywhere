@@ -51,6 +51,8 @@ export interface RelayTransport {
   ): void | Promise<void>;
   ensureConnected(): Promise<void>;
   isConnected(): boolean;
+  /** Release an abandoned native request; ordinary relay has no cancel frame. */
+  cancelRequest?(id: string): void;
 }
 
 export type EmulatorMessageHandler = (msg: DeviceServerMessage) => void;
@@ -752,6 +754,7 @@ export class RelayProtocol {
           );
         }
         this.pendingRequests.delete(id);
+        this.transport.cancelRequest?.(id);
         reject(new Error("Request timeout"));
       }, API_REQUEST_DEADLINE_MS);
 
@@ -808,6 +811,7 @@ export class RelayProtocol {
         onAbort = () => {
           clearTimeout(timeout);
           this.pendingRequests.delete(id);
+          this.transport.cancelRequest?.(id);
           // Expect the reply anyway, and stop expecting it once the client
           // would have given up waiting regardless.
           this.abandonedRequests.add(id);
