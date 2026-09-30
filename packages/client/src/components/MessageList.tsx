@@ -10,6 +10,7 @@ import {
   createElement,
   Fragment,
   memo,
+  type RefObject,
   startTransition,
   useCallback,
   useDeferredValue,
@@ -823,6 +824,12 @@ interface Props {
   onTransferBtwAsideTurn?: (text: string) => void;
   /** Append quoted assistant output to the composer. */
   onQuoteSelection?: (quotedText: string) => string | null;
+  /**
+   * Receives the transcript's quote-a-block handler, so a file viewer opened
+   * from outside the transcript (the `/v` command) quotes the way one opened
+   * from a transcript link does.
+   */
+  quoteTextBlockRef?: RefObject<((anchor: CommentAnchor) => void) | null>;
   /** Open a same-project new-session composer seeded from selected output. */
   onStartNewSessionFromSelection?: (prefill: string) => void;
   /** Stable draft-change stream for quote tint reconciliation. */
@@ -1515,6 +1522,7 @@ export const MessageList = memo(function MessageList({
   onToggleBtwAsideExpanded,
   onTransferBtwAsideTurn,
   onQuoteSelection,
+  quoteTextBlockRef,
   onStartNewSessionFromSelection,
   composerDraftSignal,
   composerEditAvailabilityStore,
@@ -2623,6 +2631,14 @@ export const MessageList = memo(function MessageList({
     quoteClearSignal,
     isInteractiveTarget: isInteractiveScrollTarget,
   });
+  useEffect(() => {
+    if (!quoteTextBlockRef) return;
+    quoteTextBlockRef.current = handleQuoteTextBlock;
+    return () => {
+      if (quoteTextBlockRef.current === handleQuoteTextBlock)
+        quoteTextBlockRef.current = null;
+    };
+  }, [handleQuoteTextBlock, quoteTextBlockRef]);
   const latestVisibleTimestampMs = useMemo(
     () =>
       getLatestVisibleTimestampMs({

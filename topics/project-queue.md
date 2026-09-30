@@ -510,7 +510,9 @@ Three outcomes, all decided at enqueue so the user learns immediately:
   user chose a lane that waits for the project, so the loop it starts keeps
   waiting, including for items this queue is about to promote.
 - **Composer-only** — `/model`, `/btw`, `/done`, `/archive`, `/terminate`,
-  `/title`, `/compact`. These act on composer or client state, so queueing
+  `/title`, `/compact`, and `/v`/`/view` where YA's
+  [view command](view-command.md) is available. These act on composer or
+  client state, so queueing
   one would have to either run it now or run it later against a composer that
   no longer exists. They are refused with a visible reason and the draft is
   restored.

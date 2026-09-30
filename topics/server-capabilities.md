@@ -19,6 +19,13 @@ saved values and resume sends only deliberate overrides through existing
 request fields. No new endpoint or existing capability meaning changes. See
 [session defaults](session-defaults.md#per-session-live-picks-vs-global-defaults).
 
+`project-file-view-command` (permanent ID 107, version-implied from 0.9.4)
+owns `GET /api/projects/:projectId/file-view-search` and the `/v` / `/view`
+composer command. v0.9.0–v0.9.2 lack the route; clients neither advertise nor
+intercept `/v` without it, so the typed text reaches the provider and no
+search request is made. The maintainer approved this gate on 2026-09-30. See
+[view command](view-command.md#compatibility).
+
 `vhost-file-sites` (permanent ID 105, version-implied from 0.9.4) owns the
 `vhostSites` artifact configuration/status field and the owner routes
 `GET`/`POST /api/artifacts/vhost-sites` and

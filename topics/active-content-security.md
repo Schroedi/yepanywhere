@@ -415,16 +415,44 @@ from YA's actual listening port.
 A vhost row may serve a file or directory itself instead of a loopback port
 (**Serves: File or directory** in the same table). The row maps
 `name.localhost` and `name.<public root>` to an absolute server path, read
-live on every request. A file answers at `/`; when it is HTML it also answers
-at the paths of the assets its elements load, decided by the live file
-share's `findHtmlRootAssetReferences` rule with the file's directory as site
-root, so an `<a href>`, CSS `url()` or sibling file gains nothing. A directory
-serves the files beneath it, `index.html` for a folder (redirecting a
-slashless folder URL to its slash). Dot segments, dotfiles, backslashes and
-encoded escapes fail; symlinks must resolve inside the root; every served file
-must also pass the local file policy. Only GET and HEAD are served, with the
-artifact origin's CSP sandbox, `nosniff`, `no-referrer`, `no-store` and
-permissions policy.
+live on every request.
+
+**A file row serves what the file links to.** The file keeps the short
+address `/` (and its own name, `/<file>`), and a reader can follow its links:
+the row serves every file reachable from it through references in HTML,
+Markdown and CSS documents — element sources, `<a href>`, `srcset`, CSS
+`url()` and `@import`, Markdown links, images and reference definitions —
+followed transitively through linked documents (`walkLinkedSite` in
+`packages/shared/src/linked-site.ts`). A link is an implied grant: its target
+may lie outside the file's folder or any project, limited only by the local
+file policy. Each target answers at the URL a browser requests for it with the
+root at `/`: `../../topics/speech-mt.md` from the root is requested as
+`/topics/speech-mt.md` and answers with that file, so the address stays short
+with no redirect or rewriting. A leading `/` in a reference names the root's
+folder. When two targets resolve to one URL, the first found keeps it. A file
+nothing links to answers 404. The walk stops at 2,000 files or 200 documents
+read; documents over 8 MiB are served but not followed. A walk is reused for
+2 seconds, then for as long as no file it inspected has changed, appeared or
+disappeared, so an edit to any linked page takes effect on the next request
+after that.
+
+A Markdown target that a browser opens as a page (a navigation, not a script's
+fetch) is YA's rendered Markdown page, the same one the local-file viewer
+serves. Its own relative links and images stay relative, so they resolve on
+the vhost too, and its **Raw** link, like any `?raw` request, returns the text
+as `text/plain`.
+
+A directory serves the files beneath it, `index.html` for a folder
+(redirecting a slashless folder URL to its slash); dot segments, dotfiles,
+backslashes and encoded escapes fail there, and symlinks must resolve inside
+the root. Every served file must pass the local file policy. Only GET and HEAD
+are served, with the artifact origin's CSP sandbox, `nosniff`, `no-referrer`,
+`no-store` and permissions policy.
+
+Settings shows each saved file row's reach beside its path as **N files**
+(**N+ files** when a limit stopped the walk), with a tooltip listing the first
+20 paths relative to the file's folder. `GET /api/artifacts/vhost-sites`
+carries it as `linkedFiles`.
 
 Names are first come, first served across port rows, file rows and project app
 addresses: a claim or save that collides is refused, as is a new row named

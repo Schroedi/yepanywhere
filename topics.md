@@ -416,6 +416,9 @@
   measured CI cost and reliability checks.
 - session-notes-and-discussion - Human-only session scratch notes and shared
   discussion, with explicit audiences and deliberate promotion to agent input.
-
 - mobile-webview-app - Bundled full web UI with native login, saved hosts,
   credential ownership, transport leases, and native host switching.
+- view-command - `/v` opens a project file from remembered path parts,
+  tracked first; custom completion surface sketched.
+- linked-site-walk - File vhosts and live public file shares serve what a
+  root page links to, at the URLs a browser asks for.

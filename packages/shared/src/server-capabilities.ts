@@ -209,6 +209,29 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  projectFileViewCommand: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectFileViewCommand.id,
+    name: "project-file-view-command",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Resolves /v and /view path parts to project files, tracked first, then untracked, then (on submit) ignored, and to exact or outside-project absolute paths, so the composer can open the file viewer without an agent turn.",
+    clientFallback:
+      "Neither advertise nor intercept /v or /view; the typed text reaches the provider unchanged and no search request is made.",
+    serverContract: {
+      routeModules: ["packages/server/src/routes/project-file-view-search.ts"],
+      routes: ["GET /api/projects/:projectId/file-view-search"],
+      requestFields: ["part", "recent", "ignored"],
+      responseFields: ["entries", "pending", "truncated"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers have no multi-part, tracked-first search; the client must not send /v text it cannot resolve as a command.",
+    },
+  },
   fileOwnerProject: {
     id: CAPABILITY_ID_ALLOCATIONS.fileOwnerProject.id,
     name: "file-owner-project",
@@ -251,7 +274,7 @@ export const SERVER_CAPABILITIES = {
         "DELETE /api/artifacts/vhost-sites/:name",
       ],
       requestFields: ["vhostSites"],
-      responseFields: ["artifactViewer.vhostSites"],
+      responseFields: ["artifactViewer.vhostSites", "sites[].linkedFiles"],
     },
     lifecycle: {
       kind: "permanent",

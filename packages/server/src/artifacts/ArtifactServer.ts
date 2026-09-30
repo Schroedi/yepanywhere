@@ -29,7 +29,7 @@ import {
 } from "../middleware/allowed-hosts.js";
 import { fileBytesResponse } from "./fileResponse.js";
 import { proxyLoopbackVhost } from "./vhost-proxy.js";
-import { serveVhostSite } from "./VhostSiteServer.js";
+import { linkedVhostSite, serveVhostSite } from "./VhostSiteServer.js";
 import {
   configuredVhostNames,
   matchVhost,
@@ -435,6 +435,11 @@ export class ArtifactServer {
     this.mintedSessionAppHosts.add(name);
     this.registerHosts(this.config);
     return app;
+  }
+
+  /** What a file vhost rooted at the file `path` serves now. */
+  async linkedSite(path: string) {
+    return linkedVhostSite(await realpath(path), this.policy);
   }
 
   /** Whether the local file policy admits `path`, a file or directory. */

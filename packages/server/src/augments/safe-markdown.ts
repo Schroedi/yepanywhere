@@ -49,9 +49,9 @@ export interface SafeMarkdownRenderOptions {
   /**
    * Directory that relative local markdown links are resolved against.
    *
-   * Relative links containing `..` are left as ordinary text/links. Project
-   * file endpoints still perform their own containment checks; this renderer
-   * only resolves same-directory or child-directory links for previews.
+   * Links and images may climb out of it with `..`; the project, local-file
+   * and share endpoints they reach perform their own access checks. Quarto
+   * includes, which inline the target's text, stay within it.
    */
   localFileBasePath?: string;
   /**
@@ -62,6 +62,13 @@ export interface SafeMarkdownRenderOptions {
   inlineLocalImages?: boolean;
   /** Interpret supported Quarto Markdown syntax without executing Quarto. */
   quartoMarkdown?: boolean;
+  /**
+   * Keep relative and fragment link and image references as written. A
+   * document served by URL beside the files it names, as a file vhost serves
+   * one, lets the browser resolve them, and its server decides what each
+   * reaches.
+   */
+  siteRelativeReferences?: boolean;
   /**
    * Project context for turning assistant inline-code filename references into
    * project-file viewer links. Public shares supply it too, with `publicShare`
@@ -833,7 +840,33 @@ function renderDirectLocalImage(path: string, altText: string, title?: string) {
   return `<img src="${src}"${altAttr}${titleAttr} ${resourceAttrs}>`;
 }
 
-function resolveLocalMarkdownHref(href: string): LocalPathReference | null {
+/**
+ * `href` as written when rendering with `siteRelativeReferences` and it names
+ * a path or fragment on the serving site; null otherwise.
+ */
+function siteRelativeReference(href: string): string | null {
+  if (!activeRenderOptions.siteRelativeReferences) return null;
+  const trimmed = href.trim();
+  if (
+    !trimmed ||
+    /[\p{C}\s]/u.test(trimmed) ||
+    trimmed.startsWith("//") ||
+    /^[a-z][a-z0-9+.-]*:/i.test(trimmed)
+  )
+    return null;
+  return trimmed;
+}
+
+/**
+ * The local file a relative reference names. `..` segments are followed only
+ * with `parentSegments`, as a link or image is: a reader's endpoint decides
+ * what they reach. An include, which inlines the target's text, stays within
+ * the base directory.
+ */
+function resolveLocalMarkdownHref(
+  href: string,
+  options: { parentSegments?: boolean } = {},
+): LocalPathReference | null {
   const normalizedHref = href.trim();
   let trimmed = normalizedHref;
   try {
@@ -868,7 +901,7 @@ function resolveLocalMarkdownHref(href: string): LocalPathReference | null {
   if (
     !normalized ||
     normalized === "." ||
-    segments.some((segment) => segment === "..")
+    (!options.parentSegments && segments.some((segment) => segment === ".."))
   ) {
     return null;
   }
@@ -999,7 +1032,11 @@ function renderLinkOpen(
   const href = String(token.attrGet("href") ?? "");
   const titleValue = token.attrGet("title");
   const title = titleValue === null ? undefined : String(titleValue);
-  const localPath = resolveLocalMarkdownHref(href);
+  const siteHref = siteRelativeReference(href);
+  const localPath =
+    siteHref === null
+      ? resolveLocalMarkdownHref(href, { parentSegments: true })
+      : null;
   let open = "";
   let close = "";
 
@@ -1029,7 +1066,7 @@ function renderLinkOpen(
       close = "</a>";
     }
   } else {
-    const safeHref = sanitizeUrl(href);
+    const safeHref = siteHref ?? sanitizeUrl(href);
     if (safeHref) {
       const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
       open = `<a href="${escapeHtml(safeHref)}"${titleAttr}>`;
@@ -1109,7 +1146,13 @@ function renderImage(
     options,
     environment,
   );
-  const localPath = resolveLocalMarkdownHref(href);
+  const siteSrc = siteRelativeReference(href);
+  if (siteSrc !== null) {
+    const altAttr = text ? ` alt="${escapeHtml(text)}"` : ' alt=""';
+    const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
+    return `<img src="${escapeHtml(siteSrc)}"${altAttr}${titleAttr}>`;
+  }
+  const localPath = resolveLocalMarkdownHref(href, { parentSegments: true });
   if (localPath) {
     const resolvedImage = resolveLocalMarkdownImage(localPath);
     if (resolvedImage) {

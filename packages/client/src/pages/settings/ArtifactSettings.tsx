@@ -1,9 +1,11 @@
 import type {
   ArtifactVhost,
+  ArtifactVhostLinkedFiles,
   ArtifactVhostSite,
+  ArtifactVhostSiteView,
   ArtifactViewerStatus,
 } from "@yep-anywhere/shared";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { CommittedRangeNumberInput } from "../../components/ui/CommittedRangeNumberInput";
 import { useCurrentSourceRuntime } from "../../contexts/SourceRuntimeContext";
 import { useVersion } from "../../hooks/useVersion";
@@ -74,6 +76,59 @@ export function vhostSiteUrl(
   return url.href;
 }
 
+/** Linked paths a row's tooltip lists before summarizing the rest. */
+const LINKED_FILE_TOOLTIP_LINES = 20;
+
+/**
+ * What each saved file row serves through its links, by row name. Refetched
+ * whenever the saved rows change; absent until the server answers, and on a
+ * server without file rows (`savedSites` undefined).
+ */
+function useLinkedFiles(
+  savedSites: ArtifactVhostSite[] | undefined,
+): Record<string, ArtifactVhostLinkedFiles> {
+  const { transport } = useCurrentSourceRuntime();
+  const [linked, setLinked] = useState<
+    Record<string, ArtifactVhostLinkedFiles>
+  >({});
+  useEffect(() => {
+    if (!savedSites?.length) return;
+    let cancelled = false;
+    transport
+      .fetch<{ sites: ArtifactVhostSiteView[] }>("/artifacts/vhost-sites")
+      .then(
+        ({ sites }) => {
+          if (cancelled) return;
+          setLinked(
+            Object.fromEntries(
+              sites.flatMap((site) =>
+                site.linkedFiles ? [[site.name, site.linkedFiles]] : [],
+              ),
+            ),
+          );
+        },
+        // The count is an annotation; rows work without it.
+        () => {},
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [savedSites, transport]);
+  return linked;
+}
+
+function linkedFilesTooltip(
+  linked: ArtifactVhostLinkedFiles,
+  t: ReturnType<typeof useI18n>["t"],
+): string {
+  const shown = linked.paths.slice(0, LINKED_FILE_TOOLTIP_LINES);
+  const more = linked.count - shown.length;
+  return [
+    ...shown,
+    ...(more > 0 ? [t("artifactVhostLinkedFilesMore", { count: more })] : []),
+  ].join("\n");
+}
+
 export function ArtifactSettings() {
   const { sourceKey } = useCurrentSourceRuntime();
   const { version, refetch } = useVersion();
@@ -119,6 +174,7 @@ function ArtifactSettingsForm({
   const [message, setMessage] = useState("");
   const vhostsSupported = status.vhosts !== undefined;
   const sitesSupported = status.vhostSites !== undefined;
+  const linkedFiles = useLinkedFiles(status.vhostSites);
   const pending = useRef(Promise.resolve());
   const saveRevision = useRef(0);
   const lastPayload = useRef<string | undefined>(undefined);
@@ -706,6 +762,24 @@ function ArtifactSettingsForm({
                             ? row.path || t("artifactVhostServesFiles")
                             : `:${row.port}`}
                         </span>
+                        {row.kind === "files" &&
+                          savedRow(status, row) &&
+                          linkedFiles[row.name] && (
+                            <small
+                              className={styles.linkedFiles}
+                              title={linkedFilesTooltip(
+                                linkedFiles[row.name]!,
+                                t,
+                              )}
+                            >
+                              {t(
+                                linkedFiles[row.name]!.truncated
+                                  ? "artifactVhostLinkedFilesTruncated"
+                                  : "artifactVhostLinkedFiles",
+                                { count: linkedFiles[row.name]!.count },
+                              )}
+                            </small>
+                          )}
                       </td>
                       {access.supported && (
                         <td>

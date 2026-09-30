@@ -66,7 +66,7 @@ async function server(directory: string, vhostSites: unknown[]) {
 const get = (artifacts: ArtifactServer, url: string, init?: RequestInit) =>
   artifacts.dispatchHost(new Request(url, init)) as Promise<Response>;
 
-it("serves a file at / and only the assets its HTML loads", async () => {
+it("serves a file at / and what it links to, never anything else", async () => {
   const directory = await site();
   const artifacts = await server(directory, [
     { name: "page", path: join(directory, "page.html"), public: true },
@@ -79,12 +79,61 @@ it("serves a file at / and only the assets its HTML loads", async () => {
   const css = await get(artifacts, "http://page.localhost/assets/app.css");
   expect(css.status).toBe(200);
   expect(css.headers.get("content-type")).toContain("text/css");
-  // A linked document is not an asset, and nothing escapes the site root.
-  for (const path of ["/secret.txt", "/.env", "/../page.html", "/%2e%2e/x"])
+  // A linked document is served like an asset.
+  expect(
+    await (await get(artifacts, "https://page.example.org/secret.txt")).text(),
+  ).toBe("private");
+  for (const path of ["/.env", "/docs/index.html", "/%2e%2e/x"])
     expect(
       (await get(artifacts, `https://page.example.org${path}`)).status,
     ).toBeGreaterThanOrEqual(400);
   expect(await get(artifacts, "https://other.example.org/")).toBeNull();
+});
+
+it("keeps the root at / while its links leave the root's folder", async () => {
+  const directory = await site();
+  const report = join(directory, "research", "sr", "report.html");
+  await mkdir(join(directory, "research", "sr"), { recursive: true });
+  await mkdir(join(directory, "topics"));
+  await writeFile(
+    report,
+    '<link rel="stylesheet" href="style.css"><a href="../../topics/speech-mt.md">topic</a>',
+  );
+  await writeFile(join(directory, "research", "sr", "style.css"), "body{}");
+  await writeFile(
+    join(directory, "topics", "speech-mt.md"),
+    "# Speech MT\n\n[back](../research/sr/report.html)\n",
+  );
+  await writeFile(join(directory, "topics", "unlinked.md"), "# Other");
+  const artifacts = await server(directory, [
+    { name: "report", path: report, public: true },
+  ]);
+  const at = (path: string, headers?: Record<string, string>) =>
+    get(artifacts, `https://report.example.org${path}`, { headers });
+
+  expect((await at("/style.css")).status).toBe(200);
+  // A browser opening the topic link gets YA's rendered Markdown page, whose
+  // own links stay relative to the address it was opened at.
+  const topic = await at("/topics/speech-mt.md", {
+    "sec-fetch-dest": "document",
+  });
+  expect(topic.status).toBe(200);
+  expect(topic.headers.get("content-type")).toContain("text/html");
+  const page = await topic.text();
+  expect(page).toContain("Speech MT</h1>");
+  expect(page).toContain('href="../research/sr/report.html"');
+  expect(page).toContain('href="/topics/speech-mt.md?raw=1"');
+  // A script's fetch, or ?raw, gets the text itself.
+  for (const [path, headers] of [
+    ["/topics/speech-mt.md?raw=1", { "sec-fetch-dest": "document" }],
+    ["/topics/speech-mt.md", { "sec-fetch-dest": "empty" }],
+  ] as const) {
+    const raw = await at(path, headers);
+    expect(raw.headers.get("content-type")).toContain("text/plain");
+    expect(await raw.text()).toContain("# Speech MT");
+  }
+  expect((await at("/research/sr/report.html")).status).toBe(200);
+  expect((await at("/topics/unlinked.md")).status).toBe(404);
 });
 
 it("serves a directory with index pages and never dotfiles", async () => {
@@ -247,6 +296,11 @@ it("claims a name first come, first served and releases it", async () => {
     kind: "file",
     publicUrl: "https://garden.example.org/",
     localUrl: `http://garden.localhost:${artifacts.config.port}/`,
+    linkedFiles: {
+      count: 3,
+      paths: ["page.html", "assets/app.css", "secret.txt"],
+      truncated: false,
+    },
   });
   expect((await claim("garden", directory)).status).toBe(409);
   expect((await claim("relay")).status).toBe(400);

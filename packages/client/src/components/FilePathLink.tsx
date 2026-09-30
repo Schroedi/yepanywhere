@@ -166,6 +166,66 @@ function formatLineSuffix(lineNumber?: number, lineEnd?: number): string {
 }
 
 /**
+ * Present a project file in the session's one managed viewer, the way
+ * activating a file link inside the session does. `filePath` is
+ * project-relative, or absolute for an allowed file outside the project.
+ */
+export function presentProjectFileViewer({
+  id,
+  sessionId,
+  projectId,
+  filePath,
+  lineNumber,
+  lineEnd,
+  viewMode = "full",
+  presentation,
+  quoteReply,
+  source,
+  openInNewTabUrl,
+}: {
+  id: string;
+  sessionId: string;
+  projectId: string;
+  filePath: string;
+  lineNumber?: number;
+  lineEnd?: number;
+  viewMode?: FileViewerMode;
+  presentation?: FileViewPresentation;
+  quoteReply?: ReturnType<typeof useQuoteReply>;
+  source?: FileViewerSource;
+  openInNewTabUrl?: string | null;
+}): void {
+  const lineSuffix = formatLineSuffix(lineNumber, lineEnd);
+  presentSessionViewer({
+    id,
+    kind: "file",
+    sessionId,
+    label: `${filePath}${lineSuffix}`,
+    briefLabel: getPathBasename(filePath),
+    filePath,
+    lineSuffix,
+    supportsRightPane: true,
+    renderContent: (inactive, rightPane) => (
+      <FileViewerModal
+        key={id}
+        managedViewerId={id}
+        inactive={inactive}
+        rightPane={rightPane}
+        quoteReply={quoteReply}
+        projectId={projectId}
+        filePath={filePath}
+        lineNumber={lineNumber}
+        lineEnd={lineEnd}
+        viewMode={viewMode}
+        initialPresentation={presentation}
+        source={source}
+        openInNewTabUrl={openInNewTabUrl}
+      />
+    ),
+  });
+}
+
+/**
  * FilePathLink - A clickable link component that opens a file viewer modal.
  * Used to make file paths in messages interactive.
  */
@@ -254,33 +314,18 @@ export const FilePathLink = memo(function FilePathLink({
   const openViewer = useCallback(
     (presentation?: FileViewPresentation) => {
       if (sessionViewerSessionId && publicShareContext === null) {
-        const lineSuffix = formatLineSuffix(lineNumber, lineEnd);
-        presentSessionViewer({
+        presentProjectFileViewer({
           id: managedViewerId,
-          kind: "file",
           sessionId: sessionViewerSessionId,
-          label: `${viewerFilePath}${lineSuffix}`,
-          briefLabel: getPathBasename(viewerFilePath),
+          projectId,
           filePath: viewerFilePath,
-          lineSuffix,
-          supportsRightPane: true,
-          renderContent: (inactive, rightPane) => (
-            <FileViewerModal
-              key={managedViewerId}
-              managedViewerId={managedViewerId}
-              inactive={inactive}
-              rightPane={rightPane}
-              quoteReply={quoteReply}
-              projectId={projectId}
-              filePath={viewerFilePath}
-              lineNumber={lineNumber}
-              lineEnd={lineEnd}
-              viewMode={viewMode}
-              initialPresentation={presentation}
-              source={publicShareFileViewerSource}
-              openInNewTabUrl={fileViewUrl}
-            />
-          ),
+          lineNumber,
+          lineEnd,
+          viewMode,
+          presentation,
+          quoteReply,
+          source: publicShareFileViewerSource,
+          openInNewTabUrl: fileViewUrl,
         });
         return;
       }

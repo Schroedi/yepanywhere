@@ -1,5 +1,6 @@
 export type {
   ArtifactVhost,
+  ArtifactVhostLinkedFiles,
   ArtifactVhostSite,
   ArtifactVhostSiteView,
   ArtifactViewerConfig,
@@ -96,6 +97,19 @@ export type {
   ProjectFileCompletionEntry,
   ProjectFileCompletionResult,
 } from "./project-file-completion.js";
+
+export {
+  FILE_VIEW_MAX_PART_LENGTH,
+  FILE_VIEW_MAX_PARTS,
+  type FileViewLineTarget,
+  type FileViewSearchEntry,
+  type FileViewSearchResult,
+  type FileViewSearchTier,
+  formatFileViewLineSuffix,
+  formatFileViewPart,
+  type ParsedFileViewArgument,
+  parseFileViewArgument,
+} from "./file-view-command.js";
 
 export {
   isIdeMetadata,
@@ -1145,6 +1159,20 @@ export {
   resolveHtmlRootAssetPath,
 } from "./html-root-assets.js";
 export type { HtmlRootAssetReference } from "./html-root-assets.js";
+export {
+  findLinkedReferences,
+  LINKED_SITE_LIMITS,
+  linkedDocumentKind,
+  resolveLinkedReference,
+  walkLinkedSite,
+} from "./linked-site.js";
+export type {
+  LinkedDocumentKind,
+  LinkedSite,
+  LinkedSiteFile,
+  LinkedSiteInspector,
+  LinkedSiteLimits,
+} from "./linked-site.js";
 
 export type {
   CreatePublicFileShareRequest,
