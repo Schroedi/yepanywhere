@@ -903,6 +903,14 @@ in-flight coalescing. `fresh=1` remains the explicit path for bypassing the
 applicable caches; a normal capability read must not repeatedly launch Git,
 package-manager, sandbox, bridge, or provider subprocesses.
 
+A source launch also reports `sourceRevision`, taken once at startup: the
+checked-out commit, its committer date, and whether `packages/` had tracked or
+untracked changes, with the newest modification time among them. Other paths
+such as docs do not count. Settings → About shows it under the server version
+as the short commit and date, adding "modified at launch; last change <time>"
+when the running code may differ from the commit. The field is display-only;
+packages and older servers omit it and About shows nothing extra.
+
 This delivery contract does not change any capability's meaning and therefore
 does not itself require a new capability flag. A new route or response field
 used to implement a feature still follows the compatibility-horizon rules

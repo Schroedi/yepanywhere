@@ -141,9 +141,86 @@ export type InstallSource =
   | "release-package"
   | "unknown";
 
+/** The checkout a source launch runs, as it stood when the server started. */
+export interface SourceRevision {
+  commit: string;
+  /** Committer date, ISO 8601. */
+  committedAt: string;
+  /**
+   * `packages/` had tracked or untracked changes at launch, so the running
+   * code may differ from the commit. Docs and other paths do not count.
+   */
+  modified: boolean;
+  /**
+   * Newest modification time among those changed files, ISO 8601; absent
+   * when every change is a deletion.
+   */
+  modifiedAt?: string;
+}
+
 export interface CurrentVersionInfo {
   version: string;
   installSource: InstallSource;
+  sourceRevision?: SourceRevision;
+}
+
+/**
+ * Paths named by `git status --porcelain -z`, relative to the repository
+ * root. A rename or copy entry is followed by its source path, which is
+ * skipped: only the current name exists on disk.
+ */
+export function porcelainPaths(output: string): string[] {
+  const fields = output.split("\0");
+  const paths: string[] = [];
+  for (let index = 0; index < fields.length; index++) {
+    const entry = fields[index]!;
+    if (entry.length < 4) continue;
+    paths.push(entry.slice(3));
+    if (/[RC]/.test(entry.slice(0, 2))) index++;
+  }
+  return paths;
+}
+
+async function getSourceRevision(): Promise<SourceRevision | undefined> {
+  try {
+    const { stdout: top } = await execAsync("git rev-parse --show-toplevel", {
+      encoding: "utf-8",
+    });
+    const root = top.trim();
+    const [{ stdout: head }, { stdout: status }] = await Promise.all([
+      execAsync("git log -1 --format=%H%x09%cI", {
+        cwd: root,
+        encoding: "utf-8",
+      }),
+      // Untracked files individually, so a new file's own time counts.
+      execAsync("git status --porcelain -z --untracked-files=all -- packages", {
+        cwd: root,
+        encoding: "utf-8",
+      }),
+    ]);
+    const [commit, committedAt] = head.trim().split("\t");
+    if (!commit || !committedAt) return undefined;
+    const changed = porcelainPaths(status);
+    if (changed.length === 0) return { commit, committedAt, modified: false };
+    // A deleted file has no time; the others say when the tree last moved.
+    const times = await Promise.all(
+      changed.map((file) =>
+        fs.promises.stat(path.join(root, file)).then(
+          (stats) => stats.mtimeMs,
+          () => 0,
+        ),
+      ),
+    );
+    const newest = Math.max(...times);
+    return {
+      commit,
+      committedAt,
+      modified: true,
+      ...(newest ? { modifiedAt: new Date(newest).toISOString() } : {}),
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -196,9 +273,14 @@ async function computeCurrentVersionInfo(): Promise<CurrentVersionInfo> {
 
     // 0.0.1 is the workspace version - we're in dev mode, use git instead
     if (version === "0.0.1") {
+      const [gitVersion, sourceRevision] = await Promise.all([
+        getGitVersion(),
+        getSourceRevision(),
+      ]);
       return {
-        version: (await getGitVersion()) || "dev",
+        version: gitVersion || "dev",
         installSource: "source",
+        ...(sourceRevision ? { sourceRevision } : {}),
       };
     }
 
@@ -331,6 +413,8 @@ export interface VersionInfo {
   updateAvailable: boolean;
   /** Best-effort install source for update guidance. Absent on older servers. */
   installSource?: InstallSource;
+  /** A source launch's commit; absent for packages and older servers. */
+  sourceRevision?: SourceRevision;
   /** Session resume protocol version supported by this server. */
   resumeProtocolVersion: number;
   /** Coarse hosted remote UI/server compatibility level. */
@@ -733,6 +817,9 @@ export function createVersionRoutes(options?: VersionRouteOptions): Hono {
       latest,
       updateAvailable,
       installSource: currentVersionInfo.installSource,
+      ...(currentVersionInfo.sourceRevision
+        ? { sourceRevision: currentVersionInfo.sourceRevision }
+        : {}),
       resumeProtocolVersion: RESUME_PROTOCOL_VERSION,
       remoteCompatibilityLevel: REMOTE_COMPATIBILITY_LEVEL,
       ...(capabilityEncoding
