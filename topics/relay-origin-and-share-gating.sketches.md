@@ -14,6 +14,10 @@ then submitting suggestions for owner review, with optional direct prompting
 later. This supersedes the earlier fixed driver/guest composer and v2/v3 delivery
 sequence. It does not change the implemented read-only public-share contract.
 
+The [multiplayer competitive analysis](../docs/competitive/multiplayer-ai.md)
+records documented product precedents, permission differences, and evidence
+limits. It does not select a dependency or change this proposal's delivery scope.
+
 ### Direction and scope
 
 Every participant observes one live provider transcript; the server remains the
