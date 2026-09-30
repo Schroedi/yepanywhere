@@ -177,7 +177,17 @@ older installs may continue to work when YA does not need newer protocol fields,
 and version-sensitive behavior should be capability- or version-gated where
 possible.
 
-Current compatibility audit, 2026-09-29 (0.159.0):
+Current compatibility audit, 2026-09-30 (0.159.2, no-op):
+
+- Installed Codex is `codex-cli 0.159.2`. `pnpm codex:protocol:check` reports
+  the generated app-server subset unchanged, so `expectedVersion` stays
+  `0.159.0` and only `compatibleThroughVersion` advances.
+- Authenticated `model/list` returns the same nine visible models, all already
+  in YA's preferred ordering, with `gpt-6.1-sol` still the default at low
+  effort and the same supported efforts per model.
+- No credentialed start/resume smoke ran: no YA source changed.
+
+Previous compatibility audit, 2026-09-29 (0.159.0):
 
 - Installed Codex is `codex-cli 0.159.0`; the official `rust-v0.159.0` tag
   peels to `687a119f0fcaace47e1f1abcc77cec6c813fd6da`. Both root version
