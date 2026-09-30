@@ -11,6 +11,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   applyVersion,
+  canAdvanceVerifiedSource,
   isDesktopInput,
   latestPublished,
   nightlyIdentity,
@@ -19,6 +20,21 @@ import {
 import { validateRelease } from "./desktop-release.mjs";
 
 const sha = "a".repeat(40);
+test("nightly cannot republish older source when newer CI eligibility changes", () => {
+  const history = ["old-green", "published", "new-green"];
+  const ancestor = (base, tip) =>
+    history.includes(base) && history.includes(tip) &&
+    history.indexOf(base) <= history.indexOf(tip);
+  const candidate = selectVerifiedCommit([
+    { head_sha: "new-green", status: "completed", conclusion: "failure" },
+    { head_sha: "old-green", status: "completed", conclusion: "success" },
+  ], () => true);
+  assert.equal(candidate.head_sha, "old-green");
+  assert.equal(canAdvanceVerifiedSource("published", candidate.head_sha, ancestor), false);
+  assert.equal(canAdvanceVerifiedSource("published", "published", ancestor), true);
+  assert.equal(canAdvanceVerifiedSource("published", "new-green", ancestor), true);
+  assert.throws(() => canAdvanceVerifiedSource("published", "diverged", ancestor), /diverges/);
+});
 test("nightly includes bundled source and build inputs but skips docs and test-only changes", () => {
   for (const path of [
     "packages/client/src/App.tsx",

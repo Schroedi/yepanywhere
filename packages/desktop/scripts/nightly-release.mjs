@@ -113,6 +113,23 @@ export function selectVerifiedCommit(runs, isAncestor) {
   });
 }
 
+/** A rerun can revoke newer CI eligibility; it cannot roll Latest backward. */
+export function canAdvanceVerifiedSource(previous, candidate, isAncestor) {
+  if (isAncestor(previous, candidate)) return true;
+  if (isAncestor(candidate, previous)) return false;
+  throw new Error("Verified source diverges from the published Latest history");
+}
+
+function isGitAncestor(base, tip) {
+  const result = spawnSync("git", ["merge-base", "--is-ancestor", base, tip], {
+    cwd: root,
+    stdio: "pipe",
+  });
+  if (result.status === 0) return true;
+  if (result.status === 1) return false;
+  throw new Error("Could not verify nightly source ancestry");
+}
+
 function select() {
   const repo = process.env.GITHUB_REPOSITORY;
   // Require main's newest run for that SHA to pass, including reruns. Never
@@ -123,11 +140,7 @@ function select() {
   );
   const candidate = selectVerifiedCommit(
     runs,
-    (sha) =>
-      spawnSync("git", ["merge-base", "--is-ancestor", sha, "origin/main"], {
-        cwd: root,
-        stdio: "pipe",
-      }).status === 0,
+    (sha) => isGitAncestor(sha, "origin/main"),
   );
   if (!candidate)
     throw new Error("No verified main commit in the latest 100 CI runs");
@@ -142,17 +155,27 @@ function select() {
   }
   const previous = latestPublished(releases);
   const sha = candidate.head_sha;
-  if (previous && process.env.FORCE_BUILD !== "true") {
+  if (previous) {
     const old = git("rev-parse", `${previous.tag_name}^{commit}`);
-    const changed = git("diff", "--name-only", old, sha)
-      .split("\n")
-      .filter(isDesktopInput);
-    if (!changed.length) {
+    if (!canAdvanceVerifiedSource(old, sha, isGitAncestor)) {
       appendFileSync(process.env.GITHUB_OUTPUT, "build=false\n");
       console.log(
-        "Skipping: no packaged desktop inputs changed since the last published Latest.",
+        "Skipping: the eligible CI source predates the published Latest; waiting for newer verified source.",
       );
       return;
+    }
+    // Force permits rebuilding equal/newer verified source, never rollback.
+    if (process.env.FORCE_BUILD !== "true") {
+      const changed = git("diff", "--name-only", old, sha)
+        .split("\n")
+        .filter(isDesktopInput);
+      if (!changed.length) {
+        appendFileSync(process.env.GITHUB_OUTPUT, "build=false\n");
+        console.log(
+          "Skipping: no packaged desktop inputs changed since the last published Latest.",
+        );
+        return;
+      }
     }
   }
   const baseVersion = JSON.parse(

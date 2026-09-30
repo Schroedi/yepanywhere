@@ -344,7 +344,11 @@ The selector chooses the newest eligible `main` commit whose general CI run
 passed and pins that exact SHA throughout the existing desktop packaging
 workflow. Failed or pending newer commits are not packaged merely because they
 are branch HEAD. A missing verified candidate fails rather than publishing
-unverified source. Signing and native checks cover Apple Silicon macOS, Intel
+unverified source. Source history must advance from the published Latest:
+if CI eligibility falls back to an older ancestor, the nightly skips and waits
+for newer verified source. Force may rebuild equal or newer verified source,
+but cannot publish older code under a higher nightly version. Divergent release
+history fails for review. Signing and native checks cover Apple Silicon macOS, Intel
 macOS and Windows x64/ARM64-compatible NSIS. Linux continues through server/web.
 
 For source Stable `M.m.p`, nightly versions are `M.(m+1).S`, where
