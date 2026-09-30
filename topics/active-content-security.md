@@ -424,7 +424,9 @@ slashless folder URL to its slash). Dot segments, dotfiles, backslashes and
 encoded escapes fail; symlinks must resolve inside the root; every served file
 must also pass the local file policy. Only GET and HEAD are served, with the
 artifact origin's CSP sandbox, `nosniff`, `no-referrer`, `no-store` and
-permissions policy.
+permissions policy. Serving the project content a root links to, and
+rendering Markdown richly, is sketched in
+[file-vhost-project-reachable-content](../gaps/sketches/file-vhost-project-reachable-content.md).
 
 Names are first come, first served across port rows, file rows and project app
 addresses: a claim or save that collides is refused, as is a new row named
