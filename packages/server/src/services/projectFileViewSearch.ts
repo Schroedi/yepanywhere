@@ -88,13 +88,19 @@ class PartsMatcher {
     return this.anchor !== null && this.fold(path).startsWith(this.anchor);
   }
 
-  /** Null when `path` does not match; otherwise whether the last needle hit its basename. */
-  match(path: string): { basename: boolean } | null {
+  /**
+   * Null when `path` does not match; otherwise whether the last needle hit
+   * its basename, and the matched spans. Spans are omitted when case folding
+   * changed the path's length, since their offsets would not line up.
+   */
+  match(path: string): Pick<Candidate, "basename" | "spans"> | null {
     const folded = this.fold(path);
+    const spans: [number, number][] = [];
     let position = 0;
     if (this.anchor !== null) {
       if (!folded.startsWith(this.anchor)) return null;
       position = this.anchor.length;
+      if (position) spans.push([0, position]);
     }
     let lastStart = -1;
     for (const needle of this.needles) {
@@ -102,8 +108,12 @@ class PartsMatcher {
       if (start < 0) return null;
       lastStart = start;
       position = start + needle.length;
+      if (needle) spans.push([start, position]);
     }
-    return { basename: lastStart > folded.lastIndexOf("/") };
+    return {
+      basename: lastStart > folded.lastIndexOf("/"),
+      ...(folded.length === path.length ? { spans } : {}),
+    };
   }
 }
 
@@ -111,6 +121,11 @@ interface Candidate {
   path: string;
   tier: FileViewSearchTier;
   basename: boolean;
+  spans?: [number, number][];
+}
+
+function toEntry({ path, tier, spans }: Candidate): FileViewSearchEntry {
+  return spans?.length ? { path, tier, spans } : { path, tier };
 }
 
 function rankCandidates(
@@ -216,7 +231,17 @@ async function scanMatches(
       if (/\p{Cc}/u.test(path) || path.split("/").includes(".git")) return true;
       const matched = matcher.match(path);
       if (!matched) return true;
-      candidates.push({ path: toPath(path), tier, basename: matched.basename });
+      const full = toPath(path);
+      const shift = full.length - path.length;
+      candidates.push({
+        path: full,
+        tier,
+        basename: matched.basename,
+        spans: matched.spans?.map(([start, end]) => [
+          start + shift,
+          end + shift,
+        ]),
+      });
       if (candidates.length < SCAN_MATCH_CAP) return true;
       truncated = true;
       return false;
@@ -279,7 +304,7 @@ async function searchProject(
           bucket.push({
             path: entry.path,
             tier: entry.tracked ? "tracked" : "untracked",
-            basename: hit.basename,
+            ...hit,
           });
       }
       const selected = [
@@ -289,9 +314,7 @@ async function searchProject(
       const eligible = await view.eligible(selected.map((entry) => entry.path));
       const entries: FileViewSearchEntry[] = [
         ...(exact ? [{ path: exact, tier: "path" as const }] : []),
-        ...selected
-          .filter((entry) => eligible.has(entry.path))
-          .map(({ path, tier }) => ({ path, tier })),
+        ...selected.filter((entry) => eligible.has(entry.path)).map(toEntry),
       ];
       let truncated =
         view.truncated ||
@@ -325,9 +348,7 @@ async function searchProject(
           (path) => path,
         );
         entries.push(
-          ...rankCandidates(scan.candidates, request.recent).map(
-            ({ path, tier }) => ({ path, tier }),
-          ),
+          ...rankCandidates(scan.candidates, request.recent).map(toEntry),
         );
         truncated ||= scan.truncated;
       }
@@ -375,7 +396,7 @@ async function searchDirectory(
       return {
         entries: rankCandidates(result.candidates, [])
           .slice(0, RESULT_LIMIT)
-          .map(({ path, tier }) => ({ path, tier })),
+          .map(toEntry),
         pending: false,
         truncated: result.truncated || result.candidates.length > RESULT_LIMIT,
       };

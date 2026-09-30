@@ -28,6 +28,7 @@ import {
   SYNTHETIC_DONE_COMMAND_CAPABILITY,
   SYNTHETIC_TERMINATE_COMMAND_CAPABILITY,
   classifyQueuedYaCommand,
+  type FileViewLineTarget,
   type FileViewSearchResult,
   getCanonicalInvocationToken,
   isClaudeProviderName,
@@ -5309,6 +5310,45 @@ function SessionPageContent({
   }, []);
   const fileViewCommandCountRef = useRef(0);
 
+  /** Open one `/v` result the way a file link in this session opens. */
+  const openFileViewEntry = (
+    path: string,
+    line: FileViewLineTarget | undefined,
+  ): string => {
+    const filePath = getProjectViewerFilePath(projectId, path);
+    presentProjectFileViewer({
+      id: `file-view-command-${++fileViewCommandCountRef.current}`,
+      sessionId: actualSessionId,
+      projectId,
+      filePath,
+      lineNumber: line?.lineNumber,
+      lineEnd: line?.lineEnd,
+      quoteReply: quoteFromTranscript,
+      openInNewTabUrl: toBrowserAppHref(
+        buildProjectFileViewUrl({
+          basePath,
+          filePath,
+          lineNumber: line?.lineNumber,
+          lineEnd: line?.lineEnd,
+          projectId,
+          viewMode: "full",
+        }),
+      ),
+    });
+    return filePath;
+  };
+  const openFileViewEntryRef = useRef(openFileViewEntry);
+  openFileViewEntryRef.current = openFileViewEntry;
+  // Stable across renders, so the composer is not re-rendered for it.
+  const fileViewCommandOptions = useMemo(
+    () => ({
+      open: (path: string, line?: FileViewLineTarget) => {
+        openFileViewEntryRef.current(path, line);
+      },
+    }),
+    [],
+  );
+
   /**
    * `/v parts…`: open the best-ranked matching file the way a file link in
    * this session opens (topics/view-command.md). The composer already emptied
@@ -5349,26 +5389,7 @@ function SessionPageContent({
       return;
     }
     controls?.confirmInputClear();
-    const filePath = getProjectViewerFilePath(projectId, entry.path);
-    presentProjectFileViewer({
-      id: `file-view-command-${++fileViewCommandCountRef.current}`,
-      sessionId: actualSessionId,
-      projectId,
-      filePath,
-      lineNumber: line?.lineNumber,
-      lineEnd: line?.lineEnd,
-      quoteReply: quoteFromTranscript,
-      openInNewTabUrl: toBrowserAppHref(
-        buildProjectFileViewUrl({
-          basePath,
-          filePath,
-          lineNumber: line?.lineNumber,
-          lineEnd: line?.lineEnd,
-          projectId,
-          viewMode: "full",
-        }),
-      ),
-    });
+    const filePath = openFileViewEntry(entry.path, line);
     // A named path is unambiguous; a search that picked among several says so.
     if (entry.tier !== "path" && result.entries.length > 1) {
       showToast(
@@ -6973,7 +6994,9 @@ function SessionPageContent({
                   uploadProgress={mainComposerForAside ? [] : uploadProgress}
                   slashCommands={allSlashCommands}
                   onCustomCommand={handleCustomCommand}
-                  fileViewCommand={supportsFileViewCommand}
+                  fileViewCommand={
+                    supportsFileViewCommand ? fileViewCommandOptions : undefined
+                  }
                   onBtwShortcut={
                     childSessionParentHref || supportsBtwAsides
                       ? handleBtwShortcut

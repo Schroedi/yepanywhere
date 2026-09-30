@@ -102,6 +102,21 @@ describe("searchFileView", () => {
     expect(
       paths(await settled(service, project, { parts: ["beta", "alpha"] })),
     ).toEqual(["tracked:beta/alpha.ts", "tracked:beta/x/alpha-long-name.ts"]);
+    // Spans locate each part in order, and a root anchor as its own span.
+    expect(
+      (await settled(service, project, { parts: ["Beta", "ALP"] })).entries,
+    ).toEqual([]);
+    expect(
+      (await settled(service, project, { parts: ["beta/x", "alp"] }))
+        .entries[0],
+    ).toEqual({
+      path: "beta/x/alpha-long-name.ts",
+      tier: "tracked",
+      spans: [
+        [0, 6],
+        [7, 10],
+      ],
+    });
     // Lowercase parts fold case; an uppercase letter makes matching exact.
     expect(paths(await settled(service, project, { parts: ["BETA"] }))).toEqual(
       [],
@@ -244,7 +259,14 @@ describe("file-view-search route", () => {
     );
     expect(response.status).toBe(200);
     expect(((await response.json()) as FileViewSearchResult).entries).toEqual([
-      { path: "src/index.ts", tier: "tracked" },
+      {
+        path: "src/index.ts",
+        tier: "tracked",
+        spans: [
+          [0, 3],
+          [4, 9],
+        ],
+      },
     ]);
     expect((await routes.request(`/${id}/file-view-search?part=`)).status).toBe(
       400,

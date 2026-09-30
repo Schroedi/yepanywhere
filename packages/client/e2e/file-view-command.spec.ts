@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { e2ePaths, expect, test } from "./fixtures.js";
 import { recordUiCapture } from "./support/ui-capture.js";
 
-test("/v completes path parts as typed and opens the chosen file without a turn", async ({
+test("/v finds files by path parts, previews them, and opens one without a turn", async ({
   page,
   baseURL,
 }) => {
@@ -14,6 +14,8 @@ test("/v completes path parts as typed and opens the chosen file without a turn"
     "# Alpha plan\n\nview command body\n",
   );
   await writeFile(join(project, "viewcmd", "alpha-other.txt"), "other");
+  await writeFile(join(project, "viewcmd", ".gitignore"), "secret-*.log\n");
+  await writeFile(join(project, "viewcmd", "secret-run.log"), "ignored run");
   const id = Buffer.from(project).toString("base64url");
   const sent: string[] = [];
   page.on("request", (request) => {
@@ -32,22 +34,58 @@ test("/v completes path parts as typed and opens the chosen file without a turn"
   const menu = page.getByRole("listbox", {
     name: "Project files and directories",
   });
-  const option = menu.getByRole("option", {
+  const group = menu.getByRole("group", { name: "Untracked" });
+  const option = group.getByRole("option", {
     name: "alpha-plan.md viewcmd/notes/",
   });
   await expect(option).toBeVisible();
   await expect(menu.getByText("alpha-other.txt")).toHaveCount(0);
-  await recordUiCapture(page, "file-view-menu-desktop");
+  // Each part's match is marked where it hit (basename renders first).
+  await expect(option.locator("mark")).toHaveText(["alp", "plan", "viewcmd"]);
+  const preview = page
+    .locator('[aria-live="polite"]')
+    .filter({ hasText: "viewcmd/notes/alpha-plan.md" });
+  await expect(preview).toContainText("view command body");
+  // The whole three-line file fits, so no continuation mark.
+  await expect(preview).not.toContainText("…");
+  await recordUiCapture(page, "file-view-sheet-desktop");
 
-  await textarea.press("Enter");
+  // Right at the end of the draft narrows the query to that directory.
+  await textarea.press("ArrowRight");
+  await expect(textarea).toHaveValue("/v viewcmd/notes/");
+  await expect(option).toBeVisible();
+
+  // Ctrl+Enter opens without spending the draft.
+  await textarea.press("Control+Enter");
   const viewer = page.locator(".file-viewer");
-  await expect(viewer).toBeVisible();
+  await expect(viewer).toContainText("view command body");
+  await expect(textarea).toHaveValue("/v viewcmd/notes/");
+  await page.keyboard.press("Escape");
+  await expect(viewer).toHaveCount(0);
+
+  await textarea.fill("");
+  await textarea.pressSequentially("/v viewcmd alp plan", { delay: 15 });
+  await expect(option).toBeVisible();
+  await textarea.press("Enter");
   await expect(viewer).toContainText("view command body");
   await expect(textarea).toHaveValue("");
   expect(sent).toHaveLength(0);
   await recordUiCapture(page, "file-view-open-desktop");
   await page.keyboard.press("Escape");
   await expect(viewer).toHaveCount(0);
+
+  // Ignored files are searched only when asked.
+  await textarea.pressSequentially("/v secret-run", { delay: 15 });
+  const searchIgnored = page.getByRole("button", {
+    name: "Search ignored files",
+  });
+  await expect(searchIgnored).toBeVisible();
+  await searchIgnored.click();
+  await expect(
+    menu
+      .getByRole("group", { name: "Ignored" })
+      .getByRole("option", { name: "secret-run.log viewcmd/" }),
+  ).toBeVisible();
 
   // A miss keeps the typed command for correction and sends nothing.
   await textarea.fill("/v zzz-no-such-file");
@@ -63,7 +101,8 @@ test("/v completes path parts as typed and opens the chosen file without a turn"
   await textarea.fill("");
   await textarea.pressSequentially("/v alp plan", { delay: 15 });
   await expect(option).toBeVisible();
-  await recordUiCapture(page, "file-view-menu-phone");
+  await expect(page.getByText("view command body")).toBeVisible();
+  await recordUiCapture(page, "file-view-sheet-phone");
   await option.click();
   await expect(textarea).toHaveValue("/v viewcmd/notes/alpha-plan.md");
 });

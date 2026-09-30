@@ -12,8 +12,11 @@ completion inventory in `projectFileCompletion.ts`; route
 `GET /api/projects/:projectId/file-view-search`. Client: `useFileViewCompletion`,
 `lib/fileViewCommand.ts`, `SessionPage` `handleFileViewCommand`, opening
 through `presentProjectFileViewer` in `FilePathLink.tsx`. Parser:
-`packages/shared/src/file-view-command.ts`. Candidate designs, including a
-custom completion surface, are in [view-command sketches](view-command.sketches.md).
+`packages/shared/src/file-view-command.ts`. The finder sheet (match
+highlighting, preview, tier groups, explicit ignored search) landed later on
+2026-09-30: `FileViewCompletionSheet`, `useFileViewPreview`, and the shared
+`ProjectFileCompletionMenu`. Remaining candidate designs are in
+[view-command sketches](view-command.sketches.md).
 
 See also: [project-path-links](project-path-links.md) (the link-click viewer
 path this reproduces, and the `@` completion inventory this reuses),
@@ -111,12 +114,31 @@ never results.
   owned externally, and no provider command or skill is named `v` or `view`.
   A live process is not required. Otherwise `/v` text reaches the provider
   unchanged and no search request is made.
-- **Completion.** While the single-line draft is `/v` followed by at least
-  one part, a menu under the composer lists matches with their tier badge,
-  75 ms after the last keystroke. Requests never gate keystrokes. Arrows move
-  the highlight; Tab or a click replaces the argument with the highlighted
-  path, quoted if needed, keeping the line target; Escape dismisses. An empty
-  settled result says that Enter also searches ignored files.
+- **Completion sheet.** While the single-line draft is `/v` followed by at
+  least one part, a sheet floating above the composer lists matches 75 ms
+  after the last keystroke, under one heading per tier in ranking order.
+  Requests never gate keystrokes. The server returns each result's matched
+  spans (`spans`: the root anchor and each part, in order), and the sheet
+  marks them in the basename and parent directory. A row whose file was
+  mentioned in the loaded transcript is tagged `mentioned` and has a control
+  that scrolls the transcript to the item that last mentioned it; mention
+  stays a ranking signal within a tier, never a group that outranks tracked
+  files.
+- **Preview.** The highlighted row's first 12 lines, or the lines around a
+  cited `:line`, show beside the list on wide screens and under it on narrow
+  ones; cited lines are shaded, and a `…` appears only when the file
+  continues past the window. The preview reads one line past its window
+  through the file endpoint's existing bounded range view, waits 150 ms for
+  the highlight to rest, cancels on change, and keeps the last 24 previews.
+  A binary or unreadable file says there is no text preview.
+- **Keys.** Arrows (or hovering) move the highlight; Tab or a click replaces
+  the argument with the highlighted path, quoted if needed, keeping the line
+  target; Right, with the caret at the end of the draft, replaces the query
+  with the highlighted file's directory to browse inside it; Ctrl+Enter
+  opens the highlighted file and keeps the draft; Escape dismisses.
+- **Ignored files.** When the settled result is empty, the sheet offers
+  **Search ignored files**, which reruns the query with the ignored tier.
+  Enter on an empty result still searches ignored files too.
 - **Enter.** With the menu showing a highlighted row, Enter opens that row.
   Otherwise Enter submits the typed parts and the server's rank-1 result
   opens. A submit waits up to 10 seconds for a pending inventory to settle.
@@ -166,6 +188,11 @@ their shape. The maintainer approved this gate and fallback on 2026-09-30.
 - `packages/shared/src/__tests__/file-view-command.test.ts`: quoting, line
   targets, and the Tab-inserted form round-tripping.
 - `packages/client/e2e/file-view-command.spec.ts`: sequential typing keeps
-  every keystroke, the menu lists the match, Enter opens the viewer with no
-  message sent, a miss restores the draft, and a phone-width row click inserts
-  the path.
+  every keystroke; the sheet groups the match under its tier, marks each
+  part, and previews the file without a false continuation mark; Right
+  narrows to the directory; Ctrl+Enter opens and keeps the draft; Enter opens
+  with no message sent; **Search ignored files** finds an ignored file; a
+  miss restores the draft; a phone-width row click inserts the path.
+- `packages/server/test/services/projectFileViewSearch.test.ts` also pins the
+  returned spans, and `recentProjectPathLinks.test.ts` the item that last
+  mentioned each path.

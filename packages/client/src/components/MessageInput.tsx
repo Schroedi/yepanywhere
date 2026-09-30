@@ -15,8 +15,7 @@ import {
   commandMatchesInvocationQuery,
   type CollapsedComposerButtonPreference,
   type EffortLevel,
-  type FileViewSearchEntry,
-  type FileViewSearchTier,
+  type FileViewLineTarget,
   findSkillInvocations,
   findUnrecognizedInvocations,
   getCanonicalInvocationToken,
@@ -146,6 +145,7 @@ import styles from "./MessageInput.module.css";
 import { useFileViewCompletion } from "../hooks/useFileViewCompletion";
 import { useProjectFileCompletion } from "../hooks/useProjectFileCompletion";
 import type { RenderItem } from "@yep-anywhere/shared/transcript/items";
+import { FileViewCompletionSheet } from "./FileViewCompletionSheet";
 import { ProjectFileCompletionMenu } from "./ProjectFileCompletionMenu";
 import { QuestionAsideHint } from "./QuestionAsideCard";
 
@@ -334,9 +334,12 @@ interface Props {
   onCustomCommand?: (command: string) => boolean;
   /**
    * Offer `/v` file-view completion. Set only where the owner handles a
-   * submitted `/v` (topics/view-command.md).
+   * submitted `/v` (topics/view-command.md); `open` shows a result without
+   * submitting the draft (Ctrl+Enter).
    */
-  fileViewCommand?: boolean;
+  fileViewCommand?: {
+    open: (path: string, line?: FileViewLineTarget) => void;
+  };
   /** Start a /btw aside. When text is present, the caller may send it immediately. */
   onBtwShortcut?: (text: string) => boolean;
   /** Whether this composer is currently routing sends to a focused /btw aside. */
@@ -422,17 +425,6 @@ interface Props {
   };
 }
 
-const FILE_VIEW_TIER_BADGES: Record<FileViewSearchTier, string> = {
-  path: "exact",
-  tracked: "tracked",
-  untracked: "untracked",
-  ignored: "ignored",
-  outside: "host",
-};
-
-const fileViewTierBadge = (entry: FileViewSearchEntry) =>
-  FILE_VIEW_TIER_BADGES[entry.tier];
-
 /**
  * One row of the bang completion menu. Global command-history matches
  * (`history`) are ranked ahead of PATH/project/path token candidates
@@ -497,7 +489,7 @@ export function MessageInput({
   primaryActionKind,
   slashCommands = [],
   onCustomCommand,
-  fileViewCommand = false,
+  fileViewCommand,
   onBtwShortcut,
   btwActive = false,
   btwHasAsides = false,
@@ -1203,13 +1195,14 @@ export function MessageInput({
     disabled: disabled || collapsed || !!interimTranscript,
   });
   const fileViewCompletion = useFileViewCompletion({
-    enabled: fileViewCommand,
+    enabled: !!fileViewCommand,
     projectId,
     text,
     textarea: textareaRef,
     replace: replaceDraftRangeUndoably,
     // Called from a key handler, after `handleSubmit` below is initialized.
     submit: (draft) => void handleSubmit(draft),
+    open: fileViewCommand?.open,
     enterInsertsNewline: fullPane,
     items: completionRenderItems,
     disabled: disabled || collapsed || !!interimTranscript,
@@ -3925,11 +3918,13 @@ export function MessageInput({
           )}
         </div>
 
-        <ProjectFileCompletionMenu completion={fileCompletion} />
         <ProjectFileCompletionMenu
+          completion={fileCompletion}
+          spans={fileCompletion.spans}
+        />
+        <FileViewCompletionSheet
           completion={fileViewCompletion}
-          badge={fileViewTierBadge}
-          emptyLabel={t("fileViewCompletionEmpty")}
+          onGoToTurn={turnRecall?.onGoToTurn}
         />
         {(showBangChip || showBangEscapedChip) && (
           <div

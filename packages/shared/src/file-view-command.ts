@@ -17,6 +17,12 @@ export interface FileViewSearchEntry {
   /** Project-relative for project files; absolute outside the project. */
   path: string;
   tier: FileViewSearchTier;
+  /**
+   * `[start, end)` offsets into `path` where the root anchor and each part
+   * matched, in order. Absent for a path named exactly, and when case
+   * folding changed the path's length.
+   */
+  spans?: [number, number][];
 }
 
 export interface FileViewSearchResult {

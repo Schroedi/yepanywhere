@@ -567,8 +567,10 @@ enabled projects acquire no inventory on composer mount and retain no periodic
 scan or watcher.
 
 Matching is case-insensitive substring matching over project-relative paths,
-including parent directories. The menu distinguishes `dir` and `file`, shows
-the basename and parent, and ranks eligible candidates by most recent mention
+including parent directories. The menu floats above the composer in the same
+sheet the [`/v` command](view-command.md) uses, distinguishes `dir` and
+`file`, shows the basename and parent with the matched substring marked, and
+ranks eligible candidates by most recent mention
 first, then deterministic path order. Recency uses confirmed links and causal
 basename aliases from the loaded transcript, independently of the basename-link
 appearance preference. It preserves distinct paths with the same basename;
