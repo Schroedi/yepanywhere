@@ -1,4 +1,4 @@
-# Windows archive extraction test still exceeds its measured timeout
+# Historical Windows extraction stall remains unclassified
 
 Graehl's computer-control Windows job failed the test “native extraction
 rejects traversal and handles a valid ZIP” in
@@ -45,3 +45,7 @@ now passes all 43 Windows computer-control assertions on the first attempt.
 The extraction case took 4,341ms under the unchanged parallel invocation and
 20-second test budget. This verifies the native repair on Windows; the earlier
 20-second stall remains unclassified unless its new bounded diagnostics recur.
+
+Follow-up [CI 36715163980](https://github.com/kzahel/yepanywhere/actions/runs/36715163980/job/109886184957)
+also passed all 43 assertions on the first attempt, with extraction at 4,323ms.
+Both complete source CI runs passed their browser and unit suites as well.
