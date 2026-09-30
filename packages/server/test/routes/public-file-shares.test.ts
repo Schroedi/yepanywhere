@@ -8,6 +8,10 @@ import { createPublicFileShareRoutes } from "../../src/routes/public-file-shares
 import { createPublicSharePublicRoutes } from "../../src/routes/public-shares.js";
 import { PublicShareService } from "../../src/services/PublicShareService.js";
 
+// Live file shares require Linux descriptor-bound project reads.
+// Other hosts fail closed, covered by projectFileAccess.test.ts.
+const itLinux = it.skipIf(process.platform !== "linux");
+
 describe("public file shares", () => {
   let testDir: string;
   let projectRoot: string;
@@ -223,7 +227,7 @@ describe("public file shares", () => {
     );
   });
 
-  it("authorizes everything an HTML root links to, and nothing else", async () => {
+  itLinux("authorizes only an HTML root's linked files", async () => {
     await put(
       "site/index.html",
       '<link rel="stylesheet" href="site.css"><link rel="preload" as="font" href="paper.woff2"><script src="app.js"></script><script src="/assets/entry.js"></script><img src="logo.png"><a href="src/server.js">source</a><a href="../../outside/notes.md">notes</a>',
@@ -284,7 +288,7 @@ describe("public file shares", () => {
     expect(await status(notes, routes(false))).toBe(404);
   });
 
-  it("serves the current root and what it links to", async () => {
+  itLinux("serves the current root and what it links to", async () => {
     const { secret } = await service.createFileShare({
       projectId,
       path: "docs/guide.md",
