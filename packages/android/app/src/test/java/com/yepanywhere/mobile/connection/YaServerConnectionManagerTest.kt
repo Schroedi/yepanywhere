@@ -29,6 +29,47 @@ import org.junit.Test
 
 class YaServerConnectionManagerTest {
     @Test
+    fun streamsUploadsWithLeaseIsolationAndCancelsOnlyTheDepartedConsumer() = runBlocking {
+        val fixture = Fixture()
+        val transport = FakeTransport(fixture.credential)
+        fixture.connector.results.send(Result.success(transport))
+        val manager = fixture.manager()
+        val first = manager.acquire()
+        val sibling = manager.acquire()
+        try {
+            val upload = first.startUpload(JSONObject().put("type", "staged_upload_start")
+                .put("size", 65537).put("filename", "test.bin").put("mimeType", "application/octet-stream"))
+            assertEquals(upload.id, transport.awaitSent("staged_upload_start").getString("uploadId"))
+            assertTrue(runCatching { sibling.sendUploadChunk(upload.id, 0, byteArrayOf(1)) }.isFailure)
+            first.sendUploadChunk(upload.id, 0, ByteArray(65536))
+            assertTrue(runCatching { first.sendUploadChunk(upload.id, 0, byteArrayOf(1)) }.isFailure)
+            assertTrue(runCatching { first.endUpload(upload.id) }.isFailure)
+            assertEquals(65536, transport.chunks.single().size)
+            first.releaseAndAwait()
+            assertEquals(upload.id, transport.awaitSent("upload_end").getString("uploadId"))
+            assertFalse(transport.cancelled)
+            assertTrue(runCatching { first.sendUploadChunk(upload.id, 65536, byteArrayOf(1)) }.isFailure)
+        } finally { sibling.releaseAndAwait(); manager.shutdownAndAwait() }
+        assertTrue(transport.cancelled)
+    }
+
+    @Test
+    fun supportsFullWebSubscriptionChannelsWithoutSharingLocalIds() = runBlocking {
+        val fixture = Fixture()
+        val transport = FakeTransport(fixture.credential)
+        fixture.connector.results.send(Result.success(transport))
+        val manager = fixture.manager()
+        val lease = manager.acquire()
+        try {
+            lease.subscribe("glossary", projectId = "project-one")
+            lease.subscribe("worktree", projectId = "project-one", coverage = JSONObject().put("files", true))
+            assertEquals(listOf("glossary", "worktree"), transport.sent.filter { it.getString("type") == "subscribe" }.map { it.getString("channel") })
+            assertEquals(2, transport.sent.map { it.getString("subscriptionId") }.toSet().size)
+            assertTrue(runCatching { lease.subscribe("worktree", projectId = "project-one") }.isFailure)
+        } finally { lease.releaseAndAwait(); manager.shutdownAndAwait() }
+    }
+
+    @Test
     fun multiplexesRequestsAndClosesOnlyAfterTheFinalLease() = runBlocking {
         val fixture = Fixture()
         val transport = FakeTransport(fixture.credential)
@@ -369,12 +410,18 @@ class YaServerConnectionManagerTest {
         override val resumed = true
         val incoming = Channel<JSONObject>(Channel.UNLIMITED)
         val sent = CopyOnWriteArrayList<JSONObject>()
+        val chunks = CopyOnWriteArrayList<ByteArray>()
         var cancelled = false
         private val cancelledSignal = CompletableDeferred<Unit>()
 
         override fun send(message: JSONObject) {
             check(!cancelled)
             sent += JSONObject(message.toString())
+        }
+
+        override suspend fun sendUploadChunk(uploadId: String, offset: Long, chunk: ByteArray) {
+            check(!cancelled)
+            chunks += chunk
         }
 
         override suspend fun receive(): JSONObject = incoming.receive()

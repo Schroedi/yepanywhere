@@ -105,6 +105,7 @@ class YaConnectionLease internal constructor(
         provider: String? = null,
         lastEventId: String? = null,
         wantsLiveDeltas: Boolean? = null,
+        coverage: JSONObject? = null,
     ): YaSubscription {
         check(!released.get()) { "Connection lease is released" }
         return manager.subscribe(
@@ -115,8 +116,22 @@ class YaConnectionLease internal constructor(
             provider = provider,
             lastEventId = lastEventId,
             wantsLiveDeltas = wantsLiveDeltas,
+            coverage = coverage,
         )
     }
+
+    suspend fun startUpload(params: JSONObject): YaNativeUpload {
+        check(!released.get())
+        return manager.startUpload(id, params)
+    }
+
+    suspend fun sendUploadChunk(uploadId: String, offset: Long, chunk: ByteArray) {
+        check(!released.get())
+        manager.sendUploadChunk(id, uploadId, offset, chunk)
+    }
+
+    suspend fun endUpload(uploadId: String) = manager.endUpload(id, uploadId)
+    suspend fun cancelUpload(uploadId: String) = manager.cancelUpload(id, uploadId)
 
     suspend fun releaseAndAwait() {
         if (released.compareAndSet(false, true)) manager.releaseLease(id)
@@ -143,6 +158,8 @@ class YaConnectionLease internal constructor(
     }
 }
 
+data class YaNativeUpload(val id: String, val events: Flow<JSONObject>)
+
 class YaServerConnectionManager(
     private val profileId: String,
     private val repository: YaPairedServerRepository,
@@ -157,6 +174,7 @@ class YaServerConnectionManager(
     private val leases = mutableMapOf<String, MutableSet<String>>()
     private val pendingRequests = mutableMapOf<String, CompletableDeferred<YaApiResponse>>()
     private val subscriptions = mutableMapOf<String, SubscriptionRecord>()
+    private val uploads = mutableMapOf<String, UploadRecord>()
     private var connection: YaRoutedTransport? = null
     private var connectionJob: Job? = null
     private var connectionGeneration = 0L
@@ -240,10 +258,13 @@ class YaServerConnectionManager(
         wantsLiveDeltas: Boolean?,
         conversation: ConversationQuery? = null,
         bindingId: String? = null,
+        coverage: JSONObject? = null,
     ): YaSubscription {
         require(channel in SUPPORTED_SUBSCRIPTION_CHANNELS ||
             (channel == "/api/experimental/conversation/subscribe" && conversation != null && bindingId != null))
         if (conversation != null) SimpleClientContract.decodeConversationQuery(conversation.toJson())
+        require(channel !in setOf("glossary", "worktree") || !projectId.isNullOrBlank())
+        require(channel != "worktree" || coverage != null)
         require(channel != "session" || !sessionId.isNullOrBlank())
         require(channel != "session-watch" || (!sessionId.isNullOrBlank() && !projectId.isNullOrBlank()))
         val transport = ensureConnected(leaseId)
@@ -260,6 +281,7 @@ class YaServerConnectionManager(
             wantsLiveDeltas = wantsLiveDeltas,
             events = eventChannel,
             conversation = conversation,
+            coverage = coverage,
         )
         mutex.withLock {
             val owned = checkNotNull(leases[leaseId]) { "Connection lease is released" }
@@ -283,6 +305,71 @@ class YaServerConnectionManager(
         }
     }
 
+    internal suspend fun startUpload(leaseId: String, params: JSONObject): YaNativeUpload {
+        val size = params.getLong("size")
+        require(size in 0..(100L * 1024 * 1024))
+        require(params.getString("filename").length in 1..1024)
+        val kind = params.getString("type")
+        require(kind == "upload_start" || kind == "staged_upload_start")
+        if (kind == "upload_start") {
+            require(params.getString("projectId").isNotBlank() && params.getString("sessionId").isNotBlank())
+        }
+        val transport = ensureConnected(leaseId)
+        val id = UUID.randomUUID().toString()
+        val events = Channel<JSONObject>(64)
+        val record = UploadRecord(id, leaseId, size, transport, events)
+        val message = JSONObject().put("type", kind).put("uploadId", id)
+        listOf("projectId", "sessionId", "filename", "size", "mimeType", "width", "height", "batchId")
+            .forEach { key -> if (params.has(key)) message.put(key, params.get(key)) }
+        mutex.withLock {
+            check(leases.containsKey(leaseId) && connection?.transport === transport)
+            require(uploads.values.count { it.leaseId == leaseId } < 4) { "Too many native uploads" }
+            uploads[id] = record
+            try { transport.send(message) } catch (error: Throwable) { uploads.remove(id); throw error }
+        }
+        return YaNativeUpload(id, events.receiveAsFlow())
+    }
+
+    internal suspend fun sendUploadChunk(leaseId: String, uploadId: String, offset: Long, chunk: ByteArray) {
+        val record = mutex.withLock {
+            checkNotNull(uploads[uploadId]) { "Upload is no longer active" }.also {
+                require(it.leaseId == leaseId && connection?.transport === it.transport)
+            }
+        }
+        record.writes.withLock {
+            require(chunk.size in 1..65536 && offset == record.offset && offset <= record.size - chunk.size)
+            record.transport.sendUploadChunk(uploadId, offset, chunk)
+            record.offset += chunk.size
+        }
+    }
+
+    internal suspend fun endUpload(leaseId: String, uploadId: String) {
+        val record = mutex.withLock {
+            checkNotNull(uploads[uploadId]).also { require(it.leaseId == leaseId) }
+        }
+        record.writes.withLock {
+            require(record.offset == record.size) { "Upload is incomplete" }
+            record.transport.send(JSONObject().put("type", "upload_end").put("uploadId", uploadId))
+        }
+    }
+
+    internal suspend fun cancelUpload(leaseId: String, uploadId: String) {
+        val record = mutex.withLock {
+            val record = uploads[uploadId] ?: return
+            require(record.leaseId == leaseId)
+            uploads.remove(uploadId)
+            record
+        }
+        // There is no cancel frame in the established server protocol. Ending
+        // an incomplete upload makes the existing size check discard its file.
+        record.writes.withLock {
+            if (record.offset < record.size) runCatching {
+                record.transport.send(JSONObject().put("type", "upload_end").put("uploadId", uploadId))
+            }
+        }
+        record.events.close(CancellationException("Upload consumer released"))
+    }
+
     internal fun releaseLeaseAsync(leaseId: String) {
         scope.launch { releaseLease(leaseId) }
     }
@@ -292,6 +379,8 @@ class YaServerConnectionManager(
             leases.remove(leaseId)?.toList().orEmpty()
         }
         subscriptionsToClose.forEach { closeSubscription(it) }
+        val ownedUploads = mutex.withLock { uploads.values.filter { it.leaseId == leaseId }.map { it.id } }
+        ownedUploads.forEach { cancelUpload(leaseId, it) }
 
         var job: Job? = null
         var transport: YaMessageTransport? = null
@@ -506,6 +595,22 @@ class YaServerConnectionManager(
                 }
             }
 
+            "upload_progress", "upload_complete", "upload_error" -> {
+                mutex.withLock {
+                    if (connectionGeneration != generation || connection?.transport !== transport) return
+                    val id = message.getString("uploadId")
+                    val record = uploads[id] ?: return
+                    if (record.events.trySend(message).isFailure) {
+                        uploads.remove(id)
+                        record.events.close(YaSubscriptionOverflowException())
+                    } else if (type != "upload_progress") {
+                        uploads.remove(id)
+                        record.events.close()
+                    }
+                    Unit
+                }
+            }
+
             "event" -> {
                 val id = message.getString("subscriptionId")
                 val overflowed = mutex.withLock {
@@ -535,6 +640,8 @@ class YaServerConnectionManager(
             if (connectionGeneration != generation) return
             if (transport == null || connection?.transport === transport) connection = null
             failPendingLocked(YaConnectionUnavailableException("Native connection was lost", error))
+            uploads.values.forEach { it.events.close(YaConnectionUnavailableException("Upload connection was lost", error)) }
+            uploads.clear()
             failConversationsLocked(error)
         }
     }
@@ -613,6 +720,7 @@ class YaServerConnectionManager(
         val wantsLiveDeltas: Boolean?,
         val events: Channel<YaSubscriptionEvent>,
         val conversation: ConversationQuery? = null,
+        val coverage: JSONObject? = null,
     ) {
         fun subscribeMessage(): JSONObject {
             conversation?.let {
@@ -629,14 +737,25 @@ class YaServerConnectionManager(
                 .putOptional("provider", provider)
                 .putOptional("lastEventId", lastEventId)
                 .putOptional("wantsLiveDeltas", wantsLiveDeltas)
+                .putOptional("coverage", coverage)
         }
     }
+
+    private class UploadRecord(
+        val id: String,
+        val leaseId: String,
+        val size: Long,
+        val transport: YaMessageTransport,
+        val events: Channel<JSONObject>,
+        var offset: Long = 0,
+        val writes: Mutex = Mutex(),
+    )
 
     private class ReauthenticationRequired : IllegalStateException()
 
     companion object {
         private val SUPPORTED_METHODS = setOf("GET", "POST", "PUT", "DELETE", "PATCH")
-        private val SUPPORTED_SUBSCRIPTION_CHANNELS = setOf("session", "activity", "session-watch")
+        private val SUPPORTED_SUBSCRIPTION_CHANNELS = setOf("session", "activity", "session-watch", "glossary", "worktree")
         private val MANAGED_REQUEST_HEADERS = setOf("content-type", "x-yep-anywhere")
         private const val REQUEST_TIMEOUT_MS = 30_000L
         private const val SUBSCRIPTION_BUFFER_SIZE = 64

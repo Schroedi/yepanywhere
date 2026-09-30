@@ -5,6 +5,9 @@ import com.goterl.lazysodium.LazySodiumAndroid
 import com.goterl.lazysodium.SodiumAndroid
 import com.goterl.lazysodium.interfaces.SecretBox
 import java.security.MessageDigest
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.util.zip.GZIPInputStream
 import java.security.SecureRandom
 import org.json.JSONObject
 
@@ -114,9 +117,19 @@ object YaSecureTransportCrypto {
         secretBox: YaSecretBox,
         nonce: ByteArray = randomNonce(),
     ): ByteArray {
-        val payload = plaintext.toByteArray(Charsets.UTF_8)
+        return encryptBinaryPayload(JSON_FORMAT, plaintext.toByteArray(Charsets.UTF_8), key, secretBox, nonce)
+    }
+
+    fun encryptBinaryPayload(
+        format: Int,
+        payload: ByteArray,
+        key: ByteArray,
+        secretBox: YaSecretBox,
+        nonce: ByteArray = randomNonce(),
+    ): ByteArray {
+        require(format == JSON_FORMAT || format == 2)
         val inner = ByteArray(1 + payload.size)
-        inner[0] = JSON_FORMAT.toByte()
+        inner[0] = format.toByte()
         payload.copyInto(inner, 1)
         val ciphertext = secretBox.seal(inner, nonce, key)
         return byteArrayOf(BINARY_ENVELOPE_VERSION.toByte()) + nonce + ciphertext
@@ -132,8 +145,22 @@ object YaSecureTransportCrypto {
         val nonce = envelope.copyOfRange(1, 1 + NONCE_BYTES)
         val ciphertext = envelope.copyOfRange(1 + NONCE_BYTES, envelope.size)
         val inner = secretBox.open(ciphertext, nonce, key) ?: return null
-        if (inner.isEmpty() || inner[0].toInt() != JSON_FORMAT) return null
-        return inner.copyOfRange(1, inner.size).toString(Charsets.UTF_8)
+        if (inner.isEmpty()) return null
+        if (inner[0].toInt() == JSON_FORMAT) return inner.copyOfRange(1, inner.size).toString(Charsets.UTF_8)
+        if (inner[0].toInt() != 3) return null
+        return runCatching {
+            GZIPInputStream(ByteArrayInputStream(inner, 1, inner.size - 1)).use { input ->
+                val output = ByteArrayOutputStream()
+                val chunk = ByteArray(65536)
+                while (true) {
+                    val count = input.read(chunk)
+                    if (count < 0) break
+                    require(output.size() <= 32 * 1024 * 1024 - count) { "Compressed response exceeds limit" }
+                    output.write(chunk, 0, count)
+                }
+                output.toString("UTF-8")
+            }
+        }.getOrNull()
     }
 
     fun randomNonce(): ByteArray = ByteArray(NONCE_BYTES).also(secureRandom::nextBytes)

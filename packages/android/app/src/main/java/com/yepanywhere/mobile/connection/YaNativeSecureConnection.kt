@@ -2,6 +2,9 @@ package com.yepanywhere.mobile.connection
 
 import java.io.Closeable
 import java.util.UUID
+import java.nio.ByteBuffer
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
@@ -65,6 +68,10 @@ class YaNativeSecureSession internal constructor(
 ) : YaMessageTransport, Closeable {
     override fun send(message: JSONObject) {
         listener.sendEncrypted(message)
+    }
+
+    override suspend fun sendUploadChunk(uploadId: String, offset: Long, chunk: ByteArray) {
+        listener.sendUploadChunk(uploadId, offset, chunk)
     }
 
     override suspend fun receive(): JSONObject = listener.receive()
@@ -374,6 +381,25 @@ internal class SecureSessionListener(
             check(socket?.send(envelope.toByteString()) == true) {
                 "WebSocket rejected encrypted message"
             }
+        }
+    }
+
+    suspend fun sendUploadChunk(uploadId: String, offset: Long, chunk: ByteArray) {
+        require(offset >= 0 && chunk.size in 1..65536)
+        // The mux broker exposes its bounded per-circuit queue through this API.
+        withTimeout(30_000) {
+            while ((socket?.queueSize() ?: error("Socket closed")) > 512 * 1024) delay(10)
+        }
+        val id = UUID.fromString(uploadId)
+        val payload = ByteBuffer.allocate(24 + chunk.size)
+            .putLong(id.mostSignificantBits).putLong(id.leastSignificantBits).putLong(offset)
+            .put(chunk).array()
+        synchronized(sendLock) {
+            check(!terminated.get())
+            val key = checkNotNull(transportKey)
+            check(socket?.send(YaSecureTransportCrypto.encryptBinaryPayload(
+                2, payload, key, secretBox,
+            ).toByteString()) == true) { "Socket rejected upload chunk" }
         }
     }
 
