@@ -187,6 +187,12 @@ Private YA fixtures can request `serveBuiltClient: true` to serve the immutable
 invocation bundle without another Vite listener. Use it when the test needs the
 real application but does not import source modules or depend on development
 behavior. Retain Vite for source-entry/component and dev-server contracts.
+Remote relay, frozen-share layout and artifact gateway fixtures likewise use
+the invocation's `remotePreviewURL` when they require no source imports or HMR.
+The artifact gateway keeps a distinct viewer hostname, private relay and HTTPS
+artifact origin; its file route must return the remote shell rather than raw
+artifact HTML. Private fixtures can read the shared preview port without
+activating the common mutable YA fixtures.
 A supplied `mockClaudeSession` enrolls the retained Claude store before server
 startup; writing a transcript alone does not establish discovery membership.
 

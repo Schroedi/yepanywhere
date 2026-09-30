@@ -424,3 +424,44 @@ Root checks passed 6,148 server and 6,506 client cases (105.48s / 110.18s),
 plus lint, formatting and all type gates. Six restart repetitions passed
 within the unchanged 15s test budget. These are local functional observations;
 the next acceptance checkpoint is first-attempt CI on the published revision.
+
+### Exact-source repeat and remaining startup ownership — 2026-09-30
+
+The published `cead003b4` had different outcomes at identical source. Its
+[push run 36662540397](https://github.com/kzahel/yepanywhere/actions/runs/36662540397)
+passed all other gates and shard 2 (178 first-attempt passes, one skip,
+7m29s job). Shard 1 took 11m28s: 168 passes, nine skips, two retry passes
+(artifact relay and thinking-budget entry), and a persistent restart-memory
+failure. The same-source
+[manual repeat 36662665230](https://github.com/kzahel/yepanywhere/actions/runs/36662665230)
+passed every gate. Both shards passed on their first attempts: 171 / 178
+passes, nine / one skips, 8m50s / 7m24s job times. Combined job time was
+16m14s. These two outcomes are not a stable failure-rate estimate.
+
+The restart retry trace recorded the correct restored scroll position, 4937,
+but its final poll began with only 29ms remaining in the 15s test budget.
+Initial private-server startup took about 5.3s, restart 4.1s, and each app boot
+about 2s. This case now avoids the unused common worker server, uses a
+documented 30s overall budget (twice the observed limit), and verifies loaded
+history and restoration in one poll. It retains 180 paragraphs, meaningful
+scroll range, unchanged saved-memory equality, and the two-pixel bound.
+The trace does not prove the cause of the earlier hidden opening marker.
+
+Artifact relay, ordinary relay and frozen thinking-budget fixtures now reuse
+the immutable built remote client. The artifact case retains its private
+HTTPS gateway and real relay; its viewer origin reads the shared preview port
+without activating an unused common YA fixture. A deliberate raw-artifact
+response on the file route failed the built-shell assertion as intended;
+the temporary mutation was removed. All 21 focused cases passed with four
+workers and no retries. The context popover fixture also owns subscription
+usage as absent, so unrelated real provider usage cannot change its label or
+popover mode. Its overlap and hit-testing checks remain unchanged. Six
+restart and six popover repetitions passed without retries. These repairs
+still require the merged full-suite and published CI checkpoint below.
+
+The merged startup slice passed the full default-scope browser gate: 347
+passes, 12 skips, four workers, no retries, 4.2m, with clean teardown. The
+private restart case took 7.3s locally. Fresh workspace units passed 6,148
+server and 6,506 client cases (115.33s / 121.99s); lint, formatting and all
+type gates passed. These local observations preserve functional coverage;
+the next comparison is repeated first-attempt CI at the published source.

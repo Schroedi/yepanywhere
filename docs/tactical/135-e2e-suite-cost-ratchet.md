@@ -15,6 +15,14 @@ limit.
 Shared-server isolation is now the first reliability priority; further suite
 speed work follows it.
 
+The latest published source, `cead003b4`, passed every CI gate in its manual
+repeat, with 349 E2E first-attempt passes and ten Linux skips across two shards.
+Its initial push run exhausted the restart case's measured overall budget and
+needed two cold-entry retries. The next slice removes unused client/server
+startup, documents the measured restart lifetime, and owns context-only
+subscription usage. Keep repeated first-attempt results and comparable
+median/p90 timing open; one green repeat does not close those acceptance gates.
+
 The blanket local `pnpm test:e2e` rule first appeared in contributor guidance
 on 2025-12-29, when the suite had about seven specs. Focused Playwright wording
 was added in July 2026; this plan replaces the blanket local rule with a

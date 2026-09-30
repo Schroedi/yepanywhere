@@ -73,3 +73,10 @@ four workers, no retries, and clean teardown in 4.2m. Root server/client suites
 and strict E2E type checks also passed. This establishes the normal parallel
 invocation's fixture ownership locally; repeated first-attempt Linux CI and
 the comparable median/p90 window remain outstanding.
+
+At published `cead003b4`, the exact-source manual CI repeat passed all gates
+and both E2E shards without retries (349 passes, ten Linux skips). Its initial
+push run failed restart verification after correctly restoring scrollTop 4937
+with only 29ms left in the overall budget, and needed two cold-entry retries.
+Startup ownership and the measured lifetime are the next repair; one green
+repeat does not establish independent schedules or a steady failure rate.

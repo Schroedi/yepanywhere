@@ -61,7 +61,7 @@ function getRemoteClientPort(): number {
   return getPort("remote-port", "Remote client", true);
 }
 
-function getRemotePreviewPort(): number {
+export function getRemotePreviewPort(): number {
   return getPort("remote-preview-port", "Remote preview", true);
 }
 

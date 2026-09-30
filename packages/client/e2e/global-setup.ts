@@ -395,8 +395,8 @@ export default async function globalSetup() {
   console.log(`[E2E] Remote client development server on port ${remotePort}`);
   remoteClientProcess.unref();
 
-  // Startup behavior depends on generated chunks, so expose the separately
-  // built remote client through a production preview for that contract alone.
+  // Generated-chunk and source-independent relay/share fixtures reuse the
+  // immutable remote build. Source-entry contracts retain the dev server above.
   console.log("[E2E] Starting remote client production preview...");
   const remotePreviewProcess = spawn(
     "pnpm",

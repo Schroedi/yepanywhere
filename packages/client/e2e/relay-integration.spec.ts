@@ -46,8 +46,8 @@ function relayAppPath(path = "projects"): string {
   return `/-/relay/${TEST_RELAY_USERNAME}/${path}`;
 }
 
-function remoteRelayUrl(remoteClientURL: string, path = "projects"): string {
-  return `${remoteClientURL}${relayAppPath(path)}`;
+function remoteRelayUrl(remotePreviewURL: string, path = "projects"): string {
+  return `${remotePreviewURL}${relayAppPath(path)}`;
 }
 
 function deterministicNoise(byteLength: number): Buffer {
@@ -80,10 +80,10 @@ async function goToRelayLogin(page: import("@playwright/test").Page) {
 
 async function loginViaRelay(
   page: import("@playwright/test").Page,
-  remoteClientURL: string,
+  remotePreviewURL: string,
   relayWsURL: string,
 ): Promise<void> {
-  await page.goto(remoteClientURL);
+  await page.goto(remotePreviewURL);
   await goToRelayLogin(page);
   await page.fill('[data-testid="relay-username-input"]', TEST_RELAY_USERNAME);
   await page.fill('[data-testid="srp-password-input"]', TEST_SRP_PASSWORD);
@@ -151,10 +151,10 @@ test.describe("Full Relay Integration", () => {
 
   test("connect via relay, login, and verify app loads", async ({
     page,
-    remoteClientURL,
+    remotePreviewURL,
     relayWsURL,
   }) => {
-    await page.goto(remoteClientURL);
+    await page.goto(remotePreviewURL);
     await goToRelayLogin(page);
 
     // Fill in relay login form (username is both relay ID and SRP identity)
@@ -193,7 +193,7 @@ test.describe("Full Relay Integration", () => {
 
   test("explicit relay handoff preserves its source without remembered credentials", async ({
     page,
-    remoteClientURL,
+    remotePreviewURL,
     relayWsURL,
   }) => {
     const target = (username: string, relayUrl: string) =>
@@ -207,13 +207,13 @@ test.describe("Full Relay Integration", () => {
       [TEST_RELAY_USERNAME, "wss://different-relay.invalid/ws"],
     ] as const) {
       await page.goto(
-        `${remoteClientURL}${target(TEST_RELAY_USERNAME, relayWsURL)}`,
+        `${remotePreviewURL}${target(TEST_RELAY_USERNAME, relayWsURL)}`,
       );
       await page.fill('[data-testid="srp-password-input"]', TEST_SRP_PASSWORD);
       await page.locator('[data-testid="remember-me-checkbox"]').uncheck();
       await page.click('[data-testid="login-button"]');
       await expect(page).toHaveURL(
-        `${remoteClientURL}${relayAppPath("settings")}`,
+        `${remotePreviewURL}${relayAppPath("settings")}`,
       );
       await expect(page.locator(".sidebar")).toBeVisible();
 
@@ -240,11 +240,11 @@ test.describe("Full Relay Integration", () => {
 
   test("development settings links to the configured relay monitor", async ({
     page,
-    remoteClientURL,
+    remotePreviewURL,
     relayWsURL,
   }) => {
-    await loginViaRelay(page, remoteClientURL, relayWsURL);
-    await page.goto(remoteRelayUrl(remoteClientURL, "settings/development"));
+    await loginViaRelay(page, remotePreviewURL, relayWsURL);
+    await page.goto(remoteRelayUrl(remotePreviewURL, "settings/development"));
 
     const relayUrl = new URL(relayWsURL);
     relayUrl.protocol = relayUrl.protocol === "wss:" ? "https:" : "http:";
@@ -257,7 +257,7 @@ test.describe("Full Relay Integration", () => {
   test("large assistant content stays viewable directly and uses bounded relay chunks", async ({
     page,
     baseURL,
-    remoteClientURL,
+    remotePreviewURL,
     relayWsURL,
   }) => {
     test.setTimeout(45_000);
@@ -336,10 +336,10 @@ test.describe("Full Relay Integration", () => {
       ).toBeVisible({ timeout: 20_000 });
 
       observeRelayChunks = true;
-      await loginViaRelay(page, remoteClientURL, relayWsURL);
+      await loginViaRelay(page, remotePreviewURL, relayWsURL);
       await page.goto(
         remoteRelayUrl(
-          remoteClientURL,
+          remotePreviewURL,
           `projects/${projectId}/sessions/${sessionId}`,
         ),
       );
@@ -362,7 +362,7 @@ test.describe("Full Relay Integration", () => {
   test("large user upload crosses relay in bounded upload chunks", async ({
     page,
     baseURL,
-    remoteClientURL,
+    remotePreviewURL,
     relayWsURL,
   }) => {
     test.setTimeout(45_000);
@@ -412,10 +412,10 @@ test.describe("Full Relay Integration", () => {
           { timeout: 10_000 },
         )
         .toBe(200);
-      await loginViaRelay(page, remoteClientURL, relayWsURL);
+      await loginViaRelay(page, remotePreviewURL, relayWsURL);
       await page.goto(
         remoteRelayUrl(
-          remoteClientURL,
+          remotePreviewURL,
           `projects/${projectId}/sessions/${sessionId}`,
         ),
       );
@@ -447,7 +447,7 @@ test.describe("Full Relay Integration", () => {
   test("large frozen public share uses bounded relay chunks", async ({
     page,
     baseURL,
-    remoteClientURL,
+    remotePreviewURL,
   }) => {
     test.setTimeout(45_000);
     const projectPath = join(e2ePaths.tempDir, "bounded-share-project");
@@ -572,7 +572,7 @@ test.describe("Full Relay Integration", () => {
 
       const viewerUrl = new URL(
         `${shareUrl.pathname}${shareUrl.search}${shareUrl.hash}`,
-        remoteClientURL,
+        remotePreviewURL,
       );
       const chunkSizes: number[] = [];
       page.on("websocket", (socket) => {
@@ -619,13 +619,13 @@ test.describe("Full Relay Integration", () => {
   test("!! Commands sidebar category stays on its relay route", async ({
     page,
     baseURL,
-    remoteClientURL,
+    remotePreviewURL,
     relayWsURL,
   }) => {
     await setBangHistoryVisibility(baseURL, true);
     try {
       await page.setViewportSize({ width: 375, height: 812 });
-      await page.goto(remoteClientURL);
+      await page.goto(remotePreviewURL);
       await goToRelayLogin(page);
       await page.fill(
         '[data-testid="relay-username-input"]',
@@ -664,11 +664,11 @@ test.describe("Full Relay Integration", () => {
   // This test verifies that sessions persist across page refresh via relay.
   test("session persists after page refresh (auto-resume)", async ({
     page,
-    remoteClientURL,
+    remotePreviewURL,
     relayWsURL,
   }) => {
     // First login via relay
-    await page.goto(remoteClientURL);
+    await page.goto(remotePreviewURL);
     await page.evaluate(() => {
       localStorage.clear();
       sessionStorage.clear();
@@ -769,7 +769,7 @@ test.describe("Full Relay Integration", () => {
 
   test("recovers an exhausted relay connection on renewed activity without losing input", async ({
     page,
-    remoteClientURL,
+    remotePreviewURL,
     relayWsURL,
   }) => {
     // Recovery uses an accelerated scheduler. Capture the native frame clock
@@ -798,8 +798,8 @@ test.describe("Full Relay Integration", () => {
         socket.connectToServer();
       }
     });
-    await loginViaRelay(page, remoteClientURL, relayWsURL);
-    await page.goto(remoteRelayUrl(remoteClientURL, "settings"));
+    await loginViaRelay(page, remotePreviewURL, relayWsURL);
+    await page.goto(remoteRelayUrl(remotePreviewURL, "settings"));
     const search = page.getByRole("searchbox", { name: "Search settings" });
     await expect(search).toBeVisible();
     await search.pressSequentially("theme");
@@ -942,7 +942,7 @@ test.describe("Full Relay Integration", () => {
 
   test("old relay resume rejection explains why fresh login is needed", async ({
     page,
-    remoteClientURL,
+    remotePreviewURL,
     relayWsURL,
   }) => {
     await page.addInitScript(
@@ -989,7 +989,7 @@ test.describe("Full Relay Integration", () => {
       { relayUrl: relayWsURL, relayUsername: TEST_RELAY_USERNAME },
     );
 
-    await page.goto(`${remoteClientURL}/${TEST_RELAY_USERNAME}/projects`);
+    await page.goto(`${remotePreviewURL}/${TEST_RELAY_USERNAME}/projects`);
 
     await expect(
       page.getByText("Sign in required", { exact: true }),
@@ -1028,7 +1028,7 @@ test.describe("Full Relay Integration", () => {
 
   test("fresh relay login updates stale saved host relay URL", async ({
     page,
-    remoteClientURL,
+    remotePreviewURL,
     relayWsURL,
   }) => {
     await page.addInitScript((relayUsername: string) => {
@@ -1057,7 +1057,7 @@ test.describe("Full Relay Integration", () => {
       u: TEST_RELAY_USERNAME,
       r: relayWsURL,
     });
-    await page.goto(`${remoteClientURL}/login/relay?${params.toString()}`);
+    await page.goto(`${remotePreviewURL}/login/relay?${params.toString()}`);
 
     await page.fill('[data-testid="srp-password-input"]', TEST_SRP_PASSWORD);
     await page.click('[data-testid="login-button"]');
@@ -1073,10 +1073,10 @@ test.describe("Full Relay Integration", () => {
 
   test("mock project visible through relay connection", async ({
     page,
-    remoteClientURL,
+    remotePreviewURL,
     relayWsURL,
   }) => {
-    await page.goto(remoteClientURL);
+    await page.goto(remotePreviewURL);
     await goToRelayLogin(page);
 
     // Fill in relay login form (username is both relay ID and SRP identity)
@@ -1105,10 +1105,10 @@ test.describe("Full Relay Integration", () => {
 
   test("wrong password shows error through relay", async ({
     page,
-    remoteClientURL,
+    remotePreviewURL,
     relayWsURL,
   }) => {
-    await page.goto(remoteClientURL);
+    await page.goto(remotePreviewURL);
     await goToRelayLogin(page);
 
     // Fill in relay login form with wrong password
@@ -1138,7 +1138,7 @@ test.describe("Full Relay Integration", () => {
 
   test("server offline error when relay username not registered", async ({
     page,
-    remoteClientURL,
+    remotePreviewURL,
     relayWsURL,
     baseURL,
   }) => {
@@ -1148,7 +1148,7 @@ test.describe("Full Relay Integration", () => {
     // Wait a moment for relay to disconnect
     await page.waitForTimeout(500);
 
-    await page.goto(remoteClientURL);
+    await page.goto(remotePreviewURL);
     await goToRelayLogin(page);
 
     // Try to connect to unregistered username
