@@ -18,9 +18,10 @@ App Store and Google Play, not stop at internal testing.
 **Status:** in progress. Mobile release direction selected 2026-09-30:
 bundled web UI as the primary foreground, with native login, host selection,
 secure SRP/session storage, transport, reconnect, and notifications. Android
-already has native pairing, multi-host transport and a bundled WebView; the
-missing authenticated transport bridge and app-shell migration are being
-implemented in [the WebView app plan](../tactical/083-android-bundled-web-native-transport.md).
+now opens the complete bundled UI through its native authenticated transport,
+with native host management and no duplicate dashboard/Conversation screens.
+The implementation and acceptance evidence are recorded in
+[the WebView app plan](../tactical/083-android-bundled-web-native-transport.md).
 Native dashboard/Conversation rendering and the experimental Simple Client API
 preview are no longer mobile release prerequisites. iOS follows the same shell
 boundary in a later scoped implementation. Store signing/publication and
@@ -66,7 +67,8 @@ physical-device acceptance remain release work.
 - [ ] Establish and meet desktop release criteria, then publish and present
   desktop as a supported release rather than beta. Reuse existing signed
   installer and updater evidence instead of restarting the packaging work.
-- [ ] Decide the first mobile release scope and its acceptance criteria.
+- [x] Decide the first mobile release scope and its acceptance criteria.
+  Native shell/full bundled web UI selected; tactical 083 records the gates.
 - [ ] Complete and publish Android on Google Play and iOS on the App Store.
   Automated internal testing is an intermediate milestone, not completion.
 - [ ] Give every distribution CI verification and automated release delivery:
@@ -111,56 +113,30 @@ compatibility checks belong to the release criteria, not just compilation.
 
 ### Mobile scope decisions and next action
 
-The 2026-09-12 direction is a [Simple Client API](../../topics/simple-client-api.md)
-that returns server-owned summaries and condensed Conversation data through
-transport-independent, generated TypeScript/Kotlin contracts initially. The API
-starts under `/api/experimental/` and can evolve incompatibly; stable namespace,
-versioning, and support policy are explicit promotion decisions before public
-mobile reliance. Start with a minimal web client at an unlisted Latest URL,
-connecting to multiple YA servers from the first useful slice and experimenting
-with sidebar grouping by machine, project, and issue. Android Compose follows
-closely in small vertical slices and shapes the contract early. iOS transport,
-Swift decoding and SwiftUI are deferred; React Native is not selected. Message
-limits count user/agent messages rather than turns, with history/reconciliation
-complexity kept below the frontend.
+The 2026-09-30 direction uses the full bundled web interface for ordinary
+projects, sessions, transcripts, input and settings. Android owns native login,
+reauthentication, host selection, protected SRP/resume credentials, transport,
+reconnect and notifications. Saved-host selection enters the web app directly;
+Switch Host returns to native management. Management observes connection state
+without retaining dashboard subscriptions.
 
-The demo is an API consumer with a new small state machine, not a full-web
-rewrite prerequisite. Native remains focused on Conversation view, with rich
-activity, files, complex settings, and unsupported actions using the full-web
-alternative. Exact action coverage and store-release acceptance remain open.
+The [WebView app implementation](../tactical/083-android-bundled-web-native-transport.md)
+reuses the existing native pairing and multi-host core and the web client's
+SourceTransport contract. It adds no server authentication protocol or child
+credential. The duplicate native dashboard and Conversation presentation are
+removed, with reusable decoder/projection helpers retained.
 
-**Next action:** continue the [web/Android demo plan](../tactical/130-simple-client-api-and-three-client-demo.md).
-The [offline contract spike](../../packages/shared/contracts/README.md) has shared
-Claude/Codex-derived and synthetic examples, generated TypeScript/Kotlin decoding
-with unknown fallbacks, and an explicit two-compaction-then-message-count rule.
-The shared compiler extraction and automatic Conversation projection are now
-implemented, followed by the shared subscription owner and bounded live API. The
-[concrete operation/capability review](../tactical/130-simple-client-api-and-three-client-demo.md#first-live-operation-review-proposal-2026-09-12)
-was approved on 2026-09-12. The deliberate-entry web preview now consumes live
-Conversation snapshots with a temporary existing-catalog adapter. A self-hosted
-browser entry at `/-/preview` also connects to the serving server through
-same-origin HTTP/SSE, without relay or saved pairing. Android session cards now
-open a native Compose Conversation preview through saved source leases, with
-history controls, live finalized snapshots, and explicit reconnect. An encrypted
-direct-server AVD proof covers native navigation, rotation, live updates and
-foreground lifecycle. Next evaluate both previews against everyday sessions on
-Latest, review the SourceOverview operation, and extend indexed
-history acquisition beyond the initial hard-budget refusal. Partial-message token
-assembly is deferred; finalized-message snapshots update live.
-Measure the recorded cost budgets; offline fixtures are not live integration.
-Desktop release and continuous-delivery work continue independently.
+The [Simple Client API experiment](../tactical/130-simple-client-api-and-three-client-demo.md)
+remains separate work: the generated contracts and deliberate-entry web preview
+are useful independently, but native Conversation UI and SourceOverview are
+not mobile release prerequisites. The previous native preview remains
+historical evidence in Git.
 
-Start from these existing plans and contracts:
-
-- [Mobile companion product shape](../project/mobile-companion-app.md)
-- [Simple Client API and web/Android demo](../tactical/130-simple-client-api-and-three-client-demo.md)
-- [Native Android multi-host runtime](../tactical/084-android-native-multi-host-runtime.md)
-- [Bundled web over native transport](../tactical/083-android-bundled-web-native-transport.md)
-- [Conversation view](../../topics/conversation-view.md) and
-  [portable transcript compiler](../../topics/portable-transcript-compiler.md)
-- [Desktop distribution contract](../../topics/desktop-v0.md)
-- [Trusted client packaging](../../topics/trusted-client-packaging.md) and
-  [client/server compatibility](../../topics/remote-hosted-compatibility.md)
+**Next action:** finish store signing/distribution, notification enrollment and
+tap acceptance, and release-device/network checks using the Android WebView app.
+Scope iOS around the same native-login/transport and full-web boundary; a new
+SwiftUI transcript/composer design is not required. Desktop release and
+continuous-delivery work continue independently.
 
 ## Later directions
 

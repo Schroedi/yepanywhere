@@ -2,8 +2,9 @@
 
 Topic: mobile-server-pairing
 
-Status: implementation in progress. WebView-first product direction approved
-2026-09-30; native pairing and multi-host transport already implemented.
+Status: Android implementation complete 2026-09-30. Native login, full bundled
+web foreground, host switching and duplicate native screen retirement are
+implemented. Validation and remaining release acceptance are recorded below.
 
 ## Outcome
 
@@ -99,7 +100,8 @@ Uploads retain the existing relay upload protocol:
 
 1. JavaScript sends a small `upload_start` operation with filename, MIME type,
    size, and destination.
-2. It reads the browser `File` stream in the established 64 KiB chunks.
+2. It reads the browser `File` stream incrementally. Local chunks reserve
+   24 bytes for upload metadata within the 64 KiB bridge payload.
 3. Each chunk crosses the bridge as an ArrayBuffer when supported; Kotlin adds
    the existing UUID/offset binary-upload header, encrypts it, and sends format
    `0x02`. A bounded base64 compatibility frame is allowed only when the
@@ -115,8 +117,9 @@ socket is lost, its server-owned upload state is discarded and the upload
 fails; an explicit retry starts from byte zero. Resumable uploads would be a
 separate capability-gated server feature.
 
-A 100 MiB upload therefore produces 1,600 64 KiB chunks. Kotlin never needs a
-100 MiB byte array. Each encrypted wire chunk adds 66 bytes before WebSocket or
+A 100 MiB upload therefore produces bounded chunks, each carrying at most
+65,512 file bytes locally. Browser stream boundaries may introduce additional
+small chunks. Kotlin never needs a 100 MiB byte array. Each encrypted wire chunk adds 66 bytes before WebSocket or
 relay-mux framing: 24 bytes of upload id/offset, one inner format byte, a
 24-byte nonce, a 16-byte secretbox authenticator, and one envelope-version
 byte. Bridge framing adds another small local header and no base64 expansion on
@@ -253,3 +256,97 @@ unreachable production UI.
 This is an Android implementation plan using the existing Gradle/Kotlin app.
 The same narrow shell boundary is the selected direction for a later iOS app;
 creating and publishing the iOS target and store delivery are separate efforts.
+
+## Implementation checkpoint — 2026-09-30
+
+Steps 2–9 are implemented. `MainActivity` reuses the native pairing,
+reauthentication and host forms; `WebClientActivity` owns a document lease and
+opens `/projects` after native authentication. Switch Host returns to native
+management. App Link passwords exist only in transient native UI state. The
+Compose dashboard and Conversation entrypoints, state and presentation tests
+are deleted; reusable native connection, API and decoding code remains.
+Host management acquires no hidden dashboard subscriptions.
+
+The native/client bridge implements the documented exact-origin guard,
+request/subscription/upload ownership, binary and bounded base64 frames,
+status/header/media parity, gzip reception, abort and per-document cleanup.
+A native failure offers Retry/Back. Backgrounding releases the web consumer
+except while its platform file chooser is active; returning reloads the route.
+Existing web draft storage owns draft recovery. Activity recreation also
+restores the native route path, excluding query/fragment credentials.
+
+### Verification evidence
+
+- Root lint, format, typecheck and workspace unit suites pass.
+- Bundled Android unit tests, lint and debug/test APK builds pass. Hosted-latest
+  unit/lint and both release APK builds pass; no signing/publication claim.
+- Adapter tests cover both binary and base64 frames, 1 MiB reassembly/upload,
+  redirect/status/header behavior, subscriptions, stale/cold source states,
+  cancellation and abort while waiting for credits. Kotlin tests cover framing,
+  encryption, upload ownership and pending-subscription teardown without
+  disrupting a sibling consumer.
+- Browser full-app checks use the real client with a framed native boundary
+  fixture at desktop and phone widths. All 68 sequential keys are acknowledged
+  within 100 ms while 1 MiB state messages arrive at 20 Hz; observed maxima
+  are 32 ms desktop and 25 ms phone. This is a fixture boundary test; it does
+  not claim real Android SRP or 50 Hz physical-device acceptance.
+- The disposable real-server probe uses native SRP/resume, the bundled app,
+  live session updates, ordinary staged attachments, real sequential Android
+  key events, background/resume and an independently owned native API lease.
+  Native host management stays idle; the sibling lease survives document exit.
+- The direct API 35 emulator also passed the 1 KiB, 16 KiB, 64 KiB,
+  256 KiB, 1 MiB and 10 MiB attachment cases through the normal editor,
+  including resume, native Switch Host and sibling-lease survival.
+- A headless API 35 emulator completed a 100 MiB upload proof in 27 s with
+  29 keys and a 53 ms maximum acknowledgement. Native outbound queue peak was
+  19 KiB; credit p50/p95 was 4.4/45 ms and main-thread frame drain p50/p95
+  42/212 microseconds. No overflow was recorded.
+- A physical Pixel used the local relay mux for the same 100 MiB proof plus a
+  1 MiB encrypted API response. It completed in 16 s with 29 keys and a 72 ms
+  maximum acknowledgement. Outbound queue peak was 1.01 MiB; credit p50/p95
+  was 2.4/5.7 ms and main-thread drain p50/p95 was 100/238 microseconds.
+  No overflow was recorded. Pairing/profile cleanup restored the prior native
+  selection and preserved existing profiles.
+
+The final physical rerun also passed resume and native Switch Host, with a
+24 ms input maximum after route restoration; the earlier 72 ms maximum
+remains the conservative recorded bound. Readiness waits for the replacement document handshake rather
+than evaluating JavaScript in a departing renderer, and phone navigation opens
+the mobile drawer before choosing Switch Host.
+
+The full browser suite initially recorded 353 passes, 10 skips and three
+failures: two captures collided with prior output directories and the emulator
+stream case selected the disposable AVD without its device-bridge helper.
+Captures now use fresh directories, and the owned emulator is shut down/deleted
+before browser verification. The focused rerun passes both native full-app cases
+and correctly skips all three emulator-only cases. Final typing maxima were
+24.2 ms desktop and 24.9 ms phone. Both captures were inspected through the
+artifact capture workflow; the remaining full-suite cases had passed already.
+
+These diagnostic percentiles use the bounded 256-sample ring and are local
+observations, not fleet regression baselines. Physical measurement used one
+profile circuit with sibling leases; it does not establish fairness between
+two simultaneously uploading profiles.
+
+The combined connected run exposed an existing notification test fixture that
+revokes an already granted permission inside its own instrumented process;
+Android kills the runner. After host-side permission reset and deterministic
+login entry, the complete connected runner reports 21 tests passing (including its two config-driven
+restart-phase assumptions), covering direct SRP, origin/subframe, notification
+permission, rotation/recreation, host management and the new real-web probe.
+The fixture issue is tracked in [the notification reset gap](../../gaps/android-notification-test-revocation-kills-runner.md).
+Control-plane tests now start directly at `/login` to avoid a redirect dropping
+their temporary reply state.
+
+### Remaining release acceptance
+
+- Extend physical coverage to 50 Hz events, simultaneous multi-profile bulk
+  traffic, slow network/WebView consumers, representative large transcript
+  memory, actual older-WebView binary fallback, physical orientation changes,
+  renderer/process death and network/relay fault injection. Existing lifecycle cleanup paths
+  and unit ownership checks do not prove every OS failure scenario.
+- Complete server push enrollment, notification/tap lifecycle acceptance,
+  distribution signing, store delivery and the separately scoped iOS shell.
+
+These are release/further-platform gates; the Android foreground migration is
+complete and does not depend on reviving the duplicate native UI.

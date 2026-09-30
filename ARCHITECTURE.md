@@ -46,24 +46,17 @@ alternatives rather than selecting a new runtime contract.
   capabilities and submits bounded generic notifications through an injected
   provider. It is not part of provider session routing or the encrypted relay.
 - **Mobile companions** use native platform shells and notification delivery.
-  Android is a first-class Gradle/Kotlin application with Compose as the first
-  native foreground target; its Android-owned WebView keeps the bundled client
-  as a permanent full-fidelity alternative for users and surfaces that prefer
-  the complete web interface. The Kotlin connection core owns native SRP,
-  direct/relay transport, and foreground-service subscriptions. The bundled
-  WebView should normally consume that connection through a bounded
-  `SourceTransport` adapter so opening the complete interface does not ask the
-  user to authenticate twice; Compose, background work, and the WebView hold
-  source-scoped logical leases on native-owned connections. Each paired profile
-  keeps independent SRP state and failure lifecycle; compatible relay profiles
-  may share one physical relay-mux socket below that boundary. Native
-  multi-host demand and mux ownership land before the WebView data adapter so
-  the adapter never bakes in a single global host. An independently
-  authenticated TypeScript WebView transport remains a valid future
-  alternative if measurements justify it, but no credential handoff or child
-  session is part of the baseline. Tauri Mobile has been removed and is
-  unrelated to the separate desktop Tauri application. iOS follows later with
-  SwiftUI.
+  Android is a first-class Gradle/Kotlin application: native Compose owns
+  login, saved hosts and host management; the bundled WebView is the primary
+  foreground for the full existing web UI. Kotlin owns SRP, protected resume
+  credentials, direct/relay transport, route selection and reconnect. The
+  WebView consumes source-scoped native leases through a bounded exact-origin
+  `SourceTransport` adapter without receiving keys or authenticating twice.
+  Paired hosts remain independent even when relay profiles share a mux socket.
+  Native dashboard and Conversation presentation have been removed. The
+  hosted-latest testing channel keeps independent web authentication and has
+  no privileged native data plane. Tauri Mobile has been removed; desktop
+  Tauri is separate. A later iOS shell follows the same foreground boundary.
 
 ## Provider runtime ownership and reload
 

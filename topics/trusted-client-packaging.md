@@ -44,7 +44,8 @@ assets through Android's HTTPS app-assets origin; a separate hosted-`latest`
 release channel loads a fixed YA HTTPS origin for Play internal or closed
 testing. Neither channel accepts an arbitrary runtime UI URL. Its native host
 is exact-origin and main-frame bound and exposes only declared high-level
-methods. The current methods are `host.describe`, `notifications.status`, and
+methods. The small control-plane methods are `host.describe`,
+`notifications.status`, and
 the explicitly user-triggered `notifications.requestPermission`; no method
 exports native credentials.
 
@@ -58,13 +59,10 @@ PNGs; those fallbacks precompose the same Y over a green circle. Google Play's
 512-pixel listing icon remains a separate full-bleed artifact rather than a
 launcher resource.
 
-The longer-term foreground choice has two permanent presentations. Android
-Compose, and later iOS SwiftUI, own the focused native companion and
-Conversation-view surfaces. The complete bundled web client remains a
-full-fidelity escape hatch for users who prefer it and for rich tools, settings,
-and unsupported native surfaces; it is not the primary mobile product surface.
-Hosted `latest` remains valuable for transitional testing, but it does not
-answer the stronger production trust requirement below.
+The selected foreground is the bundled full web UI, with native login and host
+management. A duplicate native dashboard or Conversation renderer is not a
+release prerequisite. Hosted-latest retains independent web authentication and
+never receives the privileged bundled native transport.
 
 Bundled app-assets JavaScript is trusted application code: it is shipped under
 the APK signature, is isolated in the app WebView, and does not load ordinary
@@ -73,15 +71,16 @@ The native host still remains exact-origin and method-scoped as inexpensive
 defense in depth.
 
 The bundled client normally uses a native data-plane adapter so an already
-authenticated Android user is not asked to log in again merely to reach a
-setting or rich renderer missing from Compose. The adapter exposes high-level
+authenticated Android user enters the complete application without a second
+web login. The adapter exposes high-level
 source operations over a bounded exact-origin channel; Kotlin keeps SRP and
 resume material private and arbitrates concurrent Compose, foreground-service,
 and WebView leases. Binary uploads remain chunked and flow-controlled rather
 than copied into one bridge message.
 
 Still unresolved are the stable public asset update/signing policy and the
-exact native secure storage/rotation model. An independently authenticated
+remaining storage/rotation acceptance across release-device builds. An
+independently authenticated
 WebView remains a possible future performance or isolation mode, but it uses
 normal explicit SRP and its own browser-scoped resume session. The baseline
 does not mint or hand off a child credential. Native installation and

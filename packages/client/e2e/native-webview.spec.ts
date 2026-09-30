@@ -16,8 +16,8 @@ for (const viewport of [
     baseURL,
     remoteClientURL,
   }, testInfo) => {
-    // Full-suite observations: 4.1 s desktop, 4.0 s phone. Inherit the
-    // 15 s test budget (~3.7x observed maximum), including capture work.
+    // Observations: 6.4 s cold desktop, 4.1 s phone. Inherit the 15 s
+    // test budget (~2.3x observed maximum), including capture work.
     await page.setViewportSize(viewport);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
