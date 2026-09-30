@@ -1,5 +1,5 @@
 import { stat } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import type { ArtifactVhostSiteView } from "@yep-anywhere/shared";
 import { Hono } from "hono";
 import type { ArtifactServer } from "../artifacts/ArtifactServer.js";
@@ -9,6 +9,9 @@ import { clientVhostSite, configuredVhostNames } from "../artifacts/vhosts.js";
 import type { ProjectScanner } from "../projects/scanner.js";
 import { expandHomePath } from "../utils/expandHomePath.js";
 import type { ArtifactConfigWriter } from "./artifactConfigWriter.js";
+
+/** Most linked paths a row's view names; Settings shows those that fit. */
+const LINKED_FILE_SAMPLE = 40;
 
 /**
  * Owner routes for file vhosts: list a file's rows, claim a name, release it.
@@ -55,6 +58,20 @@ export function createVhostSiteRoutes(options: {
           }
         : {}),
       ...(localUrl ? { localUrl } : {}),
+      ...(kind === "file" ? { linkedFiles: await linkedFiles(site.path) } : {}),
+    };
+  }
+
+  /** How many files a file row serves, and the first of them by name. */
+  async function linkedFiles(path: string) {
+    const site = await options.server.linkedSite(path);
+    const folder = dirname(site.files[0]?.path ?? path);
+    return {
+      count: site.files.length,
+      paths: site.files
+        .slice(0, LINKED_FILE_SAMPLE)
+        .map((file) => relative(folder, file.path)),
+      truncated: site.truncated,
     };
   }
 

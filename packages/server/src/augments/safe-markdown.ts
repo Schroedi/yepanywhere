@@ -63,6 +63,13 @@ export interface SafeMarkdownRenderOptions {
   /** Interpret supported Quarto Markdown syntax without executing Quarto. */
   quartoMarkdown?: boolean;
   /**
+   * Keep relative and fragment link and image references as written. A
+   * document served by URL beside the files it names, as a file vhost serves
+   * one, lets the browser resolve them, and its server decides what each
+   * reaches.
+   */
+  siteRelativeReferences?: boolean;
+  /**
    * Project context for turning assistant inline-code filename references into
    * project-file viewer links. Public shares supply it too, with `publicShare`
    * set and no absolute-path resolver.
@@ -833,6 +840,23 @@ function renderDirectLocalImage(path: string, altText: string, title?: string) {
   return `<img src="${src}"${altAttr}${titleAttr} ${resourceAttrs}>`;
 }
 
+/**
+ * `href` as written when rendering with `siteRelativeReferences` and it names
+ * a path or fragment on the serving site; null otherwise.
+ */
+function siteRelativeReference(href: string): string | null {
+  if (!activeRenderOptions.siteRelativeReferences) return null;
+  const trimmed = href.trim();
+  if (
+    !trimmed ||
+    /[\p{C}\s]/u.test(trimmed) ||
+    trimmed.startsWith("//") ||
+    /^[a-z][a-z0-9+.-]*:/i.test(trimmed)
+  )
+    return null;
+  return trimmed;
+}
+
 function resolveLocalMarkdownHref(href: string): LocalPathReference | null {
   const normalizedHref = href.trim();
   let trimmed = normalizedHref;
@@ -999,7 +1023,8 @@ function renderLinkOpen(
   const href = String(token.attrGet("href") ?? "");
   const titleValue = token.attrGet("title");
   const title = titleValue === null ? undefined : String(titleValue);
-  const localPath = resolveLocalMarkdownHref(href);
+  const siteHref = siteRelativeReference(href);
+  const localPath = siteHref === null ? resolveLocalMarkdownHref(href) : null;
   let open = "";
   let close = "";
 
@@ -1029,7 +1054,7 @@ function renderLinkOpen(
       close = "</a>";
     }
   } else {
-    const safeHref = sanitizeUrl(href);
+    const safeHref = siteHref ?? sanitizeUrl(href);
     if (safeHref) {
       const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
       open = `<a href="${escapeHtml(safeHref)}"${titleAttr}>`;
@@ -1109,6 +1134,12 @@ function renderImage(
     options,
     environment,
   );
+  const siteSrc = siteRelativeReference(href);
+  if (siteSrc !== null) {
+    const altAttr = text ? ` alt="${escapeHtml(text)}"` : ' alt=""';
+    const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
+    return `<img src="${escapeHtml(siteSrc)}"${altAttr}${titleAttr}>`;
+  }
   const localPath = resolveLocalMarkdownHref(href);
   if (localPath) {
     const resolvedImage = resolveLocalMarkdownImage(localPath);

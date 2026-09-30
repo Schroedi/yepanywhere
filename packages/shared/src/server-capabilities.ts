@@ -274,7 +274,7 @@ export const SERVER_CAPABILITIES = {
         "DELETE /api/artifacts/vhost-sites/:name",
       ],
       requestFields: ["vhostSites"],
-      responseFields: ["artifactViewer.vhostSites"],
+      responseFields: ["artifactViewer.vhostSites", "sites[].linkedFiles"],
     },
     lifecycle: {
       kind: "permanent",

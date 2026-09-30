@@ -110,16 +110,16 @@ function localFileHref(
   return `/api/local-file?${params.toString()}`;
 }
 
-function renderMarkdownDocument(
-  filePath: string,
+/**
+ * A rendered Markdown file as a standalone page, with a **Raw** link to
+ * `rawUrl`. A line target scrolls to and highlights its rendered block.
+ */
+export function renderMarkdownDocument(
+  title: string,
   bodyHtml: string,
+  rawUrl: string,
   lineTarget: number | undefined,
 ): string {
-  const title = basename(filePath);
-  const rawUrl = localFileHref(filePath, {
-    rawMarkdown: true,
-    lineNumber: lineTarget,
-  });
   const bodyClass =
     lineTarget === undefined ? "" : ' class="has-line-target-arrival"';
   const lineTargetScript =
@@ -500,11 +500,16 @@ export function createLocalFileHandler(deps: LocalFileDeps) {
         c.header("Content-Disposition", "inline");
         c.header("Cache-Control", "private, no-store");
         c.header("X-Content-Type-Options", "nosniff");
+        const lineTarget = hasLineTarget ? requested.lineNumber : undefined;
         return c.html(
           renderMarkdownDocument(
-            resolvedPath,
+            basename(resolvedPath),
             html,
-            hasLineTarget ? requested.lineNumber : undefined,
+            localFileHref(resolvedPath, {
+              rawMarkdown: true,
+              lineNumber: lineTarget,
+            }),
+            lineTarget,
           ),
         );
       }

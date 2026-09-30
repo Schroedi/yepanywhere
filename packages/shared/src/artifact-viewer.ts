@@ -68,6 +68,17 @@ export interface ArtifactVhostSiteView extends ArtifactVhostSite {
   publicUrl?: string;
   /** `http://name.localhost:<port>/`, when local serving is enabled. */
   localUrl?: string;
+  /** For a file row: what it serves by following the file's links. */
+  linkedFiles?: ArtifactVhostLinkedFiles;
+}
+
+/** The files a file row reaches through its links, the file itself included. */
+export interface ArtifactVhostLinkedFiles {
+  count: number;
+  /** The first files found, relative to the served file's folder. */
+  paths: string[];
+  /** A walk limit stopped before every link was followed. */
+  truncated: boolean;
 }
 
 export interface ArtifactViewerConfig {

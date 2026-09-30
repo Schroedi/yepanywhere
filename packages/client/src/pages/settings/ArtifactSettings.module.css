@@ -120,6 +120,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.linkedFiles {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: help;
+}
 .access {
   grid-column: 1 / -1;
   display: flex;

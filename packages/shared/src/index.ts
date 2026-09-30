@@ -1,5 +1,6 @@
 export type {
   ArtifactVhost,
+  ArtifactVhostLinkedFiles,
   ArtifactVhostSite,
   ArtifactVhostSiteView,
   ArtifactViewerConfig,
