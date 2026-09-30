@@ -105,14 +105,16 @@ the latest of this browser's own interaction record, `lastHumanTurnAt` and
   newest Claude sessions, including `49c4a527`, the current session and the
   2026-09-28 `ec451911` case above.
 - The current session showed only because this browser recorded sends to it.
-  `49c4a527` was started from this browser, but its first send was recorded
-  before the temporary id became canonical, so it had no local record either.
+  Only a session page's composer records a local interaction
+  (`recordSessionInteraction` in `SessionPage.tsx`); starting a session from
+  New session records none. `49c4a527` had received only its opening prompt,
+  so it had no local record.
 
 Fix owner: the catalog row, so the retained read keeps the full walk's
 contract. Carry `createdAt` from the transcript head's first timestamp and
 `lastHumanTurnAt` from the summary or the tail window (the same per-entry
 human-turn test the summary uses). Pass both through the retained read. Bump
-`FILE_ROW_FORMAT` so existing rows are re-read. Separately, move a local
-interaction record from a temporary id to its canonical id on remap.
+`FILE_ROW_FORMAT` so existing rows are re-read. Separately, record a local
+interaction when New session starts a session, under the id it navigates to.
 
 Diagnosed 2026-09-30. Contributing-model: opus-5.5
