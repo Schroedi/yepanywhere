@@ -1357,3 +1357,10 @@ export function resumeSyncedDraft(key: string): void {
 
 export const draftPayloadFromStorage = payload;
 export const draftPayloadToStorage = encode;
+
+// A development hot update replaces this module. A client of the old instance
+// left running would keep syncing the same drafts in this tab beside the new
+// one, with its own base and no storage events between them.
+import.meta.hot?.dispose(() => {
+  for (const client of [...clients.values()]) client.stop();
+});
