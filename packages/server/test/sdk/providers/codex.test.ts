@@ -1107,6 +1107,21 @@ describe("CodexProvider app-server lifecycle", () => {
     ).toBe(true);
     expect(
       isCodexCyberAccessDenial({
+        message: "Reconnecting... 1/5",
+        additionalDetails: message,
+        codexErrorInfo: { responseStreamDisconnected: { httpStatusCode: 403 } },
+      }),
+    ).toBe(true);
+    expect(
+      isCodexCyberAccessDenial({
+        message: "Reconnecting... 1/5",
+        additionalDetails:
+          "unexpected status 403 Forbidden: workspace disabled",
+        codexErrorInfo: { responseStreamDisconnected: { httpStatusCode: 403 } },
+      }),
+    ).toBe(false);
+    expect(
+      isCodexCyberAccessDenial({
         message: "unexpected status 403 Forbidden: workspace disabled",
         codexErrorInfo: { httpConnectionFailed: { httpStatusCode: 403 } },
       }),
@@ -1122,84 +1137,112 @@ describe("CodexProvider app-server lifecycle", () => {
     ).toBe(false);
   });
 
-  it("retries without a cyber access program the account is not enrolled in", async () => {
-    const tempDir = mkdtempSync(join(tmpdir(), "codex-cyber-access-retry-"));
-    const logPath = join(tempDir, "fake-codex-requests.jsonl");
-    const codexPath = createFakeCodexCommand(
-      tempDir,
-      "fake-codex-cyber-access-retry",
-      buildFakeCodexFailureAppServer(logPath, "cyberAccessDenied", 0),
-    );
-    const testProvider = new CodexProvider({ codexPath });
-    testProvider.setCyberAccessProgramGetter(() => "daybreak-blue");
-    const readTurn = async (
-      session: Awaited<ReturnType<CodexProvider["startSession"]>>,
-    ) => {
-      const messages: Array<Record<string, unknown>> = [];
-      while (true) {
-        const next = await session.iterator.next();
-        if (next.done) break;
-        messages.push(next.value);
-        if (next.value.type === "result") break;
-      }
-      return messages;
-    };
-    const turnStarts = () =>
-      readFakeCodexRequests(logPath)
-        .filter((request) => request.method === "turn/start")
-        .map((request) => request.params ?? {});
+  it.each(["cyberAccessDenied", "cyberAccessRetrying"] as const)(
+    "retries without a refused cyber access program (%s)",
+    async (failure) => {
+      const tempDir = mkdtempSync(join(tmpdir(), "codex-cyber-access-retry-"));
+      const logPath = join(tempDir, "fake-codex-requests.jsonl");
+      const codexPath = createFakeCodexCommand(
+        tempDir,
+        "fake-codex-cyber-access-retry",
+        buildFakeCodexFailureAppServer(logPath, failure, 0),
+      );
+      const testProvider = new CodexProvider({ codexPath });
+      testProvider.setCyberAccessProgramGetter(() => "daybreak-blue");
+      const readTurn = async (
+        session: Awaited<ReturnType<CodexProvider["startSession"]>>,
+      ) => {
+        const messages: Array<Record<string, unknown>> = [];
+        while (true) {
+          const next = await session.iterator.next();
+          if (next.done) break;
+          messages.push(next.value);
+          if (next.value.type === "result") break;
+        }
+        return messages;
+      };
+      const turnStarts = () =>
+        readFakeCodexRequests(logPath)
+          .filter((request) => request.method === "turn/start")
+          .map((request) => request.params ?? {});
 
-    const session = await testProvider.startSession({
-      cwd: tempDir,
-      model: "gpt-5.6-codex",
-      initialMessage: { text: "keep this prompt singular", uuid: "user-1" },
-    });
-    try {
-      const messages = await readTurn(session);
-      expect(
-        messages.filter((message) => message.type === "user"),
-      ).toHaveLength(1);
-      expect(
-        messages.filter((message) => message.type === "error"),
-      ).toMatchObject([
-        {
-          codexWillRetry: true,
-          codexErrorInfo: { httpConnectionFailed: { httpStatusCode: 403 } },
-        },
-      ]);
-      expect(messages).toEqual(
-        expect.arrayContaining([
+      const session = await testProvider.startSession({
+        cwd: tempDir,
+        model: "gpt-5.6-codex",
+        initialMessage: { text: "keep this prompt singular", uuid: "user-1" },
+      });
+      try {
+        const messages = await readTurn(session);
+        expect(
+          messages.filter((message) => message.type === "user"),
+        ).toHaveLength(1);
+        expect(
+          messages.filter((message) => message.type === "error"),
+        ).toMatchObject([
+          {
+            codexWillRetry: true,
+            codexCyberAccessRetry: true,
+          },
+        ]);
+        expect(messages).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: "assistant",
+              message: expect.objectContaining({ content: "Recovered answer" }),
+            }),
+          ]),
+        );
+        expect(turnStarts()).toEqual([
           expect.objectContaining({
-            type: "assistant",
-            message: expect.objectContaining({ content: "Recovered answer" }),
+            clientUserMessageId: "user-1",
+            cyberAccessProgram: "daybreakBlue",
           }),
-        ]),
-      );
-      expect(turnStarts()).toEqual([
-        expect.objectContaining({
-          clientUserMessageId: "user-1",
-          cyberAccessProgram: "daybreakBlue",
-        }),
-        expect.objectContaining({ input: [] }),
-      ]);
-      expect(turnStarts()[1]).not.toHaveProperty("cyberAccessProgram");
+          expect.objectContaining({ input: [] }),
+        ]);
+        expect(turnStarts()[1]).not.toHaveProperty("cyberAccessProgram");
+        const requests = readFakeCodexRequests(logPath);
+        const interrupts = requests.filter(
+          (request) => request.method === "turn/interrupt",
+        );
+        expect(interrupts).toHaveLength(
+          failure === "cyberAccessRetrying" ? 1 : 0,
+        );
+        if (failure === "cyberAccessRetrying") {
+          expect(interrupts[0]?.params).toMatchObject({
+            threadId: "thread-failure",
+            turnId: "turn-1",
+          });
+          expect(requests.indexOf(interrupts[0]!)).toBeLessThan(
+            requests.findIndex(
+              (request) =>
+                request.method === "turn/start" &&
+                request.params?.cyberAccessProgram === undefined,
+            ),
+          );
+          expect(
+            messages.some((message) => message.subtype === "interrupted"),
+          ).toBe(false);
+        }
 
-      // The refusal is remembered for this account and model, so the next
-      // turn does not fail first.
-      session.queue.push({ text: "second turn", uuid: "user-2" });
-      const secondMessages = await readTurn(session);
-      expect(secondMessages.some((message) => message.type === "error")).toBe(
-        false,
-      );
-      expect(turnStarts()).toHaveLength(3);
-      expect(turnStarts()[2]).toMatchObject({ clientUserMessageId: "user-2" });
-      expect(turnStarts()[2]).not.toHaveProperty("cyberAccessProgram");
-    } finally {
-      await session.abort();
-      await session.iterator.return?.(undefined);
-      rmSync(tempDir, { recursive: true, force: true });
-    }
-  });
+        // The refusal is remembered for this account and model, so the next
+        // turn does not fail first.
+        session.queue.push({ text: "second turn", uuid: "user-2" });
+        const secondMessages = await readTurn(session);
+        expect(secondMessages.some((message) => message.type === "error")).toBe(
+          false,
+        );
+        expect(turnStarts()).toHaveLength(3);
+        expect(turnStarts()[2]).toMatchObject({
+          clientUserMessageId: "user-2",
+        });
+        expect(turnStarts()[2]).not.toHaveProperty("cyberAccessProgram");
+      } finally {
+        await session.abort();
+        await session.iterator.return?.(undefined);
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("retries manual compaction before releasing queued user input", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "codex-compact-retry-"));
@@ -3769,7 +3812,8 @@ function buildFakeCodexFailureAppServer(
   codexErrorInfo:
     | "serverOverloaded"
     | "usageLimitExceeded"
-    | "cyberAccessDenied",
+    | "cyberAccessDenied"
+    | "cyberAccessRetrying",
   failuresBeforeSuccess: number,
   failureMethod: "turn/start" | "thread/compact/start" = "turn/start",
 ): string {
@@ -3783,6 +3827,7 @@ const failureMethod = ${JSON.stringify(failureMethod)};
 let buffer = "";
 let turnSequence = 0;
 let failureSequence = 0;
+let retryingTurnId = null;
 
 function write(payload) {
   process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...payload }) + "\\n");
@@ -3861,7 +3906,7 @@ function handleMessage(message) {
       const isCompact = message.method === "thread/compact/start";
       const turn = { id: turnId, status: "inProgress", error: null };
       // An unenrolled account refuses every turn that requests a program.
-      const shouldFail = codexErrorInfo === "cyberAccessDenied"
+      const shouldFail = codexErrorInfo.startsWith("cyberAccess")
         ? message.params?.cyberAccessProgram != null
         : message.method === failureMethod && ++failureSequence <= failuresBeforeSuccess;
       respond(message.id, isCompact ? {} : { turn });
@@ -3874,7 +3919,7 @@ function handleMessage(message) {
           });
         }
         if (shouldFail) {
-          const error = codexErrorInfo === "cyberAccessDenied" ? {
+          const error = codexErrorInfo.startsWith("cyberAccess") ? {
             message: 'unexpected status 403 Forbidden: {"detail":"The requested Cyber access program is not authorized for this model."}',
             codexErrorInfo: { httpConnectionFailed: { httpStatusCode: 403 } },
             additionalDetails: null,
@@ -3885,6 +3930,19 @@ function handleMessage(message) {
             codexErrorInfo,
             additionalDetails: null,
           };
+          if (codexErrorInfo === "cyberAccessRetrying") {
+            retryingTurnId = turnId;
+            notify("error", {
+              threadId: "thread-failure", turnId,
+              error: {
+                message: "Reconnecting... 1/5",
+                codexErrorInfo: { responseStreamDisconnected: { httpStatusCode: 403 } },
+                additionalDetails: 'unexpected status 403 Forbidden: {"detail":"The requested Cyber access program is not enabled on this account."}',
+              },
+              willRetry: true,
+            });
+            return;
+          }
           notify("error", {
             threadId: "thread-failure",
             turnId,
@@ -3910,6 +3968,13 @@ function handleMessage(message) {
       }, isCompact ? 20 : 0);
       break;
     }
+    case "turn/interrupt":
+      if (retryingTurnId) {
+        completeTurn(retryingTurnId, "interrupted", null);
+        retryingTurnId = null;
+      }
+      respond(message.id, {});
+      break;
     default:
       respond(message.id, {});
       break;

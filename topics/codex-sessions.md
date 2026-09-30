@@ -121,8 +121,14 @@ Enrollment belongs to the signed-in ChatGPT account and is checked per model.
 The one server-wide selection can therefore reach an account or model that is
 not enrolled, for example after switching the Codex home to another
 subscription. The backend refuses such a turn with HTTP 403 and a message
-naming the Cyber access program. YA then reruns the turn at once without the
-program and without resending the user's input. The refusal appears as a
+naming the Cyber access program. A native retry notification reports that 403
+as `responseStreamDisconnected` and puts the denial text in
+`additionalDetails`, while its main message is `Reconnecting... n/max`.
+YA recognizes that refusal on the first notification, interrupts the native
+retry, and waits for the refused turn's completion before starting another.
+It does not wait for Codex's reconnect budget to expire. YA then reruns the
+turn at once without the program and without resending the user's input.
+The refusal appears as a
 retrying warning, not a turn failure. YA remembers the refusal for that
 account, model and program for as long as the server process runs, so later
 turns in any session under that account send no program and do not fail

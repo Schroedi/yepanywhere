@@ -470,18 +470,27 @@ interface CodexRetryableTurnError {
  * connection, so the status alone is not specific enough.
  */
 export function isCodexCyberAccessDenial(
-  error: Pick<TurnError, "message" | "codexErrorInfo">,
+  error: Pick<TurnError, "message" | "codexErrorInfo"> &
+    Partial<Pick<TurnError, "additionalDetails">>,
 ): boolean {
   const info = error.codexErrorInfo;
   const status =
     info && typeof info === "object" && "httpConnectionFailed" in info
       ? info.httpConnectionFailed.httpStatusCode
-      : null;
-  return status === 403 && /cyber access program/i.test(error.message);
+      : info && typeof info === "object" && "responseStreamDisconnected" in info
+        ? info.responseStreamDisconnected.httpStatusCode
+        : null;
+  return (
+    status === 403 &&
+    /cyber access program/i.test(
+      `${error.message}\n${error.additionalDetails ?? ""}`,
+    )
+  );
 }
 
 function classifyCodexTurnError(
-  error: Pick<TurnError, "message" | "codexErrorInfo">,
+  error: Pick<TurnError, "message" | "codexErrorInfo"> &
+    Partial<Pick<TurnError, "additionalDetails">>,
   cyberAccessRequested: boolean,
 ): CodexRetryableTurnErrorKind | null {
   if (error.codexErrorInfo === "serverOverloaded") return "serverOverloaded";
@@ -3185,6 +3194,10 @@ export class CodexProvider implements AgentProvider {
             effectiveActiveTurnId,
             cyberAccessRequested,
           );
+          const interruptCyberAccessRetry =
+            retryableKind === "cyberAccessDenied" &&
+            retryableError === null &&
+            asCodexErrorNotification(notification.params)?.willRetry === true;
           const suppressFailedRetryableCompletion =
             retryableError !== null &&
             notification.method === "turn/completed" &&
@@ -3216,6 +3229,12 @@ export class CodexProvider implements AgentProvider {
           }
 
           if (retryableKind) {
+            if (interruptCyberAccessRetry) {
+              await appServer.request("turn/interrupt", {
+                threadId: runtimeState.threadId,
+                turnId: effectiveActiveTurnId,
+              });
+            }
             continue;
           }
           if (
@@ -3752,7 +3771,7 @@ export class CodexProvider implements AgentProvider {
   }
 
   /**
-   * Classify a terminal turn error that YA retries itself. A cyber access
+   * Classify a turn error that YA retries itself. A cyber access
    * denial counts only when this turn requested a program; the same 403 on a
    * turn that sent none has nothing to drop.
    */
@@ -3763,8 +3782,9 @@ export class CodexProvider implements AgentProvider {
   ): CodexRetryableTurnErrorKind | null {
     if (notification.method !== "error") return null;
     const params = asCodexErrorNotification(notification.params);
-    if (params?.turnId !== turnId || params.willRetry !== false) return null;
-    return classifyCodexTurnError(params.error, cyberAccessRequested);
+    if (params?.turnId !== turnId) return null;
+    const kind = classifyCodexTurnError(params.error, cyberAccessRequested);
+    return params.willRetry && kind !== "cyberAccessDenied" ? null : kind;
   }
 
   private updateBackgroundProcessTracking(
