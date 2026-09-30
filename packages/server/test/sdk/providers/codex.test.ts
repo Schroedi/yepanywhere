@@ -95,9 +95,44 @@ function createFakeCodexCommand(
   source: string,
 ): string {
   const scriptPath = join(tempDir, `${basename}.mjs`);
+  // Failure-only diagnostics are read before fixture cleanup. Keep payloads,
+  // prompts and environment values out of this bounded protocol timeline.
+  const timeline = `
+import { appendFileSync as appendTestTimeline } from "node:fs";
+const testTimelinePath = ${JSON.stringify(join(tempDir, "fake-codex-timeline.jsonl"))};
+const testTimelineStart = Date.now();
+let testTimelineCount = 0;
+function testTimeline(phase, message = {}) {
+  if (testTimelineCount++ >= 128) return;
+  appendTestTimeline(testTimelinePath, JSON.stringify({
+    ms: Date.now() - testTimelineStart, phase,
+    ...(typeof message.method === "string" ? { method: message.method } : {}),
+    ...(typeof message.id === "number" || typeof message.id === "string" ? { id: message.id } : {}),
+  }) + "\\n");
+}
+testTimeline("bootstrap");
+process.on("exit", () => testTimeline("exit"));
+let testTimelineInput = "";
+process.stdin.on("data", chunk => {
+  testTimelineInput += chunk.toString();
+  const lines = testTimelineInput.split("\\n");
+  testTimelineInput = lines.pop() || "";
+  for (const line of lines) {
+    try { testTimeline("received", JSON.parse(line)); } catch {}
+  }
+});
+const testTimelineWrite = process.stdout.write.bind(process.stdout);
+process.stdout.write = (chunk, ...args) => {
+  for (const line of chunk.toString().split("\\n")) {
+    try { testTimeline("emitted", JSON.parse(line)); } catch {}
+  }
+  return testTimelineWrite(chunk, ...args);
+};
+`;
   const versionAwareSource = source.replace(
     /^(#![^\n]*\n)/,
-    '$1if (process.argv[2] === "--version") { console.log("codex-cli 99.0.0"); process.exit(0); }\n',
+    (shebang) =>
+      `${shebang}${timeline}\nif (process.argv[2] === "--version") { console.log("codex-cli 99.0.0"); process.exit(0); }\n`,
   );
   writeFileSync(scriptPath, versionAwareSource, "utf-8");
 
@@ -1256,7 +1291,10 @@ describe("CodexProvider app-server lifecycle", () => {
           await consumeCodexTurn(session.iterator);
           await session.runProviderCommand?.("compact");
         }
-        const pending = consumeCodexTurn(session.iterator);
+        const pending = consumeCodexTurn(
+          session.iterator,
+          (message) => message.codexErrorInfo === "serverOverloaded",
+        );
         await waitStarted;
         expect(await session.runProviderCommand?.("compact")).toMatchObject({
           error: "Cannot compact while a turn is in progress",
@@ -2014,7 +2052,7 @@ describe("CodexProvider app-server lifecycle", () => {
           "[Session sandbox]",
         );
       } finally {
-        session?.abort();
+        await session?.abort();
         await consume?.catch(() => undefined);
         rmSync(tempDir, { recursive: true, force: true });
       }
@@ -2177,7 +2215,7 @@ describe("CodexProvider app-server lifecycle", () => {
         "wake-thread-resume-direct",
       );
     } finally {
-      session?.abort();
+      await session?.abort();
       await consume?.catch(() => undefined);
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2262,7 +2300,7 @@ describe("CodexProvider app-server lifecycle", () => {
       ).toBe(true);
       expect(messages.some((message) => message.type === "error")).toBe(false);
     } finally {
-      session?.abort();
+      await session?.abort();
       await consume?.catch(() => undefined);
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2500,7 +2538,7 @@ describe("CodexProvider app-server lifecycle", () => {
         reason: "turn-scoped notification reached",
       });
     } finally {
-      session?.abort();
+      await session?.abort();
       await consume?.catch(() => undefined);
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2560,7 +2598,7 @@ describe("CodexProvider app-server lifecycle", () => {
         ),
       ).toBe(true);
     } finally {
-      session?.abort();
+      await session?.abort();
       await consume?.catch(() => undefined);
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2623,7 +2661,7 @@ describe("CodexProvider app-server lifecycle", () => {
         ),
       ).toBe(true);
     } finally {
-      session?.abort();
+      await session?.abort();
       await consume?.catch(() => undefined);
       vi.unstubAllEnvs();
       rmSync(tempDir, { recursive: true, force: true });
@@ -2687,7 +2725,7 @@ describe("CodexProvider app-server lifecycle", () => {
         ),
       ).toBe(true);
     } finally {
-      session?.abort();
+      await session?.abort();
       await consume?.catch(() => undefined);
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2737,7 +2775,7 @@ describe("CodexProvider app-server lifecycle", () => {
         turnId: "turn-background",
       });
     } finally {
-      session?.abort();
+      await session?.abort();
       await consume?.catch(() => undefined);
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2796,7 +2834,7 @@ describe("CodexProvider app-server lifecycle", () => {
       expect(messages.some((message) => message.type === "result")).toBe(true);
       expect(messages.some((message) => message.type === "error")).toBe(false);
     } finally {
-      session?.abort();
+      await session?.abort();
       await consume?.catch(() => undefined);
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2833,7 +2871,7 @@ describe("CodexProvider app-server lifecycle", () => {
         requests.some((request) => request.method === "turn/interrupt"),
       ).toBe(false);
     } finally {
-      session?.abort();
+      await session?.abort();
       await session?.iterator.return?.(undefined);
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -2881,7 +2919,7 @@ describe("CodexProvider app-server lifecycle", () => {
         config: { model_reasoning_effort: "low" },
       });
     } finally {
-      session?.abort();
+      await session?.abort();
       await session?.iterator.return?.(undefined);
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -4660,10 +4698,12 @@ function logRequest(message) {
     processEnvWakeToken: process.env.YEP_SESSION_WAKE_TOKEN ?? "",
   };
   if (message.method === "turn/start") {
+    testTimeline("shell-probe-start");
     record.agentctlSessionId = agentctlSessionIdFromBash();
     if (process.env.AGENT_YA_API_URL) {
       record.agentSelf = JSON.parse(execFileSync("bash", ["-c", "ya-agent self --json"], { env: process.env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 10000 }));
     }
+    testTimeline("shell-probe-complete");
   }
   appendFileSync(logPath, JSON.stringify(record) + "\\n");
 }
@@ -4738,9 +4778,17 @@ function readFakeCodexRequests(logPath: string): Array<{
 
 async function consumeCodexTurn(
   iterator: AsyncIterableIterator<Record<string, unknown>>,
+  expectedError?: (message: Record<string, unknown>) => boolean,
 ): Promise<void> {
   while (true) {
     const next = await iterator.next();
+    if (
+      !next.done &&
+      next.value.type === "error" &&
+      next.value.codexWillRetry !== true &&
+      !expectedError?.(next.value)
+    )
+      throw new Error("Fake Codex turn yielded an error before its result");
     if (next.done || next.value.type === "result") return;
   }
 }
@@ -4751,7 +4799,12 @@ async function waitForFakeCodexRequest(
   timeoutMs = 2000,
 ): Promise<void> {
   const startedAt = Date.now();
+  let lastPoll = startedAt;
+  let maxPollGapMs = 0;
   while (Date.now() - startedAt < timeoutMs) {
+    const now = Date.now();
+    maxPollGapMs = Math.max(maxPollGapMs, now - lastPoll);
+    lastPoll = now;
     if (
       readFakeCodexRequests(logPath).some((entry) => entry.method === method)
     ) {
@@ -4759,7 +4812,13 @@ async function waitForFakeCodexRequest(
     }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  throw new Error(`Timed out waiting for fake Codex request: ${method}`);
+  const timeline = join(dirname(logPath), "fake-codex-timeline.jsonl");
+  const phases = existsSync(timeline)
+    ? readFileSync(timeline, "utf8").trim().split("\n").slice(-24).join("\n")
+    : "No child bootstrap observed";
+  throw new Error(
+    `Timed out waiting for fake Codex request: ${method}; max polling gap ${maxPollGapMs}ms\n${phases}`,
+  );
 }
 
 async function waitForMessage(

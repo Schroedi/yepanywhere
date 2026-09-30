@@ -474,8 +474,16 @@ test("project App fills the pane and retains canvas and composer across phone sw
   const appButton = page.getByRole("button", { name: "App", exact: true });
   await appButton.hover();
   await page.mouse.down();
-  await page.waitForTimeout(700);
-  await page.mouse.up();
+  // Observe the browser's hold action before releasing. A delay in the test
+  // runner does not establish that the browser has serviced its hold timer.
+  try {
+    await expect
+      .poll(async () => (await sessionApp.boundingBox())!.width)
+      .toBeGreaterThan(1190);
+  } finally {
+    await page.mouse.up();
+  }
+  // The click ending the hold must not close or collapse the app.
   await expect
     .poll(async () => (await sessionApp.boundingBox())!.width)
     .toBeGreaterThan(1190);

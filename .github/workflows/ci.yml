@@ -46,6 +46,7 @@ jobs:
           test/computer-control.test.ts test/computer-control-releases.test.ts
           test/computer-control-provider.test.ts test/computer-control-job.test.ts
           test/computer-control-guardian.test.ts
+          test/computer-control-native.test.ts
       - run: pnpm --filter @yep-anywhere/client exec playwright install chromium
       - run: pnpm --filter @yep-anywhere/client exec playwright test --config playwright.computer-control.config.ts
   persistence-native:

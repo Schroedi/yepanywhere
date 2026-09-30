@@ -7,6 +7,13 @@ within 30 seconds on the 2026-09-30 full local run. This has not been
 classified; capture the actual collection request, discovery/baseline state,
 response and client reconciliation before changing the assertion or deadline.
 
+The remaining live case passed three focused repeats and a full 352-pass
+four-worker browser run on September 30 with retries disabled. Fixture home
+and development-reload settings are now isolated; those independently explained
+seven other failures in the preceding full run. The historical missing-beta
+report still has no captured discovery/response cause, so its deadline and
+product search behavior remain unchanged.
+
 ## Original evidence
 
 The post-publication browser suite on source `8c9c0d784` reported 339 passed,

@@ -145,7 +145,13 @@ these diagnostics never activates watchers or probes provider storage. Keep
 live discovery and append assertions unchanged.
 
 Custom YA servers own separate provider-host runtime directories and clear
-inherited host connections. Their short run-owned runtime paths avoid Unix
+inherited host connections. Each fixture's HOME/USERPROFILE points into its
+owned profile, isolating per-user provider installation gates from the normal
+user's live servers. Ordinary fixtures explicitly disable both manual reload
+flags so a developer's shell does not enroll them in source watching or display
+reload banners over tested controls. A reload-specific fixture may opt in
+through its explicit environment. The legacy run-scoped server uses the same
+home and reload isolation. Their short run-owned runtime paths avoid Unix
 socket length limits. Await `disposeYaServerProcess` before removing storage;
 restart preserves its profile and host. Atomic recovery records let global
 teardown reclaim detached children after worker failure, and failed cleanup

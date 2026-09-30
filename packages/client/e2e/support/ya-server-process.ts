@@ -303,6 +303,14 @@ export async function startYaServerProcess(
     delete inheritedEnv[name];
   const childEnv: NodeJS.ProcessEnv = {
     ...inheritedEnv,
+    // Provider installation gates are per OS-user home, not YEP_DATA_DIR.
+    // A private fixture must not contend with the developer's live providers.
+    HOME: profileDir,
+    USERPROFILE: profileDir,
+    // Ordinary fixtures exercise the production shell. Development-session
+    // reload flags otherwise enable source watchers and obstruct phone controls.
+    NO_BACKEND_RELOAD: "false",
+    NO_FRONTEND_RELOAD: "false",
     PORT: "0",
     PORT_FILE: portFile,
     MAINTENANCE_PORT: "0",

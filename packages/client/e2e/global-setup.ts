@@ -188,6 +188,10 @@ export default async function globalSetup() {
         cwd: relayRoot,
         env: {
           ...process.env,
+          HOME: E2E_TEMP_DIR,
+          USERPROFILE: E2E_TEMP_DIR,
+          NO_BACKEND_RELOAD: "false",
+          NO_FRONTEND_RELOAD: "false",
           RELAY_PORT: "0", // Auto-assign port
           RELAY_PORT_FILE: RELAY_PORT_FILE,
           RELAY_DATA_DIR: relayDataDir,
@@ -257,6 +261,10 @@ export default async function globalSetup() {
         cwd: serverRoot,
         env: {
           ...process.env,
+          HOME: E2E_TEMP_DIR,
+          USERPROFILE: E2E_TEMP_DIR,
+          NO_BACKEND_RELOAD: "false",
+          NO_FRONTEND_RELOAD: "false",
           PORT: "0",
           PORT_FILE: PORT_FILE,
           MAINTENANCE_PORT: "-1", // Auto-assign

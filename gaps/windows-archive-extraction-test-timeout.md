@@ -27,6 +27,15 @@ Capture elapsed times for child spawn, traversal rejection, valid extraction
 and child exit, with bounded stderr on failure. Compare a serial native-file
 run against the current parallel invocation before changing another timeout.
 The native PowerShell helper permits 120 seconds per child while the test
-permits 20 seconds for two calls, so also verify cancellation joins child exit
-before the fixture directory is removed. No extraction assertion or deadline
-was changed during the browser module-loading repair.
+permits 20 seconds for two calls.
+
+2026-09-30 follow-up: native responses now wait for `close`, preserving stdout
+delivered after `exit`. Extraction accepts the installation/test abort signal,
+kills cancellation and joins close before staging cleanup. The Windows fixture
+also joins outstanding extraction calls in `afterEach` and reports elapsed
+traversal/valid phases on failure. Six portable mocked-process regressions cover
+these lifecycle boundaries; neither archive assertion nor the 20-second budget
+was relaxed. The newer CI 36702832972 passed Windows on the preceding source.
+The configured local Windows testbed is unavailable, so a source CI Windows
+run is still needed to classify the earlier 20-second timeout and verify the
+native implementation. Lifecycle repair alone does not establish its cause.

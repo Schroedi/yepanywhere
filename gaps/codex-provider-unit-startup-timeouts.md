@@ -25,5 +25,15 @@ record prompts or environment values. A `LOG_LEVEL=debug` override is scrubbed
 by the hermetic test environment and did not produce provider diagnostics.
 Keep the existing deadlines until evidence identifies the failing stage.
 
+2026-09-30 follow-up: fixture finalizers now await every session abort before
+removing its files. Every generated fake child records a bounded, payload-free
+bootstrap/received/emitted/exit timeline; shell probes record start/completion
+separately from receipt. A missed request reports the last 24 phases and maximum
+polling gap before cleanup. Turn consumption fails on unexpected terminal
+errors, while explicit overload retry/interruption cases retain their expected
+errors. The unchanged deadlines passed all 122 focused cases (two skips).
+The underlying historical startup timeout remains unclassified; use the new
+failure evidence rather than attributing it to contention or increasing waits.
+
 Found 2026-09-30 during final dependency-audit verification. Both preceding
 published CI unit runs passed; local repetition does not close this finding.
