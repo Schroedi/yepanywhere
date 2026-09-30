@@ -209,6 +209,29 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  fileOwnerProject: {
+    id: CAPABILITY_ID_ALLOCATIONS.fileOwnerProject.id,
+    name: "file-owner-project",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Resolves an allowed absolute or ~/ file to the registered project that owns it, following symlinked project roots, so New Session from a file link opens in that project.",
+    clientFallback:
+      "Start the session in the linked-from project with the path as written, as before.",
+    serverContract: {
+      routeModules: ["packages/server/src/routes/file-owner.ts"],
+      routes: ["GET /api/projects/:projectId/file-owner"],
+      requestFields: ["path"],
+      responseFields: ["owner"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers have no owner lookup; the client must not guess ownership from path spelling.",
+    },
+  },
   vhostFileSites: {
     id: CAPABILITY_ID_ALLOCATIONS.vhostFileSites.id,
     name: "vhost-file-sites",

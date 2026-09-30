@@ -197,6 +197,7 @@ import { createGitIncomingCommitsRoutes } from "./routes/git-incoming-commits.js
 import { createGitProjectionRoutes } from "./routes/git-projections.js";
 import { createGitStatusRoutes } from "./routes/git-status.js";
 import { createGitWorkingTreeFilesRoutes } from "./routes/git-working-tree-files.js";
+import { createFileOwnerRoutes } from "./routes/file-owner.js";
 import { createProjectFileCompletionRoutes } from "./routes/project-file-completion.js";
 import { createToolCommentaryRoutes } from "./routes/tool-commentary.js";
 import { ProjectFileCompletion } from "./services/projectFileCompletion.js";
@@ -3023,6 +3024,14 @@ export function createApp(options: AppOptions): AppResult {
       scanner,
       dataDir: effectiveDataDir,
       dirtyFileEditorService: options.dirtyFileEditorService,
+      allowedPaths: getAllowedFilePaths,
+      includeProjects: shouldIncludeProjects,
+    }),
+  );
+  app.route(
+    "/api/projects",
+    createFileOwnerRoutes({
+      scanner,
       allowedPaths: getAllowedFilePaths,
       includeProjects: shouldIncludeProjects,
     }),

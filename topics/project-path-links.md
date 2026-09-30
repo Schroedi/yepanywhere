@@ -242,6 +242,26 @@ matches retain the existing local-file markup; absolute matches use private
 project-file markup so both open in the FileViewer belonging to the active
 session project.
 
+### New Session from a host path
+
+Viewing stays in the active project, but starting a session about a file
+belongs to the project that owns it. When the server advertises
+`file-owner-project`, the file menu's New Session sends an absolute or `~/`
+path to `GET /api/projects/:projectId/file-owner`; the URL project only
+authorizes the request. Like every host-path read this is superuser-only and
+applies the file endpoint's allow-set check, so a missing or disallowed file is
+an error rather than a guessed owner. The server expands `~/` against its home,
+then matches each registered root against both the written path and its
+realpath, so a symlinked root (`~/ya` for a checkout elsewhere) claims files
+under either spelling. The deepest matching root wins, so a nested project
+claims its own files; on equal depth the requesting project wins, then the
+lexically first path. The session opens in the owner with the project-relative
+path prefilled, whatever the link label says.
+
+A file inside no registered project, a failed lookup, or an older server keeps
+the previous behavior: the linking project with the path exactly as written,
+so the prefill never names a project the file was not proven to be in.
+
 Highlighted file content also resolves relative tokens from the viewed file's
 containing directory when the same token is not an existing project-root path.
 Project-root precedence preserves every established link when both coordinates

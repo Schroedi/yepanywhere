@@ -2,6 +2,7 @@ import { SERVER_CAPABILITIES, serverHasCapability } from "@yep-anywhere/shared";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { fileApi } from "../api/fileClient";
 import { useOptionalToastContext } from "../contexts/ToastContext";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { beginTooltipSuppression } from "../hooks/useTooltipAppearance";
@@ -137,13 +138,39 @@ export function useStartNewSessionWithPrefillAction() {
   );
 }
 
+const HOST_PATH = /^(?:\/(?!\/)|~\/|[A-Za-z]:[\\/])/;
+
+/**
+ * Start a session about a file in the project that owns it. A host path may
+ * belong to a different project than the conversation it was linked from; the
+ * server resolves ownership, including symlinked roots, and the session opens
+ * there with the project-relative path. A file inside no project, a failed
+ * lookup, or an older server keeps the linking project and the path as
+ * written, so the prefill never names a project it was not proven to be in.
+ */
 export function useStartNewSessionFromFileAction() {
   const startNewSession = useStartNewSessionWithPrefillAction();
+  const { version } = useVersion();
+  const canResolveOwner = serverHasCapability(
+    version,
+    SERVER_CAPABILITIES.fileOwnerProject.name,
+  );
   return useCallback(
     (projectId: string, filePath: string) => {
-      startNewSession(projectId, filePath);
+      if (!canResolveOwner || !HOST_PATH.test(filePath)) {
+        startNewSession(projectId, filePath);
+        return;
+      }
+      void fileApi
+        .getFileOwner(projectId, filePath)
+        .then(({ owner }) =>
+          owner
+            ? startNewSession(owner.projectId, owner.relativePath)
+            : startNewSession(projectId, filePath),
+        )
+        .catch(() => startNewSession(projectId, filePath));
     },
-    [startNewSession],
+    [canResolveOwner, startNewSession],
   );
 }
 

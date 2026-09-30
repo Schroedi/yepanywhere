@@ -651,6 +651,8 @@ export {
   normalizeYaClientBaseUrlFromShareViewerUrl,
 } from "./ya-client-url.js";
 
+export type { FileOwnerProject, FileOwnerResponse } from "./file-owner.js";
+
 export {
   type UrlProjectId,
   type DirProjectId,

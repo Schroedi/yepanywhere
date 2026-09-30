@@ -14,8 +14,10 @@ import { getNewSessionPrefill } from "../../lib/newSessionPrefill";
 import {
   FilePathContextMenu,
   ResourceContextMenu,
+  useStartNewSessionFromFileAction,
   useStartNewSessionWithPrefillAction,
 } from "../FileResourceActions";
+import { fileApi } from "../../api/fileClient";
 
 const versionState = vi.hoisted(() => ({
   capabilities: [] as string[],
@@ -356,6 +358,8 @@ describe("useStartNewSessionWithPrefillAction", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    versionState.capabilities = [];
     localStorage.clear();
     sessionStorage.clear();
   });
@@ -369,6 +373,54 @@ describe("useStartNewSessionWithPrefillAction", () => {
     startNewTabSession();
 
     expect(tokenKeys()).toHaveLength(1);
+  });
+
+  it("opens a host file's session in the project that owns it", async () => {
+    versionState.capabilities = ["file-owner-project"];
+    const lookup = vi.spyOn(fileApi, "getFileOwner").mockResolvedValue({
+      owner: {
+        projectId: "project-b" as never,
+        projectPath: "/work/b",
+        relativePath: "gaps/example.md",
+      },
+    });
+    const { result } = renderHook(() => useStartNewSessionFromFileAction());
+    await act(async () => {
+      result.current("project-a", "~/b/gaps/example.md");
+    });
+    expect(lookup).toHaveBeenCalledWith("project-a", "~/b/gaps/example.md");
+    expect(new URLSearchParams(window.location.search).get("projectId")).toBe(
+      "project-b",
+    );
+    expect(getNewSessionPrefill(getCurrentClientSummarySourceKey())).toBe(
+      "gaps/example.md",
+    );
+  });
+
+  it("keeps the linking project for unowned files and older servers", async () => {
+    const lookup = vi
+      .spyOn(fileApi, "getFileOwner")
+      .mockResolvedValue({ owner: null });
+    const { result } = renderHook(() => useStartNewSessionFromFileAction());
+    versionState.capabilities = ["file-owner-project"];
+    const withOwner = renderHook(() => useStartNewSessionFromFileAction());
+    await act(async () => {
+      withOwner.result.current("project-a", "/tmp/report.md");
+    });
+    expect(new URLSearchParams(window.location.search).get("projectId")).toBe(
+      "project-a",
+    );
+    expect(getNewSessionPrefill(getCurrentClientSummarySourceKey())).toBe(
+      "/tmp/report.md",
+    );
+    versionState.capabilities = [];
+    lookup.mockClear();
+    const older = renderHook(() => useStartNewSessionFromFileAction());
+    await act(async () => {
+      older.result.current("project-a", "/tmp/other.md");
+      result.current("project-a", "src/local.ts");
+    });
+    expect(lookup).not.toHaveBeenCalled();
   });
 
   it("leaves no token behind when the browser blocks the new tab", () => {

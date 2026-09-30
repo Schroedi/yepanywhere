@@ -654,6 +654,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "vhost-file-sites",
     introducedIn: "0.9.4",
   },
+  fileOwnerProject: {
+    id: 106,
+    direction: "server",
+    name: "file-owner-project",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [
