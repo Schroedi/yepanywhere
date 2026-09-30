@@ -5,6 +5,18 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      e2e_workers:
+        description: Browser workers per shard for a fixed-source comparison
+        type: choice
+        default: "2"
+        options: ["1", "2", "4"]
+      e2e_scope:
+        description: Mutable server ownership (run is the legacy control)
+        type: choice
+        default: worker
+        options: [worker, run]
 
 # Server checks run at the supported Node floor. SQLite boundary and Bun
 # distribution checks live in sqlite.yml; managed runners retain their own floor.
@@ -308,8 +320,9 @@ jobs:
           fi
       - name: Run isolated browser workers
         env:
-          YEP_E2E_SERVER_SCOPE: worker
-        run: pnpm test:e2e --reporter=list,github --max-failures=5 --workers=2 --shard=${{ matrix.shard }}/2
+          YEP_E2E_SERVER_SCOPE: ${{ inputs.e2e_scope || 'worker' }}
+          E2E_WORKERS: ${{ inputs.e2e_workers || '2' }}
+        run: pnpm test:e2e --reporter=list,github --max-failures=5 --workers="$E2E_WORKERS" --shard=${{ matrix.shard }}/2
       - name: Preserve browser failure and retry evidence
         if: always()
         uses: actions/upload-artifact@v7

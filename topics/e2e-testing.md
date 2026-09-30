@@ -205,3 +205,18 @@ duplication over an expensive case with unique boundary coverage. Compare CI
 history before changing timeouts; [test time budgets](test-time-budgets.md)
 owns timeout evidence. The current reduction sequence and its baseline live in
 [the E2E suite ratchet plan](../docs/tactical/135-e2e-suite-cost-ratchet.md).
+
+### Fixed-source CI comparisons
+
+The CI workflow accepts manual `e2e_workers` (1, 2 or 4 per shard) and
+`e2e_scope` (worker or legacy run) inputs. Push and pull-request runs retain
+worker scope and two workers per shard. A manual run still executes every CI
+gate, so it is a complete verification of its recorded `headSha`. Dispatch
+comparisons against the same revision and verify that SHA before comparing;
+a later push can advance `main`. Rerunning a recorded run retains its source
+and inputs. Record first-attempt failures, retries, per-shard service time,
+combined job time and runner start skew in the cost ledger.
+Use legacy run scope with one worker as the speed control; larger counts
+in that scope exercise known shared-state failures and cannot establish speed.
+The downstream deployment job ignores manual CI completions, and its job-level
+concurrency prevents skipped completions from cancelling a push deployment.
