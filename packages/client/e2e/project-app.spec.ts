@@ -263,11 +263,13 @@ test("app inventory sits below port forwards and manages addresses inline", asyn
       name: "Project apps",
       exact: true,
     });
-    await expect(inventory.getByText("canvas", { exact: true })).toBeVisible();
-    await inventory
-      .getByRole("button", { name: "Manage", exact: true })
-      .click();
-    await expect(inventory.getByText("App: ready").first()).toBeVisible();
+    // Each app is a collection row whose name opens its options pane.
+    const app = inventory.getByRole("button", { name: "canvas", exact: true });
+    await expect(app).toHaveAttribute("aria-expanded", "false");
+    await app.click();
+    const pane = inventory.getByRole("region", { name: "canvas", exact: true });
+    await expect(pane).toBeVisible();
+    await expect(pane.getByText("App: ready").first()).toBeVisible();
     await expect(inventory.locator("iframe")).toHaveCount(0);
     await expect(
       inventory.getByRole("button", { name: "Start app" }),
