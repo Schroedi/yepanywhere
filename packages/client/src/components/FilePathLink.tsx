@@ -479,6 +479,11 @@ export const FilePathLink = memo(function FilePathLink({
           }
           onStartNewSession={startNewSession}
           localSource={localSource}
+          fileTarget={
+            publicShareContext === null
+              ? { projectId, path: projectRelativeCopyPath ?? viewerFilePath }
+              : undefined
+          }
           onCopyProjectRelativePath={
             projectRelativeCopyPath
               ? () => void writeClipboardText(projectRelativeCopyPath)

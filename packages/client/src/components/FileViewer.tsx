@@ -2211,6 +2211,15 @@ export const FileViewer = memo(function FileViewer({
           }
           onStartNewSession={startNewSession}
           localSource={localSource}
+          fileTarget={
+            publicShareContext === null
+              ? {
+                  projectId,
+                  path: projectRelativeCopyPath ?? filePath,
+                  origPath: fileVersionControl.worktreeFile?.origPath,
+                }
+              : undefined
+          }
           onCopyProjectRelativePath={
             projectRelativeCopyPath
               ? () => void writeClipboardText(projectRelativeCopyPath)

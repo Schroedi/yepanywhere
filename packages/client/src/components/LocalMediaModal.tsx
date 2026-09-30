@@ -1175,6 +1175,16 @@ function LocalResourceContextMenu({
       }
       onClose={onClose}
       onOpen={() => openResource()}
+      fileTarget={
+        publicShare === null &&
+        (contextMenu.projectFileTarget?.projectId ?? projectContext?.projectId)
+          ? {
+              projectId: (contextMenu.projectFileTarget?.projectId ??
+                projectContext?.projectId)!,
+              path: projectRelativePath ?? contextMenu.resource.path,
+            }
+          : undefined
+      }
       download={{
         fileName: getFileName(contextMenu.resource.path),
         loadBlob: () => {

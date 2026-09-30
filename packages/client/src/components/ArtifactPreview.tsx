@@ -241,6 +241,7 @@ function RunningPreviewMenu({
       canStartNewSession={false}
       onClose={onClose}
       onOpen={() => window.open(grantUrl, "_blank", "noopener,noreferrer")}
+      fileTarget={projectId ? { projectId, path } : undefined}
       onCopyPublicUrl={
         canCreateFileShare && projectId
           ? () =>

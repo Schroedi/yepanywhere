@@ -886,6 +886,37 @@ The permanent `git-file-revision` capability owns
 `GET /api/projects/:projectId/git/file-revision`. A client without it omits
 this chrome and sends no request.
 
+### Copy GitHub link from a file menu
+
+Authenticated file resource menus append **Copy GitHub link** after the other
+actions when the file has a committed revision and a `github.com` remote.
+The copied HTTPS URL pins the full commit hash and encodes the file path.
+It refers to the last commit changing this file, so unrelated unpushed commits
+do not make its link unavailable. A GitHub remote with a remote-tracking branch
+containing that commit wins; otherwise origin, then the first GitHub remote,
+supplies the unavailable target. HTTPS, Git, SSH, and scp-style GitHub remotes
+are recognized. Other repository hosts are not yet supported.
+
+Clean, pushed files use normal menu color. Dirty files remain copyable in
+warning color with **Local edits won’t be included**. An unpushed revision is
+red and disabled with **Revision not pushed to GitHub**; this takes precedence
+over dirty. Files with no committed blob, directories, and projects without a
+GitHub remote omit the item. Existing copy actions keep their behavior.
+
+Push status reflects local remote-tracking refs, including the last fetch or
+push observation; opening a menu performs no fetch or network Git command.
+Remote history rewritten since that observation can make the saved status stale.
+Reopening the menu refreshes local revision and dirty state. Absolute paths
+use the existing file-owner lookup and its authorization boundary. Public
+shares do not perform these authenticated lookups.
+
+The optional `GitFileRevision.githubLink` response field carries `url` and
+`pushed`; absence on older servers simply omits the action. The existing
+`git-file-revision` capability still gates the existing endpoint, and absolute
+paths additionally require `file-owner-project`. No new endpoint or request
+parameter is introduced. v0.9.0–v0.9.2 omit this metadata; this field-presence
+compatibility plan was approved by the maintainer on 2026-09-30.
+
 ## Search and compatibility
 
 Every Source Control filter activates on the first non-whitespace character.

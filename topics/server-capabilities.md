@@ -10,6 +10,13 @@ Topic: server-capabilities
 
 ## Source Of Truth
 
+Optional `GitFileRevision.githubLink` metadata supplies file-menu GitHub
+permalinks and push status. The maintainer approved field-presence gating on
+2026-09-30 after checking v0.9.0, v0.9.1, and v0.9.2, which lack the field.
+Older responses omit the menu item; clients use only the already-gated
+file-revision and file-owner endpoints. No existing capability meaning changes.
+See [Copy GitHub link](source-control.md#copy-github-link-from-a-file-menu).
+
 The optional `session.effectiveLaunchSettings` response snapshot uses field
 presence rather than a new capability or handshake, approved by the maintainer
 on 2026-09-29. The core release corpus v0.8.0, v0.8.1, v0.9.0, v0.9.1 and

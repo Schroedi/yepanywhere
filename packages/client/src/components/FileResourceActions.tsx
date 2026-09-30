@@ -6,11 +6,16 @@ import { api } from "../api/client";
 import { useOptionalToastContext } from "../contexts/ToastContext";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { beginTooltipSuppression } from "../hooks/useTooltipAppearance";
+import {
+  useGitHubFileLink,
+  type GitHubFileTarget,
+} from "../hooks/useGitHubFileLink";
 import { useRetainedVersionInfo, useVersion } from "../hooks/useVersion";
 import { useI18n } from "../i18n";
 import { toBrowserAppHref } from "../lib/appHref";
 import { useClientSummarySourceKey } from "../lib/clientSummaryStore";
 import { downloadBlob } from "../lib/imageActions";
+import { writeClipboardText } from "../lib/clipboard";
 import { isMarkdownLikeFile } from "../lib/markdownFiles";
 import {
   createNewSessionPrefillToken,
@@ -55,6 +60,7 @@ export interface ResourceContextMenuProps {
   onCopyProjectRelativePath?: () => void;
   onCopyPublicUrl?: () => void;
   onCopyViewerLink?: () => void;
+  fileTarget?: GitHubFileTarget;
   download?: ResourceDownload;
   /** An outside path whose checkout or directory may open in a new tab. */
   localSource?: LocalSourceTarget;
@@ -371,9 +377,11 @@ export function ResourceContextMenu({
   onStartNewSession,
   onStop,
   stopLabel,
+  fileTarget,
 }: ResourceContextMenuProps) {
   const { t } = useI18n();
   const saveDownload = useSaveResourceDownload();
+  const githubLink = useGitHubFileLink(fileTarget);
   const [panel, setPanel] = useState<"open" | "root">("root");
   const hasPresentationChoice = Boolean(onOpenSource && onOpenPreview);
   const hasCopyActions = Boolean(
@@ -384,7 +392,8 @@ export function ResourceContextMenu({
       onCopyImage ||
       onCopyViewerLink ||
       onCopyContents ||
-      onCopyRenderedContents,
+      onCopyRenderedContents ||
+      githubLink,
   );
   const usesHoverFlyout =
     window.innerWidth >= 520 &&
@@ -402,7 +411,15 @@ export function ResourceContextMenu({
     Number(Boolean(onCopyFilePath)) +
     Number(Boolean(onCopyViewerLink)) +
     Number(Boolean(onCopyContents)) +
-    Number(Boolean(onCopyRenderedContents));
+    Number(Boolean(onCopyRenderedContents)) +
+    Number(Boolean(githubLink));
+  const githubDescription = githubLink
+    ? !githubLink.pushed
+      ? t("fileLinkGitHubUnpushed")
+      : githubLink.dirty
+        ? t("fileLinkGitHubDirty")
+        : null
+    : null;
 
   // The right-click that opened this menu came from a link that was almost
   // certainly showing its hover tooltip, and the pointer then holds still — so
@@ -429,7 +446,10 @@ export function ResourceContextMenu({
 
   const rootMenuLeft = Math.max(8, Math.min(x, window.innerWidth - 230));
   const rootMenuHeight =
-    16 + rootItemCount * (usesHoverFlyout ? 36 : 44) + (hasCopyActions ? 9 : 0);
+    16 +
+    rootItemCount * (usesHoverFlyout ? 36 : 44) +
+    (hasCopyActions ? 9 : 0) +
+    (githubDescription ? 24 : 0);
   const rootMenuTop = Math.max(
     8,
     Math.min(y, window.innerHeight - rootMenuHeight),
@@ -599,6 +619,38 @@ export function ResourceContextMenu({
                 {stopLabel}
               </FilePathContextMenuItem>
             </>
+          ) : null}
+          {githubLink ? (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={!githubLink.pushed}
+              className={
+                !githubLink.pushed
+                  ? styles.githubUnpushed
+                  : githubLink.dirty
+                    ? styles.githubDirty
+                    : undefined
+              }
+              onMouseEnter={
+                usesHoverFlyout ? () => setPanel("root") : undefined
+              }
+              onClick={() =>
+                select(() => void writeClipboardText(githubLink.url))
+              }
+            >
+              <span className={styles.githubLabel}>
+                <CopyIcon />
+                <span>
+                  {t("fileLinkMenuCopyGitHubLink")}
+                  {githubDescription ? (
+                    <small className={styles.githubDescription}>
+                      {githubDescription}
+                    </small>
+                  ) : null}
+                </span>
+              </span>
+            </button>
           ) : null}
         </div>
       ) : null}
