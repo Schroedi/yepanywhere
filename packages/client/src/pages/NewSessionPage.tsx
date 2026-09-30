@@ -167,11 +167,11 @@ export function NewSessionPage() {
     setSearchParams(nextParams, { replace: true });
   };
 
-  const loading = Boolean(projectId) && projectLoading && !selectedProject;
-  const renderError = !selectedProject ? error : null;
+  // The composer does not wait for the selected project's record: a tab opened
+  // here is for typing, and the form holds the start until the project arrives.
+  const renderError = !selectedProject && !projectLoading ? error : null;
 
-  // Render loading/error states
-  if (loading || renderError) {
+  if (renderError) {
     return (
       <MainContent isWideScreen={isWideScreen}>
         <PageHeader
@@ -181,13 +181,9 @@ export function NewSessionPage() {
         />
         <main className="page-scroll-container">
           <div className="page-content-inner">
-            {loading ? (
-              <div className="loading">{t("newSessionLoading")}</div>
-            ) : (
-              <div className="error">
-                {t("newSessionErrorPrefix")} {renderError?.message}
-              </div>
-            )}
+            <div className="error">
+              {t("newSessionErrorPrefix")} {renderError.message}
+            </div>
           </div>
         </main>
       </MainContent>

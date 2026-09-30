@@ -109,7 +109,11 @@ its own composer.
    selection in the ref callback that creates its own textarea and focuses
    it there, so no key falls between the two fields. Text typed there follows
    a restored draft as its own paragraph (rule 7), since it was typed without
-   seeing it. Launch composers (fork, handoff) never adopt it.
+   seeing it. Launch composers (fork, handoff) never adopt it. The form does
+   not wait for the selected project's record: it mounts, adopts and takes
+   typing at once, shows the project as loading rather than detached, and
+   holds Start (button and Enter) until the record arrives and fills the
+   project field.
 3. **Never covers another page.** When routing settles anywhere other than
    the new-session route (a login redirect) or the error boundary catches,
    the overlay is removed and non-empty text is kept in `sessionStorage` for

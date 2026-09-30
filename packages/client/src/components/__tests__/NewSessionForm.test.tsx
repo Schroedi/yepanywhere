@@ -1446,6 +1446,47 @@ describe("NewSessionForm", () => {
     });
   });
 
+  it("takes typing before the named project arrives but starts only in it", async () => {
+    serverSettingsState.settings = {
+      newSessionDefaults: { provider: "claude", permissionMode: "default" },
+    };
+    serverSettingsState.isLoading = false;
+
+    const { rerender } = render(
+      <NewSessionForm projectId="project-1" projects={[]} />,
+    );
+
+    const composer = screen.getByPlaceholderText("newSessionPlaceholder");
+    fireEvent.change(composer, { target: { value: "hello" } });
+    expect(screen.queryByText("newSessionProjectDetached")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "newSessionStartAction" }),
+    ).toHaveProperty("disabled", true);
+    fireEvent.keyDown(composer, { key: "Enter" });
+    expect(mockStartSession).not.toHaveBeenCalled();
+
+    rerender(
+      <NewSessionForm
+        projectId="project-1"
+        selectedProject={chooserProjects[0]}
+        projects={[...chooserProjects]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Claude" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Opus 4.8" })[0]!);
+    fireEvent.click(
+      screen.getByRole("button", { name: "newSessionStartAction" }),
+    );
+
+    await waitFor(() => {
+      expect(mockStartSession).toHaveBeenCalledTimes(1);
+    });
+    expect(mockStartSession.mock.calls[0]?.slice(0, 2)).toEqual([
+      "project-1",
+      "hello",
+    ]);
+  });
+
   it("submits the selected Claude provider and model to startSession", async () => {
     serverSettingsState.settings = {
       newSessionDefaults: {

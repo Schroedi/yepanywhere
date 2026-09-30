@@ -1373,8 +1373,17 @@ export function NewSessionForm({
       projectQueueBlockingCount,
       projectQueueItemCount,
     });
+  // A named project whose record has not arrived yet is neither detached nor
+  // ready to start. The composer does not wait for it: typing starts at once,
+  // and starting waits for the project.
+  const projectPending =
+    Boolean(projectId) &&
+    !hasCustomProjectPath &&
+    currentProjectSelection === null;
   const isDetachedProject =
-    !hasCustomProjectPath && currentProjectSelection === null;
+    !hasCustomProjectPath &&
+    currentProjectSelection === null &&
+    !projectPending;
   const canCreateDetached =
     principalResolved &&
     (!launchLock.limited ||
@@ -1384,10 +1393,12 @@ export function NewSessionForm({
           SERVER_CAPABILITIES.limitedUserNoProjectSessions.name,
         )));
   const projectSummaryTitle =
-    currentProjectSelection?.name ?? t("newSessionProjectDetached");
+    currentProjectSelection?.name ??
+    (projectPending ? t("newSessionLoading") : t("newSessionProjectDetached"));
   const projectSummaryMeta = hasCustomProjectPath
     ? normalizedProjectInput
-    : (currentProjectSelection?.path ?? t("newSessionProjectDetachedHint"));
+    : (currentProjectSelection?.path ??
+      (projectPending ? "" : t("newSessionProjectDetachedHint")));
   const displayedProjectSummaryMeta =
     hasCustomProjectPath || currentProjectSelection
       ? shortenPath(projectSummaryMeta)
@@ -1770,9 +1781,16 @@ export function NewSessionForm({
     applyLaunchLock();
   }, [applyLaunchLock]);
 
-  useEffect(() => {
+  // A layout effect, so the field is filled before any key can start the
+  // session: an empty field would start it detached.
+  useLayoutEffect(() => {
     const nextProjectId = projectId ?? null;
     if (lastSyncedProjectIdRef.current === nextProjectId) {
+      return;
+    }
+    // The form mounts before the named project's record arrives; fill the
+    // project field from that record once it does.
+    if (nextProjectId && !selectedProject) {
       return;
     }
 
@@ -2427,7 +2445,8 @@ export function NewSessionForm({
         creatingTemplateProject ||
         templateProjectBusy ||
         isStarting ||
-        !hasSelectedProviderModel
+        !hasSelectedProviderModel ||
+        projectPending
       )
         return;
 
@@ -2822,6 +2841,7 @@ export function NewSessionForm({
       pendingFiles,
       projectInput,
       projectApp,
+      projectPending,
       recapAfterSeconds,
       effectiveSandboxLevel,
       effectiveSandboxNetworkFirewall,
@@ -3432,6 +3452,7 @@ export function NewSessionForm({
   const canStart = Boolean(
     (hasContent || composerMuted) &&
       hasSelectedProviderModel &&
+      !projectPending &&
       (!isDetachedProject || canCreateDetached),
   );
   const hasProjectQueueTargetProject = Boolean(projectQueueTargetProjectId);
