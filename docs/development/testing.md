@@ -55,8 +55,9 @@ The production constructor reads its `dataDir` option, not `YEP_DATA_DIR`;
 setting the environment alone does not isolate these fixtures. Pass an
 explicit `dataDir` only when the test needs an owned persisted profile, such
 as a restart or shared-storage scenario. Dispose app services before removing
-their fixture directories. The wrapper also drains supervisor maintenance at
-file teardown; explicit app disposal joins that work before closing storage.
+their fixture directories. The wrapper drains all registered app services at file teardown before removing
+the file's storage root, including supervisor maintenance and artifact readiness
+writes. Repeated explicit app disposal joins the same cleanup promise.
 Restore fake timers before leaving a test that admits asynchronous maintenance
 work, so teardown can drain its promises rather than wait on a frozen clock.
 The wrapper injects an offline latest-version lookup. Browser server processes
