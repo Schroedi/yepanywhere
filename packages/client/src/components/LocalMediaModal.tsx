@@ -169,6 +169,12 @@ interface UseLocalResourceClickResult {
   contextMenuElement: ReactNode;
   handleClick: (e: MouseEvent) => void;
   handleContextMenu: (e: MouseEvent) => void;
+  /** Opens a resource whose link was clicked outside `handleClick`'s reach. */
+  openResource: (
+    resource: LocalResourceRef,
+    target: HTMLAnchorElement,
+    presentation?: FileViewPresentation,
+  ) => boolean;
 }
 
 type LocalFileViewState =
@@ -1595,6 +1601,7 @@ export function useLocalResourceClick(
     projectFileModal,
     handleClick,
     handleContextMenu,
+    openResource,
     closeModal,
     closeLocalFileModal,
     closeProjectFileModal,

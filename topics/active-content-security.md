@@ -84,6 +84,18 @@ inherits YA's own `base-uri` policy, which refuses a `<base href=
 table-of-contents or cross-reference link scrolls within the preview instead
 of navigating the frame to the YA route (2026-09-25).
 
+A relative link such as `paper.pdf` had the same defect: it loaded a YA route
+beside the embedding page, which the scriptless frame shows blank. When the
+viewer knows the previewed file's absolute path, the wrapper resolves each
+relative link against that file's folder, as a linked-site walk does, and
+rewrites it to a local-file resource link naming the resolved file. The
+same-origin sandbox lets the trusted viewer listen for clicks inside the
+frame; a primary click on a rewritten link opens that file through the
+viewer's ordinary local-resource path, where the server's file-access checks
+still apply. External, root-relative and scheme links are unchanged. The
+public-share play frame already routes relative links the same way through
+its injected handler (2026-09-30).
+
 This is defense in depth at the client presentation boundary. The later server
 containment protects old clients, address-bar visits, modified browser
 navigation that escapes interception, redirects, and copied raw endpoints.

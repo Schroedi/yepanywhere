@@ -444,6 +444,32 @@ test("sanitized preview section links scroll within the document", async ({
   expect(frame?.url()).toBe("about:srcdoc#far");
 });
 
+test("sanitized preview relative links open the neighboring file in the viewer", async ({
+  page,
+}) => {
+  await page.goto(
+    `${base}/e2e/fixtures/artifact-viewer.html?links&path=${encodeURIComponent("/docs/cv/index.html")}`,
+  );
+  const preview = page.frameLocator('iframe[title="Linked notes"]');
+  const link = preview.getByRole("link", { name: "Paper PDF" });
+  // Resolved on the file, not on the embedding page's route.
+  await expect(link).toHaveAttribute(
+    "href",
+    `/api/local-file?path=${encodeURIComponent("/docs/cv/paper.pdf")}`,
+  );
+  await expect(
+    preview.getByRole("link", { name: "Elsewhere" }),
+  ).toHaveAttribute("href", "https://example.invalid/");
+  await link.click();
+  await expect(page.getByTestId("opened-path")).toHaveText(
+    "/docs/cv/paper.pdf",
+  );
+  // The viewer took the click, so the frame stayed on the preview.
+  expect(
+    page.frames().some((frame) => frame.url().startsWith("about:srcdoc")),
+  ).toBe(true);
+});
+
 test("artifact Edit links open an authenticated editor tab and preserve the original view", async ({
   page,
   context,

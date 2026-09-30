@@ -12,6 +12,7 @@ function Fixture() {
   useVersion();
   const query = new URLSearchParams(location.search);
   const [updates, setUpdates] = useState(0);
+  const [openedPath, setOpenedPath] = useState("");
   useEffect(() => {
     if (!new URLSearchParams(location.search).has("editor")) return;
     const timer = window.setInterval(
@@ -26,6 +27,21 @@ function Fixture() {
         <LocalFileModal
           resource={{ kind: "local-file", path: query.get("path") ?? "" }}
           onClose={() => {}}
+        />
+      </div>
+    );
+  if (query.has("links"))
+    return (
+      <div
+        style={{ height: "100vh", display: "flex", flexDirection: "column" }}
+      >
+        <output data-testid="opened-path">{openedPath}</output>
+        <ArtifactPreview
+          html='<p><a href="paper.pdf">Paper PDF</a> <a href="https://example.invalid/">Elsewhere</a></p>'
+          path={query.get("path") ?? ""}
+          documentPath={query.get("path")}
+          title="Linked notes"
+          onLocalResourceLink={(resource) => setOpenedPath(resource.path)}
         />
       </div>
     );

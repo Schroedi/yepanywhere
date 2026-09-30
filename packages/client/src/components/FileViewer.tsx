@@ -5,6 +5,7 @@ import {
   serverHasCapability,
   type FileContentResponse,
   type GitFileDiffMode,
+  type LocalResourceRef,
 } from "@yep-anywhere/shared";
 import {
   memo,
@@ -805,6 +806,7 @@ export const FileViewer = memo(function FileViewer({
     projectFileModal,
     handleClick: handleLocalResourceClick,
     handleContextMenu: handleLocalResourceContextMenu,
+    openResource: openLocalResource,
     closeModal: closeLocalMediaModal,
     closeLocalFileModal,
     closeProjectFileModal,
@@ -819,6 +821,14 @@ export const FileViewer = memo(function FileViewer({
   const handleMarkdownLocalResourceClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) =>
       localResourceClickRef.current(event),
+    [],
+  );
+  const openLocalResourceRef = useRef(openLocalResource);
+  openLocalResourceRef.current = openLocalResource;
+  const handleHtmlPreviewLocalResourceLink = useCallback(
+    (resource: LocalResourceRef, anchor: HTMLAnchorElement) => {
+      openLocalResourceRef.current(resource, anchor);
+    },
     [],
   );
   const handleMarkdownLocalResourceContextMenu = useCallback(
@@ -1730,6 +1740,8 @@ export const FileViewer = memo(function FileViewer({
             toolbarHost={modeControlsHost}
             reloadKey={frameReloadKey}
             onFindSource={setHtmlFindSource}
+            documentPath={absoluteCopyPath}
+            onLocalResourceLink={handleHtmlPreviewLocalResourceLink}
           />
         );
       }
