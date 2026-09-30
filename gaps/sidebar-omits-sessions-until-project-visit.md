@@ -65,14 +65,21 @@ session, including its live state, and other client views list it; the omission 
 the sidebar feed's rows or its client-side membership, not in discovery or
 the session catalog.
 
-Additional candidate owners, beyond those above: the temporary-to-canonical
-id remap (`session_id_mapping_updated`) reaching a client whose list holds
-neither id; and a client resuming after a long idle with a retained
-`knownGeneration` that the server answers `unchanged` or with a page that
-excludes rows created while it was away. First step for this case: on a
-browser profile idle for a day, start a session from another tab or device
-and compare `GET /api/sessions` rows with the client's records before and
-after the `session-created` and remap events.
+A full browser reload does not bring it back (maintainer, same day). That
+rules out stale client state: a missed `session-created` or temporary-id
+remap event, and a long-idle client's retained `knownGeneration`. The
+omission reproduces from a fresh load, so it is deterministic in what the
+sidebar requests (`/api/sessions?summaryMode=retained&limit=50`, `&starred=true`,
+`&categorized=true`) or in how the client assigns those rows to sections.
+
+Severity: high (maintainer: "bad gap"). A live owned session, including one
+waiting for input, is invisible in the navigation the maintainer relies on.
+
+First step: while such a session is live, request the three sidebar feeds as
+the maintainer and check whether its row is present. If it is, the client's
+section assignment drops it. If not, compare the feed's selection and ordering
+(retained catalog, `createdByUser`, first-page limit) with the All Sessions
+query that does list it.
 
 Found 2026-09-30 while diagnosing a publish blocked by an active peer the
 maintainer could not see. Contributing-model: opus-5.5
