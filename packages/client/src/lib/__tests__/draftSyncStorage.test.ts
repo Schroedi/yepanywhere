@@ -483,6 +483,23 @@ describe("local-first snapshot synchronization", () => {
     await c.sync(e);
     expect(s.get().payload.fields.text).toBe("phone\n\ndesktop");
   });
+  it("clears a stale sync error when reconnect requires explicit combination", async () => {
+    const s = server(),
+      c = client(s);
+    c.edit(key, raw("desktop"));
+    const e = c.register(key)!;
+    s.fetch.mockRejectedValueOnce(new Error("offline"));
+    await c.sync(e);
+    expect(e.error).toBe("sync");
+    const input = document.createElement("textarea");
+    document.body.append(input);
+    input.focus();
+    s.remote("phone");
+    await c.sync(e);
+    expect(e.remote).toBeDefined();
+    expect(e.saved.raw).toBe(raw("desktop"));
+    expect(e.error).toBeUndefined();
+  });
   it("conditionally clears a submitted revision but keeps the next local draft", async () => {
     const s = server(),
       c = client(s);

@@ -21,6 +21,7 @@ export function DraftSyncBridge() {
   const [pending, setPending] = useState(() =>
     draftSyncPending(runtime.sourceKey),
   );
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   const owner = principal.username ?? "";
   const supported = serverHasCapability(
     version ?? undefined,
@@ -44,7 +45,11 @@ export function DraftSyncBridge() {
     update();
     return () => window.removeEventListener(DRAFT_SYNC_STATUS_EVENT, update);
   }, [runtime.sourceKey]);
-  if (!pending.length) return null;
+  const notices = pending.map((p) =>
+    JSON.stringify([runtime.sourceKey, owner, p.key, p.error, p.recovery]),
+  );
+  if (!pending.length || notices.every((notice) => dismissed.has(notice)))
+    return null;
   const problem = pending.some((p) => p.error);
   const localFailure = pending.some((p) => p.error === "local");
   return (
@@ -63,6 +68,15 @@ export function DraftSyncBridge() {
         onClick={() => acceptPendingDrafts(runtime.sourceKey)}
       >
         {problem ? t("draftSyncRetry") : t("draftSyncReview")}
+      </button>
+      <button
+        type="button"
+        aria-label={t("draftSyncDismiss")}
+        onClick={() =>
+          setDismissed((previous) => new Set([...previous, ...notices]))
+        }
+      >
+        {t("draftSyncDismissShort")}
       </button>
     </aside>
   );

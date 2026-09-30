@@ -92,7 +92,17 @@ build stored as a pending sibling merge is discarded on load.
 A failed browser write shows its own notice; **Retry** writes the tab's current
 value and metadata again and clears the notice once storage accepts them. A
 sibling's later successful write of the same draft also clears it.
-The notice leaves page controls outside its button clickable, including controls
+Every draft notice offers **Dismiss**, which hides the currently reported
+conditions for this mounted client without deleting drafts, accepting a merge,
+or stopping synchronization. Background retries do not reopen the same dismissed
+condition; another draft, account, source, or kind of problem can show a new
+notice. Reloading makes unresolved notices available again.
+A successful server read clears a previous sync error, so a pending combination
+or recovery is described as such instead of remaining labeled “Sync is waiting.”
+Browser-storage failures remain visible until storage succeeds or are explicitly
+dismissed.
+
+The notice leaves page controls outside its buttons clickable, including controls
 that appear beneath the notice at narrow widths.
 This conservatively pauses remote application while any text editor is focused.
 Ordinary unfocused handoff requires no conflict dialog. Combining text never

@@ -2,6 +2,8 @@
   "draftSyncLocalFailure": "Your draft could not be saved on this device. Keep this page open.",
   "draftSyncRecovery": "A saved draft needs recovery. Your text is retained.",
   "draftSyncRetry": "Retry",
+  "draftSyncDismiss": "Dismiss draft notice",
+  "draftSyncDismissShort": "Dismiss",
   "draftSyncWaiting": "Draft saved locally. Sync is waiting.",
   "draftSyncPending": "Another device changed a draft. Your text is retained.",
   "draftSyncReview": "Combine drafts",

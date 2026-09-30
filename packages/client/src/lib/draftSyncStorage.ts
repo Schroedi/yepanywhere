@@ -568,6 +568,7 @@ export class DraftSyncClient {
     try {
       let read = await this.post<DraftRead>("read", { slot: e.address.slot });
       if (this.stopped) return;
+      if (e.error === "sync") e.error = undefined;
       if (e.saved.pending) {
         const result = await this.post<DraftWriteResult>(
           "write",
