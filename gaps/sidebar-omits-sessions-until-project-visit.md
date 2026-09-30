@@ -41,3 +41,28 @@ and holds that populated order against later arrivals and reordering. The E2E
 still opens while loading; it does not move the pointer or wait away the defect.
 This explains that isolated failure, not the maintainer's earlier incident.
 Keep the original cross-principal/catalog investigation open.
+
+## Active YA-started sessions missing — 2026-09-30
+
+The maintainer reports that sessions started in YA and still active often do
+not appear in the sidebar at all, most often on a device last used about a
+day earlier. Concrete case: Claude session
+`49c4a527-7256-4fac-83eb-59c70c0f7f8f` in this project was started in YA
+(server log: temporary id `ec36d654-98ba-46fa-af3f-80791f8b4249`, remapped to
+the canonical id and registered at 16:28:11 UTC). Its last transcript write
+at 16:30:23 was a question awaiting the maintainer. It kept a fresh
+`.agentctl/active` entry that blocked `publish.sh`, yet the maintainer had not
+seen it and assumed there were no active sessions. An owned session waiting
+for input is exactly what the sidebar must never hide.
+
+Additional candidate owners, beyond those above: the temporary-to-canonical
+id remap (`session_id_mapping_updated`) reaching a client whose list holds
+neither id; and a client resuming after a long idle with a retained
+`knownGeneration` that the server answers `unchanged` or with a page that
+excludes rows created while it was away. First step for this case: on a
+browser profile idle for a day, start a session from another tab or device
+and compare `GET /api/sessions` rows with the client's records before and
+after the `session-created` and remap events.
+
+Found 2026-09-30 while diagnosing a publish blocked by an active peer the
+maintainer could not see. Contributing-model: opus-5.5
