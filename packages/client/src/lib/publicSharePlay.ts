@@ -132,13 +132,9 @@ export function playLinkSharePath(
   documentPath: string,
   href: string,
 ): string | null {
-  if (!isUrlProjectId(projectId)) return null;
-  const root = fromUrlProjectId(projectId)
-    .replaceAll("\\", "/")
-    .replace(/\/+$/, "");
-  const document = /^(?:[A-Za-z]:)?\//.test(documentPath)
-    ? documentPath
-    : `${root}/${documentPath}`;
+  const root = projectRootPath(projectId);
+  const document = absolutePublicSharePath(projectId, documentPath);
+  if (!root || !document) return null;
   const target = resolveLinkedReference(
     document,
     document.slice(0, document.lastIndexOf("/") + 1),
@@ -146,6 +142,25 @@ export function playLinkSharePath(
   );
   if (!target) return null;
   return target.startsWith(`${root}/`) ? target.slice(root.length + 1) : target;
+}
+
+/**
+ * A share path — project-relative, or absolute outside the project — as an
+ * absolute `/`-separated path. Null for an unusable project id.
+ */
+export function absolutePublicSharePath(
+  projectId: string,
+  sharePath: string,
+): string | null {
+  if (/^(?:[A-Za-z]:)?\//.test(sharePath)) return sharePath;
+  const root = projectRootPath(projectId);
+  return root ? `${root}/${sharePath}` : null;
+}
+
+function projectRootPath(projectId: string): string | null {
+  return isUrlProjectId(projectId)
+    ? fromUrlProjectId(projectId).replaceAll("\\", "/").replace(/\/+$/, "")
+    : null;
 }
 
 /**
@@ -178,10 +193,14 @@ function toDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+/**
+ * The shared HTML with what its elements load inlined. Each asset path takes
+ * `rootPath`'s form, project-relative or absolute (`resolveHtmlRootAssetPath`).
+ */
 export async function buildPlayableHtml(
   html: string,
   rootPath: string,
-  fetchAsset: (projectRelativePath: string) => Promise<Blob>,
+  fetchAsset: (assetPath: string) => Promise<Blob>,
 ): Promise<string> {
   const references = findHtmlRootAssetReferences(html, rootPath);
   let inlined = 0;

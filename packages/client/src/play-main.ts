@@ -19,6 +19,7 @@ import {
   fetchPublicShareRawFileBlob,
 } from "./lib/publicShareFiles";
 import {
+  absolutePublicSharePath,
   buildPlayableHtml,
   buildPublicShareFileUrl,
   buildPublicSharePlayUrl,
@@ -63,6 +64,8 @@ async function main(): Promise<void> {
     relayUsername: target.relayUsername,
     secret: target.secret,
     projectId: target.projectId,
+    // Play is only ever for a live file share.
+    standaloneFile: true,
   };
   const root = await fetchPublicShareJsonViaRelay<FileContentResponse>({
     relayUrl: grant.relayUrl,
@@ -71,8 +74,12 @@ async function main(): Promise<void> {
   });
   if (typeof root.content !== "string")
     throw new Error(enMessages.publicSharePlayNoContent);
-  const html = await buildPlayableHtml(root.content, target.path, (path) =>
-    fetchPublicShareRawFileBlob(grant, root, path),
+  // Assets resolve from the root's absolute path, so a reference above the
+  // project reaches what the share's link walk authorizes there.
+  const html = await buildPlayableHtml(
+    root.content,
+    absolutePublicSharePath(target.projectId, target.path) ?? target.path,
+    (path) => fetchPublicShareRawFileBlob(grant, root, path),
   );
   const title = target.path.split("/").at(-1) ?? target.path;
   document.title = title;

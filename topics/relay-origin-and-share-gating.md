@@ -239,10 +239,17 @@ about 2 seconds. Root and linked responses keep the existing no-store and
 active-content hardening.
 
 Rendered Markdown links and images that climb out of the document's folder with
-`..` render as links, so the share viewer follows an in-project one through the
-share. The share viewer cannot yet open a linked file outside the project,
-though the server authorizes it
-([gap](../gaps/public-file-share-viewer-outside-project.md)).
+`..` render as links, and the share viewer follows them through the same share.
+A live file share's viewer, marked by `standalone=1` on the links the server
+mints, names a linked file outside the project by its absolute path: its file
+page, raw and media reads, link rewriting and play all accept one. A session
+share's viewer keeps project-relative paths only, so a transcript never links
+a file its share would refuse. An outside document is read with its own folder
+standing in as the project, so before answering, the server restates that
+document's project-file links as absolute local-file links; the viewer then
+resolves them against the share, never against the share's project. Play
+resolves the root's asset references from its absolute path, so an asset above
+the project is inlined too.
 
 **Play for public file viewers.** The hosted share viewer shows an HTML root
 as a scriptless preview and offers a play toggle: an ordinary link that opens

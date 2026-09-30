@@ -36,6 +36,7 @@ import {
 } from "../services/PublicShareService.js";
 import { augmentProjectPathLinksInMessage } from "../augments/finalized-message-augmenter.js";
 import { augmentTextBlocks } from "../augments/markdown-augments.js";
+import { renderLocalFileLinkOpen } from "../augments/safe-markdown.js";
 import { augmentEditToolUses } from "../sessions/persisted-augments.js";
 import type { Message } from "../supervisor/types.js";
 import {
@@ -1153,8 +1154,56 @@ async function servePublicShareProjectFile(
 
   const body = (await response.json()) as FileContentResponse;
   body.rawUrl = publicShareFileRawUrl(secret, sharePath, viewerId);
+  if (outsidePath && body.renderedMarkdownHtml) {
+    body.renderedMarkdownHtml = restateStandInProjectLinks(
+      body.renderedMarkdownHtml,
+      dirname(outsidePath),
+    );
+  }
   c.header("Cache-Control", "no-store");
   return c.json(body);
+}
+
+/**
+ * An outside target is read with its own folder standing in as the project,
+ * so the project-file links rendered in it name paths relative to that
+ * folder, under the share's project id. Restate each as the local-file link
+ * the renderer gives a file outside any project, by absolute path, which a
+ * live file share's viewer resolves against its own grant. Private inline-code
+ * links stay as they are; the viewer shows those as plain code.
+ */
+function restateStandInProjectLinks(html: string, folder: string): string {
+  return html.replace(
+    /<a [^>]*data-ya-resource="project-file"[^>]*>/g,
+    (tag) => {
+      if (tag.includes('data-ya-private-project-file-link="true"')) return tag;
+      const attribute = (name: string) => {
+        const value = new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
+        return value === undefined ? undefined : unescapeHtmlAttribute(value);
+      };
+      const relativePath = attribute("data-ya-path");
+      if (!relativePath) return tag;
+      const lineNumber = Number(attribute("data-ya-line")) || undefined;
+      const columnNumber = Number(attribute("data-ya-column")) || undefined;
+      return renderLocalFileLinkOpen(
+        {
+          filePath: posix.join(folder, relativePath),
+          ...(lineNumber ? { lineNumber } : {}),
+          ...(columnNumber ? { columnNumber } : {}),
+        },
+        { renderMarkdown: /\.(?:md|markdown|qmd)$/i.test(relativePath) },
+      );
+    },
+  );
+}
+
+function unescapeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#039;", "'")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&amp;", "&");
 }
 
 function streamMaterializedPublicShareResponse(

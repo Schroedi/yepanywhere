@@ -4,6 +4,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderSafeMarkdown } from "../../src/augments/safe-markdown.js";
 import { createPublicFileShareRoutes } from "../../src/routes/public-file-shares.js";
 import { createPublicSharePublicRoutes } from "../../src/routes/public-shares.js";
 import { PublicShareService } from "../../src/services/PublicShareService.js";
@@ -100,6 +101,15 @@ describe("public file shares", () => {
         requestedPath,
       )}`,
     };
+    if (requestedPath.endsWith(".md")) {
+      // Rendered as the files route renders it, with the read's root as the
+      // project its links are relative to.
+      const root = options.projectRoot ?? fromUrlProjectId(requestedProjectId);
+      response.renderedMarkdownHtml = renderSafeMarkdown(content, {
+        localFileBasePath: path.dirname(path.join(root, requestedPath)),
+        projectFileLinks: { projectId: requestedProjectId, projectPath: root },
+      });
+    }
     return new Response(JSON.stringify(response), {
       headers: { "Content-Type": "application/json" },
     });
@@ -285,6 +295,19 @@ describe("public file shares", () => {
     );
     expect(await response.text()).toContain("# Notes");
     expect(await status(path.join(outside, "more.md"))).toBe(200);
+    // Read with its own folder standing in as the project, an outside
+    // document's links come back as absolute local-file links, which the
+    // viewer resolves against the share, never against the share's project.
+    const view = (await (
+      await app.request(`/${secret}/files?path=${encodeURIComponent(notes)}`)
+    ).json()) as FileContentResponse;
+    expect(view.renderedMarkdownHtml).toContain(
+      `href="/api/local-file?path=${encodeURIComponent(path.join(outside, "more.md"))}&amp;render=1"`,
+    );
+    expect(view.renderedMarkdownHtml).toContain(
+      'data-ya-resource="local-file"',
+    );
+    expect(view.renderedMarkdownHtml).not.toContain("/projects/");
     expect(await status(notes, routes(false))).toBe(404);
   });
 

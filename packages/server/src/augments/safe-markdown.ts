@@ -1510,6 +1510,7 @@ export {
   localResourceDataAttributes,
   MEDIA_EXTENSIONS,
   renderLocalFileLink,
+  renderLocalFileLinkOpen,
   renderLocalMediaLink,
   VIDEO_EXTENSIONS,
 };
