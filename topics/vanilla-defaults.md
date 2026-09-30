@@ -78,6 +78,13 @@ Maintainer has authorized the exact exception.
 
 ## Known Exceptions
 
+The **last file chevron** ([parked-file-viewer](parked-file-viewer.md#last-file-after-close))
+is default-visible in spare session right margins, authorized by graehl on
+2026-09-30 after accepting its mockup. It remembers only the last file-view
+route per session ID in browser storage, survives Close and reload, and opens
+the ordinary viewer only when clicked. It hides on narrow layouts and while
+the existing viewer is open or minimized.
+
 The **`/v` / `/view` view command** ([view-command](view-command.md)) ships
 always-on wherever the server supports it, authorized by graehl on
 2026-09-30. It acts only when the user types it, opens the file viewer a link

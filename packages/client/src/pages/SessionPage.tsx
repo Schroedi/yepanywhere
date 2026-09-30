@@ -65,6 +65,7 @@ import {
   SessionViewerTranscriptGate,
 } from "../components/SessionManagedViewer";
 import sessionHeaderStyles from "../components/SessionHeader.module.css";
+import { LastSessionFile } from "../components/LastSessionFile";
 import styles from "./SessionPage.module.css";
 import { GoalFlag } from "../components/GoalNotice";
 import { ClearloopRemainingBadge } from "../components/ClearloopRemainingBadge";
@@ -781,6 +782,8 @@ function SessionPageContent({
   const [rightPaneTarget, setRightPaneTarget] = useState<HTMLDivElement | null>(
     null,
   );
+  const [viewerLayerTarget, setViewerLayerTarget] =
+    useState<HTMLDivElement | null>(null);
   // A limited user is refused operator app links, so those apps are not
   // offered to them; artifacts and their own sandboxed session apps still
   // are (topics/limited-users.md § Authorization).
@@ -6565,6 +6568,12 @@ function SessionPageContent({
                       rightPaneTarget={rightPaneTarget}
                       rightPaneWide={isWideScreen}
                     >
+                      <LastSessionFile
+                        sessionId={actualSessionId}
+                        target={viewerLayerTarget}
+                        inactive={isDomLingerParked}
+                        quoteReply={quoteFromTranscript}
+                      />
                       <MessageList
                         messages={messages}
                         transcriptDisplayObjects={
@@ -6704,7 +6713,11 @@ function SessionPageContent({
               </SessionMetadataProvider>
             )}
           </main>
-          <div className={styles.viewerLayer} data-session-viewer-layer />
+          <div
+            className={styles.viewerLayer}
+            data-session-viewer-layer
+            ref={setViewerLayerTarget}
+          />
           {showBtwSidePane && focusedBtwAside && (
             <BtwAsidePane
               aside={focusedBtwAside}

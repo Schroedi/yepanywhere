@@ -35,6 +35,7 @@ import { requireRenderedFileClipboardPayload } from "../lib/renderedFileClipboar
 import { toSourceTransportApiPath } from "../lib/sourceTransportPaths";
 import { useOptionalSessionMetadata } from "../contexts/SessionMetadataContext";
 import { useFileViewerController } from "../lib/fileViewerController";
+import { rememberSessionLastFile } from "../lib/sessionLastFile";
 import {
   clearSessionViewer,
   closeSessionViewer,
@@ -196,6 +197,16 @@ export function presentProjectFileViewer({
   openInNewTabUrl?: string | null;
 }): void {
   const lineSuffix = formatLineSuffix(lineNumber, lineEnd);
+  rememberSessionLastFile(
+    sessionId,
+    buildProjectFileViewUrl({
+      projectId,
+      filePath,
+      lineNumber,
+      lineEnd,
+      viewMode,
+    }),
+  );
   presentSessionViewer({
     id,
     kind: "file",
@@ -674,6 +685,37 @@ export function FileViewerModal({
     !publishToHost &&
     !minimized &&
     (!inRightPane || nested || publishedViewer?.id === minimizedViewerId);
+  const rememberedSessionId =
+    hostSessionId ??
+    (nested ? publishedViewer?.sessionId : undefined) ??
+    sessionMetadata?.sessionId;
+  useEffect(() => {
+    if (
+      managedViewerId !== undefined ||
+      publicShareContext !== null ||
+      !rememberedSessionId
+    )
+      return;
+    rememberSessionLastFile(
+      rememberedSessionId,
+      buildProjectFileViewUrl({
+        projectId,
+        filePath: getProjectViewerFilePath(projectId, filePath),
+        lineNumber,
+        lineEnd,
+        viewMode,
+      }),
+    );
+  }, [
+    managedViewerId,
+    publicShareContext,
+    rememberedSessionId,
+    projectId,
+    filePath,
+    lineNumber,
+    lineEnd,
+    viewMode,
+  ]);
   // Beside the session, Escape belongs to whatever has focus there; only a
   // key pressed inside this viewer dismisses it.
   const docked = inRightPane && parentHost?.docked === true;
