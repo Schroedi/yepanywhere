@@ -95,7 +95,10 @@ export async function walkLinkedSite(
   const urls = new Map<string, string>();
   let truncated = false;
   if (!root || root.segments.length === 0) return { files, urls, truncated };
-  const siteRoot = root.segments.slice(0, -1);
+  const siteRootPath = joinAbsolutePath(
+    root.prefix,
+    root.segments.slice(0, -1),
+  );
   const rootName = root.segments[root.segments.length - 1]!;
 
   const queue: Array<{ file: LinkedSiteFile; content: string }> = [];
@@ -126,10 +129,6 @@ export async function walkLinkedSite(
   while (queue.length > 0) {
     const { file, content } = queue.shift()!;
     const kind = linkedDocumentKind(file.path)!;
-    const documentDirectory = splitAbsolutePath(file.path)!.segments.slice(
-      0,
-      -1,
-    );
     const urlDirectory = file.urls[0]!.split("/").filter(Boolean);
     if (!file.urls[0]!.endsWith("/")) urlDirectory.pop();
     for (const raw of findLinkedReferences(content, kind)) {
@@ -140,15 +139,10 @@ export async function walkLinkedSite(
         reference.segments,
         true,
       );
-      const onDisk = resolveSegments(
-        reference.absolute ? siteRoot : documentDirectory,
-        reference.segments,
-        false,
-      );
-      if (!url || !onDisk) continue;
+      const path = resolveLinkedReference(file.path, siteRootPath, raw);
+      if (!url || !path) continue;
       const urlPath = `/${url.join("/")}`;
       if (urls.has(urlPath)) continue;
-      const path = joinAbsolutePath(root.prefix, onDisk);
       const known = byPath.get(path);
       if (known) {
         known.urls.push(urlPath);
@@ -163,6 +157,30 @@ export async function walkLinkedSite(
     }
   }
   return { files, urls, truncated };
+}
+
+/**
+ * The absolute file `reference` names from the document at `documentPath`, as
+ * a walk resolves it on disk: against the document's folder, or from
+ * `siteRoot` for a leading `/`, free to leave both. Null when it names no file
+ * on this server: another origin or scheme, a fragment alone, a folder, or a
+ * path above the filesystem root.
+ */
+export function resolveLinkedReference(
+  documentPath: string,
+  siteRoot: string,
+  reference: string,
+): string | null {
+  const parsed = parseLocalReference(reference);
+  const document = splitAbsolutePath(documentPath);
+  const site = splitAbsolutePath(siteRoot);
+  if (!parsed || !document || !site) return null;
+  const segments = resolveSegments(
+    parsed.absolute ? site.segments : document.segments.slice(0, -1),
+    parsed.segments,
+    false,
+  );
+  return segments ? joinAbsolutePath(document.prefix, segments) : null;
 }
 
 /**

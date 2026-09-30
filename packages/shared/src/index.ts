@@ -1163,6 +1163,7 @@ export {
   findLinkedReferences,
   LINKED_SITE_LIMITS,
   linkedDocumentKind,
+  resolveLinkedReference,
   walkLinkedSite,
 } from "./linked-site.js";
 export type {

@@ -593,6 +593,27 @@ describe("renderSafeMarkdown — local file links", () => {
     expect(html).not.toContain("/api/local-file");
   });
 
+  it("follows a link that climbs out of the document's folder", () => {
+    const html = renderSafeMarkdown("[topic](../topics/speech-mt.md)", {
+      localFileBasePath: "/workspace/project/research",
+    });
+
+    expect(html).toContain(
+      'href="/api/local-file?path=%2Fworkspace%2Fproject%2Ftopics%2Fspeech-mt.md&amp;render=1"',
+    );
+  });
+
+  it("keeps site-relative references as written for a served document", () => {
+    const html = renderSafeMarkdown(
+      "[topic](../topics/x.md#intro) ![fig](figs/a.png) [top](#top)",
+      { siteRelativeReferences: true },
+    );
+
+    expect(html).toContain('href="../topics/x.md#intro"');
+    expect(html).toContain('<img src="figs/a.png" alt="fig" />');
+    expect(html).toContain('href="#top"');
+  });
+
   it("resolves relative local images as inline media placeholders", () => {
     const html = renderSafeMarkdown("![diagram](assets/diagram.svg)", {
       localFileBasePath: "/workspace/project/docs",

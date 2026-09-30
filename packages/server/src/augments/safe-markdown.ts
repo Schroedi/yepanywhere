@@ -49,9 +49,9 @@ export interface SafeMarkdownRenderOptions {
   /**
    * Directory that relative local markdown links are resolved against.
    *
-   * Relative links containing `..` are left as ordinary text/links. Project
-   * file endpoints still perform their own containment checks; this renderer
-   * only resolves same-directory or child-directory links for previews.
+   * Links and images may climb out of it with `..`; the project, local-file
+   * and share endpoints they reach perform their own access checks. Quarto
+   * includes, which inline the target's text, stay within it.
    */
   localFileBasePath?: string;
   /**
@@ -857,7 +857,16 @@ function siteRelativeReference(href: string): string | null {
   return trimmed;
 }
 
-function resolveLocalMarkdownHref(href: string): LocalPathReference | null {
+/**
+ * The local file a relative reference names. `..` segments are followed only
+ * with `parentSegments`, as a link or image is: a reader's endpoint decides
+ * what they reach. An include, which inlines the target's text, stays within
+ * the base directory.
+ */
+function resolveLocalMarkdownHref(
+  href: string,
+  options: { parentSegments?: boolean } = {},
+): LocalPathReference | null {
   const normalizedHref = href.trim();
   let trimmed = normalizedHref;
   try {
@@ -892,7 +901,7 @@ function resolveLocalMarkdownHref(href: string): LocalPathReference | null {
   if (
     !normalized ||
     normalized === "." ||
-    segments.some((segment) => segment === "..")
+    (!options.parentSegments && segments.some((segment) => segment === ".."))
   ) {
     return null;
   }
@@ -1024,7 +1033,10 @@ function renderLinkOpen(
   const titleValue = token.attrGet("title");
   const title = titleValue === null ? undefined : String(titleValue);
   const siteHref = siteRelativeReference(href);
-  const localPath = siteHref === null ? resolveLocalMarkdownHref(href) : null;
+  const localPath =
+    siteHref === null
+      ? resolveLocalMarkdownHref(href, { parentSegments: true })
+      : null;
   let open = "";
   let close = "";
 
@@ -1140,7 +1152,7 @@ function renderImage(
     const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
     return `<img src="${escapeHtml(siteSrc)}"${altAttr}${titleAttr}>`;
   }
-  const localPath = resolveLocalMarkdownHref(href);
+  const localPath = resolveLocalMarkdownHref(href, { parentSegments: true });
   if (localPath) {
     const resolvedImage = resolveLocalMarkdownImage(localPath);
     if (resolvedImage) {

@@ -3566,6 +3566,7 @@ export function createApp(options: AppOptions): AppResult {
       loadSessionSummary: loadPublicShareSessionSummary,
       fetchProjectFile: fetchPublicShareProjectFile,
       dataDir: effectiveDataDir,
+      localFilePolicy: localResourcePathPolicy,
       getRelayConfig: () =>
         options.remoteAccessService?.getRelayConfig() ?? null,
       getPublicSharesEnabled: () =>

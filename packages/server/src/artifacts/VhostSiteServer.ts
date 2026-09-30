@@ -1,10 +1,6 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import { basename, extname, resolve } from "node:path";
-import {
-  type LinkedSite,
-  linkedDocumentKind,
-  walkLinkedSite,
-} from "@yep-anywhere/shared";
+import { type LinkedSite, linkedDocumentKind } from "@yep-anywhere/shared";
 import { getMimeType } from "hono/utils/mime";
 import { renderMarkdownFilePreview } from "../augments/markdown-file-preview.js";
 import { renderMarkdownDocument } from "../routes/local-file.js";
@@ -13,16 +9,17 @@ import {
   type createLocalResourcePathPolicy,
 } from "../routes/local-resource-policy.js";
 import { openMutableFileSnapshot } from "../routes/mutable-file-cache.js";
+import {
+  cachedLinkedSite,
+  MAX_LINKED_DOCUMENT_BYTES,
+  readLinkedDocument,
+} from "../utils/linkedSiteCache.js";
 import { fileBytesResponse } from "./fileResponse.js";
 import type { ArtifactVhostSite } from "./vhosts.js";
 
 type PathPolicy = ReturnType<typeof createLocalResourcePathPolicy>;
 
 const MAX_FILE_BYTES = 64 * 1024 * 1024;
-/** Largest document read for its links, or rendered as Markdown. */
-const MAX_DOCUMENT_BYTES = 8 * 1024 * 1024;
-/** How long a walk is reused before the files it inspected are rechecked. */
-const LINKED_SITE_RECHECK_MS = 2000;
 
 function text(body: string, status: number): Response {
   return new Response(body, {
@@ -121,7 +118,7 @@ export async function serveVhostSite(
   if (
     linkedDocumentKind(target) === "markdown" &&
     opensAsPage(request, url) &&
-    allowed.file.stats.size <= MAX_DOCUMENT_BYTES
+    allowed.file.stats.size <= MAX_LINKED_DOCUMENT_BYTES
   )
     return renderedMarkdownPage(request, allowed.file.resolvedPath, url);
   const snapshot = await openMutableFileSnapshot(target);
@@ -173,65 +170,18 @@ async function renderedMarkdownPage(
   });
 }
 
-interface CachedLinkedSite {
-  site: LinkedSite;
-  checkedAt: number;
-  /** Every path the walk inspected, with what it found there. */
-  stamps: Map<string, string>;
-}
-
-const linkedSites = new Map<string, CachedLinkedSite>();
-
 /**
  * What a file vhost rooted at `rootPath` serves: everything the file links
- * to, transitively, that the local file policy admits. A walk is reused for a
- * moment, then again for as long as no file it inspected has changed,
- * appeared or disappeared.
+ * to, transitively, that the local file policy admits.
  */
 export async function linkedVhostSite(
   rootPath: string,
   policy: PathPolicy,
 ): Promise<LinkedSite> {
-  const cached = linkedSites.get(rootPath);
-  const now = Date.now();
-  if (
-    cached &&
-    (now - cached.checkedAt < LINKED_SITE_RECHECK_MS ||
-      (await stampsCurrent(cached.stamps)))
-  ) {
-    cached.checkedAt = now;
-    return cached.site;
-  }
-  const stamps = new Map<string, string>();
-  const site = await walkLinkedSite(rootPath, async (path, document) => {
-    stamps.set(path, await fileStamp(path));
+  return cachedLinkedSite("vhost", rootPath, async (path, document) => {
     const allowed = await policy.resolveAllowedFilePath(path);
     if (!allowed.ok) return null;
     const { resolvedPath, stats } = allowed.file;
-    if (!document || stats.size > MAX_DOCUMENT_BYTES) return {};
-    try {
-      return { content: await readFile(resolvedPath, "utf8") };
-    } catch (error) {
-      // Still served; its links just are not followed.
-      console.warn(`[VhostSite] Cannot read ${resolvedPath} for links`, error);
-      return {};
-    }
+    return document ? await readLinkedDocument(resolvedPath, stats.size) : {};
   });
-  linkedSites.set(rootPath, { site, checkedAt: now, stamps });
-  return site;
-}
-
-async function fileStamp(path: string): Promise<string> {
-  try {
-    const stats = await stat(path);
-    return `${stats.mtimeMs}:${stats.size}:${stats.isFile()}`;
-  } catch {
-    return "missing";
-  }
-}
-
-async function stampsCurrent(stamps: Map<string, string>): Promise<boolean> {
-  for (const [path, stamp] of stamps)
-    if ((await fileStamp(path)) !== stamp) return false;
-  return true;
 }
