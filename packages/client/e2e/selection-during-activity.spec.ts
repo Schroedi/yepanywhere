@@ -7,8 +7,8 @@ import {
 } from "@yep-anywhere/shared";
 import { createTestViteServer } from "./support/vite-server";
 import {
+  disposeYaServerProcess,
   startYaServerProcess,
-  stopYaServerProcess,
 } from "./support/ya-server-process";
 
 test.use({ serviceWorkers: "block" });
@@ -244,7 +244,7 @@ async function openLiveSession(page: Page) {
     startActivity,
     close: async () => {
       await source.close();
-      stopYaServerProcess(backend);
+      await disposeYaServerProcess(backend);
     },
   };
 }
