@@ -660,6 +660,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "file-owner-project",
     introducedIn: "0.9.4",
   },
+  projectFileViewCommand: {
+    id: 107,
+    direction: "server",
+    name: "project-file-view-command",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

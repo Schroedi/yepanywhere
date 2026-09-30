@@ -1,12 +1,33 @@
 import { useEffect, useRef } from "react";
-import type { useProjectFileCompletion } from "../hooks/useProjectFileCompletion";
 import { useI18n } from "../i18n";
 import styles from "./ProjectFileCompletionMenu.module.css";
 
-export function ProjectFileCompletionMenu({
+/** What a path completion source exposes to its menu. */
+export interface PathCompletionMenuModel<Entry extends { path: string }> {
+  visible: boolean;
+  entries: readonly Entry[];
+  selected?: string;
+  accept: (entry: Entry) => void;
+  pending?: boolean;
+  truncated: boolean;
+  error?: string;
+}
+
+const kindBadge = (entry: { path: string; kind?: string }) =>
+  entry.kind === "directory" ? "dir" : "file";
+
+export function ProjectFileCompletionMenu<
+  Entry extends { path: string; kind?: string },
+>({
   completion,
+  badge = kindBadge,
+  emptyLabel,
 }: {
-  completion: ReturnType<typeof useProjectFileCompletion>;
+  completion: PathCompletionMenuModel<Entry>;
+  /** The short trailing label for a row; `dir`/`file` by default. */
+  badge?: (entry: Entry) => string;
+  /** Status text when the settled result is empty. */
+  emptyLabel?: string;
 }) {
   const { t } = useI18n();
   const menu = useRef<HTMLDivElement>(null);
@@ -41,9 +62,7 @@ export function ProjectFileCompletionMenu({
             <span className={styles.parent}>
               {slash >= 0 ? path.slice(0, slash + 1) : ""}
             </span>
-            <span className={styles.kind}>
-              {entry.kind === "directory" ? "dir" : "file"}
-            </span>
+            <span className={styles.kind}>{badge(entry)}</span>
           </button>
         );
       })}
@@ -58,7 +77,7 @@ export function ProjectFileCompletionMenu({
               ? t("fileCompletionSearching")
               : completion.truncated
                 ? t("fileCompletionMore")
-                : t("fileCompletionEmpty")}
+                : (emptyLabel ?? t("fileCompletionEmpty"))}
         </div>
       )}
     </div>

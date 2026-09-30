@@ -98,6 +98,19 @@ export type {
 } from "./project-file-completion.js";
 
 export {
+  FILE_VIEW_MAX_PART_LENGTH,
+  FILE_VIEW_MAX_PARTS,
+  type FileViewLineTarget,
+  type FileViewSearchEntry,
+  type FileViewSearchResult,
+  type FileViewSearchTier,
+  formatFileViewLineSuffix,
+  formatFileViewPart,
+  type ParsedFileViewArgument,
+  parseFileViewArgument,
+} from "./file-view-command.js";
+
+export {
   isIdeMetadata,
   stripIdeMetadata,
   extractOpenedFilePath,

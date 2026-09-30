@@ -58,7 +58,10 @@ rather than granting a share a path or file-existence capability.
 ## The index
 
 Composer `@` completion has a separate, explicitly requested inventory; see
-[Composer path completion](#composer-path-completion). Its ignore-filtered
+[Composer path completion](#composer-path-completion). The `/v` command
+([view-command](view-command.md)) searches that same inventory, which records
+whether Git tracks each path, and opens its result through the same viewer
+registration a file link uses. Its ignore-filtered
 corpus does not change exact file-link membership or start a linkifier crawl.
 
 `packages/server/src/projects/projectPathIndex.ts` holds one demand-driven

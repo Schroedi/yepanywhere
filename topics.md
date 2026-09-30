@@ -416,3 +416,5 @@
   measured CI cost and reliability checks.
 - session-notes-and-discussion - Human-only session scratch notes and shared
   discussion, with explicit audiences and deliberate promotion to agent input.
+- view-command - `/v` opens a project file from remembered path parts,
+  tracked first; custom completion surface sketched.

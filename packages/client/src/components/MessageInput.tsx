@@ -15,6 +15,8 @@ import {
   commandMatchesInvocationQuery,
   type CollapsedComposerButtonPreference,
   type EffortLevel,
+  type FileViewSearchEntry,
+  type FileViewSearchTier,
   findSkillInvocations,
   findUnrecognizedInvocations,
   getCanonicalInvocationToken,
@@ -141,6 +143,7 @@ import {
   type VoiceInputButtonRef,
 } from "./VoiceInputButton";
 import styles from "./MessageInput.module.css";
+import { useFileViewCompletion } from "../hooks/useFileViewCompletion";
 import { useProjectFileCompletion } from "../hooks/useProjectFileCompletion";
 import type { RenderItem } from "@yep-anywhere/shared/transcript/items";
 import { ProjectFileCompletionMenu } from "./ProjectFileCompletionMenu";
@@ -329,6 +332,11 @@ interface Props {
   slashCommands?: SlashCommand[];
   /** Callback for custom client-side commands (e.g., "model"). Return true if handled. */
   onCustomCommand?: (command: string) => boolean;
+  /**
+   * Offer `/v` file-view completion. Set only where the owner handles a
+   * submitted `/v` (topics/view-command.md).
+   */
+  fileViewCommand?: boolean;
   /** Start a /btw aside. When text is present, the caller may send it immediately. */
   onBtwShortcut?: (text: string) => boolean;
   /** Whether this composer is currently routing sends to a focused /btw aside. */
@@ -414,6 +422,17 @@ interface Props {
   };
 }
 
+const FILE_VIEW_TIER_BADGES: Record<FileViewSearchTier, string> = {
+  path: "exact",
+  tracked: "tracked",
+  untracked: "untracked",
+  ignored: "ignored",
+  outside: "host",
+};
+
+const fileViewTierBadge = (entry: FileViewSearchEntry) =>
+  FILE_VIEW_TIER_BADGES[entry.tier];
+
 /**
  * One row of the bang completion menu. Global command-history matches
  * (`history`) are ranked ahead of PATH/project/path token candidates
@@ -478,6 +497,7 @@ export function MessageInput({
   primaryActionKind,
   slashCommands = [],
   onCustomCommand,
+  fileViewCommand = false,
   onBtwShortcut,
   btwActive = false,
   btwHasAsides = false,
@@ -1179,6 +1199,18 @@ export function MessageInput({
     textarea: textareaRef,
     setText,
     replace: replaceDraftRangeUndoably,
+    items: completionRenderItems,
+    disabled: disabled || collapsed || !!interimTranscript,
+  });
+  const fileViewCompletion = useFileViewCompletion({
+    enabled: fileViewCommand,
+    projectId,
+    text,
+    textarea: textareaRef,
+    replace: replaceDraftRangeUndoably,
+    // Called from a key handler, after `handleSubmit` below is initialized.
+    submit: (draft) => void handleSubmit(draft),
+    enterInsertsNewline: fullPane,
     items: completionRenderItems,
     disabled: disabled || collapsed || !!interimTranscript,
   });
@@ -2544,6 +2576,7 @@ export function MessageInput({
       return;
     }
     if (fileCompletion.onKeyDown(e)) return;
+    if (fileViewCompletion.onKeyDown(e)) return;
     if (
       e.key === "Enter" &&
       !e.nativeEvent.isComposing &&
@@ -3841,12 +3874,14 @@ export function MessageInput({
               }}
               onBlur={() => {
                 fileCompletion.onBlur();
+                fileViewCompletion.onBlur();
                 cancelRecallDrawer();
                 controls.flushDraft();
                 setTextareaFocused(false);
               }}
               onFocus={() => {
                 fileCompletion.onFocus();
+                fileViewCompletion.onFocus();
                 keyboardViewportBaselineRef.current =
                   getComposerViewportHeight();
                 setTextareaFocused(true);
@@ -3891,6 +3926,11 @@ export function MessageInput({
         </div>
 
         <ProjectFileCompletionMenu completion={fileCompletion} />
+        <ProjectFileCompletionMenu
+          completion={fileViewCompletion}
+          badge={fileViewTierBadge}
+          emptyLabel={t("fileViewCompletionEmpty")}
+        />
         {(showBangChip || showBangEscapedChip) && (
           <div
             className={`bang-composer-chip${

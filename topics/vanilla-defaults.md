@@ -78,6 +78,14 @@ Maintainer has authorized the exact exception.
 
 ## Known Exceptions
 
+The **`/v` / `/view` view command** ([view-command](view-command.md)) ships
+always-on wherever the server supports it, authorized by graehl on
+2026-09-30. It acts only when the user types it, opens the file viewer a link
+click already opens, and sends nothing to the provider. Its only default-
+visible trace is its row in the slash-command menu. A provider command or
+skill named `v` or `view` keeps that name, and `/v` then reaches the provider
+unchanged.
+
 **Copy Markdown** defaults visible in the existing selection actions, authorized
 by graehl on 2026-09-29 to keep Markdown copy accessible on mobile while native
 Copy and `Ctrl/Cmd+C` copy visible text. Its blue copy icon sits above quote
