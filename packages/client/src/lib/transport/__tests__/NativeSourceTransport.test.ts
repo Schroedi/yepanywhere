@@ -19,6 +19,15 @@ afterEach(() => {
 });
 
 describe("native source transport", () => {
+  it("waits for cold native demand instead of treating initial idle as terminal", async () => {
+    const { host, transport } = await setup();
+    await host.emit({ type: "state", phase: "IDLE" });
+    const request = transport.fetch("/version");
+    await Promise.resolve();
+    expect(host.commands).toHaveLength(0);
+    await host.emit({ type: "state", phase: "CONNECTED" });
+    expect(await request).toEqual({ ok: true });
+  });
   it("streams a 1 MiB attachment with credit and native upload handles", async () => {
     const { host, transport } = await setup();
     host.handler = (command) => {

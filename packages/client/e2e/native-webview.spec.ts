@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -161,8 +161,7 @@ for (const viewport of [
       ),
     ).toEqual([]);
     expect(errors).toEqual([]);
-    const out = join(tmpdir(), "ya-native-webview-captures");
-    mkdirSync(out, { recursive: true });
+    const out = mkdtempSync(join(tmpdir(), "ya-native-webview-captures-"));
     const path = join(out, `${viewport.name}.png`);
     await page.screenshot({ path, animations: "disabled" });
     await testInfo.attach(viewport.name, { path, contentType: "image/png" });

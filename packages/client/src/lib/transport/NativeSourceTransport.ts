@@ -118,7 +118,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
     const state =
       phase === "CONNECTED"
         ? "ready"
-        : phase === "CONNECTING"
+        : phase === "CONNECTING" || phase === "IDLE"
           ? "connecting"
           : phase === "RETRYING"
             ? "reconnecting"
@@ -363,14 +363,15 @@ export class NativeSourceTransport implements SourceTransport, Connection {
           );
         const { done, value } = await interruptible(reader.read());
         if (done) break;
-        for (let start = 0; start < value.length; start += 65_536) {
+        // Include the 24-byte upload header in one credited bridge frame.
+        for (let start = 0; start < value.length; start += 65_512) {
           if (options?.signal?.aborted)
             throw (
               options.signal.reason ?? new DOMException("Aborted", "AbortError")
             );
           const chunk = value.subarray(
             start,
-            Math.min(start + 65_536, value.length),
+            Math.min(start + 65_512, value.length),
           );
           await interruptible(
             this.bridge.send(
