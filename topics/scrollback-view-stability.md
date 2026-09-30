@@ -195,7 +195,14 @@ Consequences:
 - Committing in-session search (Enter on the highlighted match, or a click
   jump to that same match) is explicit navigation: leave tail-follow, jump
   to the selected row, and if search then unhides non-matches, pin that row
-  while the document height changes.
+  while the document height changes. Dismissing a committed search match also
+  stops Follow before unhiding rows: an earlier bottom event may have re-acquired
+  it before the final reader scroll event arrives. Layout observers must retain
+  the selected anchor rather than continue that stale follow intent.
+- A search frame belongs to the selected turn identity. If regrouping or
+  windowing replaces its DOM row, transfer the frame to that turn's connected
+  row without scrolling again or renewing the fade deadline. A later clear
+  cancels queued transfer work and wins over any pending reveal.
 
 ## Follow-engagement policy & proposed preferences
 

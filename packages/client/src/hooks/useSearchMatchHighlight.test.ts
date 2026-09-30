@@ -60,4 +60,51 @@ describe("useSearchMatchHighlight", () => {
     vi.advanceTimersByTime(3000);
     expect(row.dataset.searchMatch).toBeUndefined();
   });
+
+  it("keeps a landed frame on the connected row when its render id is remounted", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useSearchMatchHighlight(false));
+    const { row, scrollport } = mountRow();
+    row.dataset.renderId = "stable-turn";
+    result.current.beginSearchMatchReveal()(row, scrollport, "ready", false);
+    result.current.markSearchMatchLanded();
+    scrollport.scrollTop = 75;
+    vi.advanceTimersByTime(1900);
+
+    const replacement = document.createElement("section");
+    replacement.dataset.renderId = "stable-turn";
+    replacement.textContent = row.textContent;
+    row.replaceWith(replacement);
+    await act(async () => {
+      await Promise.resolve();
+      vi.advanceTimersByTime(32);
+    });
+    expect(row.dataset.searchMatch).toBeUndefined();
+    expect(replacement.dataset.searchMatch).toBe("true");
+    expect(replacement.className).toMatch(/landed/);
+    expect(scrollport.scrollTop).toBe(75);
+
+    vi.advanceTimersByTime(68);
+    expect(replacement.className).toMatch(/fading/);
+    vi.advanceTimersByTime(3000);
+    expect(replacement.dataset.searchMatch).toBeUndefined();
+  });
+
+  it("does not transfer a frame cleared while a remount callback is pending", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useSearchMatchHighlight(false));
+    const { row, scrollport } = mountRow();
+    row.dataset.renderId = "stable-turn";
+    result.current.beginSearchMatchReveal()(row, scrollport, "ready", false);
+    const replacement = document.createElement("div");
+    replacement.dataset.renderId = "stable-turn";
+    replacement.textContent = row.textContent;
+    row.replaceWith(replacement);
+    await act(async () => {
+      await Promise.resolve();
+      result.current.clearSearchMatchHighlight();
+      vi.advanceTimersByTime(32);
+    });
+    expect(replacement.dataset.searchMatch).toBeUndefined();
+  });
 });

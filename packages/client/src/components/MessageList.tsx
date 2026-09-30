@@ -3756,6 +3756,10 @@ export const MessageList = memo(function MessageList({
 
   const closeSearchAtMatch = useCallback(
     (targetId: string) => {
+      // A search landing at the tail may have re-acquired Follow before a
+      // subsequent reader scroll event arrives. Own the anchor before closing
+      // search can notify the content ResizeObserver.
+      beginTurnNavigation();
       if (settleSearchJumpFrameRef.current !== null) {
         cancelAnimationFrame(settleSearchJumpFrameRef.current);
         settleSearchJumpFrameRef.current = null;
@@ -3771,6 +3775,7 @@ export const MessageList = memo(function MessageList({
       markSearchMatchLanded();
     },
     [
+      beginTurnNavigation,
       closeSearch,
       completeProgressiveReveal,
       preserveScrollAfterTranscriptHeightChange,

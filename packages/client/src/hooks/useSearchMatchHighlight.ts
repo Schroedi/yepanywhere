@@ -81,12 +81,15 @@ export function useSearchMatchHighlight(inert: boolean) {
   }, [inert, clearSearchMatchHighlight]);
   const highlightSearchMatch = useCallback(
     (
-      row: HTMLElement,
+      initialRow: HTMLElement,
       scrollport: HTMLElement,
       query: string,
       caseSensitive: boolean,
     ) => {
       cleanupRef.current?.();
+      let row = initialRow;
+      const renderId = row.dataset.renderId;
+      const generation = generationRef.current;
       row.classList.add(styles.target!);
       rowRef.current = row;
       row.dataset.searchMatch = "true";
@@ -135,16 +138,58 @@ export function useSearchMatchHighlight(inert: boolean) {
       renewHighlight();
       renewHighlightRef.current = renewHighlight;
       let pendingFrame: number | null = null;
-      const observer = new MutationObserver(() => {
+      const schedulePaint = () => {
         if (pendingFrame !== null) return;
         pendingFrame = requestAnimationFrame(() => {
           pendingFrame = null;
+          if (generation !== generationRef.current) return;
+          if (!row.isConnected) {
+            const replacement =
+              renderId &&
+              [
+                ...scrollport.querySelectorAll<HTMLElement>("[data-render-id]"),
+              ].find(
+                (candidate) =>
+                  candidate.isConnected &&
+                  candidate.dataset.renderId === renderId,
+              );
+            if (!replacement) return;
+            const fading = row.classList.contains(styles.fading!);
+            row.classList.remove(
+              styles.target!,
+              styles.landed!,
+              styles.fading!,
+            );
+            delete row.dataset.searchMatch;
+            row = replacement;
+            rowRef.current = row;
+            observeContent();
+            row.classList.add(styles.target!);
+            row.dataset.searchMatch = "true";
+            if (fading) row.classList.add(styles.fading!);
+            if (landedRef.current) armLanded();
+          }
           paint(false);
         });
+      };
+      const observer = new MutationObserver(schedulePaint);
+      const observeContent = () => {
+        observer.disconnect();
+        observer.observe(row, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+      };
+      observeContent();
+      // A timeline regroup can replace the element while retaining its turn
+      // identity. Watch structural changes separately so unrelated streaming
+      // text does not produce records for this highlight's content observer.
+      const remountObserver = new MutationObserver(() => {
+        if (!row.isConnected) schedulePaint();
       });
-      observer.observe(row, {
+      remountObserver.observe(scrollport, {
         childList: true,
-        characterData: true,
         subtree: true,
       });
       cleanupRef.current = () => {
@@ -154,6 +199,7 @@ export function useSearchMatchHighlight(inert: boolean) {
         for (const type of events)
           window.removeEventListener(type, renewHighlight, { capture: true });
         observer.disconnect();
+        remountObserver.disconnect();
         if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
         row.classList.remove(styles.target!, styles.landed!, styles.fading!);
         if (rowRef.current === row) rowRef.current = null;

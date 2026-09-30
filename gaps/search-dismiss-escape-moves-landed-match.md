@@ -26,3 +26,19 @@ frames are now owned/cancelled, and search navigation uses the same stop-follow
 fence. This is a supported repair, but it does not yet establish the cause of
 the exact 60px Escape shift above. Keep the frame assertion and this gap open
 while repeated browser/CI evidence is gathered.
+
+2026-09-30: the longer parallel probe reproduced two exact 60px drifts in
+20 attempts; a separate attempt missed the initial highlight. A lower-overhead
+scroll recorder then captured the writer: Escape preserved the anchor, followed
+by a ResizeObserver bottom pin and its 50ms follow-up. The preceding search
+landing had re-acquired Follow at the tail; the deliberate upward scroll's
+native event arrived only while anchor restoration suppressed programmatic
+scroll events. Dismissal now stops Follow before its synchronous layout change.
+A controlled unit regression fails before that repair (752 → 1660); Escape and
+framed-row click variants pass after it and explicit Follow still resumes.
+Forty unmodified four-worker Escape repetitions passed without retries in 1.3m.
+Exact-revision CI verification remains pending. The earlier missing-highlight
+failure is separate and is not explained by this captured writer.
+
+The separate initial-frame failure is tracked in
+[session-search-highlight-lost-before-dismissal](session-search-highlight-lost-before-dismissal.md).
