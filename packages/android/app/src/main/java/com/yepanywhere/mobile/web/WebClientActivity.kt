@@ -128,7 +128,20 @@ class WebClientActivity : ComponentActivity() {
             errorView.visibility = View.VISIBLE
             return
         }
-        clientView.loadUrl(consumeStartUrl())
+        val initialUrl = consumeStartUrl()
+        val restoredPath = savedInstanceState?.getString(NATIVE_WEB_PATH)
+        clientView.loadUrl(if (config.bundled && intent.hasExtra(PROFILE_ID) && restoredPath?.startsWith("/") == true) "${config.origin}$restoredPath" else initialUrl)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (config.bundled && intent.hasExtra(PROFILE_ID)) {
+            webView?.url?.takeIf { WebClientNavigation.decide(it, config.origin) == NavigationDecision.ALLOW_IN_APP }?.let {
+                // Preserve native app navigation across recreation, without
+                // persisting login fragments or query credentials in a Bundle.
+                outState.putString(NATIVE_WEB_PATH, it.toUri().encodedPath)
+            }
+        }
+        super.onSaveInstanceState(outState)
     }
 
     private fun consumeStartUrl(): String {
@@ -393,6 +406,7 @@ class WebClientActivity : ComponentActivity() {
 
     companion object {
         const val PROFILE_ID = "nativeProfileId"
+        private const val NATIVE_WEB_PATH = "nativeWebPath"
         private const val POST_NOTIFICATIONS_PERMISSION =
             "android.permission.POST_NOTIFICATIONS"
     }

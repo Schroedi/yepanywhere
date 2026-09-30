@@ -341,11 +341,17 @@ class WebClientActivityTest {
     private fun launchClient(): ActivityScenario<WebClientActivity> {
         // Control-plane tests have no native profile. Start at the stable login
         // route so a / -> /login redirect cannot discard the test's reply state.
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val intent = Intent(context, WebClientActivity::class.java).setData(
-            android.net.Uri.parse("${WebClientConfig.fromBuild().origin}/login"),
-        )
-        return ActivityScenario.launch(intent)
+        // Activity consumes/clears Intent.data, which ActivityScenario uses
+        // for lifecycle matching. Load the route after its launch instead.
+        val scenario = ActivityScenario.launch(WebClientActivity::class.java)
+        scenario.onActivity { activity ->
+            activity.findViewById<WebView>(R.id.web_client).apply {
+                stopLoading()
+                loadUrl("${WebClientConfig.fromBuild().origin}/login")
+            }
+        }
+        awaitJavaScript(scenario, "location.pathname === '/login' && document.readyState === 'complete'", "true")
+        return scenario
     }
 
     private fun requestHostDescription(
