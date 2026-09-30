@@ -119,6 +119,8 @@ import type {
   TurnSteerResponse,
   UserInput,
 } from "./codex-protocol/index.js";
+import type { CyberAccessProgram } from "./codex-protocol/generated/v2/CyberAccessProgram.js";
+import type { TurnError } from "./codex-protocol/generated/v2/TurnError.js";
 import type { SandboxPolicy as CodexSandboxPolicy } from "./codex-protocol/generated/v2/SandboxPolicy.js";
 import {
   createLaunchAgentctlSessionEnvBridge,
@@ -444,12 +446,49 @@ interface CodexTurnRuntimeState {
     requestAccepted: Promise<boolean>;
   };
   overloadRetryController?: AbortController;
+  /** Signed-in account identity that scopes cyber access denials. */
+  cyberAccessAccountKey?: string;
   activePermissionMode: PermissionMode;
   turnEffortOverride: EffortLevel | null | undefined;
   activeTurnHasEffortOverride?: boolean;
   workspaceWriteSandboxPolicy: CodexSandboxPolicy | null;
   activeToolCallIds: Set<string>;
   backgroundToolCallIds: Set<string>;
+}
+
+type CodexRetryableTurnErrorKind = "serverOverloaded" | "cyberAccessDenied";
+
+interface CodexRetryableTurnError {
+  kind: CodexRetryableTurnErrorKind;
+  message: SDKMessage;
+}
+
+/**
+ * The backend refuses a requested cyber access program with an HTTP 403 whose
+ * body names the program, for example `The requested Cyber access program is
+ * not authorized for this model.` Codex reports it as a failed HTTP
+ * connection, so the status alone is not specific enough.
+ */
+export function isCodexCyberAccessDenial(
+  error: Pick<TurnError, "message" | "codexErrorInfo">,
+): boolean {
+  const info = error.codexErrorInfo;
+  const status =
+    info && typeof info === "object" && "httpConnectionFailed" in info
+      ? info.httpConnectionFailed.httpStatusCode
+      : null;
+  return status === 403 && /cyber access program/i.test(error.message);
+}
+
+function classifyCodexTurnError(
+  error: Pick<TurnError, "message" | "codexErrorInfo">,
+  cyberAccessRequested: boolean,
+): CodexRetryableTurnErrorKind | null {
+  if (error.codexErrorInfo === "serverOverloaded") return "serverOverloaded";
+  if (cyberAccessRequested && isCodexCyberAccessDenial(error)) {
+    return "cyberAccessDenied";
+  }
+  return null;
 }
 
 function getCodexNotificationTurnId(
@@ -1271,6 +1310,8 @@ export class CodexProvider implements AgentProvider {
     "provider-default";
   private getConfiguredCyberAccessProgram: () => CodexCyberAccessProgram = () =>
     DEFAULT_CODEX_CYBER_ACCESS_PROGRAM;
+  /** Account, model and program scopes whose program request was refused. */
+  private readonly cyberAccessDenials = new Set<string>();
   private getConfiguredSubagentMaxDepth: () => SubagentMaxDepth = () =>
     DEFAULT_SUBAGENT_MAX_DEPTH;
 
@@ -2968,9 +3009,10 @@ export class CodexProvider implements AgentProvider {
         provider: CodexProvider,
         turn: CodexThreadTurn,
         notificationBarrierSequence: number,
+        cyberAccessRequested = false,
       ): AsyncGenerator<
         SDKMessage,
-        { overloadError: SDKMessage | null },
+        { retryableError: CodexRetryableTurnError | null },
         void
       > {
         const activeTurnId = turn.id;
@@ -2988,7 +3030,7 @@ export class CodexProvider implements AgentProvider {
           };
         }
         let emittedTurnError = false;
-        let overloadError: SDKMessage | null = null;
+        let retryableError: CodexRetryableTurnError | null = null;
         let suppressedPreTurnNotifications: {
           count: number;
           firstSequence: number;
@@ -3138,12 +3180,13 @@ export class CodexProvider implements AgentProvider {
             usageByTurnId,
             liveEventState,
           );
-          const isServerOverload = provider.isCodexServerOverloadedNotification(
+          const retryableKind = provider.classifyRetryableTurnError(
             notification,
             effectiveActiveTurnId,
+            cyberAccessRequested,
           );
-          const suppressFailedOverloadCompletion =
-            overloadError !== null &&
+          const suppressFailedRetryableCompletion =
+            retryableError !== null &&
             notification.method === "turn/completed" &&
             provider.isTurnTerminalNotification(
               notification,
@@ -3160,11 +3203,11 @@ export class CodexProvider implements AgentProvider {
                       provider.formatCodexFailureTrace(failureTrace),
                   } as SDKMessage)
                 : rawMsg;
-            if (isServerOverload && msg.type === "error") {
-              overloadError = msg;
+            if (retryableKind && msg.type === "error") {
+              retryableError = { kind: retryableKind, message: msg };
               continue;
             }
-            if (suppressFailedOverloadCompletion) {
+            if (suppressFailedRetryableCompletion) {
               continue;
             }
             failureTrace.lastEmittedMessage =
@@ -3172,7 +3215,7 @@ export class CodexProvider implements AgentProvider {
             yield msg;
           }
 
-          if (isServerOverload) {
+          if (retryableKind) {
             continue;
           }
           if (
@@ -3193,7 +3236,7 @@ export class CodexProvider implements AgentProvider {
         failureTrace.activeTurnId = null;
 
         if (signal.aborted) {
-          return { overloadError: null };
+          return { retryableError: null };
         }
 
         if (
@@ -3218,14 +3261,15 @@ export class CodexProvider implements AgentProvider {
               turn.error.message,
             ),
           } as SDKMessage;
-          if (turn.error.codexErrorInfo === "serverOverloaded") {
-            return { overloadError: fallbackError };
+          const kind = classifyCodexTurnError(turn.error, cyberAccessRequested);
+          if (kind) {
+            return { retryableError: { kind, message: fallbackError } };
           }
           yield fallbackError;
         }
 
-        if (overloadError) {
-          return { overloadError };
+        if (retryableError) {
+          return { retryableError };
         }
 
         runtimeState.pendingCompaction = undefined;
@@ -3233,7 +3277,7 @@ export class CodexProvider implements AgentProvider {
           type: "result",
           session_id: sessionId,
         } as SDKMessage;
-        return { overloadError: null };
+        return { retryableError: null };
       };
 
       const overloadRetryWait =
@@ -3329,11 +3373,14 @@ export class CodexProvider implements AgentProvider {
             if (next.method === "turn/started") {
               const params = asCodexTurnCompletedNotification(next.params);
               if (params?.threadId === sessionId) {
-                const { overloadError } = yield* consumeTurn(
+                // A turn YA did not start requested no cyber access program,
+                // so only an overload can come back as retryable here.
+                const { retryableError } = yield* consumeTurn(
                   this,
                   params.turn,
                   0,
                 );
+                const overloadError = retryableError?.message;
                 if (overloadError) {
                   const compaction = runtimeState.pendingCompaction;
                   if (compaction) {
@@ -3425,6 +3472,12 @@ export class CodexProvider implements AgentProvider {
           const turnPolicy =
             this.mapPermissionModeToThreadPolicy(turnPermissionMode);
           runtimeState.activePermissionMode = turnPermissionMode;
+          const cyberAccess = await this.resolveTurnCyberAccess(
+            appServer,
+            runtimeState,
+            sessionId,
+            runtimeState.turnModelOverride ?? runtimeState.resolvedModel,
+          );
           const turnStartParams = this.createTurnStartParams(
             sessionId,
             preparedInput.input,
@@ -3434,6 +3487,7 @@ export class CodexProvider implements AgentProvider {
             runtimeState.turnModelOverride,
             runtimeState.turnEffortOverride,
             message.uuid,
+            cyberAccess.program,
           );
           let restoreThreadEffort: (() => Promise<unknown>) | undefined;
           if (message.turnEffort) {
@@ -3520,25 +3574,53 @@ export class CodexProvider implements AgentProvider {
             "Started Codex app-server turn",
           );
           let overloadRetryAttempt = 0;
+          let cyberAccessProgram = cyberAccess.program;
           while (!signal.aborted) {
-            const { overloadError } = yield* consumeTurn(
+            const { retryableError } = yield* consumeTurn(
               this,
               turnResult.turn,
               notificationBarrierSequence,
+              cyberAccessProgram !== null,
             );
-            if (!overloadError) break;
+            if (!retryableError) break;
 
-            overloadRetryAttempt += 1;
-            const retryReady = yield* prepareOverloadRetry(
-              overloadError,
-              overloadRetryAttempt,
-            );
-            if (!retryReady) {
+            if (retryableError.kind === "cyberAccessDenied") {
+              // The refusal happens before any model output, so the turn
+              // reruns at once without the program. Later turns for this
+              // account and model omit it from the start.
+              if (cyberAccess.scope) {
+                this.cyberAccessDenials.add(cyberAccess.scope);
+              }
+              cyberAccessProgram = null;
               yield {
-                type: "result",
-                session_id: sessionId,
+                ...retryableError.message,
+                codexWillRetry: true,
+                codexCyberAccessRetry: true,
               } as SDKMessage;
-              break;
+              log.info(
+                {
+                  sessionId,
+                  turnId: retryableError.message.codexTurnId,
+                  model:
+                    runtimeState.turnModelOverride ??
+                    runtimeState.resolvedModel,
+                  cyberAccessProgram: cyberAccess.program,
+                },
+                "Codex account is not authorized for the cyber access program; retrying without it",
+              );
+            } else {
+              overloadRetryAttempt += 1;
+              const retryReady = yield* prepareOverloadRetry(
+                retryableError.message,
+                overloadRetryAttempt,
+              );
+              if (!retryReady) {
+                yield {
+                  type: "result",
+                  session_id: sessionId,
+                } as SDKMessage;
+                break;
+              }
             }
 
             const retryTurnStartParams = this.createTurnStartParams(
@@ -3549,6 +3631,8 @@ export class CodexProvider implements AgentProvider {
               runtimeState.workspaceWriteSandboxPolicy,
               runtimeState.turnModelOverride,
               runtimeState.turnEffortOverride,
+              undefined,
+              cyberAccessProgram,
             );
             if (message.turnEffort)
               retryTurnStartParams.effort = turnStartParams.effort;
@@ -3569,7 +3653,7 @@ export class CodexProvider implements AgentProvider {
                 approvalPolicy: turnPolicy.approvalPolicy,
                 sandboxPolicy: retryTurnStartParams.sandboxPolicy,
               },
-              "Retried Codex overloaded turn without resending user input",
+              "Retried failed Codex turn without resending user input",
             );
           }
           runtimeState.activeTurnHasEffortOverride = false;
@@ -3667,17 +3751,20 @@ export class CodexProvider implements AgentProvider {
     return false;
   }
 
-  private isCodexServerOverloadedNotification(
+  /**
+   * Classify a terminal turn error that YA retries itself. A cyber access
+   * denial counts only when this turn requested a program; the same 403 on a
+   * turn that sent none has nothing to drop.
+   */
+  private classifyRetryableTurnError(
     notification: JsonRpcNotification,
     turnId: string,
-  ): boolean {
-    if (notification.method !== "error") return false;
+    cyberAccessRequested: boolean,
+  ): CodexRetryableTurnErrorKind | null {
+    if (notification.method !== "error") return null;
     const params = asCodexErrorNotification(notification.params);
-    return (
-      params?.turnId === turnId &&
-      params.willRetry === false &&
-      params.error.codexErrorInfo === "serverOverloaded"
-    );
+    if (params?.turnId !== turnId || params.willRetry !== false) return null;
+    return classifyCodexTurnError(params.error, cyberAccessRequested);
   }
 
   private updateBackgroundProcessTracking(
@@ -4245,6 +4332,7 @@ export class CodexProvider implements AgentProvider {
     modelOverride: string | null = options.model ?? null,
     effortOverride: EffortLevel | null | undefined = options.effort,
     clientUserMessageId?: string,
+    cyberAccessProgram: CyberAccessProgram | null = null,
   ): TurnStartParams {
     return {
       threadId,
@@ -4264,7 +4352,7 @@ export class CodexProvider implements AgentProvider {
         turnPolicy,
         workspaceWriteSandboxPolicy,
       ),
-      ...this.buildTurnCyberAccessParams(),
+      ...(cyberAccessProgram ? { cyberAccessProgram } : {}),
     };
   }
 
@@ -4273,14 +4361,70 @@ export class CodexProvider implements AgentProvider {
    * every user turn carries the current selection. Omitting the field keeps
    * Codex's automatic choice, which is what the default does. YA-internal
    * helper turns such as the recap thread never send it.
+   *
+   * Enrollment belongs to the ChatGPT account and model, not to YA's
+   * server-wide setting, so a selection the backend already refused for this
+   * account and model is omitted rather than failing every turn. `scope` is
+   * null when no program is configured; it names the denial to record if the
+   * backend refuses the requested one.
    */
-  private buildTurnCyberAccessParams(): Partial<
-    Pick<TurnStartParams, "cyberAccessProgram">
-  > {
-    const wireValue = codexCyberAccessProgramWireValue(
+  private async resolveTurnCyberAccess(
+    appServer: CodexAppServerClient,
+    runtimeState: CodexTurnRuntimeState,
+    sessionId: string,
+    model: string | null,
+  ): Promise<{ program: CyberAccessProgram | null; scope: string | null }> {
+    const program = codexCyberAccessProgramWireValue(
       this.getConfiguredCyberAccessProgram(),
     );
-    return wireValue ? { cyberAccessProgram: wireValue } : {};
+    if (!program) return { program: null, scope: null };
+    runtimeState.cyberAccessAccountKey ??= await this.readCyberAccessAccountKey(
+      appServer,
+      sessionId,
+    );
+    const scope = JSON.stringify([
+      runtimeState.cyberAccessAccountKey,
+      model,
+      program,
+    ]);
+    return {
+      program: this.cyberAccessDenials.has(scope) ? null : program,
+      scope,
+    };
+  }
+
+  /**
+   * Identify the signed-in account for cyber access denials. An account
+   * switch replaces the app-server process, so one read per session suffices.
+   * When the account cannot be read, a denial stays confined to this session.
+   */
+  private async readCyberAccessAccountKey(
+    appServer: CodexAppServerClient,
+    sessionId: string,
+  ): Promise<string> {
+    try {
+      const response = await withCodexTimeout(
+        appServer.request<unknown>("account/read", { refreshToken: false }),
+        ACCOUNT_RATE_LIMITS_TIMEOUT_MS,
+        "Codex account status",
+      );
+      const account =
+        response && typeof response === "object"
+          ? (response as { account?: { type?: unknown; email?: unknown } })
+              .account
+          : undefined;
+      if (typeof account?.type === "string") {
+        return typeof account.email === "string" && account.email
+          ? `${account.type}:${account.email}`
+          : account.type;
+      }
+    } catch (error) {
+      log.warn(
+        { sessionId, error },
+        "Could not read Codex account for cyber access program scoping",
+      );
+    }
+    return `session:${sessionId}`;
   }
 
   private buildTurnPermissionParams(

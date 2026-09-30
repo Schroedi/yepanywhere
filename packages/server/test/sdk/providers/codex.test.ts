@@ -40,6 +40,7 @@ import {
   CodexProvider,
   type CodexProviderConfig,
   formatCodexLoginCommand,
+  isCodexCyberAccessDenial,
 } from "../../../src/sdk/providers/codex.js";
 import {
   prepareSessionSandbox,
@@ -1088,6 +1089,111 @@ describe("CodexProvider app-server lifecycle", () => {
             (request) => request.params?.clientUserMessageId === undefined,
           ),
       ).toBe(true);
+    } finally {
+      await session.abort();
+      await session.iterator.return?.(undefined);
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("recognizes a refused cyber access program only by its 403 and message", () => {
+    const message =
+      'unexpected status 403 Forbidden: {"detail":"The requested Cyber access program is not authorized for this model."}';
+    expect(
+      isCodexCyberAccessDenial({
+        message,
+        codexErrorInfo: { httpConnectionFailed: { httpStatusCode: 403 } },
+      }),
+    ).toBe(true);
+    expect(
+      isCodexCyberAccessDenial({
+        message: "unexpected status 403 Forbidden: workspace disabled",
+        codexErrorInfo: { httpConnectionFailed: { httpStatusCode: 403 } },
+      }),
+    ).toBe(false);
+    expect(
+      isCodexCyberAccessDenial({
+        message,
+        codexErrorInfo: { httpConnectionFailed: { httpStatusCode: 401 } },
+      }),
+    ).toBe(false);
+    expect(
+      isCodexCyberAccessDenial({ message, codexErrorInfo: "unauthorized" }),
+    ).toBe(false);
+  });
+
+  it("retries without a cyber access program the account is not enrolled in", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "codex-cyber-access-retry-"));
+    const logPath = join(tempDir, "fake-codex-requests.jsonl");
+    const codexPath = createFakeCodexCommand(
+      tempDir,
+      "fake-codex-cyber-access-retry",
+      buildFakeCodexFailureAppServer(logPath, "cyberAccessDenied", 0),
+    );
+    const testProvider = new CodexProvider({ codexPath });
+    testProvider.setCyberAccessProgramGetter(() => "daybreak-blue");
+    const readTurn = async (
+      session: Awaited<ReturnType<CodexProvider["startSession"]>>,
+    ) => {
+      const messages: Array<Record<string, unknown>> = [];
+      while (true) {
+        const next = await session.iterator.next();
+        if (next.done) break;
+        messages.push(next.value);
+        if (next.value.type === "result") break;
+      }
+      return messages;
+    };
+    const turnStarts = () =>
+      readFakeCodexRequests(logPath)
+        .filter((request) => request.method === "turn/start")
+        .map((request) => request.params ?? {});
+
+    const session = await testProvider.startSession({
+      cwd: tempDir,
+      model: "gpt-5.6-codex",
+      initialMessage: { text: "keep this prompt singular", uuid: "user-1" },
+    });
+    try {
+      const messages = await readTurn(session);
+      expect(
+        messages.filter((message) => message.type === "user"),
+      ).toHaveLength(1);
+      expect(
+        messages.filter((message) => message.type === "error"),
+      ).toMatchObject([
+        {
+          codexWillRetry: true,
+          codexErrorInfo: { httpConnectionFailed: { httpStatusCode: 403 } },
+        },
+      ]);
+      expect(messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "assistant",
+            message: expect.objectContaining({ content: "Recovered answer" }),
+          }),
+        ]),
+      );
+      expect(turnStarts()).toEqual([
+        expect.objectContaining({
+          clientUserMessageId: "user-1",
+          cyberAccessProgram: "daybreakBlue",
+        }),
+        expect.objectContaining({ input: [] }),
+      ]);
+      expect(turnStarts()[1]).not.toHaveProperty("cyberAccessProgram");
+
+      // The refusal is remembered for this account and model, so the next
+      // turn does not fail first.
+      session.queue.push({ text: "second turn", uuid: "user-2" });
+      const secondMessages = await readTurn(session);
+      expect(secondMessages.some((message) => message.type === "error")).toBe(
+        false,
+      );
+      expect(turnStarts()).toHaveLength(3);
+      expect(turnStarts()[2]).toMatchObject({ clientUserMessageId: "user-2" });
+      expect(turnStarts()[2]).not.toHaveProperty("cyberAccessProgram");
     } finally {
       await session.abort();
       await session.iterator.return?.(undefined);
@@ -3660,7 +3766,10 @@ process.stdin.on("data", (chunk) => {
 
 function buildFakeCodexFailureAppServer(
   logPath: string,
-  codexErrorInfo: "serverOverloaded" | "usageLimitExceeded",
+  codexErrorInfo:
+    | "serverOverloaded"
+    | "usageLimitExceeded"
+    | "cyberAccessDenied",
   failuresBeforeSuccess: number,
   failureMethod: "turn/start" | "thread/compact/start" = "turn/start",
 ): string {
@@ -3723,6 +3832,12 @@ function handleMessage(message) {
     case "initialize":
       respond(message.id, { userAgent: "fake-codex-failure" });
       break;
+    case "account/read":
+      respond(message.id, {
+        account: { type: "chatgpt", email: "second@example.com", planType: "pro" },
+        requiresOpenaiAuth: true,
+      });
+      break;
     case "skills/list":
       respond(message.id, {
         data: [{
@@ -3745,7 +3860,10 @@ function handleMessage(message) {
       const turnId = \`turn-\${turnSequence}\`;
       const isCompact = message.method === "thread/compact/start";
       const turn = { id: turnId, status: "inProgress", error: null };
-      const shouldFail = message.method === failureMethod && ++failureSequence <= failuresBeforeSuccess;
+      // An unenrolled account refuses every turn that requests a program.
+      const shouldFail = codexErrorInfo === "cyberAccessDenied"
+        ? message.params?.cyberAccessProgram != null
+        : message.method === failureMethod && ++failureSequence <= failuresBeforeSuccess;
       respond(message.id, isCompact ? {} : { turn });
       setTimeout(() => {
         if (isCompact) {
@@ -3756,7 +3874,11 @@ function handleMessage(message) {
           });
         }
         if (shouldFail) {
-          const error = {
+          const error = codexErrorInfo === "cyberAccessDenied" ? {
+            message: 'unexpected status 403 Forbidden: {"detail":"The requested Cyber access program is not authorized for this model."}',
+            codexErrorInfo: { httpConnectionFailed: { httpStatusCode: 403 } },
+            additionalDetails: null,
+          } : {
             message: codexErrorInfo === "serverOverloaded"
               ? "Selected model is at capacity."
               : "Usage limit reached.",

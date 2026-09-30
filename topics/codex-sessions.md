@@ -115,7 +115,22 @@ selection on each user turn rather than at thread scope. YA-internal helper
 turns, such as the ephemeral recap thread, never send it. Codex forwards the
 program only for ChatGPT-authenticated accounts, and upstream states plainly
 that requesting a program does not grant access, so the control must not be
-described as enabling anything. `Thread.daybreakEnabled` is a separate
+described as enabling anything.
+
+Enrollment belongs to the signed-in ChatGPT account and is checked per model.
+The one server-wide selection can therefore reach an account or model that is
+not enrolled, for example after switching the Codex home to another
+subscription. The backend refuses such a turn with HTTP 403 and a message
+naming the Cyber access program. YA then reruns the turn at once without the
+program and without resending the user's input. The refusal appears as a
+retrying warning, not a turn failure. YA remembers the refusal for that
+account, model and program for as long as the server process runs, so later
+turns in any session under that account send no program and do not fail
+first. The account is identified by the `account/read` type and email and is
+read once per session. If it cannot be read, the refusal applies only to that
+session. The same 403 on a turn that requested no program is an ordinary
+failure. Knowing enrollment before the first turn would need per-subscription
+flags ([sketch](../gaps/sketches/provider-subscription-switching.md)). `Thread.daybreakEnabled` is a separate
 client-saved metadata flag that no Codex behavior reads; YA neither writes nor
 consumes it.
 
