@@ -57,6 +57,9 @@ test("All Sessions keeps every typed character with a large title catalog", asyn
   test.setTimeout(60000);
   saveSession("typing-fixture", "typing");
   await routeWithDrain(page, /\/api\/sessions\?/, async (route) => {
+    // Inflate the page catalog, retaining the sidebar's actual bounded feed.
+    if (new URL(route.request().url()).searchParams.get("limit") !== "500")
+      return route.continue();
     const response = await route.fetch();
     const data = await response.json();
     const seed = data.sessions?.find(
@@ -639,11 +642,28 @@ for (const viewport of [
   test(`All Sessions expands retained matches through scanning and live updates on ${viewport.name}`, async ({
     page,
     baseURL,
+    request,
   }) => {
     test.setTimeout(60000);
     const id = `expanded-${viewport.name}`;
     saveSession(id, "expanded", true);
     const file = createdFiles.at(-1)!;
+    await expect
+      .poll(
+        async () => {
+          const response = await request.get(
+            `${baseURL}/api/sessions?limit=500`,
+          );
+          const data = await response.json();
+          return (
+            data.sessions?.some(
+              (session: { id: string }) => session.id === id,
+            ) ?? false
+          );
+        },
+        { timeout: 30000 },
+      )
+      .toBe(true);
     await page.setViewportSize(
       viewport.name === "desktop" ? { width: 1200, height: 600 } : viewport,
     );
@@ -652,15 +672,33 @@ for (const viewport of [
       release = resolve;
     });
     let requests = 0;
+    let heldFinalRequests = 0;
     await routeWithDrain(
       page,
       "**/api/sessions/content-search",
       async (route) => {
-        requests++;
+        const input = route.request().postDataJSON();
+        const ownSearch =
+          input.sessionId === id &&
+          input.query === "quasarneedle" &&
+          input.roles?.includes("user") &&
+          input.roles?.includes("assistant");
+        if (ownSearch) requests++;
         const response = await route.fetch();
         const batch = await response.json();
-        if (route.request().postDataJSON().sessionId === id && batch.done)
+        if (ownSearch && batch.diagnostics?.length)
+          console.log(
+            "expanded-search-diagnostics",
+            JSON.stringify({
+              id,
+              done: batch.done,
+              diagnostics: batch.diagnostics,
+            }),
+          );
+        if (ownSearch && batch.done) {
+          heldFinalRequests++;
           await gate;
+        }
         await route.fulfill({ response });
       },
     );
@@ -697,6 +735,7 @@ for (const viewport of [
       await plus.hover();
       await page.waitForTimeout(700);
       await expect(page.locator("[data-session-hovercard-id]")).toHaveCount(0);
+      await expect.poll(() => heldFinalRequests).toBeGreaterThan(0);
       const before = requests;
       await row
         .getByRole("button", {
@@ -822,19 +861,25 @@ for (const viewport of [
       await expect(row).toHaveCount(1, { timeout: 30000 });
       const title = row.locator("strong mark").locator("..");
       await expect(title).toHaveText(/^….*quasarneedle.*…$/);
-      const narrowText = await title.textContent();
-      const narrowWidth = await title.evaluate((node) => node.clientWidth);
+      const narrow = await title.evaluate((node) => ({
+        text: node.textContent!,
+        width: node.clientWidth,
+      }));
       await page.setViewportSize({ ...viewport, width: viewport.width + 100 });
       await expect
         .poll(() => title.evaluate((node) => node.clientWidth))
-        .not.toBe(narrowWidth);
-      const resizedWidth = await title.evaluate((node) => node.clientWidth);
+        .not.toBe(narrow.width);
       // A wider viewport may open the sidebar and reduce the title's space.
+      // Its first changed width can precede that layout update: compare text
+      // and width together, rather than freezing the transient width.
       await expect
-        .poll(
-          async () =>
-            ((await title.textContent())!.length - narrowText!.length) *
-            (resizedWidth - narrowWidth),
+        .poll(async () =>
+          title.evaluate(
+            (node, before) =>
+              (node.textContent!.length - before.text.length) *
+              (node.clientWidth - before.width),
+            narrow,
+          ),
         )
         .toBeGreaterThan(0);
       await page.setViewportSize(viewport);

@@ -26,9 +26,9 @@ function runRoot(): string {
 }
 
 describe("E2E worker ownership", () => {
-  it("chooses paths before seeding and gives retry workers fresh profiles", () => {
+  it("defaults to isolated paths before seeding and gives retry workers fresh profiles", () => {
     const root = runRoot();
-    vi.stubEnv("YEP_E2E_SERVER_SCOPE", "worker");
+    vi.stubEnv("YEP_E2E_SERVER_SCOPE", undefined);
     vi.stubEnv("TEST_WORKER_INDEX", undefined);
     expect(getE2EProfileDirectory()).toBe(root);
     vi.stubEnv("TEST_PARALLEL_INDEX", "0");

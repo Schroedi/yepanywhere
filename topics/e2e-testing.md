@@ -120,9 +120,10 @@ the sum of shard job times as runner cost. A partial local run stopped by the
 failure limit is not a valid speed comparison; the current measurements are in
 [the E2E cost ledger](../docs/testing/e2e-ci-cost-ledger.md).
 
-### Worker-owned services (CI validation pending)
+### Worker-owned services
 
-Set `YEP_E2E_SERVER_SCOPE=worker` to exercise worker isolation. Builds and the
+Mutable services are worker-owned by default; `pnpm test:e2e --workers=4`
+needs no extra isolation environment setting. Builds and the
 remote-client Vite/preview servers remain invocation-owned; each worker starts
 its own seeded YA profile and relay only when a fixture needs them. The default
 worker count remains one until full-suite and comparable CI evidence supports
@@ -167,9 +168,13 @@ sibling request while its callback still awaits a fetch response.
 
 A full local run on 2026-09-29 passed 345 cases with 12 platform/device skips,
 two workers and no retries in 8.0 minutes, including teardown. This establishes
-one passing schedule on macOS; comparable Linux CI runs are still required
-before changing the default. The historical run-scoped failures above remain
-the reason for this migration.
+one passing schedule on macOS. The merged repair passed 347 cases with 12
+skips and four workers without retries; the Linux full CI run also passed,
+with one relay typing retry and no retries in the repaired startup cases.
+Worker ownership is now the default, while `YEP_E2E_SERVER_SCOPE=run` retains
+the explicit legacy timing control. Repeated first-attempt reliability and
+comparable timings remain the acceptance gate; the historical shared-state
+failures above are the reason for this migration.
 
 `pnpm e2e:typecheck` checks the Playwright specs, configurations and support
 modules with Node and browser types. Root `pnpm typecheck` includes this gate;

@@ -772,6 +772,14 @@ test.describe("Full Relay Integration", () => {
     remoteClientURL,
     relayWsURL,
   }) => {
+    // Recovery uses an accelerated scheduler. Capture the native frame clock
+    // before installing it so typing still measures actual browser frames.
+    await page.addInitScript(() => {
+      Object.assign(window, {
+        relayTypingNow: performance.now.bind(performance),
+        relayTypingFrame: requestAnimationFrame.bind(window),
+      });
+    });
     let blocked = false;
     let failures = 0;
     const sockets: import("@playwright/test").WebSocketRoute[] = [];
@@ -879,21 +887,37 @@ test.describe("Full Relay Integration", () => {
     await page.clock.resume();
     await search.evaluate((element) => {
       const input = element as HTMLInputElement;
-      const samples: Array<{ ms: number; present: boolean }> = [];
+      const { relayTypingNow: now, relayTypingFrame: frame } =
+        window as unknown as {
+          relayTypingNow: () => number;
+          relayTypingFrame: typeof requestAnimationFrame;
+        };
+      const samples: Array<{
+        ms: number;
+        fakeMs: number | null;
+        present: boolean;
+      }> = [];
       let started = 0;
+      let fakeStarted = 0;
       input.addEventListener("keydown", () => {
-        started = performance.now();
+        started = now();
+        fakeStarted = performance.now();
         // Concurrent real socket health traffic while acknowledging typing.
         document.dispatchEvent(new Event("visibilitychange"));
       });
       input.addEventListener("input", () => {
         const expected = input.value;
         const keyStarted = started;
+        const keyFakeStarted = fakeStarted;
+        const sample = { ms: 0, fakeMs: null as number | null, present: false };
+        frame(() => {
+          sample.ms = now() - keyStarted;
+          sample.present = input.value.startsWith(expected);
+          samples.push(sample);
+          input.dataset.typingSamples = JSON.stringify(samples);
+        });
         requestAnimationFrame(() => {
-          samples.push({
-            ms: performance.now() - keyStarted,
-            present: input.value.startsWith(expected),
-          });
+          sample.fakeMs = performance.now() - keyFakeStarted;
           input.dataset.typingSamples = JSON.stringify(samples);
         });
       });
@@ -910,9 +934,10 @@ test.describe("Full Relay Integration", () => {
     const samples = JSON.parse(
       (await search.getAttribute("data-typing-samples")) ?? "[]",
     ) as Array<{ ms: number; present: boolean }>;
-    expect(samples.every((sample) => sample.present && sample.ms <= 100)).toBe(
-      true,
-    );
+    expect(
+      samples.every((sample) => sample.present && sample.ms <= 100),
+      JSON.stringify(samples),
+    ).toBe(true);
   });
 
   test("old relay resume rejection explains why fresh login is needed", async ({

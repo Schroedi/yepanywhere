@@ -1,6 +1,11 @@
 # Ratchet down client E2E suite cost
 
-Status: reduction underway 2026-09-27. The test-level policy lives in
+Status: isolation and reduction underway 2026-09-30. Worker-owned profiles are
+the local default, and CI uses two workers per existing shard. The latest local
+default-scope four-worker gate passed 347 cases with 12 skips and no retries.
+The fixed-source CI pair passed both schedules with substantial time savings
+and one retry each; repeated first-attempt CI and a comparable median/p90
+window remain outstanding. The test-level policy lives in
 [E2E testing](../../topics/e2e-testing.md); this file tracks the reduction
 sequence and measured evidence. The first reduction slice passed local
 verification and one full CI job. The second slice also passed one full CI
@@ -274,8 +279,11 @@ correctness changes, not removed coverage or longer general timeouts.
 
 Worker profiles, relay credentials, server storage and provider-host runtimes now
 have explicit worker ownership and recovery. CI exercises two workers in each
-existing shard; the fixed-source comparison reduced combined job time but failed,
-so it is not an acceptance result. See the [ledger](../testing/e2e-ci-cost-ledger.md)
+existing shard. The first fixed-source comparison was faster but failed; after
+the startup repairs, both schedules passed all gates at `6e7d1c799`. Worker scope
+reduced the slower job from 14m47s to 7m43s and combined jobs from 25m26s to
+14m57s. Each schedule still had one retry, so this single pair establishes
+neither steady-state reliability nor a median or p90. See the [ledger](../testing/e2e-ci-cost-ledger.md)
 for exact revisions, retries, and start skew. Unit fixtures also needed isolation:
 default full apps had shared storage, background services outlived file roots,
 and version checks contacted the public update service. These now have owned
@@ -288,3 +296,13 @@ duplicate dev listeners and compilation. Read-only source fixtures retain Vite;
 parallel scheduling does not enable `fullyParallel` inside mutable spec lifetimes.
 Continue until full first-attempt CI and repeated parallel schedules pass without
 a comparable median or high-percentile wall-time regression.
+
+The follow-up keeps one worker as the local default count while making mutable
+profiles worker-owned for ordinary `--workers=N` commands. Controlled regressions
+cover late-resize search repinning and urgent settings-scope fan-out. Queue layout
+uses its own persisted restart-paused profile, command completion explicitly
+releases its held receipt, and expanded search counts only its own query batches.
+Root checks passed 6,148 server and 6,504 client tests; 18 focused four-worker
+browser repetitions passed without retries. Full default-scope and exact-SHA
+CI verification remain the next checkpoint. Initial search-frame loss and
+cross-tab storage feedback remain separate findings until causally diagnosed.

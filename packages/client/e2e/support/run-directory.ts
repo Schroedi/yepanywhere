@@ -17,7 +17,7 @@ export function getE2ERunDirectory(): string | undefined {
 }
 
 export function usesWorkerServers(): boolean {
-  const scope = process.env.YEP_E2E_SERVER_SCOPE ?? "run";
+  const scope = process.env.YEP_E2E_SERVER_SCOPE ?? "worker";
   if (scope !== "run" && scope !== "worker") {
     throw new Error(`Invalid YEP_E2E_SERVER_SCOPE: ${scope}`);
   }

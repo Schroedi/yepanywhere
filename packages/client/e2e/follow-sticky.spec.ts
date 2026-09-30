@@ -396,7 +396,9 @@ test("restores the high-water position after a server restart and reload", async
     await page.goto(sessionUrl);
     await dismissOnboardingIfVisible(page);
     await expect(
-      page.getByRole("main").getByText("Server restart scroll fixture"),
+      page
+        .getByRole("main")
+        .getByText("Server restart paragraph 180.", { exact: true }),
     ).toBeVisible({ timeout: 10_000 });
     await page.evaluate((prefix) => {
       const keys: string[] = [];
@@ -450,7 +452,11 @@ test("restores the high-water position after a server restart and reload", async
     server = await restartYaServerProcess(server);
     await page.reload();
     await expect(
-      page.getByRole("main").getByText("Server restart scroll fixture"),
+      // The remembered position is near the assistant tail. The opening user
+      // row can be outside the render window; wait for actual loaded history.
+      page
+        .getByRole("main")
+        .getByText("Server restart paragraph 180.", { exact: true }),
     ).toBeVisible({ timeout: 10_000 });
     await expect
       .poll(async () => {

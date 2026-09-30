@@ -378,6 +378,18 @@ Contributing-model: 6-Astra.
 
 Retire this file once CI stays green on this spec.
 
+2026-09-30 — the title-resize assertion recurred in a full four-worker run:
+346 cases passed, 12 skipped, and the desktop width/text product was -2900.
+The oracle froze the first changed width but polled later text. Opening the
+sidebar can change width again, so those measurements do not necessarily
+describe the same layout. It now captures the initial pair atomically and
+polls both current width and text together, retaining the positive-direction
+assertion and all subsequent arrival/reservation checks. Ten desktop and ten
+phone repetitions passed with four workers and no retries. This corrects a
+mixed-layout comparison; it does not establish that initial title fitting has
+settled or explain every earlier title failure. A proposed non-overflow wait
+was discarded after all ten phone cases reported a four-pixel difference.
+
 Found 2026-09-15 while reporting source CI after publishing the catch-up fix.
 Contributing-model: 6-Astra
 Contributing-model: Opus 5

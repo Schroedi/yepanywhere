@@ -1,76 +1,71 @@
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { e2ePaths, expect, test } from "./fixtures.js";
+import { test as base, expect } from "@playwright/test";
+import { toUrlProjectId } from "@yep-anywhere/shared";
+import { ProjectQueueService } from "../../server/src/services/ProjectQueueService.js";
+import { e2ePaths } from "./fixtures.js";
 import { recordUiCapture } from "./support/ui-capture.js";
+import {
+  startYaServerProcess,
+  disposeYaServerProcess,
+  type YaServerProcess,
+} from "./support/ya-server-process.js";
 
 const mockProjectPath = join(e2ePaths.tempDir, "mockproject");
-const projectId = Buffer.from(mockProjectPath).toString("base64url");
-const requestHeaders = {
-  "Content-Type": "application/json",
-  "X-Yep-Anywhere": "true",
-};
-
+const projectId = toUrlProjectId(mockProjectPath);
 let createdItemIds: string[] = [];
-let dispatchWasPaused = false;
 
-test.beforeEach(async ({ request, baseURL }) => {
-  createdItemIds = [];
-  const queueResponse = await request.get(`${baseURL}/api/project-queue`, {
-    headers: { "X-Yep-Anywhere": "true" },
-  });
-  expect(queueResponse.ok()).toBeTruthy();
-  const queue = (await queueResponse.json()) as {
-    dispatchState: { status: string };
-  };
-  dispatchWasPaused = queue.dispatchState.status === "paused";
-
-  const titles = [
-    "Review the responsive queue placement",
-    "Verify durable queued-session feedback",
-  ];
-  for (const [index, title] of titles.entries()) {
-    const response = await request.post(
-      `${baseURL}/api/projects/${projectId}/queue`,
-      {
-        headers: requestHeaders,
-        data: {
-          target: {
-            type: "new-session",
-            provider: "claude",
-            model: "claude-opus-4-6",
-            title,
-          },
-          message: { text: title },
-          createdFrom: { client: "new-session" },
-        },
+const test = base.extend<{ queueServer: YaServerProcess }>({
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright fixture signature
+  queueServer: async ({}, use) => {
+    createdItemIds = [];
+    const server = await startYaServerProcess({
+      label: "New Session queue layout",
+      serveBuiltClient: true,
+      mockClaudeSession: {
+        sessionId: "queue-layout-history",
+        projectPath: mockProjectPath,
+        content: "Queue layout project",
       },
-    );
-    expect(response.ok()).toBeTruthy();
-    const body = (await response.json()) as { item: { id: string } };
-    createdItemIds.push(body.item.id);
-
-    if (index === 0 && !dispatchWasPaused) {
-      const pauseResponse = await request.post(
-        `${baseURL}/api/project-queue/pause`,
-        { headers: { "X-Yep-Anywhere": "true" } },
-      );
-      expect(pauseResponse.ok()).toBeTruthy();
-    }
-  }
-});
-
-test.afterEach(async ({ request, baseURL }) => {
-  for (const itemId of createdItemIds) {
-    await request.delete(
-      `${baseURL}/api/projects/${projectId}/queue/${encodeURIComponent(itemId)}`,
-      { headers: { "X-Yep-Anywhere": "true" } },
-    );
-  }
-  if (!dispatchWasPaused) {
-    await request.post(`${baseURL}/api/project-queue/resume`, {
-      headers: { "X-Yep-Anywhere": "true" },
+      setupProfile: async ({ dataDir }) => {
+        mkdirSync(mockProjectPath, { recursive: true });
+        // Populate real persisted queue state without a scheduler. The server
+        // loads the backlog paused-after-restart, exactly as production does.
+        const queue = new ProjectQueueService({ dataDir });
+        await queue.initialize();
+        for (const title of [
+          "Review the responsive queue placement",
+          "Verify durable queued-session feedback",
+        ]) {
+          const item = await queue.createItem({
+            projectId,
+            projectPath: mockProjectPath,
+            request: {
+              target: {
+                type: "new-session",
+                provider: "claude",
+                model: "claude-opus-4-6",
+                title,
+              },
+              message: { text: title },
+              createdFrom: { client: "new-session" },
+            },
+          });
+          createdItemIds.push(item.id);
+        }
+      },
     });
-  }
+    try {
+      await use(server);
+    } finally {
+      await disposeYaServerProcess(server);
+    }
+  },
+  baseURL: async ({ queueServer }, use) => {
+    await use(queueServer.baseUrl);
+  },
 });
+test.use({ serviceWorkers: "block" });
 
 async function assertQueueFollowsSelector(
   page: import("@playwright/test").Page,
