@@ -26,7 +26,11 @@ beforeAll(async () => {
     `<!doctype html><title>Native module loading</title><body></body>
     <script type="module">
       const query = new URLSearchParams(location.search);
-      import(query.get("entry")).then(
+      const entries = {
+        "/src/api/fileClient.ts": () => import("/src/api/fileClient.ts"),
+        "/src/components/ArtifactPreview.tsx": () => import("/src/components/ArtifactPreview.tsx"),
+      };
+      entries[query.get("entry")]().then(
         (module) => { document.body.dataset.result = typeof module[query.get("export")]; },
         (error) => { document.body.dataset.result = String(error); },
       );
