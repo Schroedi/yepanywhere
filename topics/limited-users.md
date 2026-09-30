@@ -936,15 +936,21 @@ owner, creates a username and password whose entire scope is **one named
 session**. Through the relay (the "reflector") the guest logs in with the
 server name plus their own username as SRP identity, like any limited user,
 so the server always knows which guest a connection is; on direct access it
-uses the same login or HTTP Basic path. A guest sees that session's transcript, may send turns and approvals in
-it (or is read-only, chosen at creation), and sees nothing else: no project
+uses the same login or HTTP Basic path. This credential flow remains a candidate;
+the newer collaboration direction below also considers redeemed invitations.
+A guest sees that session's transcript and only the participation actions
+explicitly granted to them, and sees nothing else: no project
 page, no file APIs beyond what the transcript shows, no session creation, no
 fork. Anticipating the grant, the host may launch the session sandboxed at
-creation so the guest's turns are confined; a guest grant on an unsandboxed
-session is allowed but the members UI says so plainly. Guest records live in
-`project-access.json` beside memberships as
-`{ session: sessionId, guests: [{ username, mode: "turns" | "read" }] }`,
-and revoking one ends its relay claim and cookie sessions. The
+creation so the guest's turns are confined; the earlier proposal allowed an
+unsandboxed guest session with a plain warning in the members UI. This remains
+an admission/execution-boundary decision before implementation, not a claim that
+an exact-session API grant confines the provider's OS authority. The earlier
+storage sketch placed guest records in `project-access.json` beside memberships:
+`{ session: sessionId, guests: [{ username, mode: "turns" | "read" }] }`.
+Its coarse modes are superseded by the separate action grants below. Exact
+storage and credential formats remain unselected.
+Revoking a guest ends their access and ongoing subscriptions. The
 stale-session cutoff applies to guests too, but as **expiry rather than
 redirect**: a guest grant is temporary and ends when the shared session has
 been inactive for the configured cutoff, since a redirect into a new session
@@ -953,6 +959,27 @@ resumed at full cost. The guest sees the remaining time and, once expired, a
 plain "this share has ended" page; the host may re-share. A
 session-continuation authority (which successor session a guest may follow
 into) is not proposed here.
+
+**Session collaboration refinement (2026-09-30; not implemented).** The
+[Participatory Live Share sketch](relay-origin-and-share-gating.sketches.md#participatory-live-share)
+now owns the narrower trusted-colleague direction: human discussion first,
+owner-reviewed prompt suggestions next, and optionally explicit send and
+session-queue grants. Steer is separately granted; Project Queue is a later
+possibility, not part of an exact-session input grant. A suggestion remains
+outside the execution queue until the owner applies an exact revision.
+The earlier idea that guest turn access includes tool approvals is superseded.
+Approvals, bypass/permission modes, model/effort settings, stop/restart, and
+share management remain owner-only. This refinement does not narrow or change
+the delivered project-level limited-user join contract above.
+
+[Session notes and discussion](session-notes-and-discussion.md) owns human-only
+scratch notes and chat, which confer no provider authority. Invitation-bound
+participants and eventual local/hosted accounts share the conceptual boundary
+in [principals and grants](principals-and-grants.md#session-collaboration-and-future-accounts);
+neither a full limited-user account nor project membership is a prerequisite
+selected for temporary session collaboration. The inactivity-based expiry above
+remains a candidate; actual invitation/grant lifetimes and interaction with
+freshness need a contract before implementation.
 
 **Provider lock.** The superuser may pin a limited user to a provider, a
 provider plus model, or provider plus model plus effort; any subset is

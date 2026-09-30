@@ -414,3 +414,5 @@
   account-scoped server sync, shared attachments, and bounded recovery.
 - ci-test-isolation - Worker-owned E2E state and hermetic app fixtures, with
   measured CI cost and reliability checks.
+- session-notes-and-discussion - Human-only session scratch notes and shared
+  discussion, with explicit audiences and deliberate promotion to agent input.
