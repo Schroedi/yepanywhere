@@ -148,14 +148,14 @@ test("older servers keep local drafts and receive no draft-sync requests", async
   expect(requests).toBe(0);
 });
 
-test("dismisses a waiting notice without deleting the draft or stopping sync", async ({
+test("dismiss clears a waiting draft across offline reload and reconnect", async ({
   page,
 }) => {
   api.store.deleteOwner("");
   await page.route("**/api/drafts/read", (route) => route.abort());
   await page.goto(`${base}e2e/fixtures/draft-sync.html`);
   const input = page.getByRole("textbox", { name: "Prompt" });
-  await input.pressSequentially("Keep my draft", { delay: 20 });
+  await input.pressSequentially("Discard this draft", { delay: 20 });
   await expect(page.getByRole("status")).toContainText("Sync is waiting");
   await page.setViewportSize({ width: 1200, height: 600 });
   await recordUiCapture(page, "draft-sync-dismiss-desktop");
@@ -163,7 +163,9 @@ test("dismisses a waiting notice without deleting the draft or stopping sync", a
   await recordUiCapture(page, "draft-sync-dismiss-phone");
   await page.getByRole("button", { name: "Dismiss draft notice" }).click();
   await expect(page.getByRole("status")).toHaveCount(0);
-  await expect(input).toHaveValue("Keep my draft");
+  await expect(input).toHaveValue("");
+  await page.reload();
+  await expect(input).toHaveValue("");
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(page.getByRole("status")).toHaveCount(0);
   await page.unroute("**/api/drafts/read");
@@ -175,8 +177,58 @@ test("dismisses a waiting notice without deleting the draft or stopping sync", a
           .text,
       { timeout: 15000 },
     )
-    .toBe("Keep my draft");
+    .toBeUndefined();
+  await page.reload();
+  await expect(input).toHaveValue("");
   await expect(page.getByRole("status")).toHaveCount(0);
+  await input.pressSequentially("New draft", { delay: 20 });
+  await expect
+    .poll(
+      () =>
+        api.store.read("", { kind: "new-session" }).snapshot.payload.fields
+          .text,
+      { timeout: 15000 },
+    )
+    .toBe("New draft");
+});
+
+test("dismiss clears crash recovery in sibling tabs and after reload", async ({
+  page,
+  context,
+}) => {
+  api.store.deleteOwner("");
+  await page.goto(`${base}e2e/fixtures/draft-sync.html`);
+  await page.evaluate(() => {
+    const key = "draft-new-session:local";
+    localStorage.setItem(
+      key,
+      JSON.stringify({ version: 1, text: "Stale crash draft" }),
+    );
+    localStorage.setItem(
+      `draft-sync-v1:local::${encodeURIComponent(key)}`,
+      JSON.stringify({
+        raw: null,
+        base: null,
+        submitted: {
+          revision: null,
+          payload: { fields: { text: "Stale crash draft" }, attachments: [] },
+        },
+      }),
+    );
+  });
+  await page.reload();
+  const sibling = await context.newPage();
+  await sibling.goto(`${base}e2e/fixtures/draft-sync.html`);
+  await expect(page.getByRole("status")).toContainText("needs recovery");
+  await expect(sibling.getByRole("status")).toContainText("needs recovery");
+  await page.getByRole("button", { name: "Dismiss draft notice" }).click();
+  await expect(sibling.getByRole("textbox")).toHaveValue("");
+  await expect(sibling.getByRole("status")).toHaveCount(0);
+  await page.reload();
+  await sibling.reload();
+  await expect(page.getByRole("textbox")).toHaveValue("");
+  await expect(page.getByRole("status")).toHaveCount(0);
+  await expect(sibling.getByRole("status")).toHaveCount(0);
 });
 
 test("reload exposes unresolved submission recovery without losing the next draft", async ({

@@ -92,13 +92,18 @@ build stored as a pending sibling merge is discarded on load.
 A failed browser write shows its own notice; **Retry** writes the tab's current
 value and metadata again and clears the notice once storage accepts them. A
 sibling's later successful write of the same draft also clears it.
-Every draft notice offers **Dismiss**, which hides the currently reported
-conditions for this mounted client without deleting drafts, accepting a merge,
-or stopping synchronization. Background retries do not reopen the same dismissed
-condition; another draft, account, source, or kind of problem can show a new
-notice. Reloading makes unresolved notices available again.
+Every draft notice offers **Dismiss**, which discards the drafts causing the
+notice, including local recovery/submission copies and queued writes. It clears
+their editors and persists the discard before retrying server cleanup. Reloads,
+reconnects, and sibling tabs retain that decision. Unaffected draft slots remain
+unchanged. A conditional server clear retries in the background while offline;
+it does not resurrect the discarded text or repeatedly show its sync error.
+New text entered after dismissal survives the clear and then synchronizes.
+An in-flight save cannot restore metadata replaced by an explicit discard.
 A successful server read clears a previous sync error, so a pending combination
 or recovery is described as such instead of remaining labeled “Sync is waiting.”
+Failed reads of empty slots do not claim that a draft is saved locally. An empty
+local draft does not require recovery when an old server tombstone expires.
 Browser-storage failures remain visible until storage succeeds or are explicitly
 dismissed.
 
@@ -202,6 +207,13 @@ retain existing local-only behavior. SQLite off/unsupported/failed initializatio
 also leaves local-only behavior. Old clients continue their existing sends and
 uploads; the server protects files already referenced by synced drafts. No
 existing send request gained mandatory fields or changed meaning.
+
+## Design decisions
+
+- **Persist a draft discard** rather than a hidden-notice preference: dismissal
+  means clearing the unwanted draft, as requested by the maintainer. A durable
+  cleanup record prevents offline reload from importing the old server copy.
+  The server clear uses a revision check so a concurrent edit survives.
 
 ## Verification
 

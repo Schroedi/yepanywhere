@@ -31,6 +31,8 @@ interface Saved {
   base: DraftSnapshot | null;
   pending?: DraftWrite;
   recovery?: string | null;
+  discard?: { operation?: DraftWrite; revision?: string | null };
+  discardId?: string;
   submitted?: {
     payload: DraftPayload;
     revision: string | null;
@@ -372,7 +374,11 @@ export function draftSyncPending(source?: string): Array<{
     .filter((c) => !source || c.source === source)
     .flatMap((c) =>
       [...c.entries.values()]
-        .filter((e) => e.remote || e.error || e.needsRecovery)
+        .filter(
+          (e) =>
+            e.error === "local" ||
+            (!e.saved.discard && (e.remote || e.error || e.needsRecovery)),
+        )
         .map((e) => ({
           key: e.key,
           error: e.error,
@@ -384,6 +390,14 @@ export function acceptPendingDrafts(source?: string): void {
   for (const client of clients.values())
     if (!source || client.source === source)
       for (const entry of client.entries.values()) client.accept(entry);
+}
+export function discardPendingDrafts(source: string): void {
+  const client = clients.get(source);
+  if (!client) return;
+  for (const { key } of draftSyncPending(source)) {
+    const entry = client.entries.get(key);
+    if (entry) client.discard(entry);
+  }
 }
 function status(): void {
   window.dispatchEvent(new Event(DRAFT_SYNC_STATUS_EVENT));
@@ -474,6 +488,7 @@ export class DraftSyncClient {
       e.submissionTask ||
       e.confirmations ||
       e.saved.pending ||
+      e.saved.discard ||
       e.saved.submitted ||
       e.remote ||
       e.needsRecovery ||
@@ -560,6 +575,7 @@ export class DraftSyncClient {
     )
       return;
     e.running = true;
+    const saved = e.saved;
     let finishSync!: () => void;
     e.waitForSync = new Promise<void>((resolve) => {
       finishSync = resolve;
@@ -567,19 +583,69 @@ export class DraftSyncClient {
     e.firstDirty = 0;
     try {
       let read = await this.post<DraftRead>("read", { slot: e.address.slot });
-      if (this.stopped) return;
+      if (this.stopped || e.saved !== saved) return;
       if (e.error === "sync") e.error = undefined;
+      if (saved.discard) {
+        if (
+          saved.discard.revision !== undefined &&
+          saved.discard.revision !== read.snapshot.revision &&
+          !saved.discard.operation
+        ) {
+          saved.discard = undefined;
+          saved.base = read.snapshot;
+          if (draftHasContent(read.snapshot.payload)) e.remote = read;
+          this.persist(e);
+          status();
+          return;
+        }
+        if (!saved.discard.operation) {
+          saved.discard.revision = read.snapshot.revision;
+          saved.discard.operation = {
+            slot: e.address.slot,
+            baseRevision: read.snapshot.revision,
+            ticket: read.ticket,
+            operationId: crypto.randomUUID(),
+            payload: EMPTY_DRAFT,
+          };
+          this.persist(e);
+        }
+        const result = await this.post<DraftWriteResult>(
+          "clear",
+          saved.discard.operation,
+        );
+        if (this.stopped || e.saved !== saved) return;
+        if (result.outcome === "expired") {
+          saved.discard.operation = undefined;
+          this.persist(e);
+          this.schedule(e, 0);
+          return;
+        }
+        saved.discard = undefined;
+        saved.base = result.snapshot;
+        this.persist(e);
+        // A concurrent remote edit survives the conditional clear.
+        if (
+          result.outcome !== "accepted" &&
+          draftHasContent(result.snapshot.payload)
+        )
+          e.remote = result;
+        else if (draftHasContent(payload(e.address, saved.raw)))
+          this.schedule(e, 0);
+        status();
+        return;
+      }
       if (e.saved.pending) {
         const result = await this.post<DraftWriteResult>(
           "write",
           e.saved.pending,
         );
-        if (this.stopped) return;
+        if (this.stopped || e.saved !== saved) return;
         if (result.outcome === "accepted") {
           e.saved.base = result.snapshot;
           e.saved.pending = undefined;
           this.persist(e);
           read = await this.post<DraftRead>("read", { slot: e.address.slot });
+          if (this.stopped || e.saved !== saved) return;
         } else if (result.outcome === "expired") {
           e.needsRecovery = true;
           e.saved.recovery = e.saved.raw;
@@ -594,7 +660,11 @@ export class DraftSyncClient {
       }
       if (e.saved.submitted) return;
       const local = payload(e.address, e.saved.raw);
-      if (e.saved.base?.revision && read.snapshot.revision === null) {
+      if (
+        e.saved.base?.revision &&
+        read.snapshot.revision === null &&
+        draftHasContent(local)
+      ) {
         e.needsRecovery = true;
         e.saved.recovery = e.saved.raw;
         this.persist(e);
@@ -632,7 +702,7 @@ export class DraftSyncClient {
       e.saved.pending = operation;
       this.persist(e);
       const result = await this.post<DraftWriteResult>("write", operation);
-      if (this.stopped) return;
+      if (this.stopped || e.saved !== saved) return;
       if (result.outcome === "accepted") {
         e.saved.base = result.snapshot;
         this.ackSubmitted(e, result);
@@ -653,8 +723,11 @@ export class DraftSyncClient {
         this.schedule(e, 3000);
       status();
     } catch {
-      if (!this.stopped) {
-        if (e.error !== "local") e.error = "sync";
+      if (!this.stopped && e.saved === saved) {
+        if (e.error !== "local")
+          e.error = draftHasContent(payload(e.address, saved.raw))
+            ? "sync"
+            : undefined;
         status();
         this.schedule(e, 10_000);
       }
@@ -662,6 +735,7 @@ export class DraftSyncClient {
       e.running = false;
       e.waitForSync = undefined;
       finishSync();
+      if (e.saved !== saved) this.schedule(e, 0);
       if (this.started) this.release(e.key);
     }
   }
@@ -734,6 +808,20 @@ export class DraftSyncClient {
     this.schedule(e, 0);
     status();
   }
+  discard(e: Entry): void {
+    e.saved = {
+      raw: e.saved.raw,
+      base: e.saved.base,
+      discard: {},
+      discardId: crypto.randomUUID(),
+    };
+    e.remote = undefined;
+    e.needsRecovery = false;
+    e.error = undefined;
+    this.apply(e, EMPTY_DRAFT);
+    this.schedule(e, 0);
+    status();
+  }
   private beginSubmit(e: Entry): void {
     if (e.saved.submitted) return;
     const captured = payload(e.address, e.saved.raw);
@@ -758,12 +846,14 @@ export class DraftSyncClient {
     });
   }
   private async flushSubmitted(e: Entry): Promise<void> {
+    const saved = e.saved;
     const submitted = e.saved.submitted;
     if (!submitted || (this.started && !this.identified)) return;
     try {
       if (e.saved.pending) {
         const pending = e.saved.pending;
         const result = await this.post<DraftWriteResult>("write", pending);
+        if (this.stopped || e.saved !== saved) return;
         if (result.outcome !== "accepted") return;
         e.saved.base = result.snapshot;
         e.saved.pending = undefined;
@@ -793,6 +883,7 @@ export class DraftSyncClient {
       submitted.operationId = operation.operationId;
       this.persist(e);
       const result = await this.post<DraftWriteResult>("write", operation);
+      if (this.stopped || e.saved !== saved) return;
       if (result.outcome === "accepted") {
         submitted.revision = result.snapshot.revision;
         e.saved.base = result.snapshot;
@@ -810,14 +901,17 @@ export class DraftSyncClient {
     const submitted = e.saved.submitted;
     const captured = submitted?.payload ?? payload(e.address, e.saved.raw);
     if (!submitted) this.beginSubmit(e);
+    const saved = e.saved;
     // Resolve an in-flight save first; never clear a revision with different content.
     try {
       await e.submissionTask;
+      if (this.stopped || e.saved !== saved) return;
       if (e.saved.pending) {
         const result = await this.post<DraftWriteResult>(
           "write",
           e.saved.pending,
         );
+        if (this.stopped || e.saved !== saved) return;
         if (result.outcome === "accepted") {
           e.saved.base = result.snapshot;
           if (
@@ -829,6 +923,7 @@ export class DraftSyncClient {
         }
       }
       const read = await this.post<DraftRead>("read", { slot: e.address.slot });
+      if (this.stopped || e.saved !== saved) return;
       if (
         !draftPayloadEqual(read.snapshot.payload, captured) ||
         read.snapshot.revision !== e.saved.submitted?.revision
@@ -840,13 +935,14 @@ export class DraftSyncClient {
         ticket: read.ticket,
         operationId: crypto.randomUUID(),
       });
+      if (this.stopped || e.saved !== saved) return;
       if (result.outcome === "accepted") e.saved.base = result.snapshot;
     } catch {
-      if (e.error !== "local") e.error = "sync";
+      if (e.saved === saved && e.error !== "local") e.error = "sync";
       status();
     } finally {
       e.confirmations = (e.confirmations ?? 1) - 1;
-      e.saved.submitted = undefined;
+      if (e.saved === saved) e.saved.submitted = undefined;
       this.persist(e);
       this.schedule(e, 0);
       if (this.started) this.release(key);
@@ -945,7 +1041,8 @@ export class DraftSyncClient {
       for (const e of this.entries.values()) {
         if (
           !e.timer &&
-          (e.saved.pending ||
+          (e.saved.discard ||
+            e.saved.pending ||
             e.saved.base?.revision !== (revisions.get(e.key) ?? null) ||
             !draftPayloadEqual(
               payload(e.address, e.saved.raw),
@@ -1003,10 +1100,24 @@ export class DraftSyncClient {
       if (this.metaKey(e.key) === event.key) {
         // Share the sibling's acknowledged base so a later server merge sees
         // the sibling's synced text as common ancestry, not a conflict.
-        if (e.running || !event.newValue) return;
+        if (!event.newValue) return;
         try {
-          const base = (JSON.parse(event.newValue) as Partial<Saved>).base;
+          const saved = JSON.parse(event.newValue) as Saved;
+          if (saved.discardId && saved.discardId !== e.saved.discardId) {
+            e.saved = saved;
+            e.remote = undefined;
+            e.needsRecovery = false;
+            e.error = undefined;
+            notify(e.key);
+            this.schedule(e, 0);
+            status();
+            return;
+          }
+          if (e.running) return;
+          const base = saved.base;
           if (base !== undefined) e.saved.base = base;
+          if (saved.discardId === e.saved.discardId && !saved.discard)
+            e.saved.discard = undefined;
         } catch {}
         return;
       }

@@ -134,11 +134,103 @@ function client(s: ReturnType<typeof server>) {
   clients.push(c);
   return c;
 }
+it("discards recovery durably while offline and clears the server on reconnect", async () => {
+  const s = server();
+  s.remote("Stale draft");
+  localStorage.setItem(key, raw("Stale draft"));
+  localStorage.setItem(
+    metadataKey(key),
+    JSON.stringify({
+      raw: raw("Stale draft"),
+      base: s.get(),
+      submitted: { payload: s.get().payload, revision: s.get().revision },
+    }),
+  );
+  const first = client(s);
+  const entry = first.register(key)!;
+  first.discard(entry);
+  expect(
+    draftPayloadFromStorage(draftAddress(key)!, localStorage.getItem(key)),
+  ).toEqual(EMPTY_DRAFT);
+  first.stop();
+  const reloaded = client(s);
+  const restored = reloaded.register(key)!;
+  expect(restored.needsRecovery).toBe(false);
+  await reloaded.sync(restored);
+  expect(s.get().payload).toEqual(EMPTY_DRAFT);
+  expect(
+    JSON.parse(localStorage.getItem(metadataKey(key))!),
+  ).not.toHaveProperty("submitted");
+});
+it("does not resurrect a discarded draft when an in-flight save finishes", async () => {
+  const s = server();
+  let finish!: (value: DraftWriteResult) => void;
+  let held!: DraftWriteResult;
+  s.hold((result) => {
+    held = result;
+    return new Promise((resolve) => {
+      finish = resolve;
+    });
+  });
+  const c = client(s);
+  c.edit(key, raw("Discarded"));
+  const entry = c.register(key)!;
+  const saving = c.sync(entry);
+  await vi.waitFor(() => expect(finish).toBeDefined());
+  c.discard(entry);
+  c.edit(key, raw("Next draft"));
+  s.hold(undefined);
+  finish(held);
+  await saving;
+  await c.sync(entry);
+  expect(s.get().payload).toEqual(EMPTY_DRAFT);
+  await c.sync(entry);
+  expect(s.get().payload.fields.text).toBe("Next draft");
+});
+
+it("adopts a sibling discard instead of restoring unresolved recovery", async () => {
+  const s = server();
+  const c = client(s);
+  c.start();
+  c.edit(key, raw("Stale"));
+  const entry = c.register(key)!;
+  entry.needsRecovery = true;
+  entry.saved.submitted = {
+    payload: { fields: { text: "Stale" }, attachments: [] },
+    revision: null,
+  };
+  window.dispatchEvent(
+    new StorageEvent("storage", {
+      key: metadataKey(key),
+      newValue: JSON.stringify({
+        raw: null,
+        base: null,
+        discard: {},
+        discardId: "sibling-discard",
+      }),
+    }),
+  );
+  expect(draftStorage.getItem(key)).toBeNull();
+  expect(draftSyncPending("local")).toEqual([]);
+  expect(entry.saved.submitted).toBeUndefined();
+  expect(entry.needsRecovery).toBe(false);
+});
+
 function observe(key: string) {
   const unsubscribe = subscribeDraftStorage(key, () => {});
   subscriptions.push(unsubscribe);
   return unsubscribe;
 }
+it("does not report a fictitious saved draft when an empty slot cannot be read", async () => {
+  const s = server();
+  const c = client(s);
+  c.start();
+  await c.refresh();
+  s.fetch.mockRejectedValue(new Error("Draft context not found"));
+  const entry = c.register(key)!;
+  await c.sync(entry);
+  expect(draftSyncPending("local")).toEqual([]);
+});
 function metadataKey(key: string) {
   return `draft-sync-v1:local::${encodeURIComponent(key)}`;
 }

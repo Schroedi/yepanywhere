@@ -8,6 +8,7 @@ import {
   DraftSyncClient,
   DRAFT_SYNC_STATUS_EVENT,
   acceptPendingDrafts,
+  discardPendingDrafts,
   draftSyncPending,
   setDraftAccount,
 } from "../lib/draftSyncStorage";
@@ -21,7 +22,6 @@ export function DraftSyncBridge() {
   const [pending, setPending] = useState(() =>
     draftSyncPending(runtime.sourceKey),
   );
-  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   const owner = principal.username ?? "";
   const supported = serverHasCapability(
     version ?? undefined,
@@ -45,11 +45,7 @@ export function DraftSyncBridge() {
     update();
     return () => window.removeEventListener(DRAFT_SYNC_STATUS_EVENT, update);
   }, [runtime.sourceKey]);
-  const notices = pending.map((p) =>
-    JSON.stringify([runtime.sourceKey, owner, p.key, p.error, p.recovery]),
-  );
-  if (!pending.length || notices.every((notice) => dismissed.has(notice)))
-    return null;
+  if (!pending.length) return null;
   const problem = pending.some((p) => p.error);
   const localFailure = pending.some((p) => p.error === "local");
   return (
@@ -72,9 +68,7 @@ export function DraftSyncBridge() {
       <button
         type="button"
         aria-label={t("draftSyncDismiss")}
-        onClick={() =>
-          setDismissed((previous) => new Set([...previous, ...notices]))
-        }
+        onClick={() => discardPendingDrafts(runtime.sourceKey)}
       >
         {t("draftSyncDismissShort")}
       </button>
