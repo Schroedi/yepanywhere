@@ -475,7 +475,10 @@ describe("local-first snapshot synchronization", () => {
     await vi.advanceTimersByTimeAsync(20_000);
     expect(s.fetch.mock.calls.length).toBe(requests);
     expect(localStorage.getItem(key)).toBe(raw("offline edit"));
-    expect(localStorage.getItem(metadataKey(key))).toContain("offline edit");
+    // A later coordinator restores the text and still owes it a save.
+    const restored = client(s).register(key)!;
+    expect(restored.saved.raw).toBe(raw("offline edit"));
+    expect(restored.saved.base).toBeNull();
   });
   it("publishes only index presence changes while preserving evicted local drafts", async () => {
     const s = server(),
@@ -701,6 +704,39 @@ describe("local-first snapshot synchronization", () => {
     await c.sync(c.register(key)!);
     expect(s.get().payload.fields.text).toBe("codex updated.");
   });
+  it("never mistakes a sibling tab's save of this draft for another device", async () => {
+    const s = server(),
+      typing = client(s),
+      sibling = client(s);
+    // The browser delivers a tab's storage writes only to its siblings.
+    const deliver = (to: DraftSyncClient, storageKey: string) =>
+      (to as unknown as { storage: (event: StorageEvent) => void }).storage(
+        new StorageEvent("storage", {
+          key: storageKey,
+          newValue: localStorage.getItem(storageKey),
+        }),
+      );
+    const type = (text: string) => {
+      localStorage.setItem(key, raw(text));
+      typing.edit(key, raw(text));
+      deliver(sibling, key);
+    };
+    type("about h");
+    const mine = typing.register(key)!;
+    const theirs = sibling.register(key)!;
+    await typing.sync(mine);
+    deliver(sibling, metadataKey(key));
+    type("about ha");
+    // The sibling saves the shared text; its acknowledgement reaches this
+    // tab's storage before this tab has handled the sibling's event.
+    await sibling.sync(theirs);
+    expect(s.get().payload.fields.text).toBe("about ha");
+    type("about hav");
+    await typing.sync(mine);
+    expect(mine.remote).toBeUndefined();
+    expect(s.get().payload.fields.text).toBe("about hav");
+    expect(mine.saved.raw).toBe(raw("about hav"));
+  });
   it("retries a failed browser write when the notice's retry is chosen", async () => {
     const s = server(),
       c = client(s);
@@ -710,7 +746,7 @@ describe("local-first snapshot synchronization", () => {
     const full = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
       throw new DOMException("Full", "QuotaExceededError");
     });
-    c.edit(key, raw("kept in memory"));
+    expect(() => draftStorage.setItem(key, raw("kept in memory"))).toThrow();
     expect(draftSyncPending().map((p) => p.error)).toEqual(["local"]);
     c.accept(e);
     expect(e.error).toBe("local");

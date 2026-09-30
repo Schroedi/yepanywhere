@@ -94,6 +94,16 @@ storage handler, appending the whole draft again on each keystroke until storage
 filled and the browser stalled (observed 2026-09-30). Metadata that an earlier
 build stored as a pending sibling merge is discarded on load.
 
+The tabs also share one acknowledged base, which never moves back: a tab
+reconciles against the newest base any sibling stored (by server sequence), a
+keystroke never rewrites sync metadata, and a Web Lock per slot serializes
+reconciliation across tabs where the browser provides one. Otherwise a tab
+still holding an older base saw a sibling's save of the same text as a
+three-way conflict. Builds before the review UI then merged it unattended
+when no text field held focus, sending the first line twice as "server text,
+blank line, local text" (observed 2026-09-30, a new-session prompt typed while
+another tab also held the global new-session slot).
+
 A failed browser write shows its own notice; **Retry** writes the tab's current
 value and metadata again and clears the notice once storage accepts them. A
 sibling's later successful write of the same draft also clears it.

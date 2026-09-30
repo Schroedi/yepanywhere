@@ -451,6 +451,13 @@ export async function resolvePendingDraft(
 function status(): void {
   window.dispatchEvent(new Event(DRAFT_SYNC_STATUS_EVENT));
 }
+/** Server sequences only grow, so an acknowledged base never moves back. */
+function newerBase(
+  candidate: DraftSnapshot | null | undefined,
+  current: DraftSnapshot | null,
+): candidate is DraftSnapshot {
+  return !!candidate && candidate.sequence > (current?.sequence ?? -1);
+}
 
 /** One source/account owner. Storage wrappers are also used in local-only mode. */
 export class DraftSyncClient {
@@ -569,18 +576,16 @@ export class DraftSyncClient {
     if (!e) return;
     e.saved.raw = raw;
     if (e.error === "local") e.error = undefined;
+    // The text itself is already in browser storage. Rewriting this tab's
+    // sync metadata on every keystroke would also overwrite a newer base a
+    // sibling tab stored after saving the same draft.
     if (
       e.saved.submitted &&
       raw &&
       readDraftEnvelopeValue(raw).envelope?.pendingSendAt === undefined
     ) {
       e.saved.recovery = encode(e.address, e.saved.submitted.payload, null);
-    }
-    try {
       this.persist(e);
-    } catch {
-      e.error = "local";
-      status();
     }
     if (
       raw &&
@@ -604,6 +609,28 @@ export class DraftSyncClient {
       Math.min(delay, Math.max(0, 10_000 - (Date.now() - e.firstDirty))),
     );
   }
+  /**
+   * Sibling tabs share one browser storage and so one draft: the newest base
+   * any of them acknowledged is this tab's base too. Reconciling against an
+   * older in-memory base makes a sibling's save of this same text look like
+   * another device's edit.
+   */
+  private adoptSharedBase(e: Entry): void {
+    try {
+      const stored = JSON.parse(
+        localStorage.getItem(this.metaKey(e.key)) ?? "null",
+      ) as Saved | null;
+      if (newerBase(stored?.base, e.saved.base)) e.saved.base = stored!.base;
+    } catch {
+      /* Unreadable storage leaves this tab's own base. */
+    }
+  }
+  /** One reconciliation of a slot at a time across this origin's tabs. */
+  private async exclusive<T>(e: Entry, run: () => Promise<T>): Promise<T> {
+    const locks =
+      typeof navigator === "undefined" ? undefined : navigator.locks;
+    return locks ? await locks.request(this.metaKey(e.key), run) : run();
+  }
   private post<T>(path: string, body: unknown): Promise<T> {
     return this.transport.fetch<T>(`/drafts/${path}`, {
       method: "POST",
@@ -611,7 +638,10 @@ export class DraftSyncClient {
       signal: this.abort.signal,
     });
   }
-  async sync(e: Entry): Promise<void> {
+  sync(e: Entry): Promise<void> {
+    return this.exclusive(e, () => this.syncNow(e));
+  }
+  private async syncNow(e: Entry): Promise<void> {
     if (
       this.stopped ||
       this.entries.get(e.key) !== e ||
@@ -709,6 +739,7 @@ export class DraftSyncClient {
       }
       if (e.saved.submitted) return;
       e.remote = undefined;
+      this.adoptSharedBase(e);
       const local = payload(e.address, e.saved.raw);
       if (
         e.saved.base?.revision &&
@@ -850,6 +881,7 @@ export class DraftSyncClient {
     if (e.remote) {
       const remote = e.remote;
       e.remote = undefined;
+      this.adoptSharedBase(e);
       this.apply(
         e,
         mergeDrafts(
@@ -866,12 +898,22 @@ export class DraftSyncClient {
     status();
   }
   /** Refresh before a choice; changed server evidence requires another review. */
-  async resolve(
+  resolve(
     e: Entry,
     choice: DraftResolution,
     reviewedRevision: string | null,
   ): Promise<boolean> {
     const localAtChoice = payload(e.address, e.saved.raw);
+    return this.exclusive(e, () =>
+      this.resolveNow(e, choice, reviewedRevision, localAtChoice),
+    );
+  }
+  private async resolveNow(
+    e: Entry,
+    choice: DraftResolution,
+    reviewedRevision: string | null,
+    localAtChoice: DraftPayload,
+  ): Promise<boolean> {
     await e.waitForSync;
     if (
       this.stopped ||
@@ -893,6 +935,7 @@ export class DraftSyncClient {
       });
       if (this.stopped || e.saved !== saved || saved.submitted) return false;
       if (e.error === "sync") e.error = undefined;
+      this.adoptSharedBase(e);
       e.remote = remote;
       status();
       const local = payload(e.address, saved.raw);
@@ -1237,8 +1280,7 @@ export class DraftSyncClient {
             return;
           }
           if (e.running) return;
-          const base = saved.base;
-          if (base !== undefined) e.saved.base = base;
+          if (newerBase(saved.base, e.saved.base)) e.saved.base = saved.base;
           if (saved.discardId === e.saved.discardId && !saved.discard)
             e.saved.discard = undefined;
         } catch {}
