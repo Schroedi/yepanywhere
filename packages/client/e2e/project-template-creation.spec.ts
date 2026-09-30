@@ -58,6 +58,15 @@ test("template palette preserves sequential input and inline state at desktop an
       .click();
     const form = page.getByRole("region", { name: "New project", exact: true });
     await expect(form.getByRole("radio")).toHaveCount(3);
+    // The superuser's path entry comes first; typing there drops the chooser.
+    const pathEntry = page.getByRole("textbox", { name: "Project path" });
+    await recordUiCapture(page, `template-project-open-${viewport.width}`);
+    await pathEntry.pressSequentially("~/src");
+    await expect(pathEntry).toHaveValue("~/src", { timeout: 100 });
+    await expect(form).toBeHidden();
+    await recordUiCapture(page, `template-project-path-${viewport.width}`);
+    await pathEntry.fill("");
+    await expect(form).toBeVisible();
     const name = form.getByRole("textbox", { name: "Name", exact: true });
     let typed = "";
     for (const character of "Sketch garden") {

@@ -80,8 +80,10 @@ export function ProjectsPage() {
     error: templateError,
     emptyMessageKey,
   } = useProjectTemplateChoices(showAddForm);
-  const [existingDirectory, setExistingDirectory] = useState(false);
+  const [addProjectTyped, setAddProjectTyped] = useState(false);
   const [templateProjectBusy, setTemplateProjectBusy] = useState(false);
+  const limitedTemplateOnly =
+    !!templateChoices?.enabled && principal.username !== null;
   const [addError, setAddError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -407,30 +409,37 @@ export function ProjectsPage() {
                   templateChoices?.enabled ? formStyles.form : undefined
                 }
               >
-                {templateChoices?.enabled && principal.username === null && (
-                  <div className={formStyles.actions}>
-                    <button
-                      type="button"
-                      aria-pressed={!existingDirectory}
-                      onClick={() => setExistingDirectory(false)}
-                    >
-                      {t("templateFromTemplate")}
-                    </button>
-                    <button
-                      type="button"
-                      aria-pressed={existingDirectory}
-                      disabled={templateProjectBusy}
-                      onClick={() => setExistingDirectory(true)}
-                    >
-                      {t("templateExistingDirectory")}
-                    </button>
-                  </div>
+                {/* The superuser enters a path or name first; the template
+                    chooser below it leaves once anything is typed there.
+                    Limited users can only create from a template. */}
+                {!limitedTemplateOnly && (
+                  <AddProjectForm
+                    projects={projects}
+                    pathBase={newProjectBase}
+                    chooseName={supportsProjectNames}
+                    chooseCodeName={
+                      supportsProjectNames &&
+                      supportsProjectCodeNames &&
+                      projectCodeNamesEnabled
+                    }
+                    adding={adding || templateProjectBusy}
+                    error={addError}
+                    onSubmit={(request) => void handleAddProject(request)}
+                    onCancel={() => {
+                      setShowAddForm(false);
+                      setAddError(null);
+                    }}
+                    onTypedChange={setAddProjectTyped}
+                  />
                 )}
-                {templateError && <p role="alert">{templateError}</p>}
+                {templateError && !addProjectTyped && (
+                  <p role="alert">{templateError}</p>
+                )}
                 {templateChoices?.enabled && (
-                  <div
-                    hidden={existingDirectory && principal.username === null}
-                  >
+                  <div hidden={addProjectTyped && !templateProjectBusy}>
+                    {!limitedTemplateOnly && (
+                      <p className={formStyles.label}>{t("templateOrStart")}</p>
+                    )}
                     <TemplateProjectForm
                       templates={templateChoices.templates}
                       emptyMessage={templateError ?? t(emptyMessageKey)}
@@ -446,31 +455,7 @@ export function ProjectsPage() {
                     />
                   </div>
                 )}
-                <div
-                  hidden={
-                    templateChoices?.enabled &&
-                    (!existingDirectory || principal.username !== null)
-                  }
-                >
-                  <AddProjectForm
-                    projects={projects}
-                    pathBase={newProjectBase}
-                    chooseName={supportsProjectNames}
-                    chooseCodeName={
-                      supportsProjectNames &&
-                      supportsProjectCodeNames &&
-                      projectCodeNamesEnabled
-                    }
-                    adding={adding}
-                    error={addError}
-                    onSubmit={(request) => void handleAddProject(request)}
-                    onCancel={() => {
-                      setShowAddForm(false);
-                      setAddError(null);
-                    }}
-                  />
-                </div>
-                {templateChoices?.enabled && !existingDirectory && (
+                {limitedTemplateOnly && (
                   <div className={formStyles.actions}>
                     <button
                       type="button"

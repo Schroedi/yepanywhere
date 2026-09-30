@@ -328,11 +328,15 @@ future work, and buying/configuring a custom domain is optional.
 
 ### Creation and preparation
 
-Projects gains a **New project** surface with **From template** and **Existing
-directory** modes for the superuser. Template creation asks for name, intent,
-and parent directory. Always show the template radio palette, including one
-available template (preselected); do not hide it or replace it with a dropdown.
-Existing-directory registration keeps its present behavior. The current
+Projects gains a **New project** surface. For the superuser, the plain
+path/name entry comes first and the template chooser follows it; typing any
+path, name or code into that entry hides the chooser, and clearing it brings
+the chooser back (an in-progress template creation stays visible). There is no
+mode toggle to find. Limited users see only the template chooser. Template
+creation asks for name, intent, and parent directory. Always show the template
+radio palette, including one available template (preselected); do not hide it
+or replace it with a dropdown. Existing-directory registration keeps its
+present behavior. The current
 proposal fixture lives in `packages/client/mockups/project-templates/` and
 reuses the real existing-directory form and settings section component.
 
