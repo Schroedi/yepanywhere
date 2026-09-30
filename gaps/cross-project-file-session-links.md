@@ -62,3 +62,12 @@ surfaces; it is larger than the adjacent instruction preference. The user
 explicitly authorized recording a YA gap instead of implementing immediately.
 
 Found 2026-09-07 while landing the user's conversation file-reference preference.
+
+Progress 2026-09-30: `~/…` tokens now link through the exact absolute-path
+oracle, expanded against the server's home (see
+[project path links](../topics/project-path-links.md)), so home-relative
+references to files in this or another allowed project open in the viewer.
+Remaining: choosing the file's owning project for a new session, and
+recognizing a project's fully resolved symlink spelling as that project.
+
+Contributing-model: opus-5.5

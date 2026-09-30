@@ -34,9 +34,12 @@ also means the mechanism is safe to run over arbitrary content rather than only
 over JSON.
 
 **Absolute paths use a separate exact oracle.** A whitespace-delimited POSIX
-token beginning with one `/`, or a Windows token beginning with a drive letter
-and separator, is eligible for one direct file probe when it contains at least
-four characters. The whole token is queried, including legal punctuation, so
+token beginning with one `/`, a home-relative token beginning with `~/`, or a
+Windows token beginning with a drive letter and separator, is eligible for one
+direct file probe when it contains at least four characters. A `~/` token is
+expanded against the connected server's home directory, never the browser's;
+the probe and link target use the expanded path while the visible text keeps
+the `~/` spelling. It is never tried as a project-relative path. The whole token is queried, including legal punctuation, so
 an existing prefix is never linked out of a longer filename. It is never added
 to the project index or discovered by a filesystem crawl.
 The probe uses the same realpath-resolved allow-set and regular-file check as
