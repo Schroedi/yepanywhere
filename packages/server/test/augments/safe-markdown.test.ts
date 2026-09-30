@@ -80,6 +80,42 @@ describe("Markdown plugin dependency resolution", () => {
   });
 });
 
+describe("renderSafeMarkdown — paper math", () => {
+  // Samples from extracted research papers that KaTeX alone rejected.
+  it("renders paper commands KaTeX lacks without an error span", () => {
+    const html = renderSafeMarkdown(
+      String.raw`\(\textsc{Rollout}(M)\) \(1\mbox{ step}\) \(\mathbbm{1}_x\) \(H\textsubscript{2}O\) \(\nicefrac{1}{2}\) \({\color[rgb]{0.7,0,0}\times}\)`,
+    );
+    expect(html).not.toContain("katex-error");
+    expect(html).not.toContain("\\textsc");
+    expect(html).toContain("#b30000");
+  });
+
+  it("does not let one document's \\gdef reach another document", () => {
+    renderSafeMarkdown(String.raw`\(\gdef\alpha{\beta}\alpha\)`);
+    expect(renderSafeMarkdown(String.raw`\(\alpha\)`)).toContain("α");
+  });
+
+  it("keeps presentation MathML inside raw HTML tables", () => {
+    const html = renderSafeMarkdown(
+      '<table><tr><th colspan="2">R@1 <math id="x" display="inline"><semantics><mo stretchy="false" onclick="x()">↑</mo><annotation encoding="application/x-tex">\\uparrow</annotation></semantics></math></th></tr></table>',
+    );
+    expect(html).toContain(
+      '<math display="inline"><semantics><mo stretchy="false">↑</mo>',
+    );
+    expect(html).not.toContain("&lt;math");
+    expect(html).not.toContain("onclick");
+  });
+
+  it("escapes annotation-xml, which can carry arbitrary markup", () => {
+    const html = renderSafeMarkdown(
+      '<math><semantics><mi>x</mi><annotation-xml encoding="text/html"><img src="https://e.test/a.png" onerror="alert(1)"></annotation-xml></semantics></math>',
+    );
+    expect(html).toContain("&lt;annotation-xml");
+    expect(html).not.toContain("onerror");
+  });
+});
+
 describe("renderSafeMarkdown — math", () => {
   it("renders inline $…$ through katex", () => {
     const html = renderSafeMarkdown("price: $x^2 + 1$ end");

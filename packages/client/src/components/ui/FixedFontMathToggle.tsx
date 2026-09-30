@@ -1,5 +1,7 @@
 import {
   findProjectPathTokens,
+  normalizeTexForKatex,
+  paperKatexMacros,
   parseToonDocument,
   type ProjectPathLinkTarget,
 } from "@yep-anywhere/shared";
@@ -267,9 +269,10 @@ function renderConfirmedProjectPathText(
 
 function renderKatexHtml(tex: string, displayMode: boolean): string {
   try {
-    return katex.renderToString(tex, {
+    return katex.renderToString(normalizeTexForKatex(tex), {
       throwOnError: false,
       displayMode,
+      macros: paperKatexMacros(),
       output: "htmlAndMathml",
       strict: "ignore",
       trust: false,

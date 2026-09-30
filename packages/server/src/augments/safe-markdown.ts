@@ -1,7 +1,12 @@
 import { statSync } from "node:fs";
 import { isAbsolute, normalize, posix, win32 } from "node:path";
 import { katex as markdownItKatex } from "@mdit/plugin-katex";
-import { linkifyToHtml, parseLineColumn } from "@yep-anywhere/shared";
+import {
+  linkifyToHtml,
+  normalizeTexForKatex,
+  paperKatexMacros,
+  parseLineColumn,
+} from "@yep-anywhere/shared";
 import MarkdownIt, {
   type Env,
   type Renderer,
@@ -913,8 +918,71 @@ function resolveLocalMarkdownHref(
   };
 }
 
+// Presentation MathML, which browsers render natively. Paper extracts keep
+// MathML inside raw HTML tables, where TeX delimiters would not be rendered.
+// `annotation` holds only text and is hidden inside `semantics`;
+// `annotation-xml` is excluded because it can carry arbitrary markup.
+const MATHML_TAGS = [
+  "math",
+  "semantics",
+  "annotation",
+  "mrow",
+  "mi",
+  "mn",
+  "mo",
+  "ms",
+  "mtext",
+  "mspace",
+  "msub",
+  "msup",
+  "msubsup",
+  "munder",
+  "mover",
+  "munderover",
+  "mmultiscripts",
+  "mprescripts",
+  "none",
+  "mfrac",
+  "msqrt",
+  "mroot",
+  "mstyle",
+  "mpadded",
+  "mphantom",
+  "menclose",
+  "mtable",
+  "mtr",
+  "mtd",
+  "merror",
+];
+const MATHML_LAYOUT_ATTRIBUTES = [
+  "display",
+  "displaystyle",
+  "scriptlevel",
+  "mathvariant",
+  "stretchy",
+  "fence",
+  "separator",
+  "form",
+  "largeop",
+  "movablelimits",
+  "accent",
+  "accentunder",
+  "lspace",
+  "rspace",
+  "width",
+  "height",
+  "depth",
+  "linethickness",
+  "notation",
+  "columnalign",
+  "rowalign",
+  "columnspan",
+  "rowspan",
+];
+
 const MARKDOWN_SANITIZE_OPTIONS = {
   allowedTags: [
+    ...MATHML_TAGS,
     "a",
     "blockquote",
     "br",
@@ -986,6 +1054,13 @@ const MARKDOWN_SANITIZE_OPTIONS = {
     span: ["class", "data-media-path", "data-media-type", "data-expanded"],
     td: ["align", "colspan", "rowspan"],
     th: ["align", "colspan", "rowspan"],
+    ...Object.fromEntries(
+      MATHML_TAGS.filter((tag) => tag !== "annotation").map((tag) => [
+        tag,
+        MATHML_LAYOUT_ATTRIBUTES,
+      ]),
+    ),
+    annotation: ["encoding"],
   },
   allowedSchemes: ["http", "https", "mailto"],
   allowedSchemesByTag: {
@@ -1327,6 +1402,9 @@ markdownRenderer.use(markdownItKatex, {
   allowInlineWithSpace: false,
   delimiters: "all",
   logger: (): "ignore" => "ignore",
+  // The plugin copies this table for each document render, so a \gdef
+  // persists within one document but never reaches another.
+  macros: paperKatexMacros(),
   mathFence: false,
   maxExpand: 1000,
   output: "html",
@@ -1348,7 +1426,13 @@ function preserveEmptyMath(
       return displayMode ? `<p>${literal}</p>\n` : literal;
     }
     if (token.content.trim()) {
-      return rendererRule(tokens, index, options, environment, renderer);
+      const original = token.content;
+      token.content = normalizeTexForKatex(original);
+      try {
+        return rendererRule(tokens, index, options, environment, renderer);
+      } finally {
+        token.content = original;
+      }
     }
 
     const opening = token.markup || (displayMode ? "$$" : "$");
