@@ -26,3 +26,14 @@ allowing a cleared generation to repaint. Tests also cover the original fade
 deadline and a clear while the remount callback is queued. This does not prove
 which path caused the historical missing initial frame; retain this gap pending
 repeated browser and exact-SHA CI evidence.
+
+The final read-only review identified four unproved candidates: a preview
+whose anchor is absent during synchronous preparation, cancelled history
+hydration, both reveal passes reporting no resolvable row, or a clear voiding
+the reveal generation. The loaded specimen makes history hydration less
+likely. A next diagnostic should record selection/preparation, reveal result,
+paint/transfer identity, and the literal clear reason using bounded native
+performance marks, then collect only that sequence on assertion failure.
+The heavier temporary observer diagnostic passed 160 attempts and was removed;
+it did not establish the historical cause. Do not change preparation or reveal
+behavior without a captured writer or a supported deterministic regression.

@@ -2,7 +2,7 @@
 
 Status: isolation and reduction underway 2026-09-30. Worker-owned profiles are
 the local default, and CI uses two workers per existing shard. The latest local
-default-scope four-worker gate passed 347 cases with 12 skips and no retries.
+default-scope four-worker gate passed 348 cases with 11 skips and no retries.
 The fixed-source CI pair passed both schedules with substantial time savings
 and one retry each; repeated first-attempt CI and a comparable median/p90
 window remain outstanding. The test-level policy lives in
@@ -22,6 +22,14 @@ needed two cold-entry retries. The next slice removes unused client/server
 startup, documents the measured restart lifetime, and owns context-only
 subscription usage. Keep repeated first-attempt results and comparable
 median/p90 timing open; one green repeat does not close those acceptance gates.
+
+The subsequent `16f77a5ca` repeat again passed both E2E shards without retries
+(349 Linux passes, ten skips). Its initial push exposed another measured
+popup startup budget; a compatible transitive dependency refresh addresses
+the newly reported audit blocker. The independent
+[Codex fake-process waiter finding](../../gaps/codex-provider-unit-startup-timeouts.md)
+and initial search-highlight gap remain open. Preserve these findings and
+collect bounded failure diagnostics instead of treating later passes as causes.
 
 The blanket local `pnpm test:e2e` rule first appeared in contributor guidance
 on 2025-12-29, when the suite had about seven specs. Focused Playwright wording

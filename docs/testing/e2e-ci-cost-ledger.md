@@ -465,3 +465,44 @@ private restart case took 7.3s locally. Fresh workspace units passed 6,148
 server and 6,506 client cases (115.33s / 121.99s); lint, formatting and all
 type gates passed. These local observations preserve functional coverage;
 the next comparison is repeated first-attempt CI at the published source.
+
+### Final startup and audit follow-up — 2026-09-30
+
+At `16f77a5ca`,
+[push run 36665933364](https://github.com/kzahel/yepanywhere/actions/runs/36665933364)
+passed all unit/native/type/lint gates but failed the newly reported production
+dependency audit and one artifact popup case. Shard 2 passed 178 cases with
+one skip and no retries in a 5m49s job. Shard 1 passed 170 with nine skips
+and one persistent popup failure in 10m39s; the earlier restart and cold-entry
+findings passed on their first attempts. The exact-source
+[manual repeat 36665981830](https://github.com/kzahel/yepanywhere/actions/runs/36665981830)
+passed both E2E shards without retries: 171 / 178 cases, nine / one skips,
+8m59s / 6m00s jobs, combined 14m59s. Only its audit gate failed. This repeat
+does not close the first-attempt or median/p90 acceptance window.
+
+The popup retry trace proves its first Edit popup loaded the correct mode.
+Its cold source fixture took 6.6s and that first full-app popup 5.7s; the
+15s test deadline then interrupted the second popup's load. The case now
+fully verifies each mode once and requires the other real gesture to open
+the exact verified URL without toggling the source viewer. It closes that
+duplicate tab at navigation commit, avoiding two redundant full-app boots.
+Only this case uses the documented 30s measured budget; action and expectation
+budgets remain unchanged. All six focused repetitions passed without retries.
+Private artifact teardown also stops notifications before joining disposal.
+
+The audit fixes only two compatible transitive resolutions, `fast-uri` 3.1.8
+and `brace-expansion` 2.1.7, with no new exclusions. Frozen installation and
+production audit passed. The first fresh unit run failed 16 Codex fake-process
+cases, a focused file failed seven, and an unchanged file repeat passed 122
+with two skips. The unchanged workspace repeat passed 6,148 server and 6,506
+client cases (113.50s / 117.24s). The new
+[Codex startup gap](../../gaps/codex-provider-unit-startup-timeouts.md) records
+the ambiguous waiter, late shell receipt and unjoined-finalizer follow-ups;
+neither dependency causality nor CPU contention is established.
+
+The final merged local browser run passed 348 cases with 11 skips, four
+workers, no retries and clean teardown in 4.3m. The availability-gated emulator
+WebRTC `?auto` case executed in this run; the preceding local run skipped it.
+No browser cases were removed. Fresh lint, formatting and strict E2E types
+passed, alongside the workspace/type/audit checks above. Published exact-source
+CI remains the final campaign checkpoint.
