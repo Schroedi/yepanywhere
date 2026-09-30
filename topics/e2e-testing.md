@@ -111,10 +111,10 @@ intermittent assertion healthy. Visual verification and capture remain owned by
 
 The full-app Playwright configuration still defaults to one worker. Run-scoped
 services share mutable state, while the opt-in worker fixture below isolates
-parallel files. For CI parallelism, separate shards can each start
-their own services on isolated runners while keeping one worker per shard.
-This isolates shards from one another, but cases *within* a shard still share
-its server and must not depend on their execution order.
+parallel files. CI now exercises two worker-owned servers in each of the two
+isolated shards. The migration remains under first-attempt/retry measurement;
+cases assigned sequentially to one worker must still reset the state they
+mutate.
 Compare the slower shard's wall time with the single-job gate and also report
 the sum of shard job times as runner cost. A partial local run stopped by the
 failure limit is not a valid speed comparison; the current measurements are in
@@ -173,7 +173,17 @@ the reason for this migration.
 
 `pnpm e2e:typecheck` checks the Playwright specs, configurations and support
 modules with Node and browser types. Root `pnpm typecheck` includes this gate;
-Playwright's transpilation alone does not check fixture contracts.
+Playwright's transpilation alone does not check fixture contracts. Global setup
+calls Vite directly for the invocation bundle; it does not repeat the client
+TypeScript compilation already required by the root gate. Run `pnpm typecheck`
+when changing fixture contracts; a standalone Playwright run is not that check.
+
+Private YA fixtures can request `serveBuiltClient: true` to serve the immutable
+invocation bundle without another Vite listener. Use it when the test needs the
+real application but does not import source modules or depend on development
+behavior. Retain Vite for source-entry/component and dev-server contracts.
+A supplied `mockClaudeSession` enrolls the retained Claude store before server
+startup; writing a transcript alone does not establish discovery membership.
 
 ## Measuring value, time, and instability
 

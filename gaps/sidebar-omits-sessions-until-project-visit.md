@@ -28,3 +28,16 @@ sidebar feed is inactive, or from another principal, then compare the
 `GET /api/sessions` rows with the client's query records.
 
 Found 2026-09-28 while building sidebar categories and per-user sections.
+
+## Isolated startup hold defect — 2026-09-30
+
+A faster built-client read-state fixture reproduced a separate omission: the
+sidebar opened while its feed was loading, captured an empty interaction layout,
+and kept showing “No sessions yet” after HTTP responses contained the expected
+row. The trace retained the main title and had no WebSocket row removal. A
+controlled hook regression reproduces the omission against the original code.
+The sidebar now admits its first population under a stationary pointer/focus
+and holds that populated order against later arrivals and reordering. The E2E
+still opens while loading; it does not move the pointer or wait away the defect.
+This explains that isolated failure, not the maintainer's earlier incident.
+Keep the original cross-principal/catalog investigation open.

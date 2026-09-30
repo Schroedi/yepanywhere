@@ -1,5 +1,5 @@
 import {
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -117,14 +117,27 @@ export function useHeldSidebarLists<
     lists: L;
   } | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: Source and enabled changes intentionally release the hold; the reset body does not need their values.
-  useEffect(() => {
+  useLayoutEffect(() => {
     pointer.current = false;
     focused.current = false;
     touch.current = false;
     setHeld(null);
   }, [sourceKey, enabled]);
+  const hasRows = Object.values(lists).some((rows) => rows.length > 0);
+  // There is no navigation target to protect until the first rows arrive.
+  // Capture that first population before paint if interaction is still active.
+  useLayoutEffect(() => {
+    if (
+      enabled &&
+      hasRows &&
+      held === null &&
+      (pointer.current || focused.current || touch.current)
+    ) {
+      setHeld({ sourceKey, lists });
+    }
+  }, [enabled, hasRows, held, lists, sourceKey]);
   const hold = () => {
-    if (!enabled) return;
+    if (!enabled || !hasRows) return;
     setHeld((previous) =>
       previous?.sourceKey === sourceKey
         ? previous

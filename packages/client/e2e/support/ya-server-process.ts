@@ -12,6 +12,7 @@ import { hostname, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { InstallService } from "../../../server/src/services/InstallService.js";
 import { stopProviderHostRuntime } from "./provider-host-runtime.js";
 import { getE2EProfileDirectory, getE2ERunDirectory } from "./run-directory.js";
 
@@ -52,6 +53,8 @@ export interface YaServerProfilePaths {
 
 export interface StartYaServerProcessOptions {
   label: string;
+  /** Serve this invocation's immutable bundle from the private YA listener. */
+  serveBuiltClient?: boolean;
   tempPrefix?: string;
   mockClaudeSession?: MockClaudeSession;
   setupProfile?: (paths: YaServerProfilePaths) => void | Promise<void>;
@@ -227,6 +230,16 @@ function monitorStartup(child: ChildProcess, label: string): () => void {
 export async function startYaServerProcess(
   options: StartYaServerProcessOptions,
 ): Promise<YaServerProcess> {
+  const frontendEnv: NodeJS.ProcessEnv = {};
+  if (options.serveBuiltClient) {
+    const runDirectory = getE2ERunDirectory();
+    const clientDist = runDirectory && join(runDirectory, "client-dist");
+    if (!clientDist || !existsSync(join(clientDist, "index.html"))) {
+      throw new Error("Built client fixture requires the E2E invocation build");
+    }
+    frontendEnv.SERVE_FRONTEND = "true";
+    frontendEnv.CLIENT_DIST_PATH = clientDist;
+  }
   const deadline = options.startupDeadline ?? Date.now() + 30_000;
   const parent = getE2EProfileDirectory() ?? tmpdir();
   mkdirSync(parent, { recursive: true });
@@ -263,6 +276,10 @@ export async function startYaServerProcess(
   writeServerSettings(dataDir);
   if (options.mockClaudeSession) {
     writeMockClaudeSession(claudeSessionsDir, options.mockClaudeSession);
+    // A retained-session fixture must enroll its store as well as write history.
+    const install = new InstallService({ dataDir });
+    await install.initialize();
+    await install.recordSuccessfulProviders(["claude"]);
   }
   await options.setupProfile?.({
     claudeSessionsDir,
@@ -304,6 +321,7 @@ export async function startYaServerProcess(
     // Each server owns its runtime inventory as well as its persisted profile.
     YEP_PROVIDER_HOST_RUNTIME_DIR: runtimeDir,
     ...options.env,
+    ...frontendEnv,
   };
   if (childEnv.FORCE_COLOR) {
     delete childEnv.NO_COLOR;

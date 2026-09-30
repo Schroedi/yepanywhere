@@ -1694,6 +1694,7 @@ export const MessageList = memo(function MessageList({
   const programmaticScrollReleaseRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
+  const programmaticScrollReleaseFrameRef = useRef<number | null>(null);
   const progressiveActiveRenderKeyRef = useRef<string | null>(null);
   const progressiveCompletedRenderKeyRef = useRef<string | null>(null);
   const previousRenderItemsRef = useRef<RenderItem[]>([]);
@@ -1867,14 +1868,22 @@ export const MessageList = memo(function MessageList({
     effectiveConversationViewEnabled,
   ]);
 
+  const clearProgrammaticScrollRelease = useCallback(() => {
+    if (programmaticScrollReleaseRef.current !== null) {
+      clearTimeout(programmaticScrollReleaseRef.current);
+      programmaticScrollReleaseRef.current = null;
+    }
+    if (programmaticScrollReleaseFrameRef.current !== null) {
+      cancelAnimationFrame(programmaticScrollReleaseFrameRef.current);
+      programmaticScrollReleaseFrameRef.current = null;
+    }
+  }, []);
+
   // Scroll to bottom, marking it as programmatic so scroll handler ignores it
   const scrollToBottom = useCallback(
     (container: HTMLElement, behavior: ScrollBehavior = "auto") => {
       isProgrammaticScrollRef.current = true;
-      if (programmaticScrollReleaseRef.current !== null) {
-        clearTimeout(programmaticScrollReleaseRef.current);
-        programmaticScrollReleaseRef.current = null;
-      }
+      clearProgrammaticScrollRelease();
       const top = Math.max(0, container.scrollHeight - container.clientHeight);
       if (behavior === "auto") {
         container.scrollTop = top;
@@ -1893,6 +1902,7 @@ export const MessageList = memo(function MessageList({
       const releaseProgrammaticScroll = () => {
         isProgrammaticScrollRef.current = false;
         programmaticScrollReleaseRef.current = null;
+        programmaticScrollReleaseFrameRef.current = null;
         if (isNearScrollBottom(container)) {
           shouldAutoScrollRef.current = true;
           setIsScrolledToBottom(true);
@@ -1904,7 +1914,9 @@ export const MessageList = memo(function MessageList({
           520,
         );
       } else {
-        requestAnimationFrame(releaseProgrammaticScroll);
+        programmaticScrollReleaseFrameRef.current = requestAnimationFrame(
+          releaseProgrammaticScroll,
+        );
       }
 
       // Schedule a follow-up scroll to catch any async rendering (markdown, syntax highlighting)
@@ -1926,15 +1938,25 @@ export const MessageList = memo(function MessageList({
           }
           lastHeightRef.current = container.scrollHeight;
           setIsScrolledToBottom(true);
-          if (programmaticScrollReleaseRef.current === null) {
-            requestAnimationFrame(() => {
-              isProgrammaticScrollRef.current = false;
-            });
+          if (
+            programmaticScrollReleaseRef.current === null &&
+            programmaticScrollReleaseFrameRef.current === null
+          ) {
+            programmaticScrollReleaseFrameRef.current = requestAnimationFrame(
+              () => {
+                programmaticScrollReleaseFrameRef.current = null;
+                isProgrammaticScrollRef.current = false;
+              },
+            );
           }
         }
       }, 50);
     },
-    [publishTranscriptPosition, reportFollowingBottom],
+    [
+      clearProgrammaticScrollRelease,
+      publishTranscriptPosition,
+      reportFollowingBottom,
+    ],
   );
 
   const clearForcedCurrentScrollTimers = useCallback(() => {
@@ -1957,10 +1979,7 @@ export const MessageList = memo(function MessageList({
       shouldAutoScrollRef.current = false;
       thinkingDeltaFollowAllowedRef.current = false;
       isProgrammaticScrollRef.current = false;
-      if (programmaticScrollReleaseRef.current !== null) {
-        clearTimeout(programmaticScrollReleaseRef.current);
-        programmaticScrollReleaseRef.current = null;
-      }
+      clearProgrammaticScrollRelease();
       clearFollowUpScrollTimer();
       clearForcedCurrentScrollTimers();
       if (container) {
@@ -1970,6 +1989,7 @@ export const MessageList = memo(function MessageList({
       reportFollowingBottom(false);
     },
     [
+      clearProgrammaticScrollRelease,
       clearFollowUpScrollTimer,
       clearForcedCurrentScrollTimers,
       reportFollowingBottom,
@@ -3665,11 +3685,9 @@ export const MessageList = memo(function MessageList({
   );
 
   const beginTurnNavigation = useCallback(() => {
-    shouldAutoScrollRef.current = false;
-    setIsScrolledToBottom(false);
-    reportFollowingBottom(false);
+    stopFollowingForUserScroll(containerRef.current?.parentElement);
     scheduleSettledScrollState();
-  }, [reportFollowingBottom, scheduleSettledScrollState]);
+  }, [stopFollowingForUserScroll, scheduleSettledScrollState]);
 
   const {
     beginSearchMatchReveal,
@@ -4219,7 +4237,10 @@ export const MessageList = memo(function MessageList({
   // Track scroll position to determine if user is near bottom.
   // Ignore programmatic scrolls - only user-initiated scrolls should affect auto-scroll state.
   const handleScroll = useCallback(() => {
-    if (isProgrammaticScrollRef.current) return;
+    // A queued scroll event from the last follow write cannot resume following
+    // while a transcript press still owns the view.
+    if (isProgrammaticScrollRef.current || followPressRef.current !== null)
+      return;
 
     pendingInitialScrollRestoreRef.current = null;
 
@@ -4502,15 +4523,14 @@ export const MessageList = memo(function MessageList({
       resizeObserver.disconnect();
       // Clean up any pending scroll on unmount
       clearFollowUpScrollTimer();
-      if (programmaticScrollReleaseRef.current !== null) {
-        clearTimeout(programmaticScrollReleaseRef.current);
-      }
+      clearProgrammaticScrollRelease();
       clearForcedCurrentScrollTimers();
       if (navMotionCueClearTimerRef.current !== null) {
         clearTimeout(navMotionCueClearTimerRef.current);
       }
     };
   }, [
+    clearProgrammaticScrollRelease,
     clearFollowUpScrollTimer,
     clearForcedCurrentScrollTimers,
     restoreRetainedScrollPosition,

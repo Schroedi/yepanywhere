@@ -186,6 +186,12 @@ Consequences:
   explicit Follow transfers ownership and cancels further restore retries.
 - The collapse/tidy trigger is a UX choice; jitter-safety is a separate,
   always-required property.
+- Reader intent cancels pending follow release frames as well as smooth-scroll
+  timers, follow-up writes and forced catch-up timers. An old frame cannot
+  re-enable Follow after a wheel gesture, held transcript press or search
+  navigation has taken ownership. A queued scroll event from the last bottom
+  write does not resume following under a held press; release without movement
+  retains the explicit click-to-resume behavior.
 - Committing in-session search (Enter on the highlighted match, or a click
   jump to that same match) is explicit navigation: leave tail-follow, jump
   to the selected row, and if search then unhides non-matches, pin that row

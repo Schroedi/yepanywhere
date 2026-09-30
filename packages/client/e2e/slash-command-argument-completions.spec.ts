@@ -231,7 +231,17 @@ test("restarts the provider only after verified stop and reloads saved turns", a
       url.pathname === `/api/projects/${projectId}/sessions/${sessionId}`,
     async (route) => {
       reads += 1;
-      const response = await route.fetch();
+      const after = new URL(route.request().url()).searchParams.get(
+        "afterMessageId",
+      );
+      // The real server cannot resolve the synthetic turn cursor. Fetch its
+      // actual snapshot, then provide a coherent fixture-owned incremental read.
+      const response = await route.fetch({
+        url:
+          after === "tui-turn"
+            ? route.request().url().split("?")[0]
+            : route.request().url(),
+      });
       const body = await response.json();
       await route.fulfill({
         response,
@@ -242,20 +252,27 @@ test("restarts the provider only after verified stop and reloads saved turns", a
             processId: restarted ? "new-worker" : "old-worker",
           },
           processState: "idle",
-          messages: [
-            ...body.messages,
-            ...(restarted
-              ? [
-                  {
-                    id: "tui-turn",
-                    uuid: "tui-turn",
-                    type: "user",
-                    message: { role: "user", content: "Turn saved by the TUI" },
-                    timestamp: new Date().toISOString(),
-                  },
-                ]
-              : []),
-          ],
+          messages:
+            after === "tui-turn"
+              ? []
+              : [
+                  ...body.messages,
+                  ...(restarted
+                    ? [
+                        {
+                          id: "tui-turn",
+                          uuid: "tui-turn",
+                          parentUuid: "1",
+                          type: "user",
+                          message: {
+                            role: "user",
+                            content: "Turn saved by the TUI",
+                          },
+                          timestamp: new Date().toISOString(),
+                        },
+                      ]
+                    : []),
+                ],
         },
       });
     },
@@ -334,9 +351,12 @@ test("restarts the provider only after verified stop and reloads saved turns", a
   await page.setViewportSize({ width: 375, height: 812 });
   await menu.click();
   await capture(page, "restart-provider-mobile-375x812.png");
-  await page
-    .getByRole("button", { name: "Restart provider", exact: true })
-    .click();
+  await Promise.all([
+    page.waitForEvent("load", { timeout: 30_000 }),
+    page.getByRole("button", { name: "Restart provider", exact: true }).click(),
+  ]);
+  // Restart reloads this routed dev app, just like the initial cold navigation.
+  await expect(composer).toBeVisible({ timeout: 30_000 });
   await expect(
     page.getByText("Turn saved by the TUI", { exact: true }),
   ).toBeVisible();

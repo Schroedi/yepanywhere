@@ -64,189 +64,218 @@ async function textPoint(page: Page, marker: string) {
 async function openLiveSession(page: Page) {
   const projectPath = dirname(dirname(fileURLToPath(import.meta.url)));
   const backend = await startYaServerProcess({ label: "selection activity" });
-  const source = await createTestViteServer({
-    configFile: join(projectPath, "vite.config.ts"),
-    define: { __VITE_DEV_PORT__: "-1" },
-    server: {
-      port: 0,
-      strictPort: false,
-      host: "127.0.0.1",
-      proxy: { "/api": { target: backend.baseUrl, ws: true } },
-    },
-  });
-  const projectId = Buffer.from(projectPath).toString("base64url");
-  const now = Date.now();
-  const row = {
-    id: "sel-a",
-    title: "Selection A",
-    fullTitle: "Selection A",
-    projectId,
-    projectName: "Selection test",
-    provider: "claude",
-    activity: "in-turn",
-    ownership: { owner: "none" },
-    createdAt: new Date(now - 60_000).toISOString(),
-    updatedAt: new Date(now - 60_000).toISOString(),
-    messageCount: ROWS * 2,
+  let source: Awaited<ReturnType<typeof createTestViteServer>> | undefined;
+  const close = async () => {
+    const results = await Promise.allSettled([
+      source?.close(),
+      disposeYaServerProcess(backend),
+    ]);
+    const errors = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : [],
+    );
+    if (errors.length)
+      throw new AggregateError(errors, "Selection fixture cleanup failed");
   };
-  await page.route(/\/api\/sessions(?:\?|$)/, (route) =>
-    route.fulfill({
-      json: {
-        sessions:
-          new URL(route.request().url()).searchParams.get("starred") === "true"
-            ? []
-            : [row],
-        hasMore: false,
-        total: 1,
+  try {
+    source = await createTestViteServer({
+      configFile: join(projectPath, "vite.config.ts"),
+      define: { __VITE_DEV_PORT__: "-1" },
+      server: {
+        port: 0,
+        strictPort: false,
+        host: "127.0.0.1",
+        proxy: { "/api": { target: backend.baseUrl, ws: true } },
       },
-    }),
-  );
-  await page.route(/\/api\/projects\/[^/]+\/sessions\/sel-a(?:\?|$)/, (route) =>
-    route.fulfill({
-      json: {
-        session: row,
-        messages: transcript(),
-        ownership: { owner: "self", processId: "proc-sel-a" },
-      },
-    }),
-  );
-  await page.route(/\/api\/sessions\/sel-a\/process$/, (route) =>
-    route.fulfill({
-      json: {
-        process: { sessionId: "sel-a", state: "in-turn", activity: "in-turn" },
-      },
-    }),
-  );
-  const emitters: Array<(event: object) => void> = [];
-  await page.routeWebSocket("**/api/ws", (socket) => {
-    const upstream = socket.connectToServer();
-    socket.onMessage((message) => {
-      const data =
-        typeof message === "string"
-          ? (JSON.parse(message) as RemoteClientMessage)
-          : decodeJsonFrame<RemoteClientMessage>(message);
-      if (
-        data.type === "subscribe" &&
-        data.channel === "session" &&
-        (data as { sessionId?: string }).sessionId === "sel-a"
-      ) {
-        let seq = 0;
-        emitters.push((payload) =>
-          socket.send(
-            JSON.stringify({
-              type: "event",
-              subscriptionId: data.subscriptionId,
-              eventType: "message",
-              eventId: String(++seq),
-              data: payload,
-            }),
-          ),
-        );
-        return;
-      }
-      upstream.send(message);
     });
-  });
-  await source.listen();
-  const address = source.httpServer?.address();
-  if (!address || typeof address === "string") {
-    throw new Error("Missing Vite port");
-  }
-  await page.setViewportSize({ width: 1200, height: 700 });
-  await page.goto(
-    `http://127.0.0.1:${address.port}/projects/${projectId}/sessions/sel-a`,
-  );
-  await expect(page.locator("[data-composer-input]")).toBeVisible({
-    timeout: 30_000,
-  });
-  await expect
-    .poll(() => emitters.length, { timeout: 15_000 })
-    .toBeGreaterThan(0);
-  await page.waitForTimeout(1000);
-
-  const emit = emitters[0]!;
-  let messages = 0;
-  const startActivity = ({ deltasOnly = false } = {}) => {
-    let sent = 0;
-    if (deltasOnly) {
-      for (const event of [
-        { type: "message_start", message: { id: "msg-live-tail" } },
-        {
-          type: "content_block_start",
-          index: 0,
-          content_block: { type: "text", text: "" },
-        },
-      ]) {
-        emit({
-          type: "stream_event",
-          uuid: `se-${event.type}`,
-          session_id: "sel-a",
-          parent_tool_use_id: null,
-          event,
-          timestamp: new Date().toISOString(),
-        });
-      }
-    }
-    const timer = setInterval(() => {
-      sent += 1;
-      if (deltasOnly) {
-        emit({
-          type: "stream_event",
-          uuid: `se-${sent}`,
-          session_id: "sel-a",
-          parent_tool_use_id: null,
-          event: {
-            type: "content_block_delta",
-            index: 0,
-            delta: {
-              type: "text_delta",
-              text: `Streamed paragraph ${sent} grows the live tail.\n\n`,
-            },
-          },
-          timestamp: new Date().toISOString(),
-        });
-      } else if (sent % 10 === 0) {
-        messages += 1;
-        emit({
-          type: "assistant",
-          uuid: `live-${messages}`,
-          parentUuid: messages === 1 ? `a-${ROWS - 1}` : `live-${messages - 1}`,
-          session_id: "sel-a",
-          message: {
-            role: "assistant",
-            content: [
-              { type: "text", text: `Live message ${messages} arrives.` },
-            ],
-          },
-          timestamp: new Date().toISOString(),
-        });
-      } else {
-        emit({
-          type: "stream_event",
-          uuid: `se-${messages}-${sent}`,
-          session_id: "sel-a",
-          parent_tool_use_id: null,
-          event: {
-            type: "content_block_delta",
-            index: 0,
-            delta: { type: "text_delta", text: `token${sent} ` },
-          },
-          timestamp: new Date().toISOString(),
-        });
-      }
-    }, 40);
-    return {
-      stop: () => clearInterval(timer),
-      messages: () => messages,
+    const projectId = Buffer.from(projectPath).toString("base64url");
+    const now = Date.now();
+    const row = {
+      id: "sel-a",
+      title: "Selection A",
+      fullTitle: "Selection A",
+      projectId,
+      projectName: "Selection test",
+      provider: "claude",
+      activity: "in-turn",
+      ownership: { owner: "none" },
+      createdAt: new Date(now - 60_000).toISOString(),
+      updatedAt: new Date(now - 60_000).toISOString(),
+      messageCount: ROWS * 2,
     };
-  };
-  return {
-    startActivity,
-    close: async () => {
-      await source.close();
-      await disposeYaServerProcess(backend);
-    },
-  };
+    await page.route(/\/api\/sessions(?:\?|$)/, (route) =>
+      route.fulfill({
+        json: {
+          sessions:
+            new URL(route.request().url()).searchParams.get("starred") ===
+            "true"
+              ? []
+              : [row],
+          hasMore: false,
+          total: 1,
+        },
+      }),
+    );
+    await page.route(
+      /\/api\/projects\/[^/]+\/sessions\/sel-a(?:\?|$)/,
+      (route) =>
+        route.fulfill({
+          json: {
+            session: row,
+            messages: transcript(),
+            ownership: { owner: "self", processId: "proc-sel-a" },
+          },
+        }),
+    );
+    await page.route(/\/api\/sessions\/sel-a\/process$/, (route) =>
+      route.fulfill({
+        json: {
+          process: {
+            sessionId: "sel-a",
+            state: "in-turn",
+            activity: "in-turn",
+          },
+        },
+      }),
+    );
+    const emitters: Array<(event: object) => void> = [];
+    await page.routeWebSocket("**/api/ws", (socket) => {
+      const upstream = socket.connectToServer();
+      socket.onMessage((message) => {
+        const data =
+          typeof message === "string"
+            ? (JSON.parse(message) as RemoteClientMessage)
+            : decodeJsonFrame<RemoteClientMessage>(message);
+        if (
+          data.type === "subscribe" &&
+          data.channel === "session" &&
+          (data as { sessionId?: string }).sessionId === "sel-a"
+        ) {
+          let seq = 0;
+          emitters.push((payload) =>
+            socket.send(
+              JSON.stringify({
+                type: "event",
+                subscriptionId: data.subscriptionId,
+                eventType: "message",
+                eventId: String(++seq),
+                data: payload,
+              }),
+            ),
+          );
+          return;
+        }
+        upstream.send(message);
+      });
+    });
+    await source.listen();
+    const address = source.httpServer?.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Missing Vite port");
+    }
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.goto(
+      `http://127.0.0.1:${address.port}/projects/${projectId}/sessions/sel-a`,
+    );
+    await expect(page.locator("[data-composer-input]")).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect
+      .poll(() => emitters.length, { timeout: 15_000 })
+      .toBeGreaterThan(0);
+    await page.waitForTimeout(1000);
+
+    const emit = emitters[0]!;
+    let messages = 0;
+    const startActivity = ({ deltasOnly = false } = {}) => {
+      let sent = 0;
+      if (deltasOnly) {
+        for (const event of [
+          { type: "message_start", message: { id: "msg-live-tail" } },
+          {
+            type: "content_block_start",
+            index: 0,
+            content_block: { type: "text", text: "" },
+          },
+        ]) {
+          emit({
+            type: "stream_event",
+            uuid: `se-${event.type}`,
+            session_id: "sel-a",
+            parent_tool_use_id: null,
+            event,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+      const timer = setInterval(() => {
+        sent += 1;
+        if (deltasOnly) {
+          emit({
+            type: "stream_event",
+            uuid: `se-${sent}`,
+            session_id: "sel-a",
+            parent_tool_use_id: null,
+            event: {
+              type: "content_block_delta",
+              index: 0,
+              delta: {
+                type: "text_delta",
+                text: `Streamed paragraph ${sent} grows the live tail.\n\n`,
+              },
+            },
+            timestamp: new Date().toISOString(),
+          });
+        } else if (sent % 10 === 0) {
+          messages += 1;
+          emit({
+            type: "assistant",
+            uuid: `live-${messages}`,
+            parentUuid:
+              messages === 1 ? `a-${ROWS - 1}` : `live-${messages - 1}`,
+            session_id: "sel-a",
+            message: {
+              role: "assistant",
+              content: [
+                { type: "text", text: `Live message ${messages} arrives.` },
+              ],
+            },
+            timestamp: new Date().toISOString(),
+          });
+        } else {
+          emit({
+            type: "stream_event",
+            uuid: `se-${messages}-${sent}`,
+            session_id: "sel-a",
+            parent_tool_use_id: null,
+            event: {
+              type: "content_block_delta",
+              index: 0,
+              delta: { type: "text_delta", text: `token${sent} ` },
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }, 40);
+      return {
+        stop: () => clearInterval(timer),
+        messages: () => messages,
+      };
+    };
+    return {
+      startActivity,
+      close,
+    };
+  } catch (error) {
+    try {
+      await close();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "Selection fixture setup and cleanup failed",
+      );
+    }
+    throw error;
+  }
 }
 
 test("a drag keeps its press point when the browser loses it mid-drag", async ({
@@ -314,7 +343,9 @@ test("a drag keeps its press point when the browser loses it mid-drag", async ({
       () => document.getSelection()?.toString() ?? "",
     );
     await page.evaluate(() => navigator.clipboard.writeText(""));
-    await page.keyboard.press("Control+c");
+    await page.keyboard.press(
+      process.platform === "darwin" ? "Meta+c" : "Control+c",
+    );
     const copied = await page.evaluate(() => navigator.clipboard.readText());
     expect(activity.messages()).toBeGreaterThan(0);
     expect(await anchor()).toEqual(pressed);
@@ -354,23 +385,43 @@ test("a held button stops follow scrolling and a click resumes it", async ({
 
     const box = await scroller.boundingBox();
     if (!box) throw new Error("Missing transcript scroller");
-    const point = await page.evaluate(
-      ({ left, width, y }) => {
-        for (let x = left + 40; x < left + width - 40; x += 8) {
-          const range = document.caretRangeFromPoint(x, y);
-          const node = range?.startContainer;
+    const point = await scroller.evaluate((viewport) => {
+      const content = viewport.querySelector(".message-list");
+      if (!content) return null;
+      const bounds = viewport.getBoundingClientRect();
+      const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const text = node as Text;
+        if (text.data.trim().length < 8) continue;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        // A fixed-font streamed block can be one text node spanning many
+        // lines. Its first character may be above the viewport.
+        for (const rect of range.getClientRects()) {
           if (
-            node?.nodeType === Node.TEXT_NODE &&
-            (node.textContent ?? "").trim().length > 8 &&
-            node.parentElement?.closest(".message-list")
-          ) {
+            rect.top < bounds.top + 40 ||
+            rect.bottom > bounds.bottom - 40 ||
+            rect.width < 2
+          )
+            continue;
+          const x = rect.left + Math.min(4, rect.width / 2);
+          const y = rect.top + rect.height / 2;
+          const hit = document.elementFromPoint(x, y);
+          // caretRangeFromPoint can return nearest text while the actual
+          // press lands on MAIN padding. Use a rendered, hit-tested line.
+          if (
+            hit &&
+            content.contains(hit) &&
+            hit.contains(text) &&
+            !hit.closest(
+              "button, input, textarea, select, a[href], [contenteditable='true']",
+            )
+          )
             return { x, y };
-          }
         }
-        return null;
-      },
-      { left: box.x, width: box.width, y: box.y + box.height * 0.55 },
-    );
+      }
+      return null;
+    });
     if (!point) throw new Error("No transcript text at the press point");
     const under = () =>
       page.evaluate(

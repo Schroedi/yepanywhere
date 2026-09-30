@@ -45,7 +45,11 @@ settled catalog. A full local two-worker run with no retries passed 345 cases
 and skipped 12 platform/device cases in 8.0 minutes, with successful process
 and storage cleanup. `YEP_E2E_SERVER_SCOPE=worker` remains opt-in until
 comparable Linux CI and repeated parallel schedules establish the migration.
-The run-scoped default and one-worker-per-shard CI still leave this gap open.
+The local run-scoped default remains available. CI now runs two worker-owned
+servers per shard, with comparable fixed-source measurements below. The first
+worker CI pair was faster but had an async-question persistent failure and retry
+passes; the next exposed lazy-route bootstrap ordering and cold reload fixture
+assumptions. Those must pass on first attempts before closing this gap.
 
 Found 2026-09-27 while comparing local two-worker execution with isolated CI
 shards.

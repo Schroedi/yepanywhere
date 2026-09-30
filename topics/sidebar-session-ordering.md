@@ -77,7 +77,9 @@ it neither `sidebarCategory` nor `categorized`.
 
 Entering the sidebar with a pointer, focusing a control inside it, or starting
 a touch captures the displayed session identities, order, and section
-membership. Status, title, unread, draft, and queue decorations remain live.
+membership. An empty initial list has no targets to protect: its first nonempty
+population remains visible and becomes the held layout if interaction is still
+active. Status, title, unread, draft, and queue decorations remain live.
 New arrivals, duplicate regrouping, and user-driven reorderings wait until the
 interaction finishes. That includes moving a row to another section: a section
 that appears during the hold stays empty until release, so the moved row shows

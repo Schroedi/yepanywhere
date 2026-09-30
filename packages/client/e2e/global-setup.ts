@@ -121,6 +121,8 @@ export default async function globalSetup() {
     [
       "--filter",
       "@yep-anywhere/client",
+      "exec",
+      "vite",
       "build",
       "--outDir",
       clientDist,

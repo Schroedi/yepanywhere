@@ -18,3 +18,11 @@ Contributing-model: 6-Astra.
 489.42) on a focused rerun and on upstream `87f933c97`; GitHub CI passed the
 same commits, so the failure is host-dependent.
 Contributing-model: opus-5.5
+
+The CI isolation campaign separately proved a pending-follow ownership defect:
+a bottom-release frame could re-enable Follow after user intent stopped it.
+Two controlled-frame regressions fail against the old code. Follow release
+frames are now owned/cancelled, and search navigation uses the same stop-follow
+fence. This is a supported repair, but it does not yet establish the cause of
+the exact 60px Escape shift above. Keep the frame assertion and this gap open
+while repeated browser/CI evidence is gathered.

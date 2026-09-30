@@ -269,3 +269,22 @@ and readers. Catalog publication now invalidates the authorization projection
 without waiting for its five-second fallback TTL, with fail-closed regressions
 for stale positive mappings and event delivery. These are isolation and
 correctness changes, not removed coverage or longer general timeouts.
+
+### Worker campaign follow-up — 2026-09-30
+
+Worker profiles, relay credentials, server storage and provider-host runtimes now
+have explicit worker ownership and recovery. CI exercises two workers in each
+existing shard; the fixed-source comparison reduced combined job time but failed,
+so it is not an acceptance result. See the [ledger](../testing/e2e-ci-cost-ledger.md)
+for exact revisions, retries, and start skew. Unit fixtures also needed isolation:
+default full apps had shared storage, background services outlived file roots,
+and version checks contacted the public update service. These now have owned
+storage, joined disposal and offline fixture checks.
+
+Faster built-client fixtures revealed real startup ownership gaps: lazy route
+requests registered after bootstrap completed, and an empty sidebar layout could
+remain held after rows arrived. Keep those behavioral regressions while reducing
+duplicate dev listeners and compilation. Read-only source fixtures retain Vite;
+parallel scheduling does not enable `fullyParallel` inside mutable spec lifetimes.
+Continue until full first-attempt CI and repeated parallel schedules pass without
+a comparable median or high-percentile wall-time regression.

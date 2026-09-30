@@ -268,3 +268,74 @@ first cold-frame assertion has a measured 15-second allowance. That workflow
 also failed an Intel macOS native-host descriptor wait without child output.
 The native fixture now reports child exits and bounded stdout/stderr at the
 same deadline; no speculative production timeout was increased.
+
+### Fixed-source worker comparison and follow-up — 2026-09-30
+
+`1dd1e6b7e` and `e916fd004` use identical test source; the latter changes only
+the workflow to worker scope and two workers per existing shard.
+
+| Exact run | Scope/workers per shard | Shard 1 job | Shard 2 job | Combined jobs | Result |
+| --- | --- | ---: | ---: | ---: | --- |
+| [36641621916](https://github.com/kzahel/yepanywhere/actions/runs/36641621916) | run / 1 | 16m41s | 9m35s | 26m16s | 347 passed, 10 skipped, no retries |
+| [36644008475](https://github.com/kzahel/yepanywhere/actions/runs/36644008475) | worker / 2 | 14m35s | 7m56s | 22m31s | async-question failed all attempts; four retry passes elsewhere |
+
+The worker pair consumed about 14% less combined job time but failed; this does
+not establish a reliable or steady-state speed improvement. The async retry
+trace exhausted a five-second composer wait while 823 source modules loaded
+through the routed dev app. The final connection-refused screenshot followed
+fixture teardown; it was not evidence of a Vite crash preceding the failure.
+
+The [follow-up run 36646266324](https://github.com/kzahel/yepanywhere/actions/runs/36646266324)
+includes supervisor draining and offline update checks, so it is a changed-source
+observation: shard 1 passed 173 cases without retry in 8m39s job/7.9m tests;
+shard 2 took 9m50s job/9.1m tests, with two persistent failures and two retry
+passes. Its 2m16s runner start skew made the gate 12m06s from the first start.
+The persistent cases identified a real lazy-page admission gap and a restart
+that reloads a routed dev app during a five-second assertion. The unit job's
+pagination fixture exceeded five seconds while capturing 165 rows through
+durable SQLite transactions. All four native provider-host/preload jobs passed.
+
+Follow-up repairs preserve the browser assertions: lazy route boundaries retain
+the route tier, restart waits for its actual reload, and a coherent incremental
+mock owns its synthetic cursor. Private read-state/async YA fixtures serve the
+immutable built client, and public share uses the shared remote preview. The
+async initial checkpoint now waits for actual transcript volume; an unrevealed
+empty viewport also reports zero bottom distance. Faster initial rendering also
+exposed an empty-sidebar interaction hold; a regression proves first population
+must remain visible before subsequent order is held. The SQL pagination case
+uses actual in-memory SQLite with the same schema and 165 captures; persistence
+cases retain disk. Full-app unit teardown joins every app service before deleting
+its file root, including artifact readiness writes.
+
+Four focused two-worker repetitions passed all 32 async/read-state/provider/slash
+cases without retries. After incorporating three upstream commits, the full
+four-worker run passed all 345 established cases in 4.3m with clean teardown;
+both new upstream selection cases failed (Mac copy shortcut and a held-press
+follow assertion). The latter exposed the independently proved pending-release
+frame defect; wheel/press regressions fail before its repair and pass afterward.
+Root workspace tests passed server 6,148 and client 6,498, and the strict E2E
+gate caught a new upstream import of the removed synchronous stop helper.
+The new fixture now awaits disposal. These are local functional observations
+under overlapping checks, not controlled timing claims.
+
+Three otherwise-identical Vite builds checked the actual HTML entry while
+reviewing startup dependency cost: before the route hold 652,094 raw / 188,121
+gzip bytes; with a heavy-store import 654,358 / 188,895; with the extracted
+source-key subscription 654,182 / 188,841. The retained implementation adds
+720 gzip bytes to the entry, not the raw TypeScript graph's apparent 165 KB.
+The store continues re-exporting the same single source-key owner.
+
+The final merged local checkpoint passed 347 browser cases with 12 skipped,
+four workers, zero retries, and clean teardown in 4.7m. Root workspace tests
+passed 6,148 server and 6,501 client cases; lint, formatting and type checks
+passed, including the strict E2E gate. These overlapping local runs establish
+functional coverage, not a controlled performance comparison. Twelve focused
+selection repetitions also passed. The selection fixture now targets a visible
+text-line rectangle whose actual hit belongs to the transcript; the old caret
+lookup could return nearby text while the pointer landed in outer padding.
+Both reviewers checked the corrected targeting and ownership repairs.
+
+The intervening upstream [run 36651162131](https://github.com/kzahel/yepanywhere/actions/runs/36651162131)
+was green but included retry passes: two in shard 1 and three in shard 2.
+Its 11m55s / 8m21s job pair is another changed-source observation, not proof
+that the remaining races disappeared. First-attempt results remain the gate.

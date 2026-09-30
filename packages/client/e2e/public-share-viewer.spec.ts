@@ -95,7 +95,7 @@ function shareResponse(): PublicSessionShareResponse {
   };
 }
 
-test.beforeEach(async ({ page, remoteClientURL }) => {
+test.beforeEach(async ({ page, remotePreviewURL }) => {
   await page.routeWebSocket("wss://share-relay.test/ws", (socket) => {
     socket.onMessage((wire) => {
       const message = JSON.parse(String(wire));
@@ -123,8 +123,8 @@ test.beforeEach(async ({ page, remoteClientURL }) => {
     });
   });
   await page.setViewportSize({ width: 1000, height: 600 });
-  // remote.html avoids the dev server's document fallback; the browser route
-  // still enters the actual public share page before React initializes.
+  // Use the deployed remote bundle; this contract does not import source
+  // modules. Enter the actual public share route before React initializes.
   await page.addInitScript(() => {
     history.replaceState(
       null,
@@ -132,7 +132,7 @@ test.beforeEach(async ({ page, remoteClientURL }) => {
       "/share/public-secret?h=owner&r=wss%3A%2F%2Fshare-relay.test%2Fws",
     );
   });
-  await page.goto(`${remoteClientURL}/remote.html`);
+  await page.goto(`${remotePreviewURL}/remote.html`);
   await expect(page.locator(".conversation-activity-summary")).toHaveCount(1);
 });
 
