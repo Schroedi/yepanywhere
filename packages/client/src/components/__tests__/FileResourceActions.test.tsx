@@ -23,6 +23,10 @@ const versionState = vi.hoisted(() => ({
   capabilities: [] as string[],
 }));
 vi.mock("../../hooks/useVersion", () => ({
+  useRetainedVersionInfo: () => ({
+    current: "0.0.0-dev",
+    capabilities: versionState.capabilities,
+  }),
   useVersion: () => ({
     version: {
       current: "0.0.0-dev",

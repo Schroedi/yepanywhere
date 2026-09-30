@@ -6,7 +6,7 @@ import { fileApi } from "../api/fileClient";
 import { useOptionalToastContext } from "../contexts/ToastContext";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { beginTooltipSuppression } from "../hooks/useTooltipAppearance";
-import { useVersion } from "../hooks/useVersion";
+import { useRetainedVersionInfo, useVersion } from "../hooks/useVersion";
 import { useI18n } from "../i18n";
 import { toBrowserAppHref } from "../lib/appHref";
 import { useClientSummarySourceKey } from "../lib/clientSummaryStore";
@@ -150,7 +150,8 @@ const HOST_PATH = /^(?:\/(?!\/)|~\/|[A-Za-z]:[\\/])/;
  */
 export function useStartNewSessionFromFileAction() {
   const startNewSession = useStartNewSessionWithPrefillAction();
-  const { version } = useVersion();
+  const sourceKey = useClientSummarySourceKey();
+  const version = useRetainedVersionInfo(sourceKey);
   const canResolveOwner = serverHasCapability(
     version,
     SERVER_CAPABILITIES.fileOwnerProject.name,
