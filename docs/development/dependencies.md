@@ -15,7 +15,7 @@ upstream fix.
 
 When a transitive dep has no direct upgrade path, prefer a pnpm override. Pin it
 exactly if a newer major would escape the parent's declared range — `fast-uri`
-is pinned to `3.1.7` rather than `^3.1.7` because 4.x is published and `ajv`
+is pinned to `3.1.8` rather than `^3.1.8` because 4.x is published and `ajv`
 declares `^3.0.1`. When the parent's declared range already contains the patched
 version, no override is needed: refresh the lockfile with
 `pnpm -r update <pkg> --depth=Infinity` (plain `pnpm update` skips transitive
@@ -29,6 +29,16 @@ The 2026-09-29 audit refresh moves `fast-uri` to 3.1.7 and the MCP SDK's
 `express-rate-limit -> ip-address` edge to 10.7.2 (within its `^10.2.0`
 range). This resolves GHSA-qw65-cvwx-89v3, GHSA-58mr-gqgx-xq4g,
 GHSA-rpw4-54j3-4h4q, and GHSA-2vr4-cq9g-pvrc without new audit exclusions.
+
+During the 2026-09-30 CI isolation campaign, the unchanged lockfile's audit
+began reporting four additional advisories. The existing exact `fast-uri`
+override moves to [3.1.8](https://github.com/advisories/GHSA-hrr3-gc8f-f4qj),
+and the Firestore `minimatch` edge resolves `brace-expansion` to 2.1.7 within
+its declared 2.x range. That release fixes
+[nested recursion](https://github.com/advisories/GHSA-qhr7-859c-m2p7),
+[comma recursion](https://github.com/advisories/GHSA-6j4f-fj2g-mc7p), and
+[quadratic expansion](https://github.com/advisories/GHSA-q2hr-2g5m-vwhr).
+No new audit exclusions are added; unrelated resolutions remain unchanged.
 
 ### Install-script allowlist
 
