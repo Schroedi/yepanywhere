@@ -1,21 +1,24 @@
-import type { Supervisor } from "../../src/supervisor/Supervisor.js";
+import type { AppResult } from "../../src/app.js";
 
-const supervisors = new Set<Supervisor>();
+const apps = new Set<AppResult>();
 
-export function trackFixtureSupervisor(supervisor: Supervisor): void {
+export function trackFixtureApp(app: AppResult): void {
   // Browser fixtures use the same pure app factory and dispose explicitly.
-  if (process.env.VITEST) supervisors.add(supervisor);
+  if (process.env.VITEST) apps.add(app);
 }
 
-export async function drainFixtureSupervisors(): Promise<void> {
+export async function drainFixtureApps(): Promise<void> {
   const results = await Promise.allSettled(
-    Array.from(supervisors, (supervisor) => supervisor.stopBackgroundTasks()),
+    Array.from(apps, async (app) => {
+      app.stopNotifications();
+      await app.disposeSessionReaders();
+    }),
   );
-  supervisors.clear();
   const failures = results.filter((result) => result.status === "rejected");
   if (failures.length)
     throw new AggregateError(
       failures.map((result) => result.reason),
-      "Full-app fixture background cleanup failed",
+      "Full-app fixture cleanup failed",
     );
+  apps.clear();
 }

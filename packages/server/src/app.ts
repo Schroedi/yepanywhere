@@ -1372,34 +1372,42 @@ export function createApp(options: AppOptions): AppResult {
   let vocabularyLearning: VocabularyLearning | undefined;
   let vocabularyKeyterms: VocabularyKeyterms | undefined;
   let unsubscribeVocabulary: (() => void) | undefined;
-  const disposeSessionReaders = async (): Promise<void> => {
-    await supervisor.stopBackgroundTasks();
-    await projectServices.close();
-    await projectAppStore.close();
-    await templateCreations.close();
-    await computerControl?.close();
-    conversationSubscriptions?.close();
-    focusedSessionWatchManager.dispose();
-    for (const dispose of issueDisposers) dispose();
-    await issueIndexer?.close();
-    await issueConfirmer?.close();
-    unsubscribeVocabulary?.();
-    options.speechBackendRegistry?.setVocabularySource(undefined);
-    await vocabularyKeyterms?.close();
-    await vocabularyLearning?.close();
-    if (draftCleanup) clearInterval(draftCleanup);
-    draftStore?.close();
-    discoverySqlite.close();
-    await retainedCollections?.dispose();
-    await projectQueueScheduler?.dispose();
-    await artifactServer.close();
-    await projectFileCompletion.dispose();
-    await bangCommandService?.dispose();
-    await scanner.dispose();
-    await settleGitAuthorPaletteRefreshes();
-    const entries = Array.from(readerCache.entries());
-    readerCache.clear();
-    await Promise.all(entries.map(([key, reader]) => closeReader(key, reader)));
+  let sessionReadersDisposal: Promise<void> | undefined;
+  const disposeSessionReaders = (): Promise<void> => {
+    // Explicit shutdown and fixture ownership may join the same disposal.
+    // Cache the promise before asynchronous cleanup can close shared services.
+    sessionReadersDisposal ??= (async () => {
+      await supervisor.stopBackgroundTasks();
+      await projectServices.close();
+      await projectAppStore.close();
+      await templateCreations.close();
+      await computerControl?.close();
+      conversationSubscriptions?.close();
+      focusedSessionWatchManager.dispose();
+      for (const dispose of issueDisposers) dispose();
+      await issueIndexer?.close();
+      await issueConfirmer?.close();
+      unsubscribeVocabulary?.();
+      options.speechBackendRegistry?.setVocabularySource(undefined);
+      await vocabularyKeyterms?.close();
+      await vocabularyLearning?.close();
+      if (draftCleanup) clearInterval(draftCleanup);
+      draftStore?.close();
+      discoverySqlite.close();
+      await retainedCollections?.dispose();
+      await projectQueueScheduler?.dispose();
+      await artifactServer.close();
+      await projectFileCompletion.dispose();
+      await bangCommandService?.dispose();
+      await scanner.dispose();
+      await settleGitAuthorPaletteRefreshes();
+      const entries = Array.from(readerCache.entries());
+      readerCache.clear();
+      await Promise.all(
+        entries.map(([key, reader]) => closeReader(key, reader)),
+      );
+    })();
+    return sessionReadersDisposal;
   };
 
   const getOrCreateReader = <T extends ISessionReader>(

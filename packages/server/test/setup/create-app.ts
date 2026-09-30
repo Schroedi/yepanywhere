@@ -1,4 +1,4 @@
-import { trackFixtureSupervisor } from "./app-fixture-lifecycle.js";
+import { trackFixtureApp } from "./app-fixture-lifecycle.js";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -37,6 +37,6 @@ export function createApp(options: AppOptions): AppResult {
     ...options,
     dataDir,
   });
-  trackFixtureSupervisor(result.supervisor);
+  trackFixtureApp(result);
   return result;
 }

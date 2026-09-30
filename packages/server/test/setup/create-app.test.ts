@@ -85,6 +85,17 @@ describe("full-app test fixture storage", () => {
     expect(app.supervisor.getHeartbeatScheduleMetrics().armedAtMs).toBeNull();
   });
 
+  it("joins concurrent and repeated disposal before removing fixture storage", async () => {
+    const app = fixture();
+    const close = vi.spyOn(app.artifactServer, "close");
+    const first = app.disposeSessionReaders();
+    expect(app.disposeSessionReaders()).toBe(first);
+    await first;
+    expect(app.disposeSessionReaders()).toBe(first);
+    await app.artifactServer.ready;
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it("does not let a default fixture read another fixture's draft", async () => {
     const first = fixture();
     await writeDraft(first);
