@@ -569,6 +569,12 @@ materializes those staged files into the new session's normal attachment
 destination. The design and lifecycle are documented in
 `docs/tactical/028-pre-session-attachment-staging.md`.
 
+Attachments protected by a synced draft are copied into queue ownership on
+create or edit. The queue stores the copies' canonical references in the
+submitted order, including when mixed with retained or unsynced attachments.
+Reload, promotion and cancellation use those references; cancelling an item
+or rolling back a failed save leaves the synced originals usable.
+
 Staged references belong to the account that queued the item. Queuing looks
 the drafts up only in the acting account's own draft store — the superuser's,
 or the limited user's isolated one ([limited users](limited-users.md)) — and

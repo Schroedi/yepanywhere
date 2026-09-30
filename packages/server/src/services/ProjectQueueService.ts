@@ -1420,11 +1420,14 @@ export class ProjectQueueService {
           : undefined;
       const transferredAddedRefs = transfer?.refs ?? [];
       const preparedRefsById = new Map(
-        [...validatedRetainedRefs, ...transferredAddedRefs].map((ref) => [
-          ref.id,
-          ref,
-        ]),
+        validatedRetainedRefs.map((ref) => [ref.id, ref]),
       );
+      // Transfer preserves input order, but copies synced drafts with new IDs.
+      // Resolve by the submitted ID and persist the returned queue-owned ref.
+      for (const [index, requestedRef] of addedRefs.entries()) {
+        const preparedRef = transferredAddedRefs[index];
+        if (preparedRef) preparedRefsById.set(requestedRef.id, preparedRef);
+      }
       const refs = stagedAttachments.refs.map((requestedRef) => {
         const preparedRef = preparedRefsById.get(requestedRef.id);
         if (!preparedRef) {
