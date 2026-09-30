@@ -49,9 +49,6 @@ test("two-device handoff, sequential typing, offline reload and conditional send
     await inputB.focus();
     await inputB.press("End");
     await inputB.pressSequentially(" on phone", { delay: 20 });
-    await expect(a.getByRole("button", { name: "Combine drafts" })).toBeVisible(
-      { timeout: 10000 },
-    );
     // A remote revision arrives while actual key events continue under 1,000-row activity.
     await inputA.evaluate((node) => {
       node.addEventListener("keydown", (event) => {
@@ -78,19 +75,27 @@ test("two-device handoff, sequential typing, offline reload and conditional send
     );
     expect(latencies.length).toBe(16);
     expect(Math.max(...latencies)).toBeLessThan(100);
-    await a.evaluate(() => window.scrollTo(0, 0));
-    await recordUiCapture(a, "draft-sync-desktop-pending");
+    await expect(
+      a.getByRole("button", { name: "Review draft changes" }),
+    ).toBeVisible({ timeout: 10000 });
+    await a.getByRole("button", { name: "Review draft changes" }).click();
+    await a.getByRole("status").scrollIntoViewIfNeeded();
+    await recordUiCapture(a, "draft-sync-desktop-review");
+    await a.setViewportSize({ width: 375, height: 812 });
+    await expect(
+      a.getByRole("button", { name: "Use other version" }),
+    ).toBeVisible();
+    await recordUiCapture(a, "draft-sync-phone-review");
+    await a.setViewportSize({ width: 1000, height: 600 });
     await a.getByRole("button", { name: "Combine drafts" }).click();
     await expect(inputA).toHaveValue(
       "Draft from desktop on phone\n\nDraft from desktop and more typing",
     );
-    await expect(b.getByRole("button", { name: "Combine drafts" })).toBeVisible(
-      { timeout: 10000 },
-    );
-    await b.evaluate(() => window.scrollTo(0, 0));
-    await recordUiCapture(b, "draft-sync-phone-pending");
-    await b.getByRole("button", { name: "Combine drafts" }).click();
-    await expect(inputB).toHaveValue(await inputA.inputValue());
+    await b.getByRole("heading", { name: "New session", exact: true }).click();
+    await expect(inputB).toHaveValue(await inputA.inputValue(), {
+      timeout: 10000,
+    });
+    await expect(b.getByRole("status")).toHaveCount(0);
     // Keep the already installed app reachable while its server is unavailable.
     await b.route("**/api/**", (route) =>
       new URL(route.request().url()).pathname.startsWith("/api/")
@@ -148,7 +153,7 @@ test("older servers keep local drafts and receive no draft-sync requests", async
   expect(requests).toBe(0);
 });
 
-test("dismiss clears a waiting draft across offline reload and reconnect", async ({
+test("discard clears a waiting draft across offline reload and reconnect", async ({
   page,
 }) => {
   api.store.deleteOwner("");
@@ -157,11 +162,14 @@ test("dismiss clears a waiting draft across offline reload and reconnect", async
   const input = page.getByRole("textbox", { name: "Prompt" });
   await input.pressSequentially("Discard this draft", { delay: 20 });
   await expect(page.getByRole("status")).toContainText("Sync is waiting");
-  await page.setViewportSize({ width: 1200, height: 600 });
-  await recordUiCapture(page, "draft-sync-dismiss-desktop");
+  await page.setViewportSize({ width: 1000, height: 600 });
+  await recordUiCapture(page, "draft-sync-discard-desktop");
   await page.setViewportSize({ width: 375, height: 812 });
-  await recordUiCapture(page, "draft-sync-dismiss-phone");
-  await page.getByRole("button", { name: "Dismiss draft notice" }).click();
+  await recordUiCapture(page, "draft-sync-discard-phone");
+  await page.getByRole("button", { name: "Review draft changes" }).click();
+  await page
+    .getByRole("button", { name: "Discard draft", exact: true })
+    .click();
   await expect(page.getByRole("status")).toHaveCount(0);
   await expect(input).toHaveValue("");
   await page.reload();
@@ -192,7 +200,7 @@ test("dismiss clears a waiting draft across offline reload and reconnect", async
     .toBe("New draft");
 });
 
-test("dismiss clears crash recovery in sibling tabs and after reload", async ({
+test("discard clears crash recovery in sibling tabs and after reload", async ({
   page,
   context,
 }) => {
@@ -221,7 +229,10 @@ test("dismiss clears crash recovery in sibling tabs and after reload", async ({
   await sibling.goto(`${base}e2e/fixtures/draft-sync.html`);
   await expect(page.getByRole("status")).toContainText("needs recovery");
   await expect(sibling.getByRole("status")).toContainText("needs recovery");
-  await page.getByRole("button", { name: "Dismiss draft notice" }).click();
+  await page.getByRole("button", { name: "Review draft changes" }).click();
+  await page
+    .getByRole("button", { name: "Discard draft", exact: true })
+    .click();
   await expect(sibling.getByRole("textbox")).toHaveValue("");
   await expect(sibling.getByRole("status")).toHaveCount(0);
   await page.reload();
@@ -259,8 +270,52 @@ test("reload exposes unresolved submission recovery without losing the next draf
     "A saved draft needs recovery",
   );
   await expect(page.getByRole("textbox")).toHaveValue("The next draft");
-  await page.getByRole("button", { name: "Combine drafts" }).click();
+  await page.getByRole("button", { name: "Review draft changes" }).click();
+  await page
+    .getByRole("button", { name: "Recover draft", exact: true })
+    .click();
   await expect(page.getByRole("textbox")).toHaveValue(
     "Unresolved submission\n\nThe next draft",
   );
+});
+
+test("phone send clears an unchanged desktop draft quietly after focus leaves", async ({
+  browser,
+}) => {
+  api.store.deleteOwner("");
+  const desktop = await browser.newContext();
+  const phone = await browser.newContext({
+    viewport: { width: 375, height: 812 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const a = await desktop.newPage(),
+    b = await phone.newPage();
+  try {
+    await a.goto(`${base}e2e/fixtures/draft-sync.html`);
+    await b.goto(`${base}e2e/fixtures/draft-sync.html`);
+    const inputA = a.getByRole("textbox", { name: "Prompt" });
+    const inputB = b.getByRole("textbox", { name: "Prompt" });
+    await inputA.pressSequentially("Send from phone", { delay: 20 });
+    await expect(inputB).toHaveValue("Send from phone", { timeout: 10000 });
+    await b.getByRole("button", { name: "Send", exact: true }).click();
+    await expect
+      .poll(
+        () =>
+          api.store.read("", { kind: "new-session" }).snapshot.payload.fields
+            .text,
+      )
+      .toBeUndefined();
+    await a.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(a.getByRole("status")).toHaveCount(0);
+    await expect(inputA).toHaveValue("Send from phone");
+    await a.getByRole("heading", { name: "New session", exact: true }).click();
+    await expect(inputA).toHaveValue("", { timeout: 10000 });
+    await expect(a.getByRole("status")).toHaveCount(0);
+    await a.reload();
+    await expect(inputA).toHaveValue("");
+  } finally {
+    await desktop.close();
+    await phone.close();
+  }
 });

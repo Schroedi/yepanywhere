@@ -356,8 +356,12 @@ export const draftStorage = {
     if (a && draftAddress(key)) clients.get(a.source)?.edit(key, null);
   },
 };
-function editing(): boolean {
+function editing(key: string): boolean {
   const el = document.activeElement;
+  const editorKey = el
+    ?.closest("[data-draft-key]")
+    ?.getAttribute("data-draft-key");
+  if (editorKey && editorKey !== key) return false;
   return (
     !!el &&
     (el.tagName === "TEXTAREA" ||
@@ -365,11 +369,33 @@ function editing(): boolean {
       (el as HTMLElement).isContentEditable)
   );
 }
-export function draftSyncPending(source?: string): Array<{
+export interface PendingDraft {
   key: string;
+  slot: DraftSlot;
   error?: string;
   recovery: boolean;
-}> {
+  local: DraftPayload;
+  remote?: DraftSnapshot;
+  submitted?: DraftPayload;
+}
+
+/** A one-sided update held for focus is ordinary handoff, not a conflict. */
+function conflicting(e: Entry): boolean {
+  if (!e.remote) return false;
+  const base = e.saved.base?.payload ?? EMPTY_DRAFT;
+  const local = payload(e.address, e.saved.raw);
+  const remote = e.remote.snapshot.payload;
+  return Object.keys(local.fields).some((key) => {
+    const l = local.fields[key] ?? "";
+    const r = remote.fields[key] ?? "";
+    const b = base.fields[key] ?? "";
+    return (
+      !key.endsWith("/meta") && !!l && !!r && l !== r && l !== b && r !== b
+    );
+  });
+}
+
+export function draftSyncPending(source?: string): PendingDraft[] {
   return [...clients.values()]
     .filter((c) => !source || c.source === source)
     .flatMap((c) =>
@@ -377,27 +403,50 @@ export function draftSyncPending(source?: string): Array<{
         .filter(
           (e) =>
             e.error === "local" ||
-            (!e.saved.discard && (e.remote || e.error || e.needsRecovery)),
+            (!e.saved.discard &&
+              (conflicting(e) || e.error || e.needsRecovery)),
         )
         .map((e) => ({
           key: e.key,
+          slot: e.address.slot,
           error: e.error,
           recovery: !!e.needsRecovery,
+          local: payload(e.address, e.saved.raw),
+          remote: e.remote?.snapshot,
+          submitted: e.saved.submitted?.payload,
         })),
     );
 }
-export function acceptPendingDrafts(source?: string): void {
-  for (const client of clients.values())
-    if (!source || client.source === source)
-      for (const entry of client.entries.values()) client.accept(entry);
+export function acceptPendingDraft(key: string): void {
+  const address = draftAddress(key);
+  const client = address && clients.get(address.source);
+  const entry = client?.entries.get(key);
+  if (entry && client) client.accept(entry);
 }
-export function discardPendingDrafts(source: string): void {
-  const client = clients.get(source);
-  if (!client) return;
-  for (const { key } of draftSyncPending(source)) {
-    const entry = client.entries.get(key);
-    if (entry) client.discard(entry);
-  }
+export function retryPendingDraft(key: string): void {
+  const address = draftAddress(key);
+  const client = address && clients.get(address.source);
+  const entry = client?.entries.get(key);
+  if (entry && client) client.retryEntry(entry);
+}
+export function discardPendingDraft(key: string): void {
+  const address = draftAddress(key);
+  const client = address && clients.get(address.source);
+  const entry = client?.entries.get(key);
+  if (entry && client) client.discard(entry);
+}
+export type DraftResolution = "local" | "remote" | "combine";
+export async function resolvePendingDraft(
+  key: string,
+  choice: DraftResolution,
+  reviewedRevision: string | null,
+): Promise<boolean> {
+  const address = draftAddress(key);
+  const client = address && clients.get(address.source);
+  const entry = client?.entries.get(key);
+  return entry && client
+    ? client.resolve(entry, choice, reviewedRevision)
+    : false;
 }
 function status(): void {
   window.dispatchEvent(new Event(DRAFT_SYNC_STATUS_EVENT));
@@ -541,6 +590,7 @@ export class DraftSyncClient {
       return;
     }
     this.schedule(e, raw === null ? 0 : 3000);
+    if (e.remote) status();
   }
   private schedule(e: Entry, delay: number): void {
     if (this.stopped || e.needsRecovery) return;
@@ -568,7 +618,6 @@ export class DraftSyncClient {
       e.running ||
       (this.started && !this.identified) ||
       this.transport.status.getSnapshot().state !== "ready" ||
-      e.remote ||
       e.needsRecovery ||
       e.saved.submitted ||
       e.submissionTask
@@ -659,6 +708,7 @@ export class DraftSyncClient {
         }
       }
       if (e.saved.submitted) return;
+      e.remote = undefined;
       const local = payload(e.address, e.saved.raw);
       if (
         e.saved.base?.revision &&
@@ -677,11 +727,12 @@ export class DraftSyncClient {
         read.snapshot.payload,
       );
       if (!draftPayloadEqual(local, merged)) {
-        if (editing()) {
-          e.remote = read;
+        e.remote = read;
+        if (editing(e.key) || conflicting(e)) {
           status();
           return;
         }
+        e.remote = undefined;
         this.apply(e, merged);
       }
       e.saved.base = read.snapshot;
@@ -772,6 +823,12 @@ export class DraftSyncClient {
       e.error = "local";
     }
   }
+  retryEntry(e: Entry): void {
+    if (e.error === "local") this.retryLocal(e);
+    else e.error = undefined;
+    this.schedule(e, 0);
+    status();
+  }
   accept(e: Entry): void {
     if (e.error === "local") this.retryLocal(e);
     if (e.needsRecovery) {
@@ -807,6 +864,67 @@ export class DraftSyncClient {
     if (e.error !== "local") e.error = undefined;
     this.schedule(e, 0);
     status();
+  }
+  /** Refresh before a choice; changed server evidence requires another review. */
+  async resolve(
+    e: Entry,
+    choice: DraftResolution,
+    reviewedRevision: string | null,
+  ): Promise<boolean> {
+    const localAtChoice = payload(e.address, e.saved.raw);
+    await e.waitForSync;
+    if (
+      this.stopped ||
+      e.running ||
+      e.needsRecovery ||
+      e.saved.submitted ||
+      this.transport.status.getSnapshot().state !== "ready"
+    )
+      return false;
+    e.running = true;
+    const saved = e.saved;
+    let finish!: () => void;
+    e.waitForSync = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    try {
+      const remote = await this.post<DraftRead>("read", {
+        slot: e.address.slot,
+      });
+      if (this.stopped || e.saved !== saved || saved.submitted) return false;
+      if (e.error === "sync") e.error = undefined;
+      e.remote = remote;
+      status();
+      const local = payload(e.address, saved.raw);
+      if (
+        remote.snapshot.revision !== reviewedRevision ||
+        !draftPayloadEqual(local, localAtChoice)
+      )
+        return false;
+      const resolved =
+        choice === "local"
+          ? local
+          : choice === "remote"
+            ? remote.snapshot.payload
+            : mergeDrafts(
+                saved.base?.payload ?? EMPTY_DRAFT,
+                local,
+                remote.snapshot.payload,
+              );
+      e.remote = undefined;
+      saved.base = remote.snapshot;
+      this.apply(e, resolved);
+      return true;
+    } catch {
+      if (e.saved === saved && e.error !== "local") e.error = "sync";
+      return false;
+    } finally {
+      e.running = false;
+      e.waitForSync = undefined;
+      finish();
+      this.schedule(e, 0);
+      status();
+    }
   }
   discard(e: Entry): void {
     e.saved = {
@@ -1043,6 +1161,7 @@ export class DraftSyncClient {
           !e.timer &&
           (e.saved.discard ||
             e.saved.pending ||
+            e.remote ||
             e.saved.base?.revision !== (revisions.get(e.key) ?? null) ||
             !draftPayloadEqual(
               payload(e.address, e.saved.raw),
@@ -1075,6 +1194,10 @@ export class DraftSyncClient {
   }
   private wake = () => {
     void this.refresh();
+  };
+  private blur = () => {
+    // The scheduled task runs after focus has moved, including navigation.
+    for (const e of this.entries.values()) if (e.remote) this.schedule(e, 0);
   };
   /**
    * Every tab of this origin shares one browser storage, so a sibling tab's
@@ -1149,6 +1272,7 @@ export class DraftSyncClient {
     window.addEventListener("focus", this.wake);
     document.addEventListener("visibilitychange", this.wake);
     window.addEventListener("storage", this.storage);
+    document.addEventListener("focusout", this.blur);
     status();
     void this.refresh();
     void this.watch();
@@ -1163,6 +1287,7 @@ export class DraftSyncClient {
     window.removeEventListener("focus", this.wake);
     document.removeEventListener("visibilitychange", this.wake);
     window.removeEventListener("storage", this.storage);
+    document.removeEventListener("focusout", this.blur);
     if (clients.get(this.source) === this) clients.delete(this.source);
     status();
   }

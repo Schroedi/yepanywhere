@@ -1,3 +1,4 @@
+import { DraftSyncNotice } from "./DraftSyncNotice";
 import { NewSessionQueueMark } from "./NewSessionQueueMark";
 import { useComposerVoiceRef } from "../hooks/useComposerVoiceRef";
 import {
@@ -3662,6 +3663,7 @@ export function MessageInput({
       data-composer-full-pane={fullPane ? "true" : undefined}
       onKeyDownCapture={handleComposerKeyDown}
     >
+      <DraftSyncNotice draftKey={draftKey} sessionId={sessionId} />
       {!composerIsEmpty && (
         <button
           type="button"
@@ -3756,6 +3758,7 @@ export function MessageInput({
               </div>
             )}
             <textarea
+              data-draft-key={draftKey}
               key={textareaImeGeneration}
               ref={textareaRef}
               data-composer-input

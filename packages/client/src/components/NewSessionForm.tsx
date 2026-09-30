@@ -1,3 +1,4 @@
+import { DraftSyncNotice } from "./DraftSyncNotice";
 import { DRAFT_STORAGE_EVENT } from "../lib/draftSyncStorage";
 import { ComputerSessionSelection } from "./ComputerSessionSelection";
 import { useComposerVoiceRef } from "../hooks/useComposerVoiceRef";
@@ -3528,6 +3529,7 @@ export function NewSessionForm({
   // Shared input area with toolbar (textarea + attach/voice on left, send on right)
   const inputArea = (
     <>
+      <DraftSyncNotice draftKey={newSessionDraftKey} />
       <ComposerRecents
         scope={historyScope}
         onFiles={addPendingFiles}
@@ -3559,6 +3561,7 @@ export function NewSessionForm({
               </div>
             )}
             <textarea
+              data-draft-key={newSessionDraftKey}
               ref={attachComposerTextarea}
               data-composer-input
               value={message}

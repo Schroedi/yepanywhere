@@ -8,7 +8,7 @@ import {
 } from "@yep-anywhere/shared";
 import {
   DraftSyncClient,
-  acceptPendingDrafts,
+  acceptPendingDraft,
   draftAddress,
   draftPayloadFromStorage,
   draftPayloadToStorage,
@@ -542,6 +542,8 @@ describe("local-first snapshot synchronization", () => {
       throw new Error("lost response");
     });
     await c.sync(e);
+    c.accept(e);
+    await c.sync(e);
     const operation = e.saved.pending?.operationId;
     expect(operation).toBeTruthy();
     s.hold(undefined);
@@ -713,7 +715,7 @@ describe("local-first snapshot synchronization", () => {
     c.accept(e);
     expect(e.error).toBe("local");
     full.mockRestore();
-    acceptPendingDrafts();
+    acceptPendingDraft(key);
     expect(e.error).toBeUndefined();
     expect(localStorage.getItem(key)).toBe(raw("kept in memory"));
     expect(draftSyncPending()).toEqual([]);
@@ -791,4 +793,172 @@ describe("local-first snapshot synchronization", () => {
       field: "message:question",
     });
   });
+});
+
+describe("session-scoped handoff and conflict review", () => {
+  it("quietly holds a phone clear while focused, then clears after blur", async () => {
+    const s = server(),
+      c = client(s);
+    c.start();
+    await c.refresh();
+    subscriptions.push(subscribeDraftStorage(key, () => {}));
+    c.edit(key, raw("already sent"));
+    const e = c.register(key)!;
+    await c.sync(e);
+    const input = document.createElement("textarea");
+    input.dataset.draftKey = key;
+    input.value = "already sent";
+    document.body.append(input);
+    input.focus();
+    input.setSelectionRange(3, 3);
+    s.remote("");
+    await c.sync(e);
+    expect(e.saved.raw).toBe(raw("already sent"));
+    expect(input.selectionStart).toBe(3);
+    expect(draftSyncPending()).toEqual([]);
+    input.blur();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(e.saved.raw).toBeNull();
+    expect(e.remote).toBeUndefined();
+  });
+  it("refreshes a held phone edit when that phone subsequently clears it", async () => {
+    const s = server(),
+      c = client(s);
+    c.edit(key, raw("base"));
+    const e = c.register(key)!;
+    await c.sync(e);
+    const input = document.createElement("textarea");
+    document.body.append(input);
+    input.focus();
+    s.remote("phone revision");
+    await c.sync(e);
+    expect(e.remote?.snapshot.payload.fields.text).toBe("phone revision");
+    s.remote("");
+    await c.sync(e);
+    expect(e.remote?.snapshot.payload.fields.text).toBe("");
+    input.blur();
+    await c.sync(e);
+    expect(e.saved.raw).toBeNull();
+    expect(s.get().payload).toEqual(EMPTY_DRAFT);
+  });
+  it("another composer holding focus does not pause this draft", async () => {
+    const s = server(),
+      c = client(s);
+    c.edit(key, raw("base"));
+    const e = c.register(key)!;
+    await c.sync(e);
+    const input = document.createElement("textarea");
+    input.dataset.draftKey = "draft-message-other-session";
+    document.body.append(input);
+    input.focus();
+    s.remote("");
+    await c.sync(e);
+    expect(e.saved.raw).toBeNull();
+    expect(e.remote).toBeUndefined();
+  });
+  it.each(["local", "remote", "combine"] as const)(
+    "reviews one conflicting draft using %s",
+    async (choice) => {
+      const s = server(),
+        c = client(s);
+      c.edit(key, raw("base"));
+      const e = c.register(key)!;
+      await c.sync(e);
+      c.edit(key, raw("desktop edit"));
+      s.remote("phone edit");
+      await c.sync(e);
+      expect(e.remote).toBeDefined();
+      const other = c.register("draft-message-unrelated")!;
+      other.saved.raw = raw("unrelated draft");
+      expect(await c.resolve(e, choice, s.get().revision)).toBe(true);
+      await c.sync(e);
+      const expected =
+        choice === "local"
+          ? "desktop edit"
+          : choice === "remote"
+            ? "phone edit"
+            : "phone edit\n\ndesktop edit";
+      expect(s.get().payload.fields.text).toBe(expected);
+      expect(other.saved.raw).toBe(raw("unrelated draft"));
+    },
+  );
+  it("requires another review if the remote version changed before a choice", async () => {
+    const s = server(),
+      c = client(s);
+    c.edit(key, raw("base"));
+    const e = c.register(key)!;
+    await c.sync(e);
+    c.edit(key, raw("desktop edit"));
+    s.remote("phone edit");
+    await c.sync(e);
+    const reviewed = s.get().revision;
+    s.remote("new phone edit");
+    expect(await c.resolve(e, "remote", reviewed)).toBe(false);
+    expect(e.saved.raw).toBe(raw("desktop edit"));
+    expect(e.remote?.snapshot.payload.fields.text).toBe("new phone edit");
+    expect(s.get().payload.fields.text).toBe("new phone edit");
+  });
+  it("does not show a conflict for independently edited question fields", async () => {
+    const s = server(),
+      c = client(s);
+    const e = c.register("draft-question-other:local:session")!;
+    e.saved.base = {
+      ...s.get(),
+      payload: { fields: { one: "first", two: "second" }, attachments: [] },
+    };
+    e.saved.raw = JSON.stringify({ one: "local first", two: "second" });
+    e.remote = {
+      ticket: "ticket",
+      snapshot: {
+        ...s.get(),
+        payload: {
+          fields: { one: "first", two: "remote second" },
+          attachments: [],
+        },
+      },
+    };
+    c.start();
+    expect(draftSyncPending()).toEqual([]);
+  });
+});
+
+it("preserves typing that arrives while a review choice waits for the server", async () => {
+  const s = server(),
+    c = client(s);
+  c.edit(key, raw("base"));
+  const e = c.register(key)!;
+  await c.sync(e);
+  c.edit(key, raw("desktop edit"));
+  s.remote("phone edit");
+  await c.sync(e);
+  const read = structuredClone(e.remote!);
+  let finish!: (value: DraftRead) => void;
+  s.fetch.mockImplementationOnce(
+    () =>
+      new Promise<DraftRead>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const choosing = c.resolve(e, "remote", read.snapshot.revision);
+  await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+  c.edit(key, raw("desktop edit plus newer typing"));
+  finish(read);
+  expect(await choosing).toBe(false);
+  expect(e.saved.raw).toBe(raw("desktop edit plus newer typing"));
+  expect(e.remote?.snapshot.payload.fields.text).toBe("phone edit");
+});
+it("a failed review refresh cannot apply its cached remote version", async () => {
+  const s = server(),
+    c = client(s);
+  c.edit(key, raw("base"));
+  const e = c.register(key)!;
+  await c.sync(e);
+  c.edit(key, raw("desktop edit"));
+  s.remote("phone edit");
+  await c.sync(e);
+  const revision = e.remote!.snapshot.revision;
+  s.fetch.mockRejectedValueOnce(new Error("offline"));
+  expect(await c.resolve(e, "remote", revision)).toBe(false);
+  expect(e.saved.raw).toBe(raw("desktop edit"));
+  expect(e.error).toBe("sync");
 });

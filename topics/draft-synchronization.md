@@ -78,8 +78,13 @@ keeps its anchor even when another device removed that comment. Attachment sets
 union new IDs and respect removal of a base attachment.
 
 A remote change never replaces a focused input, its selection, or IME input.
-The notice **Combine drafts** applies the pending change against the latest
-local text on explicit activation.
+One-sided remote updates, including a cleared draft after another device sends,
+wait quietly while their editor is focused and apply after focus leaves. They
+are not conflicts and do not produce a notice. A composer identifies its draft
+so focus in another composer does not pause this slot; unmarked text editors
+retain the conservative focus protection. Deferred snapshots continue refreshing
+on server changes, reconnect and foregrounding, rather than freezing the first
+pending version. New local edits always survive a remote clear.
 
 Sibling tabs are not another device. Every tab of an origin shares one browser
 storage, so a sibling's write is the newest local value: a tab adopts it, shares
@@ -92,26 +97,40 @@ build stored as a pending sibling merge is discarded on load.
 A failed browser write shows its own notice; **Retry** writes the tab's current
 value and metadata again and clears the notice once storage accepts them. A
 sibling's later successful write of the same draft also clears it.
-Every draft notice offers **Dismiss**, which discards the drafts causing the
-notice, including local recovery/submission copies and queued writes. It clears
-their editors and persists the discard before retrying server cleanup. Reloads,
-reconnects, and sibling tabs retain that decision. Unaffected draft slots remain
-unchanged. A conditional server clear retries in the background while offline;
-it does not resurrect the discarded text or repeatedly show its sync error.
-New text entered after dismissal survives the clear and then synchronizes.
-An in-flight save cannot restore metadata replaced by an explicit discard.
-A successful server read clears a previous sync error, so a pending combination
-or recovery is described as such instead of remaining labeled “Sync is waiting.”
+Draft notices appear beside the affected composer, never as a global Inbox or
+navigation overlay. Session composers include unresolved drafts for that session's
+approval feedback, question replies and file comments. When tool approval replaces
+the main composer, its panel exposes the same session review, including while
+collapsed. Keyboard activation inside draft review never answers an approval.
+Other composers show only their own slot. Notices identify the draft kind. Navigating to another session
+hides the former session's notice without discarding its text.
+
+Genuinely overlapping nonempty text edits require explicit review, even when
+unfocused. **Review draft changes** shows local and current server text plus
+attachment names. **Keep mine**, **Use other version** and **Combine drafts**
+affect only that draft. Combining uses the current local text and the existing
+three-way field/attachment merge; it never submits to a provider. Each choice
+refreshes the server snapshot first. If the server version or local text changed
+while the choice was waiting, preserve both and require another review. Offline
+or failed refreshes cannot apply a stale choice. **Close review** only closes
+the details and preserves all drafts.
+
+Save failures offer **Retry** without implicitly accepting a conflicting version.
+Unresolved submissions offer an explicit **Recover draft** action. Failure and
+recovery reviews offer **Discard draft**, which clears only that slot, including
+local recovery/submission copies and queued writes. It clears its editor and
+persists the discard before retrying server cleanup. Reloads, reconnects, and
+sibling tabs retain that decision. Unaffected draft slots remain unchanged.
+A conditional server clear retries in the background while offline; it does not
+resurrect discarded text or repeatedly show its sync error. New text entered
+after discard survives the clear and then synchronizes. An in-flight save cannot
+restore metadata replaced by an explicit discard.
+A successful server read clears a previous sync error, so a pending review or
+recovery is described as such instead of remaining labeled “Sync is waiting.”
 Failed reads of empty slots do not claim that a draft is saved locally. An empty
 local draft does not require recovery when an old server tombstone expires.
-Browser-storage failures remain visible until storage succeeds or are explicitly
-dismissed.
-
-The notice leaves page controls outside its buttons clickable, including controls
-that appear beneath the notice at narrow widths.
-This conservatively pauses remote application while any text editor is focused.
-Ordinary unfocused handoff requires no conflict dialog. Combining text never
-submits it to a provider.
+Browser-storage failures remain visible until storage succeeds or the draft is
+explicitly discarded.
 
 An expired retry, an acknowledged base whose tombstone has disappeared, or a
 reload during an unresolved send preserves local text and pauses automatic
@@ -210,8 +229,8 @@ existing send request gained mandatory fields or changed meaning.
 
 ## Design decisions
 
-- **Persist a draft discard** rather than a hidden-notice preference: dismissal
-  means clearing the unwanted draft, as requested by the maintainer. A durable
+- **Persist a draft discard** rather than a hidden-notice preference: explicit
+  discard means clearing the unwanted draft. Closing review is nondestructive. A durable
   cleanup record prevents offline reload from importing the old server copy.
   The server clear uses a revision check so a concurrent edit survives.
 
@@ -229,8 +248,12 @@ capability gate and local persistence hook against real draft HTTP routes and
 SQLite in two isolated browser contexts. It covers handoff, conflict acceptance,
 server-offline reload, reconnect, send/next-draft races, and zero draft requests
 to an older server. Sequential key events under 1,000-row concurrent activity
-assert every input acknowledgement stays below 100 ms. Desktop 1000×600 and
-phone 375×812 captures exercise the pending-change notice. Local verification
+assert every input acknowledgement stays below 100 ms. The phone-send sequence
+checks quiet focus protection, clearing after blur, and persistence through reload.
+State-machine checks cover latest pending snapshots, stale review choices and
+per-draft resolution; component checks cover session isolation, previews and
+explicit discard. Desktop 1000×600 and phone 375×812 captures exercise inline
+conflict review. Local verification
 uses macOS, Node 24 and bundled Chromium; Linux/Windows runtime validation remains
 with the existing portable-runtime CI matrix. Native mobile upload suspension
 is not simulated by the browser fixture.

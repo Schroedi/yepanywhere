@@ -1,3 +1,4 @@
+import { DraftSyncNotice } from "../../src/components/DraftSyncNotice";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { I18nProvider } from "../../src/i18n";
@@ -28,9 +29,11 @@ function Composer() {
   );
   return (
     <>
+      <DraftSyncNotice draftKey="draft-new-session:local" />
       <label htmlFor="prompt">Prompt</label>
       <textarea
         id="prompt"
+        data-draft-key="draft-new-session:local"
         value={value}
         onChange={(event) => setValue(event.target.value)}
         style={{ width: "100%", height: 180, margin: "12px 0" }}
