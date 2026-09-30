@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
 import org.json.JSONObject
 
 /** A document's source capability, not a credential or a raw relay proxy. */
@@ -20,6 +21,7 @@ class YaWebTransportSession(
     private val lease: YaConnectionLease,
     private val scope: CoroutineScope,
     private val emit: (JSONObject) -> Unit,
+    private val recordCancellation: () -> Unit = {},
     private val switchHost: () -> Unit,
 ) : Closeable {
     private val operations = ConcurrentHashMap<String, Job>()
@@ -27,6 +29,7 @@ class YaWebTransportSession(
     private val subscriptionJobs = ConcurrentHashMap<String, Job>()
     private val uploadIds = ConcurrentHashMap<String, String>()
     @Volatile private var closed = false
+    private val ownership = Any()
 
     fun dispatch(command: JSONObject) {
         check(!closed && command.getString("handle") == handle) { "Stale native source handle" }
@@ -35,7 +38,7 @@ class YaWebTransportSession(
         val method = command.getString("method")
         val params = command.optJSONObject("params") ?: JSONObject()
         if (method == "cancel") {
-            operations[params.getString("id")]?.cancel()
+            operations[params.getString("id")]?.let { recordCancellation(); it.cancel() }
             return
         }
         require(operations.size < 32 && !operations.containsKey(id)) { "Native operation limit exceeded" }
@@ -46,8 +49,10 @@ class YaWebTransportSession(
                     "subscribe" -> subscribe(params)
                     "unsubscribe" -> {
                         val localId = params.getString("subscriptionId")
-                        subscriptions.remove(localId)?.close()
-                        subscriptionJobs.remove(localId)?.cancel()
+                        synchronized(ownership) {
+                            subscriptions.remove(localId)?.close()
+                            subscriptionJobs.remove(localId)?.cancel()
+                        }
                         JSONObject()
                     }
                     "uploadStart" -> startUpload(params)
@@ -74,7 +79,10 @@ class YaWebTransportSession(
         check(operations.putIfAbsent(id, job) == null)
         if (method == "subscribe") {
             val localId = params.getString("subscriptionId")
-            require(subscriptionJobs.putIfAbsent(localId, job) == null)
+            synchronized(ownership) {
+                require(localId.length in 1..128 && subscriptionJobs.size < 64)
+                require(subscriptionJobs.putIfAbsent(localId, job) == null)
+            }
         }
         job.invokeOnCompletion {
             operations.remove(id, job)
@@ -118,10 +126,7 @@ class YaWebTransportSession(
             wantsLiveDeltas = if (params.has("wantsLiveDeltas")) params.getBoolean("wantsLiveDeltas") else null,
             coverage = params.optJSONObject("coverage"),
         )
-        if (closed || subscriptions.putIfAbsent(localId, subscription) != null) {
-            subscription.close()
-            error("Native subscription is no longer owned")
-        }
+        val reservation = currentCoroutineContext()[Job]
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 subscription.events.collect { event ->
@@ -135,12 +140,23 @@ class YaWebTransportSession(
                     .put("status", (error as? YaApiException)?.response?.status ?: 0)
                     .put("error", error.message ?: "Native subscription failed"))
             } finally {
-                subscriptions.remove(localId, subscription)
-                subscriptionJobs.remove(localId)
+                val completingJob = currentCoroutineContext()[Job]
+                synchronized(ownership) {
+                    subscriptions.remove(localId, subscription)
+                    subscriptionJobs.remove(localId, completingJob)
+                }
                 subscription.close()
             }
         }
-        subscriptionJobs[localId] = job
+        synchronized(ownership) {
+            if (closed || subscriptionJobs[localId] !== reservation) {
+                subscription.close()
+                job.cancel()
+                throw CancellationException("Native subscription is no longer owned")
+            }
+            subscriptions[localId] = subscription
+            subscriptionJobs[localId] = job
+        }
         job.start()
         return JSONObject()
     }
@@ -149,8 +165,10 @@ class YaWebTransportSession(
         val localId = params.getString("uploadId")
         require(UUID.fromString(localId).toString() == localId && !uploadIds.containsKey(localId))
         val upload = lease.startUpload(params)
-        if (closed) { lease.cancelUpload(upload.id); error("Native document closed") }
-        uploadIds[localId] = upload.id
+        val owned = synchronized(ownership) {
+            if (closed) false else { uploadIds[localId] = upload.id; true }
+        }
+        if (!owned) { lease.cancelUpload(upload.id); error("Native document closed") }
         scope.launch {
             try {
                 upload.events.collect { event -> emit(JSONObject(event.toString()).put("uploadId", localId)) }
@@ -164,6 +182,7 @@ class YaWebTransportSession(
     }
 
     override fun close() {
+        synchronized(ownership) {
         closed = true
         operations.values.forEach(Job::cancel)
         subscriptionJobs.values.forEach(Job::cancel)
@@ -172,6 +191,7 @@ class YaWebTransportSession(
         subscriptions.clear()
         subscriptionJobs.clear()
         uploadIds.clear()
+        }
         lease.close()
     }
 }

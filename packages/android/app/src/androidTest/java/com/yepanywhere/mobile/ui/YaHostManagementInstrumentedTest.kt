@@ -1,5 +1,6 @@
 package com.yepanywhere.mobile.ui
 
+import android.content.Intent
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -20,9 +21,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class YaNativeHomeInstrumentedTest {
+class YaHostManagementInstrumentedTest {
     @Test
-    fun displaysARealPairedServerAndReleasesItsVisibleLease() {
+    fun displaysSavedHostsWithoutStartingDashboardConnections() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val arguments = InstrumentationRegistry.getArguments()
         val wsUrl = arguments.getString("yaProbeWsUrl")
@@ -50,29 +51,11 @@ class YaNativeHomeInstrumentedTest {
         }
 
         val device = UiDevice.getInstance(instrumentation)
-        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        val scenario = ActivityScenario.launch<MainActivity>(Intent(application, MainActivity::class.java).putExtra(MainActivity.SHOW_HOSTS, true))
         try {
-            assertTrue(device.wait(Until.hasObject(By.text("Connected")), 15_000))
-            assertTrue(
-                device.wait(
-                    Until.hasObject(By.text("Disposable direct server")),
-                    5_000,
-                ),
-            )
-            repeat(2) {
-                device.swipe(
-                    device.displayWidth / 2,
-                    device.displayHeight * 4 / 5,
-                    device.displayWidth / 2,
-                    device.displayHeight / 5,
-                    30,
-                )
-            }
-            val sessionsEmpty = device.wait(
-                Until.hasObject(By.text("No sessions yet")),
-                15_000,
-            )
-            assertTrue(sessionsEmpty)
+            assertTrue(device.wait(Until.hasObject(By.text("Disposable direct server")), 5_000))
+            assertTrue(device.wait(Until.hasObject(By.text("Open full app")), 5_000))
+            assertEquals(YaConnectionPhase.IDLE, runtime.connectionManager(profile.id).state.value.phase)
         } finally {
             scenario.close()
             runBlocking {

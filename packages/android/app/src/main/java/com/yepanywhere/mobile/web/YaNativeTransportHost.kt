@@ -26,10 +26,12 @@ class YaNativeTransportHost private constructor(
     private val view: WebView,
     private val runtime: YaNativeRuntime,
     private val profileId: String,
+    private val onFatal: () -> Unit,
     private val switchHost: () -> Unit,
 ) : Closeable {
     private var document: Document? = null
     private var destroyed = false
+    fun diagnostics(): JSONObject? = document?.metrics?.snapshot()
 
     fun onDocumentChanged() { document?.close(); document = null }
 
@@ -44,8 +46,8 @@ class YaNativeTransportHost private constructor(
     private fun receive(message: WebMessageCompat, reply: JavaScriptReplyProxy) {
         if (destroyed) return
         try {
-            if (message.type == WebMessageCompat.TYPE_STRING && message.data == "release:${document?.handle}") {
-                onDocumentChanged()
+            if (message.type == WebMessageCompat.TYPE_STRING && message.data?.startsWith("release:") == true) {
+                if (message.data == "release:${document?.handle}") onDocumentChanged()
                 return
             }
             if (message.type == WebMessageCompat.TYPE_STRING && message.data?.startsWith("{\"type\":\"hello\"") == true) {
@@ -72,6 +74,7 @@ class YaNativeTransportHost private constructor(
             if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
                 reply.postMessage("{\"type\":\"fatal\",\"error\":\"Native source bridge rejected a message\"}")
             }
+            onFatal()
         }
     }
 
@@ -81,6 +84,7 @@ class YaNativeTransportHost private constructor(
         val receiver = NativeTransportFrames.Receiver()
         val outbound = Channel<ByteArray>(32)
         val queuedBytes = AtomicInteger()
+        val metrics = NativeTransportMetrics()
         @Volatile var session: YaWebTransportSession? = null
         @Volatile var acknowledgement: CompletableDeferred<Unit>? = null
         @Volatile var expectedAck: String? = null
@@ -94,7 +98,7 @@ class YaNativeTransportHost private constructor(
                     val snapshot = checkNotNull(runtime.pairedServers.snapshot(profileId))
                     val manager = runtime.connectionManager(profileId)
                     val lease = manager.acquire()
-                    val acquired = YaWebTransportSession(handle, lease, scope, ::emit) {
+                    val acquired = YaWebTransportSession(handle, lease, scope, ::emit, metrics::cancelled) {
                         view.post { if (!closed) switchHost() }
                     }
                     synchronized(lifecycleLock) {
@@ -119,15 +123,20 @@ class YaNativeTransportHost private constructor(
                             val frame = NativeTransportFrames.encode(NativeTransportFrames.JSON, id, offset, bytes.size, chunk)
                             acknowledgement = CompletableDeferred()
                             expectedAck = "ack:$handle:$id:${offset + chunk.size}"
+                            val creditStarted = System.nanoTime()
                             withContext(Dispatchers.Main) {
+                                val drainStarted = System.nanoTime()
                                 if (!closed) {
                                     if (binary && WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_ARRAY_BUFFER)) reply.postMessage(frame)
                                     else if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
                                         reply.postMessage("frame:" + Base64.encodeToString(frame, Base64.NO_WRAP))
                                     }
                                 }
+                                metrics.mainThread(System.nanoTime() - drainStarted)
+                                metrics.frame(frame.size)
                             }
                             withTimeout(30_000) { checkNotNull(acknowledgement).await() }
+                            metrics.credit(System.nanoTime() - creditStarted)
                             offset += chunk.size
                         }
                         queuedBytes.addAndGet(-bytes.size)
@@ -141,20 +150,29 @@ class YaNativeTransportHost private constructor(
 
         fun emit(value: JSONObject) {
             val bytes = value.toString().toByteArray(Charsets.UTF_8)
+            val queued = queuedBytes.addAndGet(bytes.size)
+            metrics.queued(queued)
             if (bytes.size > NativeTransportFrames.MAX_MESSAGE_BYTES ||
-                queuedBytes.addAndGet(bytes.size) > 64 * 1024 * 1024 || outbound.trySend(bytes).isFailure) fail()
+                queued > 64 * 1024 * 1024 || outbound.trySend(bytes).isFailure) {
+                metrics.overflow()
+                fail()
+            }
         }
 
         fun acknowledge(value: String) {
+            if (!value.startsWith("ack:$handle:")) return
             require(value == expectedAck)
             expectedAck = null
             checkNotNull(acknowledgement).complete(Unit)
         }
 
         fun receive(bytes: ByteArray) {
+            val drainStarted = System.nanoTime()
             require(!closed && !receiving)
             val frame = NativeTransportFrames.decode(bytes)
             val complete = receiver.accept(frame)
+            metrics.frame(bytes.size)
+            metrics.mainThread(System.nanoTime() - drainStarted)
             receiving = true
             scope.launch {
                 try {
@@ -179,10 +197,12 @@ class YaNativeTransportHost private constructor(
 
         fun fail() {
             view.post {
-                if (!closed && WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+                if (closed) return@post
+                if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
                     reply.postMessage("{\"type\":\"fatal\",\"error\":\"Native source bridge closed\"}")
                 }
                 close()
+                onFatal()
             }
         }
 
@@ -190,6 +210,7 @@ class YaNativeTransportHost private constructor(
             synchronized(lifecycleLock) {
                 if (closed) return
                 closed = true
+                metrics.cancelled()
                 session?.close()
                 session = null
             }
@@ -201,9 +222,9 @@ class YaNativeTransportHost private constructor(
     companion object {
         const val OBJECT_NAME = "yaNativeTransport"
         fun install(view: WebView, config: WebClientConfig, runtime: YaNativeRuntime,
-            profileId: String, switchHost: () -> Unit): YaNativeTransportHost? {
+            profileId: String, onFatal: () -> Unit = {}, switchHost: () -> Unit): YaNativeTransportHost? {
             if (!config.bundled || !WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return null
-            val host = YaNativeTransportHost(view, runtime, profileId, switchHost)
+            val host = YaNativeTransportHost(view, runtime, profileId, onFatal, switchHost)
             WebViewCompat.addWebMessageListener(view, OBJECT_NAME, setOf(config.origin)) { _, message, origin, mainFrame, reply ->
                 if (mainFrame && runCatching { WebClientOrigin.parse(origin.toString()) }.getOrNull() == config.origin) {
                     host.receive(message, reply)

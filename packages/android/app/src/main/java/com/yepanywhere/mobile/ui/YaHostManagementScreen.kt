@@ -28,7 +28,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -45,7 +44,6 @@ import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,14 +55,13 @@ import com.yepanywhere.mobile.profiles.YaServerRouteKind
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun YaNativeHomeScreen(
-    viewModel: YaNativeHomeViewModel,
-    openWebClient: () -> Unit,
-    openConversation: (YaSourcedSession) -> Unit,
+fun YaHostManagementScreen(
+    viewModel: YaHostManagementViewModel,
+    pairingInput: YaPairingInput? = null,
+    onClearPairingInput: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     var showAddServer by rememberSaveable { mutableStateOf(false) }
-    var showSettings by rememberSaveable { mutableStateOf(false) }
     var confirmForgetProfileId by rememberSaveable { mutableStateOf<String?>(null) }
 
     if (confirmForgetProfileId != null) {
@@ -174,31 +171,17 @@ fun YaNativeHomeScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 navigationIcon = {
-                    if (showSettings || showAddServer) {
+                    if (showAddServer) {
                         TextButton(
                             onClick = {
-                                if (showAddServer) {
-                                    showAddServer = false
-                                    showSettings = state.profiles.isNotEmpty()
-                                } else {
-                                    showSettings = false
-                                }
+                                showAddServer = false
                             },
                         ) {
                             Text(stringResource(R.string.back))
                         }
                     }
                 },
-                actions = {
-                    if (!showSettings && !showAddServer && state.profiles.isNotEmpty()) {
-                        TextButton(onClick = openWebClient) {
-                            Text(stringResource(R.string.open_full_app))
-                        }
-                        TextButton(onClick = { showSettings = true }) {
-                            Text(stringResource(R.string.settings))
-                        }
-                    }
-                },
+
             )
         },
     ) { contentPadding ->
@@ -209,6 +192,14 @@ fun YaNativeHomeScreen(
             color = MaterialTheme.colorScheme.background,
         ) {
             when {
+                pairingInput != null -> PairingScreen(
+                    actionInProgress = state.actionInProgress,
+                    error = state.error,
+                    onDismissError = viewModel::clearError,
+                    onPair = { onClearPairingInput(); viewModel.pair(it) },
+                    onCancel = onClearPairingInput,
+                    initialInput = pairingInput,
+                )
                 state.profiles.isEmpty() -> PairingScreen(
                     actionInProgress = state.actionInProgress,
                     error = state.error,
@@ -227,23 +218,13 @@ fun YaNativeHomeScreen(
                     onCancel = { showAddServer = false },
                 )
 
-                showSettings -> ServerSettings(
+                else -> ServerSettings(
                     state = state,
-                    onSetIncluded = viewModel::setIncluded,
                     onReauthenticate = viewModel::reauthenticate,
                     onDismissError = viewModel::clearError,
                     onAddServer = { showAddServer = true },
                     onForgetServer = { confirmForgetProfileId = it },
-                )
-
-                else -> UnifiedHome(
-                    state = state,
-                    onSetFilter = viewModel::setFilter,
-                    onRefresh = viewModel::refreshSessions,
-                    onReauthenticate = viewModel::reauthenticate,
-                    onDismissError = viewModel::clearError,
-                    onRetry = viewModel::retryConnection,
-                    onOpenConversation = openConversation,
+                    onOpenServer = viewModel::select,
                 )
             }
         }
@@ -257,11 +238,12 @@ private fun PairingScreen(
     onDismissError: () -> Unit,
     onPair: (YaPairingInput) -> Unit,
     onCancel: (() -> Unit)? = null,
+    initialInput: YaPairingInput? = null,
 ) {
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var showAdvanced by remember { mutableStateOf(false) }
-    var relayWebsocketUrl by remember { mutableStateOf("") }
+    var username by remember(initialInput) { mutableStateOf(initialInput?.username.orEmpty()) }
+    var password by remember(initialInput) { mutableStateOf(initialInput?.password.orEmpty()) }
+    var showAdvanced by remember(initialInput) { mutableStateOf(initialInput?.relayWebsocketUrl?.isNotEmpty() == true) }
+    var relayWebsocketUrl by remember(initialInput) { mutableStateOf(initialInput?.relayWebsocketUrl.orEmpty()) }
     var directWebsocketUrl by remember { mutableStateOf("") }
     var routeKind by remember { mutableStateOf(YaPairingRouteKind.RELAY) }
 
@@ -438,158 +420,13 @@ private fun PairingScreen(
 }
 
 @Composable
-private fun UnifiedHome(
-    state: YaNativeHomeState,
-    onOpenConversation: (YaSourcedSession) -> Unit,
-    onSetFilter: (String?) -> Unit,
-    onRefresh: () -> Unit,
-    onReauthenticate: (String, String) -> Unit,
-    onDismissError: () -> Unit,
-    onRetry: (String) -> Unit,
-) {
-    val visibleSources = state.servers.values.filter { source ->
-        source.included && (state.filterProfileId == null || source.profile.id == state.filterProfileId)
-    }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            start = 20.dp,
-            top = 16.dp,
-            end = 20.dp,
-            bottom = 32.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item {
-            Text(
-                text = stringResource(R.string.servers),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                item {
-                    FilterChip(
-                        selected = state.filterProfileId == null,
-                        onClick = { onSetFilter(null) },
-                        label = { Text(stringResource(R.string.all_servers)) },
-                    )
-                }
-                items(state.includedProfiles, key = YaPairedServerProfile::id) { profile ->
-                    val source = state.servers[profile.id]
-                    FilterChip(
-                        selected = profile.id == state.filterProfileId,
-                        onClick = { onSetFilter(profile.id) },
-                        label = { Text(sourceLabel(profile.username, source?.hostIcon)) },
-                    )
-                }
-            }
-        }
-        if (state.includedProfiles.isEmpty()) {
-            item {
-                Text(
-                    text = stringResource(R.string.no_servers_included),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        item { ErrorCard(state.error, onDismissError) }
-        items(visibleSources, key = { "status:${it.profile.id}" }) { source ->
-            SourceStatusCard(
-                source = source,
-                onRetry = { onRetry(source.profile.id) },
-            )
-        }
-        visibleSources
-            .filter { it.connection.phase == YaConnectionPhase.REAUTHENTICATION_REQUIRED }
-            .forEach { source ->
-                item(key = "reauth:${source.profile.id}") {
-                ReauthenticationCard(
-                    actionInProgress = state.actionInProgress,
-                        onReauthenticate = { onReauthenticate(source.profile.id, it) },
-                )
-            }
-        }
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    modifier = Modifier.weight(1f),
-                    text = stringResource(R.string.recent_sessions),
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                if (visibleSources.any(YaNativeServerState::sessionsLoading)) {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .height(20.dp)
-                            .width(20.dp),
-                        strokeWidth = 2.dp,
-                    )
-                }
-                TextButton(onClick = onRefresh) {
-                    Text(stringResource(R.string.refresh))
-                }
-            }
-        }
-        if (state.sourcedSessions.isEmpty() && visibleSources.any {
-                it.connection.phase == YaConnectionPhase.CONNECTED && !it.sessionsLoading
-            }
-        ) {
-            item {
-                Text(
-                    text = stringResource(R.string.no_sessions_yet),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        items(state.sourcedSessions, key = YaSourcedSession::key) { sourced ->
-            SessionCard(sourced) { onOpenConversation(sourced) }
-        }
-    }
-}
-
-@Composable
-private fun SourceStatusCard(
-    source: YaNativeServerState,
-    onRetry: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = sourceLabel(source.profile.username, source.hostIcon),
-                style = MaterialTheme.typography.labelLarge,
-            )
-            Text(
-                text = if (source.sessionLoadFailed &&
-                    source.connection.phase == YaConnectionPhase.CONNECTED
-                ) {
-                    stringResource(R.string.session_load_failed)
-                } else {
-                    connectionStatus(source.connection.phase)
-                },
-                color = connectionStatusColor(source.connection.phase),
-                style = MaterialTheme.typography.labelMedium,
-            )
-        }
-        if (source.connection.phase == YaConnectionPhase.FAILED) {
-            TextButton(onClick = onRetry) {
-                Text(stringResource(R.string.retry))
-            }
-        }
-    }
-}
-
-@Composable
 private fun ServerSettings(
-    state: YaNativeHomeState,
-    onSetIncluded: (String, Boolean) -> Unit,
+    state: YaHostManagementState,
     onReauthenticate: (String, String) -> Unit,
     onDismissError: () -> Unit,
     onAddServer: () -> Unit,
     onForgetServer: (String) -> Unit,
+    onOpenServer: (String) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -614,13 +451,13 @@ private fun ServerSettings(
         item { ErrorCard(state.error, onDismissError) }
         items(state.profiles, key = YaPairedServerProfile::id) { profile ->
             val source = state.servers[profile.id]
-                ?: YaNativeServerState(profile = profile, included = false)
+                ?: YaHostState(profile = profile)
             ServerSettingsCard(
                 source = source,
                 actionInProgress = state.actionInProgress,
-                onSetIncluded = { onSetIncluded(profile.id, it) },
                 onReauthenticate = { onReauthenticate(profile.id, it) },
                 onForgetServer = { onForgetServer(profile.id) },
+                onOpenServer = { onOpenServer(profile.id) },
             )
         }
     }
@@ -628,11 +465,11 @@ private fun ServerSettings(
 
 @Composable
 private fun ServerSettingsCard(
-    source: YaNativeServerState,
+    source: YaHostState,
     actionInProgress: Boolean,
-    onSetIncluded: (Boolean) -> Unit,
     onReauthenticate: (String) -> Unit,
     onForgetServer: () -> Unit,
+    onOpenServer: () -> Unit,
 ) {
     val profile = source.profile
     val preferredRoute = profile.routes.firstOrNull { it.id == profile.preferredRouteId }
@@ -642,7 +479,7 @@ private fun ServerSettingsCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = sourceLabel(profile.username, source.hostIcon),
+                        text = profile.label,
                         style = MaterialTheme.typography.titleLarge,
                     )
                     Text(
@@ -651,16 +488,7 @@ private fun ServerSettingsCard(
                         style = MaterialTheme.typography.labelLarge,
                     )
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Switch(
-                        checked = source.included,
-                        onCheckedChange = onSetIncluded,
-                    )
-                    Text(
-                        text = stringResource(R.string.include_in_all_servers),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
+
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
             Text(
@@ -690,6 +518,11 @@ private fun ServerSettingsCard(
                     onReauthenticate = onReauthenticate,
                 )
             }
+            Button(
+                onClick = onOpenServer,
+                enabled = !actionInProgress && source.connection.phase != YaConnectionPhase.REVOKED,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            ) { Text(stringResource(R.string.open_full_app)) }
             TextButton(
                 modifier = Modifier.align(Alignment.End),
                 enabled = !actionInProgress,
@@ -764,61 +597,6 @@ private fun ReauthenticationCard(
 }
 
 @Composable
-private fun SessionCard(sourced: YaSourcedSession, onClick: () -> Unit) {
-    val session = sourced.session
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = sourceLabel(sourced.serverUsername, sourced.serverIcon),
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.labelMedium,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    modifier = Modifier.weight(1f),
-                    text = session.title ?: stringResource(R.string.untitled_session),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (session.hasUnread) FontWeight.Bold else FontWeight.Medium,
-                )
-                if (session.pendingInputType != null) {
-                    Text(
-                        text = pendingInputLabel(session.pendingInputType),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                }
-            }
-            Text(
-                modifier = Modifier.padding(top = 4.dp),
-                text = "${session.provider} · ${session.projectName}",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            if (session.activity != null) {
-                Text(
-                    modifier = Modifier.padding(top = 4.dp),
-                    text = activityLabel(session.activity),
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-            if (session.lastAgentText != null) {
-                Text(
-                    modifier = Modifier.padding(top = 8.dp),
-                    text = session.lastAgentText,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun ErrorCard(error: YaNativeUiError?, onDismiss: () -> Unit) {
     if (error == null) return
     Card(
@@ -869,20 +647,6 @@ private fun connectionStatusColor(phase: YaConnectionPhase) = when (phase) {
 }
 
 @Composable
-private fun pendingInputLabel(value: String): String = when (value) {
-    "tool-approval" -> stringResource(R.string.approval_needed)
-    "user-question" -> stringResource(R.string.answer_needed)
-    else -> stringResource(R.string.input_needed)
-}
-
-@Composable
-private fun activityLabel(value: String): String = when (value) {
-    "in-turn" -> stringResource(R.string.session_working)
-    "waiting-input" -> stringResource(R.string.session_waiting)
-    else -> value
-}
-
-@Composable
 private fun uiErrorLabel(error: YaNativeUiError): String = when (error) {
     YaNativeUiError.INVALID_SERVER_DETAILS -> stringResource(
         R.string.invalid_server_details,
@@ -892,6 +656,3 @@ private fun uiErrorLabel(error: YaNativeUiError): String = when (error) {
     )
     YaNativeUiError.CONNECTION_FAILED -> stringResource(R.string.connection_failed_message)
 }
-
-private fun sourceLabel(username: String, icon: String?): String =
-    if (icon == null) username else "$icon $username"

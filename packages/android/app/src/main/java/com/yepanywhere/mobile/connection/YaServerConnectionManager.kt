@@ -360,10 +360,11 @@ class YaServerConnectionManager(
             uploads.remove(uploadId)
             record
         }
-        // There is no cancel frame in the established server protocol. Ending
-        // an incomplete upload makes the existing size check discard its file.
+        // The established protocol has no cancel frame. End always closes its
+        // server state: incomplete files fail size validation; a file whose
+        // bytes already arrived may complete (staged expiry still applies).
         record.writes.withLock {
-            if (record.offset < record.size) runCatching {
+            runCatching {
                 record.transport.send(JSONObject().put("type", "upload_end").put("uploadId", uploadId))
             }
         }

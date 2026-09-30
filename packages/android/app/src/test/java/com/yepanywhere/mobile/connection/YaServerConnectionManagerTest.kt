@@ -9,10 +9,14 @@ import com.yepanywhere.mobile.profiles.YaServerRoute
 import com.yepanywhere.mobile.profiles.YaStoredResumeCredential
 import com.yepanywhere.mobile.security.YaSecurityClientLifecycle
 import com.yepanywhere.mobile.security.YaSecurityClientRevokedException
+import com.yepanywhere.mobile.web.YaWebTransportSession
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
@@ -28,6 +32,41 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class YaServerConnectionManagerTest {
+    @Test
+    fun departingWebDocumentCannotResurrectSubscriptionsOrCloseSiblingLeases() = runBlocking {
+        val fixture = Fixture()
+        val transport = FakeTransport(fixture.credential)
+        val manager = fixture.manager()
+        val webLease = manager.acquire()
+        val sibling = manager.acquire()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val emitted = CopyOnWriteArrayList<JSONObject>()
+        val web = YaWebTransportSession("document-one", webLease, scope, { emitted += it }) {}
+        fun command(id: String, method: String) = JSONObject().put("handle", "document-one")
+            .put("id", id).put("method", method).put("params", JSONObject()
+                .put("subscriptionId", "local-subscription").put("channel", "activity"))
+        try {
+            assertTrue(runCatching { web.dispatch(command("stale", "subscribe").put("handle", "old-document")) }.isFailure)
+            web.dispatch(command("subscribe-before-connect", "subscribe"))
+            web.dispatch(command("unsubscribe-before-connect", "unsubscribe"))
+            fixture.connector.results.send(Result.success(transport))
+            withTimeout(2_000) { manager.state.first { it.phase == YaConnectionPhase.CONNECTED } }
+            assertFalse(transport.sent.any { it.optString("type") == "subscribe" })
+            web.dispatch(command("subscribe-again", "subscribe"))
+            val sent = transport.awaitSent("subscribe")
+            assertFalse(sent.getString("subscriptionId") == "local-subscription")
+            web.close()
+            transport.awaitSent("unsubscribe")
+            assertFalse(transport.cancelled)
+            val request = async { sibling.request("GET", "/version") }
+            val wireRequest = transport.awaitSent("request")
+            transport.incoming.send(JSONObject().put("type", "response").put("id", wireRequest.getString("id"))
+                .put("status", 200).put("body", JSONObject()))
+            assertEquals(200, request.await().status)
+            assertTrue(runCatching { web.dispatch(command("departed", "subscribe")) }.isFailure)
+        } finally { web.close(); scope.cancel(); sibling.releaseAndAwait(); manager.shutdownAndAwait() }
+    }
+
     @Test
     fun streamsUploadsWithLeaseIsolationAndCancelsOnlyTheDepartedConsumer() = runBlocking {
         val fixture = Fixture()
@@ -51,6 +90,25 @@ class YaServerConnectionManagerTest {
             assertTrue(runCatching { first.sendUploadChunk(upload.id, 65536, byteArrayOf(1)) }.isFailure)
         } finally { sibling.releaseAndAwait(); manager.shutdownAndAwait() }
         assertTrue(transport.cancelled)
+    }
+
+    @Test
+    fun cancellingFullyTransferredUploadEndsServerStateWithoutClosingSibling() = runBlocking {
+        val fixture = Fixture()
+        val transport = FakeTransport(fixture.credential)
+        fixture.connector.results.send(Result.success(transport))
+        val manager = fixture.manager()
+        val owner = manager.acquire()
+        val sibling = manager.acquire()
+        try {
+            val upload = owner.startUpload(JSONObject().put("type", "staged_upload_start")
+                .put("size", 1).put("filename", "complete.bin").put("mimeType", "application/octet-stream"))
+            owner.sendUploadChunk(upload.id, 0, byteArrayOf(1))
+            owner.cancelUpload(upload.id)
+            assertEquals(upload.id, transport.awaitSent("upload_end").getString("uploadId"))
+            assertFalse(transport.cancelled)
+            assertTrue(runCatching { owner.endUpload(upload.id) }.isFailure)
+        } finally { owner.releaseAndAwait(); sibling.releaseAndAwait(); manager.shutdownAndAwait() }
     }
 
     @Test

@@ -34,6 +34,8 @@ import androidx.webkit.WebViewFeature
 import androidx.webkit.WebSettingsCompat
 import com.yepanywhere.mobile.BuildConfig
 import com.yepanywhere.mobile.R
+import com.yepanywhere.mobile.MainActivity
+import com.yepanywhere.mobile.YepAnywhereApplication
 import com.yepanywhere.mobile.notifications.NotificationFoundation
 import com.yepanywhere.mobile.notifications.NotificationNativeHostOperations
 import com.yepanywhere.mobile.notifications.NotificationStatusReader
@@ -42,9 +44,13 @@ class WebClientActivity : ComponentActivity() {
     private val config by lazy(WebClientConfig::fromBuild)
     private var webView: WebView? = null
     private var nativeHost: YaNativeMessageHost? = null
+    private var transportHost: YaNativeTransportHost? = null
+    private var resumeReload = false
     private var notificationOperations: NotificationNativeHostOperations? = null
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private var mainFrameFailed = false
+    private var transportErrorView: View? = null
+    fun nativeTransportDiagnostics(): org.json.JSONObject? = transportHost?.diagnostics()
 
     private val fileChooserLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -85,6 +91,7 @@ class WebClientActivity : ComponentActivity() {
 
         val clientView = createWebView()
         val errorView = createErrorView(clientView)
+        transportErrorView = errorView
         root.addView(
             clientView,
             FrameLayout.LayoutParams(
@@ -116,6 +123,11 @@ class WebClientActivity : ComponentActivity() {
         )
 
         clientView.webViewClient = createWebViewClient(errorView)
+        if (config.bundled && intent.hasExtra(PROFILE_ID) && transportHost == null) {
+            clientView.visibility = View.GONE
+            errorView.visibility = View.VISIBLE
+            return
+        }
         clientView.loadUrl(consumeStartUrl())
     }
 
@@ -124,7 +136,7 @@ class WebClientActivity : ComponentActivity() {
         intent.data = null
         return requestedUrl?.takeIf {
             WebClientNavigation.decide(it, config.origin) == NavigationDecision.ALLOW_IN_APP
-        } ?: config.startUrl
+        } ?: if (config.bundled && intent.hasExtra(PROFILE_ID)) "${config.origin}/projects" else config.startUrl
     }
 
     @Suppress("SetJavaScriptEnabled")
@@ -174,6 +186,19 @@ class WebClientActivity : ComponentActivity() {
             config,
             checkNotNull(notificationOperations),
         )
+        intent.getStringExtra(PROFILE_ID)?.let { profileId ->
+            transportHost = YaNativeTransportHost.install(view, config,
+                (application as YepAnywhereApplication).nativeRuntime, profileId, onFatal = {
+                    mainFrameFailed = true
+                    transportErrorView?.visibility = View.VISIBLE
+                }) {
+                startActivity(Intent(this, MainActivity::class.java).apply {
+                    putExtra(MainActivity.SHOW_HOSTS, true)
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                })
+                finish()
+            }
+        }
         webView = view
         return view
     }
@@ -194,10 +219,14 @@ class WebClientActivity : ComponentActivity() {
                 gravity = Gravity.CENTER
             })
             addView(Button(context).apply {
-                text = getString(R.string.retry)
+                val unavailableTransport = config.bundled && intent.hasExtra(PROFILE_ID) && transportHost == null
+                text = getString(if (unavailableTransport) R.string.back else R.string.retry)
                 setOnClickListener {
-                    this@errorView.visibility = View.GONE
-                    clientView.reload()
+                    if (unavailableTransport) finish()
+                    else {
+                        this@errorView.visibility = View.GONE
+                        clientView.reload()
+                    }
                 }
             })
         }
@@ -221,6 +250,7 @@ class WebClientActivity : ComponentActivity() {
                 mainFrameFailed = false
                 errorView.visibility = View.GONE
                 nativeHost?.onDocumentChanged()
+                transportHost?.onDocumentChanged()
             }
 
             override fun shouldInterceptRequest(
@@ -289,6 +319,8 @@ class WebClientActivity : ComponentActivity() {
                 view: WebView,
                 detail: RenderProcessGoneDetail,
             ): Boolean {
+                transportHost?.close()
+                transportHost = null
                 nativeHost?.destroy()
                 nativeHost = null
                 webView = null
@@ -318,6 +350,9 @@ class WebClientActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        transportHost?.close()
+        transportHost = null
+        transportErrorView = null
         fileChooserCallback?.onReceiveValue(null)
         fileChooserCallback = null
         nativeHost?.destroy()
@@ -333,12 +368,31 @@ class WebClientActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    override fun onStop() {
+        // A file chooser is still foreground user work. Other backgrounding
+        // releases the web consumer; returning resumes from the saved route.
+        if (transportHost != null && fileChooserCallback == null) {
+            transportHost?.onDocumentChanged()
+            resumeReload = true
+        }
+        super.onStop()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (resumeReload) {
+            resumeReload = false
+            webView?.reload()
+        }
+    }
+
     override fun onUserInteraction() {
         super.onUserInteraction()
         notificationOperations?.recordUserInteraction()
     }
 
     companion object {
+        const val PROFILE_ID = "nativeProfileId"
         private const val POST_NOTIFICATIONS_PERMISSION =
             "android.permission.POST_NOTIFICATIONS"
     }

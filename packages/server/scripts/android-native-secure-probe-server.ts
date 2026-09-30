@@ -1,7 +1,8 @@
 import { appendFile, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
-import { serve } from "@hono/node-server";
+import { serve, type HttpBindings } from "@hono/node-server";
+import { Hono } from "hono";
 import { createNodeWebSocket } from "@hono/node-ws";
 import { createApp } from "../src/app.js";
 import { AuthService } from "../src/auth/AuthService.js";
@@ -17,7 +18,12 @@ import {
 import { MockClaudeSDK } from "../src/sdk/mock.js";
 import { UploadManager } from "../src/uploads/manager.js";
 import { InstallService } from "../src/services/InstallService.js";
-import { EventBus } from "../src/watcher/index.js";
+import { EventBus, FileWatcher } from "../src/watcher/index.js";
+import { AttachmentStagingService } from "../src/uploads/AttachmentStagingService.js";
+import { ServerSettingsService } from "../src/services/ServerSettingsService.js";
+import { ProjectQueueService } from "../src/services/ProjectQueueService.js";
+import { RecentsService } from "../src/recents/RecentsService.js";
+import { ProjectGlossarySubscriptionManager } from "../src/projects/projectGlossarySubscriptionManager.js";
 
 const username = process.env.YA_NATIVE_PROBE_USERNAME;
 const password = process.env.YA_NATIVE_PROBE_PASSWORD;
@@ -59,7 +65,7 @@ await mkdir(grokSessionsDir, { recursive: true });
 await mkdir(piSessionsDir, { recursive: true });
 await mkdir(dataDir, { recursive: true });
 
-// Optional native-provider history for the Compose conversation AVD proof.
+// Optional provider history for native-core and bundled-web integration proofs.
 const conversationProbe = process.env.YA_NATIVE_PROBE_CONVERSATION === "true";
 const sessionId = "android-preview-session";
 const projectPath = join(root, "preview-project");
@@ -102,6 +108,11 @@ if (conversationProbe) {
 }
 
 const eventBus = new EventBus();
+const watcher = conversationProbe
+  ? new FileWatcher({ watchDir: projectsDir, provider: "claude", eventBus })
+  : null;
+watcher?.start();
+await watcher?.waitForInitialBaseline();
 const authService = new AuthService({
   dataDir,
   cookieSecret: "android-native-probe-cookie-secret",
@@ -126,13 +137,33 @@ const securityClientService = new SecurityClientService({
   remoteSessionService,
 });
 await securityClientService.initialize();
+const attachmentStagingService = new AttachmentStagingService({
+  dataDir,
+  maxUploadSizeBytes: 100 * 1024 * 1024,
+});
+const serverSettingsService = new ServerSettingsService({ dataDir });
+const projectQueueService = new ProjectQueueService({
+  dataDir,
+  eventBus,
+  attachmentStagingService,
+});
+const recentsService = new RecentsService({ dataDir });
+await Promise.all([
+  attachmentStagingService.initialize(),
+  serverSettingsService.initialize(),
+  projectQueueService.initialize(),
+  recentsService.initialize(),
+]);
 
 const {
-  app,
+  app: yaApp,
   supervisor,
   conversationSubscriptions,
   disposeSessionReaders,
   stopNotifications,
+  focusedSessionWatchManager,
+  scanner,
+  glossaryIndexService,
 } = createApp({
   dataDir,
   getCatalogFamilies: () => install.getCatalogFamilies(),
@@ -146,7 +177,30 @@ const {
   authService,
   authDisabled: true,
   securityClientService,
+  remoteAccessService,
+  remoteSessionService,
+  attachmentStagingService,
+  serverSettingsService,
+  projectQueueService,
+  recentsService,
 });
+const projectGlossarySubscriptionManager =
+  new ProjectGlossarySubscriptionManager({ scanner, glossaryIndexService });
+// Pad a real API response without burdening transcript rendering or adding a
+// production endpoint. This crosses the encrypted circuit and the WebView.
+const app = new Hono<{ Bindings: HttpBindings }>();
+app.get("/api/version", async (c) => {
+  const response = await yaApp.fetch(c.req.raw, c.env);
+  if (!conversationProbe || !response.ok) return response;
+  const body = await response.json();
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  return new Response(
+    JSON.stringify({ ...body, __nativeProbePadding: "x".repeat(1024 * 1024) }),
+    { status: response.status, headers },
+  );
+});
+app.route("/", yaApp);
 const { upgradeWebSocket, wss } = createNodeWebSocket({ app });
 const uploadManager = new UploadManager({ uploadsDir: join(root, "uploads") });
 const wsHandler = createWsRelayRoutes({
@@ -160,6 +214,10 @@ const wsHandler = createWsRelayRoutes({
   remoteSessionService,
   securityClientService,
   conversationSubscriptions,
+  focusedSessionWatchManager,
+  projectGlossarySubscriptionManager,
+  attachmentStagingService,
+  serverSettingsService,
 });
 app.get("/api/ws", wsHandler);
 if (conversationProbe) {
@@ -187,6 +245,10 @@ if (relayClientService) {
     remoteSessionService,
     securityClientService,
     conversationSubscriptions,
+    focusedSessionWatchManager,
+    projectGlossarySubscriptionManager,
+    attachmentStagingService,
+    serverSettingsService,
   });
   relayClientService.start({
     relayUrl,
@@ -225,6 +287,8 @@ await new Promise<void>((resolveStop) => {
 });
 
 stopNotifications();
+watcher?.stop();
+projectGlossarySubscriptionManager.dispose();
 await disposeSessionReaders();
 await securityClientService.shutdown();
 remoteSessionService.shutdown();
