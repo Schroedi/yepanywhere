@@ -61,7 +61,7 @@ export function LastSessionFile({
 
   useLayoutEffect(() => {
     const parent = target?.parentElement;
-    if (!target || !parent) {
+    if (!target || !parent || !route) {
       setHasMargin(false);
       return;
     }
