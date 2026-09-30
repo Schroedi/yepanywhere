@@ -30,6 +30,10 @@ it("can release a known project's retained address while vhost hosting is disabl
   };
   let reservations = [reservation];
   mock.fetch.mockImplementation(async (path: string) => {
+    if (path === "/projects/test/app")
+      return { state: "ready", removedFrom: [] };
+    if (path === "/projects/test/app/address")
+      return { enabled: false, reservations: [] };
     if (path === "/project-apps/address/release") {
       reservations = [];
       return { released: true };
@@ -52,6 +56,7 @@ it("can release a known project's retained address while vhost hosting is disabl
       <ProjectAppInventorySection />
     </I18nProvider>,
   );
+  fireEvent.click(await screen.findByRole("button", { name: "Canvas" }));
   fireEvent.click(
     await screen.findByRole("button", { name: "Release address" }),
   );

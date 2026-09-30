@@ -70,19 +70,13 @@
 
 .vhostRow {
   display: grid;
-  grid-template-columns: minmax(6rem, 1fr) minmax(5rem, 6.5rem) minmax(
-      8rem,
-      1.2fr
-    ) auto;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   align-items: end;
   min-width: 0;
-}
-
-.vhostRow.withServes {
-  grid-template-columns:
-    minmax(6rem, 1fr) minmax(8rem, 11rem) minmax(5rem, 6.5rem)
-    minmax(8rem, 1.2fr) auto;
 }
 
 .vhostRow label {
@@ -112,9 +106,19 @@
   margin: 0;
 }
 
-/* A path takes the port and env columns of a port row. */
 .pathField {
-  grid-column: span 2;
+  min-width: 0;
+}
+.domainSuffix {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.target {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .access {
   grid-column: 1 / -1;
@@ -136,8 +140,7 @@
     min-height: 44px;
   }
 
-  .vhostRow,
-  .vhostRow.withServes {
+  .vhostRow {
     grid-template-columns: 1fr;
   }
 
