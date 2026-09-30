@@ -1158,6 +1158,19 @@ export {
   resolveHtmlRootAssetPath,
 } from "./html-root-assets.js";
 export type { HtmlRootAssetReference } from "./html-root-assets.js";
+export {
+  findLinkedReferences,
+  LINKED_SITE_LIMITS,
+  linkedDocumentKind,
+  walkLinkedSite,
+} from "./linked-site.js";
+export type {
+  LinkedDocumentKind,
+  LinkedSite,
+  LinkedSiteFile,
+  LinkedSiteInspector,
+  LinkedSiteLimits,
+} from "./linked-site.js";
 
 export type {
   CreatePublicFileShareRequest,

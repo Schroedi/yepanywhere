@@ -418,3 +418,5 @@
   discussion, with explicit audiences and deliberate promotion to agent input.
 - view-command - `/v` opens a project file from remembered path parts,
   tracked first; custom completion surface sketched.
+- linked-site-walk - File vhosts and live public file shares serve what a
+  root page links to, at the URLs a browser asks for.
