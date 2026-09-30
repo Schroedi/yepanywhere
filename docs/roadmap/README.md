@@ -15,15 +15,16 @@ automatically published **Latest** channel for bleeding-edge builds. Desktop
 should graduate from its current beta positioning; mobile should reach the
 App Store and Google Play, not stop at internal testing.
 
-**Status:** in progress. The API/client development sequence is selected: a
-minimal multi-server web demo first with Android following closely on the same
-simplified contracts. The offline TypeScript/Kotlin schema and bounded server
-Conversation producer, shared subscription owner, bounded native acquisition and
-experimental HTTP/SSE/WebSocket bindings are implemented. Typed TypeScript/Kotlin
-read helpers and the first multi-server web preview at `/-/preview` are implemented.
-The Android preview screen remains next. iOS is deferred
-to a later scoped effort.
-Exact API and mobile release scope remain design work.
+**Status:** in progress. Mobile release direction selected 2026-09-30:
+bundled web UI as the primary foreground, with native login, host selection,
+secure SRP/session storage, transport, reconnect, and notifications. Android
+already has native pairing, multi-host transport and a bundled WebView; the
+missing authenticated transport bridge and app-shell migration are being
+implemented in [the WebView app plan](../tactical/083-android-bundled-web-native-transport.md).
+Native dashboard/Conversation rendering and the experimental Simple Client API
+preview are no longer mobile release prerequisites. iOS follows the same shell
+boundary in a later scoped implementation. Store signing/publication and
+physical-device acceptance remain release work.
 
 ### Current baseline
 

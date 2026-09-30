@@ -1,8 +1,9 @@
-# Android Bundled-Web Native Transport
+# Android WebView App With Native Login And Transport
 
 Topic: mobile-server-pairing
 
-Status: Approved architecture; implementation not started.
+Status: implementation in progress. WebView-first product direction approved
+2026-09-30; native pairing and multi-host transport already implemented.
 
 ## Outcome
 
@@ -12,7 +13,14 @@ The bundled client will use a custom `SourceTransport` over an exact-origin
 Android message channel. Kotlin remains the sole owner of SRP, resume material,
 route selection, encryption, connection capabilities, and reconnect.
 
-Compose, foreground work, and the WebView are logical consumers of
+The full bundled web UI is the normal post-login application. Native screens
+remain responsible for login, reauthentication, saved hosts, host selection,
+and platform notification controls. The existing native dashboard and
+Conversation presentation are removed from normal navigation during migration
+and deleted after the new path is verified; their transport and shared data
+code remain reusable. No hidden dashboard subscriptions should survive.
+
+Native management, foreground work, and the WebView are logical consumers of
 profile-scoped process-level connection managers. Each owns a lease, local
 request namespace, subscriptions, and cancellation scope. Eligible profiles
 may share a physical relay-mux socket without sharing SRP or source state. No
@@ -144,24 +152,32 @@ one physical local-relay mux, isolated circuit removal/failure, persistent
 inclusion policy, exact production-relay fallback, and cleanup without
 disturbing its three existing profiles. Bulk traffic was deliberately not
 claimed by that prerequisite: the representative response and upload
-benchmarks remain gates for steps 5–7, when this transport supplies an actual
+benchmarks remain gates for steps 6–8, when this transport supplies an actual
 bulk consumer.
 
-### 2 — bind the WebView to a native source handle
+### 2 — make native login and host selection the app shell
+
+Reuse the existing pairing and reauthentication forms and server-management
+controls. Persist the selected native profile, open the bundled WebView after
+selection/login, and reopen native host management from the web Switch host
+action. Hosted-latest keeps its existing independent browser login channel.
+Do not copy saved web credentials, mint child sessions, or change relay defaults.
+
+### 3 — bind the WebView to a native source handle
 
 Pass the selected paired profile into `WebClientActivity`, mint a
 document-scoped source handle, acquire a dedicated connection-manager lease,
 and release it on document replacement or Activity destruction. Keep profile
 selection and navigation Android-owned.
 
-### 3 — establish the exact-origin transport protocol
+### 4 — establish the exact-origin transport protocol
 
 Add the separate binary-capable listener/reply channel, frame codec, local
 request namespace, cancellation, queue accounting, and lifecycle tests. Reject
 hosted, subframe, stale-document, oversized-frame, invalid-sequence, and
 post-destruction traffic.
 
-### 4 — enter the bundled client through `NativeSourceTransport`
+### 5 — enter the bundled client through `NativeSourceTransport`
 
 Implement connection status, JSON fetch, activity, session, and session-watch
 subscriptions. Register custom source runtimes from Android source handles and
@@ -174,20 +190,20 @@ Pixel, prove concurrent Compose and WebView requests/subscriptions on one native
 SRP connection, WebView-only teardown, reconnect restoration, and bounded
 bridge metrics against a disposable standalone YA profile.
 
-### 5 — carry large responses and binary blobs efficiently
+### 6 — carry large responses and binary blobs efficiently
 
 Add bridge fragmentation/reassembly, ArrayBuffer blob delivery, inbound gzip
 format `0x03`, explicit memory/queue limits, and parity for response status,
 headers, redirects, setup-required errors, timeout, and abort behavior.
 
-### 6 — stream uploads through the existing binary wire format
+### 7 — stream uploads through the existing binary wire format
 
 Implement `upload_start`, format-`0x02` chunk encryption, progress,
 backpressure, cancellation, staged uploads, completion, and cleanup. Verify
 1 KiB, 16 KiB, 64 KiB, 256 KiB, 1 MiB, 10 MiB, and 100 MiB cases without
 whole-file Kotlin allocation.
 
-### 7 — harden lifecycle and contention
+### 8 — harden lifecycle and contention
 
 Exercise navigation, rotation, WebView renderer death, Android process death,
 network loss, relay reconnect, direct-route selection, queue overflow, a slow
@@ -208,5 +224,32 @@ core must remain useful whenever only the WebView consumer fails.
   stable-client compatibility suites remain warning-free.
 
 The native multi-host prerequisite has its own human checkpoint. The first
-WebView checkpoint is after step 4. Steps 5–7 should not be treated as proven
+WebView checkpoint is after step 5. Steps 6–8 should not be treated as proven
 merely because the small-message vertical slice works.
+
+### 9 — retire the duplicate native foreground screens
+
+After native login → web requests/subscriptions → native host switching works,
+remove the native summary dashboard and Conversation Activity/screen entrypoints.
+Separate host-management state from dashboard subscriptions; retain native SRP,
+profile storage, security-client registration, connection managers, and reusable
+API/decoder helpers. Keep legacy test evidence in Git history rather than an
+unreachable production UI.
+
+## Commit and verification sequence
+
+1. Record the selected product boundary and migration plan (this commit).
+2. Land bounded native transport/bridge operations with Kotlin regression tests.
+3. Land the TypeScript adapter and native connection bootstrap with request,
+   subscription, cancellation, media, upload, and host-isolation tests.
+4. Route native login and host selection into the WebView; retire duplicate
+   foreground screens only after the replacement is exercised.
+5. Verify root lint/format/typecheck/unit suites, Android unit/lint/build and
+   connected lifecycle/origin tests, focused browser native-host flows, and real
+   sequential typing under concurrent events. Capture the final web surfaces
+   through the artifact capture facility. Record unavailable platform/device
+   evidence explicitly; no unverified performance or store-release claim.
+
+This is an Android implementation plan using the existing Gradle/Kotlin app.
+The same narrow shell boundary is the selected direction for a later iOS app;
+creating and publishing the iOS target and store delivery are separate efforts.
