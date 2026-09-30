@@ -79,8 +79,42 @@
   min-width: 0;
 }
 
+.vhostRow.withServes {
+  grid-template-columns:
+    minmax(6rem, 1fr) minmax(8rem, 11rem) minmax(5rem, 6.5rem)
+    minmax(8rem, 1.2fr) auto;
+}
+
 .vhostRow label {
   min-width: 0;
+}
+
+.vhostRow select {
+  min-height: 36px;
+  padding: 7px 8px;
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font: inherit;
+}
+
+.password {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.password p {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+/* A path takes the port and env columns of a port row. */
+.pathField {
+  grid-column: span 2;
 }
 .access {
   grid-column: 1 / -1;
@@ -102,8 +136,13 @@
     min-height: 44px;
   }
 
-  .vhostRow {
+  .vhostRow,
+  .vhostRow.withServes {
     grid-template-columns: 1fr;
+  }
+
+  .pathField {
+    grid-column: auto;
   }
 
   .vhostRow button {

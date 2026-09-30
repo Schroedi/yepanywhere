@@ -1,5 +1,7 @@
 export type {
   ArtifactVhost,
+  ArtifactVhostSite,
+  ArtifactVhostSiteView,
   ArtifactViewerConfig,
   ArtifactViewerStatus,
   ArtifactViewerGrant,

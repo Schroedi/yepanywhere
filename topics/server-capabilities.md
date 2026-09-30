@@ -19,6 +19,14 @@ saved values and resume sends only deliberate overrides through existing
 request fields. No new endpoint or existing capability meaning changes. See
 [session defaults](session-defaults.md#per-session-live-picks-vs-global-defaults).
 
+`vhost-file-sites` (permanent ID 105, version-implied from 0.9.4) owns the
+`vhostSites` artifact configuration/status field and the owner routes
+`GET`/`POST /api/artifacts/vhost-sites` and
+`DELETE /api/artifacts/vhost-sites/:name`. v0.9.0–v0.9.2 lack them; clients
+hide the vhost Serves selector and the share dialog's address section and send
+neither without it. See
+[file vhosts](active-content-security.md#file-vhosts).
+
 `local-source-browse` (permanent ID 104, version-implied from 0.9.4) owns the
 `root` query and response field on
 `GET /api/projects/:projectId/git/working-tree-files`. Older servers ignore

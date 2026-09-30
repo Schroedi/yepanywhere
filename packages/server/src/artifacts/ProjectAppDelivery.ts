@@ -11,7 +11,7 @@ import type {
 import type { ArtifactServer } from "./ArtifactServer.js";
 import type { ArtifactConfig } from "./config.js";
 import { APP_ACCESS_QUERY, type AppAccessTarget } from "./VhostAccess.js";
-import { hostnameFromHostHeader } from "./vhosts.js";
+import { configuredVhostNames, hostnameFromHostHeader } from "./vhosts.js";
 import { proxyLoopbackVhost } from "./vhost-proxy.js";
 
 function appEntry(upstream: ProjectServiceUpstream): string {
@@ -60,7 +60,9 @@ export class ProjectAppDelivery {
   async validateConfig(config: ArtifactConfig): Promise<void> {
     const rows = await this.store.allReservations();
     if (
-      config.vhosts?.some((host) => rows.some((row) => row.name === host.name))
+      configuredVhostNames(config).some((name) =>
+        rows.some((row) => row.name === name),
+      )
     )
       throw new Error("A configured app name is reserved by a project");
   }
@@ -266,9 +268,7 @@ export class ProjectAppDelivery {
     let target: AppAccessTarget;
     if (reservation) {
       if (
-        this.artifacts.config.vhosts?.some(
-          (row) => row.name === reservation.name,
-        )
+        configuredVhostNames(this.artifacts.config).includes(reservation.name)
       )
         return new Response(
           "App address configuration conflicts with a reservation",

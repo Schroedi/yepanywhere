@@ -19,7 +19,9 @@ import {
   validateArtifactConfig,
   type ArtifactConfig,
 } from "./artifacts/config.js";
+import { createArtifactConfigWriter } from "./routes/artifactConfigWriter.js";
 import { createArtifactRoutes } from "./routes/artifacts.js";
+import { createVhostSiteRoutes } from "./routes/vhostSites.js";
 import { createVhostAppRoutes } from "./routes/vhostApps.js";
 import { createVhostAccessRoutes } from "./routes/vhostAccess.js";
 import {
@@ -93,6 +95,7 @@ import {
   projectServiceStaticApp,
 } from "./projects/ProjectServiceManager.js";
 import { ProjectAppDelivery } from "./artifacts/ProjectAppDelivery.js";
+import { clientVhostSite } from "./artifacts/vhosts.js";
 import { HostedProjectServices } from "./projects/HostedProjectServices.js";
 import { projectAppPublicAllowed } from "./projects/projectAppPolicy.js";
 import { createProjectAccessRoutes } from "./routes/project-access.js";
@@ -1253,6 +1256,20 @@ export function createApp(options: AppOptions): AppResult {
       }),
     );
   }
+  // Settings saves and file vhost claims change one configuration in turn.
+  const artifactConfigWriter = createArtifactConfigWriter({
+    server: artifactServer,
+    settings: options.serverSettingsService,
+    locked: options.artifacts !== undefined,
+  });
+  app.route(
+    "/api",
+    createVhostSiteRoutes({
+      server: artifactServer,
+      scanner,
+      writer: artifactConfigWriter,
+    }),
+  );
   app.route(
     "/api",
     createArtifactRoutes({
@@ -1260,6 +1277,7 @@ export function createApp(options: AppOptions): AppResult {
       scanner,
       settings: options.serverSettingsService,
       locked: options.artifacts !== undefined,
+      writer: artifactConfigWriter,
       onArtifactCreated: async (path, projectId) => {
         const candidates = projectId
           ? [await scanner.getProject(projectId)]
@@ -2266,6 +2284,9 @@ export function createApp(options: AppOptions): AppResult {
       vhostAppControlAvailable,
       getArtifactViewerStatus: () => ({
         ...artifactServer.config,
+        vhostSites: (artifactServer.config.vhostSites ?? []).map(
+          clientVhostSite,
+        ),
         available: artifactServer.available,
         locked:
           options.artifacts !== undefined || !options.serverSettingsService,

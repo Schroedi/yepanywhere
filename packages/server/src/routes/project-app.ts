@@ -13,7 +13,7 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { ArtifactServer } from "../artifacts/ArtifactServer.js";
 import type { ProjectAppDelivery } from "../artifacts/ProjectAppDelivery.js";
-import { parseVhosts } from "../artifacts/vhosts.js";
+import { configuredVhostNames, parseVhosts } from "../artifacts/vhosts.js";
 import { principalFor } from "../auth/limitedLaunchPolicy.js";
 import { levelFor, satisfies } from "../auth/limitedUserPolicy.js";
 import type { SessionAccessResolver } from "../auth/sessionAccess.js";
@@ -455,7 +455,7 @@ export function createProjectAppRoutes(deps: {
         { error: `App names must start with ${principal.username}-` },
         403,
       );
-    if (deps.artifacts.config.vhosts?.some((row) => row.name === name))
+    if (configuredVhostNames(deps.artifacts.config).includes(name))
       return c.json({ error: "App address is already configured" }, 409);
     try {
       const reservation = await deps.store.reserve(
@@ -471,7 +471,7 @@ export function createProjectAppRoutes(deps: {
           await authorize(c, "new-session");
           if (
             namespace() !== current ||
-            deps.artifacts.config.vhosts?.some((row) => row.name === name)
+            configuredVhostNames(deps.artifacts.config).includes(name)
           )
             throw new HTTPException(409, {
               message: "App address configuration changed",

@@ -209,6 +209,33 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  vhostFileSites: {
+    id: CAPABILITY_ID_ALLOCATIONS.vhostFileSites.id,
+    name: "vhost-file-sites",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Vhost rows can serve one file or directory at name.localhost and name.<public root>, managed from Settings and the File Viewer share dialog.",
+    clientFallback:
+      "Hide the vhost Serves selector and the share dialog's address section; send no vhostSites field and no vhost-site requests.",
+    serverContract: {
+      routeModules: ["packages/server/src/routes/vhostSites.ts"],
+      routes: [
+        "GET /api/artifacts/vhost-sites",
+        "POST /api/artifacts/vhost-sites",
+        "DELETE /api/artifacts/vhost-sites/:name",
+      ],
+      requestFields: ["vhostSites"],
+      responseFields: ["artifactViewer.vhostSites"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers drop vhostSites on save and have no route to claim or serve a file address.",
+    },
+  },
   localSourceBrowse: {
     id: CAPABILITY_ID_ALLOCATIONS.localSourceBrowse.id,
     name: "local-source-browse",

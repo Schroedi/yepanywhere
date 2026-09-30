@@ -3,7 +3,7 @@ import { realpath } from "node:fs/promises";
 import { createServer, type Server, type IncomingMessage } from "node:http";
 import { homedir } from "node:os";
 import { basename, dirname, extname, relative, resolve } from "node:path";
-import { Readable, type Duplex } from "node:stream";
+import type { Duplex } from "node:stream";
 import { AppWebSocketProxy } from "./AppWebSocketProxy.js";
 import { getRequestListener } from "@hono/node-server";
 import { ARTIFACT_SANDBOX, ARTIFACT_TAB_PROTOCOL } from "@yep-anywhere/shared";
@@ -27,8 +27,11 @@ import {
   registerArtifactOrigins,
   setVhostHostnames,
 } from "../middleware/allowed-hosts.js";
+import { fileBytesResponse } from "./fileResponse.js";
 import { proxyLoopbackVhost } from "./vhost-proxy.js";
+import { serveVhostSite } from "./VhostSiteServer.js";
 import {
+  configuredVhostNames,
   matchVhost,
   SESSION_APP_NAME_PREFIX,
   vhostHostnames,
@@ -78,6 +81,21 @@ const ARTIFACT_CSP = [
   "base-uri 'self'",
   "form-action 'none'",
 ].join("; ");
+/**
+ * The isolated-origin policy every artifact and file-vhost response carries.
+ * Every feature named in the permissions policy is one browsers actually
+ * recognize: an unknown name is ignored anyway, and Chromium logs it as an
+ * error in the reader's console for every artifact they open. Web Bluetooth
+ * is the name that costs more noise than it denies.
+ */
+const ARTIFACT_RESPONSE_HEADERS: Readonly<Record<string, string>> = {
+  "Content-Security-Policy": ARTIFACT_CSP,
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
+  "Cache-Control": "no-store",
+  "Permissions-Policy":
+    "camera=(), microphone=(), geolocation=(), clipboard-read=(), clipboard-write=(), payment=(), usb=(), serial=(), display-capture=()",
+};
 
 interface Grant extends StoredGrant {
   files: Set<string>;
@@ -166,18 +184,8 @@ export class ArtifactServer {
       await this.ready;
       if (!this.matchesHost(c.req.header("Host") ?? new URL(c.req.url).host))
         return c.text("Unknown artifact host", 421);
-      c.header("Content-Security-Policy", ARTIFACT_CSP);
-      c.header("X-Content-Type-Options", "nosniff");
-      c.header("Referrer-Policy", "no-referrer");
-      c.header("Cache-Control", "no-store");
-      // Every feature named here is one browsers actually recognize: an
-      // unknown name is ignored anyway, and Chromium logs it as an error in
-      // the reader's console for every artifact they open. Web Bluetooth is
-      // the name that costs more noise than it denies.
-      c.header(
-        "Permissions-Policy",
-        "camera=(), microphone=(), geolocation=(), clipboard-read=(), clipboard-write=(), payment=(), usb=(), serial=(), display-capture=()",
-      );
+      for (const [name, value] of Object.entries(ARTIFACT_RESPONSE_HEADERS))
+        c.header(name, value);
       if (
         c.req.method !== "GET" &&
         c.req.method !== "HEAD" &&
@@ -185,24 +193,18 @@ export class ArtifactServer {
       )
         return c.text("Read only", 405);
       await next();
-      // Proxy responses carry their own Headers; enforce the isolated-origin
-      // policy after dispatch so upstream headers cannot replace it.
-      c.res.headers.set(
-        "Content-Security-Policy",
-        c.req.path.startsWith("/p/")
-          ? ARTIFACT_CSP.replace(
-              `sandbox ${ARTIFACT_SANDBOX}`,
-              "sandbox allow-scripts",
-            )
-          : ARTIFACT_CSP,
-      );
-      c.res.headers.set("X-Content-Type-Options", "nosniff");
-      c.res.headers.set("Referrer-Policy", "no-referrer");
-      c.res.headers.set("Cache-Control", "no-store");
-      c.res.headers.set(
-        "Permissions-Policy",
-        "camera=(), microphone=(), geolocation=(), clipboard-read=(), clipboard-write=(), payment=(), usb=(), serial=(), display-capture=()",
-      );
+      // Proxy and file responses carry their own Headers; enforce the
+      // isolated-origin policy after dispatch so they cannot replace it.
+      for (const [name, value] of Object.entries(ARTIFACT_RESPONSE_HEADERS))
+        c.res.headers.set(name, value);
+      if (c.req.path.startsWith("/p/"))
+        c.res.headers.set(
+          "Content-Security-Policy",
+          ARTIFACT_CSP.replace(
+            `sandbox ${ARTIFACT_SANDBOX}`,
+            "sandbox allow-scripts",
+          ),
+        );
     });
     this.app.get("/health", (c) => {
       c.header("Access-Control-Allow-Origin", "*");
@@ -303,46 +305,7 @@ export class ArtifactServer {
         c.header("Content-Length", String(framed.length));
         return c.body(framed, 200);
       }
-      c.header("Content-Type", mime);
-      if (new URL(c.req.url).searchParams.get("download") === "true") {
-        c.header("Content-Disposition", "attachment");
-      }
-      c.header("Accept-Ranges", "bytes");
-      let start = 0;
-      let end = stats.size - 1;
-      const range = c.req.header("Range");
-      if (range) {
-        const match = /^bytes=(\d*)-(\d*)$/.exec(range);
-        if (match && (match[1] || match[2])) {
-          start = match[1]
-            ? Number(match[1])
-            : Math.max(0, stats.size - Number(match[2]));
-          end = match[1] && match[2] ? Math.min(Number(match[2]), end) : end;
-        }
-        if (
-          !match ||
-          (!match[1] && !match[2]) ||
-          start > end ||
-          start >= stats.size ||
-          !Number.isSafeInteger(start) ||
-          !Number.isSafeInteger(end)
-        ) {
-          await handle.close();
-          c.header("Content-Range", `bytes */${stats.size}`);
-          return c.body(null, 416);
-        }
-        c.header("Content-Range", `bytes ${start}-${end}/${stats.size}`);
-      }
-      c.header("Content-Length", String(Math.max(0, end - start + 1)));
-      if (c.req.method === "HEAD" || stats.size === 0) {
-        await handle.close();
-        return c.body(null, range ? 206 : 200);
-      }
-      const stream = handle.createReadStream({ start, end, autoClose: true });
-      return c.body(
-        Readable.toWeb(stream) as ReadableStream,
-        range ? 206 : 200,
-      );
+      return fileBytesResponse(c.req.raw, handle, stats, mime);
     });
   }
 
@@ -428,7 +391,7 @@ export class ArtifactServer {
     setVhostHostnames([
       ...this.projectHosts,
       ...vhostHostnames(
-        [...(config.vhosts ?? []), ...minted],
+        [...(config.vhosts ?? []), ...(config.vhostSites ?? []), ...minted],
         config.vhostPublicRoot,
       ),
     ]);
@@ -462,9 +425,7 @@ export class ArtifactServer {
       const oldest = this.sessionApps.keys().next().value;
       if (oldest !== undefined) this.sessionApps.delete(oldest);
     }
-    const staticNames = new Set(
-      (this.config.vhosts ?? []).map((row) => row.name),
-    );
+    const staticNames = new Set(configuredVhostNames(this.config));
     let name: string;
     do {
       name = `${SESSION_APP_NAME_PREFIX}${randomBytes(8).toString("hex")}`;
@@ -474,6 +435,18 @@ export class ArtifactServer {
     this.mintedSessionAppHosts.add(name);
     this.registerHosts(this.config);
     return app;
+  }
+
+  /** Whether the local file policy admits `path`, a file or directory. */
+  async allowsPath(
+    path: string,
+  ): Promise<
+    { ok: true } | { ok: false; error: string; status: 400 | 403 | 404 }
+  > {
+    const result = await this.policy.resolveAllowedDirectory(path);
+    return result.ok
+      ? { ok: true }
+      : { ok: false, error: result.error, status: result.status };
   }
 
   matchesHost(host: string): boolean {
@@ -514,6 +487,34 @@ export class ArtifactServer {
           clientAddress,
           proxy,
         );
+    }
+    const site = matchVhost(
+      host,
+      this.config.vhostSites ?? [],
+      this.config.vhostPublicRoot,
+    );
+    if (site) {
+      await this.ready;
+      const authorized = this.vhostAccess.authorize(
+        request,
+        site,
+        await this.vhostAccess.passwordAdmits(request, site),
+      );
+      const response = authorized
+        ? await serveVhostSite(authorized.request, site, this.policy)
+        : site.public && site.passwordHash
+          ? new Response("Password required", {
+              status: 401,
+              headers: {
+                "WWW-Authenticate": `Basic realm="${site.name}", charset="UTF-8"`,
+              },
+            })
+          : new Response("App link required", { status: 401 });
+      for (const [name, value] of Object.entries(ARTIFACT_RESPONSE_HEADERS))
+        response.headers.set(name, value);
+      if (authorized?.cookie)
+        response.headers.append("Set-Cookie", authorized.cookie);
+      return response;
     }
     const sessionApp = this.matchesVhost(host)
       ? undefined

@@ -7,14 +7,31 @@ import {
 import { link, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomically } from "../utils/writeFileAtomically.js";
-import { vhostExternalProtocol, type ArtifactVhost } from "./vhosts.js";
+import {
+  vhostExternalProtocol,
+  vhostPasswordMatches,
+  type ArtifactVhost,
+  type ArtifactVhostSite,
+} from "./vhosts.js";
 
 const COOKIE = "ya_app_access";
 export const APP_ACCESS_QUERY = "ya_access";
 
 export type AppAccessTarget =
   | ArtifactVhost
+  | ArtifactVhostSite
   | { name: string; projectId: string; generation?: string; public?: boolean };
+
+/** The password of a Basic `Authorization` header; the user name is ignored. */
+function basicPassword(request: Request): string | undefined {
+  const match = /^Basic\s+([A-Za-z0-9+/=]+)$/i.exec(
+    request.headers.get("authorization") ?? "",
+  );
+  if (!match) return;
+  const decoded = Buffer.from(match[1]!, "base64").toString("utf8");
+  const colon = decoded.indexOf(":");
+  return colon < 0 ? undefined : decoded.slice(colon + 1);
+}
 
 /** Durable, app-scoped bearer links. Restart never rotates credentials. */
 export class VhostAccess {
@@ -77,12 +94,19 @@ export class VhostAccess {
                 row.generation ?? null,
                 this.generation(row.name),
               ]
-            : [
-                "vhost-access-v1",
-                row.name,
-                row.port,
-                this.generation(row.name),
-              ],
+            : "path" in row
+              ? [
+                  "vhost-site-access-v1",
+                  row.name,
+                  row.path,
+                  this.generation(row.name),
+                ]
+              : [
+                  "vhost-access-v1",
+                  row.name,
+                  row.port,
+                  this.generation(row.name),
+                ],
         ),
       )
       .digest("base64url");
@@ -104,10 +128,41 @@ export class VhostAccess {
     this.writing = operation;
     await operation;
   }
+  /**
+   * Whether a password-protected public row admits this request by its Basic
+   * password. False without a password to check or when the app link or
+   * cookie already admits it, so the slow hash runs only when it decides.
+   */
+  async passwordAdmits(
+    request: Request,
+    row: ArtifactVhostSite,
+  ): Promise<boolean> {
+    if (!row.public || !row.passwordHash) return false;
+    const url = new URL(request.url);
+    const cookie = (request.headers.get("cookie") ?? "")
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(`${COOKIE}=`))
+      ?.slice(COOKIE.length + 1);
+    const supplied = url.searchParams.get(APP_ACCESS_QUERY) ?? cookie;
+    const expected = this.token(row);
+    if (
+      supplied &&
+      Buffer.byteLength(supplied) === Buffer.byteLength(expected) &&
+      timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))
+    )
+      return false;
+    const password = basicPassword(request);
+    return (
+      password !== undefined &&
+      (await vhostPasswordMatches(row.passwordHash, password))
+    );
+  }
   /** Validate the URL bearer or a host-only cookie; never pass either upstream. */
   authorize(
     request: Request,
     row: AppAccessTarget,
+    passwordVerified = false,
   ): { request: Request; cookie?: string } | null {
     const url = new URL(request.url);
     const bearer = url.searchParams.get(APP_ACCESS_QUERY);
@@ -119,16 +174,19 @@ export class VhostAccess {
       ?.slice(COOKIE.length + 1);
     const supplied = bearer ?? cookie;
     const expected = this.token(row);
-    if (
-      !row.public &&
-      (!supplied ||
-        Buffer.byteLength(supplied) !== Buffer.byteLength(expected) ||
-        !timingSafeEqual(Buffer.from(supplied), Buffer.from(expected)))
-    )
-      return null;
+    const linked =
+      !!supplied &&
+      Buffer.byteLength(supplied) === Buffer.byteLength(expected) &&
+      timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
+    // A password gates the visitors a public row would admit without a link;
+    // an app link still works on its own. The caller checks the password
+    // (`passwordAdmits`), which is slow by design.
+    const passwordHash = "passwordHash" in row ? row.passwordHash : undefined;
+    const open = row.public === true && (!passwordHash || passwordVerified);
+    if (!linked && !open) return null;
     const browserOrigin = `${vhostExternalProtocol(url.hostname)}://${url.host}`;
     if (
-      !row.public &&
+      !open &&
       !bearer &&
       (!["GET", "HEAD", "OPTIONS"].includes(request.method) ||
         request.headers.has("upgrade")) &&
@@ -156,7 +214,8 @@ export class VhostAccess {
         body: request.body,
         ...(request.body ? { duplex: "half" } : {}),
       }),
-      ...(bearer && !row.public
+      // The cookie spares a password visitor a check on every asset.
+      ...((bearer || passwordVerified) && !(row.public && !passwordHash)
         ? {
             cookie: `${COOKIE}=${expected}; Path=/; HttpOnly; SameSite=None; Secure`,
           }

@@ -648,6 +648,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "local-source-browse",
     introducedIn: "0.9.4",
   },
+  vhostFileSites: {
+    id: 105,
+    direction: "server",
+    name: "vhost-file-sites",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [
