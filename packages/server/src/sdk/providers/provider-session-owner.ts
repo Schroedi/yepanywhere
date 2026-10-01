@@ -105,6 +105,7 @@ export interface ProviderSessionReadyMetadata {
     interrupt: boolean;
     supportedModels: boolean;
     supportedCommands: boolean;
+    getContextBreakdown?: boolean;
     setModel: boolean;
     runProviderCommand: boolean;
   };
@@ -276,6 +277,7 @@ export class ProviderSessionOwner {
         interrupt: Boolean(session.interrupt),
         supportedModels: Boolean(session.supportedModels),
         supportedCommands: Boolean(session.supportedCommands),
+        getContextBreakdown: Boolean(session.getContextBreakdown),
         setModel: Boolean(session.setModel),
         runProviderCommand: Boolean(session.runProviderCommand),
       },
@@ -936,6 +938,8 @@ export class ProviderSessionOwner {
         return await session.supportedModels?.();
       case "supportedCommands":
         return await session.supportedCommands?.();
+      case "getContextBreakdown":
+        return await session.getContextBreakdown?.();
       case "setModel":
         return await session.setModel?.(
           (args[0] ?? undefined) as string | undefined,

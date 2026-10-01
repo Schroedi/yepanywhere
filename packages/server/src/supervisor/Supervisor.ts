@@ -1464,6 +1464,7 @@ export class Supervisor {
       effortUpdatesActiveTurn: result.effortUpdatesActiveTurn,
       interruptFn: interrupt,
       supportedModelsFn: supportedModels,
+      getContextBreakdownFn: result.getContextBreakdown,
       supportedCommandsFn: supportedCommands,
       onCommandsObserved: (sessionId, commands) =>
         this.sessionMetadataService?.observeCommandInventory(
@@ -2275,6 +2276,7 @@ export class Supervisor {
       effortUpdatesActiveTurn: result.effortUpdatesActiveTurn,
       interruptFn: interrupt,
       supportedModelsFn: supportedModels,
+      getContextBreakdownFn: result.getContextBreakdown,
       supportedCommandsFn: supportedCommands,
       onCommandsObserved: (sessionId, commands) =>
         this.sessionMetadataService?.observeCommandInventory(
@@ -2514,6 +2516,7 @@ export class Supervisor {
       steerFn: steer,
       steerUsesMessageQueue,
       supportedModelsFn: supportedModels,
+      getContextBreakdownFn: result.getContextBreakdown,
       supportedCommandsFn: supportedCommands,
       onCommandsObserved: (sessionId, commands) =>
         this.sessionMetadataService?.observeCommandInventory(
@@ -2761,6 +2764,7 @@ export class Supervisor {
       steerFn: steer,
       steerUsesMessageQueue,
       supportedModelsFn: supportedModels,
+      getContextBreakdownFn: result.getContextBreakdown,
       supportedCommandsFn: supportedCommands,
       onCommandsObserved: (sessionId, commands) =>
         this.sessionMetadataService?.observeCommandInventory(

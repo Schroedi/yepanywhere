@@ -209,6 +209,28 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  contextUsageBreakdown: {
+    id: CAPABILITY_ID_ALLOCATIONS.contextUsageBreakdown.id,
+    name: "context-usage-breakdown",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: { kind: "version-implied" },
+    description:
+      "Reports what fills a live session's context window by category (prompt, tool definitions, instruction files, skills, conversation), with per-file and per-skill rows, for the context-usage popover.",
+    clientFallback:
+      "The context-usage popover shows only its existing token and quota rows and makes no breakdown request.",
+    serverContract: {
+      routeModules: ["packages/server/src/routes/context-breakdown.ts"],
+      routes: ["GET /api/sessions/:sessionId/context-breakdown"],
+      responseFields: ["breakdown"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Servers before 0.9.4 have no breakdown route; the client must not request it from them.",
+    },
+  },
   projectFileViewCommand: {
     id: CAPABILITY_ID_ALLOCATIONS.projectFileViewCommand.id,
     name: "project-file-view-command",

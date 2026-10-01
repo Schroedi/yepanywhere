@@ -324,6 +324,10 @@ export interface StartSessionResult {
    * Only supported by Claude SDK 0.2.7+.
    */
   supportedCommands?: () => Promise<SlashCommand[]>;
+  /** What fills the live context window, by category (`/context` data). */
+  getContextBreakdown?: () => Promise<
+    import("@yep-anywhere/shared").ContextBreakdown
+  >;
   /**
    * Change the model mid-session without restarting.
    * Only supported by Claude SDK 0.2.7+.

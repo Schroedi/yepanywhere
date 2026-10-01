@@ -17,6 +17,7 @@ import type {
   CodexReasoningSummary,
   ConnectionsResponse,
   CreatePublicFileShareRequest,
+  ContextBreakdown,
   CreatePublicFileShareResponse,
   CreateProjectWorkstreamRequest,
   CreateProjectWorkstreamResponse,
@@ -1376,6 +1377,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(config),
     }),
+
+  getSessionContextBreakdown: (sessionId: string) =>
+    fetchJSON<{ breakdown: ContextBreakdown | null }>(
+      `/sessions/${encodeURIComponent(sessionId)}/context-breakdown`,
+    ),
 
   getProcessModels: (processId: string) =>
     fetchJSON<{

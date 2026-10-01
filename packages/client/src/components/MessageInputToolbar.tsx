@@ -736,6 +736,8 @@ interface ToolbarActionsControl {
   contextProvider?: ProviderName;
   /** Model context window, for the quick-edit token preview. */
   contextWindow?: number;
+  /** Session whose live context breakdown the usage popover may show. */
+  contextSessionId?: string;
   btw?: ToolbarBtwControl | null;
   stop?: ToolbarStopControl | null;
   projectQueue?: ToolbarProjectQueueControl | null;
@@ -1596,6 +1598,7 @@ export function MessageInputToolbarView({
           model={actionsControl.contextModel}
           provider={actionsControl.contextProvider}
           contextWindow={actionsControl.contextWindow}
+          sessionId={actionsControl.contextSessionId}
           size={16}
         />
       </span>
@@ -4086,6 +4089,7 @@ export function MessageInputToolbar({
         contextModel: contextRequestedModel ?? thinkingModel,
         contextProvider: thinkingProviderInfo?.name,
         contextWindow: thinkingModelInfo?.contextWindow,
+        contextSessionId: sessionId,
         btw: onBtwClick
           ? {
               onClick: onBtwClick,

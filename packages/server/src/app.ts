@@ -254,6 +254,7 @@ import { createSessionArchiveRoutes } from "./routes/session-archive.js";
 import { createSessionDoneRoutes } from "./routes/session-done.js";
 import { createSessionIndexRoutes } from "./routes/session-index.js";
 import { createSessionTerminateRoutes } from "./routes/session-terminate.js";
+import { createContextBreakdownRoutes } from "./routes/context-breakdown.js";
 import { createSessionsRoutes } from "./routes/sessions.js";
 import { createSessionWakeRoutes } from "./routes/session-wake.js";
 import { createSettingsRoutes } from "./routes/settings.js";
@@ -2610,6 +2611,7 @@ export function createApp(options: AppOptions): AppResult {
       eventBus: options.eventBus,
     }),
   );
+  app.route("/api/sessions", createContextBreakdownRoutes({ supervisor }));
   app.route(
     "/api",
     createToolResultMediaRoutes({

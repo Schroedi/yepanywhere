@@ -1,6 +1,7 @@
 // Provider abstraction types for multi-provider support
 import type {
   ClaudeSteerBackgroundBashSettings,
+  ContextBreakdown,
   ConversationContextTurn,
   ModelInfo,
   PermissionMode,
@@ -420,6 +421,8 @@ export interface AgentSession {
    * Only supported by Claude SDK 0.2.7+.
    */
   supportedCommands?: () => Promise<SlashCommand[]>;
+  /** What fills the live context window, by category (`/context` data). */
+  getContextBreakdown?: () => Promise<ContextBreakdown>;
   /**
    * Change the model mid-session without restarting.
    * Only supported by Claude SDK 0.2.7+.

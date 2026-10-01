@@ -63,6 +63,8 @@ interface WorkerCapabilities {
   interrupt: boolean;
   supportedModels: boolean;
   supportedCommands: boolean;
+  /** Absent from hosts started before the context breakdown existed. */
+  getContextBreakdown?: boolean;
   setModel: boolean;
   runProviderCommand: boolean;
 }
@@ -1408,6 +1410,9 @@ class HostedAgentSession {
         : {}),
       ...(capabilities.supportedCommands
         ? { supportedCommands: () => this.rpc("supportedCommands") }
+        : {}),
+      ...(capabilities.getContextBreakdown
+        ? { getContextBreakdown: () => this.rpc("getContextBreakdown") }
         : {}),
       ...(capabilities.setModel
         ? { setModel: (model) => this.rpc("setModel", [model]) }

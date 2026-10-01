@@ -50,6 +50,7 @@ import { quoteShellWord } from "../../utils/posixShell.js";
 import { logSDKMessage } from "../messageLogger.js";
 import { MessageQueue } from "../messageQueue.js";
 import { ClaudeTurnEffort } from "./claude-turn-effort.js";
+import { normalizeClaudeContextUsage } from "./claude-context-breakdown.js";
 import {
   getClaudeAdditionalModelOptions,
   getClaudeModelCatalogCacheKey,
@@ -2471,6 +2472,12 @@ export class ClaudeProvider implements AgentProvider {
         return this.normalizeSupportedModels(models);
       },
       supportedCommands: buildCommandInventory,
+      // 'full' counts each category with the token-count API (~0.3 s); the
+      // 'summary' estimate measured 15% high with a near-zero Messages row.
+      getContextBreakdown: async () =>
+        normalizeClaudeContextUsage(
+          await sdkQuery.getContextUsage({ detail: "full" }),
+        ),
       runProviderCommand: async (
         command,
         argument,

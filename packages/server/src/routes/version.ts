@@ -465,6 +465,7 @@ export const RESUME_PROTOCOL_VERSION = 3;
 export const REMOTE_COMPATIBILITY_LEVEL = 10;
 
 const BASE_CAPABILITIES: string[] = [
+  SERVER_CAPABILITIES.contextUsageBreakdown.name,
   SERVER_CAPABILITIES.projectFileViewCommand.name,
   SERVER_CAPABILITIES.fileOwnerProject.name,
   SERVER_CAPABILITIES.vhostFileSites.name,

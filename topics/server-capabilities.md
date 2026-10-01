@@ -10,6 +10,12 @@ Topic: server-capabilities
 
 ## Source Of Truth
 
+`context-usage-breakdown` (permanent ID 108, version-implied from 0.9.4) owns
+`GET /api/sessions/:sessionId/context-breakdown`. v0.9.0–v0.9.2 lack the
+route; without the capability the context-usage popover shows only its
+existing rows and sends no breakdown request. The maintainer approved this
+gate on 2026-10-01. See [context breakdown](context-breakdown.md#wire-contract).
+
 Optional `GitFileRevision.githubLink` metadata supplies file-menu GitHub
 permalinks and push status. The maintainer approved field-presence gating on
 2026-09-30 after checking v0.9.0, v0.9.1, and v0.9.2, which lack the field.

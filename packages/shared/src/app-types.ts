@@ -283,6 +283,69 @@ export interface ContextUsage {
   cacheCreationTokens?: number;
 }
 
+/**
+ * Stable YA key for a context-breakdown row; "other" covers provider rows YA
+ * does not recognize, which render under their provider name.
+ */
+export type ContextBreakdownCategoryKey =
+  | "systemPrompt"
+  | "systemTools"
+  | "mcpTools"
+  | "agents"
+  | "memoryFiles"
+  | "skills"
+  | "messages"
+  | "free"
+  | "buffer"
+  | "other";
+
+/** One named contributor inside a breakdown row (a file, skill, tool…). */
+export interface ContextBreakdownItem {
+  label: string;
+  /** Source or type annotation, e.g. "User" for a memory file. */
+  detail?: string;
+  tokens: number;
+}
+
+/**
+ * Provider-estimated split of the conversation row. The parts are separate
+ * estimates and need not sum to the row's total.
+ */
+export interface ContextBreakdownMessageParts {
+  toolCallTokens: number;
+  toolResultTokens: number;
+  assistantTextTokens: number;
+  userTextTokens: number;
+}
+
+export interface ContextBreakdownCategory {
+  key: ContextBreakdownCategoryKey;
+  /** Provider's own row name. */
+  name: string;
+  tokens: number;
+  /**
+   * `used` occupies the window, `free` is what remains, `buffer` is a
+   * compaction reserve, and `deferred` rows are out-of-window tool schemas.
+   */
+  kind: "used" | "free" | "buffer" | "deferred";
+  items?: ContextBreakdownItem[];
+  messageParts?: ContextBreakdownMessageParts;
+}
+
+/**
+ * What currently fills a live session's context window, by category — the
+ * data behind Claude Code's `/context`. Served by
+ * `GET /api/sessions/:sessionId/context-breakdown`.
+ */
+export interface ContextBreakdown {
+  model: string;
+  totalTokens: number;
+  maxTokens: number;
+  /** Token count at which the provider compacts automatically, when enabled. */
+  autoCompactAtTokens?: number;
+  categories: ContextBreakdownCategory[];
+}
+
 // =============================================================================
 // Model Context Window Mapping
 // =============================================================================

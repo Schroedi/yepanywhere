@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type {
+  ContextBreakdown,
   DurableRecapMessage,
   ConversationContextTurn,
   DurableLocalCommandMessage,
@@ -930,6 +931,8 @@ export interface ProcessConstructorOptions extends ProcessOptions {
   supportedModelsFn?: () => Promise<ModelInfo[]>;
   /** Function to get supported slash commands (SDK 0.2.7+) */
   supportedCommandsFn?: () => Promise<SlashCommand[]>;
+  /** Function to break down the live context window by category */
+  getContextBreakdownFn?: () => Promise<ContextBreakdown>;
   onCommandsObserved?: (
     sessionId: string,
     commands: SlashCommand[],
@@ -1119,6 +1122,8 @@ export class Process {
   /** Function to get supported models (SDK 0.2.7+) */
   private supportedModelsFn: (() => Promise<ModelInfo[]>) | null;
 
+  private getContextBreakdownFn: (() => Promise<ContextBreakdown>) | null;
+
   /** Function to get supported slash commands (SDK 0.2.7+) */
   private supportedCommandsFn: (() => Promise<SlashCommand[]>) | null;
   private supportedCommandsCache: SlashCommand[] | null = null;
@@ -1295,6 +1300,7 @@ export class Process {
     this.steerUsesMessageQueue = options.steerUsesMessageQueue ?? false;
     this.appendConversationContextFn = options.appendConversationContextFn;
     this.supportedModelsFn = options.supportedModelsFn ?? null;
+    this.getContextBreakdownFn = options.getContextBreakdownFn ?? null;
     this.supportedCommandsFn = options.supportedCommandsFn ?? null;
     this.onCommandsObserved = options.onCommandsObserved;
     this._pidResolver = options.pid;
@@ -2537,6 +2543,18 @@ export class Process {
       return null;
     }
     return this.supportedModelsFn();
+  }
+
+  /**
+   * What fills the live context window, by category.
+   *
+   * @returns The breakdown, or null if this provider cannot report one
+   */
+  async getContextBreakdown(): Promise<ContextBreakdown | null> {
+    if (!this.getContextBreakdownFn) {
+      return null;
+    }
+    return this.getContextBreakdownFn();
   }
 
   /**

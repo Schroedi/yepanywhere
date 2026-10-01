@@ -78,6 +78,12 @@ Maintainer has authorized the exact exception.
 
 ## Known Exceptions
 
+The **context breakdown** ([context-breakdown](context-breakdown.md)) shows by
+default in the existing context-usage popover, authorized by graehl on
+2026-10-01 after accepting its mockup. It mirrors Claude Code's `/context`,
+appears only when the user opens that popover, and adds no visible chrome; it
+renders nothing for sessions whose provider cannot report one.
+
 The **last file chevron** ([parked-file-viewer](parked-file-viewer.md#last-file-after-close))
 is default-visible in spare session right margins, authorized by graehl on
 2026-09-30 after accepting its mockup. It remembers only the last file-view
