@@ -46,7 +46,12 @@ export async function recordUiCapture(
   mkdirSync(directory, { recursive: true });
   const path = join(directory, `${name}.png`);
   await page.screenshot({ animations: "disabled", path });
-  const entry: RecordedCapture = { name, ...size, path };
+  const entry: RecordedCapture = {
+    name,
+    width: size.width,
+    height: size.height,
+    path,
+  };
   appendFileSync(join(directory, MANIFEST), `${JSON.stringify(entry)}\n`);
 }
 
