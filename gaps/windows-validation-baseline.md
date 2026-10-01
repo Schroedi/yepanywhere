@@ -44,4 +44,17 @@ including both real cwd-lock cases under Node and Bun on every Windows leg,
 plus clean-package and locked-dependency startup. This narrow cleanup repair
 does not close the broader Windows aggregate above.
 
+2026-10-01 — auth-file recovery/durability validation on this Windows x64
+Node 24.18.0 checkout again found the broader baseline: two `pnpm test` runs
+reported 336–337 failed server tests and three unhandled ACL errors; the final
+run had 5827 passed and 147 skipped. Five representative failing files
+(limited-user directory grants,
+project creation and metadata app routes, symlink containment, and public-share
+storage) reproduced 74 failures from an unmodified `fb00746d3` source archive.
+These are the same independent ACL, path and symlink families above, not safe
+to fold into credential-file recovery. The credential, ownership-store and
+atomic-write suites pass in a focused native run. Checkout formatting passes
+after local CRLF normalization to bytes identical to HEAD; no formatting-only
+repository changes were made, and this workaround does not close that gap.
+
 Found 2026-09-12 while validating Windows directory-sync persistence fixes.

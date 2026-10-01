@@ -76,9 +76,13 @@ jobs:
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @yep-anywhere/shared build
-      - name: Native settings, review persistence and storage transitions
+      - run: node --test scripts/run-with-safe-home.test.mjs
+      - name: Native credentials, settings, review persistence and storage transitions
         run: >-
           pnpm --filter @yep-anywhere/server test
+          test/auth/AuthService.test.ts
+          test/auth/credential-state-fail-closed.test.ts
+          test/utils/writeFileAtomically.test.ts
           test/utils/syncDirectory.test.ts
           test/services/ServerSettingsService.test.ts
           test/routes/settings.test.ts

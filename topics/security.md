@@ -205,6 +205,26 @@ state (relay session cache, browser profiles, network binding, recents, push
 subscriptions, notifications) is also saved atomically but still starts fresh
 when unreadable, since losing any of it costs a sign-in or a preference, not
 an authorization decision.
+
+Authentication startup failures name the file and distinguish empty,
+zero-filled, invalid/truncated JSON, and unsupported format/version data.
+They never include file contents or JSON parser excerpts. Recovery instructions
+require preserving a backup first, then explicitly restoring a known-good file
+or moving the damaged file aside and restarting to reset local access. A reset
+invalidates previous local logins and requires reconfiguring local authentication;
+startup never automatically resets or rolls back authentication.
+
+Saves of local authentication, limited users, remote-access credentials, relay
+resume credentials, and project ownership sync and close the staged file before
+atomic replacement, then sync the parent directory where supported. A failure
+before replacement leaves the previous file intact and removes staging. A
+directory-sync failure after replacement is reported even though the new file
+is already visible. File-sync failures are always fatal to that save. Windows
+tolerates only the known unsupported directory-sync errors; it still flushes
+file data, but does not claim the directory durability available on Linux/macOS.
+Atomic replacement retries transient Windows sharing/permission errors with
+at most 175 ms of total backoff; a permanent error still rejects the save and
+preserves the previous file. Other-platform errors are propagated immediately.
 Observed 2026-09-28: a restart interrupted an in-place save, the server
 treated the empty file as a fresh install, and with no password left, a
 browser holding the owner's desktop session was the owner again even while a
