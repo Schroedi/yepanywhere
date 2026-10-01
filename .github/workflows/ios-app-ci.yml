@@ -17,6 +17,8 @@ on:
       - 'package.json'
       - 'scripts/perf-suite/host-profile.mjs'
       - '.github/workflows/ios-app-ci.yml'
+      # This root README is not an app, test, fixture or build input.
+      - '!packages/ios/README.md'
   pull_request:
     branches: [main]
     paths:
@@ -33,6 +35,7 @@ on:
       - 'package.json'
       - 'scripts/perf-suite/host-profile.mjs'
       - '.github/workflows/ios-app-ci.yml'
+      - '!packages/ios/README.md'
   workflow_dispatch:
 
 permissions:
