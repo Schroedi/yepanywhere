@@ -148,6 +148,23 @@ fn persist(
     }
     Ok(())
 }
+struct ResumeRecovery {
+    storage: Option<Arc<dyn crate::CredentialPersistence>>,
+    backup: Zeroizing<Vec<u8>>,
+    verified: std::sync::atomic::AtomicBool,
+}
+impl Drop for ResumeRecovery {
+    fn drop(&mut self) {
+        // Cancellation before a verified proof has learned no new version.
+        // Restore the existing credential when storage is available. After a
+        // verified proof, only the newly persisted pin may survive teardown.
+        if !self.verified.load(std::sync::atomic::Ordering::Acquire)
+            && let Some(storage) = &self.storage
+        {
+            let _ = storage.persist(self.backup.to_vec());
+        }
+    }
+}
 async fn resume_secure(
     options: &SessionOptions,
     credential: &mut Credential,
@@ -158,9 +175,14 @@ async fn resume_secure(
     {
         return Err(Error::Unavailable);
     }
-    let result = resume_proof(options, credential, storage).await;
+    let recovery = ResumeRecovery {
+        storage: storage.clone(),
+        backup: Zeroizing::new(serde_json::to_vec(credential)?),
+        verified: std::sync::atomic::AtomicBool::new(false),
+    };
+    let result = resume_proof(options, credential, storage, &recovery.verified).await;
     // Even failure after a valid higher-version proof retains its high-water.
-    // Cancellation drops this future; begin_resume already invalidated the old pin.
+    // Cancellation before proof restores only the existing trusted credential.
     if result.is_err() {
         persist(storage, credential)?;
     }
@@ -170,6 +192,7 @@ async fn resume_proof(
     options: &SessionOptions,
     credential: &mut Credential,
     storage: &Option<Arc<dyn crate::CredentialPersistence>>,
+    verified: &std::sync::atomic::AtomicBool,
 ) -> Result<Secure> {
     let mut wire = Wire::connect(&options.endpoint, options.relay_target.as_deref()).await?;
     let client_nonce = b64(&random(24)?);
@@ -209,6 +232,7 @@ async fn resume_proof(
     credential.resume_protocol_version = proof["resumeProtocolVersion"]
         .as_u64()
         .ok_or(Error::InvalidMessage)?;
+    verified.store(true, std::sync::atomic::Ordering::Release);
     persist(storage, credential)?;
     establish(wire, credential, nonce).await
 }
@@ -422,11 +446,22 @@ impl Actor {
             .lock()
             .map_err(|_| Error::Closed)?
             .remove_owner(&id);
+        let detail = error
+            .get("error")
+            .filter(|value| value.to_string().len() <= 2048)
+            .cloned()
+            .unwrap_or(json!("Native subscription failed"));
+        let status = error["status"]
+            .as_u64()
+            .filter(|status| *status <= 599)
+            .unwrap_or(502);
+        let bounded =
+            json!({"type":"subscriptionError","subscriptionId":id,"status":status,"error":detail});
         self.lease
             .lagged
             .lock()
             .map_err(|_| Error::Closed)?
-            .insert(id.clone(), error.to_string());
+            .insert(id.clone(), bounded.to_string());
         self.retired.push(id);
         self.lease.wake.notify_one();
         Ok(())

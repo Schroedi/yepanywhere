@@ -14,8 +14,12 @@ private final class NativeFutureLifetime: @unchecked Sendable {
     if let handle { cancelFunc(handle) }
   }
   func free() {
-    lock.lock(); defer { lock.unlock() }
-    if let handle { self.handle = nil; freeFunc(handle) }
+    lock.lock()
+    let owned = handle; handle = nil
+    lock.unlock()
+    // Dropping a Rust future can invoke foreign storage callbacks. Do not
+    // hold the gate while a callback dispatches to the main actor.
+    if let owned { freeFunc(owned) }
   }
 }
 fileprivate func uniffiRustCallAsync<F, T>(
