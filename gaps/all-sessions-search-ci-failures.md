@@ -412,3 +412,12 @@ Final local verification: 20 reservation repetitions passed across desktop and
 phone with four workers and no retries. The full browser suite then passed
 360 cases with 11 platform/device skips and no retries. This is macOS local
 evidence, not a replacement for a new CI run.
+
+Remote verification at repair commit `17a085b59`: [CI 36816545726](https://github.com/kzahel/yepanywhere/actions/runs/36816545726)
+passed all 24 jobs on its first run. The two browser shards passed 179 and 182
+cases without retries, including both reservation viewports. The full unit
+suite and Windows computer-control cleanup also passed. [Runtime/SQLite
+36816545797](https://github.com/kzahel/yepanywhere/actions/runs/36816545797)
+passed all 12 platform/runtime legs. This supplies the missing native CI
+evidence for the reservation repair. Keep the broader gap open for repeated
+first-attempt stability and the reader-selection behavior recorded above.
