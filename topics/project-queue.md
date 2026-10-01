@@ -575,6 +575,16 @@ submitted order, including when mixed with retained or unsynced attachments.
 Reload, promotion and cancellation use those references; cancelling an item
 or rolling back a failed save leaves the synced originals usable.
 
+With draft synchronization initialized (`draft-sync-v1`), a queued draft may
+combine upload batches from the same account. Create and edit preserve each
+reference's canonical batch and the submitted order, including retained files
+from earlier batches. Reload and promotion deliver every accepted file in that
+order. The envelope's batch does not require all references to share a batch;
+each is validated against its own staging record in the item's account store.
+This uses the existing draft-sync support and request shape, with no additional
+capability. Without draft-sync initialization, newly transferred drafts retain
+the staging service's single-batch validation.
+
 Staged references belong to the account that queued the item. Queuing looks
 the drafts up only in the acting account's own draft store — the superuser's,
 or the limited user's isolated one ([limited users](limited-users.md)) — and
