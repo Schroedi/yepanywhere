@@ -26,8 +26,10 @@ Native dashboard/Conversation rendering and the experimental Simple Client API
 preview are no longer mobile release prerequisites. iOS follows the same shell
 boundary; the [provisional iOS plan](../tactical/138-ios-native-core-proof.md)
 has passed its Rust crypto interoperability and native build experiment,
-including iOS simulator execution. Shared Rust adoption and a shipping SRP
-library await review of that checkpoint. Store signing/publication and
+including iOS simulator execution. A Daybreak Blue engineering review supports
+the proof and conditional development use of SRP 0.7; the plan records its
+production login gates and accepted-risk questions. Shared Rust adoption still
+awaits the maintainer's checkpoint decision. Store signing/publication and
 physical-device acceptance remain release work.
 
 ### Current baseline

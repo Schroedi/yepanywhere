@@ -72,12 +72,11 @@ explicitly; no new SRP arithmetic or server protocol is introduced.
 
 ## Shipping decision still open
 
-Upstream [RustCrypto PAKEs](https://github.com/RustCrypto/PAKEs) reports no
-formal cryptographic/security review and no blinding or secret erasure.
-In particular, srp's num-bigint operations are not a constant-time or
-zeroizing secret backend. This wrapper zeroizes owned byte buffers but cannot
-repair the library's integer allocations or establish its security suitability.
-Passing vectors and successful builds are not approval to ship this candidate.
+The 0.6.0 implementation uses num-bigint, which is not a constant-time or
+zeroizing secret backend. This wrapper zeroizes selected owned byte buffers
+but cannot repair the library's integer allocations or establish its security
+suitability. Passing vectors and successful builds are not approval to ship
+this candidate.
 
 The 0.7 release candidate replaces num-bigint with crypto-bigint, whose
 arithmetic is designed for constant-time use. Its own README still states
@@ -85,6 +84,19 @@ that SRP has never received an independent third-party audit. It is a
 prerelease, and variable-time integer conversions/secret erasure in the
 profile adapter still need review. Do not infer whole-protocol constant-time
 behavior from the backend's design. Both candidates remain experimental.
+These numbers are library releases, not versions of the SRP wire protocol.
+
+"Review" means a bounded assessment of the pinned library and YA adapter,
+followed by an explicit decision about remaining risks. It does not mean that
+an independent formal audit is automatically required, or that the absence
+of an audit proves a vulnerability. An AI-assisted code review can inform
+that decision but does not constitute a cryptographic audit. The
+[plan's review record](../../docs/tactical/138-ios-native-core-proof.md)
+owns the findings and conditions for any later adoption.
+
+Keep this fixture verifier as test tooling. A production core needs a separate
+authentication API with opaque session state; public-fixture JSON containing
+passwords, private values and expected keys must not become its login API.
 
 iOS links explicit static archive paths. The runner verifies that the final
 app defines the Rust proof entry point and does not depend on a checkout-local

@@ -49,15 +49,17 @@ libsodium through a reviewed safe wrapper around libsodium-sys-stable. Pin
 the actual libsodium source as well as Cargo crates; never fetch unpinned
 latest library sources during a build.
 
-SRP remains a library decision, not an approved dependency. RustCrypto's srp
-is an interoperability candidate, but upstream reports no formal crypto or
-security review and no blinding/secret-erasure guarantees. Compatibility is
-not a security review. Do not hand-write SRP arithmetic to make a candidate
-match; stop at this gate if no acceptable library exposes YA's profile.
-Preserve the current server protocol and working Kotlin implementation.
+SRP remains a library decision, not an approved dependency. RustCrypto srp
+0.6.0 uses variable-time num-bigint arithmetic; the 0.7.0-rc.3 candidate uses
+crypto-bigint arithmetic designed for constant-time use. The latter's
+version-specific README reports no independent third-party SRP audit.
+Compatibility is not a security review. Do not hand-write SRP arithmetic to
+make a candidate match; stop at this gate if no acceptable library exposes
+YA's profile. Preserve the current server protocol and working Kotlin
+implementation.
 
 Sources: [UniFFI](https://mozilla.github.io/uniffi-rs/latest/),
-[RustCrypto SRP status](https://github.com/RustCrypto/PAKEs),
+[RustCrypto SRP status](https://github.com/RustCrypto/PAKEs/tree/master/srp),
 [libsodium bindings](https://github.com/jedisct1/libsodium-sys-stable),
 [platform TLS verifier](https://docs.rs/rustls-platform-verifier/latest/rustls_platform_verifier/).
 
@@ -198,3 +200,72 @@ Before real credentials or step 2, review whether to adopt a shared Rust core
 and which backend is acceptable. The installed Android app, server protocol,
 owner-only release scope and deferred limited-user login are unchanged.
 Rust adoption and steps 2–5 remain unapproved.
+
+### Independent engineering review — 2026-10-01
+
+At the maintainer's request, Daybreak Blue reviewed fixed commit
+`a0a964f64f462bb13975a4a2dc9f9508c2097714` through the local YA API.
+The resolved model was `gpt-daybreak-blue-latest`, effort high, permission mode
+plan/read-only. Session `01a0f642-4d87-7c00-a069-db22a1ee3215` completed with
+verified-idle liveness and no queued work. Its detached checkout remained
+clean. The reviewer inspected source and pinned dependencies; it did not
+rerun the recorded tests. This is an independent implementation-agent review,
+not a formal independent cryptographic audit.
+
+**Verdict:** the isolated compatibility/build proof is valid. No critical
+finding invalidates it. Provisional development use of 0.7.0-rc.3 is reasonable
+behind a reviewed YA adapter. The review's high-severity findings are
+conditions for the future credential-bearing implementation, not deployed
+vulnerabilities in this fixture-only crate. The maintainer's architecture
+decision remains separate; no later implementation step is authorized here.
+
+The recommended checkpoint decision is provisional adoption of the shared
+Rust core and pinned 0.7 backend for development, with the credential-bearing
+gates below verified before real use. A modern authentication-suite migration
+can follow separately; it need not delay the initial mobile release.
+
+The implementation agent checked the substantive findings against source and
+classified them below. Existing owner authentication remains the principal;
+this work introduces no new grant or authority boundary.
+
+| Finding | Disposition and next verification |
+| --- | --- |
+| Low-level 0.7 hooks rely on caller validation | Before real credentials, put a bounded, fallible YA-profile parser ahead of arithmetic. Exercise public values 0/N/2N/N±1, oversized input, malformed hex, salt/proof limits and zero u through the complete adapter/FFI entry point. Preserve supported minimal encodings: odd-length hex such as `1` is valid in existing YA fixtures, not automatically an error. |
+| 0.6 variable-time arithmetic | Keep only as a differential test oracle. Exclude 0.6 and num-bigint secret arithmetic from the shipping core. No specific remote timing exploit was demonstrated. |
+| 0.7 adapter timing and secret lifetime | Use fixed-width secret exponents and OS-generated private values; inventory copies and zeroizing owners. The proof still converts secrets through BigUint and variable-time encodings. Crypto-bigint's optional zeroization support is not enabled, and enabling it alone would not clear every temporary on drop. Whole-protocol constant-time behavior and complete erasure remain unproved. |
+| Authentication ordering | Before persisting keys or notifying callers of authentication, verify M2 and server metadata according to YA's existing authenticated-version and legacy-fallback policy. Tampered, missing or mismatched proof fields must never produce an authenticated session outside that policy. Preserve the ordering in `packages/client/src/lib/connection/SecureConnection.ts` and the Android core. |
+| Entropy, nonces, resume and retry lifecycle | Fixed fixtures do not prove these. Add live disposable-server tests for failed RNG, cancellation/retry, fresh challenges, stale proofs and sequence handling. Prove Android execution before migrating Android; its native libraries have only been compiled. |
+| Sodium FFI bounds | No memory-safety defect was identified in the proof calls. The current 64 KiB fixture cap bounds allocations; unchecked `message.len() + 16` is not an unbounded-input attack through this API. Production wrappers need checked arithmetic, frame limits and fixed-size key/nonce types. |
+| Build provenance | Rust/libsodium pins are effective for this proof. Release CI should pin ambient tools and verify Gradle/dependency artifacts. The reviewer cited a nonexistent proof-local Gradle wrapper; the actual shared wrapper is `packages/android/gradle/wrapper/gradle-wrapper.properties`, which lacks `distributionSha256Sum`. This is release hardening, not a failed crypto/build experiment. |
+| Offline guessing after verifier theft | Inherited protocol risk: YA's password-only SHA-512 profile has no memory-hard password KDF. A stolen salt/verifier permits offline guessing. Record this in any shipping risk decision; strong owner passwords and protected server storage matter. Rust adoption does not create or remove this property. |
+
+"Needs review" therefore means assessing the exact library/adapter, verifying
+the security-critical login lifecycle, and naming the risks the maintainer
+accepts. Lack of a third-party audit does not establish a vulnerability or
+automatically require commissioning an audit. Review dependency changes when
+upgrading the pinned release candidate. Randomized differential tests,
+hostile-input fuzzing and focused state-machine tests can extend the three
+fixed transcripts without treating passing tests as a security certification.
+
+### Possible later authentication-suite migration
+
+Keeping SRP for compatibility while evaluating a newer PAKE is a reasonable
+option. [OPAQUE, specified in RFC 9807](https://www.rfc-editor.org/rfc/rfc9807.html),
+is a candidate, not a selected replacement or a prerequisite for the first
+mobile release. Protocol age alone does not decide implementation safety.
+The 0.6/0.7 numbers above identify library releases of the same SRP protocol.
+
+A future `authSuite`/full-handshake version would be distinct from
+`resumeProtocolVersion`, which versions proof and key-derivation semantics
+for an existing credential. Authenticate the offered/selected suites and
+identities, and retain an enrolled client's protection against silent
+downgrade. A new protocol does not excuse incorrect validation, randomness,
+proof ordering or storage in the current implementation.
+
+The server stores an SRP salt/verifier, not the password. It cannot generally
+convert that record into OPAQUE registration material. Migration requires
+password re-entry/re-enrollment, or registration over an authenticated channel
+during a successful full SRP login while the client still has the password.
+A resume-only credential is insufficient. Select the OPAQUE configuration,
+key stretching, libraries, browser/native interoperability, enrollment trust
+and old-server transition policy in a separate reviewed migration plan.
