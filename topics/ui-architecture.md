@@ -127,6 +127,15 @@ expanded. The [pre-boot composer](early-typing-handoff.md#pre-boot-composer)
 reserves the same sidebar space so adopting early typing does not require
 hiding navigation; `?sidebar=expanded` still wins.
 
+## Session List Menu Visibility
+
+Session row menus remain hidden at rest on both desktop and touch screens.
+Desktop hover reveals only the hovered row's menu. Touch devices reveal the
+menu for the focused row; keyboard focus and an open menu keep its trigger
+visible. Touch hover emulation must not reveal menus across the list or require
+a second tap to open a session. These rules apply to compact sidebar rows and
+session cards alike.
+
 ## Public Share Example
 
 Public shares have a valid reason for an independent unauthenticated top-level

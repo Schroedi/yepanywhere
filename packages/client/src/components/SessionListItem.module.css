@@ -324,15 +324,10 @@
   }
 }
 
-/* iOS WebKit can consume a first tap to reveal hover-only content.
-   Keep the action present on touch screens and reveal it only for real hover. */
+/* Avoid WebKit's first-tap hover reveal. Touch rows reveal their menu through
+   the shared focus/open rules instead of permanently covering every title. */
 @media (hover: hover) and (pointer: fine) {
   :global(.session-list-item):hover .body > :global(.session-list-item__menu) {
-    opacity: 1;
-  }
-}
-@media (hover: none), (pointer: coarse) {
-  .body > :global(.session-list-item__menu) {
     opacity: 1;
   }
 }
