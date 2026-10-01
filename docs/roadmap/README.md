@@ -39,10 +39,10 @@ pass, including OS TLS trust/hostname/expiry checks and cancellation across FFI.
 Dedicated iOS CI runs these paths independently of physical-device signing.
 Its runner compiles before booting Simulator, then separates native tests from
 UI acceptance and requires CPU/memory headroom for the 100 ms typing gate.
-The standard hosted VM uses macOS 15 Intel / Xcode 26.3 with iOS 18.6.
+The standard hosted VM uses macOS 15 Apple Silicon / Xcode 26.3 with iOS 18.6.
 Earlier arm64 runs failed host headroom checks; the memory sampler also
 underreported Darwin availability by counting only free pages, which is now
-corrected. The 4-core / 14 GiB Intel simulator links its corresponding Rust
+corrected. Intel native tests pass with their corresponding Rust simulator
 target. Local newer-runtime
 acceptance and physical-device signing remain separate evidence.
 Intel first-boot work also exhausted host headroom, so simulator CI applies an
@@ -53,7 +53,10 @@ being validated independently of physical iPhone availability.
 The corrected hosted run passed readiness and native tests, then failed typing
 at 370 ms while automatic XCTest recording saturated CPU. The scheme now
 disables automatic capture, retains explicit screenshots and failure diagnostics,
-and preserves the 100 ms ceiling; the next hosted run will validate this change.
+and preserves the 100 ms ceiling. Recording removal improved Intel typing to
+176 ms, but the host remained CPU-bound. CI returns to Apple Silicon with the
+older runtime, service profile and corrected availability sampler; hosted
+acceptance remains pending.
 Embedded viewers/downloads need the
 [remaining WebKit adapters](../../gaps/ios-webview-viewers-and-downloads.md).
 Notification permission/FCM/broker

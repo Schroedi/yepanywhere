@@ -106,7 +106,7 @@ never reports notificationsEnabled. Live APNs/FCM delivery, physical phone/table
 acceptance, App Store/TestFlight provisioning and publication remain release
 gates. Limited-user login and Android's Rust migration remain deferred.
 
-CI pins macOS 15 Intel / Xcode 26.3 with its installed iOS 18.6 runtime. The
+CI pins macOS 15 Apple Silicon / Xcode 26.3 with its installed iOS 18.6 runtime. The
 standard 3-core / 7 GiB macOS 26 host remained saturated throughout the
 5-minute readiness window while its fresh iOS 26.5 widgets and indexing
 services ran ([run 36887820073](https://github.com/kzahel/yepanywhere/actions/runs/36887820073)).
@@ -152,4 +152,13 @@ scheme now disables automatic capture and selects screenshots, retaining five
 explicit UI checkpoint attachments and failure diagnostics. This removes
 measurement overhead without changing the workload or 100 ms ceiling. Native
 shell assertions use login control identifiers and the Add host button because
-iOS 18 uppercases SwiftUI section headings. All 18 local simulator tests pass; hosted validation remains pending.
+iOS 18 uppercases SwiftUI section headings. All 18 local simulator tests pass.
+
+[Run 36915742761](https://github.com/kzahel/yepanywhere/actions/runs/36915742761)
+confirmed no recording encoder ran and the shell assertion passed. Intel typing
+improved to 176 ms, with zero dropped characters, but the host still had no idle
+CPU during typing and measured a 172 ms JavaScript long task. CI returns to the
+standard 3-core / 7 GiB Apple Silicon host with iOS 18.6, retaining the service
+profile and screenshot configuration. That older-runtime arm64 run had reached
+76% idle CPU; its memory rejection preceded the corrected availability sampler.
+The same readiness and typing limits apply. Hosted validation remains pending.
