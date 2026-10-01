@@ -206,7 +206,9 @@ clients without a configured public root expose no unreachable loopback link.
 Initial loaded output makes its latest discovered app available through the
 App action without automatically opening it: historical URLs may point to
 processes that have already exited. Reloading therefore does not resurrect a
-closed or expired app pane.
+closed or expired app pane. Initial tool URLs are remembered even when their
+vhost, bearer access or sandbox mapping resolves later; metadata arrival alone
+is not a fresh tool announcement.
 Tool-result rows also display clickable app links, reconstructed from the
 original output on replay without changing the provider transcript. Ordinary
 click opens that app in the pane when enabled; with the setting off or a
