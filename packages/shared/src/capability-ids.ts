@@ -678,6 +678,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "vhost-file-site-replacement",
     introducedIn: "0.9.4",
   },
+  projectAppDeletion: {
+    id: 110,
+    direction: "server",
+    name: "project-app-deletion",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

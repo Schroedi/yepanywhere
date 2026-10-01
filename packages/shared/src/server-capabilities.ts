@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  projectAppDeletion: {
+    name: "project-app-deletion",
+    index: CAPABILITY_ID_ALLOCATIONS.projectAppDeletion.id,
+    introducedIn: "0.9.4",
+  },
   vhostFileSiteReplacement: {
     name: "vhost-file-site-replacement",
     index: CAPABILITY_ID_ALLOCATIONS.vhostFileSiteReplacement.id,
@@ -401,6 +406,26 @@ export const SERVER_CAPABILITIES = {
       kind: "permanent",
       reason:
         "Older servers lack global app inventory and orphan reservation release.",
+    },
+  },
+  projectAppDeletion: {
+    id: CAPABILITY_ID_ALLOCATIONS.projectAppDeletion.id,
+    name: "project-app-deletion",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.projectAppDeletion.id,
+    },
+    description:
+      "Administrator deletion of app declarations, with service stop and address release.",
+    clientFallback: "Hide app deletion and offer an update notice.",
+    serverContract: { routes: ["DELETE /api/projects/:projectId/app"] },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers cannot delete app declarations or clean up their addresses.",
     },
   },
   projectService: {

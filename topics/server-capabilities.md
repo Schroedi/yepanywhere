@@ -19,6 +19,13 @@ meaning. Standing maintainer compatibility authorization applies.
 
 ## Source Of Truth
 
+`project-app-deletion` (permanent ID 110, explicit optional bit) owns
+administrator DELETE `/api/projects/:projectId/app`. The 2026-10-01 release
+review checked the approved v0.9.0–v0.9.2 corpus, which lacks project-app
+routes. Without the bit clients hide app/project cleanup controls and show
+update guidance. Existing project deletion retains its meaning. See
+[app inventory](project-service.md#app-address-in-project-settings).
+
 `context-usage-breakdown` (permanent ID 108, version-implied from 0.9.4) owns
 `GET /api/sessions/:sessionId/context-breakdown`. v0.9.0–v0.9.2 lack the
 route; without the capability the context-usage popover shows only its

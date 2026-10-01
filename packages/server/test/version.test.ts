@@ -428,8 +428,8 @@ describe("GET /version", () => {
       // Bit 77 (claude-gateway-services) rides in the same word as the
       // computer-control bits, hence 4288 + 8192.
       [2, 12480],
-      // Bit 109 enables explicit file-address replacement.
-      [3, 8192],
+      // Bits 109 and 110 enable file-address replacement and app deletion.
+      [3, 24576],
     ]);
     expect(
       serverHasCapability(

@@ -470,6 +470,7 @@ const BASE_CAPABILITIES: string[] = [
   SERVER_CAPABILITIES.fileOwnerProject.name,
   SERVER_CAPABILITIES.vhostFileSites.name,
   SERVER_CAPABILITIES.vhostFileSiteReplacement.name,
+  SERVER_CAPABILITIES.projectAppDeletion.name,
   SERVER_CAPABILITIES.localSourceBrowse.name,
   SERVER_CAPABILITIES.personalProjectHiding.name,
   SERVER_CAPABILITIES.projectService.name,

@@ -5,6 +5,7 @@ import {
 } from "@yep-anywhere/shared";
 import { useEffect, useState } from "react";
 import { projectAppApi } from "../../api/projectApp";
+import { api } from "../../api/client";
 import { ProjectAppViewer } from "../../components/ProjectAppViewer";
 import { useVersion } from "../../hooks/useVersion";
 import { useI18n } from "../../i18n";
@@ -21,6 +22,10 @@ export function ProjectAppInventorySection() {
     version,
     SERVER_CAPABILITIES.projectAppInventory.name,
   );
+  const canDelete = serverHasCapability(
+    version,
+    SERVER_CAPABILITIES.projectAppDeletion.name,
+  );
   const [inventory, setInventory] = useState<ProjectAppInventory | null>(null);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
@@ -35,7 +40,6 @@ export function ProjectAppInventorySection() {
     if (!supported) return;
     let active = true;
     setLoading(true);
-    setError("");
     void projectAppApi
       .inventory()
       .then((next) => {
@@ -117,6 +121,34 @@ export function ProjectAppInventorySection() {
       setBusy(false);
     }
   }
+  async function deleteSelected(removeProject: boolean) {
+    if (!selected || busy) return;
+    if (
+      !window.confirm(
+        t(
+          removeProject
+            ? "projectAppDeleteProjectConfirm"
+            : "projectAppDeleteAppConfirm",
+          { name: selected.name },
+        ),
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      await projectAppApi.deleteApp(selected.projectId);
+      if (removeProject) await api.deleteProject(selected.projectId);
+      setExpanded(undefined);
+      setRevision((value) => value + 1);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+      // Refresh even after partial cleanup, without claiming it succeeded.
+      setRevision((value) => value + 1);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <section
       className={styles.inventory}
@@ -128,7 +160,10 @@ export function ProjectAppInventorySection() {
           <button
             type="button"
             disabled={loading || busy}
-            onClick={() => setRevision((value) => value + 1)}
+            onClick={() => {
+              setError("");
+              setRevision((value) => value + 1);
+            }}
           >
             {t("projectAppInventoryRefresh")}
           </button>
@@ -148,10 +183,33 @@ export function ProjectAppInventorySection() {
             selectedKey={selected?.projectId ?? null}
             title={selected?.name ?? ""}
             onClose={() => setExpanded(undefined)}
+            actions={
+              selected && canDelete ? (
+                <span className={styles.deleteActions}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    title={t("projectAppDeleteAppTitle")}
+                    onClick={() => void deleteSelected(false)}
+                  >
+                    {t("projectAppDeleteApp")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    title={t("projectAppDeleteProject")}
+                    onClick={() => void deleteSelected(true)}
+                  >
+                    {t("projectAppDeleteProject")}
+                  </button>
+                </span>
+              ) : undefined
+            }
             detail={inventory.projects.map(
               (row) =>
                 expanded === row.projectId && (
                   <article className={styles.row} key={row.projectId}>
+                    {!canDelete && <p>{t("projectAppDeleteUpdate")}</p>}
                     <div className={styles.heading}>
                       <span>
                         {t("projectAppState", { state: row.info.state })}

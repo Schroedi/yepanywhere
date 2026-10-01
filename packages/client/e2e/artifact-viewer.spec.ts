@@ -214,12 +214,26 @@ test("sorts app tables by full paths and elides their paths responsively", async
   await page.route("**/api/project-apps", (route) =>
     route.fulfill({
       json: {
-        projects: roots.map((path, index) => ({
-          projectId: `project-${index}`,
-          name: index ? "Zeta" : "Alpha",
-          path: dirname(path),
-          info: { state: "ready" },
-        })),
+        projects: [
+          ...roots.map((path, index) => ({
+            projectId: `project-${index}`,
+            name: index ? "Zeta" : "Alpha",
+            path: dirname(path),
+            info: { state: "ready" },
+          })),
+          {
+            projectId: "short-home",
+            name: "Short home",
+            path: "/home/graehl/archer/scooter-parkour",
+            info: { state: "ready" },
+          },
+          {
+            projectId: "short-root",
+            name: "Short absolute",
+            path: "/tmp/compact-probe",
+            info: { state: "ready" },
+          },
+        ],
         reservations: roots.map((_, index) => ({
           projectId: `project-${index}`,
           name: index ? "zeta" : "alpha",
@@ -239,17 +253,36 @@ test("sorts app tables by full paths and elides their paths responsively", async
   await projects
     .getByRole("button", { name: "Project folder", exact: true })
     .click();
-  await expect(projects.locator("tbody tr").first()).toContainText("Alpha");
+  await expect(projects.locator("tbody tr").first()).toContainText(
+    "Short home",
+  );
   await projects
     .getByRole("button", { name: "Project folder", exact: true })
     .click();
-  await expect(projects.locator("tbody tr").first()).toContainText("Zeta");
+  await expect(projects.locator("tbody tr").first()).toContainText(
+    "Short absolute",
+  );
   for (const viewport of [
     { width: 1200, height: 600 },
     { width: 1000, height: 600 },
     { width: 375, height: 812 },
   ]) {
     await page.setViewportSize(viewport);
+    for (const path of [
+      "/home/graehl/archer/scooter-parkour",
+      "/tmp/compact-probe",
+    ]) {
+      const gap = await projects.getByTitle(path).evaluate((element) => {
+        const prefix = element.firstElementChild!;
+        const tail = prefix.nextElementSibling!;
+        const ink = document.createRange();
+        ink.selectNodeContents(prefix);
+        return (
+          tail.getBoundingClientRect().left - ink.getBoundingClientRect().right
+        );
+      });
+      expect(gap).toBeLessThanOrEqual(0.5);
+    }
     for (const [table, name] of [
       [vhosts, "vhosts"],
       [projects, "project-apps"],
@@ -274,6 +307,130 @@ test("sorts app tables by full paths and elides their paths responsively", async
       ),
     ).toBe(true);
   }
+});
+
+test("minimizes app details and confirms distinct app and project deletions", async ({
+  page,
+}) => {
+  const projects = [
+    {
+      projectId: "canvas",
+      name: "Canvas",
+      path: "/home/graehl/archer/scooter-parkour",
+      info: { state: "ready" },
+    },
+    {
+      projectId: "probe",
+      name: "Probe",
+      path: "/tmp/compact-probe",
+      info: { state: "ready" },
+    },
+  ];
+  const deletedApps: string[] = [];
+  const deletedProjects: string[] = [];
+  await page.route("**/api/version*", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.current = "0.9.4";
+    await route.fulfill({ response, json: body });
+  });
+  await page.route("**/api/project-apps", (route) =>
+    route.fulfill({
+      json: {
+        projects: projects.filter(
+          (row) => !deletedApps.includes(row.projectId),
+        ),
+        reservations: [],
+      },
+    }),
+  );
+  await page.route("**/api/projects/*/app", (route) => {
+    const id = new URL(route.request().url()).pathname.split("/")[3]!;
+    if (route.request().method() === "DELETE") {
+      deletedApps.push(id);
+      return route.fulfill({ json: { deleted: true } });
+    }
+    return route.fulfill({
+      json: {
+        projectId: id,
+        state: "ready",
+        declaration: null,
+        latestArtifact: null,
+        canExecute: true,
+        removedFrom: [],
+      },
+    });
+  });
+  await page.route("**/api/projects/*/app/address", (route) =>
+    route.fulfill({ json: { enabled: false, reservations: [] } }),
+  );
+  await page.route("**/api/projects/*", (route) => {
+    expect(route.request().method()).toBe("DELETE");
+    deletedProjects.push(
+      new URL(route.request().url()).pathname.split("/")[3]!,
+    );
+    return route.fulfill({ json: { removed: true } });
+  });
+  await page.goto(`${base}/e2e/fixtures/artifact-viewer.html?settings`);
+  const inventory = page.getByRole("region", { name: "Project apps" });
+  for (const viewport of [
+    { width: 1200, height: 600 },
+    { width: 1000, height: 600 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const trigger = inventory.getByRole("button", {
+      name: "Canvas",
+      exact: true,
+    });
+    await trigger.click();
+    await expect(
+      inventory.getByRole("button", { name: "Delete app", exact: true }),
+    ).toBeVisible();
+    const minimize = inventory.getByRole("button", {
+      name: "Minimize details",
+      exact: true,
+    });
+    await expect(minimize).toHaveText("_");
+    await minimize.scrollIntoViewIfNeeded();
+    await recordUiCapture(
+      page,
+      `app-delete-controls-${viewport.width}`,
+      viewport,
+    );
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await minimize.click();
+    await expect(trigger).toBeFocused();
+  }
+  await inventory.getByRole("button", { name: "Canvas", exact: true }).click();
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await inventory
+    .getByRole("button", { name: "Delete app", exact: true })
+    .click();
+  expect(deletedApps).toEqual([]);
+  page.once("dialog", (dialog) => dialog.accept());
+  await inventory
+    .getByRole("button", { name: "Delete app", exact: true })
+    .click();
+  await expect(
+    inventory.getByRole("button", { name: "Canvas", exact: true }),
+  ).toHaveCount(0);
+  expect(deletedApps).toEqual(["canvas"]);
+  expect(deletedProjects).toEqual([]);
+  await inventory.getByRole("button", { name: "Probe", exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await inventory
+    .getByRole("button", { name: "Delete project", exact: true })
+    .click();
+  await expect(
+    inventory.getByRole("button", { name: "Probe", exact: true }),
+  ).toHaveCount(0);
+  expect(deletedApps).toEqual(["canvas", "probe"]);
+  expect(deletedProjects).toEqual(["probe"]);
 });
 
 test("edits mapped source from default sanitized HTML and preserves a stale preview", async ({

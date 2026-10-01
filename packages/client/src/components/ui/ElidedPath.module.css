@@ -12,7 +12,7 @@
 }
 .prefix {
   flex: 0 1 auto;
-  min-inline-size: 1.2em;
+  min-inline-size: 0;
 }
 .tail {
   display: flex;

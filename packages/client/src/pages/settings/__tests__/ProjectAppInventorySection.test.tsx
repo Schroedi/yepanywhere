@@ -9,15 +9,26 @@ import {
 import { afterEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
 import { ProjectAppInventorySection } from "../ProjectAppInventorySection";
+import { api } from "../../../api/client";
 
-const mock = vi.hoisted(() => ({ version: "0.9.2", fetch: vi.fn() }));
+const mock = vi.hoisted(() => ({
+  version: "0.9.2",
+  deletion: false,
+  fetch: vi.fn(),
+}));
 vi.mock("../../../hooks/useVersion", () => ({
-  useVersion: () => ({ version: { current: mock.version } }),
+  useVersion: () => ({
+    version: {
+      current: mock.version,
+      optionalCapabilityBits: mock.deletion ? [[3, 16384]] : undefined,
+    },
+  }),
 }));
 vi.mock("../../../api/sourceApiFetch", () => ({ fetchJSON: mock.fetch }));
 afterEach(() => {
   cleanup();
   mock.fetch.mockReset();
+  mock.deletion = false;
   vi.restoreAllMocks();
 });
 
@@ -130,6 +141,115 @@ it("shows and sorts project folders and sorts retained addresses with live rows"
   expect(rows()[0]).toContain("alpha.apps.test");
   expect(rows()[2]).toContain("zebra.apps.test");
   expect(mock.fetch).toHaveBeenCalledTimes(1);
+});
+
+it.each([false, true])(
+  "confirms and separates app deletion from project deletion (%s)",
+  async (removeProject) => {
+    mock.version = "0.9.4";
+    mock.deletion = true;
+    let deleted = false;
+    mock.fetch.mockImplementation(
+      async (path: string, options?: RequestInit) => {
+        if (options?.method === "DELETE") {
+          deleted = true;
+          return { deleted: true };
+        }
+        if (path === "/projects/test/app")
+          return { state: "ready", removedFrom: [] };
+        if (path === "/projects/test/app/address")
+          return { enabled: false, reservations: [] };
+        return {
+          projects: deleted
+            ? []
+            : [
+                {
+                  projectId: "test",
+                  name: "Canvas",
+                  path: "/project",
+                  info: { state: "ready" },
+                },
+              ],
+          reservations: [],
+        };
+      },
+    );
+    const deleteProject = vi.spyOn(api, "deleteProject").mockResolvedValue({
+      removed: true,
+      projectId: "test",
+      path: "/project",
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(
+      <I18nProvider>
+        <ProjectAppInventorySection />
+      </I18nProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Canvas" }));
+    const button = screen.getByRole("button", {
+      name: removeProject ? "Delete project" : "Delete app",
+    });
+    fireEvent.click(button);
+    expect(mock.fetch).not.toHaveBeenCalledWith("/projects/test/app", {
+      method: "DELETE",
+    });
+    confirm.mockReturnValue(true);
+    fireEvent.click(button);
+    await waitFor(() =>
+      expect(mock.fetch).toHaveBeenCalledWith("/projects/test/app", {
+        method: "DELETE",
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Canvas" })).toBeNull(),
+    );
+    if (removeProject) expect(deleteProject).toHaveBeenCalledWith("test");
+    else expect(deleteProject).not.toHaveBeenCalled();
+  },
+);
+
+it("keeps cleanup failures visible after refreshing partially changed inventory", async () => {
+  mock.version = "0.9.4";
+  mock.deletion = true;
+  let deleted = false;
+  mock.fetch.mockImplementation(async (path: string, options?: RequestInit) => {
+    if (options?.method === "DELETE") {
+      deleted = true;
+      return { deleted: true };
+    }
+    if (path === "/projects/test/app")
+      return { state: "ready", removedFrom: [] };
+    if (path === "/projects/test/app/address")
+      return { enabled: false, reservations: [] };
+    return {
+      projects: deleted
+        ? []
+        : [
+            {
+              projectId: "test",
+              name: "Canvas",
+              path: "/project",
+              info: { state: "ready" },
+            },
+          ],
+      reservations: [],
+    };
+  });
+  vi.spyOn(api, "deleteProject").mockRejectedValue(
+    new Error("Project removal failed"),
+  );
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  render(
+    <I18nProvider>
+      <ProjectAppInventorySection />
+    </I18nProvider>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Canvas" }));
+  fireEvent.click(screen.getByRole("button", { name: "Delete project" }));
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: "Canvas" })).toBeNull(),
+  );
+  expect(screen.getByRole("alert").textContent).toBe("Project removal failed");
 });
 
 it.each(["0.9.0", "0.9.1", "0.9.2"])(
