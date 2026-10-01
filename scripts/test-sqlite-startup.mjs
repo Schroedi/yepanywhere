@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync } from "node:fs";
-import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { waitForPortFile } from "./wait-for-port-file.mjs";
+import { removeFixtureDirectory } from "./remove-fixture-directory.mjs";
 
 const [expected, packageDir = "dist/npm-package", launchMode] =
   process.argv.slice(2);
@@ -258,11 +258,6 @@ for (const state of [
     }, 10_000);
     await completion;
     clearTimeout(killTimer);
-    await rm(temporary, {
-      recursive: true,
-      force: true,
-      maxRetries: 3,
-      retryDelay: 100,
-    });
+    await removeFixtureDirectory(temporary);
   }
 }

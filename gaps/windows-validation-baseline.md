@@ -27,4 +27,18 @@ The mirror's same-tip runtime matrix passed. This is a cleanup failure, not
 evidence that SQLite startup failed; handle/process ownership needs diagnosis.
 Contributing-model: 6-Astra.
 
+2026-10-01 — the same cleanup family recurred in runtime run
+[36892794005, attempt 2](https://github.com/kzahel/yepanywhere/actions/runs/36892794005/attempts/2):
+Windows Node 24 passed the disabled SQLite startup state, then its temporary
+root remained busy through Node's approximately 0.69-second deletion window.
+Windows Node 23.11 passed all Node/Bun startup states, then Bun failed removing
+the fixture root. Bun 1.3.14's recursive `rm` implementation ignores its parsed
+retry options. Startup and clean-package teardown now share an explicit
+2.4-second retry loop; permanent locks still surface the original error.
+Native Windows regression cases run in the matrix under Node and pinned Bun
+with a real child cwd held for one second and with a permanently held cwd.
+Local macOS Node/Bun cleanup contracts, root checks, and fresh-package startup
+pass; native Windows CI validation remains pending. This narrow cleanup repair
+does not close the broader Windows aggregate above.
+
 Found 2026-09-12 while validating Windows directory-sync persistence fixes.
