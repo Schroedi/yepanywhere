@@ -13723,7 +13723,6 @@ a.sidebar-nav-item {
   color: white;
 }
 
-.session-list-item:hover .session-list-item__menu,
 .session-list-item__link:focus-visible ~ .session-list-item__menu,
 .session-list-item__menu:focus-within,
 .session-list-item__menu.is-open {
