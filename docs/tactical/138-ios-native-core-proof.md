@@ -364,6 +364,16 @@ stock runs remain the default. No test or latency/headroom gate is removed.
 Cold Intel elapsed time reached 42 minutes before UI/device acceptance, so the
 whole-job limit is now 90 minutes (about twice that observation), separately
 from the unchanged 100 ms input measurement.
+
+Hosted run [36908114420](https://github.com/kzahel/yepanywhere/actions/runs/36908114420)
+passed all 16 native tests and readiness but failed typing at 370 ms, with no
+dropped characters. During UI tests, every host sample showed zero idle CPU
+and XCTest's screen-recording encoder consumed substantial CPU. Automatic
+capture is now disabled with the scheme selecting screenshots; the five
+explicit checkpoint attachments and failure diagnostics remain. Shell checks
+assert native controls rather than section-heading case, which iOS 18 changes.
+The workload and 100 ms ceiling remain unchanged. All 18 local simulator tests
+pass; hosted validation is pending.
 Local iOS 26.5 acceptance with the narrowed nine-service profile passes all
 18 tests, including native login and streamed typing. The booted overrides are
 verified; the final readiness pair records 51% and 72% idle CPU with more than

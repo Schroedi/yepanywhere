@@ -143,3 +143,13 @@ unexpected runtime behavior fails verification. The same 18 tests, 1 GiB/20%
 idle readiness gate and 100 ms typing ceiling still apply. Local runs are stock
 unless that environment variable is explicitly set. This measurement profile
 does not replace stock physical-device release acceptance.
+
+Hosted run [36908114420](https://github.com/kzahel/yepanywhere/actions/runs/36908114420)
+passed native tests and readiness, then recorded 370 ms maximum input latency
+with zero dropped characters. Every during-UI host sample had no idle CPU;
+XCTest's continuous screen-recording encoder consumed substantial CPU. The
+scheme now disables automatic capture and selects screenshots, retaining five
+explicit UI checkpoint attachments and failure diagnostics. This removes
+measurement overhead without changing the workload or 100 ms ceiling. Native
+shell assertions use login control identifiers and the Add host button because
+iOS 18 uppercases SwiftUI section headings. All 18 local simulator tests pass; hosted validation remains pending.

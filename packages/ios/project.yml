@@ -81,3 +81,5 @@ schemes:
         YepAnywhere: all
     test:
       targets: [YepAnywhereTests, YepAnywhereUITests]
+      preferredScreenCaptureFormat: screenshots
+      captureScreenshotsAutomatically: false

@@ -114,7 +114,7 @@ final class LiveAppTests: XCTestCase {
       .firstMatch
     XCTAssertTrue(switchHost.waitForExistence(timeout: 5), app.debugDescription); switchHost.tap()
     XCTAssertTrue(
-      app.staticTexts["Saved hosts"].waitForExistence(timeout: 10), app.debugDescription)
+      app.buttons["Add host"].waitForExistence(timeout: 10), app.debugDescription)
     XCTAssertFalse(app.webViews.firstMatch.exists)
   }
 }

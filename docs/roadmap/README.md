@@ -50,6 +50,10 @@ explicit background-service profile to its owned device, verifies it after
 boot and retains the same 18 tests, CPU/memory requirements and typing ceiling.
 Local simulator runs remain stock by default; hosted UI acceptance is still
 being validated independently of physical iPhone availability.
+The corrected hosted run passed readiness and native tests, then failed typing
+at 370 ms while automatic XCTest recording saturated CPU. The scheme now
+disables automatic capture, retains explicit screenshots and failure diagnostics,
+and preserves the 100 ms ceiling; the next hosted run will validate this change.
 Embedded viewers/downloads need the
 [remaining WebKit adapters](../../gaps/ios-webview-viewers-and-downloads.md).
 Notification permission/FCM/broker
