@@ -327,6 +327,15 @@ upload acknowledgement waits for native consumption. Simulator media and hostile
 entry-policy checks extend this checkpoint. Build/acceptance commands and actual
 supported boundaries live in packages/ios/README.md.
 
+The initial hosted run [36867518791](https://github.com/kzahel/yepanywhere/actions/runs/36867518791)
+passed Rust/live routes and all 16 hosted native tests, but failed UI latency
+while its three-core/7 GiB host had severe CPU and memory pressure. The runner
+now compiles the XCTest bundle before booting Simulator, executes native tests
+first, and waits for host headroom before UI acceptance. It records pressure
+during execution as well as before/after. The 100 ms input ceiling remains
+unchanged; missing headroom fails readiness rather than skipping that gate.
+Physical-device signing is a separate release step and cannot block simulator CI.
+
 A Daybreak Blue read-only review of the first production checkpoint identified
 eight concrete findings: abort protocol, resume-version pinning, non-atomic and
 locked Keychain writes, cancellation/reconnect, discarded transport context,

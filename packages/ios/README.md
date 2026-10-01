@@ -26,10 +26,18 @@ node packages/ios/scripts/run.mjs build
 `prepare` generates the simulator archive, Swift bindings, bundled assets and
 Xcode project without running tests. `test` builds these inputs, starts an
 unchanged disposable YA server with public fixture credentials, creates its
-own simulator, ad-hoc signs the app for Keychain access, runs XCTest/XCUITest,
+own simulator after compiling the test bundle, ad-hoc signs the app for
+Keychain access, runs XCTest/XCUITest without rebuilding,
 adds an ephemeral root only to that simulator for TLS trust/hostname/expiry
 checks, and shuts down/deletes the owned simulator and servers. Parallel simulator
-cloning is disabled. `build` links an unsigned Release device application;
+cloning is disabled, and Xcode compilation uses at most four host CPU slots.
+Host CPU/memory/swap samples are recorded before, during and after execution
+in build/host-*.json; compilation does not overlap simulator measurement.
+Hosted native tests run first. UI acceptance then requires two consecutive
+host samples with at least 20% CPU idle and 1 GiB available memory. First-use
+simulator services have up to five minutes to settle; inadequate headroom
+fails readiness without skipping or relaxing the 100 ms input gate.
+`build` links an unsigned Release device application;
 it does not install, sign for distribution or publish it. Generated projects,
 bindings, archives, fixture data and xcresults remain ignored under build/.
 
@@ -75,8 +83,7 @@ CSP. Frame checks alone are not claimed to distinguish same-origin parent
 proxying. Embedded HTML/app frames therefore remain unavailable in this
 initial shell; a later unprivileged viewer needs its own boundary. Blob download
 navigation also needs a native download adapter before that action is supported.
-Speech and
-device-stream transports retain the native adapter's existing unsupported
+Speech and device-stream transports retain the native adapter's existing unsupported
 fallback, shared with the current Android foreground contract.
 
 ## Optional notification configuration

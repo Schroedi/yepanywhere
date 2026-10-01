@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { availableParallelism } from "node:os";
 import {
   readHostCapacity,
   readHostSample,
@@ -110,6 +111,7 @@ await copyFile(
 );
 if (phase === "prepare") process.exit(0);
 const derived = join(ios, "build/DerivedData");
+const buildJobs = String(Math.max(1, Math.min(availableParallelism(), 4)));
 if (phase === "build") {
   await run("xcodebuild", [
     "-project",
@@ -123,6 +125,8 @@ if (phase === "build") {
     "-derivedDataPath",
     derived,
     "-onlyUsePackageVersionsFromResolvedFile",
+    "-jobs",
+    buildJobs,
     "CODE_SIGNING_ALLOWED=NO",
     "build",
   ]);
@@ -134,13 +138,40 @@ if (phase === "build") {
   const { startTLSFixture } = await import("./tls-fixture.mjs");
   let simulator, tls, simulatorApp;
   const capacity = await readHostCapacity();
-  const host = { capacity, start: null, end: null };
+  const host = { capacity, start: null, readiness: [], during: [], end: null };
+  let sampleTimer, sampling;
   const hostPath = join(ios, `build/host-${Date.now()}.json`);
   const sample = async () => ({
     system: await readHostSample(capacity),
-    cpuAndVM: await run("top", ["-l", "2", "-s", "1", "-n", "0"], ios, true),
+    cpuAndVM: await run(
+      "top",
+      ["-l", "2", "-s", "1", "-n", "12", "-o", "cpu"],
+      ios,
+      true,
+    ),
     swap: await run("sysctl", ["vm.swapusage"], ios, true),
   });
+  async function waitForInputHeadroom() {
+    // The first local split run spent ~75s at 0% idle during first-use
+    // simulator services. Allow 4x that observation to settle, with two
+    // consecutive samples showing CPU and memory room for UI measurement.
+    // A saturated host fails readiness; it never raises/skips the 100ms gate.
+    const deadline = Date.now() + 300_000;
+    let ready = 0;
+    while (Date.now() < deadline) {
+      const value = await sample();
+      host.readiness.push(value);
+      const idle = [...value.cpuAndVM.matchAll(/([\d.]+)% idle/g)].at(-1)?.[1];
+      const available = value.system.memory.effectiveAvailableBytes;
+      ready =
+        Number(idle) >= 20 && available >= 1024 * 1024 * 1024 ? ready + 1 : 0;
+      if (ready >= 2) return;
+      await new Promise((done) => setTimeout(done, 5000));
+    }
+    throw new Error(
+      "Simulator host lacks CPU/memory headroom for input acceptance; see host diagnostics",
+    );
+  }
   const interrupt = () => {
     for (const child of children) child.kill("SIGTERM");
   };
@@ -157,6 +188,30 @@ if (phase === "build") {
       }),
     );
     await generateProject();
+    // CI36867518791 booted Simulator before the first Firebase/Swift build:
+    // 3 CPUs, 7 GiB RAM, zero idle, 305 runnable processes and swap pressure.
+    // Finish compilation before starting the owned simulator, then execute the
+    // same XCTest bundle without building while measuring keyboard latency.
+    await run("xcodebuild", [
+      "-project",
+      "YepAnywhere.xcodeproj",
+      "-scheme",
+      "YepAnywhere",
+      "-configuration",
+      "Debug",
+      "-sdk",
+      "iphonesimulator",
+      "-destination",
+      "generic/platform=iOS Simulator",
+      "-derivedDataPath",
+      derived,
+      "-onlyUsePackageVersionsFromResolvedFile",
+      "-jobs",
+      buildJobs,
+      "CODE_SIGNING_ALLOWED=YES",
+      "CODE_SIGN_IDENTITY=-",
+      "build-for-testing",
+    ]);
     const inventory = JSON.parse(
       await run("xcrun", ["simctl", "list", "runtimes", "--json"], ios, true),
     );
@@ -213,28 +268,56 @@ if (phase === "build") {
       tls.root,
     ]);
     host.start = await sample();
-    await run("xcodebuild", [
-      "-project",
-      "YepAnywhere.xcodeproj",
-      "-scheme",
-      "YepAnywhere",
-      "-configuration",
-      "Debug",
-      "-parallel-testing-enabled",
-      "NO",
-      "-destination",
-      `platform=iOS Simulator,id=${simulator}`,
-      "-derivedDataPath",
-      derived,
-      "-resultBundlePath",
-      join(ios, `build/acceptance-${Date.now()}.xcresult`),
-      "-onlyUsePackageVersionsFromResolvedFile",
-      "CODE_SIGNING_ALLOWED=YES",
-      "CODE_SIGN_IDENTITY=-",
-      "test",
-      ...testSelection,
-    ]);
+    sampleTimer = setInterval(() => {
+      if (sampling) return;
+      sampling = sample()
+        .then(
+          (value) => host.during.push(value),
+          (error) => host.during.push({ error: String(error) }),
+        )
+        .finally(() => {
+          sampling = undefined;
+        });
+    }, 15_000);
+    const only = testSelection.filter((arg) =>
+      arg.startsWith("-only-testing:"),
+    );
+    const skip = testSelection.filter((arg) =>
+      arg.startsWith("-skip-testing:"),
+    );
+    for (const suite of ["YepAnywhereTests", "YepAnywhereUITests"]) {
+      const prefix = `-only-testing:${suite}`;
+      const selected = only.length
+        ? only.filter((arg) => arg === prefix || arg.startsWith(`${prefix}/`))
+        : [prefix];
+      if (!selected.length || skip.includes(`-skip-testing:${suite}`)) continue;
+      if (suite === "YepAnywhereUITests") await waitForInputHeadroom();
+      await run("xcodebuild", [
+        "-project",
+        "YepAnywhere.xcodeproj",
+        "-scheme",
+        "YepAnywhere",
+        "-configuration",
+        "Debug",
+        "-parallel-testing-enabled",
+        "NO",
+        "-destination",
+        `platform=iOS Simulator,id=${simulator}`,
+        "-derivedDataPath",
+        derived,
+        "-resultBundlePath",
+        join(ios, `build/acceptance-${suite}-${Date.now()}.xcresult`),
+        "-onlyUsePackageVersionsFromResolvedFile",
+        "CODE_SIGNING_ALLOWED=YES",
+        "CODE_SIGN_IDENTITY=-",
+        "test-without-building",
+        ...selected,
+        ...skip,
+      ]);
+    }
   } finally {
+    clearInterval(sampleTimer);
+    await sampling;
     process.removeListener("SIGINT", interrupt);
     process.removeListener("SIGTERM", interrupt);
     try {

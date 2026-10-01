@@ -60,7 +60,9 @@ alternatives rather than selecting a new runtime contract.
   shared Rust connection core exposed through UniFFI, preserving the existing
   server protocol. iOS is its first consumer; Android's Kotlin internals migrate
   after shared-core parity is demonstrated. The crypto/build proof is complete;
-  the production Rust core and consumer iOS application remain to be built.
+  the production Rust core and consumer iOS application are implemented and
+  have owned simulator and unsigned-device evidence. Simulator CI verifies
+  the connection/lifecycle path independently of physical-device signing.
 
 ## Provider runtime ownership and reload
 

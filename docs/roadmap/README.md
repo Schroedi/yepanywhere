@@ -36,7 +36,10 @@ foreground lifecycle reconstruction. Owned simulator acceptance covers real
 native login, concurrent streaming/typing within 100 ms, route/draft preservation
 and Switch Host. Direct/mux/legacy server probes and an unsigned device build
 pass, including OS TLS trust/hostname/expiry checks and cancellation across FFI.
-Dedicated iOS CI runs these paths. Embedded viewers/downloads need the
+Dedicated iOS CI runs these paths independently of physical-device signing.
+Its runner compiles before booting Simulator, then separates native tests from
+UI acceptance and requires CPU/memory headroom for the 100 ms typing gate.
+Embedded viewers/downloads need the
 [remaining WebKit adapters](../../gaps/ios-webview-viewers-and-downloads.md).
 Notification permission/FCM/broker
 foundations exist; common per-server native push enrollment and real Apple push
