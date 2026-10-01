@@ -1141,6 +1141,7 @@ export class DraftSyncClient {
       return;
     try {
       let after = "";
+      let sequence = this.sequence;
       const sessionIds = new Set<string>();
       const revisions = new Map<string, string>();
       do {
@@ -1158,7 +1159,9 @@ export class DraftSyncClient {
           return;
         }
         this.identified = true;
-        this.sequence = result.sequence;
+        // Later pages may include changes absent from pages already read.
+        // Acknowledge only the first page's cursor, after the whole scan succeeds.
+        if (!after) sequence = result.sequence;
         for (const item of result.entries) {
           if (
             item.slot.kind === "session" &&
@@ -1176,6 +1179,7 @@ export class DraftSyncClient {
         }
         after = result.next ?? "";
       } while (after && !this.stopped);
+      this.sequence = sequence;
       const previous = getSyncedDraftSessionIds(this.source);
       setSyncedDraftSessionIds(this.source, sessionIds);
       for (const sessionId of new Set([...previous, ...sessionIds])) {

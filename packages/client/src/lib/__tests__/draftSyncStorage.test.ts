@@ -39,49 +39,51 @@ function server(owner = "") {
   let hold:
     | ((value: DraftWriteResult) => Promise<DraftWriteResult>)
     | undefined;
-  const fetch = vi.fn(async (path: string, init?: RequestInit) => {
-    if (path.startsWith("/drafts/index"))
-      return {
-        owner,
-        entries: indexedSessionIds.map((sessionId) => ({
-          slot: { kind: "session" as const, sessionId },
-          revision: "r",
-          empty: false,
-        })),
-        next: null,
-        sequence: next,
-      };
-    if (path.startsWith("/drafts/changes")) return { sequence: next };
-    if (path.endsWith("/read")) return structuredClone(current);
-    if (path.endsWith("/write") || path.endsWith("/clear")) {
-      const op = JSON.parse(String(init?.body)) as DraftWrite;
-      const prior = receipts.get(op.operationId);
-      if (prior) return structuredClone(prior);
-      if (op.baseRevision !== current.snapshot.revision)
+  const fetch = vi.fn(
+    async (path: string, init?: RequestInit): Promise<unknown> => {
+      if (path.startsWith("/drafts/index"))
         return {
+          owner,
+          entries: indexedSessionIds.map((sessionId) => ({
+            slot: { kind: "session" as const, sessionId },
+            revision: "r",
+            empty: false,
+          })),
+          next: null,
+          sequence: next,
+        };
+      if (path.startsWith("/drafts/changes")) return { sequence: next };
+      if (path.endsWith("/read")) return structuredClone(current);
+      if (path.endsWith("/write") || path.endsWith("/clear")) {
+        const op = JSON.parse(String(init?.body)) as DraftWrite;
+        const prior = receipts.get(op.operationId);
+        if (prior) return structuredClone(prior);
+        if (op.baseRevision !== current.snapshot.revision)
+          return {
+            ...structuredClone(current),
+            outcome: "conflict",
+            operationId: op.operationId,
+          };
+        current = {
+          snapshot: {
+            ...current.snapshot,
+            revision: `rev-${++next}`,
+            sequence: next,
+            payload: path.endsWith("/clear") ? EMPTY_DRAFT : op.payload,
+          },
+          ticket: "ticket",
+        };
+        const result: DraftWriteResult = {
           ...structuredClone(current),
-          outcome: "conflict",
+          outcome: "accepted",
           operationId: op.operationId,
         };
-      current = {
-        snapshot: {
-          ...current.snapshot,
-          revision: `rev-${++next}`,
-          sequence: next,
-          payload: path.endsWith("/clear") ? EMPTY_DRAFT : op.payload,
-        },
-        ticket: "ticket",
-      };
-      const result: DraftWriteResult = {
-        ...structuredClone(current),
-        outcome: "accepted",
-        operationId: op.operationId,
-      };
-      receipts.set(op.operationId, result);
-      return hold ? await hold(result) : result;
-    }
-    throw new Error(`Unexpected request ${path}`);
-  });
+        receipts.set(op.operationId, result);
+        return hold ? await hold(result) : result;
+      }
+      throw new Error(`Unexpected request ${path}`);
+    },
+  );
   const transport = {
     fetch,
     status: {
@@ -242,6 +244,114 @@ function seedAcknowledged(key: string, snapshot: DraftSnapshot) {
     JSON.stringify({ raw: value, base: snapshot }),
   );
 }
+describe("paginated draft index catch-up", () => {
+  it.each(["updated on the phone", ""])(
+    "catches an earlier page's concurrent edit or clear (%j) without another change",
+    async (remoteText) => {
+      const s = server(),
+        c = client(s);
+      s.remote("old remote draft");
+      seedAcknowledged(key, s.get());
+      observe(key);
+      const original = s.fetch.getMockImplementation()!;
+      let changed = false;
+      let changeDuringPagination = false;
+      s.fetch.mockImplementation(async (path, init) => {
+        if (!path.startsWith("/drafts/index")) return original(path, init);
+        if (path.endsWith("after="))
+          return {
+            owner: "",
+            sequence: s.get().sequence,
+            entries: [
+              { slot: s.get().slot, revision: s.get().revision, empty: false },
+              ...Array.from({ length: 99 }, (_, i) => ({
+                slot: { kind: "new-session" as const, projectId: `old-${i}` },
+                revision: `cleared-${i}`,
+                empty: true,
+              })),
+            ],
+            next: "page-two",
+          };
+        if (changeDuringPagination && !changed) {
+          changed = true;
+          if (remoteText) s.remote(remoteText);
+          else
+            await original("/drafts/clear", {
+              body: JSON.stringify({
+                slot: s.get().slot,
+                baseRevision: s.get().revision,
+                operationId: "phone-clear",
+                ticket: "ticket",
+                payload: EMPTY_DRAFT,
+              }),
+            });
+        }
+        return {
+          owner: "",
+          sequence: s.get().sequence,
+          entries: [],
+          next: null,
+        };
+      });
+      c.start();
+      await c.refresh();
+      await vi.advanceTimersByTimeAsync(0);
+      changeDuringPagination = true;
+      const refreshing = c.refresh();
+      expect(c.refresh()).toBe(refreshing);
+      await refreshing;
+      await vi.advanceTimersByTimeAsync(1100);
+      expect(
+        draftPayloadFromStorage(draftAddress(key)!, draftStorage.getItem(key))
+          .fields.text ?? "",
+      ).toBe(remoteText);
+      expect(
+        s.fetch.mock.calls.some(([path]) => path === "/drafts/changes?after=1"),
+      ).toBe(true);
+      expect(s.get().sequence).toBe(2);
+      expect(s.fetch.mock.calls.some(([path]) => path.endsWith("/write"))).toBe(
+        false,
+      );
+    },
+  );
+  it("retries an incomplete index without acknowledging unread pages", async () => {
+    const s = server(),
+      c = client(s);
+    s.remote("old remote draft");
+    seedAcknowledged(key, s.get());
+    observe(key);
+    s.remote("unread second-page draft");
+    const original = s.fetch.getMockImplementation()!;
+    let failed = false;
+    s.fetch.mockImplementation(async (path, init) => {
+      if (!path.startsWith("/drafts/index")) return original(path, init);
+      if (path.endsWith("after="))
+        return {
+          owner: "",
+          sequence: s.get().sequence,
+          entries: [],
+          next: "page-two",
+        };
+      if (!failed) {
+        failed = true;
+        throw new Error("Second page unavailable");
+      }
+      return {
+        owner: "",
+        sequence: s.get().sequence,
+        next: null,
+        entries: [
+          { slot: s.get().slot, revision: s.get().revision, empty: false },
+        ],
+      };
+    });
+    c.start();
+    await c.refresh();
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(draftStorage.getItem(key)).toBe(raw("unread second-page draft"));
+    expect(s.get().sequence).toBe(2);
+  });
+});
 describe("local-first snapshot synchronization", () => {
   it("evicts acknowledged drafts after the last editor closes and restores their base offline", async () => {
     const s = server(),

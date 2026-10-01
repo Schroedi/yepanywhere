@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { EMPTY_DRAFT } from "@yep-anywhere/shared";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createTestViteServer } from "./support/vite-server";
@@ -23,9 +24,28 @@ test.afterAll(async () => {
   await api?.close();
   await presentUiCaptures();
 });
-test("two-device handoff, sequential typing, offline reload and conditional send clear", async ({
+test("two-device handoff and sequential typing with 3,000 cleared drafts, offline reload and send clear", async ({
   browser,
 }) => {
+  // Thirty days at 100 distinct session drafts/day, using real cleared rows.
+  for (let i = 0; i < 3000; i++) {
+    const slot = { kind: "session" as const, sessionId: `draft-history-${i}` };
+    const initial = api.store.read("", slot);
+    const saved = api.store.write("", {
+      slot,
+      baseRevision: initial.snapshot.revision,
+      ticket: initial.ticket,
+      operationId: `history-${i}-save`,
+      payload: { fields: { text: "sent" }, attachments: [] },
+    });
+    api.store.write("", {
+      slot,
+      baseRevision: saved.snapshot.revision,
+      ticket: saved.ticket,
+      operationId: `history-${i}-clear`,
+      payload: EMPTY_DRAFT,
+    });
+  }
   const desktop = await browser.newContext({
     viewport: { width: 1000, height: 600 },
   });

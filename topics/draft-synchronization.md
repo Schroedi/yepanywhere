@@ -229,6 +229,16 @@ Index pages contain at most 100 metadata entries and a continuation cursor;
 change sequences and subscribers belong to the acting account. The client checks
 capability and verifies the index's acting owner before sending draft contents.
 
+Each index page reports the acting account's sequence captured before reading
+its rows and before asynchronous resource-access checks. A complete client
+refresh acknowledges only the first page's sequence, after all pages succeed.
+An edit or clear during access checks or between pages therefore remains newer
+than that cursor; the existing change watch refreshes again without requiring
+another edit, focus event or reconnect. A failed or interrupted page does not
+advance the acknowledged cursor. Refreshes remain coalesced under one
+source/account owner, and stopping that owner aborts the work. This corrects
+the existing protocol without introducing a capability, route or field.
+
 The reviewed stable corpus was 0.9.0, 0.9.1 and 0.9.2 (latest two plus all stable
 releases in the preceding fourteen days, as of 2026-09-29). None supports this
 contract. New clients send no draft-sync requests without the capability and
@@ -252,12 +262,16 @@ retention and attachment ownership. Client state-machine checks cover delayed
 acks, duplicate retry, focused and sibling-tab changes, account mismatch,
 serialized submission and a newer remote draft surviving clear. Existing surface
 regressions cover their local formats and accepted-action boundaries.
+Index regressions cover edits and clears between pages, automatic catch-up
+without another change, unread pages after a failed request, coalesced refreshes,
+and edits while server resource-access checks are awaiting completion.
 
 `playwright.draft-sync.config.ts` runs the production source coordinator,
 capability gate and local persistence hook against real draft HTTP routes and
 SQLite in two isolated browser contexts. It covers handoff, conflict acceptance,
 server-offline reload, reconnect, send/next-draft races, and zero draft requests
-to an older server. Sequential key events under 1,000-row concurrent activity
+to an older server. The handoff runs with 3,000 cleared session draft records.
+Sequential key events under 1,000-row concurrent activity
 assert every input acknowledgement stays below 100 ms. The phone-send sequence
 checks quiet focus protection, clearing after blur, and persistence through reload.
 State-machine checks cover latest pending snapshots, stale review choices and
