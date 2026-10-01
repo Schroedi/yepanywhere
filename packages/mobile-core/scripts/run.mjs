@@ -26,7 +26,11 @@ if (
   process.platform === "darwin"
 ) {
   const target =
-    phase === "build" ? "aarch64-apple-ios" : "aarch64-apple-ios-sim";
+    phase === "build"
+      ? "aarch64-apple-ios"
+      : process.arch === "x64"
+        ? "x86_64-apple-ios"
+        : "aarch64-apple-ios-sim";
   await run(["build", "--locked", "--release", "--target", target, "--lib"]);
   await run([
     "run",

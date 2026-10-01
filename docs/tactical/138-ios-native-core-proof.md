@@ -340,9 +340,14 @@ Physical-device signing is a separate release step and cannot block simulator CI
 passed all 16 native tests, then failed host readiness: every one of its 44
 samples had 0% idle CPU, with roughly 100–250 MiB available memory, while
 first-boot iOS widgets and Spotlight competed for the standard VM's resources.
-CI now pins macOS 15 / Xcode 26.3 and the installed iOS 18.6 simulator;
-only its disposable VM disables indexing. Simulator compilation is arm64-only,
-and the runner selects a device supported by the requested runtime. The same
+CI pins macOS 15 Intel / Xcode 26.3 and the installed iOS 18.6 simulator;
+only its disposable VM disables indexing. [Run 36892794310](https://github.com/kzahel/yepanywhere/actions/runs/36892794310)
+showed that the older runtime settled to 76% CPU idle, but the 7 GiB arm64 VM
+still had only about 100 MiB free, so the unchanged memory gate stopped UI
+acceptance. The standard Intel VM has 4 CPUs / 14 GiB. Its simulator links the
+`x86_64-apple-ios` Rust target; Apple Silicon keeps `aarch64-apple-ios-sim`,
+and both device builds keep `aarch64-apple-ios`. The runner selects a device
+supported by the requested runtime. The same
 18 tests and strict CPU/memory and input-latency gates remain in both paths.
 The native web source also retains status snapshots for repeated identical
 phases, avoiding needless subscriber invalidation during incoming traffic;

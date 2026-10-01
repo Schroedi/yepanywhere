@@ -46,10 +46,10 @@ concurrency:
 jobs:
   verify-ios-app:
     name: Rust, simulator, and device archive
-    # iOS 26.5 first-boot widgets saturated the standard 3-core/7 GiB VM
-    # for the whole 5-minute headroom window in run 36887820073.
-    # Keep the identical UI/typing gate on this installed, supported runtime.
-    runs-on: macos-15
+    # The 3-core/7 GiB arm64 VM never met the 1 GiB UI memory gate,
+    # even after iOS 18.6 settled to 76% idle in run 36892794310.
+    # Use the standard 4-core/14 GiB Intel runner; retain the same tests/gates.
+    runs-on: macos-15-intel
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
       YA_IOS_SIMULATOR_VERSION: '18.6'
@@ -70,7 +70,7 @@ jobs:
       - name: Install pinned native tools
         run: |
           rustup toolchain install 1.97.0 --profile minimal --component rustfmt --component clippy
-          rustup target add --toolchain 1.97.0 aarch64-apple-ios aarch64-apple-ios-sim
+          rustup target add --toolchain 1.97.0 aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
           curl -fLsS https://github.com/yonaskolb/XcodeGen/releases/download/2.45.3/xcodegen.zip -o "$RUNNER_TEMP/xcodegen.zip"
           echo "0c90f4d28ca57335f9fa78cf5bf6dabfe20a232036dabe36de2eef79cb7c0878  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 --check
           unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP/ya-xcodegen"

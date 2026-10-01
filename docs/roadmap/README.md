@@ -39,8 +39,9 @@ pass, including OS TLS trust/hostname/expiry checks and cancellation across FFI.
 Dedicated iOS CI runs these paths independently of physical-device signing.
 Its runner compiles before booting Simulator, then separates native tests from
 UI acceptance and requires CPU/memory headroom for the 100 ms typing gate.
-The standard hosted VM uses macOS 15 / Xcode 26.3 with iOS 18.6; first-boot
-iOS 26.5 services saturated its 3-core / 7 GiB budget. Local newer-runtime
+The standard hosted VM uses macOS 15 Intel / Xcode 26.3 with iOS 18.6.
+The arm64 VM's 3-core / 7 GiB budget did not satisfy UI memory headroom;
+the 4-core / 14 GiB Intel simulator links its corresponding Rust target. Local newer-runtime
 acceptance and physical-device signing remain separate evidence.
 Embedded viewers/downloads need the
 [remaining WebKit adapters](../../gaps/ios-webview-viewers-and-downloads.md).

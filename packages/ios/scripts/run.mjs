@@ -23,9 +23,9 @@ if (
   throw new Error("Only XCTest selection arguments are supported");
 if (!["prepare", "build", "test"].includes(phase))
   throw new Error("Expected prepare, build or test");
-if (process.platform !== "darwin" || process.arch !== "arm64")
+if (process.platform !== "darwin" || !["arm64", "x64"].includes(process.arch))
   throw new Error(
-    "iOS building/testing requires Apple Silicon macOS and Xcode",
+    "iOS building/testing requires macOS and Xcode on arm64 or x64",
   );
 const env = { ...process.env };
 await import("../../mobile-core/scripts/run.mjs");
@@ -112,6 +112,7 @@ await copyFile(
 if (phase === "prepare") process.exit(0);
 const derived = join(ios, "build/DerivedData");
 const buildJobs = String(Math.max(1, Math.min(availableParallelism(), 4)));
+const simulatorArch = process.arch === "arm64" ? "arm64" : "x86_64";
 if (phase === "build") {
   await run("xcodebuild", [
     "-project",
@@ -203,7 +204,7 @@ if (phase === "build") {
       "iphonesimulator",
       "-destination",
       "generic/platform=iOS Simulator",
-      "ARCHS=arm64",
+      `ARCHS=${simulatorArch}`,
       "-derivedDataPath",
       derived,
       "-onlyUsePackageVersionsFromResolvedFile",
@@ -329,6 +330,7 @@ if (phase === "build") {
         "CODE_SIGNING_ALLOWED=YES",
         "CODE_SIGN_IDENTITY=-",
         "test-without-building",
+        `ARCHS=${simulatorArch}`,
         ...selected,
         ...skip,
       ]);
