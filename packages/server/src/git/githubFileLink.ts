@@ -7,16 +7,20 @@ export async function githubFileLink(
   path: string,
   git: typeof runGit = runGit,
 ): Promise<{ url: string; pushed: boolean } | null> {
-  const { stdout: remoteNames } = await git(cwd, ["remote"]);
-  const remotes = await Promise.all(
-    remoteNames
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .map(async (name) => {
-        const { stdout } = await git(cwd, ["remote", "get-url", name]);
-        return { name, repository: githubRepositoryUrl(stdout.trim()) };
+  const { stdout: config } = await git(cwd, ["config", "--null", "--list"]);
+  const remoteNames = [
+    ...new Set(
+      config.split("\0").flatMap((entry) => {
+        const match = /^remote\.(.+)\.url\n/.exec(entry);
+        return match?.[1] ? [match[1]] : [];
       }),
+    ),
+  ];
+  const remotes = await Promise.all(
+    remoteNames.map(async (name) => {
+      const { stdout } = await git(cwd, ["remote", "get-url", name]);
+      return { name, repository: githubRepositoryUrl(stdout.trim()) };
+    }),
   );
   const githubRemotes = remotes.filter((remote) => remote.repository !== null);
   if (!githubRemotes.length) return null;
@@ -37,10 +41,7 @@ export async function githubFileLink(
   const pushedRemote = githubRemotes.find(({ name }) =>
     containingRefs.some((ref) => ref.startsWith(`refs/remotes/${name}/`)),
   );
-  const remote =
-    pushedRemote ??
-    githubRemotes.find(({ name }) => name === "origin") ??
-    githubRemotes[0];
+  const remote = pushedRemote ?? githubRemotes[0];
   if (!remote) return null;
   const repositoryPath = `${prefix.stdout.trimEnd()}${path}`;
   return {

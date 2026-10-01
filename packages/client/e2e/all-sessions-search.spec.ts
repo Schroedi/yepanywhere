@@ -9,11 +9,116 @@ import { e2ePaths, expect, test } from "./fixtures.js";
 import { recordUiCapture } from "./support/ui-capture.js";
 
 const createdFiles: string[] = [];
+for (const viewport of [
+  { name: "desktop", width: 1200, height: 600 },
+  { name: "phone", width: 375, height: 812 },
+]) {
+  test(`All Sessions CSV filters keep first-term scanning and detail uses the right pane (${viewport.name})`, async ({
+    page,
+    baseURL,
+  }) => {
+    saveSession(
+      `csv-${viewport.name}-alpha`,
+      "alpha",
+      true,
+      Date.now() - 60000,
+    );
+    saveSession(`csv-${viewport.name}-beta`, "beta", true);
+    await page.setViewportSize(viewport);
+    await page.addInitScript(() =>
+      localStorage.setItem("yep-anywhere-session-right-pane-enabled", "true"),
+    );
+    const requests: Array<{ sessionId: string; query: string }> = [];
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/sessions/content-search"))
+        requests.push(request.postDataJSON());
+    });
+    await page.goto(`${baseURL}/sessions?q=quasarneedle`);
+    const search = page.getByRole("searchbox", { name: "Search sessions..." });
+    await expect(page.getByRole("checkbox", { name: "CSV AND" })).toBeChecked();
+    await expect(
+      page.getByRole("button", { name: "Last activity", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("checkbox", { name: /^User/ }).check();
+    const rows = page.locator(".session-list-item--card");
+    await expect(rows).toHaveCount(2, { timeout: 30000 });
+    await expect(page.locator('[data-search-scanning="true"]')).toHaveCount(0);
+    const ownOrder = [
+      ...new Set(
+        requests
+          .filter((request) =>
+            request.sessionId.startsWith(`csv-${viewport.name}`),
+          )
+          .map((request) => request.sessionId),
+      ),
+    ];
+    expect(ownOrder).toEqual([
+      `csv-${viewport.name}-beta`,
+      `csv-${viewport.name}-alpha`,
+    ]);
+    await search.press("End");
+    await search.pressSequentially(", alpha", { delay: 10 });
+    await expect(search).toHaveValue("quasarneedle, alpha");
+    await expect(rows).toHaveCount(1);
+    await expect(rows).toContainText("alpha");
+    expect(requests.every((request) => request.query === "quasarneedle")).toBe(
+      true,
+    );
+    await page.getByRole("button", { name: "7d", exact: true }).click();
+    await expect(
+      page.getByRole("textbox", { name: /^Maximum age/ }),
+    ).toHaveValue("7d");
+    await recordUiCapture(page, `csv-results-${viewport.name}`, viewport);
+    const expand = rows.getByRole("button", {
+      name: "Show all retained matches in this session",
+    });
+    const sessionMenu = rows.locator(".session-list-item__menu");
+    const a = (await expand.boundingBox())!;
+    const b = (await sessionMenu.boundingBox())!;
+    expect(
+      a.x + a.width <= b.x || a.y >= b.y + b.height || b.y >= a.y + a.height,
+    ).toBe(true);
+    await expand.click();
+    const expandedDetail = page.getByRole("dialog");
+    await expect(expandedDetail).toContainText("quasarneedle");
+    await expandedDetail.locator('a[href*="searchMatch="]').first().click();
+    const detail = page.getByRole("dialog");
+    await expect(detail).toContainText("quasarneedle");
+    await expect(page.locator(".modal-overlay")).toHaveCount(0);
+    const link = detail.getByRole("link", { name: "Open turn in session" });
+    await expect(link).toBeVisible();
+    await recordUiCapture(page, `csv-detail-${viewport.name}`, viewport);
+    await link.click();
+    await expect(page).toHaveURL(/searchMatch=/);
+    await expect(
+      page
+        .locator("[data-render-id]")
+        .filter({ hasText: "quasarneedle" })
+        .first(),
+    ).toBeVisible();
+    await page.goto(`${baseURL}/settings/performance`);
+    const concurrency = page.getByRole("slider", {
+      name: "Concurrent session file reads",
+    });
+    await expect(concurrency).toHaveValue("4");
+    await concurrency.scrollIntoViewIfNeeded();
+    await recordUiCapture(
+      page,
+      `search-concurrency-${viewport.name}`,
+      viewport,
+    );
+  });
+}
 test.afterEach(() => {
   for (const file of createdFiles.splice(0)) unlinkSync(file);
 });
 
-function saveSession(id: string, name: string, manyMatches = false) {
+function saveSession(
+  id: string,
+  name: string,
+  manyMatches = false,
+  now = Date.now(),
+) {
   const cwd = join(e2ePaths.tempDir, "mockproject");
   const dir = join(
     e2ePaths.claudeSessionsDir,
@@ -28,7 +133,7 @@ function saveSession(id: string, name: string, manyMatches = false) {
     parentUuid: i ? `${id}-${i - 1}` : null,
     cwd,
     sessionId: id,
-    timestamp: new Date(Date.now() - (262 - i) * 60000).toISOString(),
+    timestamp: new Date(now - (262 - i) * 60000).toISOString(),
     message: {
       role: i % 2 ? "assistant" : "user",
       content:

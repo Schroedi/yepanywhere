@@ -893,9 +893,12 @@ actions when the file has a committed revision and a `github.com` remote.
 The copied HTTPS URL pins the full commit hash and encodes the file path.
 It refers to the last commit changing this file, so unrelated unpushed commits
 do not make its link unavailable. A GitHub remote with a remote-tracking branch
-containing that commit wins; otherwise origin, then the first GitHub remote,
-supplies the unavailable target. HTTPS, Git, SSH, and scp-style GitHub remotes
-are recognized. Other repository hosts are not yet supported.
+containing that commit wins, in Git config file order. The first GitHub remote
+supplies the unavailable target when none contains the revision. Git's
+alphabetical `remote` listing and branch upstream/push settings do not choose
+this permalink target. Reordering remote sections in Git config is sufficient;
+there is no separate preference setting. HTTPS, Git, SSH, and scp-style
+GitHub remotes are recognized. Other repository hosts are not yet supported.
 
 Clean, pushed files use normal menu color. Dirty files remain copyable in
 warning color with **Local edits won’t be included**. An unpushed revision is

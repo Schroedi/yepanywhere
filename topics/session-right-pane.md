@@ -62,6 +62,12 @@ proxy. Placement is one decision for every session-owned viewer
 no knowledge of where it is shown. Standalone file pages, public shares, and
 the separate media lightbox retain their presentations.
 
+All Sessions search also honors the Appearance setting: retained-match lists
+and turn context occupy a search-owned right column on desktop or a drawer on
+narrow screens. They share modal chrome and keep navigation to the matched
+turn available; they do not populate the session pane's viewer tabs. See
+[all-session content search](all-session-content-search.md).
+
 ## Layout
 
 The wide/narrow cutoff is the same 1100px used for desktop chrome and

@@ -77,3 +77,17 @@ it("omits non-GitHub remotes and paths absent from the commit", async () => {
   await git("remote", "set-url", "origin", "https://github.com/me/repo");
   expect(await githubFileLink(dir, commit, "missing.txt")).toBeNull();
 });
+
+it("honors configured remote order among remotes containing the revision", async () => {
+  await git("remote", "add", "origin", "https://github.com/upstream/repo");
+  await git("remote", "add", "fork", "https://github.com/me/repo");
+  await git("update-ref", "refs/remotes/fork/main", commit);
+  await git("update-ref", "refs/remotes/origin/main", commit);
+  expect((await githubFileLink(dir, commit, "a #é.txt"))?.url).toContain(
+    "github.com/upstream/repo/",
+  );
+  await git("update-ref", "-d", "refs/remotes/origin/main");
+  expect((await githubFileLink(dir, commit, "a #é.txt"))?.url).toContain(
+    "github.com/me/repo/",
+  );
+});

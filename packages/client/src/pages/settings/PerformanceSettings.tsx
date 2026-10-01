@@ -18,6 +18,10 @@ import {
 } from "../../hooks/useSessionPerformanceSettings";
 import { useStableToolPreviewRendering } from "../../hooks/useStableToolPreviewRendering";
 import { useStreamingEnabled } from "../../hooks/useStreamingEnabled";
+import {
+  MAX_SEARCH_CONCURRENCY,
+  useSearchConcurrency,
+} from "../../hooks/useSearchConcurrency";
 import { useVersion } from "../../hooks/useVersion";
 import { useI18n } from "../../i18n";
 import { SettingsItem } from "./SettingsItem";
@@ -47,6 +51,7 @@ export function PerformanceSettings() {
   const { t } = useI18n();
   useSettingsPaneTitle(t("performanceSectionTitle"));
   const { streamingEnabled, setStreamingEnabled } = useStreamingEnabled();
+  const { searchConcurrency, setSearchConcurrency } = useSearchConcurrency();
   const { sessionLoadingProgressEnabled, setSessionLoadingProgressEnabled } =
     useSessionLoadingProgress();
   const {
@@ -227,6 +232,7 @@ export function PerformanceSettings() {
   const undoState = useMemo(
     () => ({
       streamingEnabled,
+      searchConcurrency,
       sessionLoadingProgressEnabled,
       sessionDomLingerEnabled,
       sessionActiveWindowTrimEnabled,
@@ -239,6 +245,7 @@ export function PerformanceSettings() {
     }),
     [
       streamingEnabled,
+      searchConcurrency,
       sessionLoadingProgressEnabled,
       sessionDomLingerEnabled,
       sessionActiveWindowTrimEnabled,
@@ -253,6 +260,7 @@ export function PerformanceSettings() {
   const restoreUndoState = useCallback(
     (snapshot: typeof undoState) => {
       setStreamingEnabled(snapshot.streamingEnabled);
+      setSearchConcurrency(snapshot.searchConcurrency);
       setSessionLoadingProgressEnabled(snapshot.sessionLoadingProgressEnabled);
       setSessionDomLingerEnabled(snapshot.sessionDomLingerEnabled);
       setSessionActiveWindowTrimEnabled(
@@ -283,6 +291,7 @@ export function PerformanceSettings() {
     },
     [
       setStreamingEnabled,
+      setSearchConcurrency,
       setSessionLoadingProgressEnabled,
       setSessionDomLingerEnabled,
       setSessionActiveWindowTrimEnabled,
@@ -301,6 +310,26 @@ export function PerformanceSettings() {
   return (
     <SettingsSection description={t("performanceSectionDescription")}>
       <div className="settings-group">
+        <SettingsItem
+          label={t("performanceSearchConcurrencyTitle")}
+          description={t("performanceSearchConcurrencyDescription")}
+          valueText={t("performanceSearchConcurrencyValue", {
+            count: searchConcurrency,
+          })}
+          className="settings-item--wide-control"
+        >
+          <div className="settings-item-actions">
+            <CommittedRangeInput
+              min={1}
+              max={MAX_SEARCH_CONCURRENCY}
+              step={1}
+              value={searchConcurrency}
+              onCommit={setSearchConcurrency}
+              aria-label={t("performanceSearchConcurrencyTitle")}
+            />
+            <span className="settings-input-unit">{searchConcurrency}</span>
+          </div>
+        </SettingsItem>
         <SettingsItem
           label={t("appearanceStreamingTitle")}
           description={t("appearanceStreamingDescription")}

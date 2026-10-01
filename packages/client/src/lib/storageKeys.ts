@@ -42,6 +42,7 @@ export const UI_KEYS = {
   projectAppComposing: "yep-anywhere-project-app-composing-enabled",
   sessionRightPane: "yep-anywhere-session-right-pane-enabled",
   sessionRightPaneWidth: "yep-anywhere-session-right-pane-width",
+  searchConcurrency: "yep-anywhere-search-concurrency",
   pdfjsRenderer: "yep-anywhere-pdfjs-renderer-enabled",
   transcriptMarginNavigation: "yep-anywhere-transcript-margin-navigation",
   composerPromptRail: "yep-anywhere-composer-prompt-rail",
