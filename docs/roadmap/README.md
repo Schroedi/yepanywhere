@@ -57,6 +57,9 @@ and preserves the 100 ms ceiling. Recording removal improved Intel typing to
 176 ms, but the host remained CPU-bound. CI returns to Apple Silicon with the
 older runtime, service profile and corrected availability sampler; hosted
 acceptance remains pending.
+The Apple Silicon run passed typing at 67 ms with zero drops and passed relaunch
+draft checks, then failed sidebar opening. A single tap from the current WebKit
+element frame and a drawer capture will verify the remaining Switch Host flow.
 Embedded viewers/downloads need the
 [remaining WebKit adapters](../../gaps/ios-webview-viewers-and-downloads.md).
 Notification permission/FCM/broker

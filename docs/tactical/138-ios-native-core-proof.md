@@ -384,6 +384,19 @@ with iOS 18.6, the same service profile, screenshot configuration and all gates.
 The earlier older-runtime arm64 run reached 76% idle CPU; its memory rejection
 used free pages, before the availability correction. This next experiment tests
 that corrected configuration; it does not establish hosted acceptance yet.
+
+[Apple Silicon run 36921363142](https://github.com/kzahel/yepanywhere/actions/runs/36921363142)
+passed native tests, typed 37 characters with a 67 ms maximum, zero drops and
+380 overlapping transcript mutations, and preserved the route/draft across
+foreground and relaunch. Its default sidebar tap left the drawer closed on
+iOS 18.6. The test now uses a single center tap based on the current WebKit
+element frame and adds a drawer capture; the hosted Switch Host gate is pending.
+All 18 local simulator tests pass with the explicit tap and drawer capture.
+The same combined-source main CI failed draft history preparation: 6,000 real
+save/clear writes took 74.6 seconds before any browser interaction. History is
+now prepared in the fixture with a measured 300-second setup budget and yields
+between batches; interaction and typing limits remain 60 seconds and 100 ms.
+All six local draft browser cases pass.
 Local iOS 26.5 acceptance with the narrowed nine-service profile passes all
 18 tests, including native login and streamed typing. The booted overrides are
 verified; the final readiness pair records 51% and 72% idle CPU with more than

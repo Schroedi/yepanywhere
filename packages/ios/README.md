@@ -162,3 +162,12 @@ standard 3-core / 7 GiB Apple Silicon host with iOS 18.6, retaining the service
 profile and screenshot configuration. That older-runtime arm64 run had reached
 76% idle CPU; its memory rejection preceded the corrected availability sampler.
 The same readiness and typing limits apply. Hosted validation remains pending.
+
+[Apple Silicon run 36921363142](https://github.com/kzahel/yepanywhere/actions/runs/36921363142)
+passed all 16 native tests and measured 67 ms maximum for 37 characters, zero
+drops and 380 overlapping transcript mutations. Foreground and relaunch draft
+checks passed, but the default sidebar tap left the drawer closed on iOS 18.6.
+The test now uses one explicit center tap from the current element frame,
+matching its existing project/session coordinate taps, and captures the drawer
+as a sixth checkpoint. All 18 local tests pass; hosted Switch Host verification
+remains pending.

@@ -109,7 +109,12 @@ final class LiveAppTests: XCTestCase {
     let relaunched = app.webViews.textViews.firstMatch
     XCTAssertTrue(relaunched.waitForExistence(timeout: 15), app.debugDescription)
     XCTAssertEqual(relaunched.value as? String, text)
-    app.buttons["Open sidebar"].tap()
+    let sidebarOpener = app.buttons["Open sidebar"]
+    XCTAssertTrue(sidebarOpener.isHittable, app.debugDescription)
+    // Use the current WebKit element frame, as with the project/session links.
+    // On iOS 18 the default tap after relaunch left the drawer closed.
+    sidebarOpener.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    capture(app, "ios-host-sidebar")
     let switchHost = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Switch host'"))
       .firstMatch
     XCTAssertTrue(switchHost.waitForExistence(timeout: 5), app.debugDescription); switchHost.tap()
