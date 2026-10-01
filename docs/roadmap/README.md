@@ -36,30 +36,24 @@ foreground lifecycle reconstruction. Owned simulator acceptance covers real
 native login, concurrent streaming/typing within 100 ms, route/draft preservation
 and Switch Host. Direct/mux/legacy server probes and an unsigned device build
 pass, including OS TLS trust/hostname/expiry checks and cancellation across FFI.
-Dedicated iOS CI runs these paths independently of physical-device signing.
-Its runner compiles before booting Simulator, then separates native tests from
-UI acceptance and requires CPU/memory headroom for the 100 ms typing gate.
-The standard hosted VM uses macOS 15 Apple Silicon / Xcode 26.3 with iOS 18.6.
-Earlier arm64 runs failed host headroom checks; the memory sampler also
-underreported Darwin availability by counting only free pages, which is now
-corrected. Intel native tests pass with their corresponding Rust simulator
-target. Local newer-runtime
-acceptance and physical-device signing remain separate evidence.
-Intel first-boot work also exhausted host headroom, so simulator CI applies an
-explicit background-service profile to its owned device, verifies it after
-boot and retains the same 18 tests, CPU/memory requirements and typing ceiling.
-Local simulator runs remain stock by default; hosted UI acceptance is still
-being validated independently of physical iPhone availability.
-The corrected hosted run passed readiness and native tests, then failed typing
-at 370 ms while automatic XCTest recording saturated CPU. The scheme now
-disables automatic capture, retains explicit screenshots and failure diagnostics,
-and preserves the 100 ms ceiling. Recording removal improved Intel typing to
-176 ms, but the host remained CPU-bound. CI returns to Apple Silicon with the
-older runtime, service profile and corrected availability sampler; hosted
-acceptance remains pending.
-The Apple Silicon run passed typing at 67 ms with zero drops and passed relaunch
-draft checks, then failed sidebar opening. A single tap from the current WebKit
-element frame and a drawer capture will verify the remaining Switch Host flow.
+Dedicated iOS CI runs independently of physical-device signing. The
+[hosted source run 36926705262](https://github.com/kzahel/yepanywhere/actions/runs/36926705262)
+passed all 18 simulator tests without skips, including native login, streamed
+typing, foreground/relaunch draft preservation and Switch Host, then linked the
+unsigned ARM device app. Typing acknowledged all 37 characters with a 26 ms
+maximum, zero drops and 342 overlapping transcript mutations. The
+[main CI run](https://github.com/kzahel/yepanywhere/actions/runs/36926705404)
+passed all 24 jobs and 361 browser cases without retries.
+CI uses macOS 15 Apple Silicon / Xcode 26.3 with iOS 18.6, compiles before
+simulator boot, and requires CPU/memory headroom before UI acceptance. Its owned
+simulator uses a verified background-service profile; local runs remain stock
+by default. The Darwin sampler reports available and free memory separately.
+Automatic XCTest recording is disabled while six explicit screenshots remain.
+Native shell checks use control identifiers, and restored WebKit controls use
+current-frame taps. Intel native tests also pass with their Rust simulator
+target, but Intel UI remained CPU-bound. The 18 tests and 100 ms typing ceiling
+remain intact. Physical-device acceptance and signing/publication remain
+separate release work.
 Embedded viewers/downloads need the
 [remaining WebKit adapters](../../gaps/ios-webview-viewers-and-downloads.md).
 Notification permission/FCM/broker

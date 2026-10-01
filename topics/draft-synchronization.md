@@ -298,6 +298,9 @@ CI 36921363093 spent 74.6 seconds performing its 6,000 real save/clear writes,
 exhausting the old interaction budget before a page opened. Setup now has a
 300-second budget (4x that observation) and yields between 100-row batches.
 The interaction budget remains 60 seconds, with the same history and input gate.
+[CI 36926705404](https://github.com/kzahel/yepanywhere/actions/runs/36926705404)
+prepared that unchanged history in 15.5 seconds and passed the handoff in
+22.9 seconds; all 361 browser cases passed without retries.
 Sequential key events under 1,000-row concurrent activity
 assert every input acknowledgement stays below 100 ms. The phone-send sequence
 checks quiet focus protection, clearing after blur, and persistence through reload.

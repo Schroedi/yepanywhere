@@ -382,21 +382,33 @@ characters, but CPU remained saturated during typing and the page measured a
 172 ms JavaScript long task. CI returns to macOS 15 Apple Silicon / Xcode 26.3
 with iOS 18.6, the same service profile, screenshot configuration and all gates.
 The earlier older-runtime arm64 run reached 76% idle CPU; its memory rejection
-used free pages, before the availability correction. This next experiment tests
-that corrected configuration; it does not establish hosted acceptance yet.
+used free pages, before the availability correction. That experiment tested
+the corrected configuration; its result follows below.
 
 [Apple Silicon run 36921363142](https://github.com/kzahel/yepanywhere/actions/runs/36921363142)
 passed native tests, typed 37 characters with a 67 ms maximum, zero drops and
 380 overlapping transcript mutations, and preserved the route/draft across
 foreground and relaunch. Its default sidebar tap left the drawer closed on
 iOS 18.6. The test now uses a single center tap based on the current WebKit
-element frame and adds a drawer capture; the hosted Switch Host gate is pending.
+element frame and adds a drawer capture; hosted verification follows below.
 All 18 local simulator tests pass with the explicit tap and drawer capture.
 The same combined-source main CI failed draft history preparation: 6,000 real
 save/clear writes took 74.6 seconds before any browser interaction. History is
 now prepared in the fixture with a measured 300-second setup budget and yields
 between batches; interaction and typing limits remain 60 seconds and 100 ms.
 All six local draft browser cases pass.
+Source `558d99dd3` passed [iOS CI 36926705262](https://github.com/kzahel/yepanywhere/actions/runs/36926705262):
+all 16 native and both UI tests, zero skips, full relaunch/Switch Host acceptance,
+and the unsigned ARM physical-device build. Typing measured 26 ms maximum over
+37 characters, zero drops and 342 overlapping transcript mutations. Six explicit
+screenshots remain, with no recording encoder samples. The archive contains an
+unsigned arm64 executable; no physical iPhone or signing credentials were needed.
+[Main CI 36926705404](https://github.com/kzahel/yepanywhere/actions/runs/36926705404)
+passed all 24 jobs and 361 browser cases without retries. Draft history setup
+measured 15.5 seconds; the interactive handoff passed in 22.9 seconds with the
+unchanged 60-second interaction and 100 ms typing limits. Physical acceptance,
+push delivery and distribution signing remain separate release work.
+
 Local iOS 26.5 acceptance with the narrowed nine-service profile passes all
 18 tests, including native login and streamed typing. The booted overrides are
 verified; the final readiness pair records 51% and 72% idle CPU with more than

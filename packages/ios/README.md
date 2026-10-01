@@ -161,7 +161,7 @@ CPU during typing and measured a 172 ms JavaScript long task. CI returns to the
 standard 3-core / 7 GiB Apple Silicon host with iOS 18.6, retaining the service
 profile and screenshot configuration. That older-runtime arm64 run had reached
 76% idle CPU; its memory rejection preceded the corrected availability sampler.
-The same readiness and typing limits apply. Hosted validation remains pending.
+The same readiness and typing limits apply; subsequent acceptance is recorded below.
 
 [Apple Silicon run 36921363142](https://github.com/kzahel/yepanywhere/actions/runs/36921363142)
 passed all 16 native tests and measured 67 ms maximum for 37 characters, zero
@@ -169,5 +169,13 @@ drops and 380 overlapping transcript mutations. Foreground and relaunch draft
 checks passed, but the default sidebar tap left the drawer closed on iOS 18.6.
 The test now uses one explicit center tap from the current element frame,
 matching its existing project/session coordinate taps, and captures the drawer
-as a sixth checkpoint. All 18 local tests pass; hosted Switch Host verification
-remains pending.
+as a sixth checkpoint. All 18 local tests pass.
+
+[Source CI 36926705262](https://github.com/kzahel/yepanywhere/actions/runs/36926705262)
+passed all 16 native and both UI tests without skips, including real Switch Host,
+then linked and uploaded the unsigned ARM device app. The result bundle retains
+six checkpoints and no recording. Typing acknowledged all 37 characters at a
+26 ms maximum, with zero drops and 342 overlapping transcript mutations.
+The pre-UI readiness samples satisfy the unchanged 1 GiB/20% idle requirement.
+This establishes hosted acceptance independently of physical iPhone availability;
+physical-device acceptance and distribution signing remain release gates.
