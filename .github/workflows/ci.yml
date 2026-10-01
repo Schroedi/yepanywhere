@@ -351,7 +351,10 @@ jobs:
   # from the Home Screen start URL (site/src/content/docs/home-screen.md).
   ipad-webkit:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Run 36908114440 exhausted 15m downloading 125 MB of Ubuntu WebKit
+    # dependencies before tests began. Allow 3x that observed setup limit;
+    # Playwright's per-test and input-latency assertions remain unchanged.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6

@@ -109,6 +109,13 @@ turn a failing full CI run into a pass, and CI retries do not make an
 intermittent assertion healthy. Visual verification and capture remain owned by
 [UI testing](ui-testing.md), including a user's explicit visual-QA handoff.
 
+The separate iPad WebKit job allows 45 minutes for cold dependency installation
+and tests. [CI 36908114440](https://github.com/kzahel/yepanywhere/actions/runs/36908114440)
+exhausted the former 15-minute job limit while downloading 125 MB of Ubuntu
+packages from the hosted image's Azure mirror; the browser tests never began.
+The job budget is three times that observed limit, independently of Playwright's
+per-test deadlines and the unchanged input-latency assertions.
+
 The full-app Playwright configuration still defaults to one worker. Run-scoped
 services share mutable state, while the opt-in worker fixture below isolates
 parallel files. CI now exercises two worker-owned servers in each of the two
