@@ -3,7 +3,7 @@ mod crypto;
 mod session;
 mod wire;
 use serde_json::Value;
-pub use session::{NativeSession, SessionOptions};
+pub use session::{NativeSecurityBinding, NativeSession, SessionOptions};
 uniffi::setup_scaffolding!();
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]

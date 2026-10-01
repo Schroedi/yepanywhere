@@ -3,7 +3,7 @@ import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 const repo = resolve(fileURLToPath(new URL("..", import.meta.url)), "../..");
-export async function startFixture() {
+export async function startFixture({ relayURL } = {}) {
   const reserve = createServer();
   await new Promise((done) => reserve.listen(0, "127.0.0.1", done));
   const port = reserve.address().port;
@@ -25,6 +25,7 @@ export async function startFixture() {
         YA_NATIVE_PROBE_USERNAME: "ios-fixture",
         YA_NATIVE_PROBE_PASSWORD: "native-fixture-password",
         YA_NATIVE_PROBE_CONVERSATION: "true",
+        ...(relayURL ? { YA_NATIVE_PROBE_RELAY_URL: relayURL } : {}),
       },
       stdio: ["ignore", "pipe", "pipe"],
       detached: process.platform !== "win32",

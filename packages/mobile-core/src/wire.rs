@@ -13,6 +13,7 @@ use url::Url;
 pub struct Wire {
     socket: WebSocketStream<MaybeTlsStream<TcpStream>>,
     mux: bool,
+    frame_budget: usize,
 }
 fn tls() -> Result<Arc<rustls::ClientConfig>> {
     let builder = rustls::ClientConfig::builder_with_provider(Arc::new(
@@ -30,8 +31,8 @@ fn tls() -> Result<Arc<rustls::ClientConfig>> {
 impl Wire {
     async fn open(url: &Url, mux: bool) -> Result<Self> {
         let mut config = WebSocketConfig::default();
-        config.max_message_size = Some(MAX_BYTES + 64);
-        config.max_frame_size = Some(MAX_BYTES + 64);
+        config.max_message_size = Some(65536);
+        config.max_frame_size = Some(65536);
         config.max_write_buffer_size = MAX_BYTES + 128 * 1024;
         let (socket, _) = timeout(
             Duration::from_secs(10),
@@ -45,7 +46,30 @@ impl Wire {
         .await
         .map_err(|_| Error::Timeout)?
         .map_err(|_| Error::Unavailable)?;
-        Ok(Self { socket, mux })
+        Ok(Self {
+            socket,
+            mux,
+            frame_budget: MAX_BYTES + 64,
+        })
+    }
+    pub async fn authenticated(self) -> Self {
+        // YA has no application subscriptions before authentication. Rebuild the
+        // websocket decoder at this boundary, before sending capabilities, to
+        // raise its allocation budget only after authenticated server proof.
+        let mut config = WebSocketConfig::default();
+        config.max_message_size = Some(MAX_BYTES + 64);
+        config.max_frame_size = Some(MAX_BYTES + 64);
+        config.max_write_buffer_size = MAX_BYTES + 128 * 1024;
+        Self {
+            socket: WebSocketStream::from_raw_socket(
+                self.socket.into_inner(),
+                tokio_tungstenite::tungstenite::protocol::Role::Client,
+                Some(config),
+            )
+            .await,
+            mux: self.mux,
+            frame_budget: self.frame_budget,
+        }
     }
     pub async fn connect(endpoint: &str, target: Option<&str>) -> Result<Self> {
         let url = Url::parse(endpoint).map_err(|_| Error::InvalidMessage)?;
@@ -127,11 +151,18 @@ impl Wire {
         .await?;
         let opened = wire.plain_receive().await?;
         check(opened["type"] == "mux_opened" && opened["circuitId"] == 1)?;
+        wire.frame_budget = ready["maxFrameBytes"]
+            .as_u64()
+            .ok_or(Error::InvalidMessage)?
+            .min((MAX_BYTES + 64) as u64) as usize;
         wire.mux = true;
         Ok(wire)
     }
     async fn send(&mut self, bytes: Vec<u8>, binary: bool) -> Result<()> {
         check(bytes.len() <= MAX_BYTES + 48)?;
+        if bytes.len() + if self.mux { 6 } else { 0 } > self.frame_budget {
+            return Err(Error::Overflow);
+        }
         let message = if self.mux {
             let mut frame = vec![1, u8::from(binary), 0, 0, 0, 1];
             frame.extend_from_slice(&bytes);
@@ -168,6 +199,7 @@ impl Wire {
                 Message::Binary(bytes) if self.mux => {
                     check(
                         bytes.len() >= 6
+                            && bytes.len() <= self.frame_budget
                             && bytes[0] == 1
                             && bytes[1] <= 1
                             && bytes[2..6] == [0, 0, 0, 1],

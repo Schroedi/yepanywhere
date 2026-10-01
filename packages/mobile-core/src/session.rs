@@ -35,6 +35,7 @@ impl Drop for Credential {
 }
 struct Secure {
     wire: Wire,
+    nonce: String,
     key: Zeroizing<Vec<u8>>,
     outbound: u64,
     inbound: Option<u64>,
@@ -76,9 +77,11 @@ fn validate(options: &SessionOptions) -> Result<()> {
     check(options.endpoint.len() <= 2048 && (3..=128).contains(&options.username.len()))
 }
 async fn establish(wire: Wire, credential: &Credential, nonce: &str) -> Result<Secure> {
+    let wire = wire.authenticated().await;
     let key = transport_key(&credential.base_key, &unb64(nonce)?)?;
     let mut secure = Secure {
         wire,
+        nonce: nonce.to_owned(),
         key,
         outbound: 0,
         inbound: None,
@@ -132,7 +135,7 @@ pub async fn login(
     let secure = establish(wire, &credential, nonce).await?;
     Ok(NativeSession::start(options, credential, secure))
 }
-async fn resume_secure(options: &SessionOptions, credential: &Credential) -> Result<Secure> {
+async fn resume_secure(options: &SessionOptions, credential: &mut Credential) -> Result<Secure> {
     let mut wire = Wire::connect(&options.endpoint, options.relay_target.as_deref()).await?;
     let client_nonce = b64(&random(24)?);
     wire.plain_send(&json!({"type":"srp_resume_init","identity":credential.username,"sessionId":credential.session_id,"clientNonce":client_nonce})).await?;
@@ -168,12 +171,15 @@ async fn resume_secure(options: &SessionOptions, credential: &Credential) -> Res
                 .as_u64()
                 .is_some_and(|v| v >= credential.resume_protocol_version),
     )?;
+    credential.resume_protocol_version = proof["resumeProtocolVersion"]
+        .as_u64()
+        .ok_or(Error::InvalidMessage)?;
     establish(wire, credential, nonce).await
 }
 pub async fn resume(options: SessionOptions, data: &[u8]) -> Result<Arc<NativeSession>> {
     validate(&options)?;
     check(data.len() <= 4096)?;
-    let credential: Credential = serde_json::from_slice(data)?;
+    let mut credential: Credential = serde_json::from_slice(data)?;
     check(
         credential.username == options.username
             && credential.base_key.len() == 32
@@ -181,40 +187,64 @@ pub async fn resume(options: SessionOptions, data: &[u8]) -> Result<Arc<NativeSe
             && credential.session_id.len() <= 128
             && credential.resume_protocol_version >= 3,
     )?;
-    let secure = resume_secure(&options, &credential).await?;
+    let secure = resume_secure(&options, &mut credential).await?;
     Ok(NativeSession::start(options, credential, secure))
 }
 enum Command {
     Dispatch(String, Value, oneshot::Sender<Result<String>>),
     Upload(Vec<u8>, oneshot::Sender<Result<()>>),
 }
+#[derive(Clone, uniffi::Record)]
+pub struct NativeSecurityBinding {
+    pub session_id: String,
+    pub transport_nonce: String,
+}
+struct Lease {
+    cancel: CancellationToken,
+    binding: std::sync::Mutex<NativeSecurityBinding>,
+    queued_bytes: std::sync::atomic::AtomicUsize,
+    lagged: std::sync::Mutex<HashMap<String, String>>,
+    wake: tokio::sync::Notify,
+    credential: std::sync::Mutex<Zeroizing<Vec<u8>>>,
+}
+struct Event {
+    value: String,
+}
 #[derive(uniffi::Object)]
 pub struct NativeSession {
     commands: mpsc::Sender<Command>,
-    events: Mutex<mpsc::Receiver<String>>,
-    credential: Zeroizing<Vec<u8>>,
-    cancel: CancellationToken,
+    events: Mutex<mpsc::Receiver<Event>>,
+    lease: Arc<Lease>,
 }
 impl Drop for NativeSession {
     fn drop(&mut self) {
-        self.cancel.cancel();
+        self.lease.cancel.cancel();
     }
 }
 impl NativeSession {
     fn start(options: SessionOptions, credential: Credential, secure: Secure) -> Arc<Self> {
         let (commands, rx) = mpsc::channel(32);
         let (events, event_rx) = mpsc::channel(128);
-        let cancel = CancellationToken::new();
+        let lease = Arc::new(Lease {
+            cancel: CancellationToken::new(),
+            binding: std::sync::Mutex::new(NativeSecurityBinding {
+                session_id: credential.session_id.clone(),
+                transport_nonce: secure.nonce.clone(),
+            }),
+            queued_bytes: std::sync::atomic::AtomicUsize::new(0),
+            lagged: std::sync::Mutex::new(HashMap::new()),
+            wake: tokio::sync::Notify::new(),
+            credential: std::sync::Mutex::new(Zeroizing::new(
+                serde_json::to_vec(&credential).expect("serializable credential"),
+            )),
+        });
         let session = Arc::new(Self {
             commands,
             events: Mutex::new(event_rx),
-            credential: Zeroizing::new(
-                serde_json::to_vec(&credential).expect("serializable credential"),
-            ),
-            cancel: cancel.clone(),
+            lease: lease.clone(),
         });
         tokio::spawn(async move {
-            Actor::new(options, credential, secure, rx, events, cancel)
+            Actor::new(options, credential, secure, rx, events, lease)
                 .run()
                 .await;
         });
@@ -224,16 +254,34 @@ impl NativeSession {
 #[uniffi::export(async_runtime = "tokio")]
 impl NativeSession {
     pub fn credential_data(&self) -> Result<Vec<u8>> {
-        if self.cancel.is_cancelled() {
+        if self.lease.cancel.is_cancelled() {
             return Err(Error::Closed);
         }
-        Ok(self.credential.to_vec())
+        let credential = self.lease.credential.lock().map_err(|_| Error::Closed)?;
+        if self.lease.cancel.is_cancelled() {
+            return Err(Error::Closed);
+        }
+        Ok(credential.to_vec())
+    }
+    pub fn security_binding(&self) -> Result<NativeSecurityBinding> {
+        if self.lease.cancel.is_cancelled() {
+            return Err(Error::Closed);
+        }
+        Ok(self
+            .lease
+            .binding
+            .lock()
+            .map_err(|_| Error::Closed)?
+            .clone())
     }
     pub fn close(&self) {
-        self.cancel.cancel();
+        self.lease.cancel.cancel();
+        if let Ok(mut credential) = self.lease.credential.lock() {
+            credential.zeroize();
+        }
     }
     pub async fn dispatch(&self, method: String, params: String) -> Result<String> {
-        if self.cancel.is_cancelled() {
+        if self.lease.cancel.is_cancelled() {
             return Err(Error::Closed);
         }
         let params = parse(&params, 512 * 1024)?;
@@ -241,7 +289,7 @@ impl NativeSession {
         self.commands
             .try_send(Command::Dispatch(method, params, tx))
             .map_err(|_| Error::Overflow)?;
-        tokio::select! { _ = self.cancel.cancelled() => Err(Error::Closed), result = timeout(Duration::from_secs(30), rx) => result.map_err(|_| Error::Timeout)?.map_err(|_| Error::Closed)? }
+        tokio::select! { _ = self.lease.cancel.cancelled() => Err(Error::Closed), result = timeout(Duration::from_secs(30), rx) => result.map_err(|_| Error::Timeout)?.map_err(|_| Error::Closed)? }
     }
     pub async fn upload_chunk(&self, payload: Vec<u8>) -> Result<()> {
         check(payload.len() >= 24 && payload.len() <= 65536 + 24)?;
@@ -249,10 +297,31 @@ impl NativeSession {
         self.commands
             .try_send(Command::Upload(payload, tx))
             .map_err(|_| Error::Overflow)?;
-        tokio::select! { _ = self.cancel.cancelled() => Err(Error::Closed), result = timeout(Duration::from_secs(30), rx) => result.map_err(|_| Error::Timeout)?.map_err(|_| Error::Closed)? }
+        tokio::select! { _ = self.lease.cancel.cancelled() => Err(Error::Closed), result = timeout(Duration::from_secs(30), rx) => result.map_err(|_| Error::Timeout)?.map_err(|_| Error::Closed)? }
     }
     pub async fn next_event(&self) -> Result<String> {
-        tokio::select! { _ = self.cancel.cancelled() => Err(Error::Closed), event = async { self.events.lock().await.recv().await } => event.ok_or(Error::Closed) }
+        let mut events = self.events.lock().await;
+        loop {
+            let wake = self.lease.wake.notified();
+            tokio::pin!(wake);
+            wake.as_mut().enable();
+            {
+                let mut lagged = self.lease.lagged.lock().map_err(|_| Error::Closed)?;
+                if let Some(id) = lagged.keys().next().cloned() {
+                    return lagged.remove(&id).ok_or(Error::Closed);
+                }
+            }
+            tokio::select! {
+                biased;
+                _ = self.lease.cancel.cancelled() => return Err(Error::Closed),
+                _ = wake => continue,
+                event = events.recv() => {
+                    let event = event.ok_or(Error::Closed)?;
+                    self.lease.queued_bytes.fetch_sub(event.value.len(), std::sync::atomic::Ordering::AcqRel);
+                    return Ok(event.value);
+                }
+            }
+        }
     }
 }
 struct Pending {
@@ -269,8 +338,8 @@ struct Actor {
     credential: Credential,
     secure: Secure,
     commands: mpsc::Receiver<Command>,
-    events: mpsc::Sender<String>,
-    cancel: CancellationToken,
+    events: mpsc::Sender<Event>,
+    lease: Arc<Lease>,
     pending: HashMap<String, Pending>,
     subscriptions: HashMap<String, Value>,
     uploads: HashMap<String, Upload>,
@@ -281,8 +350,8 @@ impl Actor {
         credential: Credential,
         secure: Secure,
         commands: mpsc::Receiver<Command>,
-        events: mpsc::Sender<String>,
-        cancel: CancellationToken,
+        events: mpsc::Sender<Event>,
+        lease: Arc<Lease>,
     ) -> Self {
         Self {
             options,
@@ -290,25 +359,44 @@ impl Actor {
             secure,
             commands,
             events,
-            cancel,
+            lease,
             pending: HashMap::new(),
             subscriptions: HashMap::new(),
             uploads: HashMap::new(),
         }
     }
     fn event(&self, v: Value) -> Result<()> {
-        self.events
-            .try_send(v.to_string())
-            .map_err(|_| Error::Overflow)
+        let value = v.to_string();
+        check(value.len() <= MAX_BYTES)?;
+        let size = value.len();
+        self.lease
+            .queued_bytes
+            .fetch_update(
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+                |queued| {
+                    queued
+                        .checked_add(size)
+                        .filter(|total| *total <= 64 * 1024 * 1024)
+                },
+            )
+            .map_err(|_| Error::Overflow)?;
+        if self.events.try_send(Event { value }).is_err() {
+            self.lease
+                .queued_bytes
+                .fetch_sub(size, std::sync::atomic::Ordering::AcqRel);
+            return Err(Error::Overflow);
+        }
+        Ok(())
     }
     fn fail_pending(&mut self) {
         for (_, p) in self.pending.drain() {
             let _ = p.reply.send(Err(Error::Unavailable));
         }
-        for (id, _) in self.uploads.drain() {
-            let _ = self.events.try_send(
-                json!({"type":"upload_error","uploadId":id,"error":"Connection interrupted"})
-                    .to_string(),
+        let ids = self.uploads.drain().map(|(id, _)| id).collect::<Vec<_>>();
+        for id in ids {
+            let _ = self.event(
+                json!({"type":"upload_error","uploadId":id,"error":"Connection interrupted"}),
             );
         }
     }
@@ -316,13 +404,32 @@ impl Actor {
         self.fail_pending();
         self.event(json!({"type":"state","phase":"RETRYING"}))?;
         for delay in [250, 1000, 3000] {
-            tokio::select! { _ = self.cancel.cancelled() => return Err(Error::Closed), _ = tokio::time::sleep(Duration::from_millis(delay)) => {} }
-            let result = tokio::select! { _ = self.cancel.cancelled() => return Err(Error::Closed), r = resume_secure(&self.options, &self.credential) => r };
+            tokio::select! { _ = self.lease.cancel.cancelled() => return Err(Error::Closed), _ = tokio::time::sleep(Duration::from_millis(delay)) => {} }
+            let result = tokio::select! { _ = self.lease.cancel.cancelled() => return Err(Error::Closed), r = resume_secure(&self.options, &mut self.credential) => r };
             match result {
                 Ok(secure) => {
+                    if self.lease.cancel.is_cancelled() {
+                        return Err(Error::Closed);
+                    }
                     self.secure = secure;
+                    *self.lease.binding.lock().map_err(|_| Error::Closed)? =
+                        NativeSecurityBinding {
+                            session_id: self.credential.session_id.clone(),
+                            transport_nonce: self.secure.nonce.clone(),
+                        };
+                    *self.lease.credential.lock().map_err(|_| Error::Closed)? =
+                        Zeroizing::new(serde_json::to_vec(&self.credential)?);
+                    let cancel = self.lease.cancel.clone();
+                    let mut restored = true;
                     for subscription in self.subscriptions.values() {
-                        self.secure.send(subscription).await?;
+                        let result = tokio::select! { _ = cancel.cancelled() => return Err(Error::Closed), r = self.secure.send(subscription) => r };
+                        if result.is_err() {
+                            restored = false;
+                            break;
+                        }
+                    }
+                    if !restored {
+                        continue;
                     }
                     self.event(json!({"type":"state","phase":"CONNECTED"}))?;
                     return Ok(());
@@ -336,17 +443,30 @@ impl Actor {
         Err(Error::Unavailable)
     }
     async fn run(mut self) {
-        let mut cleanup = tokio::time::interval(Duration::from_secs(1));
         loop {
+            let deadline = self.pending.values().map(|p| p.deadline).min();
+            let cleanup = async {
+                if let Some(deadline) = deadline {
+                    tokio::time::sleep_until(deadline).await;
+                } else {
+                    std::future::pending::<()>().await;
+                }
+            };
             let outcome = tokio::select! {
                 biased;
-                _ = self.cancel.cancelled() => break,
-                command = self.commands.recv() => match command { Some(c) => self.command(c).await, None => break },
-                _ = cleanup.tick() => {
+                _ = self.lease.cancel.cancelled() => break,
+                command = self.commands.recv() => match command { Some(c) => {
+                    let cancel = self.lease.cancel.clone();
+                    tokio::select! { _ = cancel.cancelled() => Err(Error::Closed), result = self.command(c) => result }
+                }, None => break },
+                _ = cleanup => {
                     self.pending.retain(|_,p| !p.reply.is_closed() && p.deadline > Instant::now()); Ok(())
                 },
                 message = self.secure.receive() => match message {
-                    Ok(v) => self.message(v),
+                    Ok(v) => {
+                        let cancel = self.lease.cancel.clone();
+                        tokio::select! { _ = cancel.cancelled() => Err(Error::Closed), result = self.message(v) => result }
+                    },
                     Err(Error::InvalidMessage) => Err(Error::InvalidMessage),
                     Err(_) => self.reconnect().await,
                 },
@@ -362,6 +482,13 @@ impl Actor {
             }
         }
         self.fail_pending();
+        if let Ok(mut credential) = self.lease.credential.lock() {
+            credential.zeroize();
+        }
+        if let Ok(mut binding) = self.lease.binding.lock() {
+            binding.session_id.zeroize();
+            binding.transport_nonce.zeroize();
+        }
         // Drop the socket, keys, queues and subscriptions when its final lease closes.
     }
     async fn command(&mut self, c: Command) -> Result<()> {
@@ -375,10 +502,14 @@ impl Actor {
                         .try_into()
                         .map_err(|_| Error::InvalidMessage)?,
                 );
-                let upload = self.uploads.get_mut(&id).ok_or(Error::InvalidMessage)?;
-                check(
-                    offset == upload.offset && offset + (payload.len() - 24) as u64 <= upload.size,
-                )?;
+                let Some(upload) = self.uploads.get_mut(&id) else {
+                    let _ = reply.send(Err(Error::InvalidMessage));
+                    return Ok(());
+                };
+                if offset != upload.offset || offset + (payload.len() - 24) as u64 > upload.size {
+                    let _ = reply.send(Err(Error::InvalidMessage));
+                    return Ok(());
+                }
                 upload.offset += (payload.len() - 24) as u64;
                 payload[..16].copy_from_slice(upload.wire_id.as_bytes());
                 let mut inner = vec![2];
@@ -399,89 +530,93 @@ impl Actor {
                     let _ = reply.send(Err(Error::Overflow));
                     return Ok(());
                 }
-                let result: Result<Option<String>> = match method.as_str() {
-                    "request" => {
-                        let path = field(&p, "path")?;
-                        check(
-                            path.starts_with('/') && !path.starts_with("//") && path.len() <= 4096,
-                        )?;
-                        check(matches!(
-                            field(&p, "method")?,
-                            "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
-                        ))?;
-                        let id = Uuid::new_v4().to_string();
-                        p["id"] = json!(id);
-                        p["type"] = json!("request");
-                        self.secure.send(&p).await?;
-                        Ok(Some(id))
-                    }
-                    "subscribe" => {
-                        check(self.subscriptions.len() < 64)?;
-                        let id = field(&p, "subscriptionId")?.to_owned();
-                        check(
-                            !id.is_empty()
-                                && id.len() <= 128
-                                && !self.subscriptions.contains_key(&id),
-                        )?;
-                        p["type"] = json!("subscribe");
-                        self.secure.send(&p).await?;
-                        self.subscriptions.insert(id, p);
-                        Ok(None)
-                    }
-                    "unsubscribe" => {
-                        let id = field(&p, "subscriptionId")?.to_owned();
-                        check(self.subscriptions.remove(&id).is_some())?;
-                        p["type"] = json!("unsubscribe");
-                        self.secure.send(&p).await?;
-                        Ok(None)
-                    }
-                    "uploadStart" => {
-                        check(self.uploads.len() < 4)?;
-                        let id = field(&p, "uploadId")?.to_owned();
-                        let _ = Uuid::parse_str(&id).map_err(|_| Error::InvalidMessage)?;
-                        check(
-                            !self.uploads.contains_key(&id)
-                                && matches!(
-                                    field(&p, "type")?,
-                                    "upload_start" | "staged_upload_start"
-                                ),
-                        )?;
-                        let wire_id = Uuid::new_v4();
-                        let size = p["size"].as_u64().ok_or(Error::InvalidMessage)?;
-                        check(size <= 100 * 1024 * 1024)?;
-                        p["uploadId"] = json!(wire_id.to_string());
-                        self.secure.send(&p).await?;
-                        self.uploads.insert(
-                            id,
-                            Upload {
-                                wire_id,
-                                offset: 0,
-                                size,
-                            },
-                        );
-                        Ok(None)
-                    }
-                    "uploadEnd" | "uploadCancel" => {
-                        let id = field(&p, "uploadId")?;
-                        let upload = self.uploads.get(id).ok_or(Error::InvalidMessage)?;
-                        if method == "uploadEnd" {
-                            check(upload.offset == upload.size)?;
+                let result: Result<Option<String>> = async {
+                    match method.as_str() {
+                        "request" => {
+                            let path = field(&p, "path")?;
+                            check(
+                                path.starts_with('/')
+                                    && !path.starts_with("//")
+                                    && path.len() <= 4096,
+                            )?;
+                            check(matches!(
+                                field(&p, "method")?,
+                                "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
+                            ))?;
+                            let id = Uuid::new_v4().to_string();
+                            p["id"] = json!(id);
+                            p["type"] = json!("request");
+                            self.secure.send(&p).await?;
+                            Ok(Some(id))
                         }
-                        p["uploadId"] = json!(upload.wire_id.to_string());
-                        p["type"] = json!(if method == "uploadEnd" {
-                            "upload_end"
-                        } else {
-                            "upload_cancel"
-                        });
-                        self.secure.send(&p).await?;
-                        Ok(None)
+                        "subscribe" => {
+                            check(self.subscriptions.len() < 64)?;
+                            let id = field(&p, "subscriptionId")?.to_owned();
+                            check(
+                                !id.is_empty()
+                                    && id.len() <= 128
+                                    && !self.subscriptions.contains_key(&id),
+                            )?;
+                            p["type"] = json!("subscribe");
+                            self.secure.send(&p).await?;
+                            self.subscriptions.insert(id, p);
+                            Ok(None)
+                        }
+                        "unsubscribe" => {
+                            let id = field(&p, "subscriptionId")?.to_owned();
+                            check(self.subscriptions.remove(&id).is_some())?;
+                            p["type"] = json!("unsubscribe");
+                            self.secure.send(&p).await?;
+                            Ok(None)
+                        }
+                        "uploadStart" => {
+                            check(self.uploads.len() < 4)?;
+                            let id = field(&p, "uploadId")?.to_owned();
+                            let _ = Uuid::parse_str(&id).map_err(|_| Error::InvalidMessage)?;
+                            check(
+                                !self.uploads.contains_key(&id)
+                                    && matches!(
+                                        field(&p, "type")?,
+                                        "upload_start" | "staged_upload_start"
+                                    ),
+                            )?;
+                            let wire_id = Uuid::new_v4();
+                            let size = p["size"].as_u64().ok_or(Error::InvalidMessage)?;
+                            check(size <= 100 * 1024 * 1024)?;
+                            p["uploadId"] = json!(wire_id.to_string());
+                            self.secure.send(&p).await?;
+                            self.uploads.insert(
+                                id,
+                                Upload {
+                                    wire_id,
+                                    offset: 0,
+                                    size,
+                                },
+                            );
+                            Ok(None)
+                        }
+                        "uploadEnd" | "uploadCancel" => {
+                            let id = field(&p, "uploadId")?.to_owned();
+                            let upload = self.uploads.get(&id).ok_or(Error::InvalidMessage)?;
+                            if method == "uploadEnd" {
+                                check(upload.offset == upload.size)?;
+                            }
+                            p["uploadId"] = json!(upload.wire_id.to_string());
+                            p["type"] = json!("upload_end");
+                            self.secure.send(&p).await?;
+                            if method == "uploadCancel" {
+                                self.uploads.remove(&id);
+                            }
+                            Ok(None)
+                        }
+                        "reconnect" => {
+                            self.reconnect().await?;
+                            Ok(None)
+                        }
+                        _ => Err(Error::InvalidMessage),
                     }
-                    "reconnect" => {
-                        self.reconnect().await?;
-                        Ok(None)
-                    }
-                    _ => Err(Error::InvalidMessage),
-                };
+                }
+                .await;
                 match result {
                     Ok(Some(id)) => {
                         self.pending.insert(
@@ -496,14 +631,18 @@ impl Actor {
                         let _ = reply.send(Ok("{}".into()));
                     }
                     Err(e) => {
+                        let reconnect = matches!(e, Error::Unavailable | Error::Timeout);
                         let _ = reply.send(Err(e));
+                        if reconnect {
+                            self.reconnect().await?;
+                        }
                     }
                 }
             }
         }
         Ok(())
     }
-    fn message(&mut self, mut v: Value) -> Result<()> {
+    async fn message(&mut self, mut v: Value) -> Result<()> {
         match field(&v, "type")? {
             "response" => {
                 if let Some(pending) = self.pending.remove(field(&v, "id")?) {
@@ -511,6 +650,8 @@ impl Actor {
                         json!({"status":v["status"],"headers":v["headers"],"body":v["body"]})
                             .to_string(),
                     ));
+                } else if let Some(subscription) = self.subscriptions.remove(field(&v, "id")?) {
+                    self.event(json!({"type":"subscriptionError","subscriptionId":subscription["subscriptionId"],"status":v["status"],"error":v["body"]}))?;
                 }
             }
             "event" | "subscription_error" => {
@@ -519,7 +660,38 @@ impl Actor {
                     if let Some(event_id) = v.get("eventId") {
                         subscription["lastEventId"] = event_id.clone();
                     }
-                    self.event(v)?;
+                    if v["type"] == "subscription_error" {
+                        v["type"] = json!("subscriptionError");
+                    }
+                    // Keep control capacity reserved; shed only the lagging subscription.
+                    let queued = self
+                        .lease
+                        .queued_bytes
+                        .load(std::sync::atomic::Ordering::Acquire);
+                    if self.events.capacity() <= 8
+                        || queued + v.to_string().len() > 60 * 1024 * 1024
+                    {
+                        self.subscriptions.remove(&id);
+                        let error = json!({"type":"subscriptionError","subscriptionId":id,"status":429,"error":"Native subscription consumer fell behind"}).to_string();
+                        // One bounded error per owned subscription lives outside
+                        // the saturated data queue; requests and other owners survive.
+                        self.lease
+                            .lagged
+                            .lock()
+                            .map_err(|_| Error::Closed)?
+                            .insert(id.clone(), error);
+                        self.lease.wake.notify_one();
+                        if self
+                            .secure
+                            .send(&json!({"type":"unsubscribe","subscriptionId":id}))
+                            .await
+                            .is_err()
+                        {
+                            self.reconnect().await?;
+                        }
+                    } else {
+                        self.event(v)?;
+                    }
                 }
             }
             "upload_progress" | "upload_complete" | "upload_error" => {
@@ -542,5 +714,252 @@ impl Actor {
             _ => return Err(Error::InvalidMessage),
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_util::{SinkExt, StreamExt};
+    use tokio::net::TcpListener;
+    use tokio_tungstenite::{accept_async, tungstenite::Message};
+    fn credential() -> Credential {
+        Credential {
+            username: "fixture-owner".into(),
+            session_id: "public-fixture-session".into(),
+            base_key: vec![7; 32],
+            resume_protocol_version: 3,
+        }
+    }
+    async fn peer(version: u64, mutation: &str) -> (SessionOptions, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("ws://{}/api/ws", listener.local_addr().unwrap());
+        let mutation = mutation.to_owned();
+        let peer = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut socket = accept_async(socket).await.unwrap();
+            let init: Value =
+                serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap())
+                    .unwrap();
+            let nonce = b64(&[9; 24]);
+            socket.send(Message::text(json!({"type":"srp_resume_challenge","sessionId":credential().session_id,"nonce":nonce}).to_string())).await.unwrap();
+            let _ = socket.next().await;
+            let mut proof = json!({"type":"srp_resume_server_proof","sessionId":credential().session_id,"serverNonce":nonce,"clientNonce":init["clientNonce"],"resumeProtocolVersion":version});
+            if mutation == "client-nonce" {
+                proof["clientNonce"] = json!(b64(&[8; 24]));
+            }
+            if mutation == "server-nonce" {
+                proof["serverNonce"] = json!(b64(&[8; 24]));
+            }
+            if mutation == "session" {
+                proof["sessionId"] = json!("another-fixture-session");
+            }
+            let mut envelope = json!({"type":"srp_resumed","sessionId":credential().session_id,"transportNonce":nonce,"serverProof":json_seal(&proof, &credential().base_key).unwrap()});
+            if mutation == "missing-proof" {
+                envelope.as_object_mut().unwrap().remove("serverProof");
+            }
+            if mutation == "tampered-proof" {
+                envelope["serverProof"] = json!(json_seal(&proof, &[8; 32]).unwrap());
+            }
+            if mutation == "outer-nonce" {
+                envelope["transportNonce"] = json!(b64(&[8; 24]));
+            }
+            if socket
+                .send(Message::text(envelope.to_string()))
+                .await
+                .is_err()
+            {
+                return;
+            }
+            // No application data precedes native client capabilities.
+            if !matches!(socket.next().await, Some(Ok(Message::Binary(_)))) {
+                return;
+            }
+            let key = transport_key(&credential().base_key, &[9; 24]).unwrap();
+            let mut seq = 0;
+            while let Some(Ok(Message::Binary(bytes))) = socket.next().await {
+                let plain = open(&bytes[25..], &bytes[1..25], &key).unwrap();
+                if plain.first() != Some(&1) {
+                    continue;
+                }
+                let request: Value = serde_json::from_slice(&plain[1..]).unwrap();
+                let request = &request["msg"];
+                let messages = if request["type"] == "subscribe" {
+                    let count = if request["subscriptionId"] == "lagging" {
+                        200
+                    } else {
+                        1
+                    };
+                    (0..count).map(|i| json!({"type":"event","subscriptionId":request["subscriptionId"],"eventId":i.to_string(),"data":{"kind":"fixture"}})).collect::<Vec<_>>()
+                } else if request["type"] == "request" {
+                    vec![
+                        json!({"type":"response","id":request["id"],"status":200,"headers":{},"body":{"fixture":true}}),
+                    ]
+                } else {
+                    vec![]
+                };
+                for message in messages {
+                    let mut inner = vec![1];
+                    inner
+                        .extend_from_slice(json!({"seq":seq,"msg":message}).to_string().as_bytes());
+                    seq += 1;
+                    let mut frame = vec![1];
+                    frame.extend_from_slice(&[10; 24]);
+                    frame.extend_from_slice(&seal(&inner, &[10; 24], &key).unwrap());
+                    if socket.send(Message::binary(frame)).await.is_err() {
+                        return;
+                    }
+                }
+            }
+        });
+        (
+            SessionOptions {
+                endpoint,
+                username: credential().username.clone(),
+                relay_target: None,
+            },
+            peer,
+        )
+    }
+    #[tokio::test]
+    async fn resume_rejects_context_tampering_and_persists_highest_version() {
+        let data = serde_json::to_vec(&credential()).unwrap();
+        for mutation in [
+            "client-nonce",
+            "server-nonce",
+            "session",
+            "missing-proof",
+            "tampered-proof",
+            "outer-nonce",
+        ] {
+            let (options, peer) = peer(3, mutation).await;
+            assert!(resume(options, &data).await.is_err(), "{mutation}");
+            peer.abort();
+            let _ = peer.await;
+        }
+        let (options, task) = peer(4, "").await;
+        let session = resume(options, &data).await.unwrap();
+        let advanced = session.credential_data().unwrap();
+        assert_eq!(
+            serde_json::from_slice::<Value>(&advanced).unwrap()["resume_protocol_version"],
+            4
+        );
+        session.close();
+        task.abort();
+        let _ = task.await;
+        let (options, task) = peer(3, "").await;
+        assert!(resume(options, &advanced).await.is_err());
+        task.abort();
+        let _ = task.await;
+    }
+    #[tokio::test]
+    async fn lagging_subscription_preserves_requests_and_other_subscriptions() {
+        let (options, task) = peer(3, "").await;
+        let session = resume(options, &serde_json::to_vec(&credential()).unwrap())
+            .await
+            .unwrap();
+        session
+            .dispatch(
+                "subscribe".into(),
+                json!({"subscriptionId":"lagging","channel":"activity"}).to_string(),
+            )
+            .await
+            .unwrap();
+        assert!(
+            session
+                .dispatch(
+                    "request".into(),
+                    json!({"method":"GET","path":"/api/projects"}).to_string()
+                )
+                .await
+                .unwrap()
+                .contains("200")
+        );
+        let error = session.next_event().await.unwrap();
+        assert!(
+            error.contains("subscriptionError") && error.contains("lagging"),
+            "{error}"
+        );
+        for _ in 0..120 {
+            let _ = session.next_event().await.unwrap();
+        }
+        assert!(
+            session
+                .dispatch(
+                    "unsubscribe".into(),
+                    json!({"subscriptionId":"foreign"}).to_string()
+                )
+                .await
+                .is_err()
+        );
+        session
+            .dispatch(
+                "subscribe".into(),
+                json!({"subscriptionId":"healthy","channel":"activity"}).to_string(),
+            )
+            .await
+            .unwrap();
+        let event: Value = serde_json::from_str(&session.next_event().await.unwrap()).unwrap();
+        assert_eq!(event["type"], "event");
+        assert_eq!(event["subscriptionId"], "healthy");
+        session.close();
+        assert!(session.credential_data().is_err());
+        task.abort();
+        let _ = task.await;
+    }
+    #[tokio::test]
+    async fn close_quiesces_socket_and_erases_exports() {
+        let (options, task) = peer(3, "").await;
+        let session = resume(options, &serde_json::to_vec(&credential()).unwrap())
+            .await
+            .unwrap();
+        session.close();
+        assert!(session.security_binding().is_err());
+        assert!(session.credential_data().is_err());
+        // Teardown latency is the subject, not a generic test speed budget.
+        timeout(Duration::from_millis(500), task)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            session
+                .lease
+                .credential
+                .lock()
+                .unwrap()
+                .iter()
+                .all(|x| *x == 0)
+        );
+    }
+    #[tokio::test]
+    async fn preauthentication_rejects_oversized_header_without_waiting_for_body() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("ws://{}/api/ws", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move {
+            use tokio::io::AsyncWriteExt;
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut socket = accept_async(socket).await.unwrap();
+            let _ = socket.next().await;
+            let mut header = vec![0x81, 127];
+            header.extend_from_slice(&(32_u64 * 1024 * 1024).to_be_bytes());
+            socket.get_mut().write_all(&header).await.unwrap();
+            std::future::pending::<()>().await;
+        });
+        let options = SessionOptions {
+            endpoint,
+            username: "fixture-owner".into(),
+            relay_target: None,
+        };
+        assert!(
+            timeout(
+                Duration::from_millis(500),
+                login(options, Zeroizing::new("fixture-password".into()))
+            )
+            .await
+            .unwrap()
+            .is_err()
+        );
+        task.abort();
+        let _ = task.await;
     }
 }
