@@ -14,6 +14,7 @@ export const AUTOMATION_BROWSER_PROFILE_ID = "automation";
 // ============================================================================
 
 export const UI_KEYS = {
+  attachmentAction: "yep-anywhere-attachment-action",
   locale: "yep-anywhere-locale",
   theme: "yep-anywhere-theme",
   fontSize: "yep-anywhere-font-size",

@@ -4929,8 +4929,9 @@ function SessionPageContent({
   // Handle file attachment uploads
   // Each file uploads independently (parallel) and its promise is tracked
   // so handleSend can wait for in-flight uploads before sending
-  const handleAttach = useCallback(
+  const uploadAttachedFiles = useCallback(
     (files: File[]) => {
+      const uploads: Promise<ComposerAttachment | null>[] = [];
       const draftBatchId = stagedAttachmentUploadsEnabled
         ? ensureDraftAttachmentBatchId()
         : null;
@@ -5029,7 +5030,9 @@ function SessionPageContent({
           });
 
         pendingUploadsRef.current.set(tempId, uploadPromise);
+        uploads.push(uploadPromise);
       }
+      return Promise.all(uploads);
     },
     [
       attachmentQuality,
@@ -5042,6 +5045,13 @@ function SessionPageContent({
       stagedAttachmentUploadsEnabled,
       t,
     ],
+  );
+
+  const handleAttach = useCallback(
+    async (files: File[]) => {
+      await uploadAttachedFiles(files);
+    },
+    [uploadAttachedFiles],
   );
 
   useIncomingShareFiles(handleAttach, {
@@ -7001,6 +7011,15 @@ function SessionPageContent({
                   sessionId={sessionId}
                   attachments={mainComposerForAside ? [] : attachments}
                   onAttach={mainComposerForAside ? undefined : handleAttach}
+                  onAttachAudioMemo={
+                    mainComposerForAside
+                      ? undefined
+                      : async (file) => {
+                          const uploaded = await uploadAttachedFiles([file]);
+                          if (!uploaded[0])
+                            throw new Error(t("audioMemoUploadFailed"));
+                        }
+                  }
                   onRemoveAttachment={
                     mainComposerForAside ? undefined : handleRemoveAttachment
                   }

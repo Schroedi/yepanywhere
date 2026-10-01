@@ -6,8 +6,8 @@
 
 Topic: attachment-intake
 
-Status: current desktop paste and installed-PWA image share paths are
-implemented.
+Status: desktop paste, installed-PWA image share, and session audio memo
+attachment paths are implemented.
 
 See also:
 
@@ -69,6 +69,13 @@ web path.
 
 ## Design decisions
 
+- **Independent memo capture with a disposable ASR subscriber** (vs. saving
+  the dictation provider's input): transcript toggles must not control the
+  original audio, and the attachment must remain 24 kHz even when STT uses
+  16 kHz. Streaming STT owns cloned tracks; deferred STT reads the finished WAV.
+- **Ordinary file delivery** (vs. a new native-audio provider contract): the
+  existing attachment route exposes the recording to model tools without
+  implying that every selected model natively understands audio.
 - Use the PWA share target and existing attachment pipeline rather than a
   server upload endpoint. The service worker needs no YA session authority and
   the composer remains the acceptance boundary.
@@ -94,3 +101,51 @@ web path.
   one update when advertised, while the absent-capability path stays text-only.
 - Direct start, resume, and queue requests accept empty text with a completed
   attachment; an older server receives no such unsupported request.
+
+## Audio memo attachments
+
+The existing session composer can explicitly record a microphone memo as a
+mono 24 kHz signed PCM16 WAV. Desktop Attach opens the file chooser;
+Shift-click records. Touch Attach opens **Share to session**. Right-click and
+long-press open the same menu, including the toolbar Hide action. Toolbar
+settings can override the device-local primary action with files, menu, or
+recording. The alternate is recording, except when recording is primary, when
+it is files. Ctrl+Shift+Space starts a memo or stops and sends the current take.
+Ordinary microphone dictation remains separate.
+
+The large waveform surface, captioned **Tap anywhere here to stop & send**,
+commits the take. Restart discards the take and begins again; Cancel discards
+it and preserves typed text. Capture readiness follows real audio frames.
+Microphone denial, interruption and missing frames surface errors. Capture is
+bounded to ten minutes; interruption or the limit retains the stopped take for
+explicit retry rather than sending it automatically.
+
+**Include transcript** defaults on, as explicitly requested for this flow,
+and persists within the browser window. It uses the selected available server
+or direct Grok STT backend; browser-native dictation cannot transcribe a saved
+recording and is not silently replaced with another backend. When unavailable,
+the user can select an STT backend or turn the checkbox off to send audio only.
+Streaming previews are draft feedback. Turning off discards the transcript
+and disposes its subscriber while recording continues. Turning back on defers
+whole-recording transcription until stop. Smart Turn and spoken commands never
+commit, cancel, or strip words from a memo.
+
+Normal stop requires no second Send. Transcription and upload settle before
+the ordinary session submission. A transcription or upload failure retains
+the take for retry, with transcript-off available to omit a failed ASR result.
+The original WAV is always attached. Transcribed words become a separately
+labeled `🎤 Audio transcript` suffix after typed text; audio-only turns with no
+typed text use `🎤 Audio memo`, so existing servers receive nonempty text.
+The outgoing text is retained in the composer's existing recovery draft until
+the session confirms delivery. No new server route or capability is required.
+
+Verification covers actual browser audio capture, WAV header/sample encoding,
+ASR disposal without microphone loss, deferred whole-recording transcription,
+Cancel preserving typed text, upload failure/retry, and a session request with
+the uploaded WAV and transcript suffix. Browser coverage uses Chromium with
+fake microphone hardware and mocked STT; real phones and vendor recognition
+quality are not established by those checks.
+
+Held recording and playback/monitor capture remain separate follow-ups:
+[hold gesture](../gaps/sketches/audio-memo-hold-to-record.md) and
+[source selector](../gaps/sketches/audio-memo-source-selection.md).
