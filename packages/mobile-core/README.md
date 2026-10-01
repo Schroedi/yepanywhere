@@ -22,6 +22,23 @@ routes use the same authentication; unavailable mux setup falls back to the
 exact configured legacy relay endpoint. Explicit custom URLs remain authoritative.
 TLS uses rustls with the platform verifier and OS certificate trust.
 
+The native app uses the stored entry points with a CredentialPersistence owner.
+A verified full-login credential is durable before capabilities or continuity
+registration. Resume invalidates the older stored credential before connecting
+and persists the authenticated high-water before capabilities. A storage failure
+or cancellation can require full login; it cannot silently reuse an older pin.
+Reconnect follows the same rule. The memory-only entry points remain available
+for diagnostics, whose callers own any persistence.
+
+Subscription queue pressure is attributed to queued owners; the offending owner
+is removed and receives a bounded error. Progress/state events coalesce, and
+server-rejected subscriptions are not restored. Cancelling requests releases
+pending slots without waiting for the request deadline. Generated Swift bindings
+apply a version-checked cancellation adapter to UniFFI 0.32.2's exposed
+rust_future_cancel/free API, since its Swift template lacks cancellation support.
+The lifetime gate serializes cancellation and free; blackholed simulator login
+and resume tests verify actual socket release.
+
 Run from the repository root with Node 24 LTS and the pinned Rust toolchain:
 
 ```sh

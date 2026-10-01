@@ -94,6 +94,7 @@ async fn establish(wire: Wire, credential: &Credential, nonce: &str) -> Result<S
 pub async fn login(
     options: SessionOptions,
     password: Zeroizing<String>,
+    storage: Option<Arc<dyn crate::CredentialPersistence>>,
 ) -> Result<Arc<NativeSession>> {
     validate(&options)?;
     check(!password.is_empty() && password.len() <= 4096)?;
@@ -132,10 +133,44 @@ pub async fn login(
         base_key: base.to_vec(),
         resume_protocol_version: version,
     };
+    persist(&storage, &credential)?;
     let secure = establish(wire, &credential, nonce).await?;
-    Ok(NativeSession::start(options, credential, secure))
+    Ok(NativeSession::start(options, credential, secure, storage))
 }
-async fn resume_secure(options: &SessionOptions, credential: &mut Credential) -> Result<Secure> {
+fn persist(
+    storage: &Option<Arc<dyn crate::CredentialPersistence>>,
+    credential: &Credential,
+) -> Result<()> {
+    if let Some(storage) = storage
+        && !storage.persist(serde_json::to_vec(credential)?)
+    {
+        return Err(Error::Unavailable);
+    }
+    Ok(())
+}
+async fn resume_secure(
+    options: &SessionOptions,
+    credential: &mut Credential,
+    storage: &Option<Arc<dyn crate::CredentialPersistence>>,
+) -> Result<Secure> {
+    if let Some(storage) = storage
+        && !storage.begin_resume()
+    {
+        return Err(Error::Unavailable);
+    }
+    let result = resume_proof(options, credential, storage).await;
+    // Even failure after a valid higher-version proof retains its high-water.
+    // Cancellation drops this future; begin_resume already invalidated the old pin.
+    if result.is_err() {
+        persist(storage, credential)?;
+    }
+    result
+}
+async fn resume_proof(
+    options: &SessionOptions,
+    credential: &mut Credential,
+    storage: &Option<Arc<dyn crate::CredentialPersistence>>,
+) -> Result<Secure> {
     let mut wire = Wire::connect(&options.endpoint, options.relay_target.as_deref()).await?;
     let client_nonce = b64(&random(24)?);
     wire.plain_send(&json!({"type":"srp_resume_init","identity":credential.username,"sessionId":credential.session_id,"clientNonce":client_nonce})).await?;
@@ -174,9 +209,14 @@ async fn resume_secure(options: &SessionOptions, credential: &mut Credential) ->
     credential.resume_protocol_version = proof["resumeProtocolVersion"]
         .as_u64()
         .ok_or(Error::InvalidMessage)?;
+    persist(storage, credential)?;
     establish(wire, credential, nonce).await
 }
-pub async fn resume(options: SessionOptions, data: &[u8]) -> Result<Arc<NativeSession>> {
+pub async fn resume(
+    options: SessionOptions,
+    data: &[u8],
+    storage: Option<Arc<dyn crate::CredentialPersistence>>,
+) -> Result<Arc<NativeSession>> {
     validate(&options)?;
     check(data.len() <= 4096)?;
     let mut credential: Credential = serde_json::from_slice(data)?;
@@ -187,8 +227,8 @@ pub async fn resume(options: SessionOptions, data: &[u8]) -> Result<Arc<NativeSe
             && credential.session_id.len() <= 128
             && credential.resume_protocol_version >= 3,
     )?;
-    let secure = resume_secure(&options, &mut credential).await?;
-    Ok(NativeSession::start(options, credential, secure))
+    let secure = resume_secure(&options, &mut credential, &storage).await?;
+    Ok(NativeSession::start(options, credential, secure, storage))
 }
 enum Command {
     Dispatch(String, Value, oneshot::Sender<Result<String>>),
@@ -202,18 +242,16 @@ pub struct NativeSecurityBinding {
 struct Lease {
     cancel: CancellationToken,
     binding: std::sync::Mutex<NativeSecurityBinding>,
-    queued_bytes: std::sync::atomic::AtomicUsize,
+    events: std::sync::Mutex<crate::events::Events>,
     lagged: std::sync::Mutex<HashMap<String, String>>,
     wake: tokio::sync::Notify,
+    requests_changed: Arc<tokio::sync::Notify>,
     credential: std::sync::Mutex<Zeroizing<Vec<u8>>>,
-}
-struct Event {
-    value: String,
 }
 #[derive(uniffi::Object)]
 pub struct NativeSession {
     commands: mpsc::Sender<Command>,
-    events: Mutex<mpsc::Receiver<Event>>,
+    event_reader: Mutex<()>,
     lease: Arc<Lease>,
 }
 impl Drop for NativeSession {
@@ -222,29 +260,35 @@ impl Drop for NativeSession {
     }
 }
 impl NativeSession {
-    fn start(options: SessionOptions, credential: Credential, secure: Secure) -> Arc<Self> {
+    fn start(
+        options: SessionOptions,
+        credential: Credential,
+        secure: Secure,
+        storage: Option<Arc<dyn crate::CredentialPersistence>>,
+    ) -> Arc<Self> {
         let (commands, rx) = mpsc::channel(32);
-        let (events, event_rx) = mpsc::channel(128);
+
         let lease = Arc::new(Lease {
             cancel: CancellationToken::new(),
             binding: std::sync::Mutex::new(NativeSecurityBinding {
                 session_id: credential.session_id.clone(),
                 transport_nonce: secure.nonce.clone(),
             }),
-            queued_bytes: std::sync::atomic::AtomicUsize::new(0),
+            events: std::sync::Mutex::new(crate::events::Events::default()),
             lagged: std::sync::Mutex::new(HashMap::new()),
             wake: tokio::sync::Notify::new(),
+            requests_changed: Arc::new(tokio::sync::Notify::new()),
             credential: std::sync::Mutex::new(Zeroizing::new(
                 serde_json::to_vec(&credential).expect("serializable credential"),
             )),
         });
         let session = Arc::new(Self {
             commands,
-            events: Mutex::new(event_rx),
+            event_reader: Mutex::new(()),
             lease: lease.clone(),
         });
         tokio::spawn(async move {
-            Actor::new(options, credential, secure, rx, events, lease)
+            Actor::new(options, credential, secure, rx, lease, storage)
                 .run()
                 .await;
         });
@@ -285,6 +329,7 @@ impl NativeSession {
             return Err(Error::Closed);
         }
         let params = parse(&params, 512 * 1024)?;
+        let _cleanup = RequestCleanup(self.lease.requests_changed.clone());
         let (tx, rx) = oneshot::channel();
         self.commands
             .try_send(Command::Dispatch(method, params, tx))
@@ -300,7 +345,7 @@ impl NativeSession {
         tokio::select! { _ = self.lease.cancel.cancelled() => Err(Error::Closed), result = timeout(Duration::from_secs(30), rx) => result.map_err(|_| Error::Timeout)?.map_err(|_| Error::Closed)? }
     }
     pub async fn next_event(&self) -> Result<String> {
-        let mut events = self.events.lock().await;
+        let _reader = self.event_reader.lock().await;
         loop {
             let wake = self.lease.wake.notified();
             tokio::pin!(wake);
@@ -311,17 +356,20 @@ impl NativeSession {
                     return lagged.remove(&id).ok_or(Error::Closed);
                 }
             }
-            tokio::select! {
-                biased;
-                _ = self.lease.cancel.cancelled() => return Err(Error::Closed),
-                _ = wake => continue,
-                event = events.recv() => {
-                    let event = event.ok_or(Error::Closed)?;
-                    self.lease.queued_bytes.fetch_sub(event.value.len(), std::sync::atomic::Ordering::AcqRel);
-                    return Ok(event.value);
-                }
+            if self.lease.cancel.is_cancelled() {
+                return Err(Error::Closed);
             }
+            if let Some(value) = self.lease.events.lock().map_err(|_| Error::Closed)?.pop() {
+                return Ok(value);
+            }
+            tokio::select! { _ = self.lease.cancel.cancelled() => return Err(Error::Closed), _ = wake => continue }
         }
+    }
+}
+struct RequestCleanup(Arc<tokio::sync::Notify>);
+impl Drop for RequestCleanup {
+    fn drop(&mut self) {
+        self.0.notify_one();
     }
 }
 struct Pending {
@@ -338,8 +386,9 @@ struct Actor {
     credential: Credential,
     secure: Secure,
     commands: mpsc::Receiver<Command>,
-    events: mpsc::Sender<Event>,
+    retired: Vec<String>,
     lease: Arc<Lease>,
+    storage: Option<Arc<dyn crate::CredentialPersistence>>,
     pending: HashMap<String, Pending>,
     subscriptions: HashMap<String, Value>,
     uploads: HashMap<String, Upload>,
@@ -350,43 +399,49 @@ impl Actor {
         credential: Credential,
         secure: Secure,
         commands: mpsc::Receiver<Command>,
-        events: mpsc::Sender<Event>,
         lease: Arc<Lease>,
+        storage: Option<Arc<dyn crate::CredentialPersistence>>,
     ) -> Self {
         Self {
             options,
             credential,
             secure,
             commands,
-            events,
+            retired: Vec::new(),
             lease,
+            storage,
             pending: HashMap::new(),
             subscriptions: HashMap::new(),
             uploads: HashMap::new(),
         }
     }
-    fn event(&self, v: Value) -> Result<()> {
-        let value = v.to_string();
-        check(value.len() <= MAX_BYTES)?;
-        let size = value.len();
+    fn retire_subscription(&mut self, id: String, error: Value) -> Result<()> {
+        self.subscriptions.remove(&id);
         self.lease
-            .queued_bytes
-            .fetch_update(
-                std::sync::atomic::Ordering::AcqRel,
-                std::sync::atomic::Ordering::Acquire,
-                |queued| {
-                    queued
-                        .checked_add(size)
-                        .filter(|total| *total <= 64 * 1024 * 1024)
-                },
-            )
-            .map_err(|_| Error::Overflow)?;
-        if self.events.try_send(Event { value }).is_err() {
-            self.lease
-                .queued_bytes
-                .fetch_sub(size, std::sync::atomic::Ordering::AcqRel);
-            return Err(Error::Overflow);
+            .events
+            .lock()
+            .map_err(|_| Error::Closed)?
+            .remove_owner(&id);
+        self.lease
+            .lagged
+            .lock()
+            .map_err(|_| Error::Closed)?
+            .insert(id.clone(), error.to_string());
+        self.retired.push(id);
+        self.lease.wake.notify_one();
+        Ok(())
+    }
+    fn event(&mut self, v: Value) -> Result<()> {
+        let retired = self
+            .lease
+            .events
+            .lock()
+            .map_err(|_| Error::Closed)?
+            .push(&v)?;
+        for id in retired {
+            self.retire_subscription(id.clone(), json!({"type":"subscriptionError","subscriptionId":id,"status":429,"error":"Native subscription consumer fell behind"}))?;
         }
+        self.lease.wake.notify_one();
         Ok(())
     }
     fn fail_pending(&mut self) {
@@ -405,7 +460,7 @@ impl Actor {
         self.event(json!({"type":"state","phase":"RETRYING"}))?;
         for delay in [250, 1000, 3000] {
             tokio::select! { _ = self.lease.cancel.cancelled() => return Err(Error::Closed), _ = tokio::time::sleep(Duration::from_millis(delay)) => {} }
-            let result = tokio::select! { _ = self.lease.cancel.cancelled() => return Err(Error::Closed), r = resume_secure(&self.options, &mut self.credential) => r };
+            let result = tokio::select! { _ = self.lease.cancel.cancelled() => return Err(Error::Closed), r = resume_secure(&self.options, &mut self.credential, &self.storage) => r };
             match result {
                 Ok(secure) => {
                     if self.lease.cancel.is_cancelled() {
@@ -417,8 +472,14 @@ impl Actor {
                             session_id: self.credential.session_id.clone(),
                             transport_nonce: self.secure.nonce.clone(),
                         };
-                    *self.lease.credential.lock().map_err(|_| Error::Closed)? =
-                        Zeroizing::new(serde_json::to_vec(&self.credential)?);
+                    {
+                        let mut exported =
+                            self.lease.credential.lock().map_err(|_| Error::Closed)?;
+                        if self.lease.cancel.is_cancelled() {
+                            return Err(Error::Closed);
+                        }
+                        *exported = Zeroizing::new(serde_json::to_vec(&self.credential)?);
+                    }
                     let cancel = self.lease.cancel.clone();
                     let mut restored = true;
                     for subscription in self.subscriptions.values() {
@@ -459,6 +520,9 @@ impl Actor {
                     let cancel = self.lease.cancel.clone();
                     tokio::select! { _ = cancel.cancelled() => Err(Error::Closed), result = self.command(c) => result }
                 }, None => break },
+                _ = self.lease.requests_changed.notified() => {
+                    self.pending.retain(|_,p| !p.reply.is_closed()); Ok(())
+                },
                 _ = cleanup => {
                     self.pending.retain(|_,p| !p.reply.is_closed() && p.deadline > Instant::now()); Ok(())
                 },
@@ -471,6 +535,21 @@ impl Actor {
                     Err(_) => self.reconnect().await,
                 },
             };
+            let outcome = if outcome.is_ok() {
+                let mut result = Ok(());
+                while let Some(id) = self.retired.pop() {
+                    let cancel = self.lease.cancel.clone();
+                    let unsubscribe = json!({"type":"unsubscribe","subscriptionId":id});
+                    result = tokio::select! { _ = cancel.cancelled() => Err(Error::Closed), r = self.secure.send(&unsubscribe) => r };
+                    if result.is_err() {
+                        result = self.reconnect().await;
+                        break;
+                    }
+                }
+                result
+            } else {
+                outcome
+            };
             if let Err(error) = outcome {
                 let phase = if matches!(error, Error::ReauthenticationRequired) {
                     "REAUTHENTICATION_REQUIRED"
@@ -482,6 +561,7 @@ impl Actor {
             }
         }
         self.fail_pending();
+        self.lease.cancel.cancel();
         if let Ok(mut credential) = self.lease.credential.lock() {
             credential.zeroize();
         }
@@ -525,12 +605,18 @@ impl Actor {
                     self.reconnect().await?;
                 }
             }
-            Command::Dispatch(method, mut p, reply) => {
+            Command::Dispatch(method, mut p, mut reply) => {
+                if reply.is_closed() {
+                    return Ok(());
+                }
+                self.pending.retain(|_, p| !p.reply.is_closed());
                 if self.pending.len() >= 32 {
                     let _ = reply.send(Err(Error::Overflow));
                     return Ok(());
                 }
-                let result: Result<Option<String>> = async {
+                let result: Result<Option<String>> = tokio::select! {
+                    _ = reply.closed() => Err(Error::Closed),
+                    result = async {
                     match method.as_str() {
                         "request" => {
                             let path = field(&p, "path")?;
@@ -550,7 +636,11 @@ impl Actor {
                             Ok(Some(id))
                         }
                         "subscribe" => {
-                            check(self.subscriptions.len() < 64)?;
+                            check(
+                                self.subscriptions.len()
+                                    + self.lease.lagged.lock().map_err(|_| Error::Closed)?.len()
+                                    < 64,
+                            )?;
                             let id = field(&p, "subscriptionId")?.to_owned();
                             check(
                                 !id.is_empty()
@@ -615,8 +705,11 @@ impl Actor {
                         }
                         _ => Err(Error::InvalidMessage),
                     }
+                    } => result,
+                };
+                if matches!(result, Err(Error::Closed)) {
+                    return self.reconnect().await;
                 }
-                .await;
                 match result {
                     Ok(Some(id)) => {
                         self.pending.insert(
@@ -663,32 +756,8 @@ impl Actor {
                     if v["type"] == "subscription_error" {
                         v["type"] = json!("subscriptionError");
                     }
-                    // Keep control capacity reserved; shed only the lagging subscription.
-                    let queued = self
-                        .lease
-                        .queued_bytes
-                        .load(std::sync::atomic::Ordering::Acquire);
-                    if self.events.capacity() <= 8
-                        || queued + v.to_string().len() > 60 * 1024 * 1024
-                    {
-                        self.subscriptions.remove(&id);
-                        let error = json!({"type":"subscriptionError","subscriptionId":id,"status":429,"error":"Native subscription consumer fell behind"}).to_string();
-                        // One bounded error per owned subscription lives outside
-                        // the saturated data queue; requests and other owners survive.
-                        self.lease
-                            .lagged
-                            .lock()
-                            .map_err(|_| Error::Closed)?
-                            .insert(id.clone(), error);
-                        self.lease.wake.notify_one();
-                        if self
-                            .secure
-                            .send(&json!({"type":"unsubscribe","subscriptionId":id}))
-                            .await
-                            .is_err()
-                        {
-                            self.reconnect().await?;
-                        }
+                    if v["type"] == "subscriptionError" {
+                        self.retire_subscription(id, v)?;
                     } else {
                         self.event(v)?;
                     }
@@ -732,6 +801,13 @@ mod tests {
         }
     }
     async fn peer(version: u64, mutation: &str) -> (SessionOptions, tokio::task::JoinHandle<()>) {
+        peer_observed(version, mutation, None).await
+    }
+    async fn peer_observed(
+        version: u64,
+        mutation: &str,
+        held: Option<mpsc::Sender<()>>,
+    ) -> (SessionOptions, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint = format!("ws://{}/api/ws", listener.local_addr().unwrap());
         let mutation = mutation.to_owned();
@@ -784,6 +860,19 @@ mod tests {
                 }
                 let request: Value = serde_json::from_slice(&plain[1..]).unwrap();
                 let request = &request["msg"];
+                if request["type"] == "request" && request["path"] == "/invalid" {
+                    socket
+                        .send(Message::text("unauthenticated application data"))
+                        .await
+                        .unwrap();
+                    continue;
+                }
+                if request["type"] == "request" && request["path"] == "/held" {
+                    if let Some(held) = &held {
+                        let _ = held.send(()).await;
+                    }
+                    continue;
+                }
                 let messages = if request["type"] == "subscribe" {
                     let count = if request["subscriptionId"] == "lagging" {
                         200
@@ -833,12 +922,12 @@ mod tests {
             "outer-nonce",
         ] {
             let (options, peer) = peer(3, mutation).await;
-            assert!(resume(options, &data).await.is_err(), "{mutation}");
+            assert!(resume(options, &data, None).await.is_err(), "{mutation}");
             peer.abort();
             let _ = peer.await;
         }
         let (options, task) = peer(4, "").await;
-        let session = resume(options, &data).await.unwrap();
+        let session = resume(options, &data, None).await.unwrap();
         let advanced = session.credential_data().unwrap();
         assert_eq!(
             serde_json::from_slice::<Value>(&advanced).unwrap()["resume_protocol_version"],
@@ -848,14 +937,14 @@ mod tests {
         task.abort();
         let _ = task.await;
         let (options, task) = peer(3, "").await;
-        assert!(resume(options, &advanced).await.is_err());
+        assert!(resume(options, &advanced, None).await.is_err());
         task.abort();
         let _ = task.await;
     }
     #[tokio::test]
     async fn lagging_subscription_preserves_requests_and_other_subscriptions() {
         let (options, task) = peer(3, "").await;
-        let session = resume(options, &serde_json::to_vec(&credential()).unwrap())
+        let session = resume(options, &serde_json::to_vec(&credential()).unwrap(), None)
             .await
             .unwrap();
         session
@@ -880,9 +969,6 @@ mod tests {
             error.contains("subscriptionError") && error.contains("lagging"),
             "{error}"
         );
-        for _ in 0..120 {
-            let _ = session.next_event().await.unwrap();
-        }
         assert!(
             session
                 .dispatch(
@@ -908,9 +994,119 @@ mod tests {
         let _ = task.await;
     }
     #[tokio::test]
+    async fn actor_failure_wakes_event_consumers_and_invalidates_exports() {
+        let (options, peer) = peer(3, "").await;
+        let session = resume(options, &serde_json::to_vec(&credential()).unwrap(), None)
+            .await
+            .unwrap();
+        assert!(
+            session
+                .dispatch(
+                    "request".into(),
+                    json!({"method":"GET","path":"/invalid"}).to_string()
+                )
+                .await
+                .is_err()
+        );
+        assert!(
+            timeout(Duration::from_millis(500), session.next_event())
+                .await
+                .unwrap()
+                .is_err()
+        );
+        assert!(session.credential_data().is_err());
+        session.close();
+        peer.abort();
+        let _ = peer.await;
+    }
+    #[tokio::test]
+    async fn cancelling_requests_releases_pending_slots_without_waiting_for_timeout() {
+        let (held, mut received) = mpsc::channel(1);
+        let (options, peer) = peer_observed(3, "", Some(held)).await;
+        let session = resume(options, &serde_json::to_vec(&credential()).unwrap(), None)
+            .await
+            .unwrap();
+        for _ in 0..40 {
+            let source = session.clone();
+            let request = tokio::spawn(async move {
+                source
+                    .dispatch(
+                        "request".into(),
+                        json!({"method":"GET","path":"/held"}).to_string(),
+                    )
+                    .await
+            });
+            timeout(Duration::from_millis(500), received.recv())
+                .await
+                .unwrap()
+                .unwrap();
+            request.abort();
+            let _ = request.await;
+        }
+        assert!(
+            session
+                .dispatch(
+                    "request".into(),
+                    json!({"method":"GET","path":"/healthy"}).to_string()
+                )
+                .await
+                .unwrap()
+                .contains("200")
+        );
+        session.close();
+        peer.abort();
+        let _ = peer.await;
+    }
+    #[tokio::test]
+    async fn durable_resume_pin_precedes_consumers_and_storage_failure_invalidates_old_pin() {
+        for fail in [false, true] {
+            let storage = Arc::new(super::storage_tests::Storage::default());
+            *storage.saved.lock().unwrap() = Some(serde_json::to_vec(&credential()).unwrap());
+            storage
+                .fail
+                .store(fail, std::sync::atomic::Ordering::Release);
+            let (options, peer) = peer(4, "").await;
+            let result = resume(
+                options,
+                &serde_json::to_vec(&credential()).unwrap(),
+                Some(storage.clone()),
+            )
+            .await;
+            if fail {
+                assert!(result.is_err());
+                assert!(storage.saved.lock().unwrap().is_none());
+            } else {
+                let session = result.unwrap();
+                let saved = storage.saved.lock().unwrap().clone().unwrap();
+                assert_eq!(
+                    serde_json::from_slice::<Value>(&saved).unwrap()["resume_protocol_version"],
+                    4
+                );
+                // A failing later consumer/continuity operation or teardown cannot
+                // roll the stored authenticated version back.
+                assert!(
+                    session
+                        .dispatch("invalid-consumer-operation".into(), "{}".into())
+                        .await
+                        .is_err()
+                );
+                session.close();
+                assert_eq!(
+                    serde_json::from_slice::<Value>(
+                        storage.saved.lock().unwrap().as_ref().unwrap()
+                    )
+                    .unwrap()["resume_protocol_version"],
+                    4
+                );
+            }
+            peer.abort();
+            let _ = peer.await;
+        }
+    }
+    #[tokio::test]
     async fn close_quiesces_socket_and_erases_exports() {
         let (options, task) = peer(3, "").await;
-        let session = resume(options, &serde_json::to_vec(&credential()).unwrap())
+        let session = resume(options, &serde_json::to_vec(&credential()).unwrap(), None)
             .await
             .unwrap();
         session.close();
@@ -953,7 +1149,7 @@ mod tests {
         assert!(
             timeout(
                 Duration::from_millis(500),
-                login(options, Zeroizing::new("fixture-password".into()))
+                login(options, Zeroizing::new("fixture-password".into()), None)
             )
             .await
             .unwrap()
@@ -961,5 +1157,27 @@ mod tests {
         );
         task.abort();
         let _ = task.await;
+    }
+}
+
+#[cfg(test)]
+mod storage_tests {
+    #[derive(Default)]
+    pub(super) struct Storage {
+        pub(super) saved: std::sync::Mutex<Option<Vec<u8>>>,
+        pub(super) fail: std::sync::atomic::AtomicBool,
+    }
+    impl crate::CredentialPersistence for Storage {
+        fn begin_resume(&self) -> bool {
+            *self.saved.lock().unwrap() = None;
+            true
+        }
+        fn persist(&self, credential: Vec<u8>) -> bool {
+            if self.fail.load(std::sync::atomic::Ordering::Acquire) {
+                return false;
+            }
+            *self.saved.lock().unwrap() = Some(credential);
+            true
+        }
     }
 }
