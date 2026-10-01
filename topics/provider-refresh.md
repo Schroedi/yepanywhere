@@ -177,7 +177,28 @@ older installs may continue to work when YA does not need newer protocol fields,
 and version-sensitive behavior should be capability- or version-gated where
 possible.
 
-Current compatibility audit, 2026-09-30 (0.159.2, no-op):
+Current compatibility audit, 2026-10-01 (0.159.3, no-op):
+
+- Installed Codex is `codex-cli 0.159.3`. The official `rust-v0.159.3` tag
+  peels to `01fc69f4026735edfdf6789820549727a4867b11`. Compared with
+  `rust-v0.159.2`, only the crate version and terminal UI account-security
+  reminders changed; app-server, core runtime, model catalog, and persisted
+  protocol source are unchanged. YA uses app-server rather than that terminal
+  UI, so there is no new runtime feature to adopt from this patch.
+- `pnpm codex:protocol:check` reports the generated subset unchanged.
+  `expectedVersion` and the reference checkout remain `0.159.0`; only
+  `compatibleThroughVersion` advances to `0.159.3`.
+- A zero-token probe through `CodexProvider.getAvailableModels` returns eight
+  live models, all already supported by YA's preferred ordering, compared with
+  nine in the previous audit. `gpt-daybreak-blue-latest` is absent from this
+  response. GPT-6.1 Sol remains the default with low effort and supported
+  efforts through ultra. Live Fast-tier descriptions are propagated without
+  hardcoding their speed claims.
+- No credentialed start/resume smoke ran: no YA runtime source changed.
+  Repeat the protocol and live-catalog checks after the next Codex update;
+  adopt new controls only when YA's consumed surface changes.
+
+Previous compatibility audit, 2026-09-30 (0.159.2, no-op):
 
 - Installed Codex is `codex-cli 0.159.2`. `pnpm codex:protocol:check` reports
   the generated app-server subset unchanged, so `expectedVersion` stays
