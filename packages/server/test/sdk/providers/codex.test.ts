@@ -6551,6 +6551,58 @@ describe("CodexProvider Event Normalization", () => {
     );
   });
 
+  it("shows a live content-filter block under its durable message id", () => {
+    const provider = createTestProvider() as unknown as {
+      convertNotificationToSDKMessages: (
+        notification: { method: string; params?: unknown },
+        sessionId: string,
+        usageByTurnId: Map<string, unknown>,
+        liveEventState: ReturnType<typeof createLiveEventState>,
+      ) => Array<Record<string, unknown>>;
+    };
+    const developerMessage = (id: string, text: string) => ({
+      method: "rawResponseItem/completed",
+      params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
+        item: {
+          type: "message",
+          id,
+          role: "developer",
+          content: [{ type: "input_text", text }],
+        },
+      },
+    });
+    const convert = (notification: { method: string; params?: unknown }) =>
+      provider.convertNotificationToSDKMessages(
+        notification,
+        "session-1",
+        new Map(),
+        createLiveEventState(),
+      );
+
+    expect(
+      convert(
+        developerMessage(
+          "msg-filter",
+          "<content_filter_guidance>\nOffer a permitted alternative.\n</content_filter_guidance>",
+        ),
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        type: "system",
+        subtype: "content_filter_block",
+        uuid: "msg-filter",
+        content: "Offer a permitted alternative.",
+      }),
+    ]);
+    expect(
+      convert(
+        developerMessage("msg-env", "<multi_agent_mode>x</multi_agent_mode>"),
+      ),
+    ).toEqual([]);
+  });
+
   it("bounds live command-output snapshots to a head and tail window", () => {
     const provider = createTestProvider() as unknown as {
       convertNotificationToSDKMessages: (

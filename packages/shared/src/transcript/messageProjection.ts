@@ -494,6 +494,7 @@ function processMessage(
     if (
       subtype === "compact_boundary" ||
       subtype === "turn_aborted" ||
+      subtype === "content_filter_block" ||
       subtype === "config_ack" ||
       subtype === "away_summary" ||
       subtype === "subagent_activity"
@@ -505,13 +506,15 @@ function processMessage(
           ? msg.content
           : subtype === "turn_aborted"
             ? "Turn aborted"
-            : subtype === "config_ack"
-              ? "Configuration updated"
-              : subtype === "away_summary"
-                ? "Recap unavailable"
-                : subtype === "subagent_activity"
-                  ? "Subagent updated"
-                  : "Context compacted";
+            : subtype === "content_filter_block"
+              ? ""
+              : subtype === "config_ack"
+                ? "Configuration updated"
+                : subtype === "away_summary"
+                  ? "Recap unavailable"
+                  : subtype === "subagent_activity"
+                    ? "Subagent updated"
+                    : "Context compacted";
       const systemItem: SystemItem = {
         type: "system",
         id: msgId,

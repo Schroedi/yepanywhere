@@ -140,6 +140,20 @@ flags ([sketch](../gaps/sketches/provider-subscription-switching.md)). `Thread.d
 client-saved metadata flag that no Codex behavior reads; YA neither writes nor
 consumes it.
 
+## Content-filter blocks
+
+From Codex 0.160, a response the content filter blocks is retried after Codex
+records a developer message wrapped in `<content_filter_guidance>`. Its text
+tells the agent how to recover, either Codex's built-in wording or a per-model
+replacement from the model catalog. YA hides other developer messages but shows
+this one as a "Response blocked by content filter" row. The guidance is shown
+in full, never collapsed, because the message is the only durable record that a
+block happened; the retry's own error is transient. The live
+`rawResponseItem/completed` and persisted response item share the provider's
+message id, so a backfill merges them into one row.
+`packages/server/src/codex/contentFilterBlock.ts` recognizes the message for
+both paths.
+
 ## App-server notification correlation
 
 YA stamps every app-server notification at the stdout boundary with a

@@ -1025,6 +1025,7 @@ function isAppSystemEntry(value: Record<string, unknown>): boolean {
     case "scheduled_task_fire":
     case "local_command":
     case "turn_aborted":
+    case "content_filter_block":
     case "subagent_activity":
     case "config_ack":
       return typeof value.content === "string";

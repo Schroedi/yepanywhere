@@ -51,6 +51,10 @@ import {
   normalizeCodexToolOutputWithContext,
   parseCodexToolArguments,
 } from "../../codex/normalization.js";
+import {
+  CODEX_CONTENT_FILTER_BLOCK_SUBTYPE,
+  codexContentFilterGuidance,
+} from "../../codex/contentFilterBlock.js";
 import { formatCodexSubagentActivity } from "../../codex/subagentActivity.js";
 import { getLogger } from "../../logging/logger.js";
 import { attachToolResultMediaCandidates } from "../../media/inlineImageData.js";
@@ -6898,6 +6902,30 @@ export class CodexProvider implements AgentProvider {
           turnId: params.turnId,
           itemId: callId,
           callId,
+          phase: "completed",
+          sourceEvent: "rawResponseItem/completed",
+        });
+        return [message];
+      }
+
+      case "message": {
+        const guidance = codexContentFilterGuidance(item);
+        const itemId = this.getOptionalString(item.id);
+        if (guidance === null || !itemId) return [];
+        const message = withCodexTimestamp(
+          {
+            type: "system",
+            subtype: CODEX_CONTENT_FILTER_BLOCK_SUBTYPE,
+            session_id: sessionId,
+            uuid: itemId,
+            content: guidance,
+          } as SDKMessage,
+          observedAt,
+        );
+        logSdkCorrelationDebug(sessionId, message, {
+          eventKind: "content_filter_block",
+          turnId: params.turnId,
+          itemId,
           phase: "completed",
           sourceEvent: "rawResponseItem/completed",
         });
