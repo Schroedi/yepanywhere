@@ -786,10 +786,14 @@ Place the initial controls in **Settings → Providers**:
   provider, all unchecked by default.
 - An editable absolute/home-relative path prefix and a relative `.md` pattern
   limiting eligible source files. For example, prefix `~/agents/topics/` with
-  `*.md`. Explain and preview the resolved files; exclude generated companions
-  from the base-source matches. Resolve symlinks and reject traversal outside
-  the prefix. Do not discover instruction authority outside this explicit
-  boundary from transcript text or arbitrary links.
+  `*.md`. Match against the real, symlink-resolved path of a file observed in
+  an agent session read, relative to the resolved prefix; never match only the
+  spelling of a symlink or command argument. Resolve in that session's
+  filesystem namespace. Different aliases of one real file share an identity.
+  Explain and preview resolved matches; exclude generated companions from
+  base-source matches and reject resolved paths outside the prefix. A matching
+  file merely present on disk does not establish a session read. Do not
+  discover instruction authority outside this boundary from arbitrary links.
 - A **Delay in turns** slider, proposed range 0–10 and default 2. Zero means
   the first idle boundary after compaction. N permits N completed subsequent
   provider turns before the next idle boundary injects any outstanding text.
@@ -824,6 +828,18 @@ Only tool results delivered to this session count: quoted filenames, assistant
 claims, coverage headers alone, failed reads, streaming fragments, and reads
 performed only by a subagent do not prove delivery of the required text.
 
+Attempt to discriminate complete reads from partial-read shortcuts such as
+`head -100`, bounded `sed` ranges, Read-tool line limits, filters, or output
+truncated by an outer tool wrapper. Correlate the read request, resolved file,
+returned body, range/size metadata and truncation indicators where available;
+successful exit status or an apparent `cat` command alone is insufficient.
+Record observed partial reads as such: they may arm a once-opened obligation,
+but cannot discharge a complete reread. Several ranges can establish completion
+only when their verified coverage spans the entire required packet at the same
+source version within the current compaction epoch. If completeness cannot be
+established, retain that uncertainty and the pending obligation; do not treat
+an unrecognized shell command as proof of either a full read or no read.
+
 Restore outstanding sources from their validated direct companions after the
 grace allowance. A complete verified recursive read discharges every included
 source, including important indirectly reached content; do not reinject those
@@ -853,8 +869,10 @@ needed: compaction, completed-turn and idle events drive the state machine.
 
 Acceptance checks should exercise the real supervisor event path with the
 option both off and on: default-off silence; independent provider enablement;
-prefix/symlink rejection; delay 0 and N; precompaction history recovery;
-partial/header-only reads; recursive discharge; second compaction; changed or
+real-path glob matching through aliases and rejection of symlink escapes;
+delay 0 and N; precompaction history recovery; `head -100`, range-limited,
+filtered, wrapper-truncated and header-only reads; complete range unions;
+recursive discharge; second compaction; changed or
 missing sources; duplicate provider events; disable during pending work; and
 process teardown. Provider-settings tests cover persistence and old-server
 capability gating. Render the controls at desktop and phone sizes before
