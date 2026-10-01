@@ -1,0 +1,80 @@
+# Experimental mobile crypto/build proof
+
+This isolated crate implements step 1 of the
+[provisional iOS plan](../../docs/tactical/138-ios-native-core-proof.md).
+Neither installed app depends on it. Its sole exported API verifies public
+test fixtures and returns check names, never keys or login credentials.
+Rust adoption and the later implementation steps await maintainer review.
+
+## Reproduce
+
+Use a maintained repository-supported Node version, pnpm, the pinned Rust
+1.97.0 toolchain, and platform compilers. Run from this directory:
+
+```sh
+node scripts/run.mjs rust
+node scripts/run.mjs bindings
+node scripts/run.mjs ios
+node scripts/run.mjs android
+```
+
+`all` runs all phases. `rust` regenerates/checks the TypeScript oracles, checks
+Rust formatting, runs the Rust vectors and rejection cases, and runs Clippy
+with warnings denied. `bindings` executes the generated Kotlin API on the
+host JVM and, on macOS, the Swift API on the host. Kotlin uses the repository's
+existing Android Gradle wrapper and requires a JDK. It does not launch Android.
+
+`ios` requires macOS, Xcode, XcodeGen, the Rust device/simulator targets, an
+available iOS runtime and the iPhone 17 simulator device type. It also runs the
+host binding checks. It creates its own simulator, executes XCTest through the
+generated Swift binding, removes the simulator, and links an unsigned device
+test app. This empty app is a test host, not a consumer iOS application. The
+runner writes xcresult and DerivedData under ignored build/. No account,
+provisioning team or physical device is needed.
+
+`android` requires cargo-ndk, an Android SDK/NDK, and Rust arm64/x86_64 Android
+targets. It compiles both JNI libraries; on-device execution is not implied.
+Host bindings currently support macOS/Linux; the iOS runner is macOS-only.
+Windows native execution is not yet a proved target.
+
+The runner downloads a named libsodium 1.0.22-stable source archive over HTTPS
+and verifies a fixed SHA-256. The binding crate additionally verifies the
+upstream minisign signature. Its required LATEST.tar.gz filename is only a
+local alias for those pinned bytes. A changed upstream archive fails the hash
+check; it never silently updates the backend. Cargo.lock pins Rust dependencies.
+Use the runner before direct Cargo commands and run Cargo from this directory
+so the local source configuration applies.
+
+## What the experiment establishes
+
+The original Android fixture comes from production tssrp6a and TweetNaCl.
+Additional fixtures use the same generator and force short A/salt, a Unicode
+password, and a leading-zero M1. Small private values are intentionally unsafe
+public test inputs; they must never be used in a real login.
+
+Each fixture checks 26 vector properties and 17 rejection cases, covering SRP
+client/server shared secrets and evidence, base/transport keys, secretbox,
+binary JSON framing, server-info authentication and resume challenge binding.
+Foreign harnesses additionally corrupt M2 and JSON and assert typed errors.
+
+RustCrypto srp 0.6.0 performs all modular exponentiation via its public hooks.
+The adapter supplies YA's existing password hashing and padded/minimal integer
+encodings. Its high-level process_reply is incompatible with YA: it hashes
+username:password and does not pad the public values. Its compute_m2 uses a
+full digest, while YA hashes a minimal M1 integer. Those differences are tested
+explicitly; no new SRP arithmetic or server protocol is introduced.
+
+## Shipping decision still open
+
+Upstream [RustCrypto PAKEs](https://github.com/RustCrypto/PAKEs) reports no
+formal cryptographic/security review and no blinding or secret erasure.
+In particular, srp's num-bigint operations are not a constant-time or
+zeroizing secret backend. This wrapper zeroizes owned byte buffers but cannot
+repair the library's integer allocations or establish its security suitability.
+Passing vectors and successful builds are not approval to ship this candidate.
+
+The experiment also does not establish live socket login/resume, lifecycle
+cancellation, WebView bridging, Keychain storage, TLS, relay mux, Android
+instrumentation, physical-device behavior, or App Store readiness.
+Swift uses the same 5.10 language mode as the reference iOS project; strict
+Swift 6 concurrency is a later gate, not a claimed result here.
