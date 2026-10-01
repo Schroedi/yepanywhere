@@ -105,3 +105,14 @@ still pending in the shared YA/Android plan, so installation registration alone
 never reports notificationsEnabled. Live APNs/FCM delivery, physical phone/tablet
 acceptance, App Store/TestFlight provisioning and publication remain release
 gates. Limited-user login and Android's Rust migration remain deferred.
+
+CI pins macOS 15 / Xcode 26.3 with its installed iOS 18.6 runtime. The
+standard 3-core / 7 GiB macOS 26 host remained saturated throughout the
+5-minute readiness window while its fresh iOS 26.5 widgets and indexing
+services ran ([run 36887820073](https://github.com/kzahel/yepanywhere/actions/runs/36887820073)).
+Only the disposable CI VM disables Spotlight indexing. Local runs use the
+newest installed iOS runtime; `YA_IOS_SIMULATOR_VERSION=18.6` selects that
+exact installed version and fails if unavailable. Device selection respects
+the runtime's supported device types. Both paths retain the same 18 tests,
+CPU/memory headroom requirement and 100 ms typing ceiling. Simulator
+compilation targets arm64, matching the shared Rust simulator framework.

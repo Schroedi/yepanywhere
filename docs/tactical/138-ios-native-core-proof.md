@@ -336,6 +336,18 @@ during execution as well as before/after. The 100 ms input ceiling remains
 unchanged; missing headroom fails readiness rather than skipping that gate.
 Physical-device signing is a separate release step and cannot block simulator CI.
 
+[Run 36887820073](https://github.com/kzahel/yepanywhere/actions/runs/36887820073)
+passed all 16 native tests, then failed host readiness: every one of its 44
+samples had 0% idle CPU, with roughly 100–250 MiB available memory, while
+first-boot iOS widgets and Spotlight competed for the standard VM's resources.
+CI now pins macOS 15 / Xcode 26.3 and the installed iOS 18.6 simulator;
+only its disposable VM disables indexing. Simulator compilation is arm64-only,
+and the runner selects a device supported by the requested runtime. The same
+18 tests and strict CPU/memory and input-latency gates remain in both paths.
+The native web source also retains status snapshots for repeated identical
+phases, avoiding needless subscriber invalidation during incoming traffic;
+distinct authentication/revocation phases retain their callbacks.
+
 A Daybreak Blue read-only review of the first production checkpoint identified
 eight concrete findings: abort protocol, resume-version pinning, non-atomic and
 locked Keychain writes, cancellation/reconnect, discarded transport context,

@@ -203,6 +203,7 @@ if (phase === "build") {
       "iphonesimulator",
       "-destination",
       "generic/platform=iOS Simulator",
+      "ARCHS=arm64",
       "-derivedDataPath",
       derived,
       "-onlyUsePackageVersionsFromResolvedFile",
@@ -215,12 +216,23 @@ if (phase === "build") {
     const inventory = JSON.parse(
       await run("xcrun", ["simctl", "list", "runtimes", "--json"], ios, true),
     );
+    const requestedRuntime = env.YA_IOS_SIMULATOR_VERSION;
+    if (requestedRuntime && !/^\d+\.\d+(?:\.\d+)?$/.test(requestedRuntime))
+      throw new Error("YA_IOS_SIMULATOR_VERSION must be a numeric iOS version");
     const runtime = inventory.runtimes
-      .filter((x) => x.isAvailable && x.identifier.includes("iOS"))
+      .filter(
+        (x) =>
+          x.isAvailable &&
+          x.identifier.includes("iOS") &&
+          (!requestedRuntime || x.version === requestedRuntime),
+      )
       .sort((a, b) =>
         b.version.localeCompare(a.version, undefined, { numeric: true }),
       )[0];
-    if (!runtime) throw new Error("No installed iOS simulator runtime");
+    if (!runtime)
+      throw new Error(
+        `No installed iOS simulator runtime${requestedRuntime ? ` ${requestedRuntime}` : ""}`,
+      );
     const types = JSON.parse(
       await run(
         "xcrun",
@@ -229,11 +241,17 @@ if (phase === "build") {
         true,
       ),
     ).devicetypes;
+    const supported = new Set(
+      runtime.supportedDeviceTypes.map((x) => x.identifier),
+    );
+    const compatible = types.filter((x) => supported.has(x.identifier));
     const deviceType =
-      types.find((x) => x.name === "iPhone 17") ??
-      types.find((x) => x.name === "iPhone 16");
+      compatible.find((x) => x.name === "iPhone 17") ??
+      compatible.find((x) => x.name === "iPhone 16");
     if (!deviceType)
       throw new Error("No supported iPhone simulator device type");
+    host.simulator = { runtime: runtime.version, deviceType: deviceType.name };
+    console.log(`Owned simulator: ${deviceType.name}, iOS ${runtime.version}`);
     simulator = await run(
       "xcrun",
       [
