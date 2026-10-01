@@ -98,6 +98,7 @@ export interface ProviderSessionReadyMetadata {
     steer: boolean;
     steerUsesMessageQueue?: boolean;
     appendConversationContext?: boolean;
+    instructionRestoration?: boolean;
     setMaxThinkingTokens: boolean;
     setEffort: boolean;
     effortUpdatesActiveTurn?: boolean;
@@ -270,6 +271,10 @@ export class ProviderSessionOwner {
         steer: Boolean(session.steer),
         steerUsesMessageQueue: session.steerUsesMessageQueue,
         appendConversationContext: Boolean(session.appendConversationContext),
+        instructionRestoration: Boolean(
+          session.configureInstructionRestoration &&
+            session.forceReadInstructions,
+        ),
         setMaxThinkingTokens: Boolean(session.setMaxThinkingTokens),
         setEffort: Boolean(session.setEffort),
         effortUpdatesActiveTurn: session.effortUpdatesActiveTurn === true,
@@ -917,6 +922,23 @@ export class ProviderSessionOwner {
               >[0],
             )
           : false;
+      case "hydrateInstructionReadHistory":
+        if (!session.hydrateInstructionReadHistory)
+          throw new Error("Instruction history hydration is unavailable");
+        return session.hydrateInstructionReadHistory(
+          args[0] as SDKMessage[],
+          args[1] === true,
+        );
+      case "configureInstructionRestoration":
+        if (!session.configureInstructionRestoration)
+          throw new Error("Instruction restoration is unavailable");
+        return session.configureInstructionRestoration(
+          args[0] as import("./instruction-restoration.js").InstructionRestorationControl,
+        );
+      case "forceReadInstructions":
+        if (!session.forceReadInstructions)
+          throw new Error("Instruction force read is unavailable");
+        return session.forceReadInstructions(args[0] as string[]);
       case "setMaxThinkingTokens":
         return await session.setMaxThinkingTokens?.(args[0] as number | null);
       case "setEffort":

@@ -3,6 +3,7 @@ import {
   isSyntheticNoResponseTurn,
 } from "../claude-sdk-schema/guards.js";
 import { isPostCompactReplayText } from "../postCompactReplay.js";
+import { INSTRUCTION_RESTORATION_PREAMBLE } from "../instructionRestoration.js";
 import type { ContentBlock, Message } from "./message.js";
 import type {
   RenderItem,
@@ -159,7 +160,10 @@ function isPostCompactReplayMessage(msg: Message): boolean {
   }
   const text =
     typeof content === "string" ? content : contentBlocksText(content);
-  if (!isPostCompactReplayText(text)) {
+  if (
+    !isPostCompactReplayText(text) &&
+    !text.trimStart().startsWith(INSTRUCTION_RESTORATION_PREAMBLE)
+  ) {
     return false;
   }
   const role =
@@ -348,7 +352,10 @@ export function isRealUserTurn(msg: UserTurnCandidate): boolean {
   }
   const text =
     typeof content === "string" ? content : contentBlocksText(content);
-  return !isPostCompactReplayText(text);
+  return (
+    !isPostCompactReplayText(text) &&
+    !text.trimStart().startsWith(INSTRUCTION_RESTORATION_PREAMBLE)
+  );
 }
 
 function isDisplayableThinking(

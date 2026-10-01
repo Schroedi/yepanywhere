@@ -1791,6 +1791,42 @@ describe.skipIf(!nativeHostSupported)("ProviderRuntimeHost", () => {
     }
   });
 
+  it("transfers instruction history larger than the host launch limit over worker RPC", async () => {
+    const runtimeRoot = await mkdtemp(
+      join(runtimeTmpDir, "provider-history-test-"),
+    );
+    temporaryPaths.push(runtimeRoot);
+    const controlSocketPath = join(runtimeRoot, "host.sock");
+    const host = new ProviderRuntimeHost({
+      runtimeDir: runtimeRoot,
+      controlSocketPath,
+      token: "history-token",
+      workerPath: fixtureWorker,
+    });
+    await host.start();
+    process.env.YEP_PROVIDER_RUNTIME_SOCKET = controlSocketPath;
+    process.env.YEP_PROVIDER_RUNTIME_TOKEN = "history-token";
+    process.env.YEP_SERVER_GENERATION = "instruction-history";
+    expect(await initializeProviderRuntimeHost()).toBe(true);
+    try {
+      const session = await startHostedProviderSession(
+        "claude",
+        {
+          cwd: runtimeRoot,
+          instructionReadHistory: Array.from({ length: 64 }, (_, i) => ({
+            type: "user" as const,
+            uuid: `history-${i}`,
+            content: "x".repeat(20000),
+          })),
+        },
+        {},
+      );
+      await session.abort();
+    } finally {
+      await host.shutdown("instruction history complete");
+    }
+  });
+
   it("holds replayed callbacks until Process installs its handlers", async () => {
     const runtimeRoot = await mkdtemp(
       join(runtimeTmpDir, "provider-proxy-test-"),

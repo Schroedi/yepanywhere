@@ -56,6 +56,7 @@ interface WorkerCapabilities {
   steer: boolean;
   steerUsesMessageQueue?: boolean;
   appendConversationContext?: boolean;
+  instructionRestoration?: boolean;
   setMaxThinkingTokens: boolean;
   setEffort: boolean;
   effortUpdatesActiveTurn?: boolean;
@@ -660,6 +661,7 @@ function cloneableOptions(
     shouldEmitLiveDeltas: _shouldEmitLiveDeltas,
     onProviderRetentionChange: _onProviderRetentionChange,
     sessionSandbox: _sessionSandbox,
+    instructionReadHistory: _instructionReadHistory,
     getSessionChildEnv,
     ...cloneable
   } = options;
@@ -728,18 +730,22 @@ export async function startHostedProviderSession(
     await requestHost("terminate", { runtimeId: runtime.runtimeId });
     runtime = null;
   }
+  const hydrateHistory = !runtime && Boolean(options.instructionReadHistory);
   if (!runtime) {
     runtime = await requestHost<HostedProviderRuntimeInfo>("launch", {
       providerName,
       projectPath: options.cwd,
       sessionId: options.resumeSessionId,
-      options: cloneableOptions(options),
+      options: {
+        ...cloneableOptions(options),
+        deferInstructionHistory: hydrateHistory,
+      },
       runtimeConfig,
       reattach: reattachSpec(options),
     });
   }
   rememberRuntime(runtime);
-  return await HostedAgentSession.connect(runtime, options);
+  return await HostedAgentSession.connect(runtime, options, hydrateHistory);
 }
 
 class HostedMessageQueue implements AgentMessageQueue {
@@ -870,6 +876,7 @@ class HostedAgentSession {
   static async connect(
     runtime: HostedProviderRuntimeInfo,
     options: StartSessionOptions,
+    hydrateHistory = false,
   ): Promise<AgentSession> {
     const environment = getEnvironment();
     if (!environment) throw new Error("Provider runtime host is unavailable");
@@ -890,6 +897,16 @@ class HostedAgentSession {
         ]);
       }
       await requestHost("confirmAttach", { runtimeId: runtime.runtimeId });
+      if (hydrateHistory) {
+        const history = options.instructionReadHistory ?? [];
+        for (let offset = 0; offset < history.length; offset += 32) {
+          await proxy.rpc("hydrateInstructionReadHistory", [
+            history.slice(offset, offset + 32),
+            false,
+          ]);
+        }
+        await proxy.rpc("hydrateInstructionReadHistory", [[], true]);
+      }
       return proxy.toAgentSession();
     } catch (error) {
       socket.destroy();
@@ -1379,6 +1396,18 @@ class HostedAgentSession {
         ? {
             appendConversationContext: (turns) =>
               this.rpc<boolean>("appendConversationContext", [turns]),
+          }
+        : {}),
+      ...(capabilities.instructionRestoration
+        ? {
+            configureInstructionRestoration: (
+              control: import("./instruction-restoration.js").InstructionRestorationControl,
+            ) => this.rpc<void>("configureInstructionRestoration", [control]),
+            forceReadInstructions: (paths: readonly string[]) =>
+              this.rpc<"native-history" | "user-turn">(
+                "forceReadInstructions",
+                [paths],
+              ),
           }
         : {}),
       ...(capabilities.setMaxThinkingTokens

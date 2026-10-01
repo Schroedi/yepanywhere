@@ -195,6 +195,10 @@ export function inactiveProviderSessionOptionsResult(
  * Options for starting a new agent session.
  */
 export interface StartSessionOptions {
+  instructionRestoration?: import("@yep-anywhere/shared").InstructionRestorationSettings;
+  instructionReadHistory?: SDKMessage[];
+  /** Hosted launches stream history over the worker socket before live observation. */
+  deferInstructionHistory?: boolean;
   /** Local session-owned grant; never serialized into a remote provider host. */
   computerControl?: import("../../computer-control/contract.js").ComputerSession;
   /** Operator opt-in, preserved across provider-host process boundaries. */
@@ -312,6 +316,16 @@ export interface StartSessionOptions {
  * This is the common interface all providers must return.
  */
 export interface AgentSession {
+  hydrateInstructionReadHistory?: (
+    messages: SDKMessage[],
+    complete: boolean,
+  ) => Promise<void>;
+  configureInstructionRestoration?: (
+    control: import("./instruction-restoration.js").InstructionRestorationControl,
+  ) => Promise<void>;
+  forceReadInstructions?: (
+    paths: readonly string[],
+  ) => Promise<"native-history" | "user-turn">;
   /** Active turn retained by an existing provider owner during controller reload. */
   initialTurnState?: "idle" | "in-turn";
   /** Publish selected/pending settings to the optional owning-session projection. */

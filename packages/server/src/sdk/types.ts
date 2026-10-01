@@ -110,6 +110,7 @@ export interface UserMessage {
     | "heartbeat"
     | "project-queue"
     | "wake"
+    | "instruction-restoration"
     | "post-compact-replay";
   /** YA-internal guard so deferred/recovered delivery is not re-accepted. */
   recapResumeHandled?: true;

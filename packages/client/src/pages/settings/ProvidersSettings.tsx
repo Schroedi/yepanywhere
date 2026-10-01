@@ -65,6 +65,7 @@ import {
   YaCompactContextEarlyControl,
 } from "./compactSettingsControls";
 import { SettingsItem } from "./SettingsItem";
+import { InstructionRestorationControl } from "./InstructionRestorationControl";
 import styles from "./ProvidersSettings.module.css";
 import { useSettingsPaneTitle } from "./SettingsPaneTitleContext";
 import { HideInSettingsSearch } from "./SettingsSearchContext";
@@ -1909,6 +1910,13 @@ export function ProvidersSettings() {
             value={settings.postCompactReplay}
             providers={providerDisplayList}
             updateSetting={updateSetting}
+          />
+        )}
+        {settings?.instructionRestoration !== undefined && (
+          <InstructionRestorationControl
+            value={settings.instructionRestoration}
+            providers={providerDisplayList}
+            save={(value) => updateSetting("instructionRestoration", value)}
           />
         )}
         {settings?.longContextEffortWarning !== undefined && (

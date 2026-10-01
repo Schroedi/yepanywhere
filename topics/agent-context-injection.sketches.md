@@ -776,107 +776,11 @@ Pinned Codex evidence:
 
 ## Optional restoration of previously read instructions
 
-User-directed design, 2026-10-01. This is a sketch; YA does not implement
-these controls or read tracking yet. The source compiler in `~/agents` emits
-the packets described below. Generating them enables no YA behavior.
-
-Place the initial controls in **Settings → Providers**:
-
-- An independent **Restore instructions after compaction** checkbox for each
-  provider, all unchecked by default.
-- An editable absolute/home-relative path prefix and a relative `.md` pattern
-  limiting eligible source files. For example, prefix `~/agents/topics/` with
-  `*.md`. Match against the real, symlink-resolved path of a file observed in
-  an agent session read, relative to the resolved prefix; never match only the
-  spelling of a symlink or command argument. Resolve in that session's
-  filesystem namespace. Different aliases of one real file share an identity.
-  Explain and preview resolved matches; exclude generated companions from
-  base-source matches and reject resolved paths outside the prefix. A matching
-  file merely present on disk does not establish a session read. Do not
-  discover instruction authority outside this boundary from arbitrary links.
-- A **Delay in turns** slider, proposed range 0–10 and default 2. Zero means
-  the first idle boundary after compaction. N permits N completed subsequent
-  provider turns before the next idle boundary injects any outstanding text.
-  Duplicate completion events count once; compaction itself and restoration
-  turns do not consume the allowance. No wall-clock timeout is needed for this
-  initial interface.
-- Visible behavior text: “After compaction, restore essential instructions
-  from matching files this session previously read, unless it has already
-  reread them. Only marked essential content is inserted. A recursive reread
-  also satisfies the files it includes.” Show the selected prefix/pattern and
-  the generated direct companion naming convention, so the user can tell
-  exactly which files YA may force-read. A setting does not broaden the
-  provider's filesystem permissions.
-
-The source convention keeps the complete base topic for first reads. Essential
-spans lie between `<!-- reread:begin -->` and `<!-- reread:end -->` markers.
-`<topic>.mandatory-reread.md` contains only that source's essential spans;
-`<topic>.mandatory-reread.recursive.md` additionally inlines essential spans
-in every potentially reached topic, including indirect and conditional routes.
-Unmarked conditional sections remain omitted. The compiler emits
-`reread-coverage` and `reread-source-hashes` JSON comments mapping base source
-paths to SHA-256 digests of essential and full source text, respectively.
-`AGENTS.on-compact.md` is available for a separate optional dispatch insertion;
-do not implicitly insert it under the file-restoration checkbox.
-
-At each observed compaction, scan successful session tool reads and preserve
-the set of eligible sources actually read before that boundary. Incremental
-scanning since the previous boundary is an optimization, not a change to the
-once-opened lifetime. Provider resume must reconstruct that set from persisted
-session reads, rather than treating the short live replay buffer as history.
-Only tool results delivered to this session count: quoted filenames, assistant
-claims, coverage headers alone, failed reads, streaming fragments, and reads
-performed only by a subagent do not prove delivery of the required text.
-
-Attempt to discriminate complete reads from partial-read shortcuts such as
-`head -100`, bounded `sed` ranges, Read-tool line limits, filters, or output
-truncated by an outer tool wrapper. Correlate the read request, resolved file,
-returned body, range/size metadata and truncation indicators where available;
-successful exit status or an apparent `cat` command alone is insufficient.
-Record observed partial reads as such: they may arm a once-opened obligation,
-but cannot discharge a complete reread. Several ranges can establish completion
-only when their verified coverage spans the entire required packet at the same
-source version within the current compaction epoch. If completeness cannot be
-established, retain that uncertainty and the pending obligation; do not treat
-an unrecognized shell command as proof of either a full read or no read.
-
-Restore outstanding sources from their validated direct companions after the
-grace allowance. A complete verified recursive read discharges every included
-source, including important indirectly reached content; do not reinject those
-direct packets separately. A complete direct read discharges its own source.
-Validate actual body delivery and current source/content hashes, not just the
-manifest. Truncated output cannot discharge unseen text. Every subsequent
-compaction rearms the once-opened set. File changes invalidate old coverage;
-missing or stale packets produce an actionable diagnostic, never silent
-success or an unrestricted filesystem fallback.
-
-Integrate observation with `Supervisor.observeProcessEvents` and normal
-provider session readers. Serialize compaction epochs, rereads and injection
-decisions so a late history scan cannot overwrite a post-boundary read, and a
-duplicate boundary notification cannot rearm already discharged material.
-Disabling the provider checkbox or changing its permitted paths cancels stale
-pending work immediately. Cancel on process disposal; suspend while automation
-is paused or input is awaited, and retain ordinary user queue priority.
-
-Use `Process.appendConversationContext` where supported, with delivery
-acceptance distinguished from model consumption. For other providers, use the
-existing queued synthetic-turn mechanism with a distinct restoration source
-and hidden transcript classification. Never retry an uncertain accepted
-insertion through a second transport. For remote executors or sandboxed
-sessions, require a verified matching file-access path; host-local source reads
-must not circumvent the session's boundary. No background idle polling is
-needed: compaction, completed-turn and idle events drive the state machine.
-
-Acceptance checks should exercise the real supervisor event path with the
-option both off and on: default-off silence; independent provider enablement;
-real-path glob matching through aliases and rejection of symlink escapes;
-delay 0 and N; precompaction history recovery; `head -100`, range-limited,
-filtered, wrapper-truncated and header-only reads; complete range unions;
-recursive discharge; second compaction; changed or
-missing sources; duplicate provider events; disable during pending work; and
-process teardown. Provider-settings tests cover persistence and old-server
-capability gating. Render the controls at desktop and phone sizes before
-shipping an implementation.
+Implemented, with the user-directed approximate-read allowance and provider-owned
+tracking, in [the current contract](agent-context-injection.md#optional-instruction-restoration).
+The implementation accepts at least 80% verified line coverage instead of the
+original sketch's strict completeness requirement. The remaining boot-manager,
+compiler, and protected-capsule designs above remain dormant.
 
 ## Open decisions
 

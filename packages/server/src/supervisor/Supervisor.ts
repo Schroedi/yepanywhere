@@ -616,6 +616,14 @@ export interface SupervisorOptions {
   ) => PromptCacheKeepaliveSettings | undefined;
   /** Callback to read the post-compact continuation setting. */
   getPostCompactReplaySettings?: () => PostCompactReplaySettings | undefined;
+  getInstructionRestorationSettings?: () =>
+    | import("@yep-anywhere/shared").InstructionRestorationSettings
+    | undefined;
+  readInstructionHistory?: (
+    sessionId: string,
+    projectId: UrlProjectId,
+    provider: ProviderName,
+  ) => Promise<SDKMessage[]>;
   /** Callback to read live cache-miss billing monitor settings. */
   getCacheMissBillingSettings?: () => CacheMissBillingSettings | undefined;
   /**
@@ -653,6 +661,14 @@ function agentServerEnvironment(
 }
 
 export class Supervisor {
+  private readonly instructionOptions: Pick<
+    SupervisorOptions,
+    "getInstructionRestorationSettings" | "readInstructionHistory"
+  >;
+  private readonly instructionSessions = new Map<
+    Process,
+    import("../sdk/providers/types.js").AgentSession
+  >();
   computerControl?: import("../computer-control/service.js").ComputerControlService;
   private processes: Map<string, Process> = new Map();
   private sessionToProcess: Map<string, string> = new Map(); // sessionId -> processId
@@ -785,6 +801,7 @@ export class Supervisor {
   private recapPausedSessionIds = new Set<string>();
 
   constructor(options: SupervisorOptions) {
+    this.instructionOptions = options;
     this.providerDiscoveryEnabled = options.provider !== null;
     this.provider = options.provider ?? null;
     this.sdk = options.sdk ?? null;
@@ -2410,6 +2427,12 @@ export class Supervisor {
       computerControl,
       cwd: projectPath,
       // No initialMessage - queue will block until one is pushed
+      ...(await this.instructionLaunchOptions(
+        activeProvider.name,
+        resumeSessionId,
+        projectId,
+        Boolean(sessionSandbox) || Boolean(modelSettings?.executor),
+      )),
       resumeSessionId,
       resumeSessionAt: truncation.resumeSessionAt,
       resumeDropsTurn: truncation.resumeDropsTurn,
@@ -2559,6 +2582,7 @@ export class Supervisor {
     const process = new Process(iterator, options);
     processHolder.process = process;
     this.holdAgentServerAccess(process, agentServerAccess);
+    this.instructionSessions.set(process, result);
     this.observeProcessEvents(process);
     activateCallbacks?.();
     await this.consumePendingRewind(process, resumeSessionId, truncation);
@@ -2660,6 +2684,12 @@ export class Supervisor {
       computerControl,
       cwd: projectPath,
       resumeSessionId,
+      ...(await this.instructionLaunchOptions(
+        activeProvider.name,
+        resumeSessionId,
+        projectId,
+        Boolean(sessionSandbox) || Boolean(modelSettings?.executor),
+      )),
       resumeSessionAt: truncation.resumeSessionAt,
       resumeDropsTurn: truncation.resumeDropsTurn,
       permissionMode: effectiveMode,
@@ -2807,6 +2837,7 @@ export class Supervisor {
     const process = new Process(iterator, options);
     processHolder.process = process;
     this.holdAgentServerAccess(process, agentServerAccess);
+    this.instructionSessions.set(process, result);
     this.observeProcessEvents(process);
     activateCallbacks?.();
     await this.consumePendingRewind(process, resumeSessionId, truncation);
@@ -3737,10 +3768,14 @@ export class Supervisor {
 
   async pauseSessionAutomation(sessionId: string): Promise<void> {
     await this.sessionDone.pauseSessionAutomation(sessionId);
+    await this.refreshInstructionRestoration(
+      this.getProcessForSession(sessionId),
+    );
   }
 
   private resumeAutomationAfterUserTurn(process: Process): void {
     this.sessionDone.resumeAfterUserTurn(process);
+    void this.refreshInstructionRestoration(process);
   }
 
   async pauseRecapsUntilUserTurn(processId: string): Promise<boolean> {
@@ -5286,12 +5321,70 @@ export class Supervisor {
     this.eventBus.emit(event);
   }
 
+  private async instructionLaunchOptions(
+    provider: ProviderName,
+    sessionId: string | undefined,
+    projectId: UrlProjectId,
+    isolated: boolean,
+  ): Promise<
+    Pick<
+      import("../sdk/providers/types.js").StartSessionOptions,
+      "instructionRestoration" | "instructionReadHistory"
+    >
+  > {
+    const settings =
+      this.instructionOptions.getInstructionRestorationSettings?.();
+    if (!settings?.providers[provider] || isolated) return {};
+    return {
+      instructionRestoration: settings,
+      instructionReadHistory: sessionId
+        ? await this.instructionOptions.readInstructionHistory?.(
+            sessionId,
+            projectId,
+            provider,
+          )
+        : undefined,
+    };
+  }
+
+  async refreshInstructionRestoration(only?: Process): Promise<void> {
+    const settings =
+      this.instructionOptions.getInstructionRestorationSettings?.();
+    for (const [process, session] of this.instructionSessions) {
+      if (only && only !== process) continue;
+      const enabled =
+        settings?.providers[process.provider] &&
+        !process.executor &&
+        !process.sandboxEnforcement;
+      try {
+        await session.configureInstructionRestoration?.({
+          settings: enabled ? settings : null,
+          paused:
+            process.state.type === "waiting-input" ||
+            this.isAutomationPausedUntilUserTurn(process.sessionId) ||
+            this.isRecapPausedUntilUserTurn(process.sessionId),
+        });
+      } catch (error) {
+        getLogger().warn(
+          { err: error, sessionId: process.sessionId },
+          "Instruction restoration configuration failed",
+        );
+      }
+    }
+  }
+
   private observeProcessEvents(process: Process): void {
     if (this.observedProcessIds.has(process.id)) {
       return;
     }
     this.observedProcessIds.add(process.id);
     process.subscribe((event) => {
+      if (
+        event.type === "state-change" ||
+        event.type === "user-turn-accepted"
+      ) {
+        void this.refreshInstructionRestoration(process);
+      }
       if (event.type === "non-human-user-turn") {
         void this.sessionMetadataService
           ?.recordNonHumanUserTurn(process.sessionId, event.turn)
@@ -5746,6 +5839,7 @@ export class Supervisor {
   }
 
   private unregisterProcess(process: Process): void {
+    this.instructionSessions.delete(process);
     this.agentServerAccessByProcess.get(process.id)?.revoke();
     this.agentServerAccessByProcess.delete(process.id);
     this.assertProviderOwnershipSettled(process, "unregister");

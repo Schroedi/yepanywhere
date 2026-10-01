@@ -22,6 +22,7 @@ import {
 } from "./provider-runtime-host.js";
 // Types
 import type { AgentProvider, ProviderName } from "./types.js";
+import { withInstructionRestoration } from "./instruction-restoration.js";
 export type {
   AgentProvider,
   AgentSession,
@@ -236,7 +237,21 @@ function hostedProvider(rawProvider: AgentProvider): AgentProvider {
 export { isProviderRuntimeHostAvailable };
 
 function runtimeProvider(rawProvider: AgentProvider): AgentProvider {
-  if (!isProviderRuntimeHostAvailable()) return rawProvider;
+  if (!isProviderRuntimeHostAvailable())
+    return new Proxy(rawProvider, {
+      get(target, property) {
+        if (property === "startSession")
+          return async (
+            options: Parameters<AgentProvider["startSession"]>[0],
+          ) =>
+            withInstructionRestoration(
+              await target.startSession(options),
+              options,
+            );
+        const value = Reflect.get(target, property, target) as unknown;
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
   return hostedProvider(rawProvider);
 }
 

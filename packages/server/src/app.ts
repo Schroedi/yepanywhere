@@ -2079,12 +2079,40 @@ export function createApp(options: AppOptions): AppResult {
     },
     getPostCompactReplaySettings: () =>
       options.serverSettingsService?.getSetting("postCompactReplay"),
+    getInstructionRestorationSettings: () =>
+      options.serverSettingsService?.getSetting("instructionRestoration"),
+    readInstructionHistory: async (sessionId, projectId, provider) => {
+      const project = await scanner.getProject(projectId);
+      if (!project)
+        throw new Error("Instruction history project is unavailable");
+      const reader = readerFactory({ ...project, provider });
+      const loaded = await reader.getSession(sessionId, projectId);
+      if (!loaded)
+        throw new Error(
+          "Instruction history is unavailable for resumed session",
+        );
+      return normalizeSession(loaded).messages.map((message) => ({
+        type: message.type,
+        uuid: message.uuid,
+        subtype:
+          typeof message.subtype === "string" ? message.subtype : undefined,
+        content: message.message?.content ?? message.content,
+        parent_tool_use_id:
+          typeof message.parent_tool_use_id === "string"
+            ? message.parent_tool_use_id
+            : undefined,
+      }));
+    },
     getCacheMissBillingSettings: () =>
       options.serverSettingsService?.getSetting("cacheMissBilling"),
     getClaudeSteerBackgroundBashSettings: () =>
       options.serverSettingsService?.getSetting("claudeSteerBackgroundBash"),
   });
   supervisor.computerControl = computerControl;
+  options.serverSettingsService?.onSettingsChanged((settings, previous) => {
+    if (settings.instructionRestoration !== previous.instructionRestoration)
+      void supervisor.refreshInstructionRestoration();
+  });
   if (sessionWakeService) {
     app.use("/session-wake/*", hostCheckMiddleware);
     app.route("/session-wake", createSessionWakeRoutes(sessionWakeService));

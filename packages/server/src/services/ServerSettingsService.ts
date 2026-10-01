@@ -6,6 +6,11 @@
  */
 
 import { randomUUID } from "node:crypto";
+import {
+  DEFAULT_INSTRUCTION_RESTORATION,
+  parseInstructionRestorationSettings,
+  type InstructionRestorationSettings,
+} from "@yep-anywhere/shared";
 import type { ArtifactViewerConfig } from "@yep-anywhere/shared";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
@@ -262,6 +267,7 @@ export interface ServerSettings {
    * their own compact summary.
    */
   postCompactReplay?: PostCompactReplaySettings;
+  instructionRestoration?: InstructionRestorationSettings;
   /**
    * Warn before a mid-session effort change on a long-context session and
    * offer a fork instead. Per-provider; default on for Claude and Codex.
@@ -389,6 +395,7 @@ export const DEFAULT_SERVER_SETTINGS: ServerSettings = {
   projectQueueQuietSeconds: DEFAULT_PROJECT_QUEUE_QUIET_SECONDS,
   clearloopInactivitySeconds: DEFAULT_CLEARLOOP_INACTIVITY_SECONDS,
   postCompactReplay: DEFAULT_POST_COMPACT_REPLAY_SETTINGS,
+  instructionRestoration: DEFAULT_INSTRUCTION_RESTORATION,
   longContextEffortWarning: DEFAULT_LONG_CONTEXT_EFFORT_WARNING_SETTINGS,
 };
 
@@ -661,6 +668,9 @@ function normalizeLoadedSettings(settings: ServerSettings): ServerSettings {
   normalized.postCompactReplay =
     parsePostCompactReplaySettings(settings.postCompactReplay) ??
     DEFAULT_POST_COMPACT_REPLAY_SETTINGS;
+  normalized.instructionRestoration =
+    parseInstructionRestorationSettings(settings.instructionRestoration) ??
+    DEFAULT_INSTRUCTION_RESTORATION;
   normalized.longContextEffortWarning =
     parseLongContextEffortWarningSettings(settings.longContextEffortWarning) ??
     DEFAULT_LONG_CONTEXT_EFFORT_WARNING_SETTINGS;

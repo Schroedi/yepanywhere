@@ -1537,6 +1537,13 @@ export const api = {
 
   // Server settings API (persistent server configuration)
   getServerSettings: () => fetchJSON<{ settings: ServerSettings }>("/settings"),
+  previewInstructionRestoration: (
+    settings: import("@yep-anywhere/shared").InstructionRestorationSettings,
+  ) =>
+    fetchJSON<{ prefix: string; matches: string[]; truncated: boolean }>(
+      "/settings/instruction-restoration/preview",
+      { method: "POST", body: JSON.stringify(settings) },
+    ),
 
   getHostAwakeStatus: (forceRefresh = false) =>
     fetchJSON<{ status: HostAwakeStatus }>(
@@ -1962,6 +1969,7 @@ export interface ServerSettings {
    * Absent on older servers; default off.
    */
   postCompactReplay?: PostCompactReplaySettings;
+  instructionRestoration?: import("@yep-anywhere/shared").InstructionRestorationSettings;
   /**
    * Warn before a mid-session effort change on a long-context session and
    * offer a fork instead. Absent on older servers, which then never warn.
