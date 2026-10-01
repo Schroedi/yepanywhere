@@ -45,8 +45,8 @@ selecting or successfully authenticating a host opens a fresh WebView document
 for that profile. Host selection never modifies another host's credentials, and
 web code does not maintain a second paired-host catalog.
 
-Native background work cannot depend on the WebView. A Kotlin connection core
-must eventually support Compose and an explicitly enabled foreground activity
+Native background work cannot depend on the WebView. The native connection core
+must support Compose and an explicitly enabled foreground activity
 service without allocating a WebView or JavaScript runtime. Native FCM receipt
 continues to remain independent of either foreground presentation.
 
@@ -626,23 +626,66 @@ Revocation is hierarchical:
 Exact offline revocation, tombstone, retry, and cross-side acknowledgement
 semantics remain implementation decisions.
 
-## iOS Direction
+## iOS And Shared Rust Direction
 
-The [provisional iOS/Rust plan](../docs/tactical/138-ios-native-core-proof.md)
-records the 2026-10-01 experiment. Only its crypto/build proof is authorized;
-shared Rust adoption and Android migration await review of that evidence.
+On 2026-10-01 the maintainer accepted the shared Rust mobile connection core
+and pinned RustCrypto `srp 0.7.0-rc.3` after the crypto/native-build proof and
+Daybreak Blue engineering review. The
+[iOS implementation plan](../docs/tactical/138-ios-native-core-proof.md)
+records evidence, remaining production gates and the next checkpoint.
+`packages/mobile-core-proof` remains isolated fixture tooling; it is not the
+production connection core. The current Android core remains Kotlin until its
+later migration demonstrates parity.
 
-The conceptual model is platform-neutral: a local paired-server profile,
-paired device, expiring connection credentials, route candidates, push
-capability, typed inbox/session repositories, and revocation. A future SwiftUI
-app uses Keychain-backed credentials and its platform's foreground/background
-and LAN discovery facilities. Android- and iOS-specific UI and lifecycle code
-need not share widgets or pretend their background execution rules are
-identical.
+The selected ownership is:
 
-The wire protocols and projection schemas should remain shared even if the
-first native connection implementations are written separately in Kotlin and
-Swift.
+| Layer | Responsibility |
+| --- | --- |
+| Shared Rust core, exposed through UniFFI | SRP/server proofs, resume, encryption, direct/relay connections, route selection, bounded request/subscription/upload work, reconnect and teardown |
+| SwiftUI shell | Native owner login, host management, Keychain, WKWebView bridge, Apple lifecycle and notification adapters |
+| Kotlin/Compose shell | Native owner login, host management, Keystore-backed storage, WebView bridge, Android lifecycle and notification adapters |
+| Bundled React client | Full foreground application through source-scoped native leases; no passwords or resume/transport keys |
+
+### Existing-server compatibility
+
+This is a mobile implementation change, not an authentication migration.
+The server retains its existing SRP-6a/SHA-512 profile, verifier storage,
+proof encodings, key derivation, secretbox framing and resume versions. The
+Rust adapter must match that wire contract and supported legacy fallbacks;
+the library's high-level default profile is not a drop-in replacement. No new
+server route, field, capability or protocol version is required. Existing
+clients keep working; owners do not reset passwords or re-enroll credentials.
+The initial native release remains owner-only, with limited-user login deferred.
+
+The 0.7 release candidate is accepted with known limits: no independent SRP
+audit, no claim of whole-adapter constant-time behavior or complete secret
+erasure, and the inherited offline-guessing risk after salt/verifier theft.
+Acceptance does not waive bounded hostile-input validation, OS randomness,
+server authentication before credential persistence, secure native storage,
+WebView secret isolation or deterministic cancellation/teardown. Verify these
+through the production adapter and live disposable-server tests before real
+credentials. SRP 0.6 and BigUint secret arithmetic stay in differential test
+tooling, outside the shipping core; dependency upgrades require review.
+
+OPAQUE is a possible later protocol investment, not current implementation
+scope. A migration would need a separately authenticated full-handshake suite
+selection and password-dependent enrollment; `resumeProtocolVersion` does not
+select the authentication algorithm. The current Rust/iOS work does not require
+that migration or any server credential conversion.
+
+### Platform sequence
+
+iOS is the first consumer of the shared core. Prove the bundled WKWebView and
+document-scoped SourceTransport bridge, then deliver native login and a live
+Rust connection against the existing server, followed by Keychain/lifecycle
+and mobile acceptance. Apple-specific UI and background execution remain
+platform adapters rather than shared widgets or Android service behavior.
+
+Migrate Android connection internals after the iOS/Rust path proves parity in
+authentication, transport and lifecycle. Preserve Android's current shell,
+profiles, protected credentials, bridge contracts, route fallbacks and
+acceptance tests. Android release work can continue on the working Kotlin
+implementation; the Rust migration is not an iOS release prerequisite.
 
 ## Compatibility And Approval Gates
 

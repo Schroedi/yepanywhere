@@ -45,6 +45,18 @@ sketch records shared vocabulary for them without selecting a protocol. Hiding
 controls, selecting a project working directory, or assigning a
 narrower-sounding permission mode would not establish that boundary.
 
+## Mobile SRP Implementation Decision
+
+The maintainer accepted pinned RustCrypto `srp 0.7.0-rc.3` for the shared
+mobile Rust core on 2026-10-01. This changes client implementation, with the
+existing owner principal, SRP credentials, server protocol and authority
+unchanged. The accepted limits and production verification requirements are
+owned by
+[mobile connection ownership](mobile-server-pairing.md#existing-server-compatibility).
+Neither passing compatibility vectors nor an AI engineering review establishes
+a formal cryptographic audit or whole-protocol constant-time behavior. A
+possible future OPAQUE migration remains separate protocol work.
+
 ## Limited Users
 
 Limited users are default-off (`limitedUsersEnabled`) named principals that

@@ -35,6 +35,9 @@ The mobile ownership decision is recorded separately in
 [`mobile-server-pairing.md`](mobile-server-pairing.md): native Compose and
 background operation use a native secure connection core, while the bundled
 full web client acquires an isolated logical lease on the same core.
+The accepted shared Rust/iOS direction and unchanged-server compatibility
+contract are owned by that topic's
+[iOS and shared Rust section](mobile-server-pairing.md#ios-and-shared-rust-direction).
 
 ## Current Mobile Packaging Checkpoint
 
@@ -85,6 +88,21 @@ WebView remains a possible future performance or isolation mode, but it uses
 normal explicit SRP and its own browser-scoped resume session. The baseline
 does not mint or hand off a child credential. Native installation and
 push-management secrets remain app-private and are not web credentials.
+
+## Selected iOS Packaging Direction
+
+The iOS shell bundles the same full React application in the signed app and
+loads it in WKWebView. SwiftUI owns login and host management; the shared Rust
+core owns authenticated transport, and Keychain protects persisted resume
+credentials. The bridge grants only bounded, source-scoped operations to the
+owning bundled main-frame document. Passwords, resume keys and transport keys
+never enter JavaScript. Navigation or document destruction invalidates its
+handles and releases its native leases.
+
+This is selected direction, not an implemented iOS app. The next checkpoint
+must demonstrate bundled asset loading, SPA routing, document/frame isolation,
+streaming and upload backpressure on the simulator. Android's HTTPS app-assets
+mechanism does not establish WKWebView behavior; the iOS harness must prove it.
 
 ## Deferred Verification Setup
 

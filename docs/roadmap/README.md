@@ -24,12 +24,15 @@ The implementation and acceptance evidence are recorded in
 [the WebView app plan](../tactical/083-android-bundled-web-native-transport.md).
 Native dashboard/Conversation rendering and the experimental Simple Client API
 preview are no longer mobile release prerequisites. iOS follows the same shell
-boundary; the [provisional iOS plan](../tactical/138-ios-native-core-proof.md)
+boundary; the [iOS/shared-core plan](../tactical/138-ios-native-core-proof.md)
 has passed its Rust crypto interoperability and native build experiment,
 including iOS simulator execution. A Daybreak Blue engineering review supports
 the proof and conditional development use of SRP 0.7; the plan records its
-production login gates and accepted-risk questions. Shared Rust adoption still
-awaits the maintainer's checkpoint decision. Store signing/publication and
+production login gates and accepted limits. The maintainer accepted the shared
+Rust core with pinned SRP 0.7.0-rc.3 and unchanged-server compatibility. Next is
+the iOS bundled WKWebView/bridge proof, followed by live native login and Rust
+transport. Android core migration follows demonstrated parity; current Kotlin
+release work can continue independently. Store signing/publication and
 physical-device acceptance remain release work.
 
 ### Current baseline

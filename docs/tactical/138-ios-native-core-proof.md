@@ -1,13 +1,14 @@
-# iOS Native Shell And Provisional Rust Connection Core
+# iOS Native Shell And Shared Rust Connection Core
 
 Topic: ios-native-core-proof
 
-Status: provisional, 2026-10-01. Step 1's compatibility/build experiment
-passes; the shipping SRP library and Rust adoption await maintainer review.
-The maintainer authorized recording this
-proposal and executing step 1. Adopting Rust for the mobile connection core,
-implementing later steps, and migrating Android remain contingent on reviewing
-step 1 evidence. A successful experiment does not itself grant that approval.
+Status: direction accepted, 2026-10-01. Step 1's compatibility/build experiment
+and engineering review are complete. The maintainer accepted the shared Rust
+core and pinned SRP 0.7.0-rc.3, preserving the existing YA server protocol.
+Production authentication and lifecycle gates remain before real credentials.
+The production core and consumer iOS app are not yet implemented; the next
+checkpoint is the bundled WKWebView and bridge proof. Android migration follows
+shared-core parity.
 
 ## Scope And Existing Work
 
@@ -32,7 +33,7 @@ for Kotlin/Swift bindings and production-derived crypto fixtures. Their
 authentication protocols cannot replace YA authentication. Keep this core in
 YA; do not depend on another developer checkout.
 
-## Proposed Ownership And Tools
+## Accepted Ownership And Tools
 
 | Layer | Proposed responsibility |
 | --- | --- |
@@ -41,7 +42,7 @@ YA; do not depend on another developer checkout.
 | Swift shell | Native login/hosts, Keychain, WKWebView bridge, Apple lifecycle and notifications |
 | Kotlin shell | Android platform adapters, eventually calling the same core |
 
-Candidate tooling is pinned Rust/Cargo, UniFFI Swift/Kotlin bindings, XcodeGen
+Selected tooling is pinned Rust/Cargo, UniFFI Swift/Kotlin bindings, XcodeGen
 and xcodebuild, with cargo-ndk for later Android integration. Shared networking
 would use Tokio, tokio-tungstenite and rustls with platform certificate
 verification; network dependencies are outside step 1. Secretbox should use
@@ -49,14 +50,14 @@ libsodium through a reviewed safe wrapper around libsodium-sys-stable. Pin
 the actual libsodium source as well as Cargo crates; never fetch unpinned
 latest library sources during a build.
 
-SRP remains a library decision, not an approved dependency. RustCrypto srp
-0.6.0 uses variable-time num-bigint arithmetic; the 0.7.0-rc.3 candidate uses
-crypto-bigint arithmetic designed for constant-time use. The latter's
-version-specific README reports no independent third-party SRP audit.
-Compatibility is not a security review. Do not hand-write SRP arithmetic to
-make a candidate match; stop at this gate if no acceptable library exposes
-YA's profile. Preserve the current server protocol and working Kotlin
-implementation.
+The accepted backend is pinned RustCrypto srp 0.7.0-rc.3, using crypto-bigint
+arithmetic designed for constant-time use. Its version-specific README reports
+no independent third-party SRP audit; the maintainer accepts that limit with
+the production gates recorded below. SRP 0.6.0 remains a variable-time
+num-bigint differential oracle, not a shipping dependency. Do not hand-write
+SRP arithmetic. The accepted compatibility and secret-ownership contract now
+lives in [mobile pairing](../../topics/mobile-server-pairing.md#ios-and-shared-rust-direction).
+No server changes, password resets or credential re-enrollment are needed.
 
 Sources: [UniFFI](https://mozilla.github.io/uniffi-rs/latest/),
 [RustCrypto SRP status](https://github.com/RustCrypto/PAKEs/tree/master/srp),
@@ -84,21 +85,33 @@ generated files and build output.
 Produce a decision record separating wire correctness, packaging feasibility,
 library security/maintenance suitability and missing integration evidence.
 This step does not claim native login, networking, WebView behavior, Keychain,
-background operation or release readiness. Obtain maintainer review of the
-concrete evidence before adopting the architecture or executing later steps.
+background operation or release readiness. The maintainer reviewed the proof
+and accepted the shared architecture and pinned backend on 2026-10-01.
 
 ### 2 — Prove the WKWebView bundled application and bridge
 
-Load the bundled UI and adapt its source transport contract to WKWebView.
+Create the consumer iOS SwiftUI/WKWebView shell, separate from the empty crypto
+proof test host. Load the bundled UI and adapt its source transport contract
+to WKWebView. Initially exercise the bridge with a deterministic native
+SourceTransport test double, without borrowing web login or exporting keys.
 Validate assets, SPA routes, storage, media, upload backpressure and sequential
 keyboard input under concurrent streaming. Restrict the privileged bridge to
 the owning bundled main frame/document. Measure WebKit byte transfers rather
 than assuming equivalence to Android.
 
+The checkpoint is a reproducible simulator test of the real bundled app:
+source requests and subscriptions cross the native bridge, stale/foreign-frame
+handles fail, streaming/uploads remain bounded, and each sequential keystroke
+appears within 100 ms under expected volume. It is a bridge proof, not live
+authentication. Avoid using the fixture verifier as a production login API.
+
 ### 3 — Deliver native owner login and the complete iOS connection path
 
-Implement full SRP/server proof, encrypted traffic, resume and deterministic
-teardown against the disposable real YA server. Add direct and relay/mux
+Build the production Rust core with the pinned 0.7 backend and a reviewed
+YA-profile adapter. First prove full SRP/server proof, encrypted requests and
+subscriptions, resume and deterministic teardown on a direct connection to
+the unchanged disposable YA server. Connect native Swift login and the
+WKWebView bridge to that core. Add direct and relay/mux
 routes with existing legacy fallbacks, independent host ownership and bounded
 requests/subscriptions/uploads. Credentials never enter JavaScript.
 
@@ -115,7 +128,24 @@ must acknowledge every keystroke within 100 ms under expected concurrent load.
 Replace Kotlin connection internals incrementally behind the current shell
 and source bridge. Preserve stored profiles, wire fallbacks, ownership,
 existing acceptance tests and measured interaction/upload performance. This
-migration is not a prerequisite for the first iOS proof.
+migration is not a prerequisite for iOS or Android publication on their current
+paths. It can begin once the iOS/Rust authentication, transport and lifecycle
+checks pass; it does not require waiting for App Store publication.
+
+## Current Checkpoint And Next Work
+
+Step 1 is complete and accepted. Steps 2–5 are pending implementation.
+Proceed iOS-first: Android already has the working native-login/bundled-web
+path recorded in [tactical 083](083-android-bundled-web-native-transport.md),
+while iOS has only the crypto test host. Migrating Android first would delay
+proving the missing platform without delivering its application.
+
+The next bounded slice is step 2's simulator-backed bundled WKWebView and
+source bridge. Step 3 then replaces the test transport with the production
+Rust core and delivers a live native login → web application → disconnect and
+resume path against the existing server. Keep Kotlin as a working parity
+reference and continue Android release acceptance independently. No protocol
+migration is part of these slices.
 
 ## Evidence
 
@@ -186,20 +216,22 @@ symbols/dependencies. Final platform compiler checks emit no warnings. The
 repository unit run includes expected application warning logs from negative
 fixtures; the touched native checks produce no runtime/compiler warnings.
 
-### Decision still required
+### Accepted Checkpoint And Remaining Production Gates
 
-Wire interoperability and native packaging are feasible. This supports Rust
-as an architectural option but does not approve it or select a shipping SRP
-dependency. The 0.6 num-bigint backend is variable-time and cannot establish
+Wire interoperability and native packaging are feasible; the maintainer has
+accepted the shared Rust direction and pinned 0.7 backend. The production
+adapter and session lifecycle still need the verification below. The 0.6
+num-bigint backend is variable-time and cannot establish
 secret erasure; do not adopt it for production from this experiment. The newer
 0.7 prerelease uses arithmetic designed for constant-time use, but still
 reports no independent SRP audit, and adapter conversions/secret handling need
 review. Compatibility is not a whole-protocol constant-time or security claim.
 
-Before real credentials or step 2, review whether to adopt a shared Rust core
-and which backend is acceptable. The installed Android app, server protocol,
-owner-only release scope and deferred limited-user login are unchanged.
-Rust adoption and steps 2–5 remain unapproved.
+Before real credentials, verify hostile-input handling, proof ordering,
+randomness, secret lifetimes and live session teardown/retry. Acceptance of
+the RC is not a whole-protocol security certification. The installed Android
+app, server protocol, owner-only scope and deferred limited-user login remain
+unchanged until their explicitly planned implementation work.
 
 ### Independent engineering review — 2026-10-01
 
@@ -216,12 +248,12 @@ not a formal independent cryptographic audit.
 finding invalidates it. Provisional development use of 0.7.0-rc.3 is reasonable
 behind a reviewed YA adapter. The review's high-severity findings are
 conditions for the future credential-bearing implementation, not deployed
-vulnerabilities in this fixture-only crate. The maintainer's architecture
-decision remains separate; no later implementation step is authorized here.
+vulnerabilities in this fixture-only crate. The review itself did not authorize
+architecture adoption; the maintainer subsequently accepted the checkpoint.
 
-The recommended checkpoint decision is provisional adoption of the shared
-Rust core and pinned 0.7 backend for development, with the credential-bearing
-gates below verified before real use. A modern authentication-suite migration
+The accepted checkpoint decision is adoption of the shared Rust core and
+pinned 0.7 backend, with the credential-bearing gates below verified before
+real use. A modern authentication-suite migration
 can follow separately; it need not delay the initial mobile release.
 
 The implementation agent checked the substantive findings against source and

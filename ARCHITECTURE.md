@@ -56,7 +56,11 @@ alternatives rather than selecting a new runtime contract.
   Native dashboard and Conversation presentation have been removed. The
   hosted-latest testing channel keeps independent web authentication and has
   no privileged native data plane. Tauri Mobile has been removed; desktop
-  Tauri is separate. A later iOS shell follows the same foreground boundary.
+  Tauri is separate. The accepted iOS direction uses SwiftUI/WKWebView with a
+  shared Rust connection core exposed through UniFFI, preserving the existing
+  server protocol. iOS is its first consumer; Android's Kotlin internals migrate
+  after shared-core parity is demonstrated. The crypto/build proof is complete;
+  the production Rust core and consumer iOS application remain to be built.
 
 ## Provider runtime ownership and reload
 

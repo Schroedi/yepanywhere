@@ -1,10 +1,12 @@
 # Experimental mobile crypto/build proof
 
 This isolated crate implements step 1 of the
-[provisional iOS plan](../../docs/tactical/138-ios-native-core-proof.md).
+[iOS/shared-core plan](../../docs/tactical/138-ios-native-core-proof.md).
 Neither installed app depends on it. Its sole exported API verifies public
 test fixtures and returns check names, never keys or login credentials.
-Rust adoption and the later implementation steps await maintainer review.
+The maintainer accepted the shared Rust direction and pinned SRP 0.7 backend.
+The production core and later implementation steps remain to be built and
+verified; this public-fixture API stays separate from production authentication.
 
 ## Reproduce
 
@@ -70,7 +72,7 @@ username:password and does not pad the public values. Its compute_m2 uses a
 full digest, while YA hashes a minimal M1 integer. Those differences are tested
 explicitly; no new SRP arithmetic or server protocol is introduced.
 
-## Shipping decision still open
+## Accepted backend and remaining production work
 
 The 0.6.0 implementation uses num-bigint, which is not a constant-time or
 zeroizing secret backend. This wrapper zeroizes selected owned byte buffers
@@ -83,7 +85,8 @@ arithmetic is designed for constant-time use. Its own README still states
 that SRP has never received an independent third-party audit. It is a
 prerelease, and variable-time integer conversions/secret erasure in the
 profile adapter still need review. Do not infer whole-protocol constant-time
-behavior from the backend's design. Both candidates remain experimental.
+behavior from the backend's design. The maintainer accepted pinned 0.7.0-rc.3
+for the shared mobile core; this fixture-only adapter remains experimental.
 These numbers are library releases, not versions of the SRP wire protocol.
 
 "Review" means a bounded assessment of the pinned library and YA adapter,
@@ -92,7 +95,9 @@ an independent formal audit is automatically required, or that the absence
 of an audit proves a vulnerability. An AI-assisted code review can inform
 that decision but does not constitute a cryptographic audit. The
 [plan's review record](../../docs/tactical/138-ios-native-core-proof.md)
-owns the findings and conditions for any later adoption.
+owns the findings and remaining production verification conditions. The
+[mobile pairing contract](../../topics/mobile-server-pairing.md#ios-and-shared-rust-direction)
+owns the accepted unchanged-server compatibility and platform sequence.
 
 Keep this fixture verifier as test tooling. A production core needs a separate
 authentication API with opaque session state; public-fixture JSON containing
