@@ -368,6 +368,11 @@ Local iOS 26.5 acceptance with the narrowed nine-service profile passes all
 18 tests, including native login and streamed typing. The booted overrides are
 verified; the final readiness pair records 51% and 72% idle CPU with more than
 1.2 GiB free memory. Teardown removes the owned per-device override store.
+The shared Darwin sampler also now uses Node's `process.availableMemory()`
+and reports immediately free bytes separately. Earlier reports incorrectly
+labeled `os.freemem()` as available memory, excluding reclaimable pages.
+The 1 GiB availability threshold, CPU requirement and 100 ms typing ceiling
+remain unchanged; a cached host no longer fails solely for low free pages.
 
 The concurrent source repair `a5d1fa195` passed all 24 main jobs in
 [CI 36899967113](https://github.com/kzahel/yepanywhere/actions/runs/36899967113),

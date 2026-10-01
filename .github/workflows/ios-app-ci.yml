@@ -15,6 +15,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'package.json'
+      - 'scripts/perf-suite/host-profile.mjs'
       - '.github/workflows/ios-app-ci.yml'
   pull_request:
     branches: [main]
@@ -30,6 +31,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'package.json'
+      - 'scripts/perf-suite/host-profile.mjs'
       - '.github/workflows/ios-app-ci.yml'
   workflow_dispatch:
 
@@ -46,9 +48,8 @@ concurrency:
 jobs:
   verify-ios-app:
     name: Rust, simulator, and device archive
-    # The 3-core/7 GiB arm64 VM never met the 1 GiB UI memory gate,
-    # even after iOS 18.6 settled to 76% idle in run 36892794310.
-    # Use the standard 4-core/14 GiB Intel runner; retain the same tests/gates.
+    # Standard 4-core/14 GiB host, also verifying the Intel Rust simulator path.
+    # Retain the same tests/gates; report available and free memory separately.
     runs-on: macos-15-intel
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer

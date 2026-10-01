@@ -120,7 +120,10 @@ compilation targets the host architecture, matching its Rust simulator library:
 Device builds always link `aarch64-apple-ios`. The standard Intel runner has
 4 CPUs / 14 GiB; the arm64 VM's 7 GiB still left only about 100 MiB free after
 CPU pressure settled ([run 36892794310](https://github.com/kzahel/yepanywhere/actions/runs/36892794310)).
-The CPU/memory readiness thresholds remain unchanged.
+The CPU/memory readiness thresholds remain unchanged. Earlier Darwin samples
+reported immediately free pages as available memory. Sampling now uses Node's
+`process.availableMemory()` and records free bytes separately, so reclaimable
+inactive/purgeable pages count as available, matching the intended 1 GiB gate.
 
 The Intel run [36898374886](https://github.com/kzahel/yepanywhere/actions/runs/36898374886)
 also passed all 16 native tests but never reached UI headroom: first boot

@@ -40,8 +40,10 @@ Dedicated iOS CI runs these paths independently of physical-device signing.
 Its runner compiles before booting Simulator, then separates native tests from
 UI acceptance and requires CPU/memory headroom for the 100 ms typing gate.
 The standard hosted VM uses macOS 15 Intel / Xcode 26.3 with iOS 18.6.
-The arm64 VM's 3-core / 7 GiB budget did not satisfy UI memory headroom;
-the 4-core / 14 GiB Intel simulator links its corresponding Rust target. Local newer-runtime
+Earlier arm64 runs failed host headroom checks; the memory sampler also
+underreported Darwin availability by counting only free pages, which is now
+corrected. The 4-core / 14 GiB Intel simulator links its corresponding Rust
+target. Local newer-runtime
 acceptance and physical-device signing remain separate evidence.
 Intel first-boot work also exhausted host headroom, so simulator CI applies an
 explicit background-service profile to its owned device, verifies it after
