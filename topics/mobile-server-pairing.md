@@ -34,6 +34,11 @@ selection, reconnect and source-scoped connection managers remain authoritative.
 The duplicate native dashboard and Conversation UI have been removed; they are
 no longer release prerequisites or an alternate presentation to maintain.
 
+The initial mobile release supports server-owner login. Native limited-user
+sign-in, including separate relay-server and SRP-user identities, is explicitly
+deferred by the maintainer on 2026-10-01. Existing web limited-user support
+remains available; this is a mobile release-scope decision.
+
 A launcher opens the selected saved server in the bundled web UI. Without a
 saved server it shows native pairing. Switching hosts opens native management;
 selecting or successfully authenticating a host opens a fresh WebView document

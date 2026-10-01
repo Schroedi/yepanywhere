@@ -24,6 +24,9 @@ release prerequisites. Android implementation is tracked in
 [the WebView app plan](../tactical/083-android-bundled-web-native-transport.md);
 iOS follows this shell boundary in a later scoped effort.
 
+The initial mobile release supports server-owner login. Native limited-user
+login is explicitly deferred by the maintainer on 2026-10-01.
+
 The Android notification path is specified separately in
 [`topics/android-fcm-push.md`](../../topics/android-fcm-push.md).
 Local paired-server profiles, paired-device ownership, native credentials,

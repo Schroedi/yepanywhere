@@ -41,6 +41,9 @@ Related contracts:
 
 ## Fixed boundaries
 
+- The initial mobile release supports server-owner login. Native limited-user
+  sign-in and separate relay-server/SRP-user identities are explicitly deferred
+  by the maintainer on 2026-10-01 and do not block the first mobile release.
 - The privileged transport exists only for the bundled app-assets origin, in
   its main frame, and only while its owning document and Activity are alive.
   Hosted-`latest` continues to perform ordinary web SRP.

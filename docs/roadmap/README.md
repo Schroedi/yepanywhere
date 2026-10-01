@@ -120,6 +120,10 @@ reconnect and notifications. Saved-host selection enters the web app directly;
 Switch Host returns to native management. Management observes connection state
 without retaining dashboard subscriptions.
 
+The initial mobile release uses server-owner login. Native limited-user login
+is explicitly deferred (2026-10-01). Android is implemented; the native iOS app
+and its authentication/transport shell remain to be built.
+
 The [WebView app implementation](../tactical/083-android-bundled-web-native-transport.md)
 reuses the existing native pairing and multi-host core and the web client's
 SourceTransport contract. It adds no server authentication protocol or child
