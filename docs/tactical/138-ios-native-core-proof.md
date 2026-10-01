@@ -453,3 +453,32 @@ by these fixtures. The consumer device target links unsigned; real-device,
 provisioning and store publication remain explicit release work. Embedded
 HTML/app viewers and Blob downloads remain bounded
 [WebKit adapter gaps](../../gaps/ios-webview-viewers-and-downloads.md).
+
+### Physical-phone acceptance — 2026-10-02
+
+A development-signed device build installed through Machine Control and passed
+15 native tests plus both UI tests on iPhone SE (3rd generation), iOS 26.6.1.
+Native login/resume, Keychain, continuity registration/revocation, encrypted
+WebView transport and cancellation passed. The real UI preserved its route and
+draft across foregrounding and process relaunch and returned through Switch
+Host to native management. All 37 sequential keys were acknowledged at a 33 ms
+maximum, with zero drops and 226 overlapping transcript mutations.
+
+Hardware exposed test-fixture assumptions: the producer's loopback address
+pointed at the phone, the background UI runner had a separate local-network
+permission gate, and retrying the same server restored its previous draft.
+The test now derives its probe URL from the endpoint and supports a controller
+producer, with a stronger overlapping-mutation assertion. Acceptance used a
+fresh disposable server and a 50 ms controller append loop, recording 1,420
+successful requests and no failures. Only the dedicated Debug QA host catalog
+resets on first launch; ordinary credentials and resume/relaunch are retained.
+SwiftUI's iOS 26 native Add host cell uses a stable identifier. Switch Host uses
+one physical center tap from its current WebKit frame, independently confirmed
+through Machine Control semantic control.
+
+The selected 17 tests passed without skips; the simulator-only ephemeral-root
+TLS test was deliberately excluded without changing phone trust. Simulator CI
+retains that coverage. Development signing is now physically verified. Store
+provisioning/publication, live Apple push, tablet acceptance and broader
+network/media verification remain separate release gates. Screenshots and raw
+results stay local; private signing/device/network details are not committed.

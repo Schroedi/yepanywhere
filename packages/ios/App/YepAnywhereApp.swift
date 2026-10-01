@@ -10,10 +10,12 @@ struct YepAnywhereApp: App {
   init() {
     #if DEBUG
       let qa = ProcessInfo.processInfo.arguments.contains("-qa-input-metrics")
-      _hosts = StateObject(
-        wrappedValue: HostModel(
-          store: HostStore(
-            service: qa ? "com.yepanywhere.ios.acceptance" : "com.yepanywhere.ios.hosts.v1")))
+      let store = HostStore(
+        service: qa ? "com.yepanywhere.ios.acceptance" : "com.yepanywhere.ios.hosts.v1")
+      if qa && ProcessInfo.processInfo.arguments.contains("-qa-reset-hosts") {
+        try? store.delete("hosts-state.v1")
+      }
+      _hosts = StateObject(wrappedValue: HostModel(store: store))
     #else
       _hosts = StateObject(wrappedValue: HostModel())
     #endif
@@ -68,7 +70,7 @@ private struct HostScreen: View {
                   .swipeActions { Button("Forget", role: .destructive) { hosts.forget(profile) } }
               }
             }
-            Button("Add host") { hosts.adding = true }
+            Button("Add host") { hosts.adding = true }.accessibilityIdentifier("host-add")
           }
         }.navigationTitle("Yep Anywhere")
           .confirmationDialog(

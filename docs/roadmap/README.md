@@ -52,15 +52,17 @@ Automatic XCTest recording is disabled while six explicit screenshots remain.
 Native shell checks use control identifiers, and restored WebKit controls use
 current-frame taps. Intel native tests also pass with their Rust simulator
 target, but Intel UI remained CPU-bound. The 18 tests and 100 ms typing ceiling
-remain intact. Physical-device acceptance and signing/publication remain
-separate release work.
+remain intact. Initial physical-phone acceptance also passes: 15 native and both
+UI tests on iPhone SE (3rd generation), iOS 26.6.1, with development signing and installation.
+Typing peaks at 33 ms over 37 keys, with zero drops and 226 concurrent transcript
+mutations; foreground/relaunch and Switch Host pass. Store signing/publication,
+tablet acceptance and the broader device/network matrix remain release work.
 Embedded viewers/downloads need the
 [remaining WebKit adapters](../../gaps/ios-webview-viewers-and-downloads.md).
 Notification permission/FCM/broker
 foundations exist; common per-server native push enrollment and real Apple push
 delivery remain pending. Android migration follows multi-host/background parity
-and can proceed independently of store publication. Signing/publication and
-physical phone/tablet acceptance remain release work.
+and can proceed independently of store publication.
 
 ### Current baseline
 
@@ -157,7 +159,8 @@ without retaining dashboard subscriptions.
 
 The initial mobile release uses server-owner login. Native limited-user login
 is explicitly deferred (2026-10-01). Android and the iOS native-login/transport
-shell are implemented; iOS has owned simulator and unsigned-device evidence.
+shell are implemented; iOS has owned simulator, unsigned-device and signed
+physical-phone acceptance evidence.
 
 The [WebView app implementation](../tactical/083-android-bundled-web-native-transport.md)
 reuses the existing native pairing and multi-host core and the web client's

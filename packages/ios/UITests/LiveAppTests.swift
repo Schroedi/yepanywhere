@@ -18,7 +18,16 @@ final class LiveAppTests: XCTestCase {
     let fixture = try XCTUnwrap(
       Bundle(for: Self.self).url(forResource: "fixture", withExtension: "json"))
     let data = try JSONSerialization.jsonObject(with: Data(contentsOf: fixture)) as! [String: Any]
-    let app = XCUIApplication(); app.launchArguments = ["-qa-input-metrics"]; app.launch()
+    var probe = try XCTUnwrap(URLComponents(string: data["endpoint"] as! String))
+    probe.scheme = probe.scheme == "wss" ? "https" : "http"
+    probe.path = "/__probe/append"; probe.query = nil
+    let appendURL = try XCTUnwrap(probe.url)
+    // Hardware can use a host-owned producer: the background XCTest runner
+    // has its own local-network privacy gate. DOM evidence still proves that
+    // more updates than keys overlap typing; the input ceiling is unchanged.
+    let externalProducer = data["externalProducer"] as? Bool ?? false
+    let app = XCUIApplication(); app.launchArguments = ["-qa-input-metrics", "-qa-reset-hosts"]
+    app.launch(); app.launchArguments = ["-qa-input-metrics"]
     let label = app.textFields["host-label"]
     XCTAssertTrue(label.waitForExistence(timeout: 10))
     capture(app, "ios-native-login")
@@ -46,18 +55,17 @@ final class LiveAppTests: XCTestCase {
     let composerExists = composer.waitForExistence(timeout: 10)
     capture(app, "ios-session-navigation")
     XCTAssertTrue(composerExists, app.debugDescription)
-    let port = data["port"] as! Int
     // Real server updates overlap each sequential keyboard input in a 50-row
     // transcript; each beforeinput-to-paint observation must stay <=100 ms.
     composer.tap()
     let keyboardReady = app.staticTexts["QA keyboard ready"]
     XCTAssertTrue(keyboardReady.waitForExistence(timeout: 10), app.debugDescription)
     let control = AppendControl()
-    let updater = Task.detached {
+    let updater: Task<Int, Never>? = externalProducer ? nil : Task.detached {
       var successes = 0
       for _ in 0..<1200 {
         if control.stopped || Task.isCancelled { break }
-        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/__probe/append")!)
+        var request = URLRequest(url: appendURL)
         request.httpMethod = "POST"
         if let (_, response) = try? await URLSession.shared.data(for: request),
           (response as? HTTPURLResponse)?.statusCode == 200
@@ -68,7 +76,7 @@ final class LiveAppTests: XCTestCase {
       }
       return successes
     }
-    defer { control.stop(); updater.cancel() }
+    defer { control.stop(); updater?.cancel() }
     let text = "Simulator typing while updates stream"
     // Each call synthesizes one literal keyboard input. Individual calls
     // exercise ordinary mobile typing while the 20 Hz server producer
@@ -79,11 +87,10 @@ final class LiveAppTests: XCTestCase {
       for: NSPredicate(format: "value == %@", text), evaluatedWith: composer)
     // WebKit's AX snapshot can lag the painted DOM; the separate in-page
     // beforeinput measurements below enforce the actual 100 ms contract.
-    await fulfillment(of: [finalValue], timeout: 10)
     capture(app, "ios-typing-evidence")
+    await fulfillment(of: [finalValue], timeout: 10)
     XCTAssertEqual(composer.value as? String, text, app.debugDescription)
-    let updates = await updater.value
-    XCTAssertGreaterThan(updates, text.count)
+    if let updates = await updater?.value { XCTAssertGreaterThan(updates, text.count) }
     let metrics = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'QA input='"))
       .firstMatch
     XCTAssertTrue(metrics.waitForExistence(timeout: 5), app.debugDescription)
@@ -91,7 +98,7 @@ final class LiveAppTests: XCTestCase {
     XCTAssertTrue(report.contains("input=\(text.count);"), report)
     XCTAssertTrue(report.contains("dropped=0"), report)
     let stream = Int(report.components(separatedBy: "stream=").last ?? "0") ?? 0
-    XCTAssertGreaterThan(stream, 0, report)
+    XCTAssertGreaterThan(stream, externalProducer ? text.count : 0, report)
     let maximum =
       Int(report.components(separatedBy: "max=").last?.components(separatedBy: ";").first ?? "1000")
       ?? 1000
@@ -117,9 +124,11 @@ final class LiveAppTests: XCTestCase {
     capture(app, "ios-host-sidebar")
     let switchHost = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Switch host'"))
       .firstMatch
-    XCTAssertTrue(switchHost.waitForExistence(timeout: 5), app.debugDescription); switchHost.tap()
+    XCTAssertTrue(switchHost.waitForExistence(timeout: 5), app.debugDescription)
+    XCTAssertTrue(switchHost.isHittable, app.debugDescription)
+    switchHost.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     XCTAssertTrue(
-      app.buttons["Add host"].waitForExistence(timeout: 10), app.debugDescription)
+      app.descendants(matching: .any)["host-add"].waitForExistence(timeout: 10), app.debugDescription)
     XCTAssertFalse(app.webViews.firstMatch.exists)
   }
 }

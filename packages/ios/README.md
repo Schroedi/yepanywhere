@@ -179,3 +179,41 @@ six checkpoints and no recording. Typing acknowledged all 37 characters at a
 The pre-UI readiness samples satisfy the unchanged 1 GiB/20% idle requirement.
 This establishes hosted acceptance independently of physical iPhone availability;
 physical-device acceptance and distribution signing remain release gates.
+
+## Physical-device acceptance
+
+On 2026-10-02, a development-signed build installed on an iPhone SE
+(3rd generation), iOS 26.6.1, through Machine Control's configured physical
+device. All 15 selected native tests and both UI tests passed. Native SRP,
+Keychain persistence/resume, continuity registration/check-in/revocation,
+cancellation, bridge ownership and protected-state failure handling ran on the
+phone. The bundled UI preserved its route and draft across Home/foreground and
+process termination/relaunch, then Switch Host returned to native management.
+Real sequential typing acknowledged all 37 characters with a 33 ms maximum,
+zero drops and 226 overlapping transcript mutations. The six explicit
+checkpoints remain in the local result bundle.
+
+Hardware fixtures require an endpoint reachable from the phone, a fresh
+server/data directory per acceptance run, and normal approval of the app's
+local-network permission. The UI test derives its producer URL from that
+endpoint. A fixture may set `externalProducer: true` when its controller owns
+the 50 ms append loop: iOS independently blocks local-network access from the
+background XCTest runner. In this mode the test requires more transcript
+mutations than typed characters during input, while retaining the exact draft,
+zero-drop and 100 ms gates. The accepted controller producer completed 1,420
+appends with no request failures. Default simulator fixtures continue using
+the in-test producer.
+
+Debug acceptance resets only its dedicated QA host catalog at the initial
+launch; later launches retain it for the resume/draft checks. Production hosts
+are unaffected. The native Add host control has a stable identifier because
+SwiftUI exposes it as a cell on iOS 26; WebKit menu controls use their current
+frames for one physical center tap.
+
+The simulator-specific ephemeral-root TLS test was excluded from hardware
+selection; no phone trust settings were changed. Its full trust/hostname/expiry
+coverage remains in simulator CI. This checkpoint proves development signing,
+installation and the tested phone flow, not TestFlight/App Store provisioning,
+APNs delivery, tablet acceptance or the broader network/media release matrix.
+Machine Control cleans its leased XCTest session; the test app remains
+installed and opens normally to native login.
