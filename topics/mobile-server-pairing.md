@@ -188,8 +188,7 @@ state includes:
 Non-secret metadata can use app-private DataStore. Passwords are used only for
 the visible SRP login and are not persisted. Resume base keys and broker
 capabilities are encrypted under Android Keystore-backed keys and excluded
-from backup/device transfer. A future iOS implementation applies the same
-ownership model with Keychain-backed storage.
+from backup/device transfer. The iOS shell applies this ownership model with Keychain-backed storage.
 
 The native store is independent of browser `localStorage`. Native Compose and
 background operation must never require a WebView profile to exist.
@@ -673,19 +672,61 @@ selection and password-dependent enrollment; `resumeProtocolVersion` does not
 select the authentication algorithm. The current Rust/iOS work does not require
 that migration or any server credential conversion.
 
-### Platform sequence
+### Current iOS implementation and platform sequence
 
-iOS is the first consumer of the shared core. Prove the bundled WKWebView and
-document-scoped SourceTransport bridge, then deliver native login and a live
-Rust connection against the existing server, followed by Keychain/lifecycle
-and mobile acceptance. Apple-specific UI and background execution remain
-platform adapters rather than shared widgets or Android service behavior.
+The iOS 17+ consumer shell and production Rust core are implemented and verified
+on an owned simulator against unchanged disposable YA servers. Owner login
+verifies M2 and encrypted server-info before saving a native credential. Resume
+requires authenticated protocol 3 or later, binds both nonces and persists the
+highest authenticated version, including advances during reconnect, before
+capability negotiation or continuity check-in can fail. The old stored credential
+is invalidated before resume; cancellation before a verified proof can restore
+it, while a verified newer pin can never restore an older one. Swift task
+cancellation cancels and frees its Rust future, including a stalled handshake.
+Missing
+security-client audit capability preserves owner operation without registration
+requests; supported servers receive native SecKey continuity proofs tied to the
+current authenticated transport nonce.
 
-Migrate Android connection internals after the iOS/Rust path proves parity in
-authentication, transport and lifecycle. Preserve Android's current shell,
-profiles, protected credentials, bridge contracts, route fallbacks and
-acceptance tests. Android release work can continue on the working Kotlin
-implementation; the Rust migration is not an iOS release prerequisite.
+The shell atomically stores profiles and credentials in protected native state,
+keeps mutations disabled while Keychain is unavailable, and separates persistent
+WebKit data by profile. Switch Host, backgrounding and document replacement
+release the foreground lease. Launch/foreground resume restore the application
+route and React-owned draft; iOS provides no Android foreground-service promise.
+A new profile and credential are durable before security-client registration,
+so registration/storage failure remains recoverable with the same request/key.
+Known revocation prevents fresh owner login from silently re-enrolling that
+installation. Forget revokes on the server before local tombstoned cleanup;
+unreachable servers require an explicit local-only Forget Anyway decision.
+
+The Rust actor bounds requests, subscriptions, uploads and queued event bytes.
+Disconnect fails pending requests/uploads without replay, then makes three
+bounded resume attempts and restores owned subscriptions. Closing cancels writes
+and retry/restoration work and erases retained native credential exports. A
+saturated subscription loses that subscription instead of unrelated work.
+Uploads preserve the unchanged server's upload_end completion/abort semantics;
+fully transferred staging data retains the server's normal draft TTL semantics.
+
+Direct, negotiated relay mux and exact custom/legacy relay endpoints are tested.
+The initial iOS app has one foreground profile and one circuit per connection;
+shared multi-profile physical-socket pooling is a later Android parity gate,
+not implied by implementing the mux wire format. Initial route selection uses
+one exact endpoint with mux-to-legacy fallback, rather than Android's ordered
+direct/relay route candidates. SwiftUI, Keychain, WebKit and
+Apple notification/lifecycle behavior remain platform adapters.
+
+The notification foundation owns Apple permission/FCM token handling and
+protected broker credentials, but common per-server native push enrollment is
+still pending. Unconfigured builds report unavailable and registration alone
+never reports delivery enabled. Physical phone/tablet execution, live APNs,
+signing and store publication remain release gates. See
+[the iOS README](../packages/ios/README.md) for reproducible acceptance commands.
+
+Migrate Android internals after shared-core parity includes its existing
+multi-host, route-candidate, background and mux-pooling behavior. Preserve the
+current Kotlin shell, profiles, wire fallbacks and acceptance tests. Android
+release work continues independently; its Rust migration does not delay iOS
+store work or require a YA authentication migration.
 
 ## Compatibility And Approval Gates
 

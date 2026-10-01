@@ -29,11 +29,20 @@ has passed its Rust crypto interoperability and native build experiment,
 including iOS simulator execution. A Daybreak Blue engineering review supports
 the proof and conditional development use of SRP 0.7; the plan records its
 production login gates and accepted limits. The maintainer accepted the shared
-Rust core with pinned SRP 0.7.0-rc.3 and unchanged-server compatibility. Next is
-the iOS bundled WKWebView/bridge proof, followed by live native login and Rust
-transport. Android core migration follows demonstrated parity; current Kotlin
-release work can continue independently. Store signing/publication and
-physical-device acceptance remain release work.
+Rust core with pinned SRP 0.7.0-rc.3 and unchanged-server compatibility. The
+consumer iOS 17+ shell now runs the bundled UI over native Rust SRP,
+with Keychain storage, continuity-key registration/check-in/revocation and
+foreground lifecycle reconstruction. Owned simulator acceptance covers real
+native login, concurrent streaming/typing within 100 ms, route/draft preservation
+and Switch Host. Direct/mux/legacy server probes and an unsigned device build
+pass, including OS TLS trust/hostname/expiry checks and cancellation across FFI.
+Dedicated iOS CI runs these paths. Embedded viewers/downloads need the
+[remaining WebKit adapters](../../gaps/ios-webview-viewers-and-downloads.md).
+Notification permission/FCM/broker
+foundations exist; common per-server native push enrollment and real Apple push
+delivery remain pending. Android migration follows multi-host/background parity
+and can proceed independently of store publication. Signing/publication and
+physical phone/tablet acceptance remain release work.
 
 ### Current baseline
 
@@ -129,8 +138,8 @@ Switch Host returns to native management. Management observes connection state
 without retaining dashboard subscriptions.
 
 The initial mobile release uses server-owner login. Native limited-user login
-is explicitly deferred (2026-10-01). Android is implemented; the native iOS app
-and its authentication/transport shell remain to be built.
+is explicitly deferred (2026-10-01). Android and the iOS native-login/transport
+shell are implemented; iOS has owned simulator and unsigned-device evidence.
 
 The [WebView app implementation](../tactical/083-android-bundled-web-native-transport.md)
 reuses the existing native pairing and multi-host core and the web client's
@@ -145,8 +154,8 @@ not mobile release prerequisites. The previous native preview remains
 historical evidence in Git.
 
 **Next action:** finish store signing/distribution, notification enrollment and
-tap acceptance, and release-device/network checks using the Android WebView app.
-Scope iOS around the same native-login/transport and full-web boundary; a new
+tap acceptance, and release-device/network checks for both mobile apps. Complete
+the iOS embedded-viewer/download adapters before claiming full UI parity; a new
 SwiftUI transcript/composer design is not required. Desktop release and
 continuous-delivery work continue independently.
 

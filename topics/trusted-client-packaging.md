@@ -99,10 +99,31 @@ owning bundled main-frame document. Passwords, resume keys and transport keys
 never enter JavaScript. Navigation or document destruction invalidates its
 handles and releases its native leases.
 
-This is selected direction, not an implemented iOS app. The next checkpoint
-must demonstrate bundled asset loading, SPA routing, document/frame isolation,
-streaming and upload backpressure on the simulator. Android's HTTPS app-assets
-mechanism does not establish WKWebView behavior; the iOS harness must prove it.
+The consumer application is implemented in `packages/ios`, with shared native
+transport in `packages/mobile-core`. The iOS 17+ shell uses a bundled
+`yepapp://bundle` origin and a separate persistent WKWebsiteDataStore per
+native profile. No developer server or hosted login is part of this path.
+Full replacement navigation and renderer loss invalidate the document handle.
+Asset path traversal and foreign/stale document messages are rejected.
+
+The privileged document forbids embedded frames. Its additional CSP is inserted
+before bundled scripts and fails closed if the entry HTML cannot be recognized.
+This policy excludes executing same-origin children that could proxy through
+parent functions; `isMainFrame` alone is not asserted to distinguish such calls.
+Embedded HTML/app viewers need a separately unprivileged surface before they
+can be enabled. Blob download navigation also awaits a native download adapter;
+these [viewer/export gaps](../gaps/ios-webview-viewers-and-downloads.md) remain
+release acceptance work. The existing native source adapter's speech/device-stream
+unsupported fallbacks also remain in effect.
+
+Simulator acceptance covers the shipped React UI, source requests and events,
+chunked responses, upload-consumption acknowledgement, Blob media metadata,
+Keychain persistence/failure paths, native continuity proofs, real sequential
+keyboard input with concurrent updates, saved routes/drafts across suspension
+and relaunch, and native Switch Host. The Apple device target links separately;
+physical-device, signing and notification delivery remain release acceptance.
+Reproducible commands and packaging limits live in
+[the iOS README](../packages/ios/README.md).
 
 ## Deferred Verification Setup
 

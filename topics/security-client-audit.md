@@ -547,3 +547,25 @@ The initial implementation deliberately leaves these separately reviewable:
    using Android/native-plus-bundled-web eviction and restart evidence. Session
    evictions must already be audited; any default change remains an explicit
    security/deployment decision.
+
+## iOS Native Client Acceptance
+
+The iOS shell implements the existing capability-gated registry contract using
+per-profile P-256 SecKey continuity keys labeled ios-keychain. The key is a
+software Keychain item; no Secure Enclave, attestation or hardware-backed proof
+is asserted. Native Rust retains the authenticated session id and exact wire
+transport nonce for registration/check-in transcripts; these values and signing
+operations are unavailable to the source/control JavaScript bridge.
+
+Simulator acceptance verifies post-registration storage failure and idempotent
+recovery of the same client id/request/key, stable resumed check-in, changed
+transport nonce and server-side revocation followed by refusal to re-enroll the
+revoked local binding. Owner SRP authentication remains distinct from continuity
+verification: a fresh owner login does not silently erase a revoked installation.
+Native profile/credential writes are atomic and protected-data failures disable
+catalog mutation. Native Forget performs server revocation before tombstoned
+local cleanup; explicit Forget Anyway acknowledges an unreachable server and
+cannot claim remote revocation. Failed cleanup cannot resume or be resurrected
+by a late credential callback. The optional notification adapter owns OS permission, FCM and
+protected broker installation credentials. Shared per-server push enrollment,
+physical delivery and publication remain pending, as in the existing plan.

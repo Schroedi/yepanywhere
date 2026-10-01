@@ -6,9 +6,10 @@ Status: direction accepted, 2026-10-01. Step 1's compatibility/build experiment
 and engineering review are complete. The maintainer accepted the shared Rust
 core and pinned SRP 0.7.0-rc.3, preserving the existing YA server protocol.
 Production authentication and lifecycle gates remain before real credentials.
-The production core and consumer iOS app are not yet implemented; the next
-checkpoint is the bundled WKWebView and bridge proof. Android migration follows
-shared-core parity.
+The production core and consumer iOS 17+ app are implemented. Bundled bridge,
+native owner login and simulator lifecycle acceptance pass. Physical-device,
+live notification and distribution acceptance remain step 4 release gates;
+Android migration follows its broader multi-host/background parity.
 
 ## Scope And Existing Work
 
@@ -134,18 +135,19 @@ checks pass; it does not require waiting for App Store publication.
 
 ## Current Checkpoint And Next Work
 
-Step 1 is complete and accepted. Steps 2–5 are pending implementation.
-Proceed iOS-first: Android already has the working native-login/bundled-web
-path recorded in [tactical 083](083-android-bundled-web-native-transport.md),
-while iOS has only the crypto test host. Migrating Android first would delay
-proving the missing platform without delivering its application.
+Steps 1–3 are complete. Step 4's Keychain, Apple lifecycle, notification
+foundation and simulator acceptance are implemented; physical phone/tablet,
+live APNs and signing/publication remain. Step 5 remains pending.
+The iOS-first implementation now provides the consumer application, extending
+the initial crypto test host. Android retains its working native-login/bundled-web
+path recorded in [tactical 083](083-android-bundled-web-native-transport.md).
 
-The next bounded slice is step 2's simulator-backed bundled WKWebView and
-source bridge. Step 3 then replaces the test transport with the production
-Rust core and delivers a live native login → web application → disconnect and
-resume path against the existing server. Keep Kotlin as a working parity
-reference and continue Android release acceptance independently. No protocol
-migration is part of these slices.
+The consumer implementation is in packages/ios and packages/mobile-core.
+Continue with real-device acceptance and distribution configuration, plus the
+shared per-server native push enrollment plan. Android migration must additionally
+preserve its existing multi-host/background demand, direct-route candidates and
+physical mux pooling before replacing Kotlin. The initial iOS app's one foreground
+circuit does not establish that parity. No server protocol migration is required.
 
 ## Evidence
 
@@ -220,7 +222,8 @@ fixtures; the touched native checks produce no runtime/compiler warnings.
 
 Wire interoperability and native packaging are feasible; the maintainer has
 accepted the shared Rust direction and pinned 0.7 backend. The production
-adapter and session lifecycle still need the verification below. The 0.6
+adapter and session lifecycle verification is recorded in the consumer
+acceptance below. The 0.6
 num-bigint backend is variable-time and cannot establish
 secret erasure; do not adopt it for production from this experiment. The newer
 0.7 prerelease uses arithmetic designed for constant-time use, but still
@@ -301,3 +304,52 @@ during a successful full SRP login while the client still has the password.
 A resume-only credential is insufficient. Select the OPAQUE configuration,
 key stretching, libraries, browser/native interoperability, enrollment trust
 and old-server transition policy in a separate reviewed migration plan.
+
+### Consumer implementation and acceptance — 2026-10-01
+
+Production Rust uses the pinned 0.7 backend without SRP 0.6/num-bigint. Twelve
+Rust tests cover the production vectors, hostile resume context and downgrade,
+pre-authentication allocation limits, subscription saturation and prompt socket
+teardown. Direct, negotiated mux and exact legacy endpoints pass against owned,
+unchanged YA fixtures, including encrypted requests/events, resume, staged uploads
+and six sequential partial/full cancellations. Cancellation retains the unchanged
+server's completed-draft TTL behavior. Native credential exports clear at close.
+
+The iOS simulator passes native owner login, persistent host/credential storage,
+atomic-write and locked-data failure cases, native P-256 continuity registration,
+resumed check-in and durable revocation. The real bundled UI traverses projects
+and sessions, acknowledges all 37 sequential keyboard characters within 100 ms
+under a continuous 20 Hz transcript producer, preserves route/draft through suspension
+and relaunch, and returns to native Switch Host. One captured run records
+37 keys, zero drops, 57 ms maximum and 411 overlapping transcript mutations.
+Source frames yield a paint slot;
+upload acknowledgement waits for native consumption. Simulator media and hostile
+entry-policy checks extend this checkpoint. Build/acceptance commands and actual
+supported boundaries live in packages/ios/README.md.
+
+A Daybreak Blue read-only review of the first production checkpoint identified
+eight concrete findings: abort protocol, resume-version pinning, non-atomic and
+locked Keychain writes, cancellation/reconnect, discarded transport context,
+event saturation, pre-auth allocation and credential lifetime. The implementation
+addresses them with the tests above; this remains an implementation-agent review,
+not an independent cryptographic audit. A second authorized Daybreak review
+(session `01a0f722-f64c-7841-9801-dfb8d59385ae`) identified persistence before
+continuity failure, cancellation across UniFFI, registration recovery, local
+forgetting without revocation and queue-pressure attribution. Native durable
+credential callbacks, Rust future cancellation, idempotent registration recovery,
+server-first revocation/tombstones and per-owner bounded queues address them.
+
+Hosted simulator tests verify successful TLS/SRP through an ephemeral trusted
+root and reject an untrusted root, wrong hostname and expired certificate before
+WebSocket upgrade. Only the owned simulator trusts that root; machine/user
+trust is unchanged. A socket that stalls the handshake proves Swift cancellation
+closes Rust within 500 ms. Broader hostile-peer/RNG/sequence fault injection and
+fuzz coverage remain useful follow-up verification.
+
+Initial Apple notification tests establish broker registration/rotation bounds
+and protected opaque routing, not live APNs delivery or per-server enrollment.
+No real owner credentials, developer YA configuration or user projects are used
+by these fixtures. The consumer device target links unsigned; real-device,
+provisioning and store publication remain explicit release work. Embedded
+HTML/app viewers and Blob downloads remain bounded
+[WebKit adapter gaps](../../gaps/ios-webview-viewers-and-downloads.md).
