@@ -628,6 +628,10 @@ semantics remain implementation decisions.
 
 ## iOS Direction
 
+The [provisional iOS/Rust plan](../docs/tactical/138-ios-native-core-proof.md)
+records the 2026-10-01 experiment. Only its crypto/build proof is authorized;
+shared Rust adoption and Android migration await review of that evidence.
+
 The conceptual model is platform-neutral: a local paired-server profile,
 paired device, expiring connection credentials, route candidates, push
 capability, typed inbox/session repositories, and revocation. A future SwiftUI

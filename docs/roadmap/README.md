@@ -24,7 +24,9 @@ The implementation and acceptance evidence are recorded in
 [the WebView app plan](../tactical/083-android-bundled-web-native-transport.md).
 Native dashboard/Conversation rendering and the experimental Simple Client API
 preview are no longer mobile release prerequisites. iOS follows the same shell
-boundary in a later scoped implementation. Store signing/publication and
+boundary; the [provisional iOS plan](../tactical/138-ios-native-core-proof.md)
+is now proving Rust crypto interoperability and native builds. Shared Rust
+adoption awaits review of that checkpoint. Store signing/publication and
 physical-device acceptance remain release work.
 
 ### Current baseline
