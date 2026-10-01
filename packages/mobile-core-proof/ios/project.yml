@@ -29,9 +29,12 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.yepanywhere.crypto-proof.dev
         TARGETED_DEVICE_FAMILY: "1,2"
-        OTHER_LDFLAGS: "$(inherited) -lya_mobile_core_proof -framework Security"
-        "LIBRARY_SEARCH_PATHS[sdk=iphoneos*]": "$(SRCROOT)/../target/aarch64-apple-ios/release"
-        "LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]": "$(SRCROOT)/../target/aarch64-apple-ios-sim/release"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Info.plist
+        # Cargo also emits a dylib. Explicit archive paths prevent the linker
+        # from selecting an unbundled dylib that works only on this simulator host.
+        "OTHER_LDFLAGS[sdk=iphoneos*]": '$(inherited) "$(SRCROOT)/../target/aarch64-apple-ios/release/libya_mobile_core_proof.a" -framework Security'
+        "OTHER_LDFLAGS[sdk=iphonesimulator*]": '$(inherited) "$(SRCROOT)/../target/aarch64-apple-ios-sim/release/libya_mobile_core_proof.a" -framework Security'
   YAProofTests:
     type: bundle.unit-test
     platform: iOS

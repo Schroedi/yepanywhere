@@ -2,7 +2,9 @@
 
 Topic: ios-native-core-proof
 
-Status: provisional, 2026-10-01. The maintainer authorized recording this
+Status: provisional, 2026-10-01. Step 1's compatibility/build experiment
+passes; the shipping SRP library and Rust adoption await maintainer review.
+The maintainer authorized recording this
 proposal and executing step 1. Adopting Rust for the mobile connection core,
 implementing later steps, and migrating Android remain contingent on reviewing
 step 1 evidence. A successful experiment does not itself grant that approval.
@@ -115,4 +117,84 @@ migration is not a prerequisite for the first iOS proof.
 
 ## Evidence
 
-Step 1 is in progress. Rust adoption and steps 2–5 are not approved.
+### Crypto and binding results — 2026-10-01
+
+The isolated [proof crate](../../packages/mobile-core-proof/README.md) has no
+production app dependents. The original TypeScript/Kotlin fixture remains
+byte-for-byte unchanged and its production generator check passes. Two extra
+production-generated fixtures cover a Unicode password with minimal A/salt
+and a leading-zero M1. They catch the padding and integer-encoding differences
+that a single full-width transcript would miss.
+
+RustCrypto srp 0.6.0 and 0.7.0-rc.3 both match A, x, verifier, k, padded u,
+client/server S, server B, M1 and M2 without replacing their modular arithmetic.
+YA's existing password-only hash and minimal M1/M2 encoding require an adapter;
+neither candidate's high-level login API is a drop-in implementation.
+
+Each of the three fixtures passes 27 compatibility properties and 17 rejection
+checks. Generated Kotlin/JVM and host Swift bindings execute these same checks
+and reject externally corrupted M2 and malformed JSON through typed errors.
+Rust's three tests and all-feature Clippy pass. This is fixture compatibility,
+not a live YA handshake or a protocol/session security assessment.
+
+### Native packaging results — 2026-10-01
+
+| Gate | Actual evidence |
+| --- | --- |
+| iOS simulator execution | Owned iPhone 17, iOS 26.5; two XCTest cases pass with zero failures through generated Swift bindings, including all three fixtures |
+| iOS device build | arm64 Rust static library and unsigned Release app link successfully; no physical-device execution or signing claimed |
+| iOS runtime linkage | Both app executables define the Rust proof entry point and have no Rust dylib dependency |
+| Android compilation | cargo-ndk produces arm64-v8a and x86_64 libraries at API 26; no Android instrumentation claimed |
+| Dependency advisory check | cargo audit reports no advisories in the final 146-dependency lockfile; this does not audit SRP or native libsodium |
+| Repository checks | Root lint, format check, typecheck and all non-Android unit suites pass |
+| Cleanup | Owned simulator shut down and deleted; generated bindings/build output remain ignored |
+
+Final uncompressed sizes, including both SRP candidates and fixture harness
+code rather than a selected shipping core:
+
+| Artifact | Bytes |
+| --- | ---: |
+| iOS simulator static archive | 20,128,192 |
+| iOS device static archive | 20,142,008 |
+| Simulator statically linked app executable | 879,384 |
+| Device statically linked app executable | 888,432 |
+| Android arm64-v8a shared library | 918,928 |
+| Android x86_64 shared library | 912,984 |
+
+Static archives include object metadata/debug information; their sizes are not
+installed app costs. Linked executable sizes include the empty SwiftUI test
+host and generated bindings; no full YA app or APK size delta is established.
+
+Tool versions: Rust 1.97.0; UniFFI 0.32.2; srp 0.6.0 and 0.7.0-rc.3;
+crypto-bigint 0.7.5; libsodium-sys-stable 1.24.0 with hash/signature-verified
+libsodium 1.0.22-stable source; Xcode 26.6 (17F113), Swift 5.10 language mode;
+XcodeGen 2.45.3; Kotlin 2.0.21/JNA 5.17.0; Gradle 8.13; cargo-ndk 4.1.2;
+Android NDK 27.0.12077973; Node 24.19.0 for fixture/check commands.
+
+Reproduce from packages/mobile-core-proof with `node scripts/run.mjs all`.
+The final local xcresult is ignored build/ios-1790836988462.xcresult. The runner
+chooses an available runtime and creates/deletes its own simulator, so the
+result filename and runtime may differ on another host. Linux/Windows, Intel
+iOS simulator execution, physical iOS and Android execution remain unproved.
+
+The first simulator build exposed Release @testable-import configuration and
+an unbundled dylib chosen by `-l` over a colocated archive. The harness now uses
+the public API and explicit static archive paths, then verifies final Mach-O
+symbols/dependencies. Final platform compiler checks emit no warnings. The
+repository unit run includes expected application warning logs from negative
+fixtures; the touched native checks produce no runtime/compiler warnings.
+
+### Decision still required
+
+Wire interoperability and native packaging are feasible. This supports Rust
+as an architectural option but does not approve it or select a shipping SRP
+dependency. The 0.6 num-bigint backend is variable-time and cannot establish
+secret erasure; do not adopt it for production from this experiment. The newer
+0.7 prerelease uses arithmetic designed for constant-time use, but still
+reports no independent SRP audit, and adapter conversions/secret handling need
+review. Compatibility is not a whole-protocol constant-time or security claim.
+
+Before real credentials or step 2, review whether to adopt a shared Rust core
+and which backend is acceptable. The installed Android app, server protocol,
+owner-only release scope and deferred limited-user login are unchanged.
+Rust adoption and steps 2–5 remain unapproved.

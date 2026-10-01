@@ -12,7 +12,7 @@ import Foundation
         for path in paths {
             let fixture = try String(contentsOfFile: path, encoding: .utf8)
             let report = try verifyInteropFixture(fixtureJson: fixture)
-            precondition(report.vectorChecks.count == 26 && report.rejectionChecks.count == 17)
+            precondition(report.vectorChecks.count == 27 && report.rejectionChecks.count == 17)
             precondition(report.sodiumVersion == "1.0.22")
             var object = try JSONSerialization.jsonObject(with: Data(fixture.utf8)) as! [String: Any]
             var srp = object["srp"] as! [String: Any]
@@ -23,7 +23,7 @@ import Foundation
                 _ = try verifyInteropFixture(fixtureJson: wrong)
                 preconditionFailure("Corrupt proof accepted")
             } catch ProofError.Mismatch { }
-            print("Swift: \(URL(fileURLWithPath: path).lastPathComponent): 26 vectors, 17 rejections; bad M2 rejected")
+            print("Swift: \(URL(fileURLWithPath: path).lastPathComponent): 27 vectors, 17 rejections; bad M2 rejected")
         }
         do {
             _ = try verifyInteropFixture(fixtureJson: "{")

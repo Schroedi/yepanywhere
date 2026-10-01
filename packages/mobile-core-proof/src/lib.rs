@@ -238,6 +238,50 @@ fn check(ok: bool, label: &str, checks: &mut Vec<String>) -> Result<()> {
     Ok(())
 }
 
+// Compare the newer crypto-bigint backend without adopting its prerelease API
+// or claiming this profile adapter is constant-time or independently audited.
+fn next_backend_matches(srp: &Value, old: &Transcript) -> Result<bool> {
+    use srp_next::{ClientG2048, Group, ServerG2048, bigint::BoxedUint, groups::G2048};
+    type Hash = sha2_next::Sha512;
+    let boxed = |value: &BigUint| BoxedUint::from_be_slice_vartime(&value.to_bytes_be());
+    let client = ClientG2048::<Hash>::new();
+    let server = ServerG2048::<Hash>::new();
+    let group = G2048::generator();
+    let a_private = integer(field(srp, "clientPrivate")?)?;
+    let b_private = integer(field(srp, "serverPrivate")?)?;
+    let a = client.compute_public_ephemeral(&a_private.to_bytes_be());
+    let password_hash = Zeroizing::new(hash(&[field(srp, "password")?.as_bytes()]));
+    let salt = integer(field(srp, "salt")?)?.to_bytes_be();
+    let x = ClientG2048::<Hash>::compute_x(&password_hash, &salt);
+    let v = client.compute_g_x(&x);
+    let k = srp_next::utils::compute_k::<Hash>(&group);
+    let u = srp_next::utils::compute_u_padded::<Hash>(&group, &a, &old.b.to_bytes_be());
+    let s = client.compute_premaster_secret(&boxed(&old.b), &k, &x, &boxed(&a_private), &u);
+    let raw = Zeroizing::new(s.to_be_bytes_trimmed_vartime().to_vec());
+    let m1_digest = srp_next::utils::compute_m1_legacy::<Hash>(&a, &old.b.to_bytes_be(), &raw);
+    let m1 = BigUint::from_bytes_be(&m1_digest).to_bytes_be();
+    let m2 = BigUint::from_bytes_be(&hash(&[&a, &m1, &raw])).to_bytes_be();
+    let server_b = server.compute_b_pub(&boxed(&b_private), &k, &v);
+    let server_s = server.compute_premaster_secret(&boxed(&old.a), &v, &u, &boxed(&b_private));
+    let matches = same(&a, &old.a.to_bytes_be())?
+        && same(&x.to_be_bytes_trimmed_vartime(), &old.x.to_bytes_be())?
+        && same(&v.to_be_bytes_trimmed_vartime(), &old.v.to_bytes_be())?
+        && same(&k.to_be_bytes_trimmed_vartime(), &old.k.to_bytes_be())?
+        && same(&u.to_be_bytes_trimmed_vartime(), &old.u.to_bytes_be())?
+        && same(&raw, &old.s.to_bytes_be())?
+        && same(&m1, &old.m1)?
+        && same(&m2, &old.m2)?
+        && same(
+            &server_b.to_be_bytes_trimmed_vartime(),
+            &old.b.to_bytes_be(),
+        )?
+        && same(
+            &server_s.to_be_bytes_trimmed_vartime(),
+            &old.s.to_bytes_be(),
+        )?;
+    Ok(matches)
+}
+
 fn proof_json(proof: &Value, key: &[u8]) -> Result<Value> {
     let plaintext = open(&b64(proof, "ciphertext")?, &b64(proof, "nonce")?, key)?
         .ok_or_else(|| invalid("proof authentication"))?;
@@ -282,6 +326,11 @@ pub fn verify_interop_fixture(fixture_json: String) -> Result<ProofReport> {
     check(
         same(&t.m2, &integer(field(srp, "M2")?)?.to_bytes_be())?,
         "M2",
+        &mut vectors,
+    )?;
+    check(
+        next_backend_matches(srp, &t)?,
+        "SRP 0.7 RC transcript",
         &mut vectors,
     )?;
     let server = SrpServer::<Sha512>::new(&G_2048);
@@ -486,7 +535,7 @@ mod tests {
     #[test]
     fn production_fixture_and_adversarial_checks() {
         let report = verify_interop_fixture(FIXTURE.into()).unwrap();
-        assert_eq!(report.vector_checks.len(), 26);
+        assert_eq!(report.vector_checks.len(), 27);
         assert_eq!(report.rejection_checks.len(), 17);
     }
 
@@ -506,7 +555,7 @@ mod tests {
             include_str!("../test-vectors/minimal-m1.json"),
         ] {
             let report = verify_interop_fixture(fixture.into()).unwrap();
-            assert_eq!(report.vector_checks.len(), 26);
+            assert_eq!(report.vector_checks.len(), 27);
             assert_eq!(report.rejection_checks.len(), 17);
         }
     }

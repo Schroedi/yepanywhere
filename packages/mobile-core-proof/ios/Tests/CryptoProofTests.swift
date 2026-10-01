@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import YAProof
+import YAProof
 
 final class CryptoProofTests: XCTestCase {
     func testProductionAndEncodingEdgeVectors() throws {
@@ -8,7 +8,7 @@ final class CryptoProofTests: XCTestCase {
             let url = try XCTUnwrap(Bundle.main.url(forResource: name, withExtension: "json"))
             let fixture = try String(contentsOf: url, encoding: .utf8)
             let report = try verifyInteropFixture(fixtureJson: fixture)
-            XCTAssertEqual(report.vectorChecks.count, 26)
+            XCTAssertEqual(report.vectorChecks.count, 27)
             XCTAssertEqual(report.rejectionChecks.count, 17)
             XCTAssertEqual(report.sodiumVersion, "1.0.22")
             var object = try JSONSerialization.jsonObject(with: Data(fixture.utf8)) as! [String: Any]

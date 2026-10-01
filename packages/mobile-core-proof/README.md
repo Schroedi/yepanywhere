@@ -52,10 +52,16 @@ Additional fixtures use the same generator and force short A/salt, a Unicode
 password, and a leading-zero M1. Small private values are intentionally unsafe
 public test inputs; they must never be used in a real login.
 
-Each fixture checks 26 vector properties and 17 rejection cases, covering SRP
+Each fixture checks 27 vector properties and 17 rejection cases, covering SRP
 client/server shared secrets and evidence, base/transport keys, secretbox,
 binary JSON framing, server-info authentication and resume challenge binding.
 Foreign harnesses additionally corrupt M2 and JSON and assert typed errors.
+
+The 27th check compares a complete second transcript using srp 0.7.0-rc.3
+and crypto-bigint 0.7.5: A, x, verifier, k, padded u, client/server S, server B,
+M1 and M2 all match the production oracle. Both backends are compiled into
+this experiment; its binary sizes are not the cost of a selected single
+shipping backend.
 
 RustCrypto srp 0.6.0 performs all modular exponentiation via its public hooks.
 The adapter supplies YA's existing password hashing and padded/minimal integer
@@ -72,6 +78,17 @@ In particular, srp's num-bigint operations are not a constant-time or
 zeroizing secret backend. This wrapper zeroizes owned byte buffers but cannot
 repair the library's integer allocations or establish its security suitability.
 Passing vectors and successful builds are not approval to ship this candidate.
+
+The 0.7 release candidate replaces num-bigint with crypto-bigint, whose
+arithmetic is designed for constant-time use. Its own README still states
+that SRP has never received an independent third-party audit. It is a
+prerelease, and variable-time integer conversions/secret erasure in the
+profile adapter still need review. Do not infer whole-protocol constant-time
+behavior from the backend's design. Both candidates remain experimental.
+
+iOS links explicit static archive paths. The runner verifies that the final
+app defines the Rust proof entry point and does not depend on a checkout-local
+Rust dylib; an apparently working simulator is not enough to establish this.
 
 The experiment also does not establish live socket login/resume, lifecycle
 cancellation, WebView bridging, Keychain storage, TLS, relay mux, Android

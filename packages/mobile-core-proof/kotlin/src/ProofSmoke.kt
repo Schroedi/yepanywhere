@@ -11,7 +11,7 @@ fun main(args: Array<String>) {
     for (path in paths) {
         val fixture = path.readText()
         val report = verifyInteropFixture(fixture)
-        check(report.vectorChecks.size == 26)
+        check(report.vectorChecks.size == 27)
         check(report.rejectionChecks.size == 17)
         check(report.sodiumVersion == "1.0.22")
         val wrong = fixture.replace(Regex("\"M2\": \"[0-9a-f]+\""), "\"M2\": \"00\"")
@@ -19,7 +19,7 @@ fun main(args: Array<String>) {
             verifyInteropFixture(wrong)
             error("Corrupt proof accepted")
         } catch (_: ProofException.Mismatch) { }
-        println("Kotlin: ${path.name}: 26 vectors, 17 rejections; bad M2 rejected")
+        println("Kotlin: ${path.name}: 27 vectors, 17 rejections; bad M2 rejected")
     }
     try {
         verifyInteropFixture("{")

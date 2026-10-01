@@ -264,23 +264,50 @@ async function ios() {
       build,
       "DerivedData/Build/Products/Release-iphonesimulator/YAProof.app/YAProof",
     );
-    console.log(
-      `Simulator linked app executable bytes: ${(await stat(app)).size}`,
-    );
+    await inspectApp(app, "Simulator");
     await run("xcodebuild", [
       ...settings,
       "-destination",
       "generic/platform=iOS",
       "build",
     ]);
-    console.log(
-      `Device linked app executable bytes: ${(await stat(join(build, "DerivedData/Build/Products/Release-iphoneos/YAProof.app/YAProof"))).size}`,
+    await inspectApp(
+      join(
+        build,
+        "DerivedData/Build/Products/Release-iphoneos/YAProof.app/YAProof",
+      ),
+      "Device",
     );
     console.log(`Simulator evidence: ${result}`);
   } finally {
-    await run("xcrun", ["simctl", "shutdown", udid]);
-    await run("xcrun", ["simctl", "delete", udid]);
+    try {
+      await run("xcrun", ["simctl", "shutdown", udid]);
+    } finally {
+      await run("xcrun", ["simctl", "delete", udid]);
+    }
   }
+}
+
+async function inspectApp(path, label) {
+  const dependencies = await run("xcrun", ["otool", "-L", path], core, true);
+  if (dependencies.includes("libya_mobile_core_proof")) {
+    throw new Error(
+      "iOS proof must statically contain Rust, not load a host dylib",
+    );
+  }
+  const symbols = await run("xcrun", ["nm", "-g", path], core, true);
+  if (
+    !/ T _uniffi_ya_mobile_core_proof_fn_func_verify_interop_fixture\b/m.test(
+      symbols,
+    )
+  ) {
+    throw new Error(
+      "Rust proof entry point is missing from the linked iOS executable",
+    );
+  }
+  console.log(
+    `${label} statically linked app executable bytes: ${(await stat(path)).size}`,
+  );
 }
 
 async function android() {

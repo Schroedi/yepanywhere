@@ -25,8 +25,9 @@ The implementation and acceptance evidence are recorded in
 Native dashboard/Conversation rendering and the experimental Simple Client API
 preview are no longer mobile release prerequisites. iOS follows the same shell
 boundary; the [provisional iOS plan](../tactical/138-ios-native-core-proof.md)
-is now proving Rust crypto interoperability and native builds. Shared Rust
-adoption awaits review of that checkpoint. Store signing/publication and
+has passed its Rust crypto interoperability and native build experiment,
+including iOS simulator execution. Shared Rust adoption and a shipping SRP
+library await review of that checkpoint. Store signing/publication and
 physical-device acceptance remain release work.
 
 ### Current baseline
