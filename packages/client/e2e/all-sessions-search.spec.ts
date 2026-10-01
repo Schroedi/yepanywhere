@@ -950,6 +950,7 @@ for (const viewport of [
       },
     );
     try {
+      await page.clock.install();
       await page.goto(`${baseURL}/sessions`);
       const search = page.getByRole("searchbox", {
         name: "Search sessions...",
@@ -962,7 +963,11 @@ for (const viewport of [
         timeout: 30000,
       });
       await search.fill("quasarneedle");
-      const row = page.locator(".session-list-item--card");
+      // An earlier viewport case can leave another matching transcript on
+      // this worker. Measure the fixture this case owns after turn search too.
+      const row = page.locator(".session-list-item--card").filter({
+        has: page.locator(`a[href*="${id}"]`),
+      });
       await expect(row).toHaveCount(1, { timeout: 30000 });
       const title = row.locator("strong mark").locator("..");
       await expect(title).toHaveText(/^….*quasarneedle.*…$/);
@@ -993,16 +998,30 @@ for (const viewport of [
       const request = page.waitForRequest("**/api/sessions/content-search");
       await page.getByRole("checkbox", { name: /^Ass\./ }).check();
       await request;
+      // The contract reserves space until 500 ms of quiet after completion.
+      // CI's locator round trips can exceed that window (run 36799408077).
+      // Hold browser time while the response arrives, then resume the actual
+      // settling timer; host assertion latency is not the subject.
+      await page.clock.pauseAt(Date.now() + 1000);
       const reservedHeight = await row.evaluate(
         (node) => node.getBoundingClientRect().height,
       );
       release();
-      await expect(
-        row.getByRole("button", { name: "Match menu" }),
-      ).toBeVisible();
+      await expect
+        .poll(async () => {
+          // Response delivery schedules scan work on the browser clock. Advance
+          // in small steps until that work renders, keeping the final step well
+          // inside the reservation window regardless of network latency.
+          await page.clock.runFor(50);
+          return row.getByRole("button", { name: "Match menu" }).count();
+        })
+        .toBe(1);
       expect(
         await row.evaluate((node) => node.getBoundingClientRect().height),
       ).toBe(reservedHeight);
+      // Other sessions can still be acquiring when the first match mounts.
+      // Resume their scheduling as well as the completion/quiet-period timer.
+      await page.clock.resume();
       await expect
         .poll(() => row.evaluate((node) => node.getBoundingClientRect().height))
         .toBeLessThan(reservedHeight);

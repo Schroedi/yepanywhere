@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { describe, expect, it } from "vitest";
 import {
   encodeNativeFrame,
@@ -23,7 +24,11 @@ describe("native transport frames", () => {
       message = result.message;
       expect(result.offset).toBe(offset + 65_536);
     }
-    expect(message).toEqual(input);
+    // Compare every byte in native code rather than building a million-node
+    // deep-equality walk. CI run 36796881935 exceeded 5s in this assertion;
+    // transport correctness, rather than the assertion engine's speed, matters.
+    expect(message?.length).toBe(input.length);
+    expect(Buffer.from(message!).equals(Buffer.from(input))).toBe(true);
     expect(() =>
       receiver.accept(encodeNativeFrame(1, 1, 0, 1, new Uint8Array([1]))),
     ).toThrow("sequence");

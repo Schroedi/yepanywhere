@@ -172,6 +172,17 @@ before removing interception patterns and reports handler errors. In
 Playwright 1.58, `unrouteAll({ behavior: "wait" })` alone can force-continue a
 sibling request while its callback still awaits a fetch response.
 
+Windows cleanup runs `taskkill /T /F` asynchronously so launcher pipes and
+child exit events can drain. A nonzero result is accepted only after the owned
+target is verified absent; a live target still fails cleanup with the command's
+diagnostics. Computer-control CI retains its browser traces on either platform.
+Packaged startup checks wait for valid port-file contents rather than treating
+file creation as publication, and include the selected port in readiness errors.
+Browser assertions inside a short settling window control browser time while
+preserving the real response/render path, then resume or advance its timer to
+verify the settled state. Assertion round-trip latency must not consume the
+window being asserted.
+
 A full local run on 2026-09-29 passed 345 cases with 12 platform/device skips,
 two workers and no retries in 8.0 minutes, including teardown. This establishes
 one passing schedule on macOS. The merged repair passed 347 cases with 12

@@ -47,8 +47,19 @@ jobs:
           test/computer-control-provider.test.ts test/computer-control-job.test.ts
           test/computer-control-guardian.test.ts
           test/computer-control-native.test.ts
+          test/scripts/e2e-process-lifecycle.test.ts
+          test/scripts/e2e-process-lifecycle-windows.test.mjs
+          test/scripts/wait-for-port-file.test.mjs
       - run: pnpm --filter @yep-anywhere/client exec playwright install chromium
       - run: pnpm --filter @yep-anywhere/client exec playwright test --config playwright.computer-control.config.ts
+      - name: Preserve computer-control browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: computer-control-${{ matrix.os }}-${{ github.run_attempt }}
+          if-no-files-found: ignore
+          include-hidden-files: true
+          path: .artifacts/computer-control-results/**
   persistence-native:
     strategy:
       fail-fast: false

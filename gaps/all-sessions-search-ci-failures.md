@@ -393,3 +393,22 @@ was discarded after all ten phone cases reported a four-pixel difference.
 Found 2026-09-15 while reporting source CI after publishing the catch-up fix.
 Contributing-model: 6-Astra
 Contributing-model: Opus 5
+
+2026-10-01 — CI [36799408077](https://github.com/kzahel/yepanywhere/actions/runs/36799408077)
+passed both browser shards but retried the desktop reservation case. The first
+attempt compared the reserved 111.59375px height with a settled 93.59375px
+height after waiting for a match. That host-side wait can consume the product's
+500ms quiet period. The assertion now pauses browser time before releasing
+the response, advances acquisition in 50ms steps until the match mounts, checks
+reservation while time remains paused, then resumes real scheduling for the
+completion/settled assertion. All rendering and network responses remain real.
+Stress verification also found that a prior viewport's matching transcript
+can remain on the same worker; the case now measures its own session row
+instead of selecting every matching card. Keep this gap open until new CI
+establishes first-attempt reliability; the historical local passes alone were
+not sufficient closure evidence.
+
+Final local verification: 20 reservation repetitions passed across desktop and
+phone with four workers and no retries. The full browser suite then passed
+360 cases with 11 platform/device skips and no retries. This is macOS local
+evidence, not a replacement for a new CI run.
