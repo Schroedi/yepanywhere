@@ -1260,6 +1260,17 @@ export function createApp(options: AppOptions): AppResult {
     );
   }
   // Settings saves and file vhost claims change one configuration in turn.
+  artifactServer.setFileSiteAdmission((site) => {
+    if (!site.ownerUsername) return true;
+    const grants = getActiveLimitedGrants(site.ownerUsername);
+    return (
+      !!grants &&
+      grants.allowPublicApps === true &&
+      !!site.projectId &&
+      grants.newSessionProjects.includes(site.projectId) &&
+      (site.public === true || grants.allowPrivateAppLinks !== false)
+    );
+  });
   const artifactConfigWriter = createArtifactConfigWriter({
     server: artifactServer,
     settings: options.serverSettingsService,
@@ -1271,6 +1282,7 @@ export function createApp(options: AppOptions): AppResult {
       server: artifactServer,
       scanner,
       writer: artifactConfigWriter,
+      activeGrants: getActiveLimitedGrants,
     }),
   );
   app.route(

@@ -319,6 +319,16 @@ the capability and fallback were approved on 2026-09-28.
 and Start sessions grants. [Project service](project-service.md#app-address-in-project-settings)
 owns publication, owner ceilings, inline links and revocation behavior.
 
+The File Viewer's public-link dialog also permits file addresses when the user
+has Allow public apps and Start sessions access to the selected project.
+The address routes check that supplied project themselves, limit inventory
+to the caller's own rows, and enforce persisted creator ownership for replacement
+and release. All served files, including linked files and symlink targets, stay
+inside that project's canonical root. The administrator-only public-file-share
+inventory stays hidden and unrequested. Incoming address requests recheck the
+creator's current account and grants. See
+[file vhosts](active-content-security.md#file-vhosts) for the exact contract.
+
 Enforcement is a single server-side middleware ahead of every API route, so
 a route added later is refused for limited users until it is listed. It is
 **default-deny**: a request path a limited principal is not explicitly
@@ -339,7 +349,9 @@ The decision is made on the path the router dispatches, after
 percent-decoding, so an encoded spelling such as `/api/%69ssues` is judged
 as the `/api/issues` route it reaches. A project grant comes only from a
 project or session id in that path: a `projectId` query parameter opens
-nothing, since most routes ignore one. An id segment that is not valid
+nothing, since most routes ignore one. The explicitly allowed file-address
+routes are the exception: they validate the supplied project and creator at
+the route before reading or changing mappings. An id segment that is not valid
 percent-encoding is refused.
 
 | operation | limited user |

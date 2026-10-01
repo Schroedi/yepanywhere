@@ -120,6 +120,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.table {
+  --settings-first-column-width: 30%;
+}
+.table th:nth-child(2) {
+  width: 46%;
+}
 .linkedFiles {
   display: block;
   color: var(--text-secondary);

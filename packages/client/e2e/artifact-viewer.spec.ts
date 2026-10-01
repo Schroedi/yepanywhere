@@ -119,6 +119,163 @@ test.afterAll(async () => {
   if (directory) await rm(directory, { recursive: true });
 });
 
+test("replaces the derived file address and acknowledges sequential manual typing during updates", async ({
+  page,
+}) => {
+  const report = join(directory, "bundle", "report.html");
+  await copyFile(entry, report);
+  const oldPath = entry;
+  const response = await page.request.post(
+    `${base}/api/artifacts/vhost-sites`,
+    {
+      headers: { "X-Yep-Anywhere": "true" },
+      data: { name: "report", path: oldPath, public: true },
+    },
+  );
+  expect(response.ok(), await response.text()).toBe(true);
+  await page.goto(
+    `${base}/e2e/fixtures/artifact-viewer.html?file-vhost&path=${encodeURIComponent(report)}`,
+  );
+  const name = page.getByRole("textbox", { name: "Address name" });
+  await expect(name).toHaveValue("report");
+  const replace = page.getByRole("checkbox", {
+    name: "Replace an existing mapping with this name",
+  });
+  await expect(replace).not.toBeChecked();
+  await replace.check();
+  await expect(name).toHaveValue("report");
+  for (const viewport of [
+    { width: 1200, height: 600 },
+    { width: 1000, height: 600 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await recordUiCapture(
+      page,
+      `file-vhost-replace-${viewport.width}`,
+      viewport,
+    );
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  }
+  await page.getByRole("button", { name: "Serve here", exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: /report.localhost/ }),
+  ).toBeVisible();
+  const current = await page.request.get(
+    `${base}/api/artifacts/vhost-sites?path=${encodeURIComponent(report)}`,
+  );
+  expect((await current.json()).sites).toHaveLength(1);
+  await name.focus();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.press("Backspace");
+  const before = await page
+    .getByTestId("background-updates")
+    .getAttribute("data-updates");
+  let expected = "";
+  for (const character of "manual-report") {
+    expected += character;
+    await page.keyboard.type(character);
+    await expect(name).toHaveValue(expected, { timeout: 100 });
+  }
+  await expect(page.getByTestId("background-updates")).not.toHaveAttribute(
+    "data-updates",
+    before!,
+  );
+  await page.getByRole("button", { name: "Serve here", exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: /manual-report.localhost/ }),
+  ).toBeVisible();
+});
+
+test("sorts app tables by full paths and elides their paths responsively", async ({
+  page,
+}) => {
+  const roots = [
+    "/home/graehl/projects/a-very-long-workspace-name/research/alpha/site/report.html",
+    "/home/graehl/projects/a-very-long-workspace-name/research/zeta/site/index.html",
+  ];
+  await page.route("**/api/version*", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.current = "0.9.4";
+    body.artifactViewer.vhostSites = [
+      { name: "zeta", path: roots[1], public: true },
+      { name: "alpha", path: roots[0], public: true },
+    ];
+    await route.fulfill({ response, json: body });
+  });
+  await page.route("**/api/artifacts/vhost-sites", (route) =>
+    route.fulfill({ json: { sites: [] } }),
+  );
+  await page.route("**/api/project-apps", (route) =>
+    route.fulfill({
+      json: {
+        projects: roots.map((path, index) => ({
+          projectId: `project-${index}`,
+          name: index ? "Zeta" : "Alpha",
+          path: dirname(path),
+          info: { state: "ready" },
+        })),
+        reservations: roots.map((_, index) => ({
+          projectId: `project-${index}`,
+          name: index ? "zeta" : "alpha",
+          namespace: "apps.test",
+          owner: "superuser",
+        })),
+      },
+    }),
+  );
+  await page.goto(`${base}/e2e/fixtures/artifact-viewer.html?settings`);
+  const vhosts = page.getByRole("table", { name: "HTTP vhosts" });
+  const projects = page.getByRole("table", { name: "Project apps" });
+  await vhosts.getByRole("button", { name: "Serves", exact: true }).click();
+  await expect(vhosts.locator("tbody tr").first()).toContainText("alpha");
+  await vhosts.getByRole("button", { name: "Serves", exact: true }).click();
+  await expect(vhosts.locator("tbody tr").first()).toContainText("zeta");
+  await projects
+    .getByRole("button", { name: "Project folder", exact: true })
+    .click();
+  await expect(projects.locator("tbody tr").first()).toContainText("Alpha");
+  await projects
+    .getByRole("button", { name: "Project folder", exact: true })
+    .click();
+  await expect(projects.locator("tbody tr").first()).toContainText("Zeta");
+  for (const viewport of [
+    { width: 1200, height: 600 },
+    { width: 1000, height: 600 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const [table, name] of [
+      [vhosts, "vhosts"],
+      [projects, "project-apps"],
+    ] as const) {
+      await table.scrollIntoViewIfNeeded();
+      await recordUiCapture(page, `${name}-paths-${viewport.width}`, viewport);
+      const bounds = await table
+        .locator("[title]")
+        .first()
+        .evaluate((element) => ({
+          width: element.clientWidth,
+          childWidth: [...element.children].reduce(
+            (sum, child) => sum + child.getBoundingClientRect().width,
+            0,
+          ),
+        }));
+      expect(bounds.childWidth).toBeLessThanOrEqual(bounds.width + 1);
+    }
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  }
+});
+
 test("edits mapped source from default sanitized HTML and preserves a stale preview", async ({
   page,
 }) => {

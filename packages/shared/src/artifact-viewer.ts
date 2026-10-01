@@ -48,6 +48,9 @@ export interface ArtifactVhost {
  */
 export interface ArtifactVhostSite {
   name: string;
+  ownerUsername?: string;
+  projectId?: string;
+  projectRoot?: string;
   /** Absolute server path of the served file or directory. */
   path: string;
   /** No app link required; with a password, visitors must supply it. */

@@ -102,6 +102,7 @@ import {
 } from "./FileDiffViewLinks";
 import { FileRevisionLink } from "./FileRevisionLink";
 import { PublicFileShareModal } from "./PublicFileShareModal";
+import { useFileVhostService } from "../hooks/useFileVhostService";
 import {
   FilePathContextMenu,
   type FileViewPresentation,
@@ -2100,7 +2101,12 @@ export const FileViewer = memo(function FileViewer({
         )}
         {publicShareContext === null &&
           source === DEFAULT_FILE_VIEWER_SOURCE &&
-          !diffActive && <PublicFileShareButton onOpen={setFileShareAnchor} />}
+          !diffActive && (
+            <PublicFileShareButton
+              projectId={projectId}
+              onOpen={setFileShareAnchor}
+            />
+          )}
         {publicShareContext !== null &&
           publicShareContext.projectId !== null &&
           !diffActive &&
@@ -2414,15 +2420,19 @@ function CopyIcon() {
 
 function PublicFileShareButton({
   onOpen,
+  projectId,
 }: {
   onOpen: (anchor: DOMRect) => void;
+  projectId: string;
 }) {
   const { t } = useI18n();
   const { version } = useVersion();
   const { status } = usePublicShareStatus();
+  const fileVhost = useFileVhostService(projectId);
   if (
-    status?.canCreate !== true ||
-    !serverHasCapability(version, PUBLIC_FILE_SHARES_CAPABILITY)
+    !fileVhost &&
+    (status?.canCreate !== true ||
+      !serverHasCapability(version, PUBLIC_FILE_SHARES_CAPABILITY))
   ) {
     return null;
   }

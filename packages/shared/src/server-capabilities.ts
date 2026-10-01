@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  vhostFileSiteReplacement: {
+    name: "vhost-file-site-replacement",
+    index: CAPABILITY_ID_ALLOCATIONS.vhostFileSiteReplacement.id,
+    introducedIn: "0.9.4",
+  },
   draftSync: {
     name: "draft-sync-v1",
     index: CAPABILITY_ID_ALLOCATIONS.draftSync.id,
@@ -302,6 +307,34 @@ export const SERVER_CAPABILITIES = {
       kind: "permanent",
       reason:
         "Older servers drop vhostSites on save and have no route to claim or serve a file address.",
+    },
+  },
+  vhostFileSiteReplacement: {
+    id: CAPABILITY_ID_ALLOCATIONS.vhostFileSiteReplacement.id,
+    name: "vhost-file-site-replacement",
+    kind: "permanent",
+    area: "settings",
+    introducedIn: "0.9.4",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.vhostFileSiteReplacement.id,
+    },
+    description:
+      "Explicit replacement of file vhosts, with creator ownership and project confinement for limited users.",
+    clientFallback: "Hide replacement and keep file vhosts administrator-only.",
+    serverContract: {
+      routes: [
+        "GET /api/artifacts/vhost-sites",
+        "POST /api/artifacts/vhost-sites",
+        "DELETE /api/artifacts/vhost-sites/:name",
+      ],
+      requestFields: ["replace", "projectId"],
+      responseFields: ["sites[].ownerUsername"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Older servers reject collisions and do not support limited-user file vhosts.",
     },
   },
   localSourceBrowse: {

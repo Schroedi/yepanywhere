@@ -8,6 +8,15 @@
 
 Topic: server-capabilities
 
+`vhost-file-site-replacement` (permanent ID 109, explicit optional bit) gates
+the file-address replacement checkbox and limited-user file-address access.
+It extends the existing file-address routes with explicit `replace: true` and
+persisted creator ownership, with project-confined limited-user publication.
+The 2026-10-01 optional release review checked v0.9.0, v0.9.1 and v0.9.2;
+none has the file-vhost routes. Without the new bit, replacement stays hidden
+and file addresses remain administrator-only. ID 105 retains its original
+meaning. Standing maintainer compatibility authorization applies.
+
 ## Source Of Truth
 
 `context-usage-breakdown` (permanent ID 108, version-implied from 0.9.4) owns

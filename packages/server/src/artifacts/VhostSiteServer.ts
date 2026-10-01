@@ -49,7 +49,9 @@ async function canonicalWithin(
 ): Promise<string | null> {
   try {
     const canonical = await realpath(candidate);
-    return isPathInsideDirectory(canonical, root) ? canonical : null;
+    return canonical === root || isPathInsideDirectory(canonical, root)
+      ? canonical
+      : null;
   } catch (error) {
     if (
       ["ENOENT", "ENOTDIR"].includes(
@@ -83,6 +85,12 @@ export async function serveVhostSite(
   } catch {
     return text("This address has nothing to serve", 404);
   }
+  if (
+    site.projectRoot &&
+    root !== site.projectRoot &&
+    !isPathInsideDirectory(root, site.projectRoot)
+  )
+    return text("File is outside this project", 403);
   const rootStats = await stat(root);
   let target: string | null;
   if (rootStats.isDirectory()) {
@@ -108,13 +116,18 @@ export async function serveVhostSite(
     if (pathname.includes("\\") || pathname.includes("\0"))
       return text("Invalid path", 400);
     target =
-      (await linkedVhostSite(root, policy)).urls.get(
+      (await linkedVhostSite(root, policy, site.projectRoot)).urls.get(
         pathname.replace(/\/{2,}/g, "/"),
       ) ?? null;
   }
   if (!target) return text("Not found", 404);
   const allowed = await policy.resolveAllowedFilePath(target);
   if (!allowed.ok) return text(allowed.error, allowed.status);
+  if (
+    site.projectRoot &&
+    !isPathInsideDirectory(allowed.file.resolvedPath, site.projectRoot)
+  )
+    return text("File is outside this project", 403);
   if (
     linkedDocumentKind(target) === "markdown" &&
     opensAsPage(request, url) &&
@@ -177,11 +190,18 @@ async function renderedMarkdownPage(
 export async function linkedVhostSite(
   rootPath: string,
   policy: PathPolicy,
+  projectRoot?: string,
 ): Promise<LinkedSite> {
-  return cachedLinkedSite("vhost", rootPath, async (path, document) => {
-    const allowed = await policy.resolveAllowedFilePath(path);
-    if (!allowed.ok) return null;
-    const { resolvedPath, stats } = allowed.file;
-    return document ? await readLinkedDocument(resolvedPath, stats.size) : {};
-  });
+  return cachedLinkedSite(
+    `vhost:${projectRoot ?? ""}`,
+    rootPath,
+    async (path, document) => {
+      const allowed = await policy.resolveAllowedFilePath(path);
+      if (!allowed.ok) return null;
+      const { resolvedPath, stats } = allowed.file;
+      if (projectRoot && !isPathInsideDirectory(resolvedPath, projectRoot))
+        return null;
+      return document ? await readLinkedDocument(resolvedPath, stats.size) : {};
+    },
+  );
 }

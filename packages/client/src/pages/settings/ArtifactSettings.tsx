@@ -17,6 +17,8 @@ import { sessionVhostApp } from "../../lib/sessionVhostApps";
 import { writeClipboardText } from "../../lib/clipboard";
 import { ProjectAppInventorySection } from "./ProjectAppInventorySection";
 import { SettingsCollection } from "./SettingsCollection";
+import { ElidedPath } from "../../components/ui/ElidedPath";
+import { SettingsSortHeader, useSettingsTableSort } from "./SettingsTableSort";
 
 /**
  * One row of the vhost table. Port and file rows are saved to separate lists,
@@ -170,6 +172,20 @@ function ArtifactSettingsForm({
   const nextRowId = useRef(vhosts.length);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const selected = vhosts.find((row) => row.id === selectedId);
+  const tableSort = useSettingsTableSort<"domain" | "serves" | "access">();
+  const accessLabel = (row: VhostDraft) =>
+    t(
+      row.public
+        ? row.kind === "files" && (row.passwordProtected || row.password)
+          ? "settingsCollectionPassword"
+          : "settingsCollectionPublic"
+        : "settingsCollectionPrivate",
+    );
+  const displayedVhosts = tableSort.sortedRows(vhosts, (row, column) => {
+    if (column === "domain") return row.name;
+    if (column === "access") return accessLabel(row);
+    return row.kind === "files" ? row.path : row.port;
+  });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const vhostsSupported = status.vhosts !== undefined;
@@ -719,18 +735,33 @@ function ArtifactSettingsForm({
                   ),
               )}
             >
-              <table aria-label={t("artifactVhostTableTitle")}>
+              <table
+                className={styles.table}
+                aria-label={t("artifactVhostTableTitle")}
+              >
                 <thead>
                   <tr>
-                    <th scope="col">{t("settingsCollectionDomain")}</th>
-                    <th scope="col">{t("artifactVhostServes")}</th>
+                    <SettingsSortHeader
+                      column="domain"
+                      label={t("settingsCollectionDomain")}
+                      {...tableSort}
+                    />
+                    <SettingsSortHeader
+                      column="serves"
+                      label={t("artifactVhostServes")}
+                      {...tableSort}
+                    />
                     {access.supported && (
-                      <th scope="col">{t("settingsCollectionAccess")}</th>
+                      <SettingsSortHeader
+                        column="access"
+                        label={t("settingsCollectionAccess")}
+                        {...tableSort}
+                      />
                     )}
                   </tr>
                 </thead>
                 <tbody>
-                  {vhosts.map((row) => (
+                  {displayedVhosts.map((row) => (
                     <tr key={row.id}>
                       <td>
                         <button
@@ -752,16 +783,15 @@ function ArtifactSettingsForm({
                         </button>
                       </td>
                       <td>
-                        <span
-                          className={styles.target}
-                          title={
-                            row.kind === "files" ? row.path : String(row.port)
-                          }
-                        >
-                          {row.kind === "files"
-                            ? row.path || t("artifactVhostServesFiles")
-                            : `:${row.port}`}
-                        </span>
+                        {row.kind === "files" && row.path ? (
+                          <ElidedPath path={row.path} />
+                        ) : (
+                          <span className={styles.target}>
+                            {row.kind === "files"
+                              ? t("artifactVhostServesFiles")
+                              : `:${row.port}`}
+                          </span>
+                        )}
                         {row.kind === "files" &&
                           savedRow(status, row) &&
                           linkedFiles[row.name] && (
@@ -781,18 +811,7 @@ function ArtifactSettingsForm({
                             </small>
                           )}
                       </td>
-                      {access.supported && (
-                        <td>
-                          {t(
-                            row.public
-                              ? row.kind === "files" &&
-                                (row.passwordProtected || row.password)
-                                ? "settingsCollectionPassword"
-                                : "settingsCollectionPublic"
-                              : "settingsCollectionPrivate",
-                          )}
-                        </td>
-                      )}
+                      {access.supported && <td>{accessLabel(row)}</td>}
                     </tr>
                   ))}
                 </tbody>

@@ -34,6 +34,7 @@ import {
   configuredVhostNames,
   matchVhost,
   SESSION_APP_NAME_PREFIX,
+  type ArtifactVhostSite,
   vhostHostnames,
 } from "./vhosts.js";
 import { VhostAccess } from "./VhostAccess.js";
@@ -143,6 +144,8 @@ export class ArtifactServer {
   private readonly mintedSessionAppHosts = new Set<string>();
   private sessionAppUpstream: SessionAppUpstream = () => null;
   private projectAppDelivery?: ProjectAppDelivery;
+  private fileSiteAdmitted: (site: ArtifactVhostSite) => boolean = (site) =>
+    !site.ownerUsername;
   private readonly projectHosts = new Set<string>();
   private listener: Server | undefined;
   private listening = false;
@@ -438,8 +441,12 @@ export class ArtifactServer {
   }
 
   /** What a file vhost rooted at the file `path` serves now. */
-  async linkedSite(path: string) {
-    return linkedVhostSite(await realpath(path), this.policy);
+  async linkedSite(path: string, projectRoot?: string) {
+    return linkedVhostSite(await realpath(path), this.policy, projectRoot);
+  }
+
+  setFileSiteAdmission(admitted: (site: ArtifactVhostSite) => boolean) {
+    this.fileSiteAdmitted = admitted;
   }
 
   /** Whether the local file policy admits `path`, a file or directory. */
@@ -500,6 +507,8 @@ export class ArtifactServer {
     );
     if (site) {
       await this.ready;
+      if (!this.fileSiteAdmitted(site))
+        return new Response("File address is not allowed", { status: 403 });
       const authorized = this.vhostAccess.authorize(
         request,
         site,
@@ -587,11 +596,11 @@ export class ArtifactServer {
   }
 
   async configure(config: ArtifactConfig): Promise<void> {
-    config = validateArtifactConfig(
-      config,
-      this.config.expiryDays,
-      this.config,
-    );
+    config = validateArtifactConfig(config, this.config.expiryDays, {
+      ...this.config,
+      vhostSites:
+        config.vhostSites === undefined ? this.config.vhostSites : undefined,
+    });
     const previous = this.config;
     await this.projectAppDelivery?.validateConfig(config);
     this.appSockets.close();

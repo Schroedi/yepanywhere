@@ -103,7 +103,7 @@ The following are refused outright:
 
 - host administration and settings writes, plus the secrets and host inventory
   in the settings document;
-- devices, public shares, app links and artifacts;
+- devices, public shares, operator app links and host-wide artifact grants;
 - absolute-path file reads, file editing and bang commands;
 - Issues & PRs; and
 - remote-access and connection inventory.
@@ -113,6 +113,14 @@ Its tunneled requests receive the same decisions as direct requests. A
 subscription is judged by every id its channel reads. The activity channel,
 filtered by event type and denying by default, passes an event only when it
 names a project the user may read. Hiding a control in the client is cosmetic.
+
+The explicit file-address exception under `/api/artifacts/vhost-sites` requires
+Allow public apps and Start sessions access to the selected project. Its handlers
+authorize the supplied project themselves, persist the authenticated creator,
+refuse replacement or release of another creator's mapping, and confine all
+served paths to that project's canonical root. Incoming requests recheck the
+creator's current grants. Other artifact and public-file-share routes remain
+refused. See [file vhosts](active-content-security.md#file-vhosts).
 
 **Execution.** Every provider process a limited user starts or resumes runs
 in the project-write sandbox on this host, under the user's

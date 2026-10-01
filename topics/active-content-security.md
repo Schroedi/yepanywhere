@@ -466,8 +466,21 @@ Settings shows each saved file row's reach beside its path as **N files**
 20 paths relative to the file's folder. `GET /api/artifacts/vhost-sites`
 carries it as `linkedFiles`.
 
+The Apps settings tables sort ascending, then descending, by clicking a
+column header. The vhost **Serves** column compares full paths (or numeric
+ports); Project apps includes a sortable **Project folder** column. Sorting
+changes display order only, preserving saved row order and editor identity.
+Both tables share the sort-heading mechanism and responsive path display:
+home paths use `~`, long parents elide in the middle, and the final folder
+and filename have priority. Hover exposes the full absolute path, also
+available in the selected row's editor or project details. Retained project
+addresses participate in sorting; a missing project has no known folder.
+
 Names are first come, first served across port rows, file rows and project app
-addresses: a claim or save that collides is refused, as is a new row named
+addresses: a claim or save that collides is refused unless a file-address
+claim explicitly requests replacement of an existing file row. Port rows and
+project app reservations cannot be replaced by a file-address claim.
+Also refused is a new row named
 `localhost`, `artifacts`, `relay`, `www`, `ya`, one starting `app-` or
 `sbx-`, or one whose public hostname is YA's own client or artifact host.
 File rows are saved in a separate `vhostSites` list; a save that omits the
@@ -487,11 +500,37 @@ credentials travel inside the tunnel's HTTPS; on `name.localhost` they are
 plain local HTTP.
 
 The File Viewer's public-share dialog offers **Serve at its own address** for
-the viewed file to the superuser: a suggested name from the file name, the
+the viewed file: a suggested name from the file name, the
 host suffix, and the access choice (Public by default there, since a pretty
 public address is the purpose). It claims a file row through
 `POST /api/artifacts/vhost-sites`, lists this file's rows, and copies or stops
 serving them; Settings → Apps lists and edits every row.
+
+**Replace an existing mapping with this name** defaults unchecked. Checked,
+it sends `replace: true`; the suggested name remains deterministic, without a
+collision-avoiding suffix, and a manually entered name works the same way.
+The form remains available alongside this file's existing mappings. A successful
+replacement changes the path and access choice at the same address, clears an
+old visitor password unless a new password was selected, and revokes existing
+private links and app cookies. Collision and creator checks use the current
+configuration at the serialized write boundary, after path validation.
+
+Limited users need **Allow public apps** and Start sessions access to the
+selected project. They see only their own mappings in that project and may
+replace or release only mappings they created; an older mapping without a
+creator belongs to the superuser. Creator identity comes from the authenticated
+acting principal, never request fields or the name. It survives settings saves
+and restarts. Limited-user file roots, linked files and symlink targets must
+remain in the canonical project root. Incoming requests recheck the creator's
+enabled account, publication permission and project grant; private mappings
+also require Allow private app links. Limited users use the address section
+without requests to the administrator-only public-file-share inventory.
+
+Replacement and limited-user file addresses require the separate explicit
+`vhost-file-site-replacement` capability (ID 109). Without it, clients hide
+the checkbox and retain administrator-only file-address behavior. The supported
+optional release corpus v0.9.0–v0.9.2 lacks the file-vhost routes; none of its
+existing capability meanings is broadened.
 
 `vhost-file-sites` (ID 105, version-implied from 0.9.4; maintainer approval
 2026-09-30, `Qcompat`) owns the `vhostSites` field and the

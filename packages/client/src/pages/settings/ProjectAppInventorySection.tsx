@@ -10,6 +10,8 @@ import { useVersion } from "../../hooks/useVersion";
 import { useI18n } from "../../i18n";
 import styles from "./ProjectAppInventorySection.module.css";
 import { SettingsCollection } from "./SettingsCollection";
+import { ElidedPath } from "../../components/ui/ElidedPath";
+import { SettingsSortHeader, useSettingsTableSort } from "./SettingsTableSort";
 
 /** Project apps and retained names beside the operator's manual port forwards. */
 export function ProjectAppInventorySection() {
@@ -25,6 +27,9 @@ export function ProjectAppInventorySection() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<string>();
+  const tableSort = useSettingsTableSort<
+    "project" | "folder" | "domain" | "status"
+  >();
   // biome-ignore lint/correctness/useExhaustiveDependencies: Refresh and address release deliberately invalidate the inventory through revision.
   useEffect(() => {
     if (!supported) return;
@@ -57,6 +62,39 @@ export function ProjectAppInventorySection() {
     inventory?.reservations.filter(
       (row) => !knownProjects.has(row.projectId),
     ) ?? [];
+  const displayedRows = tableSort.sortedRows(
+    [
+      ...(inventory?.projects ?? []).map((project) => ({
+        key: project.projectId,
+        project,
+        retained: undefined,
+        name: project.name,
+        path: project.path,
+        status: t("projectAppState", { state: project.info.state }),
+        addresses: inventory!.reservations.filter(
+          (address) => address.projectId === project.projectId,
+        ),
+      })),
+      ...retained.map((address) => ({
+        key: `${address.projectId}:${address.namespace}`,
+        project: undefined,
+        retained: address,
+        name: t("projectAppInventoryUnavailable", { owner: address.owner }),
+        path: "",
+        status: t("projectAppRelease"),
+        addresses: [address],
+      })),
+    ],
+    (row, column) => {
+      if (column === "project") return row.name;
+      if (column === "folder") return row.path;
+      if (column === "status") return row.status;
+      return row.addresses
+        .map((address) => `${address.name}.${address.namespace}`)
+        .sort()
+        .join(" ");
+    },
+  );
   async function releaseAddress(
     row: ProjectAppInventory["reservations"][number],
   ) {
@@ -186,67 +224,83 @@ export function ProjectAppInventorySection() {
                 ),
             )}
           >
-            <table aria-label={t("projectAppInventoryTitle")}>
+            <table
+              className={styles.table}
+              aria-label={t("projectAppInventoryTitle")}
+            >
               <thead>
                 <tr>
-                  <th scope="col">{t("settingsCollectionProject")}</th>
-                  <th scope="col">{t("settingsCollectionDomain")}</th>
-                  <th scope="col">{t("settingsCollectionStatus")}</th>
+                  <SettingsSortHeader
+                    column="project"
+                    label={t("settingsCollectionProject")}
+                    {...tableSort}
+                  />
+                  <SettingsSortHeader
+                    column="folder"
+                    label={t("settingsCollectionFolder")}
+                    {...tableSort}
+                  />
+                  <SettingsSortHeader
+                    column="domain"
+                    label={t("settingsCollectionDomain")}
+                    {...tableSort}
+                  />
+                  <SettingsSortHeader
+                    column="status"
+                    label={t("settingsCollectionStatus")}
+                    {...tableSort}
+                  />
                 </tr>
               </thead>
               <tbody>
-                {inventory.projects.map((row) => (
-                  <tr key={row.projectId}>
+                {displayedRows.map((row) => (
+                  <tr key={row.key}>
                     <td>
-                      <button
-                        type="button"
-                        aria-expanded={expanded === row.projectId}
-                        onClick={() =>
-                          setExpanded(
-                            expanded === row.projectId
-                              ? undefined
-                              : row.projectId,
-                          )
-                        }
-                      >
-                        <span aria-hidden="true">
-                          {expanded === row.projectId ? "▾" : "▸"}{" "}
-                        </span>
-                        {row.name}
-                      </button>
+                      {row.project ? (
+                        <button
+                          type="button"
+                          aria-expanded={expanded === row.project.projectId}
+                          onClick={() =>
+                            setExpanded(
+                              expanded === row.project?.projectId
+                                ? undefined
+                                : row.project?.projectId,
+                            )
+                          }
+                        >
+                          <span aria-hidden="true">
+                            {expanded === row.project.projectId
+                              ? "▾"
+                              : "▸"}{" "}
+                          </span>
+                          {row.name}
+                        </button>
+                      ) : (
+                        row.name
+                      )}
+                    </td>
+                    <td>{row.path ? <ElidedPath path={row.path} /> : "—"}</td>
+                    <td>
+                      {row.addresses.map((address) => (
+                        <div key={address.namespace}>
+                          {address.name}.{address.namespace}
+                        </div>
+                      ))}
                     </td>
                     <td>
-                      {inventory.reservations
-                        .filter(
-                          (address) => address.projectId === row.projectId,
-                        )
-                        .map((address) => (
-                          <div key={address.namespace}>
-                            {address.name}.{address.namespace}
-                          </div>
-                        ))}
-                    </td>
-                    <td>{t("projectAppState", { state: row.info.state })}</td>
-                  </tr>
-                ))}
-                {retained.map((row) => (
-                  <tr key={`${row.projectId}:${row.namespace}`}>
-                    <td>
-                      {t("projectAppInventoryUnavailable", {
-                        owner: row.owner,
-                      })}
-                    </td>
-                    <td>
-                      {row.name}.{row.namespace}
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void releaseAddress(row)}
-                      >
-                        {t("projectAppRelease")}
-                      </button>
+                      {row.retained ? (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            row.retained && void releaseAddress(row.retained)
+                          }
+                        >
+                          {t("projectAppRelease")}
+                        </button>
+                      ) : (
+                        row.status
+                      )}
                     </td>
                   </tr>
                 ))}

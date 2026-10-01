@@ -1,4 +1,11 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { Hono } from "hono";
+import {
+  EMPTY_LIMITED_USER_GRANTS,
+  toUrlProjectId,
+} from "@yep-anywhere/shared";
+import { PRINCIPAL_VARIABLE } from "../../src/auth/principal.js";
+import { decideLimitedRoute } from "../../src/auth/limitedUserPolicy.js";
 import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -315,4 +322,223 @@ it("claims a name first come, first served and releases it", async () => {
   });
   expect(released.status).toBe(200);
   expect((await claim("garden", directory)).status).toBe(200);
+});
+
+it("replaces only an explicitly selected file mapping and revokes its old link", async () => {
+  const directory = await site();
+  const artifacts = await server(directory, []);
+  const settings = new ServerSettingsService({
+    dataDir: join(directory, ".data"),
+  });
+  await settings.initialize();
+  const routes = createVhostSiteRoutes({
+    server: artifacts,
+    scanner: { getProject: async () => null },
+    writer: createArtifactConfigWriter({
+      server: artifacts,
+      settings,
+      locked: false,
+    }),
+  });
+  const claim = (path: string, replace?: unknown, password?: string) =>
+    routes.request("/artifacts/vhost-sites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "page",
+        path,
+        replace,
+        password,
+        public: false,
+      }),
+    });
+  const path = join(directory, "page.html");
+  expect((await claim(path, undefined, "old password")).status).toBe(200);
+  const old = artifacts.config.vhostSites![0]!;
+  const token = artifacts.vhostAccess.token(old);
+  expect((await claim(path)).status).toBe(409);
+  expect((await claim(path, "yes")).status).toBe(400);
+  expect((await claim(path, true)).status).toBe(200);
+  expect(artifacts.config.vhostSites).toHaveLength(1);
+  expect(artifacts.config.vhostSites![0]!.passwordHash).toBeUndefined();
+  expect(
+    (await get(artifacts, `https://page.example.org/?ya_access=${token}`))
+      .status,
+  ).toBe(401);
+  expect((await claim(join(directory, "docs"), true)).status).toBe(200);
+  const replacedDirectory = artifacts.config.vhostSites![0]!;
+  const directoryToken = artifacts.vhostAccess.token(replacedDirectory);
+  expect(
+    await (
+      await get(
+        artifacts,
+        `https://page.example.org/?ya_access=${directoryToken}`,
+      )
+    ).text(),
+  ).toBe("<h1>Docs</h1>");
+  expect((await routes.request("/artifacts/vhost-sites")).status).toBe(200);
+  expect(settings.getSetting("artifactViewer")!.vhostSites![0]!.path).toBe(
+    join(directory, "docs"),
+  );
+});
+
+it("limits file-address replacement and release to its creator and confines linked files", async () => {
+  const directory = await site();
+  const projectPath = join(directory, "docs");
+  const path = join(projectPath, "report.html");
+  await writeFile(
+    path,
+    '<a href="../secret.txt">Outside</a><a href="index.html">Inside</a>',
+  );
+  await symlink(join(directory, "page.html"), join(projectPath, "escape.html"));
+  const artifacts = await server(directory, [{ name: "admin", path }]);
+  const settings = new ServerSettingsService({
+    dataDir: join(directory, ".data"),
+  });
+  await settings.initialize();
+  let allowed = true;
+  const grants = {
+    ...EMPTY_LIMITED_USER_GRANTS,
+    newSessionProjects: ["project"],
+    allowPublicApps: true,
+  };
+  const activeGrants = () => (allowed ? grants : null);
+  const routes = new Hono();
+  routes.use("*", async (c, next) => {
+    c.set(PRINCIPAL_VARIABLE, {
+      kind: "limited",
+      username: c.req.header("x-user") ?? "alice",
+      grants,
+    });
+    const decision = decideLimitedRoute({
+      method: c.req.method,
+      path: `/api${c.req.path}`,
+    });
+    if (decision.kind === "deny") return c.json({ error: "Denied" }, 403);
+    await next();
+  });
+  routes.route(
+    "/",
+    createVhostSiteRoutes({
+      server: artifacts,
+      scanner: {
+        getProject: async (id) =>
+          id === "project"
+            ? {
+                id: toUrlProjectId(projectPath),
+                path: projectPath,
+                name: "docs",
+                sessionCount: 0,
+                sessionDir: directory,
+                activeOwnedCount: 0,
+                activeExternalCount: 0,
+                lastActivity: null,
+                provider: "claude",
+              }
+            : null,
+      },
+      activeGrants,
+      writer: createArtifactConfigWriter({
+        server: artifacts,
+        settings,
+        locked: false,
+      }),
+    }),
+  );
+  artifacts.setFileSiteAdmission((site) => !site.ownerUsername || allowed);
+  const claim = (
+    name: string,
+    user = "alice",
+    target = path,
+    replace = false,
+    projectId = "project",
+  ) =>
+    routes.request("/artifacts/vhost-sites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-user": user },
+      body: JSON.stringify({
+        name,
+        path: target,
+        projectId,
+        public: true,
+        replace,
+        ownerUsername: "superuser",
+      }),
+    });
+  expect((await claim("report")).status).toBe(200);
+  expect(
+    artifacts.config.vhostSites?.find((row) => row.name === "report")
+      ?.ownerUsername,
+  ).toBe("alice");
+  const persisted = settings.getSetting("artifactViewer")!;
+  expect(
+    validateArtifactConfig(persisted).vhostSites?.find(
+      (row) => row.name === "report",
+    )?.ownerUsername,
+  ).toBe("alice");
+  expect((await claim("report", "bob", path, true)).status).toBe(403);
+  expect((await claim("admin", "alice", path, true)).status).toBe(403);
+  expect((await claim("report", "alice", path, true)).status).toBe(200);
+  expect(
+    (await claim("outside", "alice", join(directory, "page.html"))).status,
+  ).toBe(403);
+  expect(
+    (await claim("escape", "alice", join(projectPath, "escape.html"))).status,
+  ).toBe(403);
+  expect(
+    (await claim("ungranted", "alice", path, false, "other-project")).status,
+  ).toBe(404);
+  const listed = await routes.request(
+    "/artifacts/vhost-sites?projectId=project",
+  );
+  expect(
+    (await listed.json()).sites.map((site: { name: string }) => site.name),
+  ).toEqual(["report"]);
+  const privateClaim = await routes.request("/artifacts/vhost-sites", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: "private-report",
+      path,
+      projectId: "project",
+    }),
+  });
+  expect(privateClaim.status).toBe(200);
+  Object.assign(grants, { allowPrivateAppLinks: false });
+  const publicOnly = await routes.request(
+    "/artifacts/vhost-sites?projectId=project",
+  );
+  expect(
+    (await publicOnly.json()).sites.map((site: { name: string }) => site.name),
+  ).toEqual(["report"]);
+  expect(
+    (
+      await routes.request("/artifacts/vhost-sites/report", {
+        method: "DELETE",
+        headers: { "x-user": "bob" },
+      })
+    ).status,
+  ).toBe(403);
+  expect((await get(artifacts, "https://report.example.org/")).status).toBe(
+    200,
+  );
+  expect(
+    (await get(artifacts, "https://report.example.org/secret.txt")).status,
+  ).toBe(404);
+  expect(
+    (await get(artifacts, "https://report.example.org/index.html")).status,
+  ).toBe(200);
+  allowed = false;
+  expect((await claim("report", "alice", path, true)).status).toBe(403);
+  expect((await get(artifacts, "https://report.example.org/")).status).toBe(
+    403,
+  );
+  allowed = true;
+  expect(
+    (
+      await routes.request("/artifacts/vhost-sites/report", {
+        method: "DELETE",
+      })
+    ).status,
+  ).toBe(200);
 });

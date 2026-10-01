@@ -672,6 +672,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "context-usage-breakdown",
     introducedIn: "0.9.4",
   },
+  vhostFileSiteReplacement: {
+    id: 109,
+    direction: "server",
+    name: "vhost-file-site-replacement",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

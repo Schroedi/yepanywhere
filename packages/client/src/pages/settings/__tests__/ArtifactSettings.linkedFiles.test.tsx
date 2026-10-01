@@ -1,4 +1,10 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import type { ArtifactViewerStatus } from "@yep-anywhere/shared";
 import { afterEach, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../../i18n";
@@ -76,4 +82,45 @@ it("asks nothing of a server without file rows", () => {
     </I18nProvider>,
   );
   expect(mock.fetch).not.toHaveBeenCalled();
+});
+
+it("sorts full served paths in both directions without changing saved order", async () => {
+  mock.status = {
+    ...baseStatus,
+    vhostSites: [
+      { name: "first", path: "/p/z/report.html", public: true },
+      { name: "second", path: "/p/a/index.html", public: true },
+    ],
+  };
+  mock.fetch.mockResolvedValue({ sites: [] });
+  render(
+    <I18nProvider>
+      <ArtifactSettings />
+    </I18nProvider>,
+  );
+  const table = within(screen.getByRole("table", { name: "HTTP vhosts" }));
+  const rows = () =>
+    table
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => row.textContent);
+  fireEvent.click(table.getByRole("button", { name: "Serves" }));
+  expect(rows()[0]).toContain("second");
+  expect(
+    table
+      .getByRole("columnheader", { name: "Serves" })
+      .getAttribute("aria-sort"),
+  ).toBe("ascending");
+  fireEvent.click(table.getByRole("button", { name: "Serves" }));
+  expect(rows()[0]).toContain("first");
+  expect(mock.status.vhostSites?.map((row) => row.name)).toEqual([
+    "first",
+    "second",
+  ]);
+  expect(mock.fetch).not.toHaveBeenCalledWith(
+    "/artifacts/config",
+    expect.anything(),
+  );
+  fireEvent.click(table.getByRole("button", { name: "Domain" }));
+  expect(rows()[0]).toContain("first");
 });
