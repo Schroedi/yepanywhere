@@ -114,6 +114,8 @@ export class NativeSourceTransport implements SourceTransport, Connection {
   }
 
   private setPhase(phase: string): void {
+    // Repeated status events must not invalidate every source subscriber.
+    if (phase === this.phase) return;
     this.phase = phase;
     const state =
       phase === "CONNECTED"

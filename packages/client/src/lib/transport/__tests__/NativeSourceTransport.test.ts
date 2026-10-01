@@ -19,6 +19,30 @@ afterEach(() => {
 });
 
 describe("native source transport", () => {
+  it("retains unchanged phase snapshots while preserving authentication transitions", async () => {
+    const { host, transport } = await setup();
+    const changed = vi.fn();
+    const authenticate = vi.fn();
+    transport.status.subscribe(changed);
+    transport.onAuthenticationRequired = authenticate;
+    const connected = transport.status.getSnapshot();
+    for (let index = 0; index < 20; index++) {
+      await host.emit({ type: "state", phase: "CONNECTED" });
+    }
+    expect(transport.status.getSnapshot()).toBe(connected);
+    expect(changed).not.toHaveBeenCalled();
+    await host.emit({ type: "state", phase: "RETRYING" });
+    const reconnecting = transport.status.getSnapshot();
+    expect(reconnecting.state).toBe("reconnecting");
+    await host.emit({ type: "state", phase: "RETRYING" });
+    expect(transport.status.getSnapshot()).toBe(reconnecting);
+    expect(changed).toHaveBeenCalledTimes(1);
+    await host.emit({ type: "state", phase: "FAILED" });
+    await host.emit({ type: "state", phase: "REAUTHENTICATION_REQUIRED" });
+    await host.emit({ type: "state", phase: "REVOKED" });
+    expect(transport.status.getSnapshot().state).toBe("disconnected");
+    expect(authenticate).toHaveBeenCalledTimes(2);
+  });
   it("waits for cold native demand instead of treating initial idle as terminal", async () => {
     const { host, transport } = await setup();
     await host.emit({ type: "state", phase: "IDLE" });
