@@ -74,6 +74,13 @@ final class LiveTests: XCTestCase {
     }
     XCTAssertTrue(body.contains("Projects"), body)
     XCTAssertFalse(bridge.closed)
+    // Projects can render before the independent version request completes.
+    // Hosted run 36884537650 reached Projects with only 5 frames delivered;
+    // allow 3x that run's 10.2s flow for the padded response to cross the bridge.
+    let chunkDeadline = Date().addingTimeInterval(30)
+    while bridge.framesSent <= 16 && !bridge.closed && Date() < chunkDeadline {
+      try await Task.sleep(nanoseconds: 50_000_000)
+    }
     XCTAssertGreaterThan(
       bridge.framesSent, 16, "The 1 MiB version response must cross chunked frames")
     let errors = try await view.evaluateJavaScript("window.qaErrors") as? [String] ?? []
