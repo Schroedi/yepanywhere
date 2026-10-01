@@ -43,6 +43,11 @@ The standard hosted VM uses macOS 15 Intel / Xcode 26.3 with iOS 18.6.
 The arm64 VM's 3-core / 7 GiB budget did not satisfy UI memory headroom;
 the 4-core / 14 GiB Intel simulator links its corresponding Rust target. Local newer-runtime
 acceptance and physical-device signing remain separate evidence.
+Intel first-boot work also exhausted host headroom, so simulator CI applies an
+explicit background-service profile to its owned device, verifies it after
+boot and retains the same 18 tests, CPU/memory requirements and typing ceiling.
+Local simulator runs remain stock by default; hosted UI acceptance is still
+being validated independently of physical iPhone availability.
 Embedded viewers/downloads need the
 [remaining WebKit adapters](../../gaps/ios-webview-viewers-and-downloads.md).
 Notification permission/FCM/broker

@@ -353,6 +353,30 @@ The native web source also retains status snapshots for repeated identical
 phases, avoiding needless subscriber invalidation during incoming traffic;
 distinct authentication/revocation phases retain their callbacks.
 
+[Intel run 36898374886](https://github.com/kzahel/yepanywhere/actions/runs/36898374886)
+passed Rust/live routes and all 16 native tests, then failed UI readiness.
+Its first-boot load peaked above 600 and all 31 readiness samples had 0% idle;
+diagnosticd, Screen Time extraction and other simulator background work dominated.
+CI now applies the documented `input-acceptance` profile to its disposable
+simulator before boot and verifies the actual launchd state. It leaves native
+networking, authentication/TLS, push, WebKit and input services enabled. Local
+stock runs remain the default. No test or latency/headroom gate is removed.
+Cold Intel elapsed time reached 42 minutes before UI/device acceptance, so the
+whole-job limit is now 90 minutes (about twice that observation), separately
+from the unchanged 100 ms input measurement.
+Local iOS 26.5 acceptance with the narrowed nine-service profile passes all
+18 tests, including native login and streamed typing. The booted overrides are
+verified; the final readiness pair records 51% and 72% idle CPU with more than
+1.2 GiB free memory. Teardown removes the owned per-device override store.
+
+The concurrent source repair `a5d1fa195` passed all 24 main jobs in
+[CI 36899967113](https://github.com/kzahel/yepanywhere/actions/runs/36899967113),
+including 361 browser cases without retries. Native WebView typing peaked at
+44 ms on desktop and 45 ms on phone under the unchanged 20 Hz / 1 MiB producer.
+All twelve [runtime/SQLite legs](https://github.com/kzahel/yepanywhere/actions/runs/36899967037)
+and all [Desktop CI builds](https://github.com/kzahel/yepanywhere/actions/runs/36899967147)
+also passed. Physical iPhone availability did not gate these results.
+
 A Daybreak Blue read-only review of the first production checkpoint identified
 eight concrete findings: abort protocol, resume-version pinning, non-atomic and
 locked Keychain writes, cancellation/reconnect, discarded transport context,

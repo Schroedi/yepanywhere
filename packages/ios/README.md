@@ -121,3 +121,22 @@ Device builds always link `aarch64-apple-ios`. The standard Intel runner has
 4 CPUs / 14 GiB; the arm64 VM's 7 GiB still left only about 100 MiB free after
 CPU pressure settled ([run 36892794310](https://github.com/kzahel/yepanywhere/actions/runs/36892794310)).
 The CPU/memory readiness thresholds remain unchanged.
+
+The Intel run [36898374886](https://github.com/kzahel/yepanywhere/actions/runs/36898374886)
+also passed all 16 native tests but never reached UI headroom: first boot
+produced hundreds of runnable processes, with diagnosticd and Screen Time
+extraction among the largest consumers. CI now sets
+`YA_IOS_SIMULATOR_PROFILE=input-acceptance` on its newly created device before
+boot. This disables a fixed list of simulator diagnostics, Screen Time,
+widget updates, photo analysis, media engagement and trial services. Siri,
+intelligence and search remain enabled because text input consults them.
+App networking, push, Keychain/TLS, WebKit, keyboard,
+camera/microphone, Photos storage and file/clipboard services remain enabled.
+The runner verifies the booted launchd overrides, records the profile in host
+evidence, and removes its per-device store when deleting the owned simulator.
+The private store technique is documented in
+[simslim's implementation](https://github.com/MobAI-App/simslim/blob/e752a72898ca69f703c74dc79b7b047a4f2093a3/disabled_store.go);
+unexpected runtime behavior fails verification. The same 18 tests, 1 GiB/20%
+idle readiness gate and 100 ms typing ceiling still apply. Local runs are stock
+unless that environment variable is explicitly set. This measurement profile
+does not replace stock physical-device release acceptance.

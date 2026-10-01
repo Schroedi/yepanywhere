@@ -7,6 +7,11 @@ import {
   readHostSample,
 } from "../../../scripts/perf-suite/host-profile.mjs";
 import { dirname, join, resolve } from "node:path";
+import {
+  prepareInputSimulator,
+  verifyInputSimulator,
+  removeInputSimulatorProfile,
+} from "./input-simulator.mjs";
 
 const ios = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repo = resolve(ios, "../..");
@@ -265,8 +270,15 @@ if (phase === "build") {
       ios,
       true,
     );
+    host.simulator.profile = await prepareInputSimulator(
+      simulator,
+      runtime,
+      env.YA_IOS_SIMULATOR_PROFILE,
+      run,
+    );
     await run("xcrun", ["simctl", "boot", simulator]);
     await run("xcrun", ["simctl", "bootstatus", simulator, "-b"]);
+    await verifyInputSimulator(simulator, host.simulator.profile, run);
     // Simulator's window supplies the display compositor/frame clock. A
     // headless device can throttle rAF independently of keyboard acknowledgement.
     const developer = await run("xcode-select", ["-p"], ios, true);
@@ -344,6 +356,8 @@ if (phase === "build") {
       if (simulator) {
         await run("xcrun", ["simctl", "shutdown", simulator]).catch(() => {});
         await run("xcrun", ["simctl", "delete", simulator]);
+        if (env.YA_IOS_SIMULATOR_PROFILE)
+          await removeInputSimulatorProfile(simulator);
       }
     } finally {
       if (simulatorApp?.exitCode === null) {

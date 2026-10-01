@@ -38,7 +38,10 @@ retry options. Startup and clean-package teardown now share an explicit
 Native Windows regression cases run in the matrix under Node and pinned Bun
 with a real child cwd held for one second and with a permanently held cwd.
 Local macOS Node/Bun cleanup contracts, root checks, and fresh-package startup
-pass; native Windows CI validation remains pending. This narrow cleanup repair
+pass. Repair `a5d1fa195` passed all twelve legs of
+[runtime/SQLite CI 36899967037](https://github.com/kzahel/yepanywhere/actions/runs/36899967037),
+including both real cwd-lock cases under Node and Bun on every Windows leg,
+plus clean-package and locked-dependency startup. This narrow cleanup repair
 does not close the broader Windows aggregate above.
 
 Found 2026-09-12 while validating Windows directory-sync persistence fixes.
