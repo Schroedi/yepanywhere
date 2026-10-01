@@ -56,6 +56,50 @@ const post = (route: string, body: unknown) =>
     body: JSON.stringify(body),
   });
 describe("authenticated personal draft routes", () => {
+  it("returns only changed records, including clears, within the acting account", async () => {
+    const slot = { kind: "new-session" as const };
+    const write = (owner: string, text: string, operationId: string) => {
+      const read = store.read(owner, slot);
+      return store.write(owner, {
+        slot,
+        baseRevision: read.snapshot.revision,
+        ticket: read.ticket,
+        operationId,
+        payload: { fields: text ? { text } : {}, attachments: [] },
+      }).snapshot;
+    };
+    const first = write("", "owner draft", "first");
+    write("alice", "private alice draft", "alice");
+    const unchanged = await (
+      await app.request(`/api/drafts/index?since=${first.sequence}`)
+    ).json();
+    expect(unchanged.entries).toEqual([]);
+    write("", "", "clear");
+    const changed = await (
+      await app.request(`/api/drafts/index?since=${first.sequence}`)
+    ).json();
+    expect(changed.entries).toMatchObject([{ slot, empty: true }]);
+    expect(changed.entries).toHaveLength(1);
+    principal = {
+      kind: "limited",
+      username: "alice",
+      grants: EMPTY_LIMITED_USER_GRANTS,
+      switched: false,
+      locked: true,
+      via: "direct",
+    };
+    const alice = await (await app.request("/api/drafts/index?since=0")).json();
+    expect(alice.entries).toHaveLength(1);
+    expect(alice.entries[0].empty).toBe(false);
+  });
+  it.each(["-1", "NaN", "Infinity", "1.5", "9007199254740992", ""])(
+    "refuses an invalid incremental cursor %j",
+    async (since) => {
+      expect(
+        (await app.request(`/api/drafts/index?since=${since}`)).status,
+      ).toBe(400);
+    },
+  );
   it("keeps edits during index access checks newer than the page's change cursor", async () => {
     const slot = { kind: "session" as const, sessionId: "session" };
     const write = (text: string, operationId: string) => {

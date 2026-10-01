@@ -239,6 +239,24 @@ advance the acknowledged cursor. Refreshes remain coalesced under one
 source/account owner, and stopping that owner aborts the work. This corrects
 the existing protocol without introducing a capability, route or field.
 
+Ordinary change-watch catch-up requests the existing index with an optional
+`since` sequence filter. Pages contain only account records changed after that
+cursor, including clears; they preserve the same access checks and safe
+first-page acknowledgement. Partial metadata updates preserve untouched draft
+presence and do not trigger reads of untouched editors. A full refresh requested
+during partial catch-up waits for a coalesced full scan instead of treating the
+partial result as a complete index.
+
+Startup, foreground/focus and reconnect read the full index. A watch cursor
+whose last successful refresh was at least a day ago, or whose counter is ahead
+of a reset account, also rebuilds from the full index. This keeps recovery
+independent of expired clear records. Earlier draft-sync implementations that
+ignore `since` return their existing full pages, which can also be applied as
+partial updates; ordinary full reconciliation remains available. The optional
+filter uses the existing unreleased `draft-sync-v1` support with no new
+advertisement. Migration 009 adds an account/sequence index without changing
+draft contents, revisions, receipts or retention.
+
 The reviewed stable corpus was 0.9.0, 0.9.1 and 0.9.2 (latest two plus all stable
 releases in the preceding fourteen days, as of 2026-09-29). None supports this
 contract. New clients send no draft-sync requests without the capability and
@@ -265,12 +283,16 @@ regressions cover their local formats and accepted-action boundaries.
 Index regressions cover edits and clears between pages, automatic catch-up
 without another change, unread pages after a failed request, coalesced refreshes,
 and edits while server resource-access checks are awaiting completion.
+Incremental checks cover account isolation, clear records, pagination, untouched
+drafts and presence, a full refresh joining in-flight catch-up, old/reset cursor
+recovery, and data preservation when migrating the query index.
 
 `playwright.draft-sync.config.ts` runs the production source coordinator,
 capability gate and local persistence hook against real draft HTTP routes and
 SQLite in two isolated browser contexts. It covers handoff, conflict acceptance,
 server-offline reload, reconnect, send/next-draft races, and zero draft requests
 to an older server. The handoff runs with 3,000 cleared session draft records.
+Its change-watch responses contain only the changed prompt, not the old clears.
 Sequential key events under 1,000-row concurrent activity
 assert every input acknowledgement stays below 100 ms. The phone-send sequence
 checks quiet focus protection, clearing after blur, and persistence through reload.

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Response } from "@playwright/test";
 import { EMPTY_DRAFT } from "@yep-anywhere/shared";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,6 +57,23 @@ test("two-device handoff and sequential typing with 3,000 cleared drafts, offlin
   const a = await desktop.newPage(),
     b = await phone.newPage();
   const errors: string[] = [];
+  const deltaSizes: number[] = [];
+  const recordDelta = async (response: Response) => {
+    const url = new URL(response.url());
+    if (
+      !url.pathname.endsWith("/drafts/index") ||
+      !url.searchParams.has("since")
+    )
+      return;
+    try {
+      const page = await response.json();
+      deltaSizes.push(page.entries.length);
+    } catch {
+      // A response may be aborted when its owned browser context closes.
+    }
+  };
+  a.on("response", (response) => void recordDelta(response));
+  b.on("response", (response) => void recordDelta(response));
   a.on("pageerror", (e) => errors.push(e.message));
   b.on("pageerror", (e) => errors.push(e.message));
   try {
@@ -149,6 +166,9 @@ test("two-device handoff and sequential typing with 3,000 cleared drafts, offlin
       )
       .toBe("Next draft");
     expect(errors).toEqual([]);
+    expect(deltaSizes.length).toBeGreaterThan(0);
+    // Only the active prompt changed; the 3,000 old clears are not retransmitted.
+    expect(Math.max(...deltaSizes)).toBeLessThanOrEqual(1);
   } finally {
     await desktop.close();
     await phone.close();

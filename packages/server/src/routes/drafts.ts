@@ -110,7 +110,18 @@ export function createDraftRoutes(deps: {
     // Access checks can yield while drafts change. Keep those changes newer
     // than this page so the client's change watch still catches them.
     const sequence = deps.store.sequence(owner(c));
-    const entries = deps.store.list(owner(c), c.req.query("after") ?? "");
+    const rawSince = c.req.query("since");
+    const since = rawSince === undefined ? undefined : Number(rawSince);
+    if (
+      since !== undefined &&
+      (!rawSince || !Number.isSafeInteger(since) || since < 0)
+    )
+      throw new Error("Invalid draft change cursor");
+    const entries = deps.store.list(
+      owner(c),
+      c.req.query("after") ?? "",
+      since,
+    );
     const visible = [];
     for (const entry of entries)
       if (await authorized(c, entry.slot)) visible.push(entry);

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EMPTY_DRAFT,
+  draftHasContent,
   type DraftRead,
   type DraftSnapshot,
   type DraftWrite,
@@ -18,7 +19,10 @@ import {
   subscribeDraftStorage,
 } from "../draftSyncStorage";
 import { subscribeDraftPresenceChanges } from "../draftPresenceEvents";
-import { setSyncedDraftSessionIds } from "../syncedDraftPresence";
+import {
+  getSyncedDraftSessionIds,
+  setSyncedDraftSessionIds,
+} from "../syncedDraftPresence";
 import type { SourceTransport } from "../transport/types";
 const key = "draft-new-session:local";
 const raw = (text: string) => JSON.stringify({ version: 1, text });
@@ -44,11 +48,22 @@ function server(owner = "") {
       if (path.startsWith("/drafts/index"))
         return {
           owner,
-          entries: indexedSessionIds.map((sessionId) => ({
-            slot: { kind: "session" as const, sessionId },
-            revision: "r",
-            empty: false,
-          })),
+          entries: [
+            ...(current.snapshot.revision
+              ? [
+                  {
+                    slot: current.snapshot.slot,
+                    revision: current.snapshot.revision,
+                    empty: !draftHasContent(current.snapshot.payload),
+                  },
+                ]
+              : []),
+            ...indexedSessionIds.map((sessionId) => ({
+              slot: { kind: "session" as const, sessionId },
+              revision: "r",
+              empty: false,
+            })),
+          ],
           next: null,
           sequence: next,
         };
@@ -245,6 +260,107 @@ function seedAcknowledged(key: string, snapshot: DraftSnapshot) {
   );
 }
 describe("paginated draft index catch-up", () => {
+  it("applies changed-slot presence without rereading or erasing untouched drafts", async () => {
+    const s = server(),
+      c = client(s);
+    s.remote("unchanged editor");
+    seedAcknowledged(key, s.get());
+    observe(key);
+    s.index(["keep", "cleared"]);
+    c.start();
+    await c.refresh();
+    await vi.advanceTimersByTimeAsync(0);
+    const original = s.fetch.getMockImplementation()!;
+    s.fetch.mockClear();
+    s.fetch.mockImplementation(async (path, init) => {
+      if (
+        path.startsWith("/drafts/index") &&
+        new URL(path, "http://draft.test").searchParams.has("since")
+      )
+        return {
+          owner: "",
+          sequence: s.get().sequence,
+          next: null,
+          entries: [
+            {
+              slot: { kind: "session", sessionId: "cleared" },
+              revision: "clear",
+              empty: true,
+            },
+            {
+              slot: { kind: "session", sessionId: "added" },
+              revision: "added",
+              empty: false,
+            },
+          ],
+        };
+      return original(path, init);
+    });
+    await c.refresh(1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getSyncedDraftSessionIds("local")).toEqual(
+      new Set(["keep", "added"]),
+    );
+    expect(draftStorage.getItem(key)).toBe(raw("unchanged editor"));
+    expect(s.fetch.mock.calls.some(([path]) => path.endsWith("/read"))).toBe(
+      false,
+    );
+  });
+  it("coalesces a full refresh requested while changed-slot catch-up is in flight", async () => {
+    const s = server(),
+      c = client(s);
+    const original = s.fetch.getMockImplementation()!;
+    let release!: (value: unknown) => void;
+    s.fetch.mockImplementation(async (path, init) => {
+      if (path.includes("since="))
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+      return original(path, init);
+    });
+    const partial = c.refresh(0);
+    const full = c.refresh(),
+      siblingFull = c.refresh();
+    release({ owner: "", sequence: 0, entries: [], next: null });
+    await Promise.all([partial, full, siblingFull]);
+    expect(
+      s.fetch.mock.calls
+        .filter(([path]) => path.startsWith("/drafts/index"))
+        .map(([path]) => path),
+    ).toEqual(["/drafts/index?after=&since=0", "/drafts/index?after="]);
+  });
+  it("rebuilds from the full index when the account counter moved behind its cursor", async () => {
+    const s = server(),
+      c = client(s);
+    setSyncedDraftSessionIds("local", new Set(["old-account-draft"]));
+    await c.refresh(42);
+    expect(getSyncedDraftSessionIds("local")).toEqual(new Set());
+    expect(s.fetch.mock.calls.map(([path]) => path)).toEqual([
+      "/drafts/index?after=&since=42",
+      "/drafts/index?after=",
+    ]);
+  });
+  it("uses a full index after a day without an acknowledged refresh", async () => {
+    const s = server(),
+      c = client(s);
+    s.remote("old draft");
+    seedAcknowledged(key, s.get());
+    observe(key);
+    c.start();
+    await c.refresh();
+    await vi.advanceTimersByTimeAsync(0);
+    vi.setSystemTime(Date.now() + 86_400_000);
+    s.fetch.mockClear();
+    s.remote("new draft after long sleep");
+    await vi.advanceTimersByTimeAsync(1100);
+    expect(
+      s.fetch.mock.calls.some(([path]) => path === "/drafts/index?after="),
+    ).toBe(true);
+    expect(s.fetch.mock.calls.some(([path]) => path.includes("since="))).toBe(
+      false,
+    );
+    expect(draftStorage.getItem(key)).toBe(raw("new draft after long sleep"));
+  });
   it.each(["updated on the phone", ""])(
     "catches an earlier page's concurrent edit or clear (%j) without another change",
     async (remoteText) => {
@@ -258,7 +374,7 @@ describe("paginated draft index catch-up", () => {
       let changeDuringPagination = false;
       s.fetch.mockImplementation(async (path, init) => {
         if (!path.startsWith("/drafts/index")) return original(path, init);
-        if (path.endsWith("after="))
+        if (new URL(path, "http://draft.test").searchParams.get("after") === "")
           return {
             owner: "",
             sequence: s.get().sequence,
@@ -325,7 +441,7 @@ describe("paginated draft index catch-up", () => {
     let failed = false;
     s.fetch.mockImplementation(async (path, init) => {
       if (!path.startsWith("/drafts/index")) return original(path, init);
-      if (path.endsWith("after="))
+      if (new URL(path, "http://draft.test").searchParams.get("after") === "")
         return {
           owner: "",
           sequence: s.get().sequence,

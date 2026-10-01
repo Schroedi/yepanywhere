@@ -466,6 +466,8 @@ export class DraftSyncClient {
   private started = false;
   private identified = false;
   private refreshing?: Promise<void>;
+  private refreshSince?: number;
+  private refreshedAt = 0;
   private sequence = -1;
   private abort = new AbortController();
   private retry?: ReturnType<typeof setTimeout>;
@@ -1125,14 +1127,21 @@ export class DraftSyncClient {
       this.schedule(e, 0);
     }
   }
-  refresh(): Promise<void> {
-    if (!this.refreshing)
-      this.refreshing = this.refreshNow().finally(() => {
-        this.refreshing = undefined;
-      });
+  refresh(since?: number): Promise<void> {
+    if (this.refreshing) {
+      // A foreground/full refresh must not settle with a partial index.
+      if (since === undefined && this.refreshSince !== undefined)
+        return this.refreshing.then(() => this.refresh());
+      return this.refreshing;
+    }
+    this.refreshSince = since;
+    this.refreshing = this.refreshNow(since).finally(() => {
+      this.refreshing = undefined;
+      this.refreshSince = undefined;
+    });
     return this.refreshing;
   }
-  private async refreshNow(): Promise<void> {
+  private async refreshNow(since?: number): Promise<void> {
     if (
       this.stopped ||
       document.visibilityState === "hidden" ||
@@ -1142,7 +1151,10 @@ export class DraftSyncClient {
     try {
       let after = "";
       let sequence = this.sequence;
-      const sessionIds = new Set<string>();
+      const sessionIds =
+        since === undefined
+          ? new Set<string>()
+          : new Set(getSyncedDraftSessionIds(this.source));
       const revisions = new Map<string, string>();
       do {
         const result = await this.transport.fetch<{
@@ -1150,25 +1162,29 @@ export class DraftSyncClient {
           next: string | null;
           owner: string;
           sequence: number;
-        }>(`/drafts/index?after=${encodeURIComponent(after)}`, {
-          signal: this.abort.signal,
-        });
+        }>(
+          `/drafts/index?after=${encodeURIComponent(after)}${since === undefined ? "" : `&since=${since}`}`,
+          {
+            signal: this.abort.signal,
+          },
+        );
         if (this.stopped) return;
         if (result.owner !== this.owner) {
           this.stop();
           return;
         }
+        // A replaced/reset account has no history covering the old cursor.
+        if (since !== undefined && result.sequence < since)
+          return this.refreshNow();
         this.identified = true;
         // Later pages may include changes absent from pages already read.
         // Acknowledge only the first page's cursor, after the whole scan succeeds.
         if (!after) sequence = result.sequence;
         for (const item of result.entries) {
-          if (
-            item.slot.kind === "session" &&
-            item.slot.sessionId &&
-            !item.empty
-          )
-            sessionIds.add(item.slot.sessionId);
+          if (item.slot.kind === "session" && item.slot.sessionId) {
+            if (item.empty) sessionIds.delete(item.slot.sessionId);
+            else sessionIds.add(item.slot.sessionId);
+          }
           const key = draftLocalKey(this.source, item.slot);
           revisions.set(key, item.revision);
           const e =
@@ -1180,6 +1196,7 @@ export class DraftSyncClient {
         after = result.next ?? "";
       } while (after && !this.stopped);
       this.sequence = sequence;
+      this.refreshedAt = Date.now();
       const previous = getSyncedDraftSessionIds(this.source);
       setSyncedDraftSessionIds(this.source, sessionIds);
       for (const sessionId of new Set([...previous, ...sessionIds])) {
@@ -1209,7 +1226,8 @@ export class DraftSyncClient {
           (e.saved.discard ||
             e.saved.pending ||
             e.remote ||
-            e.saved.base?.revision !== (revisions.get(e.key) ?? null) ||
+            ((since === undefined || revisions.has(e.key)) &&
+              e.saved.base?.revision !== (revisions.get(e.key) ?? null)) ||
             !draftPayloadEqual(
               payload(e.address, e.saved.raw),
               e.saved.base?.payload ?? EMPTY_DRAFT,
@@ -1232,7 +1250,15 @@ export class DraftSyncClient {
           `/drafts/changes?after=${this.sequence}`,
           { signal: this.abort.signal },
         );
-        if (next.sequence !== this.sequence) await this.refresh();
+        if (next.sequence !== this.sequence) {
+          // Old/offline cursors may predate retained clears. Rebuild instead;
+          // normal foreground/reconnect refreshes already use the full index.
+          const since =
+            this.sequence >= 0 && Date.now() - this.refreshedAt < 86_400_000
+              ? this.sequence
+              : undefined;
+          await this.refresh(since);
+        }
       }
     } catch {
       /* Offline is ordinary; no console loop. */
