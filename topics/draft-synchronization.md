@@ -293,6 +293,11 @@ SQLite in two isolated browser contexts. It covers handoff, conflict acceptance,
 server-offline reload, reconnect, send/next-draft races, and zero draft requests
 to an older server. The handoff runs with 3,000 cleared session draft records.
 Its change-watch responses contain only the changed prompt, not the old clears.
+History preparation runs before browser interaction in the owned fixture.
+CI 36921363093 spent 74.6 seconds performing its 6,000 real save/clear writes,
+exhausting the old interaction budget before a page opened. Setup now has a
+300-second budget (4x that observation) and yields between 100-row batches.
+The interaction budget remains 60 seconds, with the same history and input gate.
 Sequential key events under 1,000-row concurrent activity
 assert every input acknowledgement stays below 100 ms. The phone-send sequence
 checks quiet focus protection, clearing after blur, and persistence through reload.

@@ -11,22 +11,11 @@ let base: string;
 // The handoff test exercises multiple real debounce windows.
 test.setTimeout(60_000);
 test.beforeAll(async () => {
+  // CI 36921363093 spent 74.6s seeding before its first browser API call.
+  // Budget fixture preparation at 4x that measurement; interactions stay at 60s.
+  test.setTimeout(300_000);
   api = await startDraftBrowserServer();
-  server = await createTestViteServer({
-    root: resolve(dirname(fileURLToPath(import.meta.url)), ".."),
-    server: { host: "127.0.0.1", proxy: { "/api": { target: api.url } } },
-  });
-  await server.listen();
-  base = server.resolvedUrls!.local[0]!;
-});
-test.afterAll(async () => {
-  await server?.close();
-  await api?.close();
-  await presentUiCaptures();
-});
-test("two-device handoff and sequential typing with 3,000 cleared drafts, offline reload and send clear", async ({
-  browser,
-}) => {
+  const seededAt = performance.now();
   // Thirty days at 100 distinct session drafts/day, using real cleared rows.
   for (let i = 0; i < 3000; i++) {
     const slot = { kind: "session" as const, sessionId: `draft-history-${i}` };
@@ -45,7 +34,26 @@ test("two-device handoff and sequential typing with 3,000 cleared drafts, offlin
       operationId: `history-${i}-clear`,
       payload: EMPTY_DRAFT,
     });
+    if (i % 100 === 99) await new Promise<void>((done) => setImmediate(done));
   }
+  console.info(
+    `[draft-sync] seeded 3,000 cleared drafts in ${Math.ceil(performance.now() - seededAt)}ms`,
+  );
+  server = await createTestViteServer({
+    root: resolve(dirname(fileURLToPath(import.meta.url)), ".."),
+    server: { host: "127.0.0.1", proxy: { "/api": { target: api.url } } },
+  });
+  await server.listen();
+  base = server.resolvedUrls!.local[0]!;
+});
+test.afterAll(async () => {
+  await server?.close();
+  await api?.close();
+  await presentUiCaptures();
+});
+test("two-device handoff and sequential typing with 3,000 cleared drafts, offline reload and send clear", async ({
+  browser,
+}) => {
   const desktop = await browser.newContext({
     viewport: { width: 1000, height: 600 },
   });
