@@ -128,6 +128,10 @@ individual YA variables remain in [ya-env-vars.md](ya-env-vars.md).
   disposable `HOME` and `USERPROFILE`, then removes that exact directory.
   Real-SDK integration commands retain the operator home behind their explicit
   opt-in gates. Do not add either category to the general config scrub list.
+- The safe-home launcher resolves workspace `vitest` and `tsx` entrypoints and
+  runs them directly with Node on every platform. Native Node invocations also
+  preserve arguments literally; Windows shell quoting must not alter their
+  arguments or produce shell-launch deprecation warnings.
 - Hermeticity includes descriptors and working directory when behavior depends
   on them; a clean environment object alone is not sufficient.
 
