@@ -313,3 +313,38 @@ blocked by guest script policy and is not counted as acceptance. Temporary
 test files and owned upload carriers are removed, clean shutdown is confirmed,
 the claim is released and the stored login credential remains ready. Signed
 desktop/browser, actual YA control/media and legacy retirement remain open.
+
+## Pending session-picker compatibility review
+
+**Proposal:** Introduce optional `installed-machine-control`, using the next
+free permanent capability ID 112, separately from legacy IDs 70/71. It covers
+read-only `GET /api/machine-control` installation readiness and an optional
+boolean `machineControl` on explicit session launch requests. The picker
+defaults off and controls command advertisement, not MC access. Support varies
+by host/configuration, so use an explicit optional bit rather than release
+version inference. No approval, installation, update or resident lifecycle API
+is added.
+
+The optional-feature release corpus inspected on 2026-10-02 is v0.9.0
+(2026-09-22), v0.9.1 (2026-09-24) and v0.9.2 (2026-09-26): all lack this
+interface. Without the new capability, clients hide the picker and send neither
+the readiness request nor the field. Existing Computer Control behavior, IDs
+70/71 and cleanup remain unchanged until accepted cutover. Component and route
+checks must prove that an older capability-bearing server receives no new
+request/field. The maintainer approval question is pending under the
+[compatibility policy](../../topics/server-capabilities.md#minimum-compatibility-horizons);
+client/server contract edits wait for that answer. Internal supervisor wiring
+and existing media validation are independent work.
+
+The internal MC selection is now carried through all four provider/compatibility
+SDK launch dispatches. Focused tests cover true, false and absent selection
+with and without a first message; explicit false no longer disappears before
+the provider wrapper. The real model probe now uses the actual supervisor and
+verifies exact PNG bytes through live Process media and the reloaded native
+Codex transcript's reader/normalizer/materializer. Preservation remains off;
+this does not replace full browser-view or provider-driven control acceptance.
+The real probe passes with an isolated owner-only Codex profile that retains
+the operator's auth/configuration and removes all test provider state in
+cleanup. Its transcript scan has no dependency on unrelated personal history.
+The supervisor wiring is committed separately; the public compatibility review
+is still pending.

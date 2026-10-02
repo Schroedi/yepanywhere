@@ -416,3 +416,31 @@ one bounded model turn, two offline CLI queries and an image-viewer call; it
 requests no MC access and performs no host desktop operation. `--model` can pin
 the provider model. Use a nonpersonal fixture image. This is provider/capture
 acceptance, not a Windows cutover or live/reloaded browser-view pass.
+
+## Installed launch and media boundary acceptance
+
+**Current:** Explicit internal `machineControl` selection survives the
+supervisor's message-bearing and message-less launches, including the
+compatibility Claude SDK wrapper. `false` suppresses the operator environment
+opt-in rather than being dropped at that boundary. No public session field or
+picker is implied by this internal option.
+
+The real-provider probe now launches through the actual YA supervisor with
+MC's verified installed command selected. It restricts the model to offline
+instructions/identity queries and a supplied native browser fixture capture.
+Live Process output exposes a fetchable media handle; reading the real Codex
+transcript through the production reader, normalizer and media materializer
+reconstructs another fetchable handle. Both serve byte-for-byte identical PNG
+data. Durable preservation stays off and YA data is separate from the temporary
+fixture project. This is provider/supervisor/media-boundary evidence, not a
+complete live/reloaded browser-view or provider-driven control acceptance.
+
+Run `pnpm exec tsx --conditions source scripts/probe-machine-control-model.ts
+--app APP --publisher TRUSTED_PUBLISHER --capture FIXTURE_PNG` for that bounded
+real-model probe. It uses existing provider authentication, performs no target
+operation/access request, aborts the owned provider, closes its reader and
+removes its temporary fixture/data directories in cleanup. It copies only the
+operator's authentication and configuration into an owner-only temporary Codex
+profile, preserving endpoint/model choices while isolating and removing its
+provider history and state. Credential files remain owner-only and are never
+reported. Transcript lookup scans that owned profile, not personal history.
