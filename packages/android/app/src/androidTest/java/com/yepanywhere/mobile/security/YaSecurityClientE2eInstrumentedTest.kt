@@ -3,8 +3,8 @@ package com.yepanywhere.mobile.security
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.yepanywhere.mobile.connection.YaMessageTransport
-import com.yepanywhere.mobile.connection.YaNativeProfileConnector
-import com.yepanywhere.mobile.connection.YaNativeSecureConnection
+import com.yepanywhere.mobile.connection.YaRustProfileConnector
+import com.yepanywhere.mobile.connection.YaRustTls
 import com.yepanywhere.mobile.connection.YaPairingCoordinator
 import com.yepanywhere.mobile.connection.YaServerConnectionManager
 import com.yepanywhere.mobile.profiles.YaPairedServerProfile
@@ -48,11 +48,11 @@ class YaSecurityClientE2eInstrumentedTest {
             .build()
         val keys = AndroidKeystoreSecurityClientKeyStore()
         var keyAlias: String? = null
+        val repository = InMemoryPairedServerRepository()
+        YaRustTls.ensure(context)
+        val connector = YaRustProfileConnector(repository)
         try {
-            val connection = YaNativeSecureConnection(httpClient)
-            val connector = YaNativeProfileConnector(connection)
             val route = YaServerRoute.direct(checkNotNull(wsUrl))
-            val repository = InMemoryPairedServerRepository()
             val securityClients = YaSecurityClientCoordinator(
                 repository = repository,
                 keys = keys,
@@ -164,6 +164,7 @@ class YaSecurityClientE2eInstrumentedTest {
                 assertNull(revoked.resumeCredential)
             }
         } finally {
+            connector.close()
             keyAlias?.let { runCatching { keys.delete(it) } }
             httpClient.connectionPool.evictAll()
             httpClient.dispatcher.executorService.shutdown()

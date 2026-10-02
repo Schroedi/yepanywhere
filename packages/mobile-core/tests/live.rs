@@ -271,6 +271,20 @@ async fn profile_leases_scope_resources_and_preserve_sibling_demand() {
         .await
         .unwrap();
     let credential = alpha.credential_data().unwrap();
+    let mut invalid = route.clone();
+    invalid.route_id.clear();
+    assert!(
+        runtime
+            .acquire(
+                "owned-profile".into(),
+                vec![invalid],
+                "ios-fixture".into(),
+                credential.clone(),
+                storage.clone()
+            )
+            .await
+            .is_err()
+    );
     let sibling = runtime
         .acquire(
             "owned-profile".into(),

@@ -19,6 +19,7 @@ const QUEUE_BYTES: usize = 64 * 1024 * 1024;
 struct Event {
     text: String,
     coalesce: Option<String>,
+    terminal: bool,
     budget: Arc<AtomicUsize>,
 }
 impl Drop for Event {
@@ -58,9 +59,15 @@ impl Owner {
                 n.checked_add(text.len()).filter(|n| *n <= QUEUE_BYTES)
             })
             .map_err(|_| Error::Overflow)?;
+        let terminal = value["type"] == "state"
+            && matches!(
+                value["phase"].as_str(),
+                Some("FAILED" | "REAUTHENTICATION_REQUIRED")
+            );
         events.push_back(Event {
             text,
             coalesce,
+            terminal,
             budget: budget.clone(),
         });
         self.wake.notify_one();
@@ -175,7 +182,7 @@ impl Source {
                         }
                     }
                     Err(_) => {
-                        source.shutdown();
+                        source.stop(true);
                         break;
                     }
                 }
@@ -185,7 +192,11 @@ impl Source {
         source
     }
     fn deliver(&self, owner: &Arc<Owner>, value: Value, budget: &Arc<AtomicUsize>) {
-        while !owner.cancel.is_cancelled() && owner.event(value.clone(), budget).is_err() {
+        while !owner.cancel.is_cancelled() {
+            match owner.event(value.clone(), budget) {
+                Ok(()) | Err(Error::Closed) => break,
+                Err(_) => {}
+            }
             let bytes = value.to_string().len();
             let local_full = owner.events.lock().map_or(true, |events| {
                 events.len() >= 64
@@ -215,11 +226,17 @@ impl Source {
         }
     }
     fn shutdown(&self) {
+        self.stop(false);
+    }
+    fn stop(&self, preserve_terminal: bool) {
         self.cancel.cancel();
         self.session.close();
         if let Ok(owners) = self.owners.lock() {
             for owner in owners.values().filter_map(Weak::upgrade) {
                 owner.cancel.cancel();
+                if let Ok(mut events) = owner.events.lock() {
+                    events.retain(|event| preserve_terminal && event.terminal);
+                }
                 owner.wake.notify_one();
             }
         }
@@ -537,6 +554,8 @@ impl NativeRuntime {
         password: String,
         storage: Arc<dyn CredentialPersistence>,
     ) -> Result<Arc<NativeSourceLease>> {
+        let password = zeroize::Zeroizing::new(password);
+        crate::session::validate_routes(std::slice::from_ref(&route), &username)?;
         let slot = self.slot(&profile_id)?;
         let mut held = slot.source.lock().await;
         if held
@@ -550,7 +569,7 @@ impl NativeRuntime {
             relay_target: route.relay_target,
             username,
         };
-        let session = tokio::select! { _ = slot.cancel.cancelled() => return Err(Error::Closed), result = crate::session::login(options, zeroize::Zeroizing::new(password), Some(storage)) => result? };
+        let session = tokio::select! { _ = slot.cancel.cancelled() => return Err(Error::Closed), result = crate::session::login(options, password, Some(storage)) => result? };
         let source = Source::start(session, route.route_id, slot.cancel.child_token());
         let lease = source.lease()?;
         *held = Arc::downgrade(&source);
@@ -571,6 +590,7 @@ impl NativeRuntime {
                 && (3..=128).contains(&username.len()),
         )?;
         let credential = zeroize::Zeroizing::new(credential);
+        crate::session::validate_routes(&routes, &username)?;
         let slot = self.slot(&profile_id)?;
         let mut held = slot.source.lock().await;
         if let Some(source) = held.upgrade().filter(|source| {
@@ -603,10 +623,11 @@ impl NativeRuntime {
         let mut slots = self.slots.lock().map_err(|_| Error::Closed)?;
         slots.retain(|_, slot| {
             Arc::strong_count(slot) > 1
-                || slot
-                    .source
-                    .try_lock()
-                    .map_or(true, |source| source.strong_count() > 0)
+                || slot.source.try_lock().map_or(true, |source| {
+                    source
+                        .upgrade()
+                        .is_some_and(|source| !source.cancel.is_cancelled())
+                })
         });
         if !slots.contains_key(id) && slots.len() >= 64 {
             return Err(Error::Overflow);
@@ -719,6 +740,31 @@ mod tests {
         healthy.release();
         assert_eq!(budget.load(Ordering::Acquire), 0);
         peer.await.unwrap();
+    }
+    #[tokio::test]
+    async fn explicit_retirement_discards_data_and_fatal_retirement_keeps_only_terminal_state() {
+        for fatal in [false, true] {
+            let (source, peer) = source().await;
+            let owner = source.lease().unwrap();
+            let budget = Arc::new(AtomicUsize::new(0));
+            source.deliver(
+                &owner.owner,
+                json!({"type":"event","data":"retired"}),
+                &budget,
+            );
+            source.deliver(
+                &owner.owner,
+                json!({"type":"state","phase":"FAILED"}),
+                &budget,
+            );
+            source.stop(fatal);
+            if fatal {
+                assert!(owner.next_event().await.unwrap().contains("FAILED"));
+            }
+            assert!(matches!(owner.next_event().await, Err(Error::Closed)));
+            assert_eq!(budget.load(Ordering::Acquire), 0);
+            peer.await.unwrap();
+        }
     }
     #[test]
     fn concurrent_profile_lookup_retains_uninitialized_slot_and_shutdown_cancels_it() {

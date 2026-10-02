@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'packages/android/**'
+      - 'packages/mobile-core/**'
+      - 'packages/mobile-core-proof/test-vectors/**'
       - 'packages/client/**'
       - 'packages/server/src/crypto/**'
       - 'packages/shared/**'
@@ -17,6 +19,8 @@ on:
     branches: [main]
     paths:
       - 'packages/android/**'
+      - 'packages/mobile-core/**'
+      - 'packages/mobile-core-proof/test-vectors/**'
       - 'packages/client/**'
       - 'packages/server/src/crypto/**'
       - 'packages/shared/**'
@@ -75,7 +79,7 @@ jobs:
       - name: Install Android SDK packages
         run: >-
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          'platforms;android-36' 'build-tools;35.0.0'
+          'platforms;android-36' 'build-tools;35.0.0' 'ndk;28.2.13676358'
 
       - name: Test the web native-host adapter
         run: >-
@@ -84,6 +88,11 @@ jobs:
 
       - name: Verify native secure-transport fixtures
         run: pnpm android:interop:check
+
+      - name: Install pinned Rust tools
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component rustfmt --component clippy
+          cargo +1.97.0 install cargo-ndk --version 4.1.2 --locked
 
       - name: Prepare bundled client assets
         run: pnpm --filter @yep-anywhere/android prepare-frontend
@@ -146,7 +155,12 @@ jobs:
       - name: Install Android SDK packages
         run: >-
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          'platforms;android-36' 'build-tools;35.0.0'
+          'platforms;android-36' 'build-tools;35.0.0' 'ndk;28.2.13676358'
+
+      - name: Install pinned Rust tools
+        run: |
+          rustup toolchain install 1.97.0 --profile minimal --component rustfmt --component clippy
+          cargo +1.97.0 install cargo-ndk --version 4.1.2 --locked
 
       - name: Prepare bundled client assets
         run: pnpm --filter @yep-anywhere/android prepare-frontend
@@ -171,7 +185,8 @@ jobs:
             -camera-back none
           script: >-
             cd packages/android && ./gradlew connectedBundledDebugAndroidTest
-            --warning-mode all --no-daemon
+            --warning-mode all --no-daemon && cd ../.. && pnpm --filter
+            @yep-anywhere/android test:live
 
       - name: Upload Android instrumentation reports
         if: always()

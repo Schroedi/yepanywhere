@@ -244,6 +244,7 @@ class YaServerConnectionManager(
             if (response.status >= 400) throw YaApiException(response)
             response
         } finally {
+            transport.cancelRequest(requestId)
             mutex.withLock { pendingRequests.remove(requestId) }
         }
     }
@@ -365,7 +366,7 @@ class YaServerConnectionManager(
         // bytes already arrived may complete (staged expiry still applies).
         record.writes.withLock {
             runCatching {
-                record.transport.send(JSONObject().put("type", "upload_end").put("uploadId", uploadId))
+                record.transport.cancelUpload(uploadId)
             }
         }
         record.events.close(CancellationException("Upload consumer released"))
@@ -467,7 +468,7 @@ class YaServerConnectionManager(
                     repository.recordSuccessfulAuthentication(
                         profileId = profileId,
                         routeId = routed.route.id,
-                        resumeCredential = stored.copy(lastResumedAtEpochMs = connectedAt),
+                        resumeCredential = stored.copy(credential = routed.transport.credential, lastResumedAtEpochMs = connectedAt),
                         connectedAtEpochMs = connectedAt,
                     )
                     installConnection(generation, routed)
@@ -485,6 +486,10 @@ class YaServerConnectionManager(
                         "Sign in again to resume this server",
                         error,
                     )
+                    return
+                } catch (error: YaRustTerminalException) {
+                    if (error.phase == YaConnectionPhase.REAUTHENTICATION_REQUIRED) repository.clearCredential(profileId)
+                    failTerminal(generation, ready, error.phase, "Native connection ended; retry or sign in again", error)
                     return
                 } catch (error: YaAllRoutesRejectedException) {
                     repository.clearCredential(profileId)
@@ -577,6 +582,35 @@ class YaServerConnectionManager(
     ) {
         val type = message.optString("type")
         when (type) {
+            "state" -> {
+                when (message.optString("phase")) {
+                    "RETRYING" -> {
+                        mutex.withLock {
+                            if (connectionGeneration != generation || connection?.transport !== transport) return
+                            failPendingLocked(YaConnectionUnavailableException("Native connection was lost"))
+                            uploads.values.forEach { it.events.close(YaConnectionUnavailableException("Upload connection was lost")) }
+                            uploads.clear()
+                            failConversationsLocked(YaConnectionUnavailableException("Conversation connection was lost"))
+                            mutableState.value = YaConnectionState(YaConnectionPhase.RETRYING)
+                        }
+                    }
+                    "CONNECTED" -> {
+                        val snapshot = checkNotNull(repository.snapshot(profileId))
+                        securityClients?.ensure(snapshot.profile, transport)
+                        val route = snapshot.profile.routes.firstOrNull { it.id == transport.routeId }
+                            ?: connection?.route ?: error("Native route is unavailable")
+                        val stored = checkNotNull(repository.snapshot(profileId)?.resumeCredential)
+                        val connectedAt = maxOf(nowEpochMs(), stored.establishedAtEpochMs)
+                        repository.recordSuccessfulAuthentication(profileId, route.id, stored.copy(credential = transport.credential, lastResumedAtEpochMs = connectedAt), connectedAt)
+                        mutex.withLock {
+                            if (connectionGeneration != generation || connection?.transport !== transport) return
+                            connection = YaRoutedTransport(route, transport)
+                            mutableState.value = YaConnectionState(YaConnectionPhase.CONNECTED, routeId = route.id)
+                        }
+                    }
+                    "FAILED", "REAUTHENTICATION_REQUIRED" -> throw YaRustTerminalException(YaConnectionPhase.valueOf(message.getString("phase")))
+                }
+            }
             "response" -> {
                 val id = message.getString("id")
                 val response = message.toApiResponse()

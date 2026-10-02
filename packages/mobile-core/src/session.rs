@@ -275,22 +275,27 @@ pub async fn resume(
         options, credential, secure, storage, None,
     ))
 }
+pub(crate) fn validate_routes(routes: &[NativeRoute], username: &str) -> Result<()> {
+    check(!routes.is_empty() && routes.len() <= 16)?;
+    let mut ids = std::collections::HashSet::new();
+    for route in routes {
+        check(
+            !route.route_id.is_empty()
+                && route.route_id.len() <= 128
+                && ids.insert(route.route_id.clone()),
+        )?;
+        validate(&route.options(username))?;
+    }
+    Ok(())
+}
 pub async fn resume_routes(
     mut routes: Vec<NativeRoute>,
     username: String,
     data: &[u8],
     storage: Arc<dyn crate::CredentialPersistence>,
 ) -> Result<Arc<NativeSession>> {
-    check(!routes.is_empty() && routes.len() <= 16 && data.len() <= 4096)?;
-    let mut ids = std::collections::HashSet::new();
-    for route in &routes {
-        check(
-            !route.route_id.is_empty()
-                && route.route_id.len() <= 128
-                && ids.insert(route.route_id.clone()),
-        )?;
-        validate(&route.options(&username))?;
-    }
+    check(data.len() <= 4096)?;
+    validate_routes(&routes, &username)?;
     let mut credential: Credential = serde_json::from_slice(data)?;
     check(
         credential.username == username
