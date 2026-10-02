@@ -1,11 +1,15 @@
 //! Native-only owner sessions. The web bridge receives source operations only.
+#[cfg(target_os = "android")]
+mod android;
 mod crypto;
 mod events;
 mod mux;
+mod runtime;
 mod session;
+pub use runtime::{NativeRuntime, NativeSourceLease};
 mod wire;
 use serde_json::Value;
-pub use session::{NativeSecurityBinding, NativeSession, SessionOptions};
+pub use session::{NativeRoute, NativeSecurityBinding, NativeSession, SessionOptions};
 uniffi::setup_scaffolding!();
 
 #[derive(Debug, thiserror::Error, uniffi::Error)]
@@ -84,4 +88,16 @@ pub async fn native_resume_stored(
 ) -> Result<std::sync::Arc<NativeSession>> {
     let credential = zeroize::Zeroizing::new(credential);
     session::resume(options, &credential, Some(storage)).await
+}
+
+/// Candidates are native saved configuration, never supplied by the web bridge.
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn native_resume_routes_stored(
+    routes: Vec<NativeRoute>,
+    username: String,
+    credential: Vec<u8>,
+    storage: std::sync::Arc<dyn CredentialPersistence>,
+) -> Result<std::sync::Arc<NativeSession>> {
+    let credential = zeroize::Zeroizing::new(credential);
+    session::resume_routes(routes, username, &credential, storage).await
 }

@@ -6,7 +6,16 @@ try {
   await new Promise((done, fail) => {
     const child = spawn(
       "cargo",
-      ["test", "--locked", "--test", "live", "--", "--nocapture", "--ignored"],
+      [
+        "test",
+        "--locked",
+        "--test",
+        "live",
+        "--",
+        "--nocapture",
+        "--ignored",
+        "--test-threads=1",
+      ],
       {
         cwd: fileURLToPath(new URL("..", import.meta.url)),
         env: { ...process.env, YA_TEST_ENDPOINT: fixture.endpoint },

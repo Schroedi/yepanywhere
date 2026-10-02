@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { resolve, join } from "node:path";
+import { android } from "./android.mjs";
 import { source } from "./sodium.mjs";
 import { enableSwiftCancellation } from "./swift-cancellation.mjs";
 const core = fileURLToPath(new URL("..", import.meta.url));
@@ -51,6 +52,8 @@ if (
   await enableSwiftCancellation(
     resolve(core, "../ios/Generated/ya_mobile_core.swift"),
   );
+} else if (phase === "android") {
+  await android({ core, env, run });
 } else if (phase === "rust") {
   await run(["fmt", "--check"]);
   await run(["test", "--locked"]);

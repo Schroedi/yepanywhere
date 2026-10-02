@@ -21,6 +21,23 @@ pub struct SessionOptions {
     pub relay_target: Option<String>,
     pub username: String,
 }
+/// Saved native route metadata. Ordering expresses the preferred route first,
+/// followed by direct and then relay candidates; reachability grants no authority.
+#[derive(Clone, uniffi::Record)]
+pub struct NativeRoute {
+    pub route_id: String,
+    pub endpoint: String,
+    pub relay_target: Option<String>,
+}
+impl NativeRoute {
+    fn options(&self, username: &str) -> SessionOptions {
+        SessionOptions {
+            endpoint: self.endpoint.clone(),
+            relay_target: self.relay_target.clone(),
+            username: username.into(),
+        }
+    }
+}
 #[derive(Serialize, Deserialize)]
 struct Credential {
     username: String,
@@ -135,7 +152,9 @@ pub async fn login(
     };
     persist(&storage, &credential)?;
     let secure = establish(wire, &credential, nonce).await?;
-    Ok(NativeSession::start(options, credential, secure, storage))
+    Ok(NativeSession::start(
+        options, credential, secure, storage, None,
+    ))
 }
 fn persist(
     storage: &Option<Arc<dyn crate::CredentialPersistence>>,
@@ -252,7 +271,75 @@ pub async fn resume(
             && credential.resume_protocol_version >= 3,
     )?;
     let secure = resume_secure(&options, &mut credential, &storage).await?;
-    Ok(NativeSession::start(options, credential, secure, storage))
+    Ok(NativeSession::start(
+        options, credential, secure, storage, None,
+    ))
+}
+pub async fn resume_routes(
+    mut routes: Vec<NativeRoute>,
+    username: String,
+    data: &[u8],
+    storage: Arc<dyn crate::CredentialPersistence>,
+) -> Result<Arc<NativeSession>> {
+    check(!routes.is_empty() && routes.len() <= 16 && data.len() <= 4096)?;
+    let mut ids = std::collections::HashSet::new();
+    for route in &routes {
+        check(
+            !route.route_id.is_empty()
+                && route.route_id.len() <= 128
+                && ids.insert(route.route_id.clone()),
+        )?;
+        validate(&route.options(&username))?;
+    }
+    let mut credential: Credential = serde_json::from_slice(data)?;
+    check(
+        credential.username == username
+            && credential.base_key.len() == 32
+            && !credential.session_id.is_empty()
+            && credential.session_id.len() <= 128
+            && credential.resume_protocol_version >= 3,
+    )?;
+    let storage = Some(storage);
+    routes[1..].sort_by_key(|route| route.relay_target.is_some());
+    let secure = resume_candidates(&mut routes, &mut credential, &storage).await?;
+    let options = routes[0].options(&username);
+    Ok(NativeSession::start(
+        options,
+        credential,
+        secure,
+        storage,
+        Some(routes),
+    ))
+}
+async fn resume_candidates(
+    routes: &mut Vec<NativeRoute>,
+    credential: &mut Credential,
+    storage: &Option<Arc<dyn crate::CredentialPersistence>>,
+) -> Result<Secure> {
+    let mut rejected = 0;
+    for index in 0..routes.len() {
+        match resume_secure(
+            &routes[index].options(&credential.username),
+            credential,
+            storage,
+        )
+        .await
+        {
+            Ok(secure) => {
+                let preferred = routes.remove(index);
+                routes.sort_by_key(|route| route.relay_target.is_some());
+                routes.insert(0, preferred);
+                return Ok(secure);
+            }
+            Err(Error::ReauthenticationRequired) => rejected += 1,
+            Err(_) => {}
+        }
+    }
+    if rejected == routes.len() {
+        Err(Error::ReauthenticationRequired)
+    } else {
+        Err(Error::Unavailable)
+    }
 }
 enum Command {
     Dispatch(String, Value, oneshot::Sender<Result<String>>),
@@ -264,6 +351,7 @@ pub struct NativeSecurityBinding {
     pub transport_nonce: String,
 }
 struct Lease {
+    route_id: std::sync::Mutex<String>,
     cancel: CancellationToken,
     binding: std::sync::Mutex<NativeSecurityBinding>,
     events: std::sync::Mutex<crate::events::Events>,
@@ -284,15 +372,24 @@ impl Drop for NativeSession {
     }
 }
 impl NativeSession {
+    pub fn close(&self) {
+        self.shutdown();
+    }
     fn start(
         options: SessionOptions,
         credential: Credential,
         secure: Secure,
         storage: Option<Arc<dyn crate::CredentialPersistence>>,
+        routes: Option<Vec<NativeRoute>>,
     ) -> Arc<Self> {
         let (commands, rx) = mpsc::channel(32);
 
         let lease = Arc::new(Lease {
+            route_id: std::sync::Mutex::new(
+                routes
+                    .as_ref()
+                    .map_or(String::new(), |r| r[0].route_id.clone()),
+            ),
             cancel: CancellationToken::new(),
             binding: std::sync::Mutex::new(NativeSecurityBinding {
                 session_id: credential.session_id.clone(),
@@ -312,15 +409,28 @@ impl NativeSession {
             lease: lease.clone(),
         });
         tokio::spawn(async move {
-            Actor::new(options, credential, secure, rx, lease, storage)
-                .run()
-                .await;
+            let mut actor = Actor::new(options, credential, secure, rx, lease, storage);
+            if let Some(routes) = routes {
+                actor.routes = routes;
+            }
+            actor.run().await;
         });
         session
     }
 }
 #[uniffi::export(async_runtime = "tokio")]
 impl NativeSession {
+    pub fn route_id(&self) -> Result<String> {
+        if self.lease.cancel.is_cancelled() {
+            return Err(Error::Closed);
+        }
+        Ok(self
+            .lease
+            .route_id
+            .lock()
+            .map_err(|_| Error::Closed)?
+            .clone())
+    }
     pub fn credential_data(&self) -> Result<Vec<u8>> {
         if self.lease.cancel.is_cancelled() {
             return Err(Error::Closed);
@@ -342,8 +452,11 @@ impl NativeSession {
             .map_err(|_| Error::Closed)?
             .clone())
     }
-    pub fn close(&self) {
+    pub fn shutdown(&self) {
         self.lease.cancel.cancel();
+        if let Ok(mut events) = self.lease.events.lock() {
+            *events = crate::events::Events::default();
+        }
         if let Ok(mut credential) = self.lease.credential.lock() {
             credential.zeroize();
         }
@@ -380,11 +493,11 @@ impl NativeSession {
                     return lagged.remove(&id).ok_or(Error::Closed);
                 }
             }
-            if self.lease.cancel.is_cancelled() {
-                return Err(Error::Closed);
-            }
             if let Some(value) = self.lease.events.lock().map_err(|_| Error::Closed)?.pop() {
                 return Ok(value);
+            }
+            if self.lease.cancel.is_cancelled() {
+                return Err(Error::Closed);
             }
             tokio::select! { _ = self.lease.cancel.cancelled() => return Err(Error::Closed), _ = wake => continue }
         }
@@ -406,6 +519,7 @@ struct Upload {
     size: u64,
 }
 struct Actor {
+    routes: Vec<NativeRoute>,
     options: SessionOptions,
     credential: Credential,
     secure: Secure,
@@ -427,6 +541,11 @@ impl Actor {
         storage: Option<Arc<dyn crate::CredentialPersistence>>,
     ) -> Self {
         Self {
+            routes: vec![NativeRoute {
+                route_id: String::new(),
+                endpoint: options.endpoint.clone(),
+                relay_target: options.relay_target.clone(),
+            }],
             options,
             credential,
             secure,
@@ -492,16 +611,31 @@ impl Actor {
     }
     async fn reconnect(&mut self) -> Result<()> {
         self.fail_pending();
+        let conversations = self
+            .subscriptions
+            .iter()
+            .filter(|(_, p)| p["channel"] == "/api/experimental/conversation/subscribe")
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+        for id in conversations {
+            self.retire_subscription(
+                id,
+                json!({"status":502,"error":"Conversation connection interrupted"}),
+            )?;
+        }
         self.event(json!({"type":"state","phase":"RETRYING"}))?;
         for delay in [250, 1000, 3000] {
             tokio::select! { _ = self.lease.cancel.cancelled() => return Err(Error::Closed), _ = tokio::time::sleep(Duration::from_millis(delay)) => {} }
-            let result = tokio::select! { _ = self.lease.cancel.cancelled() => return Err(Error::Closed), r = resume_secure(&self.options, &mut self.credential, &self.storage) => r };
+            let result = tokio::select! { _ = self.lease.cancel.cancelled() => return Err(Error::Closed), r = resume_candidates(&mut self.routes, &mut self.credential, &self.storage) => r };
             match result {
                 Ok(secure) => {
                     if self.lease.cancel.is_cancelled() {
                         return Err(Error::Closed);
                     }
                     self.secure = secure;
+                    self.options = self.routes[0].options(&self.credential.username);
+                    *self.lease.route_id.lock().map_err(|_| Error::Closed)? =
+                        self.routes[0].route_id.clone();
                     *self.lease.binding.lock().map_err(|_| Error::Closed)? =
                         NativeSecurityBinding {
                             session_id: self.credential.session_id.clone(),
@@ -527,7 +661,7 @@ impl Actor {
                     if !restored {
                         continue;
                     }
-                    self.event(json!({"type":"state","phase":"CONNECTED"}))?;
+                    self.event(json!({"type":"state","phase":"CONNECTED","routeId":self.routes[0].route_id}))?;
                     return Ok(());
                 }
                 Err(Error::ReauthenticationRequired) => {
@@ -822,11 +956,14 @@ impl Actor {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use futures_util::{SinkExt, StreamExt};
     use tokio::net::TcpListener;
     use tokio_tungstenite::{accept_async, tungstenite::Message};
+    pub(crate) fn fixture_credential_data() -> Vec<u8> {
+        serde_json::to_vec(&credential()).unwrap()
+    }
     fn credential() -> Credential {
         Credential {
             username: "fixture-owner".into(),
@@ -835,7 +972,10 @@ mod tests {
             resume_protocol_version: 3,
         }
     }
-    async fn peer(version: u64, mutation: &str) -> (SessionOptions, tokio::task::JoinHandle<()>) {
+    pub(crate) async fn peer(
+        version: u64,
+        mutation: &str,
+    ) -> (SessionOptions, tokio::task::JoinHandle<()>) {
         peer_observed(version, mutation, None).await
     }
     async fn peer_observed(
@@ -946,6 +1086,49 @@ mod tests {
         )
     }
     #[tokio::test]
+    async fn route_fallback_authenticates_saved_identity_and_persists_pin() {
+        let (bad, bad_peer) = peer(3, "tampered-proof").await;
+        let (good, good_peer) = peer(4, "").await;
+        let storage = Arc::new(super::storage_tests::Storage::default());
+        let routes = vec![
+            NativeRoute {
+                route_id: "preferred".into(),
+                endpoint: bad.endpoint,
+                relay_target: None,
+            },
+            NativeRoute {
+                route_id: "direct-fallback".into(),
+                endpoint: good.endpoint,
+                relay_target: None,
+            },
+        ];
+        let session = resume_routes(
+            routes,
+            credential().username.clone(),
+            &serde_json::to_vec(&credential()).unwrap(),
+            storage.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(session.route_id().unwrap(), "direct-fallback");
+        let data: Value =
+            serde_json::from_slice(storage.saved.lock().unwrap().as_ref().unwrap()).unwrap();
+        assert_eq!(data["resume_protocol_version"], 4);
+        assert!(
+            session
+                .dispatch(
+                    "request".into(),
+                    json!({"method":"GET","path":"/fixture"}).to_string()
+                )
+                .await
+                .unwrap()
+                .contains("200")
+        );
+        session.close();
+        bad_peer.abort();
+        good_peer.abort();
+    }
+    #[tokio::test]
     async fn resume_rejects_context_tampering_and_persists_highest_version() {
         let data = serde_json::to_vec(&credential()).unwrap();
         for mutation in [
@@ -1043,6 +1226,13 @@ mod tests {
                 .await
                 .is_err()
         );
+        let terminal = timeout(Duration::from_millis(500), session.next_event())
+            .await
+            .unwrap()
+            .unwrap();
+        let terminal: Value = serde_json::from_str(&terminal).unwrap();
+        assert_eq!(terminal["type"], "state");
+        assert_eq!(terminal["phase"], "FAILED");
         assert!(
             timeout(Duration::from_millis(500), session.next_event())
                 .await
