@@ -79,8 +79,7 @@ code out of the app into an independently maintained helper installation.
 
 PATH delivery is convenient, but instructions also carry the exact safely
 quoted executable path because login shells can replace PATH. Invocation must
-work from an unrelated directory. Example commands below describe the intended
-surface; the new instruction/discovery commands still need implementation.
+work from an unrelated directory. The commands below are implemented in the packaged client.
 
 ```sh
 machine-control agent instructions
@@ -296,3 +295,12 @@ replacement/restart/expiry/concurrency acceptance, and deliberate migration of
 legacy persisted settings and cleanup. The old Windows product controls,
 installer, updater, grant/tool contract and supervisor remain current until
 those gates pass. Do not infer retirement from the new environment opt-in.
+
+Linux ARM64 offline CLI execution passes in an isolated native container with
+no checkout, network or system Python dependency. The relocated smoke covers
+identity, instructions, local-target discovery and bundled claim capabilities.
+Linux desktop approval, signatures and capture remain unaccepted. The declared
+alternate controller has reachable Windows/Linux appliances with ready stored
+credentials; the earlier Windows availability limit on the local controller
+is not an infrastructure-wide blocker. Platform acceptance still requires a
+signed candidate with the new CLI.

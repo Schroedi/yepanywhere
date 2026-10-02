@@ -7,9 +7,11 @@
 
 Topic: new-session-agent-tooling
 
-Status: broader direction proposal, updated 2026-09-08. Opt-in own-session
+Status: broader direction proposal, updated 2026-10-02. Opt-in own-session
 command delivery is implemented in [Agent Own-Session Inspection](agent-self.md).
-The remaining tooling and instruction controls here are proposals. The
+Installed Machine Control advertisement is implemented for eligible local
+launches as described below. The remaining tooling and instruction controls
+here are proposals. The
 consumer-side story (what the scripts do against the server) is
 [`agent-session-access.md`](agent-session-access.md); this topic owns
 what YA injects into a session at launch. Packaging, desktop delivery, the
@@ -143,3 +145,28 @@ state dir, not by double-redirecting.
 Explicitly configured local unrestricted Mac launches can advertise the
 verified Machine Control `mc-sudo` helper. Defaults stay unchanged.
 [Native sudo](native-sudo.md) owns configuration, authority and validation.
+
+## Installed Machine Control instructions
+
+**Current:** Opted-in, unrestricted local Claude/Codex-family launches can
+receive the verified installed MC command directory on PATH and a small
+fragment containing the exact quoted command path and `agent instructions`.
+Existing context and child environment survive composition. Remote executors,
+plan mode, session sandboxes and unsupported providers remain ineligible.
+`YEP_MC_CONTROL=1` enables the operator opt-in; the internal launch option can
+select or suppress it for a specific launch. There is no New Session UI control
+for this route yet. Defaults remain unchanged.
+
+MC owns its Python implementation, bundled runtime, instructions, resident
+lifecycle, claims and native approvals. YA verifies the installation before
+probing or advertising it; this fragment issues no authority and does not
+contain same-user shell access. Native sudo remains independently selected.
+[Optional Computer Control](optional-computer-control.md) owns configuration
+and the coexistence boundary with YA's existing Windows session-grant tool;
+[Tactical 142](../docs/tactical/142-machine-control-desktop-consumer.md) records
+platform/provider acceptance and the gates for retiring that older integration.
+
+A real local Codex provider launch has read the installed instructions and
+identity and consumed a fixture capture with its native image viewer. A complete
+provider-driven desktop/browser task and live/reloaded YA media views remain
+acceptance work; this bounded smoke does not establish those outcomes.
