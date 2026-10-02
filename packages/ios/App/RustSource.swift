@@ -4,9 +4,9 @@ import Foundation
 final class RustSource: NativeSource {
   let profileID: String
   let label: String
-  let session: NativeSession
+  let session: any NativeAuthenticatedSession
   var checkIn: () async throws -> Void = {}
-  init(profile: HostProfile, session: NativeSession) {
+  init(profile: HostProfile, session: any NativeAuthenticatedSession) {
     profileID = profile.id; label = profile.label; self.session = session
   }
   func dispatch(method: String, params: Data) async throws -> Data {

@@ -43,6 +43,47 @@ final class LiveTests: XCTestCase {
     XCTAssertNil(try store.credential(profile.id))
     XCTAssertEqual(try store.catalog().profiles.count, 1)
   }
+  func testSwitchHostPreservesSiblingAndSuspensionRetiresRuntime() async throws {
+    let (options, _) = try fixture()
+    let store = HostStore(service: "com.yepanywhere.ios.leases." + UUID().uuidString)
+    let model = HostModel(store: store)
+    defer {
+      model.background()
+      for profile in (try? store.catalog().profiles) ?? [] {
+        try? SecurityClientCoordinator(store: store).forget(profile)
+        _ = try? store.remove(profile.id)
+      }
+      try? store.delete("hosts-state.v1")
+    }
+    model.login(
+      label: "Shared source", endpoint: options.endpoint, target: nil,
+      username: options.username, password: "native-fixture-password")
+    let deadline = Date().addingTimeInterval(15)
+    while model.busy && Date() < deadline { try await Task.sleep(nanoseconds: 25_000_000) }
+    XCTAssertNil(model.error)
+    XCTAssertNotNil(model.webView)
+    let profile = try XCTUnwrap(model.catalog.profiles.first)
+    let sibling = try await model.connections.acquire(
+      profileId: profile.id,
+      routes: [profile.nativeRoute], username: profile.username,
+      credential: XCTUnwrap(store.credential(profile.id)),
+      storage: SavedCredential(store: store, profile: profile))
+    defer { sibling.release() }
+    model.switchHost()
+    XCTAssertNil(model.webView)
+    let response = try await sibling.dispatch(
+      method: "request",
+      params: "{\"method\":\"GET\",\"path\":\"/api/projects\"}")
+    XCTAssertTrue(response.contains("200"))
+    model.open(profile)
+    let reopen = Date().addingTimeInterval(15)
+    while model.busy && Date() < reopen { try await Task.sleep(nanoseconds: 25_000_000) }
+    XCTAssertNil(model.error)
+    XCTAssertNotNil(model.webView)
+    model.background()
+    XCTAssertThrowsError(try sibling.securityBinding())
+    XCTAssertNotNil(try store.credential(profile.id))
+  }
   func testFullBundledApplicationOverEncryptedRustSource() async throws {
     let (options, _) = try fixture()
     let session = try await nativeLogin(options: options, password: "native-fixture-password")

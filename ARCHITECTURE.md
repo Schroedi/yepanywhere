@@ -48,8 +48,9 @@ alternatives rather than selecting a new runtime contract.
 - **Mobile companions** use native platform shells and notification delivery.
   Android is a first-class Gradle/Kotlin application: native Compose owns
   login, saved hosts and host management; the bundled WebView is the primary
-  foreground for the full existing web UI. Kotlin owns SRP, protected resume
-  credentials, direct/relay transport, route selection and reconnect. The
+  foreground for the full existing web UI. A shared Rust/UniFFI core owns SRP,
+  encryption, direct/relay transport, route candidates and reconnect. Kotlin
+  owns protected credential storage, platform demand and native adapters. The
   WebView consumes source-scoped native leases through a bounded exact-origin
   `SourceTransport` adapter without receiving keys or authenticating twice.
   Paired hosts remain independent even when relay profiles share a mux socket.
@@ -58,8 +59,9 @@ alternatives rather than selecting a new runtime contract.
   no privileged native data plane. Tauri Mobile has been removed; desktop
   Tauri is separate. The accepted iOS direction uses SwiftUI/WKWebView with a
   shared Rust connection core exposed through UniFFI, preserving the existing
-  server protocol. iOS is its first consumer; Android's Kotlin internals migrate
-  after shared-core parity is demonstrated. The crypto/build proof is complete;
+  server protocol. Both native platforms use per-profile sources with independent
+  consumer leases and pooled relay circuits. Host selection is presentation
+  state; iOS suspension retires its foreground runtime. The crypto/build proof is complete;
   the production Rust core and consumer iOS application are implemented and
   have owned simulator and unsigned-device evidence. Simulator CI verifies
   the connection/lifecycle path independently of physical-device signing.

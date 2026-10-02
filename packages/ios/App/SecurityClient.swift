@@ -14,6 +14,12 @@ enum NativeSecurityFailure: Error { case revoked, invalidProof }
 @MainActor
 final class SecurityClientCoordinator {
   private let store: HostStore
+  private struct VerifiedTransport {
+    let sessionID: String
+    let nonce: String
+    let clientID: String
+  }
+  private var verified: [String: VerifiedTransport] = [:]
   init(store: HostStore) { self.store = store }
   private func account(_ profile: HostProfile) -> String { "security." + profile.id }
   private func binding(_ profile: HostProfile) throws -> SecurityClientBinding {
@@ -47,10 +53,16 @@ final class SecurityClientCoordinator {
       throw NativeSecurityFailure.revoked
     }
   }
-  func ensure(_ profile: HostProfile, session: NativeSession) async throws {
+  func ensure(_ profile: HostProfile, session: any NativeAuthenticatedSession) async throws {
     try requireUnrevoked(profile)
     var binding = try binding(profile)
     guard !binding.revoked else { throw NativeSecurityFailure.revoked }
+    let transport = try session.securityBinding()
+    if let known = verified[profile.id], known.sessionID == transport.sessionId,
+      known.nonce == transport.transportNonce, known.clientID == binding.clientID
+    {
+      return
+    }
     let version = try await request(session, "GET", "/api/version")
     guard version.status == 200 else { throw BridgeFailure.closed }
     guard (version.body["capabilities"] as? [String])?.contains("security-client-audit-v1") == true
@@ -85,7 +97,6 @@ final class SecurityClientCoordinator {
           "reportedStorage": "ios-keychain",
         ]
       }
-      let transport = try session.securityBinding()
       let digest = Data(SHA256.hash(data: try Self.canonical(body)))
       let parts = [
         Data("yep-security-client-key-v1".utf8), Data((register ? "register" : "check-in").utf8),
@@ -120,12 +131,19 @@ final class SecurityClientCoordinator {
         let continuity = proofs.first(where: { $0["type"] as? String == "continuity-key" }),
         continuity["keyFingerprint"] as? String == Data(SHA256.hash(data: publicKey)).base64URL
       else { throw NativeSecurityFailure.invalidProof }
-      binding.clientID = id; try save(binding, profile); return
+      binding.clientID = id; try save(binding, profile)
+      // A new document can reuse an already-proven transport. Registration
+      // followed by check-in on that same nonce is a different server proof.
+      verified[profile.id] = VerifiedTransport(
+        sessionID: transport.sessionId,
+        nonce: transport.transportNonce, clientID: id)
+      return
     }
     throw NativeSecurityFailure.invalidProof
   }
   private func request(
-    _ session: NativeSession, _ method: String, _ path: String, _ body: [String: Any]? = nil
+    _ session: any NativeAuthenticatedSession, _ method: String, _ path: String,
+    _ body: [String: Any]? = nil
   ) async throws -> (status: Int, body: [String: Any]) {
     var params: [String: Any] = [
       "method": method, "path": path,
@@ -157,7 +175,7 @@ final class SecurityClientCoordinator {
     return try JSONSerialization.data(
       withJSONObject: value, options: [.fragmentsAllowed, .withoutEscapingSlashes])
   }
-  func revoke(_ profile: HostProfile, session: NativeSession) async throws {
+  func revoke(_ profile: HostProfile, session: any NativeAuthenticatedSession) async throws {
     var value = try binding(profile)
     if value.revoked { return }
     // Recover an accepted registration whose response was lost using its
@@ -173,6 +191,7 @@ final class SecurityClientCoordinator {
     value.revoked = true; try save(value, profile)
   }
   func forget(_ profile: HostProfile) throws {
+    verified.removeValue(forKey: profile.id)
     try store.delete(account(profile)); try ContinuityKey.delete(profileID: profile.id)
   }
 }

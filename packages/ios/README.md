@@ -61,10 +61,13 @@ the unchanged capability-gated server contract and native transport context.
 
 A selected host resumes automatically at launch. Each profile has its own
 persistent WebKit store and saved application route; React owns draft storage.
-Backgrounding immediately closes its native source and flushes the document's
+Backgrounding immediately retires all foreground native owners and flushes the document's
 existing pagehide draft handler before reconstruction. Foreground activation
 resumes and checks continuity before handing a fresh document its source.
-Switch Host retires the foreground connection and opens the native host list.
+Switch Host releases the foreground document's lease and opens the native host
+list. Other native leases remain connected; profiles on the same eligible relay
+share one physical mux socket. The shared runtime owns per-profile sources,
+resource scoping and final-owner teardown. Selection still displays one WebView.
 Forget first revokes the registered security client on supported servers,
 recovering an interrupted registration with the same installation/request/key.
 It then atomically tombstones the profile and removes its resume credential
@@ -104,7 +107,7 @@ they cannot select a URL or credentials. Per-server native push enrollment is
 still pending in the shared YA/Android plan, so installation registration alone
 never reports notificationsEnabled. Live APNs/FCM delivery, physical phone/tablet
 acceptance, App Store/TestFlight provisioning and publication remain release
-gates. Limited-user login and Android's Rust migration remain deferred.
+gates. Limited-user login remains deferred; Android now consumes the same core.
 
 CI pins macOS 15 Apple Silicon / Xcode 26.3 with its installed iOS 18.6 runtime. The
 standard 3-core / 7 GiB macOS 26 host remained saturated throughout the
@@ -113,7 +116,7 @@ services ran ([run 36887820073](https://github.com/kzahel/yepanywhere/actions/ru
 Only the disposable CI VM disables Spotlight indexing. Local runs use the
 newest installed iOS runtime; `YA_IOS_SIMULATOR_VERSION=18.6` selects that
 exact installed version and fails if unavailable. Device selection respects
-the runtime's supported device types. Both paths retain the same 18 tests,
+the runtime's supported device types. Both paths retain the native and UI regression suites,
 CPU/memory headroom requirement and 100 ms typing ceiling. Simulator
 compilation targets the host architecture, matching its Rust simulator library:
 `aarch64-apple-ios-sim` on Apple Silicon and `x86_64-apple-ios` on Intel.

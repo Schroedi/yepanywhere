@@ -716,25 +716,47 @@ circuit, and queued payload bytes at 64 MiB per physical socket. A lagging
 circuit closes without closing healthy peers; a physical socket failure wakes
 all affected circuits for independent bounded recovery. The final circuit
 releases the socket. Direct/custom endpoints and mux setup/overflow failures
-retain exact independent-socket fallback. The iOS shell still demands only its
-selected foreground profile; shared per-profile multi-consumer leases and
-Android adoption remain migration work. Initial route selection uses
-one exact endpoint with mux-to-legacy fallback, rather than Android's ordered
-direct/relay route candidates. SwiftUI, Keychain, WebKit and
-Apple notification/lifecycle behavior remain platform adapters.
+retain exact independent-socket fallback.
+
+NativeRuntime now serializes each profile's authentication and supplies
+independent NativeSourceLease owners. It caps active profiles and owners per
+profile at 64. Subscription/upload identifiers are scoped to an owner; releasing
+one owner cancels its pending work and retires only its resources. Lease event
+queues cap at 64 events / 32 MiB each and 64 MiB aggregate per source; aggregate
+pressure retires the largest lagging owner before an innocent producer. Pending
+resource cleanup retains bounded admission. The final owner closes its source,
+and explicit profile/runtime retirement cancels all corresponding owners.
+
+Android production transport now uses this Rust runtime through UniFFI. Kotlin
+retains Keystore/profile encoding, security-client adapters, platform demand,
+foreground/background ownership, native login/hosts and the WebView bridge.
+Its former SRP/crypto/socket backend is retained only for differential tests.
+Saved credentials are converted inside native protected storage without changing
+Keystore aliases or records. The native route adapter respects Android network
+security policy. Rust tries the preferred candidate, then direct-first fallback,
+authenticates the saved identity on every attempt and persists the highest proof
+version before consumers. Authenticated reconnect stays limited to three attempts;
+Kotlin does not add another retry cycle after Rust exhausts them.
+
+The iOS shell displays one selected foreground profile while other native owners
+can retain independent source demand. Switch Host and replacement documents
+release only the foreground lease. Background suspension retires the foreground
+runtime and creates a fresh runtime for activation; it cannot retain Android
+foreground-service demand. Each current iOS profile still configures one exact
+route, using common mux-to-legacy fallback. SwiftUI, Keychain, WebKit and Apple
+notification/lifecycle behavior remain platform adapters.
 
 The notification foundation owns Apple permission/FCM token handling and
 protected broker credentials, but common per-server native push enrollment is
 still pending. Unconfigured builds report unavailable and registration alone
-never reports delivery enabled. Physical phone/tablet execution, live APNs,
-signing and store publication remain release gates. See
+never reports delivery enabled. The broader phone/tablet/network matrix, live
+APNs, signing and store publication remain release gates. See
 [the iOS README](../packages/ios/README.md) for reproducible acceptance commands.
 
-Migrate Android internals after shared-core parity includes its existing
-multi-host, route-candidate, background and mux-pooling behavior. Preserve the
-current Kotlin shell, profiles, wire fallbacks and acceptance tests. Android
-release work continues independently; its Rust migration does not delay iOS
-store work or require a YA authentication migration.
+The [shared transport migration](../docs/tactical/139-shared-mobile-transport-migration.md)
+tracks Android/iOS acceptance and release evidence. Existing manager/bridge and
+legacy differential tests remain, alongside live production Rust execution.
+Android release work continues independently of iOS store work.
 
 ## Compatibility And Approval Gates
 

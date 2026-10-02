@@ -62,9 +62,15 @@ Embedded viewers/downloads need the
 Notification permission/FCM/broker
 foundations exist; common per-server native push enrollment and real Apple push
 delivery remain pending. The maintainer prioritized [Android/shared transport migration](../tactical/139-shared-mobile-transport-migration.md)
-on 2026-10-02: complete shared multi-host/mux/background parity, adopt Rust in
-Android, and extend iOS source ownership. This proceeds independently of store
-publication.
+on 2026-10-02. That implementation now uses Rust/UniFFI in Android and common
+per-profile source leases on iOS. Shared mux circuits, credential-proven route
+fallback, scoped ownership and final teardown pass unchanged-server tests.
+Android's R8-minified physical Pixel proof includes two hosts on one relay socket
+and a 100 MiB upload with 16.6 ms peak typing latency. iOS simulator acceptance
+and the physical iPhone native/UI suites pass; the updated physical typing proof
+records 37 inputs, zero drops, 19 ms peak and 294 concurrent mutations.
+Release builds and required root checks pass. Store publication, native push and
+the viewer/download gap remain the next mobile release work.
 
 ### Current baseline
 

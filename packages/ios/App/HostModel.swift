@@ -13,6 +13,7 @@ final class HostModel: ObservableObject {
   @Published var forgetAnyway: HostProfile?
   @Published var catalogAvailable = false
   private var started = false
+  private(set) var connections = NativeRuntime()
   private let store: HostStore
   private let security: SecurityClientCoordinator
   private var bridge: NativeBridge?
@@ -60,8 +61,9 @@ final class HostModel: ObservableObject {
         let persistence = SavedCredential(store: store, profile: profile, pairing: prior == nil) {
           [weak self] in self?.catalog = $0
         }
-        let session = try await nativeLoginStored(
-          options: profile.options, password: password, storage: persistence)
+        let session = try await connections.login(
+          profileId: profile.id, route: profile.nativeRoute, username: profile.username,
+          password: password, storage: persistence)
         guard generation == token, !Task.isCancelled else { session.close(); return }
         do {
           try await security.ensure(profile, session: session)
@@ -94,8 +96,9 @@ final class HostModel: ObservableObject {
         guard let credential = try store.credential(profile.id) else {
           reauthenticate = profile; busy = false; return
         }
-        let session = try await nativeResumeStored(
-          options: profile.options, credential: credential,
+        let session = try await connections.acquire(
+          profileId: profile.id, routes: [profile.nativeRoute], username: profile.username,
+          credential: credential,
           storage: SavedCredential(store: store, profile: profile))
         guard generation == token, !Task.isCancelled else { session.close(); return }
         do {
@@ -118,7 +121,7 @@ final class HostModel: ObservableObject {
       if generation == token { busy = false; work = nil }
     }
   }
-  private func show(_ profile: HostProfile, session: NativeSession) throws {
+  private func show(_ profile: HostProfile, session: NativeSourceLease) throws {
     guard let root = Bundle.main.url(forResource: "web", withExtension: nil) else {
       throw BridgeFailure.closed
     }
@@ -162,8 +165,9 @@ final class HostModel: ObservableObject {
           guard let credential = try store.credential(profile.id) else {
             throw BridgeFailure.closed
           }
-          let session = try await nativeResumeStored(
-            options: profile.options, credential: credential,
+          let session = try await connections.acquire(
+            profileId: profile.id, routes: [profile.nativeRoute], username: profile.username,
+            credential: credential,
             storage: SavedCredential(store: store, profile: profile))
           defer { session.close() }
           try await security.revoke(profile, session: session)
@@ -171,6 +175,7 @@ final class HostModel: ObservableObject {
         guard generation == token, !Task.isCancelled else { return }
         // The durable tombstone retains a visible retry owner until every local
         // cleanup succeeds; it also prevents resuming a partially removed host.
+        connections.retireProfile(profileId: profile.id)
         catalog = try store.markForRemoval(profile.id)
         try store.delete("route." + profile.id)
         if let id = UUID(uuidString: profile.id) {
@@ -198,6 +203,7 @@ final class HostModel: ObservableObject {
     // Flush React's existing draft owner before discarding its document.
     // Closing native transport is immediate; pending source operations stop.
     bridge?.close(); notifications.background()
+    connections.shutdown(); connections = NativeRuntime()
     let view = webView
     let token = generation
     work?.cancel(); work = nil; busy = false

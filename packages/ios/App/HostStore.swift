@@ -9,6 +9,9 @@ struct HostProfile: Codable, Identifiable, Equatable {
   var username: String
   var forgetting: Bool?
   var lastConnected: Date
+  var nativeRoute: NativeRoute {
+    NativeRoute(routeId: id, endpoint: endpoint, relayTarget: relayTarget)
+  }
   var options: SessionOptions {
     SessionOptions(endpoint: endpoint, relayTarget: relayTarget, username: username)
   }
