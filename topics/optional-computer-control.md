@@ -42,9 +42,11 @@ by YA, and no MC access grant is issued. Native sudo remains independently
 selected. A launch selecting both this route and a legacy grant is refused.
 
 [Tactical 142](../docs/tactical/142-machine-control-desktop-consumer.md) owns
-acceptance and Windows retirement. Source and a signed Mac assembly probe pass;
-real model use, desktop/browser effects, Windows/Linux installed acceptance and
-lifecycle/revocation parity remain gates. The component lifecycle and deferred
+acceptance and Windows retirement. A signed Mac assembly passes discovery and claimed-appliance CLI desktop/browser
+effects. A real YA local Codex turn reads installed instructions/identity and
+uses its native image viewer on the resulting browser fixture capture. Full
+provider-driven control, live/reloaded YA image views, Windows/Linux installed
+acceptance and lifecycle/revocation parity remain gates. The component lifecycle and deferred
 tool below remain current until accepted cutover. There is no new public
 session field or setting yet. Session advertisement is not a same-user shell
 containment boundary, and does not revoke independently granted MC access.
@@ -406,3 +408,11 @@ Exercise real discovery, semantic action and screenshot consumption with an
 independent fixture effect check. After local development, repeat acceptance
 against exact signed CI artifacts without a source checkout. Release all test
 sessions, profiles and the VM workspace when finished.
+
+For an explicit real local Codex probe, run `pnpm exec tsx --conditions source
+scripts/probe-machine-control-model.ts --app APP --publisher TRUSTED_PUBLISHER
+--capture FIXTURE_PNG`. It uses existing local Codex authentication and makes
+one bounded model turn, two offline CLI queries and an image-viewer call; it
+requests no MC access and performs no host desktop operation. `--model` can pin
+the provider model. Use a nonpersonal fixture image. This is provider/capture
+acceptance, not a Windows cutover or live/reloaded browser-view pass.

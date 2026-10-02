@@ -271,8 +271,27 @@ The installed probe verifies a real signed bundle, relocated copy, launch-contex
 composition and wrong-publisher/modified-script/missing-interpreter refusal;
 it does not start a model or establish screenshot consumption by one.
 
-Remaining gates are actual desktop/browser effects and artifacts in a claimed
-appliance, real provider/model use, Windows and Linux installed acceptance,
+The signed Mac ARM64 assembly passes the installed CLI's bounded native-control
+slice in a claimed appliance under workstation approval: denial, narrowed
+scopes, an independent AppKit counter effect, capture/artifact PNG bytes,
+self/protected refusal, prompt pause and Stop/revocation. The broader tray test
+failed to discover a second update menu item; that updater slice remains open.
+
+Browser acceptance passes 21 checks using Chrome for Testing, the signed
+embedded native host/extension, the installed CLI and independent HTTP/Chrome
+oracles. Captures and release/restart/reconnect pass. A real local YA Codex
+provider turn reads the installed instructions/identity and consumes the native
+browser fixture PNG through its actual image viewer. This tests launcher context
+and model image consumption; it does not establish the complete live/reloaded
+YA media views or a provider-driven control task on its execution host.
+
+The original Mac appliance policy/socket/resident are restored and doctor is
+ready. The test browser/candidate are reaped, owned test state removed, guest
+shutdown independently observed and all claims released. The canonical login
+credential remains ready and owner-only. No credentials were rotated.
+
+Remaining gates are full provider-driven control and live/reloaded YA media,
+Windows and Linux installed acceptance,
 replacement/restart/expiry/concurrency acceptance, and deliberate migration of
 legacy persisted settings and cleanup. The old Windows product controls,
 installer, updater, grant/tool contract and supervisor remain current until
