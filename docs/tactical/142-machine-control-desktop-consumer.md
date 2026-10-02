@@ -405,6 +405,28 @@ the Mac local Codex native desktop/capture cell. Browser model control,
 signed Windows/Linux cells, lifecycle/revocation parity, public picker approval
 and legacy retirement remain open.
 
+## Target-local browser provider result
+
+The browser model probe passes against the same source-independent signed Mac
+assembly. MC's headed extension harness adds an optional bounded YA callback
+and a counter owned by its HTTP server. Chrome for Testing 145 passes all 23
+checks: 21 installed-client indicator/worker checks and the model/effect checks.
+Actual CLI calls read instructions/identity, enumerate/snapshot the fixture tab,
+click its semantic button once, capture that tab, retrieve its unchanged path
+and invoke the built-in image tool. Independent HTTP count and reported image
+count agree. This is standing appliance authority, not workstation approval.
+
+An initial stale harness archive refused the new arguments before browser/model
+startup; the corrected handoff verifies exact harness bytes before execution.
+The passing run restores the original native-host socket and removes the owned
+browser/profile, native artifact and temporary app/runtime/authentication,
+releases claims and confirms initial power-off. Eight extension unit checks and
+Python compilation pass. The generated tab PNG separately passes full-app
+live/reloaded HTTP and desktop/phone views; all four captures are reviewed.
+The strict probe type check, full lint/format/typecheck and complete YA unit
+suite pass. Signed Windows/Linux cells, lifecycle/revocation parity, public
+picker approval and legacy retirement remain open.
+
 Validation: full lint, format, typecheck and the strict probe type check pass;
 the final full suite passes (server 6,312 plus 67 skips, client 6,634, shared 940,
 push broker 45 and relay 130). A restrictive-umask run failed two existing

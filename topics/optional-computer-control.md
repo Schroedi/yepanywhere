@@ -45,9 +45,10 @@ selected. A launch selecting both this route and a legacy grant is refused.
 acceptance and Windows retirement. A signed Mac assembly passes discovery and
 claimed-appliance CLI desktop/browser effects. A source-independent YA Codex
 provider inside the Mac appliance also performs one native semantic increment
-and consumes its new exact-window capture with its built-in image tool. Full
+and one browser fixture click, and consumes each new capture with its built-in
+image tool. Full
 YA live/reloaded desktop and phone views serve identical native capture bytes.
-Provider-driven browser control, Windows/Linux installed acceptance and
+Windows/Linux installed acceptance and
 lifecycle/revocation parity remain gates. The component lifecycle and deferred
 tool below remain current until accepted cutover. There is no new public
 session field or setting yet. Session advertisement is not a same-user shell
@@ -438,8 +439,8 @@ Desktop and phone image viewers load the capture through the actual media
 route, and downloaded bytes must match the native fixture. Captures are
 presented through the repository artifact facility; browser exceptions fail
 acceptance. Both the browser fixture and the provider-generated AppKit capture
-pass this media/view route. Provider-driven browser control and the Windows
-cutover remain separate acceptance gates.
+pass this media/view route. The browser model cell below also passes; Windows
+cutover remains a separate acceptance gate.
 
 Run `pnpm exec tsx --conditions source scripts/probe-machine-control-model.ts
 --app APP --publisher TRUSTED_PUBLISHER --capture FIXTURE_PNG --browser` for
@@ -484,3 +485,22 @@ caller removes the matching resident artifact and temporary app/runtime,
 profile and diagnostics, releases host/controller claims, and confirms that
 the originally stopped VM is stopped again. No release or notarization is
 implied by this local signed assembly.
+
+**Current:** `scripts/probe-machine-control-browser.ts` passes with the same
+source-independent signed Mac assembly and complete Codex runtime. MC's existing
+headed extension harness accepts optional `--agent-probe PROBE --node NODE`
+arguments and supplies `MC_PROBE_BROWSER_URL` for a dedicated counter page.
+The remaining environment/staging inputs match the native probe. An independent
+HTTP oracle verifies one semantic click, and the model must consume its new
+tab PNG through the built-in image tool and report the visible count.
+
+Chrome for Testing 145 passes 23 checks: the 21 existing installed-client
+indicator/worker checks plus model/effect checks. Its separate identity and
+temporary profile protect the primary installed browser. The caller restores
+the native-host socket after redirecting it to the staged resident, reaps the
+owned browser/profile, removes matching artifacts and temporary authentication,
+releases claims and restores initial power. The newly generated tab PNG also
+passes separate full-app live/reloaded HTTP and desktop/phone media views.
+Standing appliance authority, local signed assembly and no publication remain
+the evidence boundary; no Windows/Linux or workstation browser approval is
+inferred from this cell.

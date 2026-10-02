@@ -6,6 +6,7 @@
   },
   "include": [
     "probe-machine-control-model.ts",
-    "probe-machine-control-native.ts"
+    "probe-machine-control-native.ts",
+    "probe-machine-control-browser.ts"
   ]
 }
