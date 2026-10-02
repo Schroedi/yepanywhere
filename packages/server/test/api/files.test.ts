@@ -1218,6 +1218,10 @@ describe("Files API", () => {
         expect(json.highlightedTruncated).toBe(true);
         expect(json.highlightedHtml).not.toContain("End of paper");
       },
+      // CI 36977714764 exceeded 5 s while writing, serving and parsing the
+      // complete 200 MiB document. Allow 4x that observed limit for this I/O
+      // fixture; exact content and bounded-highlighting assertions stay intact.
+      20_000,
     );
 
     it("omits HTML content above the 200 MiB document limit", async () => {
