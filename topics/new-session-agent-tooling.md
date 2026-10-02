@@ -153,8 +153,10 @@ receive the verified installed MC command directory on PATH and a small
 fragment containing the exact quoted command path and `agent instructions`.
 Existing context and child environment survive composition. Remote executors,
 plan mode, session sandboxes and unsupported providers remain ineligible.
-`YEP_MC_CONTROL=1` enables the operator opt-in; the internal launch option can
-select or suppress it for a specific launch. There is no New Session UI control
+`YEP_MC_CONTROL=1` enables the operator opt-in; the internal launch option is
+carried through both supervisor launch shapes and the compatibility Claude SDK
+wrapper. It can select or suppress advertisement for a specific launch. Explicit
+`false` survives those boundaries instead of falling back to the environment. There is no New Session UI control
 for this route yet. Defaults remain unchanged.
 
 MC owns its Python implementation, bundled runtime, instructions, resident

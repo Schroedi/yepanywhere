@@ -616,6 +616,56 @@ describe("Supervisor", () => {
   });
 
   describe("computer control", () => {
+    it.each([true, false, undefined])(
+      "carries installed CLI selection %s through both launch paths",
+      async (machineControl) => {
+        let sessionNumber = 0;
+        const implementation = async () => {
+          const queue = new MessageQueue();
+          const controlled = createControllableIterator();
+          controlled.push({
+            type: "system",
+            subtype: "init",
+            session_id: `installed-cli-selection-${++sessionNumber}`,
+          });
+          return {
+            iterator: controlled.iterator,
+            queue,
+            abort: controlled.finish,
+          };
+        };
+        for (const legacy of [false, true]) {
+          const providerStart =
+            vi.fn<AgentProvider["startSession"]>(implementation);
+          const sdkStart =
+            vi.fn<RealClaudeSDKInterface["startSession"]>(implementation);
+          const start = legacy ? sdkStart : providerStart;
+          const launchSupervisor = new Supervisor({
+            provider: legacy ? null : testProvider(providerStart),
+            ...(legacy ? { realSdk: { startSession: sdkStart } } : {}),
+          });
+          const selected = { machineControl };
+          const withMessage = await launchSupervisor.startSession(
+            "/tmp/test",
+            { text: "hello" },
+            undefined,
+            selected,
+          );
+          const withoutMessage = await launchSupervisor.createSession(
+            "/tmp/test",
+            undefined,
+            selected,
+          );
+          expect(start).toHaveBeenCalledTimes(2);
+          expect(
+            start.mock.calls.map(([options]) => options.machineControl),
+          ).toEqual([machineControl, machineControl]);
+          await withMessage.abort();
+          await withoutMessage.abort();
+        }
+      },
+    );
+
     function failingLaunch() {
       const close = vi.fn(async () => {});
       const session = { close } as unknown as ComputerSession;

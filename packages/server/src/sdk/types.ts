@@ -200,6 +200,8 @@ export interface ProviderRetentionSnapshot {
 }
 
 export interface StartSessionOptions {
+  /** Installed MC command advertisement; independent of native access. */
+  machineControl?: boolean;
   cwd: string;
   initialMessage?: UserMessage;
   resumeSessionId?: string;
