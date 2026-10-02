@@ -501,3 +501,22 @@ and all unit checks pass (server 6,314 plus 67 skips, client 6,634, shared 940,
 push broker 45 and relay 130). The passing parent/child runtime logs have no
 warning/error events; broader intentional failure-path test warnings remain
 recorded in the existing gap. No new product UI or public contract is added.
+
+## Installed Mac native grant expiry result
+
+MC's dedicated [native grant-expiry harness](../../../machine-control/tests/macos/cli-grant-expiry.py)
+passes through the signed installed client under workstation approval. The
+standing appliance observer visibly approves an observe-only 60-second request.
+An AppKit fixture observation succeeds, then actual deadline expiry reports
+`expired` and a further observation refuses with `approval_required`. The
+candidate PID stays unchanged. This exercises native access authority rather
+than the separately accepted target-use claim lease.
+
+Cleanup disarms access, restores the trusted policy file, reaps owned processes,
+removes staging, confirms original resident readiness, restores initial power-off
+and releases claims. The first harness attempt failed on approval-label and
+optional action-data assumptions; it remains failed, with cleanup completed.
+The corrected fresh run passes, as do syntax checks and MC's 61 release tests.
+Signed app replacement, Windows/Linux acceptance, public session-picker approval
+and deliberate legacy retirement remain open. YA product code, UI and public
+contracts are unchanged by this acceptance record.

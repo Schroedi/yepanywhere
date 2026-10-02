@@ -532,5 +532,15 @@ The root and MC/claim environment match the native/browser probes. The caller
 owns MC startup, claims, temporary resource/profile removal and appliance
 power restoration; YA never starts or kills MC. Cleanup restores the original
 resident's readiness, initial power-off and released claims. This closes the
-Mac YA close/restart/crash isolation cell. Native grant expiry/replacement and
-Windows/Linux lifecycle parity remain independent gates.
+Mac YA close/restart/crash isolation cell. Signed replacement and Windows/Linux
+lifecycle parity remain independent gates.
+
+MC's separate [installed native grant-expiry probe](../../machine-control/tests/macos/cli-grant-expiry.py)
+also passes against the signed Mac assembly. Independent native visible approval
+issues an observe-only 60-second grant through the installed CLI; fixture
+observation succeeds. Actual elapsed-time expiry reports `expired` and refuses
+another observation with `approval_required` while the same resident process
+stays alive. The probe disarms access and the controller restores policy,
+processes, staging, claims and initial power-off. This is native access expiry,
+separate from the already accepted target-use claim expiry and YA lifecycle
+cells. It does not establish app replacement or Windows/Linux parity.
