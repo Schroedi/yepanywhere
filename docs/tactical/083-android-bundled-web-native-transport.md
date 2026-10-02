@@ -372,3 +372,16 @@ runs on October 2. Maximum acknowledgement was 22.4 ms for the 1 MiB direct
 upload and 23.9 ms for the 100 MiB relay upload, with zero queue overflows.
 These are physical observations; they do not establish why the hosted emulator
 missed the gate. Latest-source hosted acceptance remains required.
+
+The detailed [hosted rerun 36977714721](https://github.com/kzahel/yepanywhere/actions/runs/36977714721)
+again missed the frame gate at 128.4 ms during direct upload. Its 29 samples
+were 11.4–128.4 ms and reported no long tasks. This narrows the evidence but
+does not prove where the frame waited; the probe now also records key-to-input
+timing and the supported observer types. The host launched emulator 37.2.12
+with two guest cores and `swiftshader_indirect`. That mode is
+[deprecated since 36.4.9](https://developer.android.com/studio/run/emulator-acceleration).
+The candidate CI profile uses four guest cores and the supported `software`
+backend, logs host CPU/memory/load, and keeps Pixel 7 resolution, real key
+injection, both upload modes and every 100 ms input assertion. Hosted
+before/after measurements must establish acceptance; this profile change is
+not evidence of an application performance fix by itself.

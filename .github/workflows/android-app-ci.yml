@@ -179,9 +179,19 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_7
+          # Two-core software-rendered runs 36974124012/36977714721 missed
+          # the unchanged 100 ms frame gate at 122/128 ms (physical: 24 ms).
+          # Use the hosted runner's four cores and the current software backend;
+          # swiftshader_indirect was deprecated in emulator 36.4.9.
+          # https://developer.android.com/studio/run/emulator-acceleration
+          cores: 4
           disable-animations: true
+          pre-emulator-launch-script: >-
+            node -e 'const os = require("node:os");
+            console.log(JSON.stringify({cores: os.availableParallelism(),
+            memoryMiB: Math.round(os.totalmem() / 1048576), load: os.loadavg()}))'
           emulator-options: >-
-            -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+            -no-window -gpu software -noaudio -no-boot-anim
             -camera-back none
           script: >-
             cd packages/android && ./gradlew connectedBundledDebugAndroidTest

@@ -84,6 +84,7 @@ class YaNativeWebAppInstrumentedTest {
             scenario.onActivity { activity -> activity.findViewById<WebView>(R.id.web_client).requestFocus() }
             evaluate(scenario, """
                 window.nativeTypingLatencies = [];
+                window.nativeTypingInputLatencies = [];
                 window.nativeTypingLongTasks = [];
                 if (PerformanceObserver.supportedEntryTypes.includes('longtask')) {
                   window.nativeTypingObserver = new PerformanceObserver(list => {
@@ -98,7 +99,10 @@ class YaNativeWebAppInstrumentedTest {
                 window.nativeTypingBaseline = composer.value;
                 composer.addEventListener('keydown', () => {
                   const started = performance.now();
-                  composer.addEventListener('input', () => requestAnimationFrame(() => window.nativeTypingLatencies.push(performance.now() - started)), {once:true});
+                  composer.addEventListener('input', () => {
+                    window.nativeTypingInputLatencies.push(performance.now() - started);
+                    requestAnimationFrame(() => window.nativeTypingLatencies.push(performance.now() - started));
+                  }, {once:true});
                 }); true;
             """.trimIndent())
             val text = "native typing while uploading"
@@ -107,7 +111,7 @@ class YaNativeWebAppInstrumentedTest {
             await(scenario, "document.querySelector('textarea[data-composer-input]').value === window.nativeTypingBaseline + '$text'")
             await(scenario, "window.nativeTypingLatencies.length === ${text.length}")
             val latency = evaluate(scenario, "Math.max(...window.nativeTypingLatencies)").toDouble()
-            val timing = evaluate(scenario, "window.nativeTypingObserver?.disconnect(); JSON.stringify({samples:window.nativeTypingLatencies,longTasks:window.nativeTypingLongTasks})")
+            val timing = evaluate(scenario, "window.nativeTypingObserver?.disconnect(); JSON.stringify({samples:window.nativeTypingLatencies,inputSamples:window.nativeTypingInputLatencies,longTasks:window.nativeTypingLongTasks,observerTypes:PerformanceObserver.supportedEntryTypes})")
             assertTrue("Input acknowledgement exceeded 100 ms: $latency; uploadBytes=$uploadBytes; timing=$timing", latency <= 100)
             assertEquals(200, runBlocking { sibling.request("GET", "/version").status })
             // API 35 emulator: whole 100 MiB proof 27 s; Pixel: 16 s.
