@@ -16,8 +16,9 @@ binding, revocation, stale-404 protection and explicit optional ID 111. Focused
 ownership/route/policy tests and required root checks pass. Device acceptance
 continues with the native app slices below.
 
-Implement the three approved native-push child routes with strict bounded
-bodies, current native continuity ownership, owner-only persistence and public
+Implement the four approved native-push child routes with strict bounded
+bodies, authenticated destination lookup, current native continuity ownership,
+owner-only persistence and public
 secret redaction. Bind each send capability to the configured broker origin.
 Connect generic delivery to the existing event policy; bound in-flight work,
 disable invalid broker subscriptions and cascade client revocation.

@@ -393,6 +393,7 @@ introduced in YA `0.9.4`) owns:
 PUT    /api/security/clients/:clientId/native-push-subscription
 DELETE /api/security/clients/:clientId/native-push-subscription
 POST   /api/security/clients/:clientId/native-push-subscription/test
+GET    /api/security/clients/:clientId/native-push-subscription/destination?sessionId=...
 ```
 
 Only a current key-verified native client may install its own subscription.
@@ -433,19 +434,20 @@ an old credential to a new broker or silently reroutes delivery.
 There is no durable native-push queue or retry loop. The existing notification
 settings map approval, question, completed, and failed edges to
 `approval_required`, `input_required`, `session_completed`, and
-`session_failed`. V1 also adds an independently configurable `securityEvent`
-category and generic `security_event` transport intent. It is default-off under
-the vanilla-defaults contract. When enabled, registering a genuinely new
-client notifies already-enrolled destinations, never the destination created by
-that same transaction; the generic payload says only that a new client signed
-in and the recipient fetches current details from YA. Retries of an idempotent
-registration do not alert again. Failed attempts remain dashboard evidence in
-v1 rather than push-alert sources, avoiding attacker-controlled alert floods.
-New-client alerts are also rate-bounded per destination: the first eligible
-event in a 15-minute window sends immediately and later events in that window
-remain in the ledger without a deferred timer. A broker `404` disables the
-invalid subscription; a transient failure waits for a later real event or
-explicit test.
+`session_failed`. New-client/security-event alerts remain deferred. A broker
+`404` disables the invalid subscription; a transient failure waits for a later
+real event or explicit test.
+
+Generic delivery carries only the intent, opaque subscription/session/event ids,
+and an explicit test marker. Project ids, paths, names and transcript content
+never reach the broker. Before submitting an event, YA retains at most 64
+session-to-project destinations in the private push child. The authenticated
+`GET destination` route returns a safe local session path only to that same
+current native client. Native taps select credentials through their protected
+subscription-to-profile binding, resume and check continuity, then fetch this
+path. Unknown/expired mappings open the host without a session destination.
+These retained mappings survive restart and are redacted from public summaries;
+they are not a delivery queue.
 
 The server enrollment/delivery implementation landed after the original
 contract was reserved. Support is an explicit optional bit, advertised only

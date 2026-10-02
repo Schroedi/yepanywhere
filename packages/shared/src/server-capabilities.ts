@@ -245,6 +245,7 @@ export const SERVER_CAPABILITIES = {
         "PUT /api/security/clients/:clientId/native-push-subscription",
         "DELETE /api/security/clients/:clientId/native-push-subscription",
         "POST /api/security/clients/:clientId/native-push-subscription/test",
+        "GET /api/security/clients/:clientId/native-push-subscription/destination",
       ],
       routeModules: ["packages/server/src/routes/native-push.ts"],
       responseFields: ["nativePush"],

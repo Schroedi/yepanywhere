@@ -115,6 +115,7 @@ export interface StoredNativePushSubscription
   sendSecret: string;
   privacyMode: "generic";
   updatedAt: string;
+  destinations?: { sessionId: string; projectId: string }[];
 }
 
 function isStoredNativePush(
@@ -137,7 +138,18 @@ function isStoredNativePush(
       url.origin === value.brokerUrl &&
       ["lastTestAt", "lastDeliveryAt", "lastFailureAt"].every(
         (key) => value[key] === undefined || isIsoTimestamp(value[key]),
-      )
+      ) &&
+      (value.destinations === undefined ||
+        (Array.isArray(value.destinations) &&
+          value.destinations.length <= 64 &&
+          value.destinations.every(
+            (row) =>
+              isRecord(row) &&
+              typeof row.sessionId === "string" &&
+              typeof row.projectId === "string" &&
+              /^[A-Za-z0-9_-]{1,128}$/.test(row.sessionId) &&
+              /^[A-Za-z0-9_-]{1,2048}$/.test(row.projectId),
+          )))
     );
   } catch {
     return false;
@@ -1138,6 +1150,52 @@ export class SecurityClientService {
     );
   }
 
+  async rememberNativePushDestination(
+    clientId: string,
+    subscription: StoredNativePushSubscription,
+    sessionId: string,
+    projectId: string,
+  ): Promise<void> {
+    if (
+      !/^[A-Za-z0-9_-]{1,128}$/.test(sessionId) ||
+      !/^[A-Za-z0-9_-]{1,2048}$/.test(projectId)
+    )
+      return;
+    await this.mutate(async () => {
+      if (!this.isCurrentNativePush(clientId, subscription)) return;
+      const child = this.requireClient(clientId).nativePush!;
+      const rows = child.destinations ?? [];
+      if (
+        rows.at(-1)?.sessionId === sessionId &&
+        rows.at(-1)?.projectId === projectId
+      )
+        return;
+      const previous = child.destinations;
+      child.destinations = [
+        ...rows.filter((row) => row.sessionId !== sessionId),
+        { sessionId, projectId },
+      ].slice(-64);
+      try {
+        await this.saver.save();
+      } catch (error) {
+        child.destinations = previous;
+        throw error;
+      }
+    });
+  }
+
+  nativePushDestination(
+    clientId: string,
+    transport: AuthenticatedSrpTransportContext,
+    sessionId: string,
+  ): string | null {
+    this.requireNativePushOwner(clientId, transport);
+    const row = this.requireClient(clientId).nativePush?.destinations?.find(
+      (item) => item.sessionId === sessionId,
+    );
+    return row ? `/projects/${row.projectId}/sessions/${row.sessionId}` : null;
+  }
+
   async recordNativePushResult(
     clientId: string,
     subscription: StoredNativePushSubscription,
@@ -1496,9 +1554,8 @@ export class SecurityClientService {
       activeConnectionCount,
       sessions,
       push: client.nativePush
-        ? (({ sendSecret: _, ...publicState }) => publicState)(
-            client.nativePush,
-          )
+        ? (({ sendSecret: _, destinations: __, ...publicState }) =>
+            publicState)(client.nativePush)
         : { enabled: false },
     };
   }

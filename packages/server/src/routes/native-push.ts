@@ -115,5 +115,27 @@ export function createNativePushRoutes(
       );
     },
   );
+  routes.get(
+    "/api/security/clients/:clientId/native-push-subscription/destination",
+    (c) => {
+      const transport = getAuthenticatedSrpTransport(c.env);
+      if (!transport)
+        throw new SecurityClientServiceError(
+          "security_client_transport_required",
+          400,
+          "An established SRP transport is required",
+        );
+      const sessionId = c.req.query("sessionId") ?? "";
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(sessionId))
+        return c.json({ error: "Invalid session id" }, 400);
+      return c.json({
+        path: clients.nativePushDestination(
+          c.req.param("clientId"),
+          transport,
+          sessionId,
+        ),
+      });
+    },
+  );
   return routes;
 }

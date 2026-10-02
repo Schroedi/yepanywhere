@@ -358,8 +358,18 @@ describe("SecurityClientService", () => {
       ).toBe(true);
     }
     expect(
-      fetcher.mock.calls.map((call) => JSON.parse(String(call[1]?.body))),
-    ).toEqual([{ intent: "session_completed" }, { intent: "session_failed" }]);
+      fetcher.mock.calls.map(
+        (call) => JSON.parse(String(call[1]?.body)).intent,
+      ),
+    ).toEqual(["session_completed", "session_failed"]);
+    expect(JSON.stringify(fetcher.mock.calls)).not.toContain("private-project");
+    expect(JSON.stringify(fetcher.mock.calls)).not.toContain("private-name");
+    expect(
+      service.nativePushDestination(client.clientId, owner, "private-session"),
+    ).toBe("/projects/private-project/sessions/private-session");
+    expect(JSON.stringify(service.get(client.clientId))).not.toContain(
+      "private-project",
+    );
     expect(fetcher.mock.calls[0]?.[1]?.redirect).toBe("error");
     expect(
       await push.sendToAll({

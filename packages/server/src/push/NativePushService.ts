@@ -1,4 +1,5 @@
 import type { NativePushVersionInfo } from "@yep-anywhere/shared";
+import { createHash } from "node:crypto";
 import type {
   SecurityClientService,
   StoredNativePushSubscription,
@@ -61,7 +62,15 @@ export class NativePushService {
       this.clients
         .nativePushDestinations(this.brokerUrl)
         .map(({ clientId, subscription }) =>
-          this.send(clientId, subscription, intent),
+          this.send(
+            clientId,
+            subscription,
+            intent,
+            false,
+            "sessionId" in payload ? payload.sessionId : undefined,
+            payload.timestamp,
+            "projectId" in payload ? payload.projectId : undefined,
+          ),
         ),
     );
   }
@@ -82,6 +91,9 @@ export class NativePushService {
     subscription: StoredNativePushSubscription,
     intent: string,
     test = false,
+    sessionId?: string,
+    timestamp?: string,
+    projectId?: string,
   ): Promise<SendResult> {
     const result: SendResult = { browserProfileId: clientId, success: false };
     if (
@@ -95,6 +107,15 @@ export class NativePushService {
     try {
       if (!this.clients.isCurrentNativePush(clientId, subscription))
         return { ...result, error: "native_push_not_enrolled" };
+      if (sessionId && projectId)
+        await this.clients.rememberNativePushDestination(
+          clientId,
+          subscription,
+          sessionId,
+          projectId,
+        );
+      if (!this.clients.isCurrentNativePush(clientId, subscription))
+        return { ...result, error: "native_push_not_enrolled" };
       const response = await this.fetcher(
         `${this.brokerUrl}/v1/subscriptions/${subscription.subscriptionId}/notifications`,
         {
@@ -104,7 +125,20 @@ export class NativePushService {
             "Content-Type": "application/json",
             Authorization: `Bearer ${subscription.sendSecret}`,
           },
-          body: JSON.stringify({ intent }),
+          body: JSON.stringify({
+            intent,
+            ...(sessionId && /^[A-Za-z0-9_-]{1,128}$/.test(sessionId)
+              ? { sessionId }
+              : {}),
+            ...(timestamp
+              ? {
+                  eventId: createHash("sha256")
+                    .update(`${intent}:${sessionId ?? ""}:${timestamp}`)
+                    .digest("base64url"),
+                }
+              : {}),
+            ...(test ? { test: true } : {}),
+          }),
           signal: AbortSignal.any([
             this.lifetime.signal,
             AbortSignal.timeout(10000),
