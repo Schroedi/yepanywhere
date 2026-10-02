@@ -385,3 +385,14 @@ backend, logs host CPU/memory/load, and keeps Pixel 7 resolution, real key
 injection, both upload modes and every 100 ms input assertion. Hosted
 before/after measurements must establish acceptance; this profile change is
 not evidence of an application performance fix by itself.
+
+[The four-core software run 36981624479](https://github.com/kzahel/yepanywhere/actions/runs/36981624479)
+still missed the direct-upload frame gate at 149.4 ms. Key-to-input samples
+remained below 100 ms (maximum 96.7 ms), with two 54/65 ms long tasks; that does
+not establish their attribution. The probe previously focused/recreated the
+keyboard after starting upload and immediately injected hardware events.
+It now establishes the actual native text input connection, loaded fonts and
+stable WebView size before starting the same upload and sequential typing.
+The frame gate remains 100 ms. Further diagnostics include key timestamps and
+long-animation-frame script/layout attribution to distinguish setup from
+application work if hosted acceptance still misses the gate.

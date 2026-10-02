@@ -3,6 +3,7 @@ package com.yepanywhere.mobile.web
 import android.content.Intent
 import android.webkit.WebView
 import android.view.KeyCharacterMap
+import android.view.inputmethod.InputMethodManager
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -74,6 +75,16 @@ class YaNativeWebAppInstrumentedTest {
                   document.body.appendChild(child); return true; })()
             """.trimIndent())
 
+            // Establish the real editor/input connection before starting upload.
+            // Hardware key injection must not race keyboard creation and viewport
+            // resizing; the subsequent frame gate still includes upload work.
+            scenario.onActivity { activity -> activity.findViewById<WebView>(R.id.web_client).requestFocus() }
+            evaluate(scenario, """
+                (() => { const composer = document.querySelector('textarea[data-composer-input]');
+                  composer.blur(); composer.setAttribute('autocapitalize', 'off'); composer.focus(); return true; })();
+            """.trimIndent())
+            awaitInputReady(scenario)
+
             // Exercise the normal attachment editor, including credited binary upload.
             evaluate(scenario, """
                 (() => { const input = document.querySelector('input[type=file]');
@@ -81,24 +92,36 @@ class YaNativeWebAppInstrumentedTest {
                   input.files = transfer.files; input.dispatchEvent(new Event('change', {bubbles:true})); return true; })()
             """.trimIndent())
             await(scenario, "document.querySelector('.attachment-list')?.textContent.includes('native-upload.bin') === true")
-            scenario.onActivity { activity -> activity.findViewById<WebView>(R.id.web_client).requestFocus() }
             evaluate(scenario, """
                 window.nativeTypingLatencies = [];
                 window.nativeTypingInputLatencies = [];
+                window.nativeTypingStarts = [];
                 window.nativeTypingLongTasks = [];
+                window.nativeTypingLongFrames = [];
                 if (PerformanceObserver.supportedEntryTypes.includes('longtask')) {
                   window.nativeTypingObserver = new PerformanceObserver(list => {
                     window.nativeTypingLongTasks.push(...list.getEntries().map(entry => ({start:entry.startTime, duration:entry.duration})));
                   });
                   window.nativeTypingObserver.observe({entryTypes:['longtask']});
                 }
+                if (PerformanceObserver.supportedEntryTypes.includes('long-animation-frame')) {
+                  window.nativeTypingFrameObserver = new PerformanceObserver(list => {
+                    window.nativeTypingLongFrames.push(...list.getEntries().map(entry => ({
+                      start:entry.startTime, duration:entry.duration, renderStart:entry.renderStart,
+                      layoutStart:entry.styleAndLayoutStart, scripts:entry.scripts.map(script => ({
+                        source:script.sourceURL, position:script.sourceCharPosition,
+                        function:script.sourceFunctionName, duration:script.duration,
+                        layout:script.forcedStyleAndLayoutDuration
+                      }))
+                    })));
+                  });
+                  window.nativeTypingFrameObserver.observe({entryTypes:['long-animation-frame']});
+                }
                 const composer = document.querySelector('textarea[data-composer-input]');
-                // Deliver the fixture's exact hardware characters independently of
-                // a physical phone's personal keyboard capitalization preference.
-                composer.blur(); composer.setAttribute('autocapitalize', 'off'); composer.focus();
                 window.nativeTypingBaseline = composer.value;
                 composer.addEventListener('keydown', () => {
                   const started = performance.now();
+                  window.nativeTypingStarts.push(started);
                   composer.addEventListener('input', () => {
                     window.nativeTypingInputLatencies.push(performance.now() - started);
                     requestAnimationFrame(() => window.nativeTypingLatencies.push(performance.now() - started));
@@ -111,7 +134,7 @@ class YaNativeWebAppInstrumentedTest {
             await(scenario, "document.querySelector('textarea[data-composer-input]').value === window.nativeTypingBaseline + '$text'")
             await(scenario, "window.nativeTypingLatencies.length === ${text.length}")
             val latency = evaluate(scenario, "Math.max(...window.nativeTypingLatencies)").toDouble()
-            val timing = evaluate(scenario, "window.nativeTypingObserver?.disconnect(); JSON.stringify({samples:window.nativeTypingLatencies,inputSamples:window.nativeTypingInputLatencies,longTasks:window.nativeTypingLongTasks,observerTypes:PerformanceObserver.supportedEntryTypes})")
+            val timing = evaluate(scenario, "window.nativeTypingObserver?.disconnect(); window.nativeTypingFrameObserver?.disconnect(); JSON.stringify({samples:window.nativeTypingLatencies,inputSamples:window.nativeTypingInputLatencies,starts:window.nativeTypingStarts,longTasks:window.nativeTypingLongTasks,longFrames:window.nativeTypingLongFrames,observerTypes:PerformanceObserver.supportedEntryTypes})")
             assertTrue("Input acknowledgement exceeded 100 ms: $latency; uploadBytes=$uploadBytes; timing=$timing", latency <= 100)
             assertEquals(200, runBlocking { sibling.request("GET", "/version").status })
             // API 35 emulator: whole 100 MiB proof 27 s; Pixel: 16 s.
@@ -146,6 +169,29 @@ class YaNativeWebAppInstrumentedTest {
                 if (previous != null && runtime.pairedServers.snapshot(previous) != null) runtime.pairedServers.select(previous)
             }
         }
+    }
+
+    private fun awaitInputReady(scenario: ActivityScenario<WebClientActivity>) {
+        // Use the existing 30 s document-readiness budget. This is a setup
+        // condition, never a delay or a larger per-key acknowledgement budget.
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30)
+        var lastSize: Pair<Int, Int>? = null
+        var stableSamples = 0
+        while (System.nanoTime() < deadline) {
+            var size: Pair<Int, Int>? = null
+            scenario.onActivity { activity ->
+                val view = activity.findViewById<WebView>(R.id.web_client)
+                if (view.hasFocus() && activity.getSystemService(InputMethodManager::class.java).isAcceptingText) {
+                    size = Pair(view.width, view.height)
+                }
+            }
+            val editorReady = evaluate(scenario, "document.activeElement?.matches('textarea[data-composer-input]') === true && document.fonts.status === 'loaded'") == "true"
+            stableSamples = if (editorReady && size != null && size == lastSize) stableSamples + 1 else 0
+            lastSize = size
+            if (stableSamples >= 3) return
+            Thread.sleep(100)
+        }
+        throw AssertionError("Composer input connection and viewport did not become ready")
     }
 
     // Initial direct 1 MiB emulator proof completed in 9.1 s; 30 s gives ~3x
