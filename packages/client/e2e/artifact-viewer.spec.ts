@@ -526,6 +526,11 @@ test("viewer icon modes toggle locally and open through Shift and middle clicks"
   // during the second gesture. Keep two full mode boots and use the verified
   // URL for each duplicate gesture; 30s is twice the observed deadline.
   test.setTimeout(30_000);
+  // CI 36972149383 missed the 5s edit-dialog deadline; its retry needed
+  // 4.869s for that assertion and 18.6s overall. The earlier cold popup
+  // measured 5.7s (CI 36665933364). Give each first mode boot 15s (~2.6x
+  // that observed maximum), retaining the 30s case and all gesture checks.
+  const modeBootTimeout = 15_000;
   const htmlPath = join(directory, "bundle", "mode-controls.html");
   await writeFile(htmlPath, "<!doctype html><h1>Viewer mode controls</h1>");
   await page.goto(
@@ -558,7 +563,7 @@ test("viewer icon modes toggle locally and open through Shift and middle clicks"
         await tab.waitForURL("**/file-view?**");
         await expect(
           tab.getByRole("dialog", { name: "Edit source", exact: true }),
-        ).toBeVisible();
+        ).toBeVisible({ timeout: modeBootTimeout });
         await expect(
           tab.getByRole("button", { name: "Exit edit mode" }),
         ).toHaveAttribute("aria-pressed", "true");
@@ -566,7 +571,7 @@ test("viewer icon modes toggle locally and open through Shift and middle clicks"
         await tab.waitForURL("**/file-view?**");
         await expect(
           tab.getByRole("button", { name: "Stop interactive preview" }),
-        ).toHaveAttribute("aria-pressed", "true");
+        ).toHaveAttribute("aria-pressed", "true", { timeout: modeBootTimeout });
       }
       verifiedModeUrl ??= tab.url();
       await expect(control).toHaveAttribute("aria-pressed", "false");
