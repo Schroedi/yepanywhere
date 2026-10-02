@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  nativePushSubscriptions: {
+    name: "native-push-subscriptions-v1",
+    index: CAPABILITY_ID_ALLOCATIONS.nativePushSubscriptions.id,
+    introducedIn: "0.9.4",
+  },
   projectAppDeletion: {
     name: "project-app-deletion",
     index: CAPABILITY_ID_ALLOCATIONS.projectAppDeletion.id,
@@ -219,6 +224,38 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  nativePushSubscriptions: {
+    id: CAPABILITY_ID_ALLOCATIONS.nativePushSubscriptions.id,
+    name: "native-push-subscriptions-v1",
+    kind: "permanent",
+    area: "security",
+    introducedIn: "0.9.4",
+    advertisement: {
+      kind: "optional-bit",
+      index:
+        OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS.nativePushSubscriptions
+          .index,
+    },
+    description:
+      "Key-verified native clients can enroll, disable and test their own broker push subscription.",
+    clientFallback:
+      "Native push needs a server update; retain ordinary SRP and web use without enrollment requests.",
+    serverContract: {
+      routes: [
+        "PUT /api/security/clients/:clientId/native-push-subscription",
+        "DELETE /api/security/clients/:clientId/native-push-subscription",
+        "POST /api/security/clients/:clientId/native-push-subscription/test",
+      ],
+      routeModules: ["packages/server/src/routes/native-push.ts"],
+      responseFields: ["nativePush"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason:
+        "Native enrollment requires explicitly mounted delivery support independently of server version.",
+    },
+  },
+
   contextUsageBreakdown: {
     id: CAPABILITY_ID_ALLOCATIONS.contextUsageBreakdown.id,
     name: "context-usage-breakdown",

@@ -278,6 +278,8 @@ import { type UploadDeps, createUploadRoutes } from "./routes/upload.js";
 import { createSpeechRoutes } from "./routes/speech.js";
 import type { SpeechBackendInstallService } from "./services/voice/speechBackendInstall.js";
 import { createSecurityClientRoutes } from "./routes/security-clients.js";
+import { createNativePushRoutes } from "./routes/native-push.js";
+import type { NativePushService } from "./push/NativePushService.js";
 import {
   DiscoverySqliteService,
   type SqliteMode,
@@ -471,6 +473,7 @@ export interface AppOptions {
   remoteSessionService?: RemoteSessionService;
   /** Signed continuity-key registry and security audit service. */
   securityClientService?: SecurityClientService;
+  nativePushService?: NativePushService;
   /** RelayClientService for relay connection status (optional) */
   relayClientService?: RelayClientService;
   /**
@@ -1070,6 +1073,14 @@ export function createApp(options: AppOptions): AppResult {
 
   if (options.securityClientService) {
     app.route("/", createSecurityClientRoutes(options.securityClientService));
+    if (options.nativePushService)
+      app.route(
+        "/",
+        createNativePushRoutes(
+          options.securityClientService,
+          options.nativePushService,
+        ),
+      );
   }
 
   // Create dependencies
@@ -2337,6 +2348,7 @@ export function createApp(options: AppOptions): AppResult {
       }),
       browserSettingsBackupAvailable: !!options.browserSettingsBackupService,
       securityClientAuditAvailable: !!options.securityClientService,
+      nativePush: options.nativePushService?.version(),
       getDeviceBridgeState: () => {
         if (!options.deviceBridgeService) return "unavailable";
         return options.deviceBridgeService.hasBinary()

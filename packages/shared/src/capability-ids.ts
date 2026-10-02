@@ -684,6 +684,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "project-app-deletion",
     introducedIn: "0.9.4",
   },
+  nativePushSubscriptions: {
+    id: 111,
+    direction: "server",
+    name: "native-push-subscriptions-v1",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

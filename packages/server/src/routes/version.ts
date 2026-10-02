@@ -594,6 +594,7 @@ export interface VersionRouteOptions {
   getCurrentVersionInfo?: () => Promise<CurrentVersionInfo>;
   /** Whether the signed security-client audit routes are mounted. */
   securityClientAuditAvailable?: boolean;
+  nativePush?: import("@yep-anywhere/shared").NativePushVersionInfo;
   /** Whether the browser-settings backup storage route is mounted. */
   browserSettingsBackupAvailable?: boolean;
   /** Dynamic device bridge state: available (binary exists), downloadable (ADB found, no binary), unavailable (no ADB). */
@@ -700,6 +701,8 @@ export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   if (options?.securityClientAuditAvailable) {
     capabilities.push(SECURITY_CLIENT_AUDIT_CAPABILITY);
   }
+  if (options?.nativePush)
+    capabilities.push(SERVER_CAPABILITIES.nativePushSubscriptions.name);
   if (options?.voiceInputEnabled !== false) {
     capabilities.push(VOICE_INPUT_CAPABILITY);
   }
@@ -826,6 +829,10 @@ export function createVersionRoutes(options?: VersionRouteOptions): Hono {
         ? { sourceRevision: currentVersionInfo.sourceRevision }
         : {}),
       resumeProtocolVersion: RESUME_PROTOCOL_VERSION,
+      ...(options?.nativePush &&
+      capabilities.includes(SERVER_CAPABILITIES.nativePushSubscriptions.name)
+        ? { nativePush: options.nativePush }
+        : {}),
       remoteCompatibilityLevel: REMOTE_COMPATIBILITY_LEVEL,
       ...(capabilityEncoding
         ? encodeVersionedServerCapabilities(

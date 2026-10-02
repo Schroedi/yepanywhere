@@ -386,8 +386,8 @@ retains a compact pruning event after the record disappears.
 
 ## Native Push Child Contract
 
-The permanent exact capability `native-push-subscriptions-v1`, introduced in
-YA `0.7.1`, owns:
+The permanent exact capability `native-push-subscriptions-v1` (ID 111,
+introduced in YA `0.9.4`) owns:
 
 ```text
 PUT    /api/security/clients/:clientId/native-push-subscription
@@ -446,6 +446,24 @@ event in a 15-minute window sends immediately and later events in that window
 remain in the ledger without a deferred timer. A broker `404` disables the
 invalid subscription; a transient failure waits for a later real event or
 explicit test.
+
+The server enrollment/delivery implementation landed after the original
+contract was reserved. Support is an explicit optional bit, advertised only
+when the native adapter and child routes are mounted. The current optional
+release corpus is v0.9.0, v0.9.1 and v0.9.2; none provides these routes or the
+version descriptor. Absent support sends no enrollment request and preserves
+normal native SRP/WebView use. The existing security-client audit capability
+keeps its original meaning.
+
+Enrollment requires the current connection's registered/check-in native client,
+not merely an authenticated owner or a body-supplied client id. Send capabilities
+remain in owner-only security-client state and never enter public projections.
+Revocation deletes the child before socket/session cascades. Delivery permits
+at most sixteen in-flight submissions, one per client, with a ten-second bound;
+busy/transient failures await a later real event or explicit test. Broker 404
+removes only the unchanged child, so a stale completion cannot disable a newer
+enrollment. Shutdown cancels pending provider calls. Native delivery works without
+VAPID; browser policy and subscription storage remain independent.
 
 ## Compatibility Decision
 
