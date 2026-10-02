@@ -3,6 +3,7 @@ import {
   EMPTY_DRAFT,
   draftHasContent,
   type DraftRead,
+  type DraftSlot,
   type DraftSnapshot,
   type DraftWrite,
   type DraftWriteResult,
@@ -23,13 +24,23 @@ import {
   getSyncedDraftSessionIds,
   setSyncedDraftSessionIds,
 } from "../syncedDraftPresence";
+import {
+  getClientSummarySnapshotForSource,
+  LOCAL_CLIENT_SUMMARY_SOURCE_KEY,
+  resetClientSummaryStoreForTests,
+  retainClientSummaryDraftDecorations,
+} from "../clientSummaryStore";
+import {
+  saveSessionDraft,
+  updateSessionDraftIndex,
+} from "../sessionDraftStorage";
 import type { SourceTransport } from "../transport/types";
 const key = "draft-new-session:local";
 const raw = (text: string) => JSON.stringify({ version: 1, text });
-function server(owner = "") {
+function server(owner = "", slot: DraftSlot = { kind: "new-session" }) {
   let current: DraftRead = {
     snapshot: {
-      slot: { kind: "new-session" },
+      slot,
       revision: null,
       sequence: 0,
       payload: EMPTY_DRAFT,
@@ -133,6 +144,7 @@ const clients: DraftSyncClient[] = [];
 const subscriptions: Array<() => void> = [];
 beforeEach(() => {
   localStorage.clear();
+  resetClientSummaryStoreForTests();
   setDraftAccount("local", "");
   setSyncedDraftSessionIds("local", new Set());
   vi.useFakeTimers();
@@ -142,6 +154,7 @@ afterEach(() => {
   subscriptions.length = 0;
   for (const client of clients) client.stop();
   clients.length = 0;
+  resetClientSummaryStoreForTests();
   document.body.innerHTML = "";
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -1223,4 +1236,96 @@ it("a failed review refresh cannot apply its cached remote version", async () =>
   expect(await c.resolve(e, "remote", revision)).toBe(false);
   expect(e.saved.raw).toBe(raw("desktop edit"));
   expect(e.error).toBe("sync");
+});
+
+describe("synchronized session draft badges", () => {
+  const sessionId = "badge-session";
+  const sessionKey = `draft-message-${sessionId}`;
+  const sourceKey = LOCAL_CLIENT_SUMMARY_SOURCE_KEY;
+  const reference = { sourceKey, sessionId };
+  const hasBadge = () =>
+    getClientSummarySnapshotForSource(
+      sourceKey,
+    ).localDecorations.draftSessionIds.has(sessionId);
+
+  function mountedSession() {
+    const s = server("", { kind: "session", sessionId });
+    s.remote("previous draft");
+    seedAcknowledged(sessionKey, s.get());
+    updateSessionDraftIndex(reference, raw("previous draft"));
+    // The sidebar can subscribe before the coordinator/editor mounts.
+    subscriptions.push(retainClientSummaryDraftDecorations(sourceKey));
+    subscriptions.push(subscribeDraftStorage(sessionKey, () => {}));
+    const c = client(s);
+    c.start();
+    return { s, c };
+  }
+
+  it("removes the badge when a remote clear reaches the local body after its index", async () => {
+    const { s, c } = mountedSession();
+    await c.refresh();
+    expect(hasBadge()).toBe(true);
+    s.remote("");
+    await c.refresh();
+    expect(hasBadge()).toBe(true);
+    await c.sync(c.entries.get(sessionKey)!);
+    expect(draftStorage.getItem(sessionKey)).toBeNull();
+    expect(
+      localStorage.getItem(`draft-presence-message:local:${sessionId}`),
+    ).toBeNull();
+    expect(hasBadge()).toBe(false);
+    await c.refresh();
+    expect(hasBadge()).toBe(false);
+  });
+
+  it("keeps the badge and newer local text when the server clears the previous draft", async () => {
+    const { s, c } = mountedSession();
+    await c.refresh();
+    saveSessionDraft(reference, "next local draft");
+    s.remote("");
+    await c.refresh();
+    await c.sync(c.entries.get(sessionKey)!);
+    expect(draftStorage.getItem(sessionKey)).toBe(raw("next local draft"));
+    expect(hasBadge()).toBe(true);
+  });
+
+  it("keeps a focused draft badge until the deferred clear applies after blur", async () => {
+    const { s, c } = mountedSession();
+    await c.refresh();
+    const input = document.createElement("textarea");
+    input.dataset.draftKey = sessionKey;
+    document.body.append(input);
+    input.focus();
+    s.remote("");
+    await c.refresh();
+    await c.sync(c.entries.get(sessionKey)!);
+    expect(hasBadge()).toBe(true);
+    expect(draftStorage.getItem(sessionKey)).toBe(raw("previous draft"));
+    input.blur();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(draftStorage.getItem(sessionKey)).toBeNull();
+    expect(hasBadge()).toBe(false);
+  });
+
+  it("adopts sibling-tab presence without echoing the draft body or metadata", async () => {
+    const { s, c } = mountedSession();
+    await c.refresh();
+    s.remote("");
+    await c.refresh();
+    const setItem = vi.spyOn(localStorage, "setItem");
+    for (const value of [null, raw("sibling draft"), null]) {
+      if (value === null) localStorage.removeItem(sessionKey);
+      else localStorage.setItem(sessionKey, value);
+      setItem.mockClear();
+      window.dispatchEvent(
+        new StorageEvent("storage", { key: sessionKey, newValue: value }),
+      );
+      expect(hasBadge()).toBe(value !== null);
+      expect(
+        setItem.mock.calls.every(([key]) =>
+          key.startsWith("draft-presence-message:"),
+        ),
+      ).toBe(true);
+    }
+  });
 });

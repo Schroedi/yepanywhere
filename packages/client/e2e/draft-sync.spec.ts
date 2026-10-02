@@ -331,7 +331,9 @@ test("phone send clears an unchanged desktop draft quietly after focus leaves", 
   browser,
 }) => {
   api.store.deleteOwner("");
-  const desktop = await browser.newContext();
+  const desktop = await browser.newContext({
+    viewport: { width: 1000, height: 600 },
+  });
   const phone = await browser.newContext({
     viewport: { width: 375, height: 812 },
     isMobile: true,
@@ -340,26 +342,56 @@ test("phone send clears an unchanged desktop draft quietly after focus leaves", 
   const a = await desktop.newPage(),
     b = await phone.newPage();
   try {
-    await a.goto(`${base}e2e/fixtures/draft-sync.html`);
-    await b.goto(`${base}e2e/fixtures/draft-sync.html`);
+    const sessionId = "draft-history-0";
+    const slot = { kind: "session" as const, sessionId };
+    await a.goto(`${base}e2e/fixtures/draft-sync.html?session=${sessionId}`);
+    await b.goto(`${base}e2e/fixtures/draft-sync.html?session=${sessionId}`);
     const inputA = a.getByRole("textbox", { name: "Prompt" });
     const inputB = b.getByRole("textbox", { name: "Prompt" });
+    await inputA.evaluate((node) => {
+      node.addEventListener("keydown", (event) => {
+        if (!(event instanceof KeyboardEvent) || event.key.length !== 1) return;
+        const start = performance.now();
+        node.addEventListener(
+          "input",
+          () =>
+            requestAnimationFrame(() => {
+              const w = window as typeof window & { latencies?: number[] };
+              w.latencies ??= [];
+              w.latencies.push(performance.now() - start);
+            }),
+          { once: true },
+        );
+      });
+    });
     await inputA.pressSequentially("Send from phone", { delay: 20 });
+    const latencies = await a.evaluate(
+      () =>
+        (window as typeof window & { latencies?: number[] }).latencies ?? [],
+    );
+    expect(latencies).toHaveLength(15);
+    expect(Math.max(...latencies)).toBeLessThan(100);
     await expect(inputB).toHaveValue("Send from phone", { timeout: 10000 });
+    const navigation = a.getByRole("navigation", { name: "Sessions" });
+    await expect(navigation.getByText("Draft", { exact: true })).toBeVisible();
     await b.getByRole("button", { name: "Send", exact: true }).click();
     await expect
-      .poll(
-        () =>
-          api.store.read("", { kind: "new-session" }).snapshot.payload.fields
-            .text,
-      )
+      .poll(() => api.store.read("", slot).snapshot.payload.fields.text)
       .toBeUndefined();
     await a.evaluate(() => window.dispatchEvent(new Event("focus")));
     await expect(a.getByRole("status")).toHaveCount(0);
     await expect(inputA).toHaveValue("Send from phone");
-    await a.getByRole("heading", { name: "New session", exact: true }).click();
+    await expect(navigation.getByText("Draft", { exact: true })).toBeVisible();
+    await a
+      .getByRole("heading", { name: "Session draft", exact: true })
+      .click();
     await expect(inputA).toHaveValue("", { timeout: 10000 });
     await expect(a.getByRole("status")).toHaveCount(0);
+    await expect(navigation.getByText("Draft", { exact: true })).toHaveCount(0);
+    await recordUiCapture(a, "draft-cleared-desktop");
+    await a.setViewportSize({ width: 375, height: 812 });
+    await expect(navigation.getByText("Draft", { exact: true })).toHaveCount(0);
+    await recordUiCapture(a, "draft-cleared-phone");
     await a.reload();
     await expect(inputA).toHaveValue("");
   } finally {

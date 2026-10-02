@@ -1,4 +1,5 @@
 import { publishDraftPresenceChange } from "./draftPresenceEvents";
+import { reconcileSessionDraftPresence } from "./sessionDraftStorage";
 import {
   getSyncedDraftSessionIds,
   setSyncedDraftSessionIds,
@@ -832,6 +833,7 @@ export class DraftSyncClient {
       submitted.revision = result.snapshot.revision;
   }
   private apply(e: Entry, p: DraftPayload): void {
+    const previousRaw = e.saved.raw;
     e.saved.raw = encode(e.address, p, e.saved.raw);
     const key = physical(e.key, e.address);
     try {
@@ -842,7 +844,19 @@ export class DraftSyncClient {
       e.error = "local";
       status();
     }
+    this.reconcilePresence(e, previousRaw);
     notify(e.key);
+  }
+  private reconcilePresence(e: Entry, previousRaw: string | null): void {
+    if (e.address.slot.kind !== "session" || !e.address.slot.sessionId) return;
+    reconcileSessionDraftPresence(
+      {
+        sourceKey: this.source as ClientSummarySourceKey,
+        sessionId: e.address.slot.sessionId,
+      },
+      previousRaw,
+      e.saved.raw,
+    );
   }
   /** Retry storing this tab's current value after a failed browser write. */
   private retryLocal(e: Entry): void {
@@ -1278,16 +1292,19 @@ export class DraftSyncClient {
    * it, never merge it. Merging against this tab's older base and writing the
    * result back re-entered every sibling's handler, appending the whole draft
    * again on each keystroke until storage filled and the browser stalled.
-   * Adoption never writes, so no tab can echo another's change.
+   * Adoption never writes draft bodies or sync metadata, so no tab can echo
+   * another's change. Session presence markers can be repaired separately.
    */
   private storage = (event: StorageEvent) => {
     if (!event.key) return;
     for (const e of this.entries.values()) {
       if (physical(e.key, e.address) === event.key) {
         if (e.saved.raw === event.newValue) return;
+        const previousRaw = e.saved.raw;
         e.saved.raw = event.newValue;
         // The sibling's stored value supersedes a write this tab failed to store.
         if (e.error === "local") e.error = undefined;
+        this.reconcilePresence(e, previousRaw);
         notify(e.key);
         this.schedule(e, 3000);
         status();
@@ -1300,10 +1317,12 @@ export class DraftSyncClient {
         try {
           const saved = JSON.parse(event.newValue) as Saved;
           if (saved.discardId && saved.discardId !== e.saved.discardId) {
+            const previousRaw = e.saved.raw;
             e.saved = saved;
             e.remote = undefined;
             e.needsRecovery = false;
             e.error = undefined;
+            this.reconcilePresence(e, previousRaw);
             notify(e.key);
             this.schedule(e, 0);
             status();

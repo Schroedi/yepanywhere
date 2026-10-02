@@ -37,7 +37,13 @@ wait during connected editing. Reconnect, window focus and foregrounding refresh
 metadata. There is one source/account coordinator, with serialized saves per
 slot, coalesced refreshes and a bounded ten-second change long-poll. Stops abort
 requests and dispose listeners/timers. Session badges use paginated metadata;
-opening a surface fetches its body. Typing does not enumerate all browser keys.
+opening a surface fetches its body. A session badge remains present while either
+its local draft or known server draft has content. Applying a remote change or
+adopting a sibling-tab value updates the local presence marker and same-tab
+sidebar state immediately, including a clear deferred until the editor blurs.
+No reload, extra server change, or polling is required to remove a cleared badge.
+Local body changes that leave combined presence unchanged do not publish another
+presence update. Typing does not enumerate all browser keys.
 
 Closing the last editor releases an inactive draft's in-memory entry once its
 local contents match the acknowledged snapshot and browser storage holds that
@@ -88,8 +94,9 @@ pending version. New local edits always survive a remote clear.
 
 Sibling tabs are not another device. Every tab of an origin shares one browser
 storage, so a sibling's write is the newest local value: a tab adopts it, shares
-the sibling's acknowledged base, and never merges or writes it back. Merging it
-against a tab's older base and storing the result re-entered every sibling's
+the sibling's acknowledged base, and never merges or writes its draft body or
+sync metadata back. Private session presence markers can be repaired separately.
+Merging it against a tab's older base and storing the result re-entered every sibling's
 storage handler, appending the whole draft again on each keystroke until storage
 filled and the browser stalled (observed 2026-09-30). Metadata that an earlier
 build stored as a pending sibling merge is discarded on load.
