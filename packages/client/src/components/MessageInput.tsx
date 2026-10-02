@@ -3588,7 +3588,6 @@ export function MessageInput({
     if (!onAttachAudioMemo || disabled || speechPending || audioMemoOpen)
       return;
     const startMemo = (event: globalThis.KeyboardEvent) => {
-      if (!textareaRef.current?.getClientRects().length) return;
       if (
         !event.ctrlKey ||
         !event.shiftKey ||
@@ -3596,6 +3595,8 @@ export function MessageInput({
         event.repeat
       )
         return;
+      // Ordinary typing must not force layout for an unrelated shortcut.
+      if (!textareaRef.current?.getClientRects().length) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       setAudioMemoOpen(true);

@@ -170,6 +170,11 @@ Consequences:
 
 ## Contracts / invariants
 
+- **Keyboard pagination acceptance** — with observer loading disabled, PageUp
+  and previous-turn Home at the loaded boundary request older history. Browser
+  coverage establishes reader intent with a real upward wheel gesture and waits
+  for `scrollTop === 0` before the key. A bare DOM scroll write can race initial
+  follow restoration and does not establish this setup condition.
 - Scrolled back ⇒ no automatic height change moves the anchored content
   position. Defer such changes until the reader returns to the tail.
 - Every transcript height change, from any trigger, restores the scrolled-back

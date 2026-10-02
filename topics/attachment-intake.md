@@ -118,6 +118,8 @@ recording. The alternate is recording, except when recording is primary, when
 it is files. In an existing session, Ctrl+Shift+Space starts a memo or stops
 and sends the current take.
 Ordinary microphone dictation remains separate.
+The memo shortcut checks its key combination before reading composer visibility;
+ordinary typing must not force layout for that unrelated shortcut.
 
 In New Session, the recording surface says **Tap here to stop & start session**.
 It creates the session, uploads the WAV, then submits the typed draft and

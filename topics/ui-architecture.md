@@ -204,6 +204,9 @@ Every form has an explicit × dismiss control with at least a 36×36 pixel hit
 target. Visible copy stays compact; complete restart-risk and action wording
 remains available through accessible names and hover titles. All
 `ReloadBanner` callers inherit this placement and interaction contract.
+An empty notice stack stays mounted for future notices but does not measure
+geometry or schedule placement for composer mutations. A later visible notice
+still receives the same collision-aware placement.
 Choosing any action consumes the current notice instead of morphing it into a
 status or confirmation panel. The requested reload or safe-restart schedule
 continues; after a reload, later source changes may produce a fresh notice.

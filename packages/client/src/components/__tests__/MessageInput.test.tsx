@@ -2424,6 +2424,44 @@ describe("MessageInput", () => {
     expect(mockVoiceStopAndFinalize).toHaveBeenCalledTimes(1);
   });
 
+  it("does not measure audio memo visibility during ordinary typing", () => {
+    const textarea = renderMessageInput(undefined, {
+      onAttachAudioMemo: vi.fn(),
+    });
+    const geometry = vi
+      .spyOn(textarea, "getClientRects")
+      .mockReturnValue([] as unknown as DOMRectList);
+
+    for (const key of "native typing") {
+      fireEvent.keyDown(textarea, {
+        key,
+        code: key === " " ? "Space" : "KeyN",
+      });
+    }
+    fireEvent.keyDown(textarea, {
+      key: " ",
+      code: "Space",
+      ctrlKey: true,
+      shiftKey: true,
+      repeat: true,
+    });
+    expect(geometry).not.toHaveBeenCalled();
+
+    // The matching shortcut still checks visibility and leaves a hidden
+    // composer alone, rather than opening its microphone panel.
+    const shortcut = new KeyboardEvent("keydown", {
+      key: " ",
+      code: "Space",
+      ctrlKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    fireEvent(textarea, shortcut);
+    expect(geometry).toHaveBeenCalledOnce();
+    expect(shortcut.defaultPrevented).toBe(false);
+  });
+
   it("toggles session voice input on Ctrl+Space from the composer", () => {
     const textarea = renderMessageInput();
 

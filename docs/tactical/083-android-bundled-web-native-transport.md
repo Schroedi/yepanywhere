@@ -396,3 +396,15 @@ stable WebView size before starting the same upload and sequential typing.
 The frame gate remains 100 ms. Further diagnostics include key timestamps and
 long-animation-frame script/layout attribution to distinguish setup from
 application work if hosted acceptance still misses the gate.
+
+[The readiness run 36985655022](https://github.com/kzahel/yepanywhere/actions/runs/36985655022)
+passed direct/security acceptance, but the 100 MiB relay upload missed the first
+key's frame gate at 108.7 ms. Remaining frame samples were at most 65.4 ms;
+key-to-input was at most 32.1 ms. Frame attribution identified React's first
+input dispatch (75 ms, including 13 ms forced layout), an ordinary-key memo
+visibility check that forced 17 ms layout, and reload-stack placement forcing
+35 ms layout. These are separate observed frames, not additive costs for the
+failing key. Ordinary keys now skip the unrelated memo visibility read, and
+empty reload stacks skip geometry/scheduling while retaining placement for
+later notices. Deterministic regressions fail on the previous code. Hosted
+acceptance of this application work reduction remains required.
