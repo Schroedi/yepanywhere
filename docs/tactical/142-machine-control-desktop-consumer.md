@@ -583,5 +583,18 @@ neither layout overflows. Captures are retained under
 `installed-mc-desktop.png` and `installed-mc-phone.png`.
 
 The published six-platform desktop 0.5.3 packages now unblock signed Windows
-and Linux acceptance. Native control on those installed candidates, the Mac
-replacement/restart cell and legacy retirement remain open.
+and Linux acceptance. Native control on those installed candidates and legacy
+retirement remain open; the Mac replacement result below closes that cell.
+
+## Published Mac replacement result
+
+MC's [installed update probe](../../../machine-control/docs/tactical/062-installed-agent-cli.md#published-mac-installed-cli-replacement)
+now passes with an owned signed 0.5.2 sender fixture and untouched public Mac
+ARM64 0.5.3 receiver from `d5aa271ca93d890325a12b0906432b762a4aaec4`.
+YA's actual consumer authenticates the product, composes launch context and
+rejects publisher/script/interpreter negatives both before and after native
+replacement. The new installed CLI reports 0.5.3 under the existing host claim.
+Access is off after automatic relaunch; permission and generation/stale-reference
+checks pass. Original trusted policy, resident readiness, power-off and released
+claims are verified. This closes the Mac signed replacement gate without
+claiming a published 0.5.2 sender or Windows/Linux parity.
