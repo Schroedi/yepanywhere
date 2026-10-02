@@ -25,6 +25,9 @@ for (const viewport of [
   { name: "desktop", width: 1000, height: 600, touch: false },
   { name: "phone", width: 375, height: 812, touch: true },
 ] as const) {
+  // Wide-screen attachments now own the shared panel context action. Exercise
+  // generic desktop quick-hide on Commands, and the attachment menu on touch.
+  const controlKey = viewport.touch ? "attachments" : "slashMenu";
   test(`hides a toolbar control from its ${viewport.name} hint`, async ({
     page,
     baseURL,
@@ -44,7 +47,7 @@ for (const viewport of [
             ...body.clientDefaults,
             sessionToolbarPresence: {
               ...body.clientDefaults?.sessionToolbarPresence,
-              attachments: presence,
+              [controlKey]: presence,
             },
           },
         },
@@ -53,7 +56,7 @@ for (const viewport of [
     await page.route("**/api/settings", async (route) => {
       if (route.request().method() !== "PUT") return route.fallback();
       const payload = route.request().postDataJSON();
-      expect(payload.clientDefaults.sessionToolbarPresence.attachments).toBe(
+      expect(payload.clientDefaults.sessionToolbarPresence[controlKey]).toBe(
         "hidden",
       );
       presence = "hidden";
@@ -64,14 +67,10 @@ for (const viewport of [
     await dismissOnboardingIfVisible(page);
 
     const control = page
-      .locator('[data-session-toolbar-control="attachments"]')
+      .locator(`[data-session-toolbar-control="${controlKey}"]`)
       .filter({ visible: true })
       .first();
     await expect(control).toBeVisible({ timeout: 10_000 });
-    const controlKey = await control.getAttribute(
-      "data-session-toolbar-control",
-    );
-    if (!controlKey) throw new Error("Toolbar control marker has no key");
     if (viewport.touch) {
       const box = await control.boundingBox();
       if (!box) throw new Error("Attachment control has no visible bounds");
@@ -92,15 +91,21 @@ for (const viewport of [
       await control.click({ button: "right" });
     }
 
-    const quickHide = page.getByRole("menu", { name: "Share to session" });
-    const hide = quickHide.getByRole("menuitem", {
+    const quickHide = viewport.touch
+      ? page.getByRole("menu", { name: "Share to session" })
+      : page.getByRole("dialog", { name: "Toolbar control actions" });
+    const hide = quickHide.getByRole(viewport.touch ? "menuitem" : "button", {
       name: "Hide",
       exact: true,
     });
     await expect(quickHide).toBeVisible();
-    await expect(
-      quickHide.getByRole("menuitem", { name: "Attach files", exact: true }),
-    ).toBeVisible();
+    if (viewport.touch) {
+      await expect(
+        quickHide.getByRole("menuitem", { name: "Attach files", exact: true }),
+      ).toBeVisible();
+    } else {
+      await expect(quickHide).toContainText("Commands and skills");
+    }
     await expect(hide).toBeVisible();
     await expect(quickHide).toBeInViewport();
     await expect(
