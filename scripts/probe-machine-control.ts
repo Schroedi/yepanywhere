@@ -3,7 +3,7 @@ import { strict as assert } from "node:assert";
 import { parseArgs } from "node:util";
 import { tmpdir } from "node:os";
 import { mkdtemp, cp, readFile, writeFile, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   execute,
   verifyInstalledMachineControl,
@@ -72,22 +72,44 @@ try {
       ? join(candidate, "Contents", "Resources", "mc-cli")
       : join(candidate, "mc-cli");
   const script = join(root, "client", "machine_control.py");
-  const original = await readFile(script);
-  await writeFile(
-    script,
-    Buffer.concat([original, Buffer.from("\n# integrity-negative\n")]),
+  const source = resolve(values.app);
+  const relativeRoot =
+    process.platform === "darwin" ? "Contents/Resources/mc-cli" : "mc-cli";
+  const sourceScript = join(source, relativeRoot, "client/machine_control.py");
+  const python = join(
+    relativeRoot,
+    "python",
+    ...(process.platform === "win32" ? ["python.exe"] : ["bin", "python3"]),
   );
+  const info = join(source, "Contents/Info.plist");
+  async function negativeFixture(modifyScript: boolean) {
+    await rm(candidate, { recursive: true, force: true });
+    // Construct invalid bytes before the Mac bundle has its Info.plist.
+    // App Management can refuse writes inside an already recognized notarized
+    // app, including a disposable copy. Do not change the OS permission.
+    await cp(source, candidate, {
+      recursive: true,
+      filter: (path) =>
+        path !== (modifyScript ? sourceScript : join(source, python)) &&
+        (process.platform !== "darwin" || path !== info),
+    });
+    if (modifyScript) {
+      await writeFile(
+        script,
+        Buffer.concat([
+          await readFile(sourceScript),
+          Buffer.from("\n# integrity-negative\n"),
+        ]),
+      );
+    }
+    if (process.platform === "darwin")
+      await cp(info, join(candidate, "Contents/Info.plist"));
+  }
+  await negativeFixture(true);
   await assert.rejects(
     verifyInstalledMachineControl(candidate, values.publisher),
   );
-  await writeFile(script, original);
-  await rm(
-    join(
-      root,
-      "python",
-      ...(process.platform === "win32" ? ["python.exe"] : ["bin", "python3"]),
-    ),
-  );
+  await negativeFixture(false);
   await assert.rejects(
     verifyInstalledMachineControl(candidate, values.publisher),
   );

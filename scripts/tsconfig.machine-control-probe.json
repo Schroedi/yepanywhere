@@ -5,6 +5,7 @@
     "typeRoots": ["../packages/server/node_modules/@types"]
   },
   "include": [
+    "probe-machine-control.ts",
     "probe-machine-control-model.ts",
     "probe-machine-control-native.ts",
     "probe-machine-control-browser.ts",

@@ -68,6 +68,17 @@ APP --publisher TRUSTED_PUBLISHER` to verify installation authenticity, identity
 owned instructions and launch-context composition. Omit `--publisher` on Linux.
 The probe launches no model and performs no desktop mutation.
 
+The exact notarized Mac ARM64 0.5.3 candidate from source `698550b` also passes
+this probe: real publisher/closure/identity verification, instructions, launch
+context, relocated-copy verification and wrong-publisher, changed-script and
+missing-interpreter refusal. MC separately verifies updater signature/version,
+source, Gatekeeper, stapling, relocation and absent-resident behavior. The Mac
+jobs passed within a failed six-platform workflow; this is candidate evidence,
+not a published release or Windows/Linux acceptance. Integrity fixtures are
+constructed before the copied Mac bundle receives its Info.plist, because
+App Management can refuse modification of an already recognized notarized app.
+The probe does not change that OS permission or bypass production verification.
+
 ## Managed release installation and updates
 
 Enable Computer Control downloads the latest compatible stable Windows release

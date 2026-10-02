@@ -520,3 +520,28 @@ The corrected fresh run passes, as do syntax checks and MC's 61 release tests.
 Signed app replacement, Windows/Linux acceptance, public session-picker approval
 and deliberate legacy retirement remain open. YA product code, UI and public
 contracts are unchanged by this acceptance record.
+
+## Exact notarized Mac candidate discovery result
+
+Both Mac signing jobs passed in workflow 37054647423 despite Windows/Linux
+failures. The ARM64 0.5.3 candidate has signed source identity `698550b`. MC's
+package verifier accepts its exact updater signature/version, source, complete
+CLI closure, native publisher signatures, Gatekeeper and stapling, and refuses
+modified archive bytes. Physically relocated offline execution and the
+unavailable-resident negative also pass.
+
+YA's installed probe accepts the same candidate's publisher, identity,
+instructions, launch context and relocated copy, and refuses wrong publisher,
+modified script and missing interpreter. The first full probe stopped on macOS
+App Management refusing a write inside a copied notarized app. Its temporary
+state was removed; this failed attempt does not count as negative acceptance.
+The corrected probe constructs invalid fixture bytes before copying Info.plist
+and passes the unchanged production verifier. No OS permission is changed.
+
+The installed probe now belongs to the strict manual-probe type configuration.
+Strict types, bundle syntax, full lint/format/typecheck and all unit tests pass
+(server 6,314 plus 67 skips, client 6,634, shared 940, push broker 45, relay 130).
+Existing deliberate failure-path warnings remain in their recorded gap. This
+qualifies discovery for the exact notarized candidate; real control and lifecycle
+evidence above used the earlier locally signed assembly. Published release,
+signed replacement and the other platform/cutover gates remain distinct.
