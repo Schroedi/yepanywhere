@@ -4,5 +4,8 @@
     "types": ["node"],
     "typeRoots": ["../packages/server/node_modules/@types"]
   },
-  "include": ["probe-machine-control-model.ts"]
+  "include": [
+    "probe-machine-control-model.ts",
+    "probe-machine-control-native.ts"
+  ]
 }

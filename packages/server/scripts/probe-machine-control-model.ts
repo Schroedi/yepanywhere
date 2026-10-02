@@ -36,6 +36,7 @@ const { values } = parseArgs({
     publisher: { type: "string" },
     capture: { type: "string" },
     model: { type: "string" },
+    "expected-button": { type: "string", default: "Change site icon" },
     browser: { type: "boolean", default: false },
   },
 });
@@ -46,6 +47,11 @@ assert(
 assert(
   (await stat(values.capture)).size <= 8 * 1024 * 1024,
   "Bounded fixture capture required",
+);
+const expectedButton = values["expected-button"];
+assert(
+  expectedButton && expectedButton.length <= 80,
+  "Bounded expected fixture label required",
 );
 const captureSize = (await stat(values.capture)).size;
 const temporary = await mkdtemp(join(tmpdir(), "ya-mc-provider-smoke-"));
@@ -193,7 +199,7 @@ try {
   void completed.catch(() => {});
   await browser?.open(encodeProjectId(cwd), session.sessionId);
   session.queueMessage({
-    text: "This is a bounded installation/capture acceptance test. Use only the advertised installed Machine Control command to run `agent instructions` and `agent identity` (offline queries). Make no target operations or access requests, run no other commands, edit no files and spawn no agents. Inspect the attached browser fixture PNG using your image viewer; that read-only tool is allowed. Reply with MC_PROTOCOL=<observed client protocol>, CLI_WORKFLOW=read and CAPTURE_BUTTON=<the visible page button text>.",
+    text: "This is a bounded installation/capture acceptance test. Use only the advertised installed Machine Control command to run `agent instructions` and `agent identity` (offline queries). Make no target operations or access requests, run no other commands, edit no files and spawn no agents. Inspect the attached fixture PNG using your image viewer; that read-only tool is allowed. Reply with MC_PROTOCOL=<observed client protocol>, CLI_WORKFLOW=read and CAPTURE_BUTTON=<the text on the topmost fixture button>.",
     attachments: [
       {
         id: "mc-cli-fixture",
@@ -237,7 +243,7 @@ try {
   assert(
     text.includes("MC_PROTOCOL=1") &&
       text.includes("CLI_WORKFLOW=read") &&
-      text.includes("CAPTURE_BUTTON=Change site icon"),
+      text.includes(`CAPTURE_BUTTON=${expectedButton}`),
     `Provider must read the CLI identity and observe the fixture image. Observed response: ${text}`,
   );
   const liveMedia = messages.flatMap(

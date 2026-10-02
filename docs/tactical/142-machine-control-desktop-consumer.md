@@ -344,7 +344,7 @@ the provider wrapper. The real model probe now uses the actual supervisor and
 verifies exact PNG bytes through live Process media and the reloaded native
 Codex transcript's reader/normalizer/materializer. Preservation remains off;
 the subsequent full-app probe proves browser views as described below, while
-provider-driven control remains open.
+provider-driven browser control remains open.
 The real probe passes with an isolated owner-only Codex profile that retains
 the operator's auth/configuration and removes all test provider state in
 cleanup. Its transcript scan has no dependency on unrelated personal history.
@@ -372,6 +372,43 @@ The command and strict script type check are owned by
 [the current topic](../../topics/optional-computer-control.md#installed-launch-and-media-boundary-acceptance).
 
 This closes the live/reloaded media-view gate for the installed command's
-real-provider fixture-consumption route. Provider-driven desktop/browser
+real-provider fixture-consumption route. Provider-driven browser
 operations, exact signed Windows/Linux installed control, grant and lifecycle
 acceptance, public session-picker approval and legacy retirement remain open.
+
+## Target-local native provider result
+
+The Mac native provider probe now passes without either source checkout in the
+appliance. A complete Codex runtime and bundled YA probe launch an opted-in
+production Codex provider against the locally assembled signed MC app. Actual
+tool calls read owned instructions/identity, enumerate and snapshot the AppKit
+fixture, press its semantic Increment reference once, capture only its window,
+fetch the unchanged artifact path and invoke the built-in agent image tool.
+Independent fixture state increases by exactly one; the reported CLI protocol
+and visible capture count agree with the actual results.
+
+Early failed attempts remain failed: incomplete Codex staging omitted its
+command host, one bounded run ended before the final response, and ambiguous
+prompts permitted the resident protocol or an OS viewer instead of the
+required client protocol and agent image tool. The final probe checks the
+distinct requirements explicitly and deduplicates streamed tool events before
+counting mutations. MC's owned instructions now explain supplied claims,
+semantic press syntax and unchanged artifact paths.
+
+The dedicated appliance's standing policy is verified; it does not replace the
+earlier workstation approval evidence. Matching capture bytes are removed from
+the native cache, owned fixture/resident processes and staged auth/profile are
+cleaned, claims are released and initial power-off is restored. The newly
+generated native PNG also passes the separate full-app live/reloaded HTTP and
+desktop/phone media-view probe, with all four captures reviewed. This closes
+the Mac local Codex native desktop/capture cell. Browser model control,
+signed Windows/Linux cells, lifecycle/revocation parity, public picker approval
+and legacy retirement remain open.
+
+Validation: full lint, format, typecheck and the strict probe type check pass;
+the final full suite passes (server 6,312 plus 67 skips, client 6,634, shared 940,
+push broker 45 and relay 130). A restrictive-umask run failed two existing
+mode assertions; a later loaded run timed out one Supervisor fake-timer case
+and caused a following timer error. The affected three files pass 161 tests
+in isolation, and the final normal-umask suite passes after appliance cleanup.
+The existing failure-path warning debt remains separately documented.

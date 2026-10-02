@@ -42,11 +42,13 @@ by YA, and no MC access grant is issued. Native sudo remains independently
 selected. A launch selecting both this route and a legacy grant is refused.
 
 [Tactical 142](../docs/tactical/142-machine-control-desktop-consumer.md) owns
-acceptance and Windows retirement. A signed Mac assembly passes discovery and claimed-appliance CLI desktop/browser
-effects. A real YA local Codex turn reads installed instructions/identity and
-uses its native image viewer on the resulting browser fixture capture. Full
-provider-driven control, live/reloaded YA image views, Windows/Linux installed
-acceptance and lifecycle/revocation parity remain gates. The component lifecycle and deferred
+acceptance and Windows retirement. A signed Mac assembly passes discovery and
+claimed-appliance CLI desktop/browser effects. A source-independent YA Codex
+provider inside the Mac appliance also performs one native semantic increment
+and consumes its new exact-window capture with its built-in image tool. Full
+YA live/reloaded desktop and phone views serve identical native capture bytes.
+Provider-driven browser control, Windows/Linux installed acceptance and
+lifecycle/revocation parity remain gates. The component lifecycle and deferred
 tool below remain current until accepted cutover. There is no new public
 session field or setting yet. Session advertisement is not a same-user shell
 containment boundary, and does not revoke independently granted MC access.
@@ -419,8 +421,10 @@ picker is implied by this internal option.
 
 The real-provider probe launches through the full YA app and its supervisor
 with MC's verified installed command selected. It restricts the model to
-offline instructions/identity queries and a supplied native browser fixture
-capture. Live Process output exposes a media handle whose HTTP route serves
+offline instructions/identity queries and a supplied nonpersonal fixture
+capture. `--expected-button` supplies the independently known topmost fixture
+button label; the model prompt does not reveal that answer. Live Process output
+exposes a media handle whose HTTP route serves
 byte-for-byte identical PNG data with `private, no-store`. After stopping the
 provider, it disposes the app and constructs a fresh app/media store. The
 production session-detail route reads the native transcript and reconstructs
@@ -433,8 +437,9 @@ and reopens the session in a fresh document from the persisted transcript.
 Desktop and phone image viewers load the capture through the actual media
 route, and downloaded bytes must match the native fixture. Captures are
 presented through the repository artifact facility; browser exceptions fail
-acceptance. This proves live/reloaded media views, while provider-driven control
-and the Windows cutover remain separate acceptance gates.
+acceptance. Both the browser fixture and the provider-generated AppKit capture
+pass this media/view route. Provider-driven browser control and the Windows
+cutover remain separate acceptance gates.
 
 Run `pnpm exec tsx --conditions source scripts/probe-machine-control-model.ts
 --app APP --publisher TRUSTED_PUBLISHER --capture FIXTURE_PNG --browser` for
@@ -450,3 +455,32 @@ lookup. Credential files remain owner-only and are never reported. It performs
 no target operation/access request, stops the owned provider, closes app/browser,
 sockets, listeners and readers, and removes its temporary fixture, data and
 provider profile. Captures remain in ignored artifact storage for review.
+
+The separate `scripts/probe-machine-control-native.ts` exercises the production
+Codex provider inside a dedicated Mac appliance. It requires a private owned
+`MC_PROBE_ROOT`, a live `MC_PROBE_FIXTURE_STATE` AppKit oracle and an already
+acquired `MACHINE_CONTROL_CLAIM_ID`. The root contains `codex-runtime/bin/codex`
+with its complete vendor distribution and an isolated `codex-profile`; staging
+only the main executable omits its command host. Normal `YEP_MC_APP` and trusted
+publisher verification apply. Select the candidate socket and matching claim
+store explicitly when using a separately staged resident.
+
+The model may query instructions/identity, enumerate/snapshot the fixture,
+press Increment once, capture that window, fetch its unchanged artifact path
+and invoke the native image viewer. Independent state must change by exactly
+one and the model must report the new visible count and CLI protocol number.
+The probe deduplicates streamed tool events before counting mutations and has
+a five-minute deadline. It aborts its session and writes private diagnostic
+messages in the owned root. The caller owns resident/fixture cleanup, exact
+artifact removal, claim release, temporary auth/profile removal and restoration
+of initial VM power. This probe does not authorize workstation access or serve
+as signed Windows/Linux or browser-control evidence.
+
+**Current:** This native probe passes with a locally assembled Developer ID app,
+bundled Python CLI and a complete Codex 0.159 runtime, staged without MC or YA
+checkouts. The dedicated appliance's standing policy is verified explicitly;
+it is separate from the earlier workstation approval/revocation evidence. The
+caller removes the matching resident artifact and temporary app/runtime,
+profile and diagnostics, releases host/controller claims, and confirms that
+the originally stopped VM is stopped again. No release or notarization is
+implied by this local signed assembly.
