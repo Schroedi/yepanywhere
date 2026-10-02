@@ -353,3 +353,22 @@ their temporary reply state.
 
 These are release/further-platform gates; the Android foreground migration is
 complete and does not depend on reviving the duplicate native UI.
+
+## October 2 input acceptance diagnosis
+
+[Android CI 36974124012](https://github.com/kzahel/yepanywhere/actions/runs/36974124012)
+passed its build and standard instrumentation, then reported 122.1 ms on the
+live direct-upload typing probe against the unchanged 100 ms ceiling. The
+physical rerun first exposed a fixture mismatch: a personal keyboard setting
+capitalized the first hardware character while the fixture expected lowercase.
+The probe now disables autocapitalization on its own textarea before focusing;
+production composer preferences are unchanged. It retains real sequential key
+events, exact final text, one acknowledgement per character and the 100 ms
+maximum. Latency failures include all samples, upload size and WebView long
+tasks instead of only the maximum, so a further hosted miss is diagnosable.
+
+The fixed fixture passed the physical direct/security and relay-mux acceptance
+runs on October 2. Maximum acknowledgement was 22.4 ms for the 1 MiB direct
+upload and 23.9 ms for the 100 MiB relay upload, with zero queue overflows.
+These are physical observations; they do not establish why the hosted emulator
+missed the gate. Latest-source hosted acceptance remains required.

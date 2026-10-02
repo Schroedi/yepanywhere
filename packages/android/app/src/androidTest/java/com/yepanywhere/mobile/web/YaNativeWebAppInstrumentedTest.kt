@@ -84,7 +84,17 @@ class YaNativeWebAppInstrumentedTest {
             scenario.onActivity { activity -> activity.findViewById<WebView>(R.id.web_client).requestFocus() }
             evaluate(scenario, """
                 window.nativeTypingLatencies = [];
-                const composer = document.querySelector('textarea[data-composer-input]'); composer.focus();
+                window.nativeTypingLongTasks = [];
+                if (PerformanceObserver.supportedEntryTypes.includes('longtask')) {
+                  window.nativeTypingObserver = new PerformanceObserver(list => {
+                    window.nativeTypingLongTasks.push(...list.getEntries().map(entry => ({start:entry.startTime, duration:entry.duration})));
+                  });
+                  window.nativeTypingObserver.observe({entryTypes:['longtask']});
+                }
+                const composer = document.querySelector('textarea[data-composer-input]');
+                // Deliver the fixture's exact hardware characters independently of
+                // a physical phone's personal keyboard capitalization preference.
+                composer.blur(); composer.setAttribute('autocapitalize', 'off'); composer.focus();
                 window.nativeTypingBaseline = composer.value;
                 composer.addEventListener('keydown', () => {
                   const started = performance.now();
@@ -97,7 +107,8 @@ class YaNativeWebAppInstrumentedTest {
             await(scenario, "document.querySelector('textarea[data-composer-input]').value === window.nativeTypingBaseline + '$text'")
             await(scenario, "window.nativeTypingLatencies.length === ${text.length}")
             val latency = evaluate(scenario, "Math.max(...window.nativeTypingLatencies)").toDouble()
-            assertTrue("Input acknowledgement exceeded 100 ms: $latency", latency <= 100)
+            val timing = evaluate(scenario, "window.nativeTypingObserver?.disconnect(); JSON.stringify({samples:window.nativeTypingLatencies,longTasks:window.nativeTypingLongTasks})")
+            assertTrue("Input acknowledgement exceeded 100 ms: $latency; uploadBytes=$uploadBytes; timing=$timing", latency <= 100)
             assertEquals(200, runBlocking { sibling.request("GET", "/version").status })
             // API 35 emulator: whole 100 MiB proof 27 s; Pixel: 16 s.
             // 120 s allows ~4x the slowest run, including a 30 s failed focus
