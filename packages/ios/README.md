@@ -103,11 +103,18 @@ Developer account; the build runner's unsigned device check does not prove them.
 The native adapter owns OS permission, APNs-to-FCM registration, serialized
 FCM-token rotation, bounded HTTPS broker calls and protected management secrets.
 Notification payloads can select only a protected opaque subscription binding;
-they cannot select a URL or credentials. Per-server native push enrollment is
-still pending in the shared YA/Android plan, so installation registration alone
-never reports notificationsEnabled. Live APNs/FCM delivery, physical phone/tablet
-acceptance, App Store/TestFlight provisioning and publication remain release
-gates. Limited-user login remains deferred; Android now consumes the same core.
+they cannot select a URL or credentials. Native saved-host controls enable,
+disable and test one host through the optional native-push-subscriptions-v1
+contract. Keychain bindings fence both subscription and current security-client
+identity. Session taps resume/check continuity and fetch a safe destination from
+YA; project paths never reach Firebase. Partial enrollment is compensated and
+failed cleanup remains disabled. QA host catalogs use separate push storage so
+acceptance cleanup cannot retire ordinary bindings. Visible lifecycle cleanup attempts at most four
+retired bindings without a retry timer. The coarse notificationsEnabled status
+requires permission and at least one confirmed, known-host enrollment.
+Live APNs/FCM delivery still needs private Firebase app registration, an uploaded
+APNs key, and a signed push-enabled device build. App Store/TestFlight provisioning
+and publication remain release gates. Limited-user login remains deferred.
 
 CI pins macOS 15 Apple Silicon / Xcode 26.3 with its installed iOS 18.6 runtime. The
 standard 3-core / 7 GiB macOS 26 host remained saturated throughout the
@@ -184,6 +191,13 @@ This establishes hosted acceptance independently of physical iPhone availability
 physical-device acceptance and distribution signing remain release gates.
 
 ## Physical-device acceptance
+
+The native push implementation passes all 21 simulator native tests and both
+UI tests. Its signed physical regression build passes 20 selected native tests
+(excluding the simulator TLS fixture) and both UI tests: 37 sequential keys,
+zero drops, 41 ms peak and 425 concurrent transcript mutations. This build has
+no private Firebase iOS configuration, so it does not establish APNs delivery.
+
 
 On 2026-10-02, a development-signed build installed on an iPhone SE
 (3rd generation), iOS 26.6.1, through Machine Control's configured physical

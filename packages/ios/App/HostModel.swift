@@ -20,17 +20,34 @@ final class HostModel: ObservableObject {
   private var work: Task<Void, Never>?
   private var generation = UUID()
   private var suspendedProfile: HostProfile?
-  let notifications = NativeNotifications()
+  let notifications: NativeNotifications
   init(store: HostStore = HostStore()) {
     self.store = store; security = SecurityClientCoordinator(store: store)
+    // Acceptance catalogs must never retire the user's push bindings.
+    let pushService =
+      store.service == "com.yepanywhere.ios.hosts.v1"
+      ? "com.yepanywhere.ios.push.v1" : store.service + ".push.v1"
+    notifications = NativeNotifications(store: HostStore(service: pushService))
     do { catalog = try store.catalog(); catalogAvailable = true } catch {
       self.error = "Saved hosts are unavailable. Unlock the device and try again."
     }
-    notifications.openHost = { [weak self] id in
+    notifications.knownHost = { [weak self] id in
+      guard let self,
+        let profile = self.catalog.profiles.first(where: { $0.id == id && $0.forgetting != true })
+      else { return false }
+      do { try self.security.requireUnrevoked(profile); return true } catch { return false }
+    }
+    notifications.currentClientID = { [weak self] id in
+      guard let self,
+        let profile = self.catalog.profiles.first(where: { $0.id == id && $0.forgetting != true })
+      else { return nil }
+      return try? self.security.pushClientID(profile)
+    }
+    notifications.openHost = { [weak self] id, sessionID in
       guard let self, let profile = self.catalog.profiles.first(where: { $0.id == id }) else {
         return
       }
-      self.open(profile)
+      self.open(profile, pushSessionID: sessionID)
     }
   }
   func switchHost() {
@@ -85,7 +102,7 @@ final class HostModel: ObservableObject {
       }
     }
   }
-  func open(_ profile: HostProfile) {
+  func open(_ profile: HostProfile, pushSessionID: String? = nil) {
     guard catalogAvailable else { return }
     if profile.forgetting == true { forget(profile); return }
     switchHost(); error = nil; busy = true
@@ -103,6 +120,13 @@ final class HostModel: ObservableObject {
         guard generation == token, !Task.isCancelled else { session.close(); return }
         do {
           try await security.ensure(profile, session: session)
+          guard generation == token, !Task.isCancelled else { session.close(); return }
+          if let pushSessionID,
+            let route = try await notifications.destination(
+              profile.id, sessionID: pushSessionID, session: session, security: security)
+          {
+            try store.write("route." + profile.id, Data(route.utf8))
+          }
           guard generation == token, !Task.isCancelled else { session.close(); return }
           try show(profile, session: session)
         } catch { session.close(); throw error }
@@ -177,6 +201,7 @@ final class HostModel: ObservableObject {
         // cleanup succeeds; it also prevents resuming a partially removed host.
         connections.retireProfile(profileId: profile.id)
         catalog = try store.markForRemoval(profile.id)
+        try? await notifications.forget(profile.id)
         try store.delete("route." + profile.id)
         if let id = UUID(uuidString: profile.id) {
           try await withCheckedThrowingContinuation { (done: CheckedContinuation<Void, Error>) in
@@ -196,6 +221,51 @@ final class HostModel: ObservableObject {
         }
       }
       if generation == token { busy = false; work = nil }
+    }
+  }
+  enum PushAction { case enable, disable, test }
+  func pushEnabled(_ profile: HostProfile) -> Bool { notifications.enabled(profile.id) }
+  func push(_ profile: HostProfile, action: PushAction) {
+    guard catalogAvailable, !busy else { return }
+    error = nil; busy = true
+    let token = generation
+    work = Task {
+      do {
+        try security.requireUnrevoked(profile)
+        if action == .disable {
+          // Broker revocation also works when the YA host cannot be reached.
+          try notifications.retire(profile.id)
+          try await notifications.forget(profile.id)
+          if generation == token { busy = false; work = nil; objectWillChange.send() }
+          return
+        }
+        guard let credential = try store.credential(profile.id) else {
+          reauthenticate = profile; throw BridgeFailure.closed
+        }
+        let session = try await connections.acquire(
+          profileId: profile.id, routes: [profile.nativeRoute], username: profile.username,
+          credential: credential, storage: SavedCredential(store: store, profile: profile))
+        defer { session.close() }
+        try await security.ensure(profile, session: session)
+        guard generation == token, !Task.isCancelled else { return }
+        switch action {
+        case .enable:
+          try await notifications.enable(
+            profile, clientID: security.pushClientID(profile), session: session, security: security)
+        case .disable:
+          try await notifications.disable(profile, session: session, security: security)
+        case .test: try await notifications.test(profile, session: session, security: security)
+        }
+      } catch {
+        guard generation == token else { return }
+        if case NativePushFailure.updateRequired = error {
+          self.error = "Update this YA server to enable native notifications."
+        } else {
+          self.error =
+            "Could not update notifications. Check notification permission and your connection, then retry."
+        }
+      }
+      if generation == token { busy = false; work = nil; objectWillChange.send() }
     }
   }
   func background() {

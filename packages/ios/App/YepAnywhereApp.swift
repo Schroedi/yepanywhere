@@ -68,6 +68,16 @@ private struct HostScreen: View {
                   }.frame(minHeight: 44)
                 }.disabled(hosts.busy || !hosts.catalogAvailable)
                   .swipeActions { Button("Forget", role: .destructive) { hosts.forget(profile) } }
+                HStack {
+                  Button(
+                    hosts.pushEnabled(profile) ? "Disable notifications" : "Enable notifications"
+                  ) {
+                    hosts.push(profile, action: hosts.pushEnabled(profile) ? .disable : .enable)
+                  }.accessibilityIdentifier("host-push-" + profile.id)
+                  if hosts.pushEnabled(profile) {
+                    Button("Send test") { hosts.push(profile, action: .test) }
+                  }
+                }.disabled(hosts.busy || profile.forgetting == true)
               }
             }
             Button("Add host") { hosts.adding = true }.accessibilityIdentifier("host-add")

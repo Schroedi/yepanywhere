@@ -227,6 +227,11 @@ tab, a background tab, a focused unrelated session, and the notified session
 already visible. Safari and Firefox are useful follow-up spot checks. Mobile
 sleep/delivery delay is a separate longer-running measurement.
 
-Server-specific native FCM enrollment and presentation remain the next
-independent slices. Installation-level broker registration is native-owned and
-already independent of the WebView.
+Per-host native enrollment and presentation now use protected security-client
+children and the deployed broker. Physical Android acceptance proves real FCM
+events, authenticated session taps, two-host isolation and presentation after
+the app process was absent. iOS implementation and simulator/phone regression
+suites pass; private Firebase/APNs configuration and live Apple delivery remain
+the next gate in the [native push plan](../docs/tactical/141-native-push-delivery.md).
+Permission, installation registration and per-host enablement are native-owned
+and independent of the WebView.

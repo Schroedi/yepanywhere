@@ -88,6 +88,23 @@ final class StorageTests: XCTestCase {
     let profile = UUID().uuidString; let subscription = String(repeating: "a", count: 22)
     try store.write("routes", JSONEncoder().encode([subscription: profile]))
     let notifications = NativeNotifications(store: store)
+    XCTAssertNil(
+      notifications.hostForPush(["intent": "approval_required", "subscriptionId": subscription]),
+      "Legacy unbound records cannot route a push")
+    let client = UUID().uuidString
+    let installation = BrokerInstallation(
+      installationId: String(repeating: "i", count: 22),
+      installationSecret: String(repeating: "s", count: 43), token: "fixture")
+    try store.write("installation", JSONEncoder().encode(installation))
+    let route = NativePushRoute(
+      profileID: profile, clientID: client, installationID: installation.installationId,
+      subscriptionID: subscription, enabled: true)
+    let row = try JSONSerialization.jsonObject(with: JSONEncoder().encode(route))
+    try store.write(
+      "routes.v1",
+      JSONSerialization.data(withJSONObject: ["brokerUrl": installation.brokerUrl, "rows": [row]]))
+    notifications.knownHost = { $0 == profile }
+    notifications.currentClientID = { $0 == profile ? client : nil }
     XCTAssertEqual(
       notifications.hostForPush([
         "intent": "approval_required", "subscriptionId": subscription,

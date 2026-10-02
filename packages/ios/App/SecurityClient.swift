@@ -141,7 +141,7 @@ final class SecurityClientCoordinator {
     }
     throw NativeSecurityFailure.invalidProof
   }
-  private func request(
+  func request(
     _ session: any NativeAuthenticatedSession, _ method: String, _ path: String,
     _ body: [String: Any]? = nil
   ) async throws -> (status: Int, body: [String: Any]) {
@@ -193,6 +193,11 @@ final class SecurityClientCoordinator {
   func forget(_ profile: HostProfile) throws {
     verified.removeValue(forKey: profile.id)
     try store.delete(account(profile)); try ContinuityKey.delete(profileID: profile.id)
+  }
+  func pushClientID(_ profile: HostProfile) throws -> String {
+    try requireUnrevoked(profile)
+    guard let id = try binding(profile).clientID else { throw BridgeFailure.invalidCommand }
+    return id
   }
 }
 

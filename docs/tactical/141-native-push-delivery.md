@@ -1,8 +1,9 @@
 # Native per-host push delivery
 
 Status: server/broker deployed; Android physical acceptance passes. iOS code and
-deterministic tests are implemented; Apple live delivery awaits private setup. Maintainer direction, 2026-10-02: finish native push
-using the existing broker, commit verified slices, and prove real device delivery.
+simulator/physical regression acceptance pass; Apple live delivery awaits setup. Maintainer
+direction, 2026-10-02: finish native push using the existing broker, commit
+verified slices, and prove real device delivery.
 
 This continues [security-client registration](082-security-client-registration-and-native-push.md)
 and follows [notifications](../../topics/notifications.md),
@@ -46,9 +47,17 @@ remain independent of the WebView.
 
 Implemented with six deterministic push tests: management/subscription bounds,
 origin rejection, transfer without local send-secret retention, source rejection
-compensation, older-server fallback and two-host routing isolation. Full native
-and UI regression acceptance is running. The existing Firebase project has no
-iOS app registration; APNs setup and real device delivery are not yet proven.
+compensation, older-server fallback and two-host routing isolation. All 21 native
+tests and both UI tests pass on the simulator; the unsigned Release device
+build passes. A signed physical build passes all 20 hardware-selected native
+tests (the simulator TLS fixture is excluded) and both UI tests: 37 sequential
+keys, zero drops, 41 ms peak and 425 concurrent transcript mutations. The first
+hardware UI attempt stopped before typing when the composer tap did not show
+the keyboard; a fresh fixture rerun passed without relaxing any check.
+Acceptance host catalogs also
+use separate push storage so QA lifecycle cleanup cannot retire ordinary
+bindings. The existing Firebase project has no iOS app registration; APNs
+setup and real Apple delivery are not yet proven.
 
 Use the same optional server contract and broker capabilities with Keychain
 bindings. Configure the Firebase iOS app and Apple push provisioning privately.
@@ -65,3 +74,7 @@ capabilities. Run focused ownership/failure tests, required root checks, Android
 release/lint/instrumentation and iOS native/simulator/device checks. Record exactly
 which Apple provisioning and live-delivery gates passed; compilation is not push
 acceptance. Repair build blockers needed to execute these tests as separate commits.
+
+Latest upstream iOS CI (`ba2c958d2`) independently failed the unchanged 100 ms
+typing gate at 143 ms (zero drops). Local simulator and phone acceptance pass;
+this CI performance failure remains open and is not a push-delivery result.

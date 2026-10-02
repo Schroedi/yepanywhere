@@ -399,8 +399,13 @@ new public hostname or a new YA-server subscription model.
 iOS silent/background delivery is opportunistic and subject to platform
 throttling. The dependable initial product path should use visible
 notifications and fetch current details from the authenticated YA server when
-the user opens them. Exact Apple notification behavior must be validated during
-iOS implementation.
+the user opens them. The implemented iOS shell uses fixed APNs alert copy, protected per-host
+Keychain bindings and an authenticated destination lookup after native resume.
+Six push tests, the full simulator suite and signed phone native/UI regressions
+pass. Acceptance catalogs use separate push storage, preserving ordinary saved
+bindings during QA cleanup. The existing Firebase project still needs the iOS
+app registration and APNs credentials; live Apple presentation/taps remain
+unproven until that private setup and a push-enabled signed device run pass.
 
 ## Self-Hosted And Configured Variants
 

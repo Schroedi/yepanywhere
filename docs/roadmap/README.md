@@ -59,9 +59,13 @@ mutations; foreground/relaunch and Switch Host pass. Store signing/publication,
 tablet acceptance and the broader device/network matrix remain release work.
 Embedded viewers/downloads need the
 [remaining WebKit adapters](../../gaps/ios-webview-viewers-and-downloads.md).
-Notification permission/FCM/broker
-foundations exist; common per-server native push enrollment and real Apple push
-delivery remain pending. The maintainer prioritized [Android/shared transport migration](../tactical/139-shared-mobile-transport-migration.md)
+Native per-host push enrollment and presentation are implemented. The updated
+broker is deployed; physical Android acceptance proves foreground/background
+FCM, two-host isolation, authenticated session taps and headless presentation.
+The iOS code and deterministic push tests pass; private Firebase/APNs setup and
+real Apple delivery remain pending in the
+[native push plan](../tactical/141-native-push-delivery.md). The maintainer
+prioritized [Android/shared transport migration](../tactical/139-shared-mobile-transport-migration.md)
 on 2026-10-02. That implementation now uses Rust/UniFFI in Android and common
 per-profile source leases on iOS. Shared mux circuits, credential-proven route
 fallback, scoped ownership and final teardown pass unchanged-server tests.

@@ -4,9 +4,24 @@ import Foundation
 import UIKit
 import UserNotifications
 
+struct NativePushRoute: Codable {
+  let profileID: String
+  let clientID: String
+  let installationID: String
+  let subscriptionID: String
+  var enabled: Bool
+}
+private struct NativePushRoutes: Codable { let brokerUrl: String; var rows: [NativePushRoute] }
+enum NativePushFailure: Error { case updateRequired, unavailable, operationPending }
+
 @MainActor
 final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
-  var openHost: (String) -> Void = { _ in }
+  var openHost: (String, String?) -> Void = { _, _ in }
+  var knownHost: (String) -> Bool = { _ in false }
+  var currentClientID: (String) -> String? = { _ in nil }
+  private var enrollmentBusy = false
+  private var cleanupWork: Task<Void, Never>?
+  private let permissionRequest: (() async -> Bool)?
   private let store: HostStore
   private let broker: PushBroker
   private var observer: NSObjectProtocol?
@@ -15,9 +30,10 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
   private var work: Task<Void, Never>?
   init(
     store: HostStore = HostStore(service: "com.yepanywhere.ios.push.v1"),
-    broker: PushBroker = PushBroker()
+    broker: PushBroker = PushBroker(),
+    permissionRequest: (() async -> Bool)? = nil
   ) {
-    self.store = store; self.broker = broker
+    self.store = store; self.broker = broker; self.permissionRequest = permissionRequest
     super.init()
     UNUserNotificationCenter.current().delegate = self
     observer = NotificationCenter.default.addObserver(
@@ -27,12 +43,15 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
       Task { @MainActor [weak self] in self?.receiveToken(token) }
     }
   }
-  deinit { if let observer { NotificationCenter.default.removeObserver(observer) }; work?.cancel() }
+  deinit {
+    if let observer { NotificationCenter.default.removeObserver(observer) }; work?.cancel();
+    cleanupWork?.cancel()
+  }
   private func installation() -> BrokerInstallation? {
     guard let data = try? store.read("installation"), data.count <= 8192 else { return nil }
     guard let value = try? JSONDecoder().decode(BrokerInstallation.self, from: data),
       PushBroker.validOpaqueID(value.installationId),
-      PushBroker.validSecret(value.installationSecret)
+      PushBroker.validSecret(value.installationSecret), value.brokerUrl == broker.origin
     else { return nil }
     return value
   }
@@ -92,12 +111,157 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
       ? "unavailable"
       : record == nil
         ? "not_registered" : record?.token == pendingToken() ? "ready" : "update_pending"
-    // Per-server native push enrollment is still pending in YA. Do not
-    // report delivery as enabled from OS permission/FCM registration alone.
+    let hasEnrollment = (try? routes().contains { enabled($0.profileID) }) ?? false
     return [
       "firebase": configured ? "configured" : "unavailable", "permission": permission,
-      "channel": "not_supported", "installation": state, "notificationsEnabled": false,
+      "channel": "not_supported", "installation": state,
+      "notificationsEnabled": permission == "granted" && hasEnrollment,
     ]
+  }
+  private func routes() throws -> [NativePushRoute] {
+    guard let data = try store.read("routes.v1") else { return [] }
+    guard data.count <= 32768 else { throw BridgeFailure.overflow }
+    let value = try JSONDecoder().decode(NativePushRoutes.self, from: data)
+    guard value.brokerUrl == broker.origin, value.rows.count <= 20,
+      Set(value.rows.map(\.profileID)).count == value.rows.count,
+      Set(value.rows.map(\.subscriptionID)).count == value.rows.count,
+      value.rows.allSatisfy({
+        UUID(uuidString: $0.profileID) != nil && UUID(uuidString: $0.clientID) != nil
+          && PushBroker.validOpaqueID($0.installationID)
+          && PushBroker.validOpaqueID($0.subscriptionID)
+      })
+    else { throw BridgeFailure.invalidCommand }
+    return value.rows
+  }
+  private func put(_ route: NativePushRoute) throws {
+    let rows = try routes().filter { $0.profileID != route.profileID } + [route]
+    guard rows.count <= 20 else { throw BridgeFailure.overflow }
+    try store.write(
+      "routes.v1", JSONEncoder().encode(NativePushRoutes(brokerUrl: broker.origin, rows: rows)))
+  }
+  private func remove(_ profileID: String) throws {
+    try store.write(
+      "routes.v1",
+      JSONEncoder().encode(
+        NativePushRoutes(
+          brokerUrl: broker.origin, rows: try routes().filter { $0.profileID != profileID })))
+  }
+  func enabled(_ profileID: String) -> Bool {
+    guard let route = try? routes().first(where: { $0.profileID == profileID }), route.enabled
+    else { return false }
+    return knownHost(profileID) && currentClientID(profileID) == route.clientID
+      && installation()?.installationId == route.installationID
+  }
+  func retire(_ profileID: String) throws {
+    guard var route = try routes().first(where: { $0.profileID == profileID }) else { return }
+    route.enabled = false; try put(route)
+  }
+  func enable(
+    _ profile: HostProfile, clientID: String, session: any NativeAuthenticatedSession,
+    security: SecurityClientCoordinator
+  ) async throws {
+    guard !enrollmentBusy else { throw NativePushFailure.operationPending }
+    enrollmentBusy = true; defer { enrollmentBusy = false }
+    let version = try await security.request(session, "GET", "/api/version")
+    guard
+      (version.body["capabilities"] as? [String])?.contains("native-push-subscriptions-v1") == true,
+      let info = version.body["nativePush"] as? [String: Any], info["protocolVersion"] as? Int == 1,
+      let endpoint = info["brokerUrl"] as? String,
+      endpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/")) == broker.origin
+    else { throw NativePushFailure.updateRequired }
+    let granted: Bool
+    if let permissionRequest {
+      granted = await permissionRequest()
+    } else {
+      granted = await requestPermission()["permission"] as? String == "granted"
+    }
+    guard granted, let installation = installation() else { throw NativePushFailure.unavailable }
+    if enabled(profile.id) { return }
+    if let prior = try routes().first(where: { $0.profileID == profile.id }) {
+      try await cleanup(prior)
+    }
+    let subscription = try await broker.subscribe(installation)
+    let pending = NativePushRoute(
+      profileID: profile.id, clientID: clientID, installationID: installation.installationId,
+      subscriptionID: subscription.subscriptionId, enabled: false)
+    do {
+      try put(pending)
+      let response = try await security.request(
+        session, "PUT", "/api/security/clients/\(clientID)/native-push-subscription",
+        [
+          "subscriptionId": subscription.subscriptionId, "sendSecret": subscription.sendSecret,
+          "privacyMode": "generic",
+        ])
+      guard response.status == 200, !Task.isCancelled, knownHost(profile.id),
+        self.installation()?.installationId == installation.installationId
+      else { throw BridgeFailure.closed }
+      guard try security.pushClientID(profile) == clientID else { throw BridgeFailure.closed }
+      var ready = pending; ready.enabled = true; try put(ready)
+    } catch {
+      do { try await cleanup(pending) } catch {
+        try? await broker.unsubscribe(installation, subscriptionId: subscription.subscriptionId)
+      }
+      throw error
+    }
+  }
+  func disable(
+    _ profile: HostProfile, session: any NativeAuthenticatedSession,
+    security: SecurityClientCoordinator
+  ) async throws {
+    guard !enrollmentBusy else { throw NativePushFailure.operationPending }
+    enrollmentBusy = true; defer { enrollmentBusy = false }
+    guard var route = try routes().first(where: { $0.profileID == profile.id }) else { return }
+    route.enabled = false; try put(route)
+    let response = try? await security.request(
+      session, "DELETE", "/api/security/clients/\(route.clientID)/native-push-subscription")
+    do { try await cleanup(route) } catch { if response?.status != 200 { throw error } }
+  }
+  func test(
+    _ profile: HostProfile, session: any NativeAuthenticatedSession,
+    security: SecurityClientCoordinator
+  ) async throws {
+    guard !enrollmentBusy else { throw NativePushFailure.operationPending }
+    enrollmentBusy = true; defer { enrollmentBusy = false }
+    guard enabled(profile.id), let route = try routes().first(where: { $0.profileID == profile.id })
+    else { throw NativePushFailure.unavailable }
+    let response = try await security.request(
+      session, "POST", "/api/security/clients/\(route.clientID)/native-push-subscription/test")
+    if ["native_push_invalid_subscription", "native_push_not_enrolled"].contains(
+      response.body["code"] as? String ?? "")
+    {
+      try await cleanup(route)
+    }
+    guard response.status == 202 else { throw BridgeFailure.closed }
+  }
+  private func cleanup(_ route: NativePushRoute) async throws {
+    var retired = route; retired.enabled = false; try put(retired)
+    if let current = installation(), current.installationId == route.installationID {
+      try await broker.unsubscribe(current, subscriptionId: route.subscriptionID)
+    }
+    try remove(route.profileID)
+  }
+  func forget(_ profileID: String) async throws {
+    guard let route = try routes().first(where: { $0.profileID == profileID }) else { return }
+    try await cleanup(route)
+  }
+  func destination(
+    _ profileID: String, sessionID: String?, session: any NativeAuthenticatedSession,
+    security: SecurityClientCoordinator
+  ) async throws -> String? {
+    guard let id = sessionID,
+      id.range(of: "^[A-Za-z0-9_-]{1,128}$", options: .regularExpression) != nil,
+      let route = try routes().first(where: { $0.profileID == profileID }), enabled(profileID)
+    else { return nil }
+    let response = try await security.request(
+      session, "GET",
+      "/api/security/clients/\(route.clientID)/native-push-subscription/destination?sessionId=\(id)"
+    )
+    guard response.status == 200, let path = response.body["path"] as? String,
+      path.range(
+        of: "^/projects/[A-Za-z0-9_-]{1,2048}/sessions/[A-Za-z0-9_-]{1,128}$",
+        options: .regularExpression) != nil
+    else { return nil }
+    return path
   }
   func requestPermission() async -> [String: Any] {
     let allowed =
@@ -111,21 +275,34 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
     }
     return await status()
   }
-  func background() { active = false; work?.cancel() }
+  func background() { active = false; work?.cancel(); cleanupWork?.cancel() }
   func foreground() {
     active = true;
+    if cleanupWork == nil, !enrollmentBusy {
+      enrollmentBusy = true
+      cleanupWork = Task { [weak self] in
+        guard let self else { return }
+        defer { self.enrollmentBusy = false; self.cleanupWork = nil }
+        // At most four attempts per visible lifecycle trigger; no retry timer.
+        for route in ((try? self.routes()) ?? []).filter({
+          !$0.enabled || !self.knownHost($0.profileID)
+            || self.currentClientID($0.profileID) != $0.clientID
+        }).prefix(4) {
+          guard !Task.isCancelled else { return }
+          try? await self.cleanup(route)
+        }
+      }
+    }
     if FirebaseApp.allApps?.isEmpty == false && FirebaseApp.app() != nil { register() }
   }
   func hostForPush(_ info: [AnyHashable: Any]) -> String? {
     let intents = ["approval_required", "input_required", "session_completed", "session_failed"]
     guard let intent = info["intent"] as? String, intents.contains(intent),
       let subscription = info["subscriptionId"] as? String, PushBroker.validOpaqueID(subscription),
-      let bytes = try? store.read("routes"), bytes.count <= 16384,
-      let routes = try? JSONDecoder().decode([String: String].self, from: bytes),
-      routes.count <= 64,
-      let profile = routes[subscription], UUID(uuidString: profile) != nil
+      let route = try? routes().first(where: { $0.subscriptionID == subscription }),
+      enabled(route.profileID)
     else { return nil }
-    return profile
+    return route.profileID
   }
   nonisolated func userNotificationCenter(
     _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse
@@ -134,10 +311,28 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
     guard let intent = info["intent"] as? String,
       let subscription = info["subscriptionId"] as? String
     else { return }
+    let sessionID = info["sessionId"] as? String
     await MainActor.run {
       // Native saved bindings select the host. Payload URLs and host ids
       // never select credentials or navigation; resume precedes opening.
-      if let id = hostForPush(["intent": intent, "subscriptionId": subscription]) { openHost(id) }
+      if let id = hostForPush(["intent": intent, "subscriptionId": subscription]) {
+        openHost(id, sessionID)
+      }
+    }
+  }
+  nonisolated func userNotificationCenter(
+    _ center: UNUserNotificationCenter, willPresent notification: UNNotification
+  ) async -> UNNotificationPresentationOptions {
+    let info = notification.request.content.userInfo
+    guard let intent = info["intent"] as? String,
+      let subscription = info["subscriptionId"] as? String
+    else { return [] }
+    let isTest = info["test"] as? String == "true"
+    return await MainActor.run {
+      guard hostForPush(["intent": intent, "subscriptionId": subscription]) != nil,
+        !active || isTest
+      else { return [] }
+      return [.banner, .list, .sound]
     }
   }
 }
