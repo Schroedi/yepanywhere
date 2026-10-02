@@ -26,8 +26,9 @@ trusted `YEP_MC_TEAM_ID` (Mac) or `YEP_MC_PUBLISHER` (Windows). Linux uses the
 MC desktop updater key shipped with YA to authenticate `files.json.sig`; no
 publisher is inferred from untrusted package contents. Standard locations are
 `/Applications/Machine Control.app`, the `Machine Control` directory under
-`LOCALAPPDATA`, and `/usr/lib/Machine Control` respectively. An explicit
-`YEP_MC_APP` supports other installed locations and AppImage resource roots.
+`LOCALAPPDATA`, and `/usr/share/machine-control` respectively. An explicit
+`YEP_MC_APP` supports other installed locations; for an extracted AppImage,
+select its `usr/share/machine-control` resource root.
 Restart YA and its shared provider host after changing launch configuration.
 
 YA authenticates the package and hashes the complete CLI dependency inventory
@@ -40,6 +41,14 @@ missing, tampered or incompatible installation refuses launch. Existing
 instructions/environment are preserved. No resident is started or supervised
 by YA, and no MC access grant is issued. Native sudo remains independently
 selected. A launch selecting both this route and a legacy grant is refused.
+
+Windows desktop 0.5.3 and later authenticate `files.json` through the signed
+CLI catalog, then YA checks every full-byte dependency hash and refuses extra
+files. Earlier packages retain their full-directory catalog check. The signed
+GUI product version selects the format; a failed newer catalog cannot fall
+back to the older verifier. Linux's CLI location avoids upstream packaging
+rewrites of interpreters under `usr/lib`. These changes align discovery with
+the release candidate; they do not establish Windows/Linux native acceptance.
 
 [Tactical 142](../docs/tactical/142-machine-control-desktop-consumer.md) owns
 acceptance and Windows retirement. A signed Mac assembly passes discovery and

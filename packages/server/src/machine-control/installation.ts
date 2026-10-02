@@ -198,14 +198,19 @@ export async function verifyInstalledMachineControl(
         if($s.Status -ne 'Valid' -or $null -eq $s.TimeStamperCertificate -or
           $s.SignerCertificate.GetNameInfo([Security.Cryptography.X509Certificates.X509NameType]::SimpleName,$false) -cne $p.publisher) {throw 'MC publisher verification failed'}
       }
-      if((Test-FileCatalog -Path $p.root -CatalogFilePath (Join-Path $p.root 'package.cat') -FilesToSkip 'package.cat') -ne 'Valid') {throw 'MC CLI catalog mismatch'};
+      $version=(Get-Item -LiteralPath (Join-Path $p.install 'machine-control.exe')).VersionInfo.ProductVersion;
+      if($version -notmatch '^[0-9]+[.][0-9]+[.][0-9]+$') {throw 'MC product version invalid'};
+      # Since 0.5.3, the signed catalog authenticates files.json. YA then
+      # verifies every full-byte payload hash before executing any CLI code.
+      if([version]$version -ge [version]'0.5.3') {
+        if((Test-FileCatalog -Path (Join-Path $p.root 'files.json') -CatalogFilePath (Join-Path $p.root 'package.cat')) -ne 'Valid') {throw 'MC CLI inventory catalog mismatch'};
+      } elseif((Test-FileCatalog -Path $p.root -CatalogFilePath (Join-Path $p.root 'package.cat') -FilesToSkip 'package.cat') -ne 'Valid') {throw 'MC CLI catalog mismatch'};
       $runtimeRoot=Join-Path $p.install 'runtime';
       if((Test-FileCatalog -Path $runtimeRoot -CatalogFilePath (Join-Path $runtimeRoot 'package.cat') -FilesToSkip 'package.cat') -ne 'Valid') {throw 'MC runtime catalog mismatch'};
       $metadata=Join-Path $runtimeRoot 'desktop-runtime.json';
       if((Get-Item -LiteralPath $metadata).Length -gt 8192) {throw 'MC runtime metadata exceeded limit'};
       $runtime=Get-Content -LiteralPath $metadata -Raw | ConvertFrom-Json;
       if($runtime.schema -ne 'machine-control-desktop-runtime/v0' -or $runtime.profile -ne 'ordinary_user_desktop' -or $runtime.instance -ne 'desktop') {throw 'MC runtime profile mismatch'};
-      $version=(Get-Item -LiteralPath (Join-Path $p.install 'machine-control.exe')).VersionInfo.ProductVersion;
       [Console]::Out.Write((@{sourceRevision=$runtime.sourceRevision;runtime=$runtime.runtime;version=$version}|ConvertTo-Json -Compress))`;
     const result = await run(
       win32.join(
@@ -344,6 +349,6 @@ export function defaultInstallation(
   if (platform === "darwin") return "/Applications/Machine Control.app";
   if (platform === "win32" && environment.LOCALAPPDATA)
     return resolve(environment.LOCALAPPDATA, "Machine Control");
-  if (platform === "linux") return "/usr/lib/Machine Control";
+  if (platform === "linux") return "/usr/share/machine-control";
   throw new Error("Machine Control installation location unavailable");
 }

@@ -434,3 +434,19 @@ mode assertions; a later loaded run timed out one Supervisor fake-timer case
 and caused a following timer error. The affected three files pass 161 tests
 in isolation, and the final normal-umask suite passes after appliance cleanup.
 The existing failure-path warning debt remains separately documented.
+
+## Release-candidate discovery alignment
+
+The six-platform MC release work moves Linux's bundled CLI to
+`/usr/share/machine-control/mc-cli` and changes Windows 0.5.3 CLI catalogs to
+authenticate the full-byte inventory. YA follows both contracts. The signed
+Windows GUI version selects inventory versus earlier full-directory catalog
+verification, with no fallback after a newer-format failure. Complete payload
+hashes still precede every installed-code probe. Focused checks cover Linux
+default/explicit roots and Windows payload refusal after catalog verification.
+Exact signed Windows/Linux installed and native acceptance remain open.
+
+Validation: 18 focused MC/sudo checks pass without warnings. Full lint,
+format/typecheck and unit checks pass (server 6,314 plus 67 skips, client 6,634,
+shared 940, push broker 45 and relay 130). The already recorded intentional
+failure-path log warnings remain in their separate gap.

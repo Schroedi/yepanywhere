@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  defaultInstallation,
   verifyClientFiles,
   verifyInstalledMachineControl,
 } from "../../src/machine-control/installation.js";
@@ -35,6 +36,26 @@ const start = () =>
   vi.fn(async (_options: StartSessionOptions) => ({}) as AgentSession);
 
 describe("installed Machine Control launch", () => {
+  it("discovers the packaged Linux resource root and preserves explicit locations", async () => {
+    expect(defaultInstallation("linux", {})).toBe("/usr/share/machine-control");
+    const verify = vi.fn(async () => installed);
+    for (const app of [
+      undefined,
+      "/opt/Example App/usr/share/machine-control",
+    ]) {
+      await startMachineControlSession("codex", options, start(), {
+        environment: { YEP_MC_CONTROL: "1", YEP_MC_APP: app },
+        platform: "linux",
+        verify,
+      });
+      expect(verify).toHaveBeenLastCalledWith(
+        app ?? "/usr/share/machine-control",
+        undefined,
+        "linux",
+      );
+    }
+  });
+
   it("preserves default and explicit-disabled launch options without discovery", async () => {
     const verify = vi.fn();
     for (const [launch, env] of [
@@ -267,11 +288,30 @@ describe("installed client authenticity", () => {
     expect(powershell).toContain("runtime/package.cat");
     expect(powershell).toContain("runtime/machine-control-windows.exe");
     expect(powershell).toContain("MC runtime catalog mismatch");
+    expect(powershell).toContain("[version]'0.5.3'");
+    expect(powershell).toContain("-Path (Join-Path $p.root 'files.json')");
+    expect(powershell).toContain("MC CLI inventory catalog mismatch");
     run.mockClear();
     runtime.sourceRevision = "b".repeat(40);
     await expect(
       verifyInstalledMachineControl(app, "Example Publisher", "win32", run),
     ).rejects.toThrow("incompatible");
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a changed Windows payload after catalog authentication without executing its probe", async () => {
+    const { app, root, identity } = await fixture("win32");
+    await writeFile(join(root, "client", "machine_control.py"), "changed");
+    const run = vi.fn(async () =>
+      JSON.stringify({
+        sourceRevision: identity.sourceRevision,
+        runtime: process.arch === "arm64" ? "win-arm64" : "win-x64",
+        version: identity.version,
+      }),
+    );
+    await expect(
+      verifyInstalledMachineControl(app, "Example Publisher", "win32", run),
+    ).rejects.toThrow("digest mismatch");
     expect(run).toHaveBeenCalledTimes(1);
   });
 
