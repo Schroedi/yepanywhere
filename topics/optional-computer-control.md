@@ -409,14 +409,6 @@ independent fixture effect check. After local development, repeat acceptance
 against exact signed CI artifacts without a source checkout. Release all test
 sessions, profiles and the VM workspace when finished.
 
-For an explicit real local Codex probe, run `pnpm exec tsx --conditions source
-scripts/probe-machine-control-model.ts --app APP --publisher TRUSTED_PUBLISHER
---capture FIXTURE_PNG`. It uses existing local Codex authentication and makes
-one bounded model turn, two offline CLI queries and an image-viewer call; it
-requests no MC access and performs no host desktop operation. `--model` can pin
-the provider model. Use a nonpersonal fixture image. This is provider/capture
-acceptance, not a Windows cutover or live/reloaded browser-view pass.
-
 ## Installed launch and media boundary acceptance
 
 **Current:** Explicit internal `machineControl` selection survives the
@@ -425,22 +417,36 @@ compatibility Claude SDK wrapper. `false` suppresses the operator environment
 opt-in rather than being dropped at that boundary. No public session field or
 picker is implied by this internal option.
 
-The real-provider probe now launches through the actual YA supervisor with
-MC's verified installed command selected. It restricts the model to offline
-instructions/identity queries and a supplied native browser fixture capture.
-Live Process output exposes a fetchable media handle; reading the real Codex
-transcript through the production reader, normalizer and media materializer
-reconstructs another fetchable handle. Both serve byte-for-byte identical PNG
-data. Durable preservation stays off and YA data is separate from the temporary
-fixture project. This is provider/supervisor/media-boundary evidence, not a
-complete live/reloaded browser-view or provider-driven control acceptance.
+The real-provider probe launches through the full YA app and its supervisor
+with MC's verified installed command selected. It restricts the model to
+offline instructions/identity queries and a supplied native browser fixture
+capture. Live Process output exposes a media handle whose HTTP route serves
+byte-for-byte identical PNG data with `private, no-store`. After stopping the
+provider, it disposes the app and constructs a fresh app/media store. The
+production session-detail route reads the native transcript and reconstructs
+another handle that serves the exact PNG bytes. Durable preservation stays
+off; the original fixture remains available until cleanup.
+
+With `--browser`, the real client connects before the model turn and renders
+the live media result. It then disconnects before the owned backend restarts
+and reopens the session in a fresh document from the persisted transcript.
+Desktop and phone image viewers load the capture through the actual media
+route, and downloaded bytes must match the native fixture. Captures are
+presented through the repository artifact facility; browser exceptions fail
+acceptance. This proves live/reloaded media views, while provider-driven control
+and the Windows cutover remain separate acceptance gates.
 
 Run `pnpm exec tsx --conditions source scripts/probe-machine-control-model.ts
---app APP --publisher TRUSTED_PUBLISHER --capture FIXTURE_PNG` for that bounded
-real-model probe. It uses existing provider authentication, performs no target
-operation/access request, aborts the owned provider, closes its reader and
-removes its temporary fixture/data directories in cleanup. It copies only the
-operator's authentication and configuration into an owner-only temporary Codex
-profile, preserving endpoint/model choices while isolating and removing its
-provider history and state. Credential files remain owner-only and are never
-reported. Transcript lookup scans that owned profile, not personal history.
+--app APP --publisher TRUSTED_PUBLISHER --capture FIXTURE_PNG --browser` for
+that bounded real-model/browser probe, or omit `--browser` for HTTP-only media
+acceptance. `--model` can pin a compatible provider model; omission retains the
+operator's configuration. Type-check this manual probe with `pnpm exec tsc -p
+scripts/tsconfig.machine-control-probe.json`.
+
+Use a nonpersonal fixture image. The probe copies only the operator's existing
+authentication and configuration into an owner-only temporary Codex profile,
+preserving endpoint/model choices while isolating provider state and transcript
+lookup. Credential files remain owner-only and are never reported. It performs
+no target operation/access request, stops the owned provider, closes app/browser,
+sockets, listeners and readers, and removes its temporary fixture, data and
+provider profile. Captures remain in ignored artifact storage for review.

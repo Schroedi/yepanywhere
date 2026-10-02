@@ -281,15 +281,16 @@ embedded native host/extension, the installed CLI and independent HTTP/Chrome
 oracles. Captures and release/restart/reconnect pass. A real local YA Codex
 provider turn reads the installed instructions/identity and consumes the native
 browser fixture PNG through its actual image viewer. This tests launcher context
-and model image consumption; it does not establish the complete live/reloaded
-YA media views or a provider-driven control task on its execution host.
+and model image consumption. The full-app/browser probe below additionally
+proves live/reloaded YA media views; provider-driven control on the execution
+host remains open.
 
 The original Mac appliance policy/socket/resident are restored and doctor is
 ready. The test browser/candidate are reaped, owned test state removed, guest
 shutdown independently observed and all claims released. The canonical login
 credential remains ready and owner-only. No credentials were rotated.
 
-Remaining gates are full provider-driven control and live/reloaded YA media,
+Remaining gates are full provider-driven control,
 Windows and Linux installed acceptance,
 replacement/restart/expiry/concurrency acceptance, and deliberate migration of
 legacy persisted settings and cleanup. The old Windows product controls,
@@ -342,9 +343,35 @@ with and without a first message; explicit false no longer disappears before
 the provider wrapper. The real model probe now uses the actual supervisor and
 verifies exact PNG bytes through live Process media and the reloaded native
 Codex transcript's reader/normalizer/materializer. Preservation remains off;
-this does not replace full browser-view or provider-driven control acceptance.
+the subsequent full-app probe proves browser views as described below, while
+provider-driven control remains open.
 The real probe passes with an isolated owner-only Codex profile that retains
 the operator's auth/configuration and removes all test provider state in
 cleanup. Its transcript scan has no dependency on unrelated personal history.
 The supervisor wiring is committed separately; the public compatibility review
 is still pending.
+
+## Full-app live and reloaded media result
+
+The repeatable real-model probe now uses the production app, session-detail and
+media routes. It connects the real browser client before the model turn and
+checks both desktop/phone image viewers against the native fixture PNG. Live
+media fetches return the exact bytes with preservation off. The owned provider
+stops, the app and media store are disposed, and a fresh backend reconstructs
+media from the actual Codex transcript before the client reopens the session.
+Reloaded HTTP and browser media bytes also match exactly; this cannot pass by
+reusing the live media cache. Browser exceptions fail the probe.
+
+The accepted run disconnects the viewer gracefully before backend replacement,
+reaps the provider/browser and closes owned readers, services, sockets and
+listeners. Temporary profile/auth/configuration, fixture and YA data are removed.
+The nonpersonal desktop/phone captures are retained in ignored artifact storage
+and presented for review. Original source media remains available until cleanup,
+so this does not claim durable preservation when that source has disappeared.
+The command and strict script type check are owned by
+[the current topic](../../topics/optional-computer-control.md#installed-launch-and-media-boundary-acceptance).
+
+This closes the live/reloaded media-view gate for the installed command's
+real-provider fixture-consumption route. Provider-driven desktop/browser
+operations, exact signed Windows/Linux installed control, grant and lifecycle
+acceptance, public session-picker approval and legacy retirement remain open.
