@@ -35,7 +35,10 @@ import type { AgentActivity, PendingInputType } from "@yep-anywhere/shared";
 import { DEFAULT_IDLE_TIMEOUT_MS } from "../defaults.js";
 import { createLruMap, refreshLruMap } from "../lib/lruCollections.js";
 import { getLogger } from "../logging/logger.js";
-import type { SessionMetadataService } from "../metadata/index.js";
+import type {
+  EffectiveSessionLaunchSettingsValue,
+  SessionMetadataService,
+} from "../metadata/index.js";
 import type { ToolResultMediaStore } from "../media/ToolResultMediaStore.js";
 import type { NotificationService } from "../notifications/index.js";
 import {
@@ -124,6 +127,10 @@ import {
 } from "./SessionActivationCoordinator.js";
 import { HeartbeatSweepScheduler, earliestDueAt } from "./heartbeatSchedule.js";
 import { persistedSandboxFromProcess } from "./sessionSandboxMetadata.js";
+import {
+  inheritSuccessorLaunchSettings,
+  type SuccessorLaunchOverrides,
+} from "./sessionLaunchInheritance.js";
 import {
   AGENT_SERVER_TOKEN_ENV,
   type AgentServerAccess,
@@ -658,6 +665,19 @@ function agentServerEnvironment(
   access: AgentServerAccess | undefined,
 ): Record<string, string> | undefined {
   return access ? { [AGENT_SERVER_TOKEN_ENV]: access.token } : undefined;
+}
+
+export class ForkSettingsPersistenceError extends Error {
+  constructor(
+    readonly sessionId: string,
+    cause: unknown,
+  ) {
+    super(
+      "A transcript child was created, but its settings could not be saved. The source is unchanged.",
+      { cause },
+    );
+    this.name = "ForkSettingsPersistenceError";
+  }
 }
 
 export class Supervisor {
@@ -3242,6 +3262,10 @@ export class Supervisor {
     upToMessageId?: string;
     boundary?: ProviderForkBoundary;
     title?: string;
+    /** Explicit helper/successor choices; all other fields inherit. */
+    launchOverrides?: SuccessorLaunchOverrides;
+    /** Frozen source settings for a multi-stage fork job. */
+    launchSettings?: EffectiveSessionLaunchSettingsValue;
     sandboxLevel?: SessionSandboxLevel;
     sandboxNetworkFirewall?: boolean;
     sandboxStateKey?: string;
@@ -3249,6 +3273,7 @@ export class Supervisor {
     sessionId: string;
     sandboxStateKey?: string;
     sessionSandbox?: Awaited<ReturnType<typeof prepareSessionSandbox>>;
+    launchSettings: EffectiveSessionLaunchSettingsValue;
   }> {
     const provider = this.resolveProvider(
       options.providerName ? { providerName: options.providerName } : undefined,
@@ -3258,6 +3283,28 @@ export class Supervisor {
     }
     if (typeof provider.forkSession !== "function") {
       throw new Error(`${provider.name} does not support transcript fork`);
+    }
+    let launchSettings =
+      options.launchSettings ??
+      (await this.resolveForkLaunchSettings(
+        options.sessionId,
+        options.projectPath,
+        provider.name,
+        options.launchOverrides,
+      ));
+    if (options.launchSettings && options.launchOverrides) {
+      const launch = inheritSuccessorLaunchSettings(
+        options.launchSettings,
+        { sameProvider: true },
+        options.launchOverrides,
+      );
+      launchSettings = {
+        permissionMode: launch.permissionMode ?? this.defaultPermissionMode,
+        requestedModel: launch.requestedModel ?? null,
+        serviceTier: launch.serviceTier ?? null,
+        thinking: launch.thinking ?? null,
+        effort: launch.effort ?? null,
+      };
     }
     const sessionSandbox = await prepareSessionSandbox({
       instructions: this.newSessionSandboxOptions(
@@ -3290,6 +3337,7 @@ export class Supervisor {
       boundary: options.boundary,
       title: options.title,
       sessionSandbox,
+      launchSettings,
     });
     registerForkedSessionFile(provider.name, fork.sessionId, fork.filePath);
     // The new transcript is written by us. Announce it so file-activity
@@ -3298,11 +3346,74 @@ export class Supervisor {
     this.emitSessionForked(fork.sessionId, options.sessionId, {
       projectPath: options.projectPath,
     });
+    await this.recordForkLaunchSettings(fork.sessionId, launchSettings);
     return {
       sessionId: fork.sessionId,
       sandboxStateKey: sessionSandbox?.stateKey,
       sessionSandbox,
+      launchSettings,
     };
+  }
+
+  async resolveForkLaunchSettings(
+    sessionId: string,
+    projectPath: string,
+    providerName: ProviderName,
+    overrides: SuccessorLaunchOverrides = {},
+  ): Promise<EffectiveSessionLaunchSettingsValue> {
+    const projectId =
+      this.sessionMetadataService?.getMetadata(sessionId)?.workingProjectId ??
+      encodeProjectId(projectPath);
+    const source = await this.activationCoordinator.snapshotLaunchSettings(
+      projectId,
+      sessionId,
+      providerName,
+    );
+    let model = resolveInheritedForkModel(source.requestedModel ?? undefined);
+    if (!model) {
+      const summary = await this.onSessionSummary?.(sessionId, projectId);
+      model = resolveInheritedForkModel(
+        source.requestedModel ?? undefined,
+        summary?.model,
+      );
+    }
+    const launch = inheritSuccessorLaunchSettings(
+      source,
+      { sameProvider: true },
+      {
+        ...overrides,
+        requestedModel: overrides.requestedModel ?? model,
+      },
+    );
+    return {
+      permissionMode: launch.permissionMode ?? this.defaultPermissionMode,
+      requestedModel: launch.requestedModel ?? null,
+      serviceTier: launch.serviceTier ?? null,
+      thinking: launch.thinking ?? null,
+      effort: launch.effort ?? null,
+    };
+  }
+
+  async recordForkLaunchSettings(
+    sessionId: string,
+    settings: EffectiveSessionLaunchSettingsValue,
+  ): Promise<void> {
+    try {
+      await this.sessionMetadataService?.recordEffectiveLaunchSettings(
+        sessionId,
+        settings,
+      );
+    } catch (error) {
+      getLogger().error(
+        {
+          event: "session_fork_settings_save_failed",
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "A transcript child was created, but its settings could not be saved",
+      );
+      throw new ForkSettingsPersistenceError(sessionId, error);
+    }
   }
 
   /**
@@ -3552,11 +3663,13 @@ export class Supervisor {
           strategy: "fork",
           generatorSessionId: generator.sessionId,
           cwd: process.projectPath,
-          model: resolveInheritedForkModel(
-            process.requestedModel,
-            process.resolvedModel,
-            process.model,
-          ),
+          model:
+            generator.launchSettings.requestedModel ??
+            resolveInheritedForkModel(
+              process.requestedModel,
+              process.resolvedModel,
+              process.model,
+            ),
           signal: abortController.signal,
           sessionSandbox: generator.sessionSandbox,
         })

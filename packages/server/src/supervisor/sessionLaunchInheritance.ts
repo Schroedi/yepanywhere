@@ -1,11 +1,11 @@
-import type {
-  EffortLevel,
-  PermissionMode,
-  ThinkingConfig,
-  ThinkingOption,
+import {
+  type EffortLevel,
+  type PermissionMode,
+  type ThinkingConfig,
+  type ThinkingOption,
+  thinkingOptionToConfig,
 } from "@yep-anywhere/shared";
-import type { EffectiveSessionLaunchSettings } from "../metadata/index.js";
-import { buildThinkingOptions } from "./session-thinking-options.js";
+import type { EffectiveSessionLaunchSettingsValue } from "../metadata/index.js";
 
 /**
  * Settings a successor session is explicitly asked to launch with. An
@@ -36,7 +36,7 @@ export interface SuccessorLaunchSettings {
  * inherited across providers.
  */
 export function inheritSuccessorLaunchSettings(
-  source: EffectiveSessionLaunchSettings | undefined,
+  source: EffectiveSessionLaunchSettingsValue | undefined,
   inheritance: {
     sameProvider: boolean;
     /** Read only when neither an override nor the source names a model. */
@@ -47,7 +47,7 @@ export function inheritSuccessorLaunchSettings(
   const providerSource = inheritance.sameProvider ? source : undefined;
   const thinking =
     overrides.thinking !== undefined
-      ? buildThinkingOptions({ thinking: overrides.thinking })
+      ? thinkingOptionToConfig(overrides.thinking)
       : {
           thinking: providerSource?.thinking ?? undefined,
           effort: providerSource?.effort ?? undefined,

@@ -3,6 +3,7 @@ import type {
   ClaudeSteerBackgroundBashSettings,
   ContextBreakdown,
   ConversationContextTurn,
+  EffectiveSessionLaunchSettings,
   ModelInfo,
   PermissionMode,
   PromptCacheKeepaliveProviderInfo,
@@ -634,6 +635,11 @@ export interface AgentProvider {
     title?: string;
     /** Project-private provider state and process confinement inherited by the fork. */
     sessionSandbox?: SessionSandboxRuntime;
+    /** Resolved YA settings; native forks must not reset these to defaults. */
+    launchSettings?: Omit<
+      EffectiveSessionLaunchSettings,
+      "schemaVersion" | "revision"
+    >;
   }) => Promise<{
     sessionId: string;
     /** Provider-owned durable file; internal hint for immediate discovery. */

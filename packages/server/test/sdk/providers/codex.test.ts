@@ -3204,6 +3204,13 @@ describe("CodexProvider app-server lifecycle", () => {
         cwd: tempDir,
         upToMessageId: "assistant-2-turn-2",
         title: "Forked from second turn",
+        launchSettings: {
+          permissionMode: "bypassPermissions",
+          requestedModel: "gpt-5.4-codex",
+          serviceTier: "fast",
+          thinking: { type: "adaptive" },
+          effort: "high",
+        },
       });
 
       expect(fork).toEqual({
@@ -3225,8 +3232,11 @@ describe("CodexProvider app-server lifecycle", () => {
         threadId: "source-thread",
         lastTurnId: "turn-2",
         cwd: tempDir,
-        approvalPolicy: "on-request",
-        sandbox: "workspace-write",
+        approvalPolicy: "never",
+        sandbox: "danger-full-access",
+        model: "gpt-5.4-codex",
+        serviceTier: "fast",
+        config: { model_reasoning_effort: "high" },
         excludeTurns: true,
       });
       expect(
@@ -3277,6 +3287,13 @@ describe("CodexProvider app-server lifecycle", () => {
       const testProvider = new CodexProvider({ codexPath });
       const fork = await testProvider.forkSession({
         sessionId: "source-thread",
+        launchSettings: {
+          permissionMode: "plan",
+          requestedModel: "gpt-5.4-codex",
+          serviceTier: null,
+          thinking: { type: "adaptive" },
+          effort: "low",
+        },
         cwd: tempDir,
         boundary: {
           kind: "turn",
@@ -3293,6 +3310,11 @@ describe("CodexProvider app-server lifecycle", () => {
       expect(
         requests.find((request) => request.method === "thread/fork")?.params,
       ).toMatchObject({
+        approvalPolicy: "on-request",
+        sandbox: "read-only",
+        model: "gpt-5.4-codex",
+        serviceTier: null,
+        config: { model_reasoning_effort: "low" },
         threadId: "source-thread",
         lastTurnId: "turn-2",
       });

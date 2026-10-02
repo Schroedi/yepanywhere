@@ -198,6 +198,13 @@ continuous-delivery work continue independently.
 
 ## Later directions
 
+The [clone and fork settings repair](../tactical/140-clone-session-settings-inheritance.md)
+is implemented and locally verified as of 2026-10-02. It preserves source
+permissions, model, thinking/effort and service tier across supported providers.
+Shared source snapshotting, child persistence, native Codex policy and
+first-send/restart behavior have regression coverage. Workspace and focused
+browser checks passed on macOS; Linux/Windows evidence remains external.
+
 The separately authorized [project-template implementation](../tactical/132-project-template-implementation.md)
 now has a native library composer and opt-in settings for ordered GitHub/local
 sources, pinned retrieval and manual updates. Production creation, ready-content

@@ -23,6 +23,7 @@ import {
   createCodexToolCorrelation,
   type CodexReasoningSummary,
   type EffortLevel,
+  type EffectiveSessionLaunchSettings,
   hasInvocationCandidate,
   type ModelInfo,
   normalizeCodexAsyncUserInputQuestions,
@@ -2577,6 +2578,10 @@ export class CodexProvider implements AgentProvider {
     boundary?: ProviderForkBoundary;
     title?: string;
     sessionSandbox?: SessionSandboxRuntime;
+    launchSettings?: Omit<
+      EffectiveSessionLaunchSettings,
+      "schemaVersion" | "revision"
+    >;
   }): Promise<{ sessionId: string; filePath?: string }> {
     return this.installationCoordinator.withReadLease(
       CODEX_INSTALLATION_FAMILY,
@@ -2591,9 +2596,19 @@ export class CodexProvider implements AgentProvider {
     boundary?: ProviderForkBoundary;
     title?: string;
     sessionSandbox?: SessionSandboxRuntime;
+    launchSettings?: Omit<
+      EffectiveSessionLaunchSettings,
+      "schemaVersion" | "revision"
+    >;
   }): Promise<{ sessionId: string; filePath?: string }> {
     if (options.boundary && options.boundary.kind !== "turn") {
       throw new Error("Codex fork requires a turn boundary");
+    }
+    if (
+      options.launchSettings?.effort === "max" ||
+      options.launchSettings?.thinking?.type === "disabled"
+    ) {
+      await this.getAvailableModels();
     }
     const codexCommand = await this.resolveCodexCommand();
     const appServer = new CodexAppServerClient(
@@ -2622,7 +2637,9 @@ export class CodexProvider implements AgentProvider {
                 options.upToMessageId,
               )
             : undefined;
-      const policy = this.mapPermissionModeToThreadPolicy(undefined);
+      const policy = this.mapPermissionModeToThreadPolicy(
+        options.launchSettings?.permissionMode,
+      );
       const fork = await appServer.request<ThreadForkResponse>(
         "thread/fork",
         this.createThreadForkParams(
@@ -4044,16 +4061,31 @@ export class CodexProvider implements AgentProvider {
       cwd: string;
       lastTurnId?: string;
       sessionSandbox?: SessionSandboxRuntime;
+      launchSettings?: Omit<
+        EffectiveSessionLaunchSettings,
+        "schemaVersion" | "revision"
+      >;
     },
     policy: CodexThreadPolicy,
     experimentalApiEnabled = false,
   ): CodexThreadForkParamsForRequest {
+    const settings = options.launchSettings;
+    const model =
+      settings?.requestedModel && settings.requestedModel !== "default"
+        ? settings.requestedModel
+        : undefined;
     const params: CodexThreadForkParamsForRequest = {
+      ...(model ? { model } : {}),
+      ...(settings ? { serviceTier: settings.serviceTier } : {}),
       threadId: options.sessionId,
       ...(options.lastTurnId ? { lastTurnId: options.lastTurnId } : {}),
       cwd: options.cwd,
       ...this.buildThreadPermissionParams(policy),
-      config: this.buildThreadConfigOverrides({}),
+      config: this.buildThreadConfigOverrides({
+        model,
+        thinking: settings?.thinking ?? undefined,
+        effort: settings?.effort ?? undefined,
+      }),
       ...this.limitedUserThreadInstructions(options.sessionSandbox),
     };
     if (experimentalApiEnabled) {

@@ -159,6 +159,7 @@ import type {
   Supervisor,
 } from "../supervisor/Supervisor.js";
 import {
+  ForkSettingsPersistenceError,
   ResumeCompactionError,
   RetryableSessionLaunchError,
   SessionConfigurationConflictError,
@@ -198,7 +199,7 @@ import {
   resolveRecoveredGroupForDelivery,
   resumeRecoveredGroup,
 } from "./session-recovered-queue.js";
-import { inheritSuccessorLaunchSettings } from "./session-launch-inheritance.js";
+import { inheritSuccessorLaunchSettings } from "../supervisor/sessionLaunchInheritance.js";
 import { buildThinkingOptions } from "./session-thinking-options.js";
 import {
   actingUsername,
@@ -5714,12 +5715,21 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           providerName: sourceProvider,
           upToMessageId: body.forkUpToMessageId,
           title: forkTitle,
+          launchOverrides: {
+            requestedModel,
+            thinking: body.thinking,
+            permissionMode: restartPermissionMode,
+            serviceTier:
+              body.serviceTier !== undefined
+                ? (serviceTier ?? null)
+                : undefined,
+          },
           sandboxLevel: restartSandboxLevel,
           sandboxNetworkFirewall: restartSandboxNetworkFirewall,
           sandboxStateKey: originalMetadata?.sandboxStateKey,
         });
       } catch (error) {
-        if (claimed) {
+        if (claimed && !(error instanceof ForkSettingsPersistenceError)) {
           await deps.sessionMetadataService?.releaseForkOrdinal(claimed);
         }
         getLogger().warn(
@@ -7168,10 +7178,13 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         upToMessageId,
         boundary: providerBoundary,
         title: forkTitle,
+        ...(forkThinking !== undefined
+          ? { launchOverrides: { thinking: forkThinking } }
+          : {}),
         ...inheritedSandboxSettings(originalMetadata),
       });
     } catch (error) {
-      if (claimed) {
+      if (claimed && !(error instanceof ForkSettingsPersistenceError)) {
         await deps.sessionMetadataService?.releaseForkOrdinal(claimed);
       }
       getLogger().warn(
@@ -7189,7 +7202,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         "Transcript fork failed",
       );
       return c.json(
-        hasIntentFields
+        hasIntentFields && !(error instanceof ForkSettingsPersistenceError)
           ? {
               error:
                 "No new session was created. The source session is unchanged. Try again after the selected response completes.",
@@ -7211,12 +7224,14 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
     const savedExecutor = parseOptionalExecutor(
       deps.sessionMetadataService?.getExecutor(sessionId),
     ).executor;
-    let inheritedModel = resolveInheritedForkModel(
-      deps.sessionMetadataService?.getRequestedModel(sessionId),
-      sourceProcess?.resolvedModel,
-      sourceProcess?.model,
-    );
-    if (!inheritedModel) {
+    let inheritedModel = fork.launchSettings
+      ? (fork.launchSettings.requestedModel ?? undefined)
+      : resolveInheritedForkModel(
+          deps.sessionMetadataService?.getRequestedModel(sessionId),
+          sourceProcess?.resolvedModel,
+          sourceProcess?.model,
+        );
+    if (!fork.launchSettings && !inheritedModel) {
       const fullSummary = await findSessionSummaryAcrossProviders(
         project,
         sessionId,
@@ -7248,28 +7263,6 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       },
     );
     await recordCreationProvenance(fork.sessionId, body.creationProvenance);
-    if (deps.sessionMetadataService && forkThinking !== undefined) {
-      // A fork asked to start at a different effort (the long-context
-      // effort-change warning's "fork instead" path) records that choice as
-      // the fork's launch settings, so its first send and every later
-      // server-side turn use it rather than the browser's per-model default.
-      // See topics/mid-session-effort-change.md.
-      const launch = inheritSuccessorLaunchSettings(
-        originalMetadata?.effectiveLaunchSettings,
-        { sameProvider: true },
-        { requestedModel: inheritedModel, thinking: forkThinking },
-      );
-      await deps.sessionMetadataService.recordEffectiveLaunchSettings(
-        fork.sessionId,
-        {
-          permissionMode: launch.permissionMode ?? "default",
-          requestedModel: launch.requestedModel ?? null,
-          serviceTier: launch.serviceTier ?? null,
-          thinking: launch.thinking ?? null,
-          effort: launch.effort ?? null,
-        },
-      );
-    }
     const forkCreator = actingUsername(c);
     if (forkCreator) {
       // A limited user's fork is theirs, like a session they start
@@ -7454,6 +7447,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         ...inheritedSandboxSettings(sourceMetadata),
       });
       generatorSessionId = generator.sessionId;
+      requestedModel =
+        generator.launchSettings?.requestedModel ?? requestedModel;
       await updateForkSummaryChildMetadata(
         generator.sessionId,
         sessionId,
@@ -7675,7 +7670,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       const savedExecutor = parseOptionalExecutor(
         deps.sessionMetadataService.getExecutor(sessionId),
       ).executor;
-      const requestedModel = resolveInheritedForkModel(
+      let requestedModel = resolveInheritedForkModel(
         deps.sessionMetadataService.getRequestedModel(sessionId),
         sourceProcess?.resolvedModel,
         sourceSession.model,
@@ -7698,6 +7693,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             ...inheritedSandboxSettings(originalMetadata),
           });
           generatorSessionId = generator.sessionId;
+          requestedModel =
+            generator.launchSettings?.requestedModel ?? requestedModel;
           await updateForkSummaryChildMetadata(
             generator.sessionId,
             sessionId,
@@ -7755,6 +7752,9 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
           targetTitle = title;
           const target = await deps.supervisor.forkSession({
             sessionId,
+            launchSettings: generator.launchSettings,
+            launchOverrides:
+              mode !== undefined ? { permissionMode: mode } : undefined,
             projectPath: sourceProjectPath,
             providerName,
             ...(boundary.providerBoundary
@@ -7925,7 +7925,10 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             } catch (cleanupError) {
               logCleanupFailure("archive-target", cleanupError);
             }
-          } else if (fallbackClaim) {
+          } else if (
+            fallbackClaim &&
+            !(error instanceof ForkSettingsPersistenceError)
+          ) {
             try {
               await deps.sessionMetadataService?.releaseForkOrdinal(
                 fallbackClaim,
@@ -9005,6 +9008,14 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         isCodexProviderName(project.provider) ||
         (!originalSession && project.provider === "claude");
 
+      const cloneSettings = !shouldCloneFromCodex
+        ? await deps.supervisor.resolveForkLaunchSettings(
+            sessionId,
+            project.path,
+            cloneProvider,
+          )
+        : undefined;
+
       if (shouldCloneFromCodex) {
         const codexReader = getCodexReader(project.path);
         if (!codexReader) {
@@ -9086,6 +9097,12 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         );
       } else {
         result = await cloneClaudeSession(sessionDir, sessionId);
+      }
+      if (cloneSettings) {
+        await deps.supervisor.recordForkLaunchSettings(
+          result.newSessionId,
+          cloneSettings,
+        );
       }
       if (!shouldCloneFromCodex) {
         // The verbatim copy keeps every uuid, so the source's rewound groups
