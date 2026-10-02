@@ -153,3 +153,85 @@ async fn unchanged_server_login_resume_requests_and_teardown() {
             .is_err()
     );
 }
+
+#[tokio::test]
+#[ignore = "requires two disposable YA servers and relay; run scripts/live-relay.ts"]
+async fn concurrent_hosts_share_mux_and_retire_independently() {
+    let Ok(beta) = std::env::var("YA_TEST_SECOND_TARGET") else {
+        return;
+    };
+    let endpoint = std::env::var("YA_TEST_ENDPOINT").unwrap();
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let status_url = std::env::var("YA_TEST_RELAY_STATUS").unwrap();
+    async fn status(url: &str) -> serde_json::Value {
+        serde_json::from_slice(&reqwest::get(url).await.unwrap().bytes().await.unwrap()).unwrap()
+    }
+    async fn counts(url: &str, circuits: u64, sockets: u64) {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            let value = status(url).await;
+            if value["mux"]["liveCircuits"] == circuits
+                && value["mux"]["physicalSockets"] == sockets
+            {
+                return;
+            }
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "unexpected relay demand: {value}"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    }
+    counts(&status_url, 0, 0).await;
+    let alpha = native_login(
+        SessionOptions {
+            endpoint: endpoint.clone(),
+            relay_target: Some("ios-fixture".into()),
+            username: "ios-fixture".into(),
+        },
+        "native-fixture-password".into(),
+    )
+    .await
+    .unwrap();
+    let beta = native_login(
+        SessionOptions {
+            endpoint,
+            relay_target: Some(beta.clone()),
+            username: beta,
+        },
+        "native-fixture-password".into(),
+    )
+    .await
+    .unwrap();
+    counts(&status_url, 2, 1).await;
+    let alpha_credential = alpha.credential_data().unwrap();
+    let beta_credential = beta.credential_data().unwrap();
+    assert_ne!(alpha_credential, beta_credential);
+    let params = r#"{"method":"GET","path":"/api/projects"}"#;
+    let (a, b) = tokio::join!(
+        alpha.dispatch("request".into(), params.into()),
+        beta.dispatch("request".into(), params.into())
+    );
+    assert!(a.unwrap().contains("200"));
+    assert!(b.unwrap().contains("200"));
+    alpha.close();
+    counts(&status_url, 1, 1).await;
+    assert!(
+        beta.dispatch("request".into(), params.into())
+            .await
+            .unwrap()
+            .contains("200")
+    );
+    beta.dispatch("reconnect".into(), "{}".into())
+        .await
+        .unwrap();
+    counts(&status_url, 1, 1).await;
+    assert!(
+        beta.dispatch("request".into(), params.into())
+            .await
+            .unwrap()
+            .contains("200")
+    );
+    beta.close();
+    counts(&status_url, 0, 0).await;
+}

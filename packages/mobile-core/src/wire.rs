@@ -10,10 +10,10 @@ use tokio_tungstenite::{
 };
 use url::Url;
 
+pub type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 pub struct Wire {
-    socket: WebSocketStream<MaybeTlsStream<TcpStream>>,
-    mux: bool,
-    frame_budget: usize,
+    socket: Option<Socket>,
+    circuit: Option<crate::mux::Circuit>,
 }
 fn tls() -> Result<Arc<rustls::ClientConfig>> {
     let builder = rustls::ClientConfig::builder_with_provider(Arc::new(
@@ -29,47 +29,31 @@ fn tls() -> Result<Arc<rustls::ClientConfig>> {
     ))
 }
 impl Wire {
-    async fn open(url: &Url, mux: bool) -> Result<Self> {
-        let mut config = WebSocketConfig::default();
-        config.max_message_size = Some(65536);
-        config.max_frame_size = Some(65536);
-        config.max_write_buffer_size = MAX_BYTES + 128 * 1024;
-        let (socket, _) = timeout(
-            Duration::from_secs(10),
-            connect_async_tls_with_config(
-                url.as_str(),
-                Some(config),
-                true,
-                Some(Connector::Rustls(tls()?)),
-            ),
-        )
-        .await
-        .map_err(|_| Error::Timeout)?
-        .map_err(|_| Error::Unavailable)?;
+    async fn open(url: &Url) -> Result<Self> {
         Ok(Self {
-            socket,
-            mux,
-            frame_budget: MAX_BYTES + 64,
+            socket: Some(open_socket(url, 65536).await?),
+            circuit: None,
         })
     }
-    pub async fn authenticated(self) -> Self {
-        // YA has no application subscriptions before authentication. Rebuild the
-        // websocket decoder at this boundary, before sending capabilities, to
-        // raise its allocation budget only after authenticated server proof.
-        let mut config = WebSocketConfig::default();
-        config.max_message_size = Some(MAX_BYTES + 64);
-        config.max_frame_size = Some(MAX_BYTES + 64);
-        config.max_write_buffer_size = MAX_BYTES + 128 * 1024;
-        Self {
-            socket: WebSocketStream::from_raw_socket(
-                self.socket.into_inner(),
-                tokio_tungstenite::tungstenite::protocol::Role::Client,
-                Some(config),
-            )
-            .await,
-            mux: self.mux,
-            frame_budget: self.frame_budget,
+    pub async fn authenticated(mut self) -> Self {
+        if let Some(circuit) = &self.circuit {
+            circuit.authenticated();
         }
+        if let Some(socket) = self.socket.take() {
+            let mut config = WebSocketConfig::default();
+            config.max_message_size = Some(MAX_BYTES + 64);
+            config.max_frame_size = Some(MAX_BYTES + 64);
+            config.max_write_buffer_size = MAX_BYTES + 128 * 1024;
+            self.socket = Some(
+                WebSocketStream::from_raw_socket(
+                    socket.into_inner(),
+                    tokio_tungstenite::tungstenite::protocol::Role::Client,
+                    Some(config),
+                )
+                .await,
+            );
+        }
+        self
     }
     pub async fn connect(endpoint: &str, target: Option<&str>) -> Result<Self> {
         let url = Url::parse(endpoint).map_err(|_| Error::InvalidMessage)?;
@@ -87,17 +71,20 @@ impl Wire {
             if url.path().ends_with("/ws")
                 && url.query().is_none()
                 && Self::mux_capability(&url).await.unwrap_or(false)
-                && let Ok(wire) = Self::open_mux(&url, target).await
+                && let Ok(wire) = crate::mux::Circuit::connect(&url, target).await
             {
-                return Ok(wire);
+                return Ok(Self {
+                    socket: None,
+                    circuit: Some(wire),
+                });
             }
-            let mut wire = Self::open(&url, false).await?;
+            let mut wire = Self::open(&url).await?;
             wire.plain_send(&json!({"type":"client_connect","username":target}))
                 .await?;
             check(wire.plain_receive().await?["type"] == "client_connected")?;
             Ok(wire)
         } else {
-            Self::open(&url, false).await
+            Self::open(&url).await
         }
     }
     async fn mux_capability(url: &Url) -> Result<bool> {
@@ -134,40 +121,12 @@ impl Wire {
             .as_array()
             .is_some_and(|a| a.iter().any(|x| x == "client-mux-v1")))
     }
-    async fn open_mux(url: &Url, target: &str) -> Result<Self> {
-        let mut endpoint = url.clone();
-        endpoint.set_path(&format!("{}/mux", url.path().trim_end_matches("/ws")));
-        let mut wire = Self::open(&endpoint, false).await?;
-        let ready = wire.plain_receive().await?;
-        check(
-            ready["type"] == "mux_ready"
-                && ready["protocolVersion"] == 1
-                && ready["maxCircuits"].as_u64().is_some_and(|n| n > 0)
-                && ready["maxFrameBytes"].as_u64().is_some_and(|n| n >= 65536),
-        )?;
-        wire.plain_send(
-            &json!({"type":"mux_open","circuitId":1,"username":target,"channel":"app"}),
-        )
-        .await?;
-        let opened = wire.plain_receive().await?;
-        check(opened["type"] == "mux_opened" && opened["circuitId"] == 1)?;
-        wire.frame_budget = ready["maxFrameBytes"]
-            .as_u64()
-            .ok_or(Error::InvalidMessage)?
-            .min((MAX_BYTES + 64) as u64) as usize;
-        wire.mux = true;
-        Ok(wire)
-    }
     async fn send(&mut self, bytes: Vec<u8>, binary: bool) -> Result<()> {
         check(bytes.len() <= MAX_BYTES + 48)?;
-        if bytes.len() + if self.mux { 6 } else { 0 } > self.frame_budget {
-            return Err(Error::Overflow);
+        if let Some(circuit) = &self.circuit {
+            return circuit.send(bytes, binary).await;
         }
-        let message = if self.mux {
-            let mut frame = vec![1, u8::from(binary), 0, 0, 0, 1];
-            frame.extend_from_slice(&bytes);
-            Message::Binary(frame.into())
-        } else if binary {
+        let message = if binary {
             Message::Binary(bytes.into())
         } else {
             Message::Text(
@@ -176,15 +135,23 @@ impl Wire {
                     .into(),
             )
         };
-        timeout(Duration::from_secs(30), self.socket.send(message))
-            .await
-            .map_err(|_| Error::Timeout)?
-            .map_err(|_| Error::Unavailable)
+        timeout(
+            Duration::from_secs(30),
+            self.socket.as_mut().ok_or(Error::Closed)?.send(message),
+        )
+        .await
+        .map_err(|_| Error::Timeout)?
+        .map_err(|_| Error::Unavailable)
     }
     async fn receive(&mut self) -> Result<(Vec<u8>, bool)> {
+        if let Some(circuit) = &mut self.circuit {
+            return circuit.receive().await;
+        }
         loop {
             let message = self
                 .socket
+                .as_mut()
+                .ok_or(Error::Closed)?
                 .next()
                 .await
                 .ok_or(Error::Unavailable)?
@@ -192,22 +159,14 @@ impl Wire {
             match message {
                 Message::Ping(bytes) => self
                     .socket
+                    .as_mut()
+                    .ok_or(Error::Closed)?
                     .send(Message::Pong(bytes))
                     .await
                     .map_err(|_| Error::Unavailable)?,
                 Message::Pong(_) => {}
-                Message::Binary(bytes) if self.mux => {
-                    check(
-                        bytes.len() >= 6
-                            && bytes.len() <= self.frame_budget
-                            && bytes[0] == 1
-                            && bytes[1] <= 1
-                            && bytes[2..6] == [0, 0, 0, 1],
-                    )?;
-                    return Ok((bytes[6..].to_vec(), bytes[1] == 1));
-                }
                 Message::Binary(bytes) => return Ok((bytes.to_vec(), true)),
-                Message::Text(text) if !self.mux => return Ok((text.as_bytes().to_vec(), false)),
+                Message::Text(text) => return Ok((text.as_bytes().to_vec(), false)),
                 _ => return Err(Error::Unavailable),
             }
         }
@@ -241,3 +200,23 @@ impl Wire {
     }
 }
 use zeroize::Zeroizing;
+
+pub(crate) async fn open_socket(url: &Url, budget: usize) -> Result<Socket> {
+    let mut config = WebSocketConfig::default();
+    config.max_message_size = Some(budget);
+    config.max_frame_size = Some(budget);
+    config.max_write_buffer_size = MAX_BYTES + 128 * 1024;
+    let (socket, _) = timeout(
+        Duration::from_secs(10),
+        connect_async_tls_with_config(
+            url.as_str(),
+            Some(config),
+            true,
+            Some(Connector::Rustls(tls()?)),
+        ),
+    )
+    .await
+    .map_err(|_| Error::Timeout)?
+    .map_err(|_| Error::Unavailable)?;
+    Ok(socket)
+}

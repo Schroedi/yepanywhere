@@ -21,6 +21,10 @@ login/host presentation, WebView, notification and OS lifecycle adapters.
 
 ### 1 — Share physical relay sockets across independent hosts
 
+Implemented: Rust pool/circuit isolation checks and live two-server mux sharing,
+independent close, reconnect and final cleanup pass. Per-profile consumer demand
+and Android adoption continue below.
+
 Replace Rust's single-circuit wire with a bounded relay pool and circuit-local
 queues. Discover mux only for eligible configured relay endpoints, retain exact
 legacy fallback and direct sockets, handle overflow without losing peers, and

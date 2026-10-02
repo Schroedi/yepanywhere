@@ -423,3 +423,5 @@
 - linked-site-walk - File vhosts and live public file shares serve what a
   root page links to, at the URLs a browser asks for.
 - ios-native-core-proof - Provisional shared Rust mobile core, gated on crypto and native binding/build evidence.
+
+- shared-mobile-transport - Android Rust adoption and shared multi-host relay ownership.

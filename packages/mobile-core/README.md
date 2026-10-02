@@ -14,7 +14,9 @@ protocol version. OS randomness supplies private scalars and secretbox nonces.
 Owned secret buffers and big integers use zeroize; minimal wire encodings do
 not imply that the entire profile is constant-time or independently audited.
 
-Tokio owns one bounded session actor per native lease. It handles encrypted
+Tokio owns one bounded session actor per native lease. Concurrent eligible
+relay sources share a physical mux socket with independently bounded circuits;
+retiring or overflowing one circuit preserves healthy peers. It handles encrypted
 requests, subscriptions, uploads, resume and three bounded reconnect attempts.
 The final lease closes its socket and cancels its work. No web login or key
 material is part of the source bridge. Direct routes and eligible relay mux

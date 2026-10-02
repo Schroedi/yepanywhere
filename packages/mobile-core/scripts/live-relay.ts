@@ -11,11 +11,16 @@ const relay = await createRelayServer({
   disablePrettyPrint: true,
 });
 let fixture: Awaited<ReturnType<typeof startFixture>> | undefined;
+let beta: Awaited<ReturnType<typeof startFixture>> | undefined;
 try {
   const origin = `http://127.0.0.1:${relay.port}`;
   fixture = await startFixture({ relayURL: `ws://127.0.0.1:${relay.port}/ws` });
+  beta = await startFixture({
+    relayURL: `ws://127.0.0.1:${relay.port}/ws`,
+    username: "rust-beta",
+  });
   const deadline = Date.now() + 30000;
-  while (relay.connectionManager.getActiveServers().length === 0) {
+  while (relay.connectionManager.getActiveServers().length < 2) {
     if (Date.now() >= deadline)
       throw new Error("Owned YA relay fixture did not register");
     await new Promise((done) => setTimeout(done, 50));
@@ -32,6 +37,7 @@ try {
           "--",
           "--nocapture",
           "--ignored",
+          "--test-threads=1",
         ],
         {
           cwd: fileURLToPath(new URL("..", import.meta.url)),
@@ -41,6 +47,7 @@ try {
             YA_TEST_RELAY_TARGET: "ios-fixture",
             YA_TEST_RELAY_STATUS: `${origin}/status`,
             YA_TEST_MUX: String(mux),
+            ...(mux ? { YA_TEST_SECOND_TARGET: "rust-beta" } : {}),
           },
           stdio: "inherit",
         },
@@ -56,6 +63,7 @@ try {
     });
   }
 } finally {
+  await beta?.stop();
   await fixture?.stop();
   await relay.close();
 }

@@ -1,6 +1,7 @@
 //! Native-only owner sessions. The web bridge receives source operations only.
 mod crypto;
 mod events;
+mod mux;
 mod session;
 mod wire;
 use serde_json::Value;

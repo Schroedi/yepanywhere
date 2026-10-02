@@ -708,9 +708,17 @@ Uploads preserve the unchanged server's upload_end completion/abort semantics;
 fully transferred staging data retains the server's normal draft TTL semantics.
 
 Direct, negotiated relay mux and exact custom/legacy relay endpoints are tested.
-The initial iOS app has one foreground profile and one circuit per connection;
-shared multi-profile physical-socket pooling is a later Android parity gate,
-not implied by implementing the mux wire format. Initial route selection uses
+The shared Rust wire now pools concurrent relay profiles on one physical
+socket per normalized eligible endpoint. Each circuit keeps its own SRP,
+encryption, inbound queue and lifetime. The pool caps active relay endpoints at
+32, circuits at the lesser of the relay limit and 64, queued frames at 32 per
+circuit, and queued payload bytes at 64 MiB per physical socket. A lagging
+circuit closes without closing healthy peers; a physical socket failure wakes
+all affected circuits for independent bounded recovery. The final circuit
+releases the socket. Direct/custom endpoints and mux setup/overflow failures
+retain exact independent-socket fallback. The iOS shell still demands only its
+selected foreground profile; shared per-profile multi-consumer leases and
+Android adoption remain migration work. Initial route selection uses
 one exact endpoint with mux-to-legacy fallback, rather than Android's ordered
 direct/relay route candidates. SwiftUI, Keychain, WebKit and
 Apple notification/lifecycle behavior remain platform adapters.
