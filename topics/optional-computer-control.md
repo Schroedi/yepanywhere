@@ -48,7 +48,7 @@ files. Earlier packages retain their full-directory catalog check. The signed
 GUI product version selects the format; a failed newer catalog cannot fall
 back to the older verifier. Linux's CLI location avoids upstream packaging
 rewrites of interpreters under `usr/lib`. These changes align discovery with
-the release candidate; they do not establish Windows/Linux native acceptance.
+the public release; the acceptance boundaries below remain explicit.
 
 [Tactical 142](../docs/tactical/142-machine-control-desktop-consumer.md) owns
 acceptance and Windows retirement. A signed Mac assembly passes discovery and
@@ -57,10 +57,14 @@ provider inside the Mac appliance also performs one native semantic increment
 and one browser fixture click, and consumes each new capture with its built-in
 image tool. Full
 YA live/reloaded desktop and phone views serve identical native capture bytes.
-Windows/Linux installed acceptance and
-lifecycle/revocation parity remain gates. The component lifecycle and deferred
-tool below remain current until accepted cutover. There is no new public
-session field or setting yet. Session advertisement is not a same-user shell
+Public Windows x64 0.5.3 now also passes production YA authentication and
+installed-CLI access-off refusal, visible native approval, one independently
+observed Cua semantic increment, capture/artifact hash, stale-reference refusal
+and native Stop. Windows model control/media, browser and lifecycle parity,
+and Linux GUI acceptance remain gates. The component lifecycle and deferred
+tool below remain current until accepted cutover. The default-off session picker
+uses the separate `installed-machine-control` capability and optional
+`machineControl` launch field. Session advertisement is not a same-user shell
 containment boundary, and does not revoke independently granted MC access.
 
 Run `pnpm exec tsx --conditions source scripts/probe-machine-control.ts --app

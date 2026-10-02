@@ -598,3 +598,28 @@ Access is off after automatic relaunch; permission and generation/stale-referenc
 checks pass. Original trusted policy, resident readiness, power-off and released
 claims are verified. This closes the Mac signed replacement gate without
 claiming a published 0.5.2 sender or Windows/Linux parity.
+
+## Public Windows x64 installed-client gate
+
+**Current (2026-10-03):** Published desktop 0.5.3, source `d5aa271`, passes
+YA's actual installation consumer in an ordinary interactive Windows 11 x64
+session. Product and full dependency authentication, compatible identity,
+instructions, launch-context composition, relocated copy and wrong-publisher,
+changed-script and missing-interpreter negatives pass. The official installer
+was authenticated with the pinned updater key and signed version before its
+valid timestamped native signature supplied the expected publisher.
+
+MC's existing installed-command Windows harness proves access-off refusal,
+visible native approval, one independently confirmed Cua counter increment,
+exact-window capture/artifact SHA-256, capture-superseded reference refusal and
+native Stop. There is no source checkout in the staged payload. The actor uses
+per-process PowerShell policy without changing guest policy or authorization.
+This is production consumer plus CLI evidence, not provider-driven model or
+live/reloaded YA image-view evidence.
+
+The native installer restored an earlier custom test location on the first
+attempt. The accepted isolated run pins the normal product path and backs up
+and restores the existing uninstall registry. Owned app, runtime and staging
+are removed, initial power-off confirmed, and all local/controller claims
+released. Windows model/browser/media and lifecycle acceptance, Linux GUI
+acceptance and legacy migration remain open; no old component was retired.
