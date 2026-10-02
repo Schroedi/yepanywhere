@@ -62,9 +62,10 @@ The live runner owns a disposable unchanged YA server and public fixture
 credentials. It kills that process when finished. Its tests are explicitly
 ignored in ordinary Cargo runs; the runner enables them. No developer YA
 configuration, projects or actual credentials are used. The sodium source is
-pinned by SHA-256 and its upstream signature; Cargo builds never download an
-unpinned latest libsodium archive. Native generated files and archives are
-ignored. iOS tests use a disposable simulator and ad-hoc signing for Keychain;
+pinned by SHA-256 and its upstream signature in `vendor/libsodium`; Cargo
+builds never download a mutable latest/stable libsodium archive. Native generated
+files and archives are ignored. iOS tests use a disposable simulator and ad-hoc
+signing for Keychain;
 the device build is unsigned and is not a publication or physical-device claim.
 
 Android builds require JDK 17, Android SDK 36, NDK 28.2.13676358 and

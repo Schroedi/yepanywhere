@@ -119,8 +119,12 @@ export function AudioMemoPanel({
         },
       })
       .then((stream) => {
-        if (cancelled || !enabled.current || !options.plan) return;
-        const subscriber = new AudioMemoTranscript(options.plan);
+        // Backend metadata can settle while microphone permission/startup is
+        // pending. Choose the take's ASR plan when its stream is ready rather
+        // than freezing an incomplete capability snapshot before acquisition.
+        const readyPlan = startOptions.current.plan;
+        if (cancelled || !enabled.current || !readyPlan) return;
+        const subscriber = new AudioMemoTranscript(readyPlan);
         asr.current = subscriber;
         subscriber.startPreview(stream, setPreview, setTranscriptError);
       })

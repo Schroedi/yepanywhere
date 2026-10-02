@@ -283,6 +283,16 @@ describe("Sessions API", () => {
   });
 
   describe("POST /api/projects/:projectId/sessions/:sessionId/resume", () => {
+    beforeEach(async () => {
+      // Resume a persisted Claude session, rather than making a missing mock
+      // id probe unrelated providers before falling back to Claude. The
+      // full workspace run hit 5s in that unrelated discovery before teardown.
+      await writeFile(
+        join(testDir, "localhost", "-home-user-myproject", "sess-123.jsonl"),
+        `${JSON.stringify({ type: "user", cwd: "/home/user/myproject", message: { content: "Hello" } })}\n`,
+      );
+    });
+
     it("returns 400 if message is missing", async () => {
       const { app } = createApp({ sdk: mockSdk, projectsDir: testDir });
 

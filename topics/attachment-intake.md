@@ -146,6 +146,11 @@ the uploaded WAV and transcript suffix. Browser coverage uses Chromium with
 fake microphone hardware and mocked STT; real phones and vendor recognition
 quality are not established by those checks.
 
+The transcription plan is selected when microphone acquisition completes, so
+streaming backend metadata that arrives during permission/startup is honored
+without restarting the recording. Cancelling during acquisition must not start
+a late transcription subscriber.
+
 Held recording and playback/monitor capture remain separate follow-ups:
 [hold gesture](../gaps/sketches/audio-memo-hold-to-record.md) and
 [source selector](../gaps/sketches/audio-memo-source-selection.md).

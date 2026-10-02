@@ -425,3 +425,4 @@
 - ios-native-core-proof - Provisional shared Rust mobile core, gated on crypto and native binding/build evidence.
 
 - shared-mobile-transport - Android Rust adoption and shared multi-host relay ownership.
+- ci-browser-mobile-acceptance-2026-10-02 - Browser regressions and immutable signed native source, with hosted acceptance evidence.

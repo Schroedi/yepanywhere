@@ -2,8 +2,10 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { e2ePaths, expect, test } from "./fixtures";
 import { recordUiCapture } from "./support/ui-capture";
+import { routeWithDrain } from "./support/managed-routes";
 
 test.use({
+  serviceWorkers: "block",
   launchOptions: {
     args: [
       "--use-fake-device-for-media-stream",
@@ -32,7 +34,7 @@ test("audio memo captures WAV, preserves draft on cancel, and uploads before sen
       return stream;
     };
   });
-  await page.route("**/api/version", async (route) => {
+  await routeWithDrain(page, "**/api/version*", async (route) => {
     const response = await route.fetch();
     const version = await response.json();
     await route.fulfill({
@@ -98,6 +100,11 @@ test("audio memo captures WAV, preserves draft on cancel, and uploads before sen
   await page.goto(`${baseURL}/projects/${projectId}/sessions/mock-session-001`);
   const input = page.locator("[data-composer-input]");
   await expect(input).toBeVisible();
+  // The composer can render before asynchronous backend metadata settles.
+  // Start the take only once the mocked streaming backend is selected.
+  await expect(
+    page.getByRole("button", { name: "Start voice input" }),
+  ).toContainText("Test");
   await input.focus();
   for (const character of "Listen to this.") {
     const before = await input.inputValue();
@@ -118,6 +125,7 @@ test("audio memo captures WAV, preserves draft on cancel, and uploads before sen
     name: /Tap anywhere here to stop & send/,
   });
   await expect(stop).toBeEnabled();
+
   await expect(
     page.getByText("Draft from live audio", { exact: true }),
   ).toBeVisible();

@@ -774,7 +774,12 @@ function ArtifactSettingsForm({
                           <span aria-hidden="true">
                             {selectedId === row.id ? "▾" : "▸"}{" "}
                           </span>
-                          {row.name || t("artifactVhostAdd")}
+                          <span
+                            className={styles.domainName}
+                            title={row.name || undefined}
+                          >
+                            {row.name || t("artifactVhostAdd")}
+                          </span>
                           {row.name && (
                             <small className={styles.domainSuffix}>
                               .{vhostPublicRoot || "localhost"}

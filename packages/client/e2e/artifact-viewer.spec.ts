@@ -429,8 +429,11 @@ test("minimizes app details and confirms distinct app and project deletions", as
   await expect(
     inventory.getByRole("button", { name: "Probe", exact: true }),
   ).toHaveCount(0);
-  expect(deletedApps).toEqual(["canvas", "probe"]);
-  expect(deletedProjects).toEqual(["probe"]);
+  // App removal can invalidate the row before the subsequent project DELETE
+  // arrives. Join that operation rather than using row disappearance as its
+  // acknowledgement.
+  await expect.poll(() => deletedApps).toEqual(["canvas", "probe"]);
+  await expect.poll(() => deletedProjects).toEqual(["probe"]);
 });
 
 test("edits mapped source from default sanitized HTML and preserves a stale preview", async ({
