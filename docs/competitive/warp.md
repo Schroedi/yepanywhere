@@ -69,10 +69,19 @@ maintenance or authenticate the accounts behind them.
 The April announcement also claims nearly a million active developers. This is
 **company-reported adoption**, with no activity window, deduplication method,
 paid-seat count or independent verification supplied in that announcement.
-It does not establish adoption of Remote Control, Oz or Factories. The
-maintainer recalled a talk claiming 200k developers; the video, date and exact
-metric were not supplied, so that figure is not treated as verified evidence.
+It does not establish adoption of Remote Control, Oz or Factories.
 [Company claim](https://www.warp.dev/blog/warp-is-now-open-source).
+
+The maintainer subsequently supplied AI Engineer's **Software Engineering Is
+Becoming Factory Engineering — Zach Lloyd, Warp**, uploaded 2026-09-27.
+Its original English auto-generated captions at 1:11–1:18 distinguish three
+claims: more than 60k GitHub stars, a few hundred contributors and more than
+800k active developers using Warp. The video's own description also gives
+800k; the recalled 200k figure is not the number in this passage. This verifies
+what the captions and description report, not the underlying user count. The
+talk does not define an activity window or provide an independently verifiable
+usage dataset. It also does not establish that those developers use Factories.
+[Talk and description](https://www.youtube.com/watch?v=tUPPVhBBcoM&t=71s).
 
 Stars can be purchased or manipulated; published research documents fake-star
 campaigns. This review found no evidence establishing that Warp purchased its
