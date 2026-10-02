@@ -1,6 +1,7 @@
 # Native per-host push delivery
 
-Status: implementing. Maintainer direction, 2026-10-02: finish native push
+Status: server/broker deployed; Android physical acceptance passes. iOS code and
+deterministic tests are implemented; Apple live delivery awaits private setup. Maintainer direction, 2026-10-02: finish native push
 using the existing broker, commit verified slices, and prove real device delivery.
 
 This continues [security-client registration](082-security-client-registration-and-native-push.md)
@@ -27,6 +28,13 @@ with mounted support. Missing support disables enrollment without affecting SRP.
 
 ### 2 — enroll and present on Android
 
+Implemented. Physical API 37 acceptance uses two disposable SRP-paired hosts and
+the public broker: explicit foreground test, real background session events,
+authenticated tap, deduplication, unknown/revoked routing, isolated disable and
+preserved credentials all pass. A separate invocation proves the app process
+was absent before FCM started native presentation. Fixture subscriptions and
+profiles are retired; the ordinary protected installation remains registered.
+
 Add native per-profile enable, disable and test operations. Persist the opaque
 subscription-to-profile binding before the server can send; compensate partial
 enrollment and discard transferred send secrets. Render bounded generic messages,
@@ -35,6 +43,12 @@ the stored host/session. Permission, token rotation, forget and revocation must
 remain independent of the WebView.
 
 ### 3 — enroll and present on iOS
+
+Implemented with six deterministic push tests: management/subscription bounds,
+origin rejection, transfer without local send-secret retention, source rejection
+compensation, older-server fallback and two-host routing isolation. Full native
+and UI regression acceptance is running. The existing Firebase project has no
+iOS app registration; APNs setup and real device delivery are not yet proven.
 
 Use the same optional server contract and broker capabilities with Keychain
 bindings. Configure the Firebase iOS app and Apple push provisioning privately.

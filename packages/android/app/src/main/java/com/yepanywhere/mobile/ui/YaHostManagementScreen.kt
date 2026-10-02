@@ -59,6 +59,7 @@ fun YaHostManagementScreen(
     viewModel: YaHostManagementViewModel,
     pairingInput: YaPairingInput? = null,
     onClearPairingInput: () -> Unit = {},
+    onEnablePush: (String) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsState()
     var showAddServer by rememberSaveable { mutableStateOf(false) }
@@ -225,6 +226,9 @@ fun YaHostManagementScreen(
                     onAddServer = { showAddServer = true },
                     onForgetServer = { confirmForgetProfileId = it },
                     onOpenServer = viewModel::select,
+                    onEnablePush = onEnablePush,
+                    onDisablePush = { viewModel.setPush(it, false) },
+                    onTestPush = viewModel::testPush,
                 )
             }
         }
@@ -427,6 +431,9 @@ private fun ServerSettings(
     onAddServer: () -> Unit,
     onForgetServer: (String) -> Unit,
     onOpenServer: (String) -> Unit,
+    onEnablePush: (String) -> Unit,
+    onDisablePush: (String) -> Unit,
+    onTestPush: (String) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -458,6 +465,9 @@ private fun ServerSettings(
                 onReauthenticate = { onReauthenticate(profile.id, it) },
                 onForgetServer = { onForgetServer(profile.id) },
                 onOpenServer = { onOpenServer(profile.id) },
+                onEnablePush = { onEnablePush(profile.id) },
+                onDisablePush = { onDisablePush(profile.id) },
+                onTestPush = { onTestPush(profile.id) },
             )
         }
     }
@@ -470,6 +480,9 @@ private fun ServerSettingsCard(
     onReauthenticate: (String) -> Unit,
     onForgetServer: () -> Unit,
     onOpenServer: () -> Unit,
+    onEnablePush: () -> Unit,
+    onDisablePush: () -> Unit,
+    onTestPush: () -> Unit,
 ) {
     val profile = source.profile
     val preferredRoute = profile.routes.firstOrNull { it.id == profile.preferredRouteId }
@@ -508,10 +521,19 @@ private fun ServerSettingsCard(
             )
             Text(
                 modifier = Modifier.padding(top = 10.dp),
-                text = stringResource(R.string.notifications_setup_pending),
+                text = stringResource(if (source.pushEnabled) R.string.native_push_enabled else R.string.native_push_disabled),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = if (source.pushEnabled) onDisablePush else onEnablePush,
+                    enabled = !actionInProgress && profile.securityClient?.revoked != true) {
+                    Text(stringResource(if (source.pushEnabled) R.string.native_push_disable else R.string.native_push_enable))
+                }
+                if (source.pushEnabled) TextButton(onClick = onTestPush, enabled = !actionInProgress) {
+                    Text(stringResource(R.string.native_push_test))
+                }
+            }
             if (source.connection.phase == YaConnectionPhase.REAUTHENTICATION_REQUIRED) {
                 ReauthenticationCard(
                     actionInProgress = actionInProgress,
@@ -655,4 +677,6 @@ private fun uiErrorLabel(error: YaNativeUiError): String = when (error) {
         R.string.authentication_failed,
     )
     YaNativeUiError.CONNECTION_FAILED -> stringResource(R.string.connection_failed_message)
+    YaNativeUiError.PUSH_FAILED -> stringResource(R.string.native_push_failed)
+    YaNativeUiError.SERVER_UPDATE_REQUIRED -> stringResource(R.string.native_push_update_required)
 }

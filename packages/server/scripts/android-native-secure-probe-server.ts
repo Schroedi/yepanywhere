@@ -11,6 +11,8 @@ import { RemoteSessionService } from "../src/remote-access/RemoteSessionService.
 import { RemoteAccessService } from "../src/remote-access/index.js";
 import { RelayClientService } from "../src/services/RelayClientService.js";
 import { SecurityClientService } from "../src/services/SecurityClientService.js";
+import { NativePushService } from "../src/push/NativePushService.js";
+import { PushService } from "../src/push/PushService.js";
 import {
   createAcceptRelayConnection,
   createWsRelayRoutes,
@@ -137,6 +139,10 @@ const securityClientService = new SecurityClientService({
   remoteSessionService,
 });
 await securityClientService.initialize();
+const nativePushService = new NativePushService(securityClientService);
+const pushService = new PushService({ dataDir });
+await pushService.initialize();
+pushService.setNativePushService(nativePushService);
 const attachmentStagingService = new AttachmentStagingService({
   dataDir,
   maxUploadSizeBytes: 100 * 1024 * 1024,
@@ -177,6 +183,8 @@ const {
   authService,
   authDisabled: true,
   securityClientService,
+  nativePushService,
+  pushService,
   remoteAccessService,
   remoteSessionService,
   attachmentStagingService,
@@ -222,6 +230,22 @@ const wsHandler = createWsRelayRoutes({
 app.get("/api/ws", wsHandler);
 if (conversationProbe) {
   // Only this disposable loopback diagnostic server mounts fixture controls.
+  app.post("/__probe/push", async (c) => {
+    const result = await pushService.sendToAll({
+      type: "session-halted",
+      timestamp: new Date().toISOString(),
+      sessionId,
+      projectId: Buffer.from(projectPath).toString("base64url"),
+      projectName: "Private native push fixture",
+      reason: "completed",
+      duration: 1,
+    });
+    return c.json({
+      sent: result.filter((row) => row.success).length,
+      failed: result.filter((row) => !row.success).length,
+      sessionId,
+    });
+  });
   app.post("/__probe/append", async (c) => {
     const message = `Live preview response ${rowCount + 2}`;
     await appendFile(nativePath, row("Live preview request") + row(message));
@@ -290,6 +314,7 @@ stopNotifications();
 watcher?.stop();
 projectGlossarySubscriptionManager.dispose();
 await disposeSessionReaders();
+nativePushService.shutdown();
 await securityClientService.shutdown();
 remoteSessionService.shutdown();
 relayClientService?.stop();

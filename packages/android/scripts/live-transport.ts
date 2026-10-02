@@ -1,4 +1,5 @@
 /** Owned unchanged servers + real production Android Rust/WebView acceptance. */
+import { mkdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
@@ -8,6 +9,7 @@ import { startFixture } from "../../mobile-core/scripts/fixture.mjs";
 const android = fileURLToPath(new URL("..", import.meta.url));
 const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT;
 const adb = sdk ? resolve(sdk, "platform-tools/adb") : "adb";
+const push = process.env.YA_NATIVE_PUSH_LIVE === "1";
 let serial: string | undefined;
 const children = new Set<ReturnType<typeof spawn>>();
 async function run(command: string, args: string[], capture = false) {
@@ -73,8 +75,25 @@ const interrupt = () => {
 };
 process.once("SIGINT", interrupt);
 process.once("SIGTERM", interrupt);
+const permission = "android.permission.POST_NOTIFICATIONS";
+const previouslyGranted =
+  push &&
+  /POST_NOTIFICATIONS: granted=true/.test(
+    await device(
+      ["shell", "dumpsys", "package", "com.yepanywhere.mobile"],
+      true,
+    ),
+  );
 try {
-  for (const mux of [false, true]) {
+  if (push)
+    await device([
+      "shell",
+      "pm",
+      "grant",
+      "com.yepanywhere.mobile",
+      permission,
+    ]);
+  for (const mux of push ? [false] : [false, true]) {
     const relay = mux
       ? await createRelayServer({
           port: 0,
@@ -89,30 +108,42 @@ try {
     try {
       const relayURL = relay ? `ws://127.0.0.1:${relay.port}/ws` : undefined;
       fixture = await startFixture({ relayURL });
-      if (relay) {
+      if (relay || push) {
         beta = await startFixture({ relayURL, username: "rust-beta" });
         const deadline = Date.now() + 30000;
-        while (relay.connectionManager.getActiveServers().length < 2) {
+        while (relay && relay.connectionManager.getActiveServers().length < 2) {
           if (Date.now() >= deadline)
             throw new Error("Owned relay registration timed out");
           await new Promise((done) => setTimeout(done, 50));
         }
       }
-      for (const port of [fixture.port, ...(relay ? [relay.port] : [])]) {
+      for (const port of [
+        fixture.port,
+        ...(relay ? [relay.port] : []),
+        ...(push && beta ? [beta.port] : []),
+      ]) {
         await device(["reverse", `tcp:${port}`, `tcp:${port}`]);
         reversed.push(port);
       }
-      const classes = [
-        "com.yepanywhere.mobile.web.YaNativeWebAppInstrumentedTest",
-        mux
-          ? "com.yepanywhere.mobile.connection.YaRustRuntimeInstrumentedTest"
-          : "com.yepanywhere.mobile.security.YaSecurityClientE2eInstrumentedTest",
-      ];
+      const classes = push
+        ? [
+            "com.yepanywhere.mobile.notifications.NativePushBindingsInstrumentedTest",
+            "com.yepanywhere.mobile.notifications.NativePushLiveInstrumentedTest",
+          ]
+        : [
+            "com.yepanywhere.mobile.web.YaNativeWebAppInstrumentedTest",
+            mux
+              ? "com.yepanywhere.mobile.connection.YaRustRuntimeInstrumentedTest"
+              : "com.yepanywhere.mobile.security.YaSecurityClientE2eInstrumentedTest",
+          ];
       const options = {
         class: classes.join(","),
         yaProbeWsUrl: fixture.endpoint,
         yaProbeUsername: "ios-fixture",
         yaProbePassword: "native-fixture-password",
+        ...(push && beta
+          ? { yaNativePushLive: "true", yaProbeSecondWsUrl: beta.endpoint }
+          : {}),
         yaProbeUploadBytes: String(mux ? 100 * 1024 * 1024 : 1024 * 1024),
         ...(relay
           ? {
@@ -128,7 +159,7 @@ try {
         value,
       ]);
       console.log(
-        `Android production transport: ${mux ? "mux + 100 MiB" : "direct + security"}`,
+        `Android production acceptance: ${push ? "native push + two hosts" : mux ? "mux + 100 MiB" : "direct + security"}`,
       );
       const output = await device(
         [
@@ -148,6 +179,94 @@ try {
         /FAILURES!!!|INSTRUMENTATION_FAILED/.test(output)
       )
         throw new Error("Owned Android acceptance did not pass both tests");
+      if (push) {
+        const captures = resolve(
+          android,
+          `../../.artifacts/ui-testing/native-push-${Date.now()}`,
+        );
+        await mkdir(captures, { recursive: true });
+        for (const name of ["native-push-hosts.png", "native-push-session.png"])
+          await device([
+            "pull",
+            `/sdcard/Android/data/com.yepanywhere.mobile/files/${name}`,
+            resolve(captures, name),
+          ]);
+        console.log(`Native push captures: ${captures}`);
+        const headlessClass =
+          "com.yepanywhere.mobile.notifications.NativePushHeadlessInstrumentedTest";
+        const instrument = async (method: string) => {
+          const headlessArgs = Object.entries({
+            ...options,
+            class: `${headlessClass}#${method}`,
+          }).flatMap(([key, value]) => ["-e", key, value]);
+          const result = await device(
+            [
+              "shell",
+              "am",
+              "instrument",
+              "-w",
+              "-r",
+              ...headlessArgs,
+              "com.yepanywhere.mobile.test/androidx.test.runner.AndroidJUnitRunner",
+            ],
+            true,
+          );
+          if (
+            !/OK \(1 test\)/.test(result) ||
+            /FAILURES!!!|INSTRUMENTATION_FAILED/.test(result)
+          )
+            throw new Error(`Headless ${method} failed: ${result}`);
+          return result;
+        };
+        try {
+          const prepared = await instrument("prepare");
+          const metadata =
+            /INSTRUMENTATION_STATUS: nativePushPrepared=(\{[^\n]+\})/.exec(
+              prepared,
+            )?.[1];
+          if (!metadata)
+            throw new Error(
+              "Headless preparation omitted its routing metadata",
+            );
+          const subscription = (
+            JSON.parse(metadata) as { subscriptionId: string }
+          ).subscriptionId;
+          if (!/^[A-Za-z0-9_-]{22}$/.test(subscription))
+            throw new Error("Malformed headless routing id");
+          await device(["shell", "am", "kill", "com.yepanywhere.mobile"]);
+          const pid = await device(
+            ["shell", "pidof", "com.yepanywhere.mobile"],
+            true,
+          ).catch(() => "");
+          if (pid.trim())
+            throw new Error(
+              "Headless acceptance requires no YA process before delivery",
+            );
+          const response = await fetch(
+            `http://127.0.0.1:${fixture.port}/__probe/push`,
+            { method: "POST" },
+          );
+          const submitted = (await response.json()) as { sent: number };
+          if (!response.ok || submitted.sent !== 1)
+            throw new Error("Headless event submission failed");
+          // Prior physical FCM startup completed within 10 s; allow 4x that maximum.
+          const deadline = Date.now() + 40_000;
+          while (
+            !(
+              await device(["shell", "cmd", "notification", "list"], true)
+            ).includes(`${subscription}:android-preview-session`)
+          ) {
+            if (Date.now() >= deadline)
+              throw new Error("No headless native notification appeared");
+            await new Promise((done) => setTimeout(done, 100));
+          }
+          console.log(
+            "Headless Firebase delivery: native notification after verified absent YA process",
+          );
+        } finally {
+          await instrument("cleanup");
+        }
+      }
     } finally {
       for (const port of reversed)
         await device(["reverse", "--remove", `tcp:${port}`]);
@@ -157,6 +276,14 @@ try {
     }
   }
 } finally {
+  if (push && !previouslyGranted)
+    await device([
+      "shell",
+      "pm",
+      "revoke",
+      "com.yepanywhere.mobile",
+      permission,
+    ]);
   process.removeListener("SIGINT", interrupt);
   process.removeListener("SIGTERM", interrupt);
 }

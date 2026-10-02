@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.yepanywhere.mobile.notifications.NativePushFailure
 
 /** Observes saved hosts and connection status without acquiring dashboard leases. */
 class YaHostManagementViewModel(application: Application) : AndroidViewModel(application) {
@@ -41,7 +42,7 @@ class YaHostManagementViewModel(application: Application) : AndroidViewModel(app
                             else -> previous?.connection?.phase ?: YaConnectionPhase.IDLE
                         }
                         profile.id to YaHostState(profile,
-                            YaConnectionState(phase))
+                            YaConnectionState(phase), runtime.nativePush.enabled(profile.id))
                     },
                 )
                 observers.keys.filter { id -> list.profiles.none { it.id == id } }.forEach { observers.remove(it)?.cancel() }
@@ -98,6 +99,23 @@ class YaHostManagementViewModel(application: Application) : AndroidViewModel(app
     fun forgetAnyway(profileId: String) = action { showRemovalResult(profileId, removal.forgetAnyway(profileId)) }
     fun clearRemovalPrompt() { mutableState.value = mutableState.value.copy(removalPrompt = null) }
     fun clearError() { mutableState.value = mutableState.value.copy(error = null) }
+    fun setPush(profileId: String, enabled: Boolean) = pushAction(profileId) {
+        if (enabled) runtime.nativePush.enable(profileId) else runtime.nativePush.disable(profileId)
+    }
+    fun testPush(profileId: String) = pushAction(profileId) { runtime.nativePush.test(profileId) }
+    private fun pushAction(profileId: String, operation: suspend () -> Unit) {
+        if (mutableState.value.actionInProgress) return
+        mutableState.value = mutableState.value.copy(actionInProgress = true, error = null)
+        viewModelScope.launch {
+            try { operation() }
+            catch (error: CancellationException) { throw error }
+            catch (error: Exception) { mutableState.value = mutableState.value.copy(error = if ((error as? NativePushFailure)?.reason == "server_update_required") YaNativeUiError.SERVER_UPDATE_REQUIRED else YaNativeUiError.PUSH_FAILED) }
+            finally {
+                val source = mutableState.value.servers[profileId]
+                mutableState.value = mutableState.value.copy(actionInProgress = false, servers = if (source == null) mutableState.value.servers else mutableState.value.servers + (profileId to source.copy(pushEnabled = runtime.nativePush.enabled(profileId))))
+            }
+        }
+    }
 
     private fun showRemovalResult(profileId: String, result: YaServerRemovalOutcome) {
         mutableState.value = mutableState.value.copy(removalPrompt = when (result) {

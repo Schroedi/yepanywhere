@@ -22,16 +22,38 @@ import com.yepanywhere.mobile.web.WebClientConfig
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.yepanywhere.mobile.notifications.NativePushPresenter
+import com.yepanywhere.mobile.notifications.NotificationFoundation
+import com.yepanywhere.mobile.notifications.NotificationStatusReader
 
 class MainActivity : ComponentActivity() {
     private val homeViewModel by viewModels<YaHostManagementViewModel>()
     private var launchJob: Job? = null
+    private var pendingPushProfile: String? = null
+    private val pushPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val profile = pendingPushProfile
+        pendingPushProfile = null
+        if (granted && profile != null) homeViewModel.setPush(profile, true)
+    }
+    private fun enablePush(profileId: String) {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            pendingPushProfile = profileId
+            NotificationStatusReader(this, NotificationFoundation.installationStore(this)).markPermissionRequested()
+            pushPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else homeViewModel.setPush(profileId, true)
+    }
     // App Link credentials are transient visible UI state, never a ViewModel
     // value or saved-instance state.
     private var pairingInput by mutableStateOf<YaPairingInput?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingPushProfile = savedInstanceState?.getString("pendingPushProfile")
         enableEdgeToEdge()
         setContent {
             YepAnywhereTheme {
@@ -42,12 +64,18 @@ class MainActivity : ComponentActivity() {
                     viewModel = homeViewModel,
                     pairingInput = pairingInput,
                     onClearPairingInput = { pairingInput = null },
+                    onEnablePush = ::enablePush,
                 )
             }
         }
         if (savedInstanceState == null) {
             routeLaunch(intent)
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        pendingPushProfile?.let { outState.putString("pendingPushProfile", it) }
+        super.onSaveInstanceState(outState)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -58,6 +86,31 @@ class MainActivity : ComponentActivity() {
 
     private fun routeLaunch(intent: Intent) {
         launchJob?.cancel()
+        val subscription = intent.getStringExtra(NativePushPresenter.SUBSCRIPTION_EXTRA)
+        if (subscription != null) {
+            val session = intent.getStringExtra(NativePushPresenter.SESSION_EXTRA)?.takeIf { Regex("^[A-Za-z0-9_-]{1,128}$").matches(it) }
+            intent.removeExtra(NativePushPresenter.SUBSCRIPTION_EXTRA)
+            intent.removeExtra(NativePushPresenter.SESSION_EXTRA)
+            launchJob = lifecycleScope.launch {
+                val runtime = (application as YepAnywhereApplication).nativeRuntime
+                val binding = NativePushPresenter.destination(runtime, subscription) ?: return@launch
+                val lease = runtime.connectionManager(binding.profileId).acquire()
+                try {
+                    lease.request("GET", "/version")
+                    if (NativePushPresenter.destination(runtime, subscription) == null) return@launch
+                    runtime.pairedServers.select(binding.profileId)
+                    val path = session?.let {
+                        (lease.request("GET", "/security/clients/${binding.clientId}/native-push-subscription/destination?sessionId=$it").body as? org.json.JSONObject)?.optString("path")?.takeIf { path -> Regex("^/projects/[A-Za-z0-9_-]{1,2048}/sessions/[A-Za-z0-9_-]{1,128}$").matches(path) }
+                    }
+                    startWebClient(path?.let { WebClientConfig.fromBuild().origin + it }, binding.profileId)
+                } catch (error: kotlinx.coroutines.CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    // Expired/revoked hosts stay in native management for recovery.
+                } finally { kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { lease.releaseAndAwait() } }
+            }
+            return
+        }
         if (intent.getBooleanExtra(SHOW_HOSTS, false)) return
         if (WebClientConfig.fromBuild().bundled) {
             val pairingLink = AppLinkDestination.toNativePairingLink(intent.action, intent.dataString)

@@ -39,6 +39,8 @@ enum class YaNativeUiError {
     INVALID_SERVER_DETAILS,
     AUTHENTICATION_FAILED,
     CONNECTION_FAILED,
+    PUSH_FAILED,
+    SERVER_UPDATE_REQUIRED,
 }
 
 enum class YaRemovalPromptKind {
@@ -54,6 +56,7 @@ data class YaRemovalPrompt(
 data class YaHostState(
     val profile: YaPairedServerProfile,
     val connection: YaConnectionState = YaConnectionState(YaConnectionPhase.IDLE),
+    val pushEnabled: Boolean = false,
 )
 
 data class YaHostManagementState(

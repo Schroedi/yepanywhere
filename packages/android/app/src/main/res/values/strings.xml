@@ -33,7 +33,6 @@
     <string name="finish_forgetting">Finish forgetting</string>
     <string name="finish_forgetting_title">Device unregistered</string>
     <string name="finish_forgetting_explanation">The server revoked this device, but Android could not erase the local profile. Try the local cleanup again.</string>
-    <string name="notifications_setup_pending">Notification delivery settings will appear here after native push registration is connected to this server.</string>
     <string name="sign_in_again">Sign in again</string>
     <string name="sign_in_again_explanation">The saved session expired or was rejected. Enter your server password to create a new session.</string>
     <string name="sign_in">Sign in</string>
@@ -58,4 +57,16 @@
           \"include\": \"https://yepanywhere.com/.well-known/assetlinks.json\"
         }]
     </string>
+    <string name="native_push_enabled">Notifications enabled for this server</string>
+    <string name="native_push_disabled">Notifications are off for this server</string>
+    <string name="native_push_enable">Enable notifications</string>
+    <string name="native_push_disable">Disable notifications</string>
+    <string name="native_push_test">Send test</string>
+    <string name="native_push_failed">Could not update notifications. Check notification permission and your connection, then retry.</string>
+    <string name="native_push_update_required">Update this YA server to enable native notifications.</string>
+    <string name="push_approval">An agent needs your approval.</string>
+    <string name="push_input">An agent needs your input.</string>
+    <string name="push_completed">An agent has finished working.</string>
+    <string name="push_failed">An agent stopped with an error.</string>
+    <string name="push_test_message">Notifications are working. Tap to open your server.</string>
 </resources>
