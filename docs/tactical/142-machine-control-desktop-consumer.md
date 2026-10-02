@@ -468,3 +468,36 @@ close/crash, native grant expiry, signed app replacement or Windows/Linux
 lifecycle parity. MC's [tactical record](../../../machine-control/docs/tactical/062-installed-agent-cli.md#installed-mac-claim-and-resident-lifecycle-result)
 owns the repeatable helper and evidence scope. The public picker approval and
 legacy retirement gates remain unchanged.
+
+## Full YA app close, restart and crash result
+
+The new strict-checked lifecycle probe passes in the dedicated Mac appliance
+without either checkout. A bundled production app, its normal dependency
+resources, complete Codex runtime and isolated auth/profile use the signed MC
+assembly. Two actual model turns query only installed instructions/identity.
+The production Supervisor verifies session abort by native PID and unregisters
+it. The full app disposes its readers/services and a fresh instance has no live
+provider for that session. MC's independently observed PID, native generation
+and exact held claim remain unchanged across both operations.
+
+A separate owned full-app process completes its real workflow before abrupt
+`SIGKILL`. MC stays healthy with the same PID/generation and claim. Codex owns
+a process group separate from YA; cleanup validates its executable/staging
+root, kills that owned group and observes its exit. Cleanup retains failures,
+closes logs and disposes owned services. The controller removes temporary
+app/runtime/auth/data, confirms the original resident is still ready, restores
+initial power-off and releases host/controller claims.
+
+Two earlier staging attempts failed before app startup: an ESM shim conflicted
+with the app's `__filename` binding, then a required SDK resource locator was
+missing. They remain failed attempts with completed cleanup. The final bundle
+passes syntax checking and includes the real dependency closure. This closes
+Mac YA session-close, app restart and crash isolation. It does not establish
+native grant expiry, signed replacement, Windows/Linux parity, public picker
+approval or legacy retirement.
+
+Validation: strict manual-probe types, bundle syntax, full lint/format/typecheck
+and all unit checks pass (server 6,314 plus 67 skips, client 6,634, shared 940,
+push broker 45 and relay 130). The passing parent/child runtime logs have no
+warning/error events; broader intentional failure-path test warnings remain
+recorded in the existing gap. No new product UI or public contract is added.

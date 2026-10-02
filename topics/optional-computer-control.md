@@ -513,3 +513,24 @@ passes separate full-app live/reloaded HTTP and desktop/phone media views.
 Standing appliance authority, local signed assembly and no publication remain
 the evidence boundary; no Windows/Linux or workstation browser approval is
 inferred from this cell.
+
+**Current:** `scripts/probe-machine-control-lifecycle.ts` passes inside the
+dedicated Mac appliance with the same source-independent signed assembly.
+It uses the production app and Supervisor with two real Codex turns restricted
+to offline installed instructions/identity. Verified session abort unregisters
+the provider, then full app disposal and a fresh app instance leave MC's exact
+PID, native generation and already-held host claim unchanged. A separate owned
+YA process completes the same workflow before abrupt `SIGKILL`; the independent
+MC resident and claim remain healthy. The orphaned Codex process group is
+validated against its owned staging root, killed and observed gone.
+
+The staged probe needs the production app's normal dependency resources,
+including bcrypt's native loader and the Claude SDK resource locator even
+though only Codex is enabled. Use a complete Codex vendor runtime and an
+owner-only isolated profile, retaining the operator's authentication/config.
+The root and MC/claim environment match the native/browser probes. The caller
+owns MC startup, claims, temporary resource/profile removal and appliance
+power restoration; YA never starts or kills MC. Cleanup restores the original
+resident's readiness, initial power-off and released claims. This closes the
+Mac YA close/restart/crash isolation cell. Native grant expiry/replacement and
+Windows/Linux lifecycle parity remain independent gates.
