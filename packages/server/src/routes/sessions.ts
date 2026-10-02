@@ -443,6 +443,7 @@ async function resolveSessionReader({
 interface StartSessionBody {
   creationProvenance?: SessionCreationProvenance;
   computerControl?: boolean;
+  machineControl?: boolean;
   message: string;
   images?: string[];
   documents?: string[];
@@ -493,6 +494,7 @@ function hasSessionMessageContent(body: StartSessionBody): boolean {
 interface CreateSessionBody {
   creationProvenance?: SessionCreationProvenance;
   computerControl?: boolean;
+  machineControl?: boolean;
   mode?: PermissionMode;
   model?: string;
   serviceTier?: string;
@@ -4059,6 +4061,20 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
 
+    if (
+      body.machineControl !== undefined &&
+      typeof body.machineControl !== "boolean"
+    )
+      return c.json({ error: "machineControl must be a boolean" }, 400);
+    if (body.machineControl && body.computerControl)
+      return c.json(
+        {
+          error:
+            "Choose installed Machine Control or the legacy component, not both",
+        },
+        400,
+      );
+
     const modeError = permissionModeError(body.mode);
     if (modeError) {
       return c.json({ error: modeError }, 400);
@@ -4148,6 +4164,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         effort,
         providerName: body.provider,
         computerControl: body.computerControl,
+        machineControl: body.machineControl,
         executor,
         sandboxLevel: sandboxSelection.sandboxLevel,
         sandboxNetworkFirewall: sandboxSelection.sandboxNetworkFirewall,
@@ -4242,6 +4259,20 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       // Body is optional for this endpoint
     }
 
+    if (
+      body.machineControl !== undefined &&
+      typeof body.machineControl !== "boolean"
+    )
+      return c.json({ error: "machineControl must be a boolean" }, 400);
+    if (body.machineControl && body.computerControl)
+      return c.json(
+        {
+          error:
+            "Choose installed Machine Control or the legacy component, not both",
+        },
+        400,
+      );
+
     const modeError = permissionModeError(body.mode);
     if (modeError) {
       return c.json({ error: modeError }, 400);
@@ -4303,6 +4334,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         effort,
         providerName: body.provider,
         computerControl: body.computerControl,
+        machineControl: body.machineControl,
         executor,
         sandboxLevel: sandboxSelection.sandboxLevel,
         sandboxNetworkFirewall: sandboxSelection.sandboxNetworkFirewall,
@@ -4381,6 +4413,20 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
 
+    if (
+      body.machineControl !== undefined &&
+      typeof body.machineControl !== "boolean"
+    )
+      return c.json({ error: "machineControl must be a boolean" }, 400);
+    if (body.machineControl && body.computerControl)
+      return c.json(
+        {
+          error:
+            "Choose installed Machine Control or the legacy component, not both",
+        },
+        400,
+      );
+
     const limitedLaunch = applyLimitedLaunchPolicy(c, body);
     if (limitedLaunch.kind === "error")
       return c.json({ error: limitedLaunch.error }, 403);
@@ -4455,6 +4501,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         effort,
         providerName: body.provider,
         computerControl: body.computerControl,
+        machineControl: body.machineControl,
         executor,
         sandboxLevel: sandboxSelection.sandboxLevel,
         sandboxNetworkFirewall: sandboxSelection.sandboxNetworkFirewall,
@@ -4521,6 +4568,20 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       // Body is optional for this endpoint
     }
 
+    if (
+      body.machineControl !== undefined &&
+      typeof body.machineControl !== "boolean"
+    )
+      return c.json({ error: "machineControl must be a boolean" }, 400);
+    if (body.machineControl && body.computerControl)
+      return c.json(
+        {
+          error:
+            "Choose installed Machine Control or the legacy component, not both",
+        },
+        400,
+      );
+
     const limitedLaunch = applyLimitedLaunchPolicy(c, body);
     if (limitedLaunch.kind === "error")
       return c.json({ error: limitedLaunch.error }, 403);
@@ -4575,6 +4636,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         effort,
         providerName: body.provider,
         computerControl: body.computerControl,
+        machineControl: body.machineControl,
         executor,
         sandboxLevel: sandboxSelection.sandboxLevel,
         sandboxNetworkFirewall: sandboxSelection.sandboxNetworkFirewall,

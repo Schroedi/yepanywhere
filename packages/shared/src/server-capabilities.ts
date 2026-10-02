@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  installedMachineControl: {
+    name: "installed-machine-control",
+    index: CAPABILITY_ID_ALLOCATIONS.installedMachineControl.id,
+    introducedIn: "0.9.4",
+  },
   nativePushSubscriptions: {
     name: "native-push-subscriptions-v1",
     index: CAPABILITY_ID_ALLOCATIONS.nativePushSubscriptions.id,
@@ -1061,6 +1066,31 @@ export const SERVER_CAPABILITIES = {
     lifecycle: {
       kind: "permanent",
       reason: "Optional managed Windows component.",
+    },
+  },
+  installedMachineControl: {
+    id: CAPABILITY_ID_ALLOCATIONS.installedMachineControl.id,
+    name: "installed-machine-control",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.installedMachineControl.id,
+    },
+    description:
+      "Verified installed Machine Control CLI readiness and explicit local session advertisement.",
+    clientFallback:
+      "Hide the installed MC picker and send neither its readiness request nor machineControl launch field.",
+    serverContract: {
+      routes: ["GET /api/machine-control"],
+      routeModules: ["packages/server/src/routes/machine-control.ts"],
+      requestFields: ["machineControl"],
+      responseFields: ["available", "version", "reason"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Optional independently installed desktop product.",
     },
   },
   computerControl: {

@@ -2,6 +2,10 @@ import { DraftStore } from "./drafts/DraftStore.js";
 import { createDraftRoutes } from "./routes/drafts.js";
 import { ConversationSubscriptions } from "./experimental/conversation-subscriptions.js";
 import { ComputerControlService } from "./computer-control/service.js";
+import {
+  createMachineControlRoutes,
+  supportsInstalledMachineControl,
+} from "./routes/machine-control.js";
 import { createComputerControlRoutes } from "./routes/computer-control.js";
 import { createComputerControlReleaseRoutes } from "./routes/computer-control-releases.js";
 import { createConversationSource } from "./experimental/conversation-source.js";
@@ -980,6 +984,8 @@ export function createApp(options: AppOptions): AppResult {
   // Mount /api routers only after the security and auth middleware above:
   // Hono runs only the middleware registered before a route, so an earlier
   // mount answers without them (test/auth/api-auth-boundary.test.ts).
+  if (supportsInstalledMachineControl())
+    app.route("/api", createMachineControlRoutes());
   if (computerControl) {
     app.route("/api", createComputerControlRoutes(computerControl));
     app.route("/api", createComputerControlReleaseRoutes(computerControl));
@@ -2330,6 +2336,7 @@ export function createApp(options: AppOptions): AppResult {
     "/api/version",
     createVersionRoutes({
       getLatestVersion: options.getLatestVersion,
+      installedMachineControlAvailable: supportsInstalledMachineControl(),
       getExperimentalConversationAvailable: () =>
         Boolean(conversationSubscriptions),
       getSqliteStatus: () => discoverySqlite.getStatus(),

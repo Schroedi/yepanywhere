@@ -43,6 +43,19 @@ import {
 import { getServerCapabilities } from "../../src/routes/version.js";
 
 describe("Version Routes", () => {
+  it("advertises installed MC only with its mounted supported-host route", () => {
+    const name = SERVER_CAPABILITIES.installedMachineControl.name;
+    expect(getServerCapabilities()).not.toContain(name);
+    expect(
+      getServerCapabilities({ installedMachineControlAvailable: true }),
+    ).toContain(name);
+    expect(
+      getServerCapabilities({
+        installedMachineControlAvailable: true,
+        deniedCapabilities: [name],
+      }),
+    ).not.toContain(name);
+  });
   it("advertises native push only with a configured mounted adapter", () => {
     const name = SERVER_CAPABILITIES.nativePushSubscriptions.name;
     expect(

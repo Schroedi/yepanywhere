@@ -555,3 +555,28 @@ stays alive. The probe disarms access and the controller restores policy,
 processes, staging, claims and initial power-off. This is native access expiry,
 separate from the already accepted target-use claim expiry and YA lifecycle
 cells. It does not establish app replacement or Windows/Linux parity.
+
+## Installed desktop session selector
+
+**Current:** The optional `installed-machine-control` capability (permanent ID
+112) is distinct from legacy Computer Control IDs 70/71. Supported hosts expose
+read-only `GET /api/machine-control`; it authenticates the installed product and
+complete CLI before reporting `{ available: true, version }`. Missing,
+incompatible or unverified installations return bounded unavailability without
+private paths. Readiness never starts MC, obtains a grant, or modifies settings.
+
+Eligible local Claude-family sessions outside plan mode and unrestricted local
+Codex sessions can select Machine Control in advanced launch options. Remote
+executors, YA-sandboxed and fixed launches do not offer it. Selection defaults
+off and resets on source or eligibility changes. A supported launch sends an
+explicit optional boolean `machineControl`; false overrides `YEP_MC_CONTROL`.
+The server revalidates a selected installation at launch and refuses malformed
+or simultaneous installed/legacy selections. Native sudo remains independent.
+
+When capability 112 is absent, the client neither requests readiness nor sends
+the launch field, including on older servers advertising legacy IDs 70/71.
+Legacy controls keep their existing meaning until accepted Windows cutover.
+The selector applies to immediate explicit launches. While selected, project
+queue submission is disabled with an explanation; turning it off permits queue
+submission. YA shutdown leaves independently installed MC running, and removing
+advertisement does not claim to revoke MC access or contain same-user shells.

@@ -1,5 +1,6 @@
 import { DraftSyncNotice } from "./DraftSyncNotice";
 import { DRAFT_STORAGE_EVENT } from "../lib/draftSyncStorage";
+import { MachineControlSessionSelection } from "./MachineControlSessionSelection";
 import { ComputerSessionSelection } from "./ComputerSessionSelection";
 import { useComposerVoiceRef } from "../hooks/useComposerVoiceRef";
 import type { ProjectAppTarget } from "../api/projectApp";
@@ -455,6 +456,15 @@ export function NewSessionForm({
   const [selectedRecapMode, setSelectedRecapMode] = useState<RecapMode>("off");
   const [sandboxLevel, setSandboxLevel] = useState<SessionSandboxLevel>("none");
   const [computerSelected, setComputerSelected] = useState(false);
+  const [machineControlSelected, setMachineControlSelected] = useState(false);
+  const selectMachineControl = useCallback((selected: boolean) => {
+    setMachineControlSelected(selected);
+    if (selected) setComputerSelected(false);
+  }, []);
+  const selectComputerControl = useCallback((selected: boolean) => {
+    setComputerSelected(selected);
+    if (selected) setMachineControlSelected(false);
+  }, []);
   const [sandboxNetworkFirewall, setSandboxNetworkFirewall] = useState(true);
   const [recapAfterSeconds, setRecapAfterSeconds] = useState(
     DEFAULT_RECAP_AFTER_SECONDS,
@@ -1272,6 +1282,21 @@ export function NewSessionForm({
   const effectivePermissionMode = permissionModeOptions.includes(mode)
     ? mode
     : "default";
+  const supportsInstalledMachineControl = serverHasCapability(
+    versionInfo,
+    SERVER_CAPABILITIES.installedMachineControl.name,
+  );
+  const machineControlEligible =
+    supportsInstalledMachineControl &&
+    !effectiveExecutor &&
+    effectiveSandboxLevel === "none" &&
+    !launch &&
+    effectivePermissionMode !== "plan" &&
+    (selectedProvider === "codex"
+      ? effectivePermissionMode === "bypassPermissions"
+      : ["claude", "claude-gateway", "claude-ollama"].includes(
+          selectedProvider ?? "",
+        ));
   const getLegacyProviderDefaultSeed = useCallback(
     (providerName: ProviderName) => ({
       model:
@@ -2563,6 +2588,12 @@ export function NewSessionForm({
         const creationProvenance = getUiCreationProvenance(versionInfo);
         const sessionOptions = {
           creationProvenance,
+          ...(supportsInstalledMachineControl
+            ? {
+                machineControl:
+                  machineControlSelected && machineControlEligible,
+              }
+            : {}),
           ...(computerSelected && computerControlEligible
             ? { computerControl: true }
             : {}),
@@ -2840,6 +2871,9 @@ export function NewSessionForm({
       draftControls,
       computerControlEligible,
       computerSelected,
+      supportsInstalledMachineControl,
+      machineControlSelected,
+      machineControlEligible,
       creatingTemplateProject,
       templateProjectBusy,
       historyScope,
@@ -2883,6 +2917,7 @@ export function NewSessionForm({
   );
 
   const handleQueueProjectSession = async (messageOverride?: unknown) => {
+    if (machineControlSelected && machineControlEligible) return;
     if (creatingTemplateProject || templateProjectBusy) return;
     const override =
       typeof messageOverride === "string" ? messageOverride : undefined;
@@ -3491,19 +3526,23 @@ export function NewSessionForm({
   useAttachmentNavigationGuard(attachmentNavigationGuardActive);
   const canQueueProjectSession = Boolean(
     allowProjectQueue &&
+      !(machineControlSelected && machineControlEligible) &&
       showProjectQueueAction &&
       (message.trim() || speechPending !== null || interimTranscript) &&
       pendingFilesReadyForProjectQueue &&
       hasProjectQueueTargetProject &&
       hasSelectedProviderModel,
   );
-  const projectQueueNewSessionTitle = !pendingFilesReadyForProjectQueue
-    ? t("projectQueueNewSessionAttachmentsPreparing")
-    : hasProjectQueueTargetProject
-      ? projectQueueCtrlEnterEnabled
-        ? t("toolbarProjectQueueTooltipWithShortcut")
-        : t("toolbarProjectQueueTooltip")
-      : t("projectQueueNewSessionNeedsProject");
+  const projectQueueNewSessionTitle =
+    machineControlSelected && machineControlEligible
+      ? t("machineControlImmediateLaunchOnly")
+      : !pendingFilesReadyForProjectQueue
+        ? t("projectQueueNewSessionAttachmentsPreparing")
+        : hasProjectQueueTargetProject
+          ? projectQueueCtrlEnterEnabled
+            ? t("toolbarProjectQueueTooltipWithShortcut")
+            : t("toolbarProjectQueueTooltip")
+          : t("projectQueueNewSessionNeedsProject");
   const manualDeliverySpeechPrefix =
     speechMessagePrefix &&
     asrAttributionMs > 0 &&
@@ -4616,6 +4655,9 @@ export function NewSessionForm({
       ? sessionDefaultCopy.sandbox.title
       : null,
     computerSelected ? t("computerSessionOptIn") : null,
+    machineControlSelected && machineControlEligible
+      ? t("newSessionMachineControlTitle")
+      : null,
     effectiveExecutor
       ? `${t("newSessionRunOnTitle")}: ${effectiveExecutor}`
       : null,
@@ -4842,10 +4884,17 @@ export function NewSessionForm({
           {helperSideModelSection}
           {promptSuggestionSection}
           {sandboxSection}
+          <MachineControlSessionSelection
+            eligible={machineControlEligible}
+            selected={machineControlSelected}
+            onChange={selectMachineControl}
+            disabled={isStarting}
+            showCaption={showOptionCaptions}
+          />
           <ComputerSessionSelection
             eligible={computerControlEligible}
             selected={computerSelected}
-            onChange={setComputerSelected}
+            onChange={selectComputerControl}
             disabled={isStarting}
             showCaption={showOptionCaptions}
           />

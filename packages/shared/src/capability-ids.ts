@@ -690,6 +690,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "native-push-subscriptions-v1",
     introducedIn: "0.9.4",
   },
+  installedMachineControl: {
+    id: 112,
+    direction: "server",
+    name: "installed-machine-control",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

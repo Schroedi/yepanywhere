@@ -315,9 +315,9 @@ test files and owned upload carriers are removed, clean shutdown is confirmed,
 the claim is released and the stored login credential remains ready. Signed
 desktop/browser, actual YA control/media and legacy retirement remain open.
 
-## Pending session-picker compatibility review
+## Session-picker compatibility decision
 
-**Proposal:** Introduce optional `installed-machine-control`, using the next
+**Decision:** Introduce optional `installed-machine-control`, using the next
 free permanent capability ID 112, separately from legacy IDs 70/71. It covers
 read-only `GET /api/machine-control` installation readiness and an optional
 boolean `machineControl` on explicit session launch requests. The picker
@@ -332,10 +332,15 @@ interface. Without the new capability, clients hide the picker and send neither
 the readiness request nor the field. Existing Computer Control behavior, IDs
 70/71 and cleanup remain unchanged until accepted cutover. Component and route
 checks must prove that an older capability-bearing server receives no new
-request/field. The maintainer approval question is pending under the
-[compatibility policy](../../topics/server-capabilities.md#minimum-compatibility-horizons);
-client/server contract edits wait for that answer. Internal supervisor wiring
-and existing media validation are independent work.
+request/field. The maintainer resumed the authorized end-to-end implementation
+on 2026-10-02 after the published MC release completed; this implements the
+presented compatibility plan under the
+[compatibility policy](../../topics/server-capabilities.md#minimum-compatibility-horizons).
+Explicit false overrides the host-wide environment opt-in. Selection resets
+when eligibility or the connected source changes. Installed and legacy control
+cannot both be selected. The initial selector covers immediate explicit
+launches; queue submission is unavailable while installed MC is selected,
+with a tooltip explaining how to queue or start now.
 
 The internal MC selection is now carried through all four provider/compatibility
 SDK launch dispatches. Focused tests cover true, false and absent selection
@@ -545,3 +550,38 @@ Existing deliberate failure-path warnings remain in their recorded gap. This
 qualifies discovery for the exact notarized candidate; real control and lifecycle
 evidence above used the earlier locally signed assembly. Published release,
 signed replacement and the other platform/cutover gates remain distinct.
+
+## Public launch selection implementation
+
+The authenticated read-only installation route is mounted before capability
+112 is advertised on macOS, Windows and Linux. The four explicit HTTP launch
+shapes preserve true, false and absent selection through the existing
+supervisor wiring; malformed and conflicting choices fail before launch.
+Readiness and launch use the same verified installed-product boundary.
+
+The default-off advanced option is implemented for eligible local providers.
+Existing legacy-capability servers receive neither the new request nor field.
+Off is explicit on capable servers, preserving user choice even when the host
+uses the environment opt-in. Project queue launch does not silently discard a
+selected installed capability; the queue action explains that the user can
+turn it off or start immediately.
+
+Validation on 2026-10-02: focused route/launch/capability tests and full checks
+pass (server 6,326 plus 67 skipped, client 6,638, shared 940, relay 130 and push
+45). Lint, formatting, typechecks, console scan and CSS architecture pass;
+console metrics are unchanged. The broader suite still emits the negative-path
+diagnostics recorded in [the existing warning gap](../../gaps/unit-failure-path-log-warnings.md);
+touched tests emit no warnings.
+
+The focused browser case uses a synthetic available installation and 200-model
+catalog to test the client boundary, not native MC acceptance. Readiness resolves
+during sequential typing, every character persists and input acknowledgement
+stays below 100 ms. Desktop (1000×600) and phone (375×812) captures were reviewed
+separately: On is clear, the description remains grouped with the selector and
+neither layout overflows. Captures are retained under
+`.artifacts/ui-testing/2026-10-02-installed-mc-picker/` as
+`installed-mc-desktop.png` and `installed-mc-phone.png`.
+
+The published six-platform desktop 0.5.3 packages now unblock signed Windows
+and Linux acceptance. Native control on those installed candidates, the Mac
+replacement/restart cell and legacy retirement remain open.

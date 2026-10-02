@@ -624,6 +624,8 @@ export interface VersionRouteOptions {
   desktopRuntime?: boolean;
   /** Whether this Hono generation is registered with a provider host. */
   providerHostControlAvailable?: boolean;
+  /** Installed MC readiness route is mounted on this supported host. */
+  installedMachineControlAvailable?: boolean;
   /** Whether the operator enabled experimental live worktree monitoring. */
   isLiveWorktreeMonitoringEnabled?: () => boolean;
   /** Version-implied contracts deliberately unavailable in this generation. */
@@ -679,6 +681,8 @@ export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   capabilities.push(SERVER_CAPABILITIES.vhostBearerAccess.name);
   if (options?.vhostAppControlAvailable)
     capabilities.push(SERVER_CAPABILITIES.vhostAppControl.name);
+  if (options?.installedMachineControlAvailable)
+    capabilities.push(SERVER_CAPABILITIES.installedMachineControl.name);
   capabilities.push(SERVER_CAPABILITIES.computerControl.name);
   capabilities.push(SERVER_CAPABILITIES.computerControlReleases.name);
   capabilities.push(SERVER_CAPABILITIES.claudeGatewayServices.name);

@@ -176,7 +176,7 @@ const {
       newSessionDefaults?: {
         provider?: "claude" | "claude-gateway" | "codex" | "opencode";
         model?: string;
-        permissionMode?: "default" | "auto";
+        permissionMode?: "default" | "auto" | "bypassPermissions" | "plan";
         recapMode?: "off" | "native" | "side-session" | "fork";
         recapAfterSeconds?: number;
         promptSuggestionMode?: "off" | "native";
@@ -2246,6 +2246,83 @@ describe("NewSessionForm", () => {
     );
   });
 
+  it.each([true, false])(
+    "submits the explicit installed MC choice %s on supported local Codex launches",
+    async (selected) => {
+      versionState.version = {
+        capabilities: [
+          PROJECT_QUEUE_CAPABILITY,
+          SERVER_CAPABILITIES.installedMachineControl.name,
+        ],
+      };
+      serverSettingsState.settings = {
+        newSessionDefaults: {
+          provider: "codex",
+          model: "gpt-5.4",
+          permissionMode: "bypassPermissions",
+        },
+      };
+      serverSettingsState.isLoading = false;
+      mockConnectionFetch.mockResolvedValue({ available: true });
+      render(
+        <NewSessionForm
+          projectId="project-1"
+          selectedProject={chooserProjects[0]}
+          projects={[...chooserProjects]}
+        />,
+      );
+      openAdvancedOptions();
+      await screen.findByTestId("filter-newSessionMachineControlTitle");
+      expect(selectedDropdownValue("newSessionMachineControlTitle")).toBe(
+        "off",
+      );
+      if (selected)
+        fireEvent.click(
+          dropdownOption("newSessionMachineControlTitle", "showThinkingOn"),
+        );
+      fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
+        target: { value: "use installed control" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "newSessionStartAction" }),
+      );
+      await waitFor(() => expect(mockStartSession).toHaveBeenCalledTimes(1));
+      expect(mockStartSession.mock.calls[0]?.[2]).toEqual(
+        expect.objectContaining({ machineControl: selected }),
+      );
+      expect(mockConnectionFetch).toHaveBeenCalledWith("/machine-control");
+    },
+  );
+
+  it.each(["default", "plan"] as const)(
+    "does not probe installed MC for ineligible Codex mode %s",
+    async (permissionMode) => {
+      versionState.version = {
+        capabilities: [SERVER_CAPABILITIES.installedMachineControl.name],
+      };
+      serverSettingsState.settings = {
+        newSessionDefaults: {
+          provider: "codex",
+          model: "gpt-5.4",
+          permissionMode,
+        },
+      };
+      serverSettingsState.isLoading = false;
+      render(
+        <NewSessionForm
+          projectId="project-1"
+          selectedProject={chooserProjects[0]}
+          projects={[...chooserProjects]}
+        />,
+      );
+      openAdvancedOptions();
+      expect(mockConnectionFetch).not.toHaveBeenCalledWith("/machine-control");
+      expect(
+        screen.queryByTestId("filter-newSessionMachineControlTitle"),
+      ).toBeNull();
+    },
+  );
+
   it("offers computer control to an eligible Codex session and submits it", async () => {
     versionState.version = {
       capabilities: [
@@ -2277,6 +2354,10 @@ describe("NewSessionForm", () => {
 
     openAdvancedOptions();
     await screen.findByTestId("filter-newSessionComputerControlTitle");
+    expect(mockConnectionFetch).not.toHaveBeenCalledWith("/machine-control");
+    expect(
+      screen.queryByTestId("filter-newSessionMachineControlTitle"),
+    ).toBeNull();
     fireEvent.click(
       dropdownOption("newSessionComputerControlTitle", "showThinkingOn"),
     );
@@ -2292,6 +2373,9 @@ describe("NewSessionForm", () => {
     });
     expect(mockStartSession.mock.calls[0]?.[2]).toEqual(
       expect.objectContaining({ computerControl: true }),
+    );
+    expect(mockStartSession.mock.calls[0]?.[2]).not.toHaveProperty(
+      "machineControl",
     );
   });
 

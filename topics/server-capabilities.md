@@ -1022,3 +1022,15 @@ Existing capabilities and protocol levels keep their meanings. The unpublished v
 contract may evolve before release; released changes need the usual review. See
 [issue/session associations](issue-session-associations.md#compatibility-and-migrations)
 for exact routes, fields and source-switch behavior.
+
+## Installed Machine Control compatibility
+
+**Decision (2026-10-02):** Allocate permanent optional capability 112,
+`installed-machine-control`, for read-only installation readiness and explicit
+`machineControl?: boolean` launch selection. It does not extend legacy 70/71.
+The optional support corpus v0.9.0, v0.9.1 and v0.9.2 lacks this interface;
+clients hide its picker and send no new request or field without the bit.
+The maintainer's resumed end-to-end implementation follows the presented plan
+in [tactical 142](../docs/tactical/142-machine-control-desktop-consumer.md#session-picker-compatibility-decision).
+The bit means the readiness route is mounted on a supported host; installed
+product availability is reported separately and verified again at launch.
