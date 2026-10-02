@@ -3,6 +3,7 @@ import {
   mkdir,
   writeFile,
   readFile,
+  realpath,
   rm,
   symlink,
 } from "node:fs/promises";
@@ -467,8 +468,8 @@ describe("instruction restoration", () => {
       body: JSON.stringify(settings()),
     });
     expect(await preview.json()).toEqual({
-      prefix: path.dirname(file),
-      matches: [file],
+      prefix: await realpath(path.dirname(file)),
+      matches: [await realpath(file)],
       truncated: false,
     });
   });
