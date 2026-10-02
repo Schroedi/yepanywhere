@@ -1,7 +1,17 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { lstat, readFile, readdir, realpath } from "node:fs/promises";
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve, win32 } from "node:path";
 import { z } from "zod";
 import { verifyMachineControlSignature } from "./signature.js";
@@ -167,6 +177,44 @@ export async function verifyClientFiles(root: string, bytes: Buffer) {
   return names;
 }
 
+// Test-FileCatalog cannot hash the running resident image. Verify the same
+// bytes in a complete bounded copy against its signed catalog instead.
+// No copied code is executed.
+async function runtimeCatalogSnapshot(source: string) {
+  const snapshot = await mkdtemp(join(tmpdir(), "ya-mc-runtime-catalog-"));
+  let count = 0;
+  let bytes = 0;
+  async function copy(directory: string, destination: string, depth = 0) {
+    if (depth > 20 || (await realpath(directory)) !== directory)
+      throw new Error("Invalid Machine Control runtime directory");
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      if (++count > 20_000)
+        throw new Error("Machine Control runtime entries exceeded limit");
+      const input = join(directory, entry.name);
+      const output = join(destination, entry.name);
+      const info = await lstat(input);
+      if ((await realpath(input)) !== input || info.isSymbolicLink())
+        throw new Error("Machine Control runtime may not contain links");
+      if (info.isDirectory()) {
+        await mkdir(output);
+        await copy(input, output, depth + 1);
+      } else if (info.isFile()) {
+        bytes += info.size;
+        if (bytes > 512 * 1024 * 1024)
+          throw new Error("Machine Control runtime exceeded limit");
+        await copyFile(input, output);
+      } else throw new Error("Invalid Machine Control runtime file");
+    }
+  }
+  try {
+    await copy(source, snapshot);
+    return snapshot;
+  } catch (error) {
+    await rm(snapshot, { recursive: true, force: true });
+    throw error;
+  }
+}
+
 export async function verifyInstalledMachineControl(
   installation: string,
   publisher: string | undefined,
@@ -192,7 +240,8 @@ export async function verifyInstalledMachineControl(
     root = join(installed, "mc-cli");
     const code = `$ErrorActionPreference='Stop'; $p=[Console]::In.ReadToEnd()|ConvertFrom-Json;
       foreach($file in @((Join-Path $p.install 'machine-control.exe'),(Join-Path $p.root 'package.cat'),
-        (Join-Path $p.install 'runtime/package.cat'),(Join-Path $p.install 'runtime/machine-control-windows.exe'),
+        (Join-Path $p.install 'runtime/package.cat'),(Join-Path $p.runtimeSnapshot 'package.cat'),
+        (Join-Path $p.install 'runtime/machine-control-windows.exe'),
         (Join-Path $p.install 'runtime/providers/cua/cua-driver.exe'))) {
         $s=Get-AuthenticodeSignature -LiteralPath $file;
         if($s.Status -ne 'Valid' -or $null -eq $s.TimeStamperCertificate -or
@@ -205,29 +254,40 @@ export async function verifyInstalledMachineControl(
       if([version]$version -ge [version]'0.5.3') {
         if((Test-FileCatalog -Path (Join-Path $p.root 'files.json') -CatalogFilePath (Join-Path $p.root 'package.cat')) -ne 'Valid') {throw 'MC CLI inventory catalog mismatch'};
       } elseif((Test-FileCatalog -Path $p.root -CatalogFilePath (Join-Path $p.root 'package.cat') -FilesToSkip 'package.cat') -ne 'Valid') {throw 'MC CLI catalog mismatch'};
-      $runtimeRoot=Join-Path $p.install 'runtime';
+      $runtimeRoot=$p.runtimeSnapshot;
       if((Test-FileCatalog -Path $runtimeRoot -CatalogFilePath (Join-Path $runtimeRoot 'package.cat') -FilesToSkip 'package.cat') -ne 'Valid') {throw 'MC runtime catalog mismatch'};
       $metadata=Join-Path $runtimeRoot 'desktop-runtime.json';
       if((Get-Item -LiteralPath $metadata).Length -gt 8192) {throw 'MC runtime metadata exceeded limit'};
       $runtime=Get-Content -LiteralPath $metadata -Raw | ConvertFrom-Json;
       if($runtime.schema -ne 'machine-control-desktop-runtime/v0' -or $runtime.profile -ne 'ordinary_user_desktop' -or $runtime.instance -ne 'desktop') {throw 'MC runtime profile mismatch'};
       [Console]::Out.Write((@{sourceRevision=$runtime.sourceRevision;runtime=$runtime.runtime;version=$version}|ConvertTo-Json -Compress))`;
-    const result = await run(
-      win32.join(
-        process.env.SystemRoot ?? "C:\\Windows",
-        "System32",
-        "WindowsPowerShell",
-        "v1.0",
-        "powershell.exe",
-      ),
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-EncodedCommand",
-        Buffer.from(code, "utf16le").toString("base64"),
-      ],
-      JSON.stringify({ install: installed, root, publisher }),
-    );
+    const snapshot = await runtimeCatalogSnapshot(join(installed, "runtime"));
+    let result: string;
+    try {
+      result = await run(
+        win32.join(
+          process.env.SystemRoot ?? "C:\\Windows",
+          "System32",
+          "WindowsPowerShell",
+          "v1.0",
+          "powershell.exe",
+        ),
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-EncodedCommand",
+          Buffer.from(code, "utf16le").toString("base64"),
+        ],
+        JSON.stringify({
+          install: installed,
+          root,
+          publisher,
+          runtimeSnapshot: snapshot,
+        }),
+      );
+    } finally {
+      await rm(snapshot, { recursive: true, force: true });
+    }
     windowsRuntime = z
       .object({
         sourceRevision: z.string().regex(/^[a-f0-9]{40}$/u),

@@ -42,6 +42,13 @@ instructions/environment are preserved. No resident is started or supervised
 by YA, and no MC access grant is issued. Native sudo remains independently
 selected. A launch selecting both this route and a legacy grant is refused.
 
+Windows verifies the complete runtime catalog against a bounded temporary copy.
+PowerShell's `Test-FileCatalog` cannot hash the running resident image directly.
+YA authenticates both original and copied catalogs and keeps the original native
+publisher checks, then deletes the copy on success or failure. Discovery and
+launch verification can therefore work while the independent MC app is running.
+No copied executable is run or resident stopped for verification.
+
 Windows desktop 0.5.3 and later authenticate `files.json` through the signed
 CLI catalog, then YA checks every full-byte dependency hash and refuses extra
 files. Earlier packages retain their full-directory catalog check. The signed

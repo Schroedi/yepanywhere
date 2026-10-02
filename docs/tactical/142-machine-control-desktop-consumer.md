@@ -623,3 +623,21 @@ and restores the existing uninstall registry. Owned app, runtime and staging
 are removed, initial power-off confirmed, and all local/controller claims
 released. Windows model/browser/media and lifecycle acceptance, Linux GUI
 acceptance and legacy migration remain open; no old component was retired.
+
+## Authenticate an active Windows resident
+
+**Current (2026-10-03):** The real Windows provider attempt exposed an installed
+consumer defect: initial authentication passed with the app absent, but
+`Test-FileCatalog` could not read the resident executable after native control.
+YA now verifies a bounded temporary copy of the complete runtime with the
+unchanged catalog check. Original native publisher checks remain; the copied
+catalog also requires the same valid timestamped publisher signature. Links,
+excess depth, entries and bytes are refused, and copies are removed on every
+success/failure path. Runtime metadata comes from the catalog-verified copy.
+
+The real ordinary-user Windows attempt passes authentication and reaches the
+model's installed CLI control/capture calls while the resident is live. Its
+image-path assertion needed Windows separator/JSON normalization; complete
+model acceptance remains pending rather than inferred from those calls.
+Focused authenticity tests and full lint, format, typecheck and unit suites
+pass. Existing broad-suite failure-path warnings remain the documented gap.

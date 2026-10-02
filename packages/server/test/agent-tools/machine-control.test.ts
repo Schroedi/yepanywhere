@@ -185,6 +185,10 @@ describe("installed client authenticity", () => {
   async function fixture(platform = "darwin") {
     const app = await mkdtemp(join(tmpdir(), "ya-mc-install-"));
     directories.push(app);
+    if (platform === "win32") {
+      await mkdir(join(app, "runtime"));
+      await writeFile(join(app, "runtime", "running.exe"), "native fixture");
+    }
     const root =
       platform === "darwin"
         ? join(app, "Contents", "Resources", "mc-cli")
@@ -275,10 +279,18 @@ describe("installed client authenticity", () => {
       runtime: process.arch === "arm64" ? "win-arm64" : "win-x64",
       version: identity.version,
     };
-    const run = vi.fn(async (_command: string, args: string[]) =>
-      args.includes("-EncodedCommand")
-        ? JSON.stringify(runtime)
-        : JSON.stringify(identity),
+    const snapshots: string[] = [];
+    const run = vi.fn(
+      async (_command: string, args: string[], input?: string) => {
+        if (!args.includes("-EncodedCommand")) return JSON.stringify(identity);
+        const snapshot = JSON.parse(input ?? "{}").runtimeSnapshot as string;
+        snapshots.push(snapshot);
+        expect(snapshot).not.toBe(join(app, "runtime"));
+        expect(await readFile(join(snapshot, "running.exe"), "utf8")).toBe(
+          "native fixture",
+        );
+        return JSON.stringify(runtime);
+      },
     );
     await verifyInstalledMachineControl(app, "Example Publisher", "win32", run);
     const powershell = Buffer.from(
@@ -297,6 +309,10 @@ describe("installed client authenticity", () => {
       verifyInstalledMachineControl(app, "Example Publisher", "win32", run),
     ).rejects.toThrow("incompatible");
     expect(run).toHaveBeenCalledTimes(1);
+    for (const snapshot of snapshots)
+      await expect(
+        readFile(join(snapshot, "running.exe")),
+      ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("refuses a changed Windows payload after catalog authentication without executing its probe", async () => {
