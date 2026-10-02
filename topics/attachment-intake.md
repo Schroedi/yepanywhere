@@ -104,14 +104,25 @@ web path.
 
 ## Audio memo attachments
 
-The existing session composer can explicitly record a microphone memo as a
+The new-session and existing session composers can record a microphone memo as a
 mono 24 kHz signed PCM16 WAV. Desktop Attach opens the file chooser;
 Shift-click records. Touch Attach opens **Share to session**. Right-click and
-long-press open the same menu, including the toolbar Hide action. Toolbar
+long-press open the same menu on small/coarse-pointer screens, including the
+toolbar Hide action. On fine-pointer screens at least 900 px wide, right-click
+opens the shared attachment panel. Recents start collapsed; Record audio memo
+and Choose files sit at the bottom, next to the composer. The session panel
+always targets the current session. New Session's alternate Attach panel also
+offers recording, and Shift-click starts it directly. Toolbar
 settings can override the device-local primary action with files, menu, or
 recording. The alternate is recording, except when recording is primary, when
-it is files. Ctrl+Shift+Space starts a memo or stops and sends the current take.
+it is files. In an existing session, Ctrl+Shift+Space starts a memo or stops
+and sends the current take.
 Ordinary microphone dictation remains separate.
+
+In New Session, the recording surface says **Tap here to stop & start session**.
+It creates the session, uploads the WAV, then submits the typed draft and
+optional transcript as the first turn. Upload failure retains the take for
+retry; Cancel preserves the typed draft and removes the pending take.
 
 The large waveform surface, captioned **Tap anywhere here to stop & send**,
 commits the take. Restart discards the take and begins again; Cancel discards

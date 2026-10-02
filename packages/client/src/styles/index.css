@@ -1150,7 +1150,7 @@ textarea {
   box-sizing: border-box;
 }
 
-.new-session-form button {
+.new-session-form > button {
   align-self: flex-end;
 }
 

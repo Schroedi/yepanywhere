@@ -18,6 +18,7 @@ interface Props {
   sessionId?: string;
   onCancel: () => void;
   onCommit: (file: File, transcript: string) => Promise<void>;
+  commitLabel?: string;
 }
 
 /** Audio memo panel: the surrounding recording surface commits the take. */
@@ -26,6 +27,7 @@ export function AudioMemoPanel({
   sessionId,
   onCancel,
   onCommit,
+  commitLabel,
 }: Props) {
   const { t } = useI18n();
   const { micDeviceId, reducePlayback } = useSpeechCaptureSettings();
@@ -246,7 +248,7 @@ export function AudioMemoPanel({
               ? t("audioMemoStarting")
               : status === "error"
                 ? t("audioMemoRetry")
-                : t("audioMemoStopSend")}
+                : (commitLabel ?? t("audioMemoStopSend"))}
         </strong>
         <span className={styles.detail}>{t("audioMemoFormat")}</span>
       </button>

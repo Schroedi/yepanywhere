@@ -86,6 +86,8 @@ import { useSessionThinkingSelection } from "../hooks/useSessionThinkingSelectio
 import { ProjectAppViewer } from "../components/ProjectAppViewer";
 import type { VoiceInputButtonRef } from "../components/VoiceInputButton";
 import { useCanUseBearerGrants } from "../hooks/useActingPrincipal";
+import { useComposerHistoryScope } from "../hooks/useComposerHistoryScope";
+import { rememberComposerUpload } from "../lib/composerHistory";
 import { BtwAsideStickyCards } from "../components/BtwAsideStickyCards";
 import { ClientLogRecordingBadge } from "../components/ClientLogRecordingBadge";
 import { ExternalSessionWarning } from "../components/ExternalSessionWarning";
@@ -259,11 +261,13 @@ import {
   appendComposerTransferDraft,
   appendSlashCommandDraft,
   collectComposerAttachmentsForSubmission as collectComposerAttachmentsForSubmissionHelper,
+  ComposerAttachmentUploadError,
   createComposerDraftAttachmentState,
   hasComposerDraftContent,
   insertComposerTransferText,
   materializeComposerAttachmentsForSubmission,
   splitComposerAttachmentsForSubmission,
+  stageComposerAttachmentsForNewSession,
   type PreparedComposerSubmission,
   uploadComposerAttachmentFile,
 } from "../lib/sessionComposerSubmission";
@@ -525,6 +529,7 @@ function SessionPageContent({
   const { projects } = useProjects();
   const activeProjectSessionIds = useActiveProjectSessionIds(projectId);
   const clientSummarySourceKey = useClientSummarySourceKey();
+  const historyScope = useComposerHistoryScope();
   const sourceRuntime = useCurrentSourceRuntime();
   const sourceApi = sourceRuntime.api;
   const sourceSummary = sourceRuntime.summary;
@@ -2530,6 +2535,7 @@ function SessionPageContent({
         pendingMessageId: options?.pendingMessageId,
         updatePendingMessage,
         uploadingStatus: t("sessionUploading"),
+        uploadFailureMessage: t("composerAttachmentUploadFailed"),
       });
     },
     [setComposerAttachments, t, updatePendingMessage],
@@ -2853,6 +2859,8 @@ function SessionPageContent({
       }
       console.error("Failed to send:", err);
       let finalError: unknown = err;
+      if (err instanceof ComposerAttachmentUploadError)
+        currentAttachments = err.attachments;
       logSessionUiTrace("composer-send-error", {
         sessionId,
         tempId,
@@ -3422,6 +3430,8 @@ function SessionPageContent({
     } catch (err) {
       console.error("Failed to queue deferred message:", err);
       let finalError: unknown = err;
+      if (err instanceof ComposerAttachmentUploadError)
+        currentAttachments = err.attachments;
       logSessionUiTrace("composer-deferred-error", {
         sessionId,
         tempId,
@@ -3655,6 +3665,13 @@ function SessionPageContent({
 
     try {
       currentAttachments = await collectComposerAttachmentsForSubmission();
+      if (targetType === "new-session") {
+        currentAttachments = await stageComposerAttachmentsForNewSession({
+          attachments: currentAttachments,
+          sourceTransport,
+          sourceProjectId: projectId,
+        });
+      }
       if (
         targetType === "new-session" &&
         newSessionTarget?.delivery === "now"
@@ -3817,6 +3834,8 @@ function SessionPageContent({
       );
     } catch (err) {
       console.error("Failed to queue Project Queue message:", err);
+      if (err instanceof ComposerAttachmentUploadError)
+        currentAttachments = err.attachments;
       logSessionUiTrace("composer-project-queue-error", {
         sessionId,
         projectId,
@@ -4979,6 +4998,18 @@ function SessionPageContent({
         })
           .then(
             (uploaded) => {
+              if (historyScope)
+                void rememberComposerUpload(historyScope, file, {
+                  projectId,
+                  projectName: project?.name,
+                  sessionId,
+                  sessionTitle: session?.title ?? undefined,
+                }).catch((cause) =>
+                  showToast(
+                    t("composerHistorySaveError", { error: String(cause) }),
+                    "error",
+                  ),
+                );
               if (uploaded.mimeType.startsWith("image/")) {
                 const cachedFile = isComposerStagedAttachment(uploaded)
                   ? {
@@ -5043,6 +5074,9 @@ function SessionPageContent({
       setComposerAttachments,
       showToast,
       stagedAttachmentUploadsEnabled,
+      historyScope,
+      project?.name,
+      session?.title,
       t,
     ],
   );

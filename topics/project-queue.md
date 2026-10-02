@@ -569,6 +569,21 @@ materializes those staged files into the new session's normal attachment
 destination. The design and lifecycle are documented in
 `docs/tactical/028-pre-session-attachment-staging.md`.
 
+When a session composer redirects its draft through the new-session chooser,
+already uploaded attachments are read through their original session's
+authenticated upload route and copied into account staging first. Both queued
+and immediate delivery materialize into the chosen project's new session
+before the first message. A failed copy prevents submission and restores the
+draft. The source files remain intact. This reuses Project Queue's existing
+staging capability and does not add a sandbox choice to the chooser. Final
+storage and sandbox access remain governed by
+[Attachment Storage](attachment-storage.md#location-resolution).
+
+A submission racing an upload failure is refused rather than sending a subset
+of its files. The draft and successful uploads remain available for recovery;
+the failed file must be attached again. The collector carries those successful
+results through the direct-send, deferred-send and Project Queue error paths.
+
 Attachments protected by a synced draft are copied into queue ownership on
 create or edit. The queue stores the copies' canonical references in the
 submitted order, including when mixed with retained or unsynced attachments.

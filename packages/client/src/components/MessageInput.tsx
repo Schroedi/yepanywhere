@@ -1,5 +1,7 @@
 import { DraftSyncNotice } from "./DraftSyncNotice";
 import { AudioMemoPanel } from "./AudioMemoPanel";
+import { ComposerRecents } from "./ComposerRecents";
+import { useComposerHistoryScope } from "../hooks/useComposerHistoryScope";
 import { NewSessionQueueMark } from "./NewSessionQueueMark";
 import { useComposerVoiceRef } from "../hooks/useComposerVoiceRef";
 import {
@@ -528,6 +530,8 @@ export function MessageInput({
   const [isComposing, setIsComposing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [audioMemoOpen, setAudioMemoOpen] = useState(false);
+  const [attachmentPanelOpen, setAttachmentPanelOpen] = useState(false);
+  const historyScope = useComposerHistoryScope();
   const voiceButtonRef = useRef<VoiceInputButtonRef>(null);
   const sharedVoiceRef = useComposerVoiceRef(voiceButtonRef, onVoiceControl);
   const typingStartedAtRef = useRef<string | null>(null);
@@ -3601,6 +3605,8 @@ export function MessageInput({
   }, [onAttachAudioMemo, disabled, speechPending, audioMemoOpen]);
 
   const toolbarProps: MessageInputToolbarProps = {
+    onAttachmentPanel:
+      canAttach && !disabled ? () => setAttachmentPanelOpen(true) : undefined,
     onRecordAudioMemo:
       onAttachAudioMemo && !disabled && !speechPending
         ? () => setAudioMemoOpen(true)
@@ -3719,6 +3725,21 @@ export function MessageInput({
       onKeyDownCapture={handleComposerKeyDown}
     >
       <DraftSyncNotice draftKey={draftKey} sessionId={sessionId} />
+      {attachmentPanelOpen && onAttach && (
+        <ComposerRecents
+          scope={historyScope}
+          onFiles={onAttach}
+          uploadsOpen
+          onUploadsClose={() => setAttachmentPanelOpen(false)}
+          onBrowse={() => fileInputRef.current?.click()}
+          onMemo={
+            onAttachAudioMemo && !speechPending
+              ? () => setAudioMemoOpen(true)
+              : undefined
+          }
+          disabled={disabled}
+        />
+      )}
       {!composerIsEmpty && (
         <button
           type="button"

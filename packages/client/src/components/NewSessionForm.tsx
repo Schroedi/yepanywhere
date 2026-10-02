@@ -5,6 +5,7 @@ import { useComposerVoiceRef } from "../hooks/useComposerVoiceRef";
 import type { ProjectAppTarget } from "../api/projectApp";
 import { TemplateProjectForm } from "./TemplateProjectForm";
 import { ComposerRecents } from "./ComposerRecents";
+import { AudioMemoPanel } from "./AudioMemoPanel";
 import { PromptHistoryRail } from "./PromptHistoryRail";
 import {
   rememberComposerPrompt,
@@ -581,6 +582,8 @@ export function NewSessionForm({
     ? JSON.stringify([clientSummarySourceKey, principal.username])
     : null;
   const [recentUploadsOpen, setRecentUploadsOpen] = useState(false);
+  const [audioMemoOpen, setAudioMemoOpen] = useState(false);
+  const memoPendingIdRef = useRef<string | null>(null);
   const attachGesture = useRef({ y: 0, swiped: false });
   const launchLock = useMemo<LaunchLock>(
     () => launchLockFor(principal),
@@ -995,12 +998,14 @@ export function NewSessionForm({
             ).catch(() => {});
           }
           if (historyScope)
-            void rememberComposerUpload(historyScope, uploadFile).catch(
-              (cause) =>
-                showToast(
-                  t("composerHistorySaveError", { error: String(cause) }),
-                  "error",
-                ),
+            void rememberComposerUpload(historyScope, uploadFile, {
+              projectId,
+              projectName: selectedProject?.name ?? projectInput,
+            }).catch((cause) =>
+              showToast(
+                t("composerHistorySaveError", { error: String(cause) }),
+                "error",
+              ),
             );
           return {
             ...stagedRef,
@@ -1071,6 +1076,9 @@ export function NewSessionForm({
       attachmentQuality,
       historyScope,
       sourceTransport,
+      projectId,
+      selectedProject?.name,
+      projectInput,
       ensureDraftAttachmentBatchId,
       setPendingFiles,
       showToast,
@@ -2320,7 +2328,9 @@ export function NewSessionForm({
     async (activeProjectId: string, sessionId: string) => {
       const pendingUploads = [...pendingStagedUploadsRef.current.values()];
       if (pendingUploads.length > 0) {
-        await Promise.all(pendingUploads);
+        const results = await Promise.all(pendingUploads);
+        if (results.some((result) => result === null))
+          throw new Error(t("sessionDraftAttachmentsUnavailable"));
       }
 
       const currentFiles = pendingFilesRef.current;
@@ -2369,6 +2379,7 @@ export function NewSessionForm({
             t("newSessionUploadError", { message: uploadMessage }),
             "error",
           );
+          throw uploadErr;
         }
       }
 
@@ -2428,7 +2439,11 @@ export function NewSessionForm({
   );
 
   const handleStartSession = useCallback(
-    async (messageOverride?: unknown, speechTriggered = false) => {
+    async (
+      messageOverride?: unknown,
+      speechTriggered = false,
+      propagateFailure = false,
+    ) => {
       const override =
         typeof messageOverride === "string" ? messageOverride : undefined;
       if (override === undefined && deferSpeechDelivery("start")) {
@@ -2437,7 +2452,8 @@ export function NewSessionForm({
 
       const finalMessage = (override ?? draftControls.getDraft()).trimEnd();
 
-      const hasContent = finalMessage.trim() || pendingFiles.length > 0;
+      const submissionFiles = pendingFilesRef.current;
+      const hasContent = finalMessage.trim() || submissionFiles.length > 0;
       // A muted composer composes its own first turn, so an empty message is
       // not a reason to refuse the start.
       if (
@@ -2447,8 +2463,10 @@ export function NewSessionForm({
         isStarting ||
         !hasSelectedProviderModel ||
         projectPending
-      )
+      ) {
+        if (propagateFailure) throw new Error(t("composerMemoCannotStart"));
         return;
+      }
 
       const deliverySpeechPrefix = resolveDeliverySpeechPrefix({
         configuredPrefix: speechMessagePrefix,
@@ -2611,7 +2629,7 @@ export function NewSessionForm({
           return;
         }
 
-        if (pendingFiles.length > 0) {
+        if (submissionFiles.length > 0) {
           // Two-phase flow: create session first, then upload to real session folder
           // Step 1: Create the session without sending a message
           const createRequestSentAtMs = Date.now();
@@ -2771,6 +2789,7 @@ export function NewSessionForm({
             }),
           },
         );
+        return true;
       } catch (err) {
         console.error("Failed to start session:", err);
         draftControls.restoreFromStorage();
@@ -2813,6 +2832,7 @@ export function NewSessionForm({
           }
         }
         showToast(errorMessage, "error");
+        if (propagateFailure) throw err;
       }
     },
     [
@@ -3548,10 +3568,53 @@ export function NewSessionForm({
       };
     }, [draftControls, projectId, newSessionDraftKey]);
   // Shared input area with toolbar (textarea + attach/voice on left, send on right)
-  const inputArea = (
+  const inputArea = audioMemoOpen ? (
+    <AudioMemoPanel
+      projectId={projectId}
+      commitLabel={t("composerMemoStart")}
+      onCancel={() => {
+        setPendingFiles((previous) =>
+          previous.filter((item) => item.id !== memoPendingIdRef.current),
+        );
+        memoPendingIdRef.current = null;
+        setAudioMemoOpen(false);
+      }}
+      onCommit={async (file, transcript) => {
+        if (
+          !pendingFilesRef.current.some(
+            (item) => item.kind === "local" && item.file === file,
+          )
+        ) {
+          const previousMemoId = memoPendingIdRef.current;
+          const id = `memo-${generateUUID()}`;
+          memoPendingIdRef.current = id;
+          setPendingFiles((previous) => [
+            ...previous.filter((item) => item.id !== previousMemoId),
+            { kind: "local", id, file },
+          ]);
+        }
+        const suffix = transcript.trim()
+          ? `🎤 ${t("audioMemoTranscriptSuffix")}\n${transcript.trim()}`
+          : "";
+        const text =
+          [draftControls.getDraft().trimEnd(), suffix]
+            .filter(Boolean)
+            .join("\n\n") || `🎤 ${t("audioMemoTitle")}`;
+        if (!(await handleStartSession(text, false, true)))
+          throw new Error(t("composerMemoCannotStart"));
+      }}
+    />
+  ) : (
     <>
       <DraftSyncNotice draftKey={newSessionDraftKey} />
       <ComposerRecents
+        newSession
+        onMemo={
+          allowAttachments && !composerMuted && !speechPending
+            ? () => setAudioMemoOpen(true)
+            : undefined
+        }
+        disabled={isStarting}
         scope={historyScope}
         onFiles={addPendingFiles}
         uploadsOpen={recentUploadsOpen}
@@ -3677,9 +3740,13 @@ export function NewSessionForm({
                 <button
                   type="button"
                   className="toolbar-button"
-                  onClick={() => {
+                  onClick={(event) => {
                     if (attachGesture.current.swiped) {
                       attachGesture.current.swiped = false;
+                      return;
+                    }
+                    if (event.shiftKey && !composerMuted && !speechPending) {
+                      setAudioMemoOpen(true);
                       return;
                     }
                     fileInputRef.current?.click();
@@ -3704,7 +3771,7 @@ export function NewSessionForm({
                       setRecentUploadsOpen(true);
                     }
                   }}
-                  title="Choose files; right-click or swipe down for recent uploads"
+                  title={t("composerAttachTooltip")}
                   disabled={isStarting}
                   aria-label={t("newSessionAttachFiles")}
                 >

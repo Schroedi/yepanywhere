@@ -10,6 +10,7 @@ interface Props {
   onFiles?: () => void;
   onMemo?: () => void;
   onHide?: () => void;
+  onPanel?: () => void;
 }
 
 /** Attach files or record an audio memo; touch and context gestures share a menu. */
@@ -20,6 +21,7 @@ export function AttachmentButton({
   onFiles,
   onMemo,
   onHide,
+  onPanel,
 }: Props) {
   const { t } = useI18n();
   const [preference] = useAttachmentAction();
@@ -54,6 +56,13 @@ export function AttachmentButton({
     <>
       <button
         {...gestures}
+        onContextMenu={(event) => {
+          if (onPanel && window.innerWidth >= 900 && !hasCoarsePointer()) {
+            event.preventDefault();
+            event.stopPropagation();
+            onPanel();
+          } else gestures.onContextMenu?.(event);
+        }}
         type="button"
         className={className}
         data-session-toolbar-control="attachments"

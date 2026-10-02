@@ -15,6 +15,211 @@ test.use({
   permissions: ["microphone"],
 });
 
+test("new-session attachment panel records a memo, preserves cancellation and sends readable first-turn audio", async ({
+  page,
+  baseURL,
+}) => {
+  const projectId = Buffer.from(join(e2ePaths.tempDir, "mockproject")).toString(
+    "base64url",
+  );
+  await page.route("**/api/providers", (route) =>
+    route.fulfill({
+      json: {
+        providers: [
+          {
+            name: "claude",
+            displayName: "Claude",
+            installed: true,
+            authenticated: true,
+            enabled: true,
+            models: [{ id: "opus", name: "Opus" }],
+          },
+        ],
+      },
+    }),
+  );
+  await page.addInitScript(() =>
+    sessionStorage.setItem("yep-anywhere-audio-memo-transcript", "false"),
+  );
+  let submitted:
+    | { message: string; attachments: { path: string; mimeType: string }[] }
+    | undefined;
+  await page.route(`**/api/projects/${projectId}/sessions/create`, (route) =>
+    route.fulfill({
+      json: {
+        sessionId: "memo-new-session",
+        projectId,
+        processId: "memo-process",
+        permissionMode: "default",
+        modeVersion: 1,
+        serverTimestamp: Date.now(),
+      },
+    }),
+  );
+  await page.route("**/api/sessions/memo-new-session/messages", (route) => {
+    submitted = route.request().postDataJSON();
+    return route.fulfill({
+      json: { queued: true, serverTimestamp: Date.now() },
+    });
+  });
+  await page.setViewportSize({ width: 1000, height: 600 });
+  await page.goto(`${baseURL}/new-session?projectId=${projectId}`);
+  const input = page.locator("textarea.new-session-form-textarea");
+  await input.pressSequentially("Listen to this memo.", { delay: 20 });
+  const attach = page.getByRole("button", {
+    name: "Attach files",
+    exact: true,
+  });
+  await attach.click({ button: "right" });
+  const panel = page.getByRole("region", {
+    name: "Attach to new session",
+    exact: true,
+  });
+  await expect(panel).toBeVisible();
+  await expect(
+    panel.getByRole("button", { name: /Recent uploads/ }),
+  ).toHaveAttribute("aria-expanded", "false");
+  await recordUiCapture(page, "new-session-attachments-desktop");
+  await page.setViewportSize({ width: 375, height: 812 });
+  await panel.scrollIntoViewIfNeeded();
+  await recordUiCapture(page, "new-session-attachments-phone");
+  await panel.getByRole("button", { name: /Record audio memo/ }).click();
+  const stop = page.getByRole("button", {
+    name: /Tap here to stop & start session/,
+  });
+  await expect(stop).toBeEnabled();
+  await page.getByRole("button", { name: "Restart", exact: true }).click();
+  await expect(stop).toBeEnabled();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(input).toHaveValue("Listen to this memo.");
+  expect(submitted).toBeUndefined();
+  await attach.click({ modifiers: ["Shift"] });
+  await expect(stop).toBeEnabled();
+  await stop.click();
+  await expect.poll(() => submitted).toBeDefined();
+  expect(submitted!.message).toBe("Listen to this memo.");
+  expect(submitted!.attachments).toHaveLength(1);
+  const attachment = submitted!.attachments[0]!;
+  expect(attachment.path).toContain("/memo-new-session/");
+  expect(attachment.mimeType).toBe("audio/wav");
+  const wav = await readFile(attachment.path);
+  expect(wav.toString("ascii", 0, 4)).toBe("RIFF");
+  expect(wav.length).toBeGreaterThan(44);
+});
+
+test("desktop attachment panel shows recent upload origins and a readable hover preview", async ({
+  page,
+  baseURL,
+}) => {
+  const projectId = Buffer.from(join(e2ePaths.tempDir, "mockproject")).toString(
+    "base64url",
+  );
+  await page.setViewportSize({ width: 1200, height: 600 });
+  let blockUpload = false;
+  let failUpload: (() => void) | undefined;
+  await page.routeWebSocket("**/upload/ws", (socket) => {
+    if (!blockUpload) {
+      socket.connectToServer();
+      return;
+    }
+    failUpload = () =>
+      socket.close({ code: 1011, reason: "Test pending upload failure" });
+  });
+  await page.goto(`${baseURL}/projects/${projectId}/sessions/mock-session-001`);
+  const attach = page.getByRole("button", {
+    name: "Attach files",
+    exact: true,
+  });
+  await expect(attach).toBeVisible();
+  await expect(
+    page.getByText("Loading session...", { exact: true }),
+  ).toBeHidden();
+  const png = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1000;
+    canvas.height = 400;
+    const context = canvas.getContext("2d")!;
+    context.fillStyle = "#e8effa";
+    context.fillRect(0, 0, 1000, 400);
+    context.fillStyle = "#182840";
+    context.font = "32px sans-serif";
+    context.fillText("Attachment preview: text remains readable", 40, 100);
+    return canvas.toDataURL("image/png").split(",")[1]!;
+  });
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "image.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(png, "base64"),
+  });
+  await expect(
+    page.getByRole("button", { name: "Open image.png", exact: true }),
+  ).toBeVisible();
+  await attach.click({ button: "right" });
+  const panel = page.getByRole("region", {
+    name: "Share to session",
+    exact: true,
+  });
+  await expect(panel).toBeVisible();
+  await expect(
+    page.getByRole("menu", { name: "Share to session" }),
+  ).toHaveCount(0);
+  await recordUiCapture(page, "session-attachments-desktop-1200");
+  await page.setViewportSize({ width: 1000, height: 600 });
+  await recordUiCapture(page, "session-attachments-desktop");
+  await panel.getByRole("button", { name: /Recent uploads/ }).click();
+  const tile = panel
+    .getByRole("button")
+    .filter({ has: page.locator("time") })
+    .first();
+  await expect(tile).toContainText("mockproject");
+  await expect(tile).toContainText("ago");
+  await expect(tile).not.toContainText("image.png");
+  await tile.hover();
+  const preview = page
+    .getByRole("tooltip")
+    .filter({ has: page.locator("img") });
+  await expect(preview).toBeVisible();
+  expect((await preview.boundingBox())!.width).toBeGreaterThan(500);
+  await recordUiCapture(page, "session-attachments-preview");
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(preview).toBeHidden();
+
+  // A failed upload racing Send must not deliver only the successful image.
+  blockUpload = true;
+  let sent = false;
+  await page.route("**/sessions/mock-session-001/resume", (route) => {
+    sent = true;
+    return route.fulfill({
+      json: {
+        processId: "unexpected-partial-send",
+        permissionMode: "default",
+        modeVersion: 1,
+      },
+    });
+  });
+  const composer = page.locator("[data-composer-input]");
+  await composer.fill("Keep both attachments");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "failed.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("must not silently omit"),
+  });
+  await expect.poll(() => !!failUpload).toBe(true);
+  await page.locator(".send-button-with-help").click();
+  failUpload!();
+  await expect(
+    page.getByText(
+      /An attachment failed to upload\. Attach it again before sending/,
+    ),
+  ).toBeVisible();
+  await expect(composer).toHaveValue("Keep both attachments");
+  await expect(
+    page.getByText("image.png", { exact: true }).first(),
+  ).toBeVisible();
+  expect(sent).toBe(false);
+});
+
 test("audio memo captures WAV, preserves draft on cancel, and uploads before sending", async ({
   page,
   baseURL,

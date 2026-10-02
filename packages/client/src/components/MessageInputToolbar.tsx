@@ -237,6 +237,7 @@ function getIsearchAlternateRows(
 }
 
 export interface MessageInputToolbarProps {
+  onAttachmentPanel?: () => void;
   onRecordAudioMemo?: () => void;
   /** Canonical YA session id represented by this composer. */
   sessionId?: string;
@@ -538,6 +539,7 @@ interface ToolbarModeControl {
 }
 
 interface ToolbarAttachmentControl {
+  onAttachmentPanel?: () => void;
   onRecordAudioMemo?: () => void;
   canAttach?: boolean;
   attachmentCount: number;
@@ -2076,6 +2078,7 @@ export function MessageInputToolbarView({
               className={inlineTierClass("attachments", "attach-button")}
               onFiles={attachmentControl.onAttachClick}
               onMemo={attachmentControl.onRecordAudioMemo}
+              onPanel={attachmentControl.onAttachmentPanel}
               onHide={
                 onHideControl ? () => onHideControl("attachments") : undefined
               }
@@ -2360,6 +2363,7 @@ export function MessageInputToolbarView({
                       className={menuTierClass("attachments", "attach-button")}
                       onFiles={attachmentControl.onAttachClick}
                       onMemo={attachmentControl.onRecordAudioMemo}
+                      onPanel={attachmentControl.onAttachmentPanel}
                       onHide={
                         onHideControl
                           ? () => onHideControl("attachments")
@@ -3113,6 +3117,7 @@ export function MessageInputToolbarView({
 }
 
 export function MessageInputToolbar({
+  onAttachmentPanel,
   onRecordAudioMemo,
   sessionId,
   mode = "default",
@@ -3899,6 +3904,7 @@ export function MessageInputToolbar({
           : null
       }
       attachmentControl={{
+        onAttachmentPanel,
         onRecordAudioMemo,
         canAttach,
         attachmentCount,
