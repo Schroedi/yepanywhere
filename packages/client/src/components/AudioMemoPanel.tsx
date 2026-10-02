@@ -51,6 +51,7 @@ export function AudioMemoPanel({
   const startOptions = useRef({ micDeviceId, reducePlayback, plan });
   startOptions.current = { micDeviceId, reducePlayback, plan };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: take is the Restart action's generation; changing it must dispose the old recording and start a new one.
   useEffect(() => {
     alive.current = true;
     busy.current = false;
