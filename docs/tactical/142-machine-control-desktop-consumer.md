@@ -304,3 +304,12 @@ alternate controller has reachable Windows/Linux appliances with ready stored
 credentials; the earlier Windows availability limit on the local controller
 is not an infrastructure-wide blocker. Platform acceptance still requires a
 signed candidate with the new CLI.
+
+Windows x64 offline relocation also passes in a claimed Windows 11 appliance
+using the bundled interpreter, with no checkout in the test payload. The
+Windows desktop harness can now consume the installed command for control and
+artifacts; native PowerShell parsing passes. The selection-refusal run was
+blocked by guest script policy and is not counted as acceptance. Temporary
+test files and owned upload carriers are removed, clean shutdown is confirmed,
+the claim is released and the stored login credential remains ready. Signed
+desktop/browser, actual YA control/media and legacy retirement remain open.
