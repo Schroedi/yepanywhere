@@ -430,3 +430,5 @@
   company-reported adoption figures.
 
 - native-sudo - Explicit local Mac administrator authentication through a verified bundled helper.
+
+- machine-control-desktop-consumer - Authenticated installed Python CLI discovery and local agent advertisement; gated legacy retirement.

@@ -204,6 +204,8 @@ export interface StartSessionOptions {
   computerControl?: import("../../computer-control/contract.js").ComputerSession;
   /** Operator opt-in, preserved across provider-host process boundaries. */
   agentSelf?: boolean;
+  /** Explicit installed MC advertisement; no resident grant or supervisor. */
+  machineControl?: boolean;
   /** Trusted owner-supplied child environment; never a client request field. */
   agentEnvironment?: Record<string, string>;
   /**

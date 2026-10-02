@@ -224,6 +224,15 @@ and crash-isolated lifecycle. Public download/update code is implemented; first
 release publication and packaged YA acceptance remain pending. This opt-in work does not displace
 release delivery above.
 
+The maintainer requested the
+[Machine Control desktop-consumer plan](../tactical/142-machine-control-desktop-consumer.md)
+on 2026-10-02. It replaces YA-owned component lifecycle with verified discovery
+of MC's installed Python CLI, sharing discovery with native sudo. Bundled CLI
+and opt-in verified local advertisement are implemented; a signed Mac assembly
+passes discovery. Real model/platform acceptance remains open, and Windows
+retirement follows accepted desktop-app use. This does not
+displace release delivery above.
+
 These remain candidates behind publishing and continuous delivery, not a
 ranked or approved implementation queue. Recheck current code and owning
 documents before defining work.

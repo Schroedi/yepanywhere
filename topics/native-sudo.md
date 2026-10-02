@@ -56,6 +56,17 @@ signed packaging and real sudo/native-dialog acceptance in its dedicated Mac
 appliance. Public release, physical-workstation acceptance, Touch ID,
 process/session leases and other operating systems remain separate work.
 
+## Shared installation discovery
+
+[The desktop consumer](../docs/tactical/142-machine-control-desktop-consumer.md)
+now shares the Mac app signature verifier. Existing `YEP_MC_SUDO_APP` and
+`YEP_MC_SUDO_TEAM_ID` remain authoritative when supplied. Alternatively,
+`YEP_MC_SUDO=1` selects `YEP_MC_APP` (or the standard Mac app location) and
+`YEP_MC_TEAM_ID`. `YEP_MC_CONTROL=1` does not select sudo. The sudo feature still
+verifies both native helpers independently; an older app with those helpers
+need not have the new control CLI. Sharing a locator does not merge feature
+opt-ins, eligibility or authentication authority.
+
 ## Related hardening gap
 
 [Native exec privilege hardening](../gaps/native-server-no-new-privs.md) remains

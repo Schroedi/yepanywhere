@@ -1,0 +1,293 @@
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  verifyClientFiles,
+  verifyInstalledMachineControl,
+} from "../../src/machine-control/installation.js";
+import { startMachineControlSession } from "../../src/sdk/providers/machine-control.js";
+import type {
+  AgentSession,
+  StartSessionOptions,
+} from "../../src/sdk/providers/types.js";
+
+const environment = {
+  YEP_MC_CONTROL: "1",
+  YEP_MC_APP: "/Applications/Example.app",
+  YEP_MC_TEAM_ID: "EXAMPLE123",
+  PATH: "/usr/bin:/bin",
+};
+const options: StartSessionOptions = {
+  cwd: "/project",
+  permissionMode: "bypassPermissions",
+};
+const installed = {
+  root: "/verified/mc-cli",
+  directory: "/verified/mc-cli/commands",
+  command: "/verified/mc-cli/commands/machine-control",
+  python: "/verified/python3",
+  version: "1.2.3",
+  sourceRevision: "a".repeat(40),
+};
+const start = () =>
+  vi.fn(async (_options: StartSessionOptions) => ({}) as AgentSession);
+
+describe("installed Machine Control launch", () => {
+  it("preserves default and explicit-disabled launch options without discovery", async () => {
+    const verify = vi.fn();
+    for (const [launch, env] of [
+      [options, {}],
+      [{ ...options, machineControl: false }, environment],
+    ] as const) {
+      const launchProvider = start();
+      await startMachineControlSession("codex", launch, launchProvider, {
+        environment: env,
+        platform: "darwin",
+        verify,
+      });
+      expect(launchProvider).toHaveBeenCalledWith(launch);
+    }
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it("does not advertise unsupported, remote, plan or sandboxed sessions", async () => {
+    const verify = vi.fn();
+    for (const launch of [
+      { ...options, permissionMode: "default" as const },
+      { ...options, permissionMode: "plan" as const },
+      { ...options, executor: { name: "remote" } },
+      { ...options, sessionSandboxOptions: { level: "project-write" } },
+    ] as StartSessionOptions[]) {
+      const launchProvider = start();
+      await startMachineControlSession("codex", launch, launchProvider, {
+        environment,
+        platform: "darwin",
+        verify,
+      });
+      expect(launchProvider).toHaveBeenCalledWith(launch);
+    }
+    await startMachineControlSession("pi", options, start(), {
+      environment,
+      platform: "darwin",
+      verify,
+    });
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it("adds only verified command discovery while preserving existing context", async () => {
+    const launchProvider = start();
+    const verify = vi.fn(async () => ({
+      ...installed,
+      command: "/verified/Example App's CLI/machine-control",
+    }));
+    await startMachineControlSession(
+      "codex",
+      {
+        ...options,
+        globalInstructions: "Existing",
+        agentEnvironment: { AGENT_YA_API_TOKEN: "synthetic" },
+      },
+      launchProvider,
+      { environment, platform: "darwin", verify },
+    );
+    const launch = launchProvider.mock.calls[0]?.[0];
+    expect(launch?.globalInstructions).toContain("Existing");
+    expect(launch?.globalInstructions).toContain("App'\\''s CLI");
+    expect(launch?.globalInstructions).toContain("agent instructions");
+    expect(launch?.agentEnvironment).toEqual({
+      AGENT_YA_API_TOKEN: "synthetic",
+      PATH: `${installed.directory}:/usr/bin:/bin`,
+    });
+    expect(verify).toHaveBeenCalledWith(
+      environment.YEP_MC_APP,
+      environment.YEP_MC_TEAM_ID,
+      "darwin",
+    );
+  });
+
+  it("refuses configured verification failure before provider creation", async () => {
+    const launchProvider = start();
+    await expect(
+      startMachineControlSession("codex", options, launchProvider, {
+        environment,
+        platform: "darwin",
+        verify: async () => {
+          throw new Error("bad signature");
+        },
+      }),
+    ).rejects.toThrow("integrity");
+    expect(launchProvider).not.toHaveBeenCalled();
+  });
+
+  it("does not compose a legacy resident grant into desktop advertisement", async () => {
+    await expect(
+      startMachineControlSession(
+        "codex",
+        {
+          ...options,
+          computerControl: {} as StartSessionOptions["computerControl"],
+        },
+        start(),
+        { environment, platform: "darwin", verify: async () => installed },
+      ),
+    ).rejects.toThrow("legacy component");
+  });
+
+  it("quotes Windows instructions for PowerShell without executing a batch probe", async () => {
+    const launchProvider = start();
+    await startMachineControlSession("codex", options, launchProvider, {
+      environment,
+      platform: "win32",
+      verify: async () => ({
+        ...installed,
+        command: "C:\\Example App's CLI\\machine-control.cmd",
+      }),
+    });
+    expect(launchProvider.mock.calls[0]?.[0].globalInstructions).toContain(
+      "& 'C:\\Example App''s CLI\\machine-control.cmd' agent instructions",
+    );
+  });
+});
+
+describe("installed client authenticity", () => {
+  const directories: string[] = [];
+  afterEach(async () => {
+    await Promise.all(
+      directories
+        .splice(0)
+        .map((directory) => rm(directory, { recursive: true, force: true })),
+    );
+  });
+
+  async function fixture() {
+    const app = await mkdtemp(join(tmpdir(), "ya-mc-install-"));
+    directories.push(app);
+    const root = join(app, "Contents", "Resources", "mc-cli");
+    await mkdir(root, { recursive: true });
+    const identity = {
+      schema: "machine-control-client-identity/v1",
+      clientProtocol: 1,
+      residentProtocol: "machine-control/v0",
+      distribution: "desktop",
+      version: "1.2.3",
+      sourceRevision: "a".repeat(40),
+      platform: "macos",
+      target: `${process.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`,
+      command: "commands/machine-control",
+      pythonVersion: "3.12.15",
+      pythonArchiveSha256: "b".repeat(64),
+      features: [
+        "agent.instructions",
+        "host.desktop",
+        "host.browser",
+        "host.claims",
+      ],
+    };
+    const file = Buffer.from(JSON.stringify(identity));
+    await writeFile(join(root, "client-runtime.json"), file);
+    const files = [
+      {
+        path: "client-runtime.json",
+        byteLength: file.length,
+        sha256: createHash("sha256").update(file).digest("hex"),
+      },
+    ];
+    for (const path of [
+      "launch.py",
+      "client/machine_control.py",
+      "client/agent_interface.py",
+      "client/scoped_run.py",
+      "client/scoped_process.py",
+      "providers/claims/claims.py",
+      "commands/machine-control",
+      "python/bin/python3",
+      "platforms/macos/bin/machost",
+    ]) {
+      const destination = join(root, path);
+      await mkdir(join(destination, ".."), { recursive: true });
+      await writeFile(destination, "fixture");
+      files.push({
+        path,
+        byteLength: 7,
+        sha256: createHash("sha256").update("fixture").digest("hex"),
+      });
+    }
+    const receipt = Buffer.from(
+      JSON.stringify({ schema: "machine-control-client-files/v1", files }),
+    );
+    await writeFile(join(root, "files.json"), receipt);
+    return { app, root, identity, receipt };
+  }
+
+  it("authenticates before executing any installed probe", async () => {
+    const { app, identity } = await fixture();
+    const run = vi.fn(async (command: string) =>
+      command === "/usr/bin/codesign" ? "" : JSON.stringify(identity),
+    );
+    const result = await verifyInstalledMachineControl(
+      app,
+      "EXAMPLE123",
+      "darwin",
+      run,
+    );
+    expect(result.version).toBe("1.2.3");
+    expect(run.mock.calls[0]?.[0]).toBe("/usr/bin/codesign");
+    expect(run.mock.calls[1]?.[0]).toContain("python/bin/python3");
+  });
+
+  it("does not run installed code after publisher or payload failure", async () => {
+    const { app, root } = await fixture();
+    const badPublisher = vi.fn(async () => {
+      throw new Error("wrong team");
+    });
+    await expect(
+      verifyInstalledMachineControl(app, "EXAMPLE123", "darwin", badPublisher),
+    ).rejects.toThrow("wrong team");
+    expect(badPublisher).toHaveBeenCalledTimes(1);
+    await writeFile(join(root, "injected.py"), "injected");
+    const run = vi.fn(async () => "");
+    await expect(
+      verifyInstalledMachineControl(app, "EXAMPLE123", "darwin", run),
+    ).rejects.toThrow("Unexpected");
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects changed files and a receipt path escaping the installation", async () => {
+    const { root, receipt } = await fixture();
+    await writeFile(join(root, "client-runtime.json"), "tampered");
+    await expect(verifyClientFiles(root, receipt)).rejects.toThrow(
+      "identity mismatch",
+    );
+    const value = JSON.parse(
+      (await readFile(join(root, "files.json"))).toString(),
+    );
+    value.files[0].path = "../outside";
+    await expect(
+      verifyClientFiles(root, Buffer.from(JSON.stringify(value))),
+    ).rejects.toThrow("payload path");
+  });
+
+  it("refuses unsupported client protocols without executing a probe", async () => {
+    const { app, root, identity } = await fixture();
+    const file = Buffer.from(
+      JSON.stringify({ ...identity, clientProtocol: 2 }),
+    );
+    await writeFile(join(root, "client-runtime.json"), file);
+    const inventory = JSON.parse(
+      (await readFile(join(root, "files.json"))).toString(),
+    );
+    inventory.files[0] = {
+      path: "client-runtime.json",
+      byteLength: file.length,
+      sha256: createHash("sha256").update(file).digest("hex"),
+    };
+    await writeFile(join(root, "files.json"), JSON.stringify(inventory));
+    const run = vi.fn(async () => "");
+    await expect(
+      verifyInstalledMachineControl(app, "EXAMPLE123", "darwin", run),
+    ).rejects.toThrow();
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+});

@@ -10,6 +10,48 @@ acceptance remain pending.
 Implementation and release gates are tracked in
 [Tactical 131](../docs/tactical/131-optional-windows-computer-control.md).
 
+## Installed desktop-app consumer migration
+
+**Decision, 2026-10-02:** move toward consuming the installed Machine Control
+desktop app and its bundled Python CLI. MC owns installation, updates, resident
+lifecycle, native approvals and arming; YA retains session eligibility,
+verified discovery, agent advertisement, optional tool/transport adaptation and
+result presentation. Python remains the intended CLI implementation, preserving
+direct command development without a Rust toolchain. Shared Mac verification
+also serves native sudo without merging its authority with desktop access.
+
+**Current:** the installed consumer is default-off. Set `YEP_MC_CONTROL=1`,
+`YEP_MC_APP` to the installed app/product resource root, and an independently
+trusted `YEP_MC_TEAM_ID` (Mac) or `YEP_MC_PUBLISHER` (Windows). Linux uses the
+MC desktop updater key shipped with YA to authenticate `files.json.sig`; no
+publisher is inferred from untrusted package contents. Standard locations are
+`/Applications/Machine Control.app`, the `Machine Control` directory under
+`LOCALAPPDATA`, and `/usr/lib/Machine Control` respectively. An explicit
+`YEP_MC_APP` supports other installed locations and AppImage resource roots.
+Restart YA and its shared provider host after changing launch configuration.
+
+YA authenticates the package and hashes the complete CLI dependency inventory
+before executing its offline identity probe. Eligible launches are local
+unrestricted Codex (`bypassPermissions`) and local Claude providers; remote
+executors, plan sessions and sandboxes receive no advertisement. A selected
+missing, tampered or incompatible installation refuses launch. Existing
+instructions/environment are preserved. No resident is started or supervised
+by YA, and no MC access grant is issued. Native sudo remains independently
+selected. A launch selecting both this route and a legacy grant is refused.
+
+[Tactical 142](../docs/tactical/142-machine-control-desktop-consumer.md) owns
+acceptance and Windows retirement. Source and a signed Mac assembly probe pass;
+real model use, desktop/browser effects, Windows/Linux installed acceptance and
+lifecycle/revocation parity remain gates. The component lifecycle and deferred
+tool below remain current until accepted cutover. There is no new public
+session field or setting yet. Session advertisement is not a same-user shell
+containment boundary, and does not revoke independently granted MC access.
+
+Run `pnpm exec tsx --conditions source scripts/probe-machine-control.ts --app
+APP --publisher TRUSTED_PUBLISHER` to verify installation authenticity, identity,
+owned instructions and launch-context composition. Omit `--publisher` on Linux.
+The probe launches no model and performs no desktop mutation.
+
 ## Managed release installation and updates
 
 Enable Computer Control downloads the latest compatible stable Windows release

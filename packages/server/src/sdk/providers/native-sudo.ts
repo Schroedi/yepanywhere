@@ -1,7 +1,10 @@
 import { execFile } from "node:child_process";
-import { realpath } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { promisify } from "node:util";
+import {
+  defaultInstallation,
+  verifyMacApp,
+} from "../../machine-control/installation.js";
 import type {
   AgentSession,
   ProviderName,
@@ -22,22 +25,10 @@ export async function verifyNativeSudo(
   app: string,
   team: string,
 ): Promise<string> {
-  if (!/^[A-Z0-9]{10}$/u.test(team)) {
-    throw new Error("Native sudo requires a valid trusted publisher team ID");
-  }
-  const installed = await realpath(app);
-  const resources = join(installed, "Contents", "Resources");
+  const resources = await verifyMacApp(app, team);
   const run = async (command: string, args: string[]) =>
     exec(command, args, { timeout: 15_000, maxBuffer: 64 * 1024 });
   const requirement = `anchor apple generic and certificate leaf[subject.OU] = "${team}"`;
-  await run("/usr/bin/codesign", [
-    "--verify",
-    "--deep",
-    "--strict",
-    "-R",
-    `=${requirement} and identifier "org.machine-control.app"`,
-    installed,
-  ]);
   for (const [name, identifier] of [
     ["mc-sudo", "org.machine-control.sudo"],
     ["mc-sudo-askpass", "org.machine-control.sudo.askpass"],
@@ -60,10 +51,15 @@ export async function startNativeSudoSession(
   dependencies: NativeSudoDependencies = {},
 ): Promise<AgentSession> {
   const environment = dependencies.environment ?? process.env;
-  const app = environment.YEP_MC_SUDO_APP;
+  const platform = dependencies.platform ?? process.platform;
+  const app =
+    environment.YEP_MC_SUDO_APP ??
+    (environment.YEP_MC_SUDO === "1" && platform === "darwin"
+      ? (environment.YEP_MC_APP ?? defaultInstallation(platform, environment))
+      : undefined);
   if (
     !app ||
-    (dependencies.platform ?? process.platform) !== "darwin" ||
+    platform !== "darwin" ||
     options.executor ||
     options.sessionSandbox ||
     options.sessionSandboxOptions?.level === "project-write" ||
@@ -75,7 +71,7 @@ export async function startNativeSudoSession(
   ) {
     return start(options);
   }
-  const team = environment.YEP_MC_SUDO_TEAM_ID;
+  const team = environment.YEP_MC_SUDO_TEAM_ID ?? environment.YEP_MC_TEAM_ID;
   if (!team) {
     throw new Error(
       "Native sudo requires YEP_MC_SUDO_TEAM_ID from a trusted publisher source",
