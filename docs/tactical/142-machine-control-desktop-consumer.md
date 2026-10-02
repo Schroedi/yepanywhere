@@ -450,3 +450,21 @@ Validation: 18 focused MC/sudo checks pass without warnings. Full lint,
 format/typecheck and unit checks pass (server 6,314 plus 67 skips, client 6,634,
 shared 940, push broker 45 and relay 130). The already recorded intentional
 failure-path log warnings remain in their separate gap.
+
+## Installed Mac claim and resident recovery result
+
+MC's new bounded lifecycle helper passes with the source-independent signed
+Mac assembly. A separate harness-owned native resident/socket and claim store
+prove exclusive acquisition, concurrent claimed observations, real one-minute
+lease expiry and superseded-claim refusal. With that owned resident stopped,
+doctor reports unavailable and target operations refuse while offline CLI
+identity still works. The CLI creates no replacement. An explicit harness
+restart changes the native generation and preserves the still-live claim.
+
+The original appliance resident stays ready. The helper reaps its resident and
+removes isolated state; the controller restores initial power-off and releases
+its claim. This is MC claim/resident recovery acceptance, not YA session
+close/crash, native grant expiry, signed app replacement or Windows/Linux
+lifecycle parity. MC's [tactical record](../../../machine-control/docs/tactical/062-installed-agent-cli.md#installed-mac-claim-and-resident-lifecycle-result)
+owns the repeatable helper and evidence scope. The public picker approval and
+legacy retirement gates remain unchanged.
