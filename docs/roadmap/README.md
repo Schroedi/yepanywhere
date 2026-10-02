@@ -61,8 +61,10 @@ Embedded viewers/downloads need the
 [remaining WebKit adapters](../../gaps/ios-webview-viewers-and-downloads.md).
 Notification permission/FCM/broker
 foundations exist; common per-server native push enrollment and real Apple push
-delivery remain pending. Android migration follows multi-host/background parity
-and can proceed independently of store publication.
+delivery remain pending. The maintainer prioritized [Android/shared transport migration](../tactical/139-shared-mobile-transport-migration.md)
+on 2026-10-02: complete shared multi-host/mux/background parity, adopt Rust in
+Android, and extend iOS source ownership. This proceeds independently of store
+publication.
 
 ### Current baseline
 
