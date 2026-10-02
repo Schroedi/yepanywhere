@@ -45,12 +45,13 @@ export async function runGit(
   },
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
+    const timeout = options?.timeout ?? 10_000;
     const child = execFile(
       "git",
       buildGitArgs(cwd, args),
       {
         maxBuffer: options?.maxBuffer ?? DEFAULT_MAX_BUFFER,
-        timeout: options?.timeout ?? 10_000,
+        timeout,
         env: {
           ...process.env,
           ...options?.env,
@@ -60,8 +61,23 @@ export async function runGit(
         },
       },
       (error, stdout, stderr) => {
-        if (error) reject(Object.assign(error, { stdout, stderr }));
-        else resolve({ stdout, stderr });
+        if (error) {
+          // execFile's timeout otherwise looks like an unexplained command
+          // failure. Preserve the bound in the existing stderr/detail channel.
+          const timedOut =
+            timeout > 0 &&
+            error.killed &&
+            error.signal === "SIGTERM" &&
+            error.code === null;
+          reject(
+            Object.assign(error, {
+              stdout,
+              stderr: timedOut
+                ? `Git operation timed out after ${timeout / 1000} seconds.\n${stderr}`
+                : stderr,
+            }),
+          );
+        } else resolve({ stdout, stderr });
       },
     );
     child.stdin?.on("error", (error: NodeJS.ErrnoException) => {

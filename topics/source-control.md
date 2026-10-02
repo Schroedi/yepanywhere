@@ -33,6 +33,21 @@ opportunistically refresh the index or briefly create `.git/index.lock` while
 an agent or the user is doing concurrent Git work. Explicit Pull, Push, and
 review-object mutations still take every lock Git requires for correctness.
 
+Failed Check remote, Pull, and Push actions keep a visible result below the
+header. When the existing optional `detail` response is present, recognizable
+HTTPS/SSH authentication, SSH file-permission, timeout, and non-fast-forward
+errors receive a specific summary and recovery guidance. An HTTPS URL alone
+never establishes authentication failure. Unknown errors keep the ordinary
+action summary and expose the supplied output in expandable **Git error
+details** with a copy control. URL credentials, token query parameters, and
+Authorization values are redacted before display or copying. Details remain
+until another action starts or the selected project changes. Responses without
+`detail` retain their existing feedback; no new capability, route, or response
+field is required, and the client never changes Git credentials or remotes.
+When a remote Git subprocess reaches its execution timeout, its existing error
+detail identifies the elapsed limit (30 seconds for Check remote, 60 seconds
+for Pull/Push). Output-buffer failures are not reported as timeouts.
+
 The navigation surface has these modes:
 
 - **Changes** is the default quick check and owns both the current

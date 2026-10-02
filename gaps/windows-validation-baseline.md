@@ -57,4 +57,14 @@ atomic-write suites pass in a focused native run. Checkout formatting passes
 after local CRLF normalization to bytes identical to HEAD; no formatting-only
 repository changes were made, and this workaround does not close that gap.
 
+2026-10-02 — Source Control error-feedback validation again hit this baseline:
+the root server run reported 356 failed tests in 102 files and three unhandled
+ACL errors, with 5,288 passing tests. The failures include the same unresolved
+SID, symlink privilege, path/shell and provider-fixture families above; repairing
+them together would expand an error-feedback change into independent platform
+work. All 6,621 client tests, 939 shared tests and 130 relay tests passed.
+Focused Source Control client checks passed 83 tests, and the Git execution and
+status-route checks passed 35. Lint, formatting and typechecking passed; this
+still does not establish a passing Windows aggregate.
+
 Found 2026-09-12 while validating Windows directory-sync persistence fixes.
