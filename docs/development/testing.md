@@ -67,6 +67,34 @@ their explicit update responses; general tests never require public update
 service availability. Client unit setup clears local/session storage before
 invalidating preference caches, so earlier cases cannot choose later defaults.
 
+## Native App CI Cadence
+
+Main CI and Server Runtime And SQLite still run on every pull request and
+`main` push. Native application workflows use matching path filters for both
+events: platform code, tests, resources, manifests and build scripts trigger
+their platform immediately. Shared Rust mobile-core changes trigger both
+mobile apps. Native web-host adapter, crypto and binary-framing changes also
+retain immediate Android/iOS coverage.
+
+Ordinary web UI, server, shared-code and root lockfile changes do not trigger
+native application builds by themselves. Android runs the full build and
+WebView instrumentation workflow daily at 04:17 UTC; iOS runs its full Rust,
+simulator and unsigned-device workflow at 04:47 UTC. Both scheduled runs check
+the current default-branch source, including bundled web changes, and do not
+publish store releases. GitHub may delay scheduled starts.
+
+Desktop retains its existing 02:37 UTC Nightly Desktop release, which selects
+verified main source and skips unchanged packaged inputs. Its per-change
+workflow covers the desktop package, packaging inputs and scripts, dependency
+manifests for bundled packages, patches and workflow changes. Desktop release
+tags and reusable release calls retain full packaging regardless of paths.
+
+All three native workflows support manual dispatch for targeted acceptance or
+release preparation. Native package Markdown-only changes do not start builds.
+The workflow path lists are authoritative; before a release, obtain passing
+platform acceptance for the source being released even when its changes only
+received scheduled coverage.
+
 ## Cross-Platform Behavior And Tests
 
 Treat Linux, macOS, and Windows as supported development targets. Code and

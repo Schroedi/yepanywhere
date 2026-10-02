@@ -333,6 +333,13 @@ sessions or desktop data.
 
 ### Nightly publication
 
+Routine web/server changes receive full desktop packaging through the nightly
+release rather than every pull request or main push. Desktop/platform code,
+packaging inputs and dependency manifests retain immediate builds; release
+tags and manual builds remain available. See
+[Native app CI cadence](../docs/development/testing.md#native-app-ci-cadence)
+for the trigger and release-verification policy.
+
 Nightly Desktop runs at 02:37 UTC, subject to GitHub scheduling delays. A manual
 run is available; its explicit force option permits rebuilding unchanged
 verified source for recovery or upgrade QA. Scheduled runs skip when no

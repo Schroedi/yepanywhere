@@ -103,6 +103,10 @@ the viewer/download gap remain the next mobile release work.
 - [Android CI](../../.github/workflows/android-app-ci.yml) tests and builds
   application artifacts but does not publish them to Google Play. Android
   implementation exists; neither native mobile app is publicly published.
+- Native app CI now runs on relevant platform, shared mobile-core and packaging
+  changes rather than ordinary web/server edits. Daily Android/iOS acceptance
+  and the existing desktop nightly retain full shared-source coverage; manual
+  checks remain available. See [the cadence policy](../development/testing.md#native-app-ci-cadence).
 - Linux remains supported through the server/web distribution. The current
   desktop installer matrix is macOS and Windows; a Linux desktop installer
   would need its own scope and release criteria.

@@ -1,41 +1,45 @@
 name: iOS App CI
 
 on:
+  # Shared web/server and lockfile changes are covered by nightly runs.
   push:
     branches: [main]
     paths:
       - 'packages/ios/**'
       - 'packages/mobile-core/**'
       - 'packages/mobile-core-proof/test-vectors/**'
-      - 'packages/android/app/src/sharedTest/resources/**'
-      - 'packages/client/**'
-      - 'packages/server/**'
-      - 'packages/relay/**'
-      - 'packages/shared/**'
-      - 'pnpm-lock.yaml'
+      - 'packages/client/src/lib/nativeHost.ts'
+      - 'packages/client/src/lib/__tests__/nativeHost.test.ts'
+      - 'packages/server/src/crypto/**'
+      - 'packages/shared/src/binary-framing.ts'
+      - 'packages/server/scripts/android-native-secure-probe-server.ts'
+      - 'scripts/android-secure-interop-fixture.ts'
       - 'pnpm-workspace.yaml'
-      - 'package.json'
+      - 'packages/android/app/src/sharedTest/resources/**'
       - 'scripts/perf-suite/host-profile.mjs'
       - '.github/workflows/ios-app-ci.yml'
-      # This root README is not an app, test, fixture or build input.
-      - '!packages/ios/README.md'
+      - '!packages/ios/**/*.md'
+      - '!packages/mobile-core/**/*.md'
   pull_request:
     branches: [main]
     paths:
       - 'packages/ios/**'
       - 'packages/mobile-core/**'
       - 'packages/mobile-core-proof/test-vectors/**'
-      - 'packages/android/app/src/sharedTest/resources/**'
-      - 'packages/client/**'
-      - 'packages/server/**'
-      - 'packages/relay/**'
-      - 'packages/shared/**'
-      - 'pnpm-lock.yaml'
+      - 'packages/client/src/lib/nativeHost.ts'
+      - 'packages/client/src/lib/__tests__/nativeHost.test.ts'
+      - 'packages/server/src/crypto/**'
+      - 'packages/shared/src/binary-framing.ts'
+      - 'packages/server/scripts/android-native-secure-probe-server.ts'
+      - 'scripts/android-secure-interop-fixture.ts'
       - 'pnpm-workspace.yaml'
-      - 'package.json'
+      - 'packages/android/app/src/sharedTest/resources/**'
       - 'scripts/perf-suite/host-profile.mjs'
       - '.github/workflows/ios-app-ci.yml'
-      - '!packages/ios/README.md'
+      - '!packages/ios/**/*.md'
+      - '!packages/mobile-core/**/*.md'
+  schedule:
+    - cron: '47 4 * * *'
   workflow_dispatch:
 
 permissions:

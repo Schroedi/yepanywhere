@@ -1,34 +1,41 @@
 name: Android App CI
 
 on:
+  # Shared web/server and lockfile changes are covered by nightly runs.
   push:
     branches: [main]
     paths:
       - 'packages/android/**'
       - 'packages/mobile-core/**'
       - 'packages/mobile-core-proof/test-vectors/**'
-      - 'packages/client/**'
+      - 'packages/client/src/lib/nativeHost.ts'
+      - 'packages/client/src/lib/__tests__/nativeHost.test.ts'
       - 'packages/server/src/crypto/**'
-      - 'packages/shared/**'
+      - 'packages/shared/src/binary-framing.ts'
+      - 'packages/server/scripts/android-native-secure-probe-server.ts'
       - 'scripts/android-secure-interop-fixture.ts'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/android-app-ci.yml'
+      - '!packages/android/**/*.md'
+      - '!packages/mobile-core/**/*.md'
   pull_request:
     branches: [main]
     paths:
       - 'packages/android/**'
       - 'packages/mobile-core/**'
       - 'packages/mobile-core-proof/test-vectors/**'
-      - 'packages/client/**'
+      - 'packages/client/src/lib/nativeHost.ts'
+      - 'packages/client/src/lib/__tests__/nativeHost.test.ts'
       - 'packages/server/src/crypto/**'
-      - 'packages/shared/**'
+      - 'packages/shared/src/binary-framing.ts'
+      - 'packages/server/scripts/android-native-secure-probe-server.ts'
       - 'scripts/android-secure-interop-fixture.ts'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/android-app-ci.yml'
+      - '!packages/android/**/*.md'
+      - '!packages/mobile-core/**/*.md'
+  schedule:
+    - cron: '17 4 * * *'
   workflow_dispatch:
 
 permissions:

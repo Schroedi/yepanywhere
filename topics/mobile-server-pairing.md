@@ -760,6 +760,12 @@ Android release work continues independently of iOS store work.
 
 ## Compatibility And Approval Gates
 
+Native Android/iOS CI runs immediately for native/platform and shared-core
+inputs, and daily for the complete default-branch source, including ordinary
+bundled web changes. Manual dispatch remains available. The exact trigger and
+release-verification policy lives in
+[Native app CI cadence](../docs/development/testing.md#native-app-ci-cadence).
+
 The optional `security-client-audit-v1` and
 `native-push-subscriptions-v1` contracts, reviewed stable releases, and exact
 old-server fallbacks are approved in
