@@ -30,6 +30,43 @@ describe("native sudo launch capability", () => {
     expect(verify).not.toHaveBeenCalled();
   });
 
+  it("shares only explicitly selected discovery and preserves sudo-specific configuration", async () => {
+    const verify = vi.fn(async () => "/verified/resources");
+    const start = vi.fn(
+      async (_options: StartSessionOptions) => ({}) as AgentSession,
+    );
+    const shared = {
+      YEP_MC_APP: "/Applications/Shared.app",
+      YEP_MC_TEAM_ID: "SHARED1234",
+      YEP_MC_CONTROL: "1",
+    };
+    await startNativeSudoSession("codex", options, start, {
+      platform: "darwin",
+      environment: shared,
+      verify,
+    });
+    expect(verify).not.toHaveBeenCalled();
+    expect(start).toHaveBeenLastCalledWith(options);
+    await startNativeSudoSession("codex", options, start, {
+      platform: "darwin",
+      environment: { ...shared, YEP_MC_SUDO: "1" },
+      verify,
+    });
+    expect(verify).toHaveBeenLastCalledWith(
+      shared.YEP_MC_APP,
+      shared.YEP_MC_TEAM_ID,
+    );
+    await startNativeSudoSession("codex", options, start, {
+      platform: "darwin",
+      environment: { ...shared, ...environment, YEP_MC_SUDO: "1" },
+      verify,
+    });
+    expect(verify).toHaveBeenLastCalledWith(
+      environment.YEP_MC_SUDO_APP,
+      environment.YEP_MC_SUDO_TEAM_ID,
+    );
+  });
+
   it("does not advertise or verify for remote, sandboxed, plan, or unsupported launches", async () => {
     const verify = vi.fn();
     for (const [platform, launch] of [

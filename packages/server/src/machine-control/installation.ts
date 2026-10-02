@@ -175,6 +175,9 @@ export async function verifyInstalledMachineControl(
 ): Promise<InstalledMachineControl> {
   const installed = await realpath(installation);
   let root: string;
+  let windowsRuntime:
+    | { sourceRevision: string; runtime: string; version: string }
+    | undefined;
   if (platform === "darwin") {
     if (!publisher)
       throw new Error(
@@ -188,13 +191,22 @@ export async function verifyInstalledMachineControl(
       );
     root = join(installed, "mc-cli");
     const code = `$ErrorActionPreference='Stop'; $p=[Console]::In.ReadToEnd()|ConvertFrom-Json;
-      foreach($file in @((Join-Path $p.install 'machine-control.exe'),(Join-Path $p.root 'package.cat'))) {
+      foreach($file in @((Join-Path $p.install 'machine-control.exe'),(Join-Path $p.root 'package.cat'),
+        (Join-Path $p.install 'runtime/package.cat'),(Join-Path $p.install 'runtime/machine-control-windows.exe'),
+        (Join-Path $p.install 'runtime/providers/cua/cua-driver.exe'))) {
         $s=Get-AuthenticodeSignature -LiteralPath $file;
         if($s.Status -ne 'Valid' -or $null -eq $s.TimeStamperCertificate -or
           $s.SignerCertificate.GetNameInfo([Security.Cryptography.X509Certificates.X509NameType]::SimpleName,$false) -cne $p.publisher) {throw 'MC publisher verification failed'}
       }
       if((Test-FileCatalog -Path $p.root -CatalogFilePath (Join-Path $p.root 'package.cat') -FilesToSkip 'package.cat') -ne 'Valid') {throw 'MC CLI catalog mismatch'};
-      [Console]::Out.Write('verified')`;
+      $runtimeRoot=Join-Path $p.install 'runtime';
+      if((Test-FileCatalog -Path $runtimeRoot -CatalogFilePath (Join-Path $runtimeRoot 'package.cat') -FilesToSkip 'package.cat') -ne 'Valid') {throw 'MC runtime catalog mismatch'};
+      $metadata=Join-Path $runtimeRoot 'desktop-runtime.json';
+      if((Get-Item -LiteralPath $metadata).Length -gt 8192) {throw 'MC runtime metadata exceeded limit'};
+      $runtime=Get-Content -LiteralPath $metadata -Raw | ConvertFrom-Json;
+      if($runtime.schema -ne 'machine-control-desktop-runtime/v0' -or $runtime.profile -ne 'ordinary_user_desktop' -or $runtime.instance -ne 'desktop') {throw 'MC runtime profile mismatch'};
+      $version=(Get-Item -LiteralPath (Join-Path $p.install 'machine-control.exe')).VersionInfo.ProductVersion;
+      [Console]::Out.Write((@{sourceRevision=$runtime.sourceRevision;runtime=$runtime.runtime;version=$version}|ConvertTo-Json -Compress))`;
     const result = await run(
       win32.join(
         process.env.SystemRoot ?? "C:\\Windows",
@@ -211,8 +223,14 @@ export async function verifyInstalledMachineControl(
       ],
       JSON.stringify({ install: installed, root, publisher }),
     );
-    if (result.trim() !== "verified")
-      throw new Error("Machine Control catalog verification failed");
+    windowsRuntime = z
+      .object({
+        sourceRevision: z.string().regex(/^[a-f0-9]{40}$/u),
+        runtime: z.enum(["win-x64", "win-arm64"]),
+        version: z.string().regex(/^\d+\.\d+\.\d+$/u),
+      })
+      .strict()
+      .parse(JSON.parse(result));
   } else if (platform === "linux") {
     root = join(installed, "mc-cli");
     const receipt = await boundedRead(
@@ -255,6 +273,11 @@ export async function verifyInstalledMachineControl(
   const commandName =
     platform === "win32" ? "machine-control.cmd" : "machine-control";
   if (
+    (windowsRuntime &&
+      (windowsRuntime.sourceRevision !== identity.sourceRevision ||
+        windowsRuntime.version !== identity.version ||
+        windowsRuntime.runtime !==
+          (process.arch === "arm64" ? "win-arm64" : "win-x64"))) ||
     identity.platform !== expectedPlatform ||
     identity.target !== target ||
     identity.command !== `commands/${commandName}` ||

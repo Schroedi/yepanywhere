@@ -2,6 +2,8 @@
 import { strict as assert } from "node:assert";
 import { parseArgs } from "node:util";
 import { tmpdir } from "node:os";
+import { mkdtemp, cp, readFile, writeFile, rm } from "node:fs/promises";
+import { join } from "node:path";
 import {
   execute,
   verifyInstalledMachineControl,
@@ -56,3 +58,42 @@ assert(
 console.log(
   "PASS authenticated installed CLI, compatible identity, owned instructions and launch-context composition",
 );
+
+if (process.platform !== "linux") {
+  await assert.rejects(verifyInstalledMachineControl(values.app, "ZZZZZZZZZZ"));
+}
+const temporary = await mkdtemp(join(tmpdir(), "mc-cli-integrity-"));
+try {
+  const candidate = join(temporary, "Candidate.app");
+  await cp(values.app, candidate, { recursive: true });
+  await verifyInstalledMachineControl(candidate, values.publisher);
+  const root =
+    process.platform === "darwin"
+      ? join(candidate, "Contents", "Resources", "mc-cli")
+      : join(candidate, "mc-cli");
+  const script = join(root, "client", "machine_control.py");
+  const original = await readFile(script);
+  await writeFile(
+    script,
+    Buffer.concat([original, Buffer.from("\n# integrity-negative\n")]),
+  );
+  await assert.rejects(
+    verifyInstalledMachineControl(candidate, values.publisher),
+  );
+  await writeFile(script, original);
+  await rm(
+    join(
+      root,
+      "python",
+      ...(process.platform === "win32" ? ["python.exe"] : ["bin", "python3"]),
+    ),
+  );
+  await assert.rejects(
+    verifyInstalledMachineControl(candidate, values.publisher),
+  );
+  console.log(
+    "PASS wrong-publisher, modified-script and missing-interpreter refusal before client execution",
+  );
+} finally {
+  await rm(temporary, { recursive: true, force: true });
+}

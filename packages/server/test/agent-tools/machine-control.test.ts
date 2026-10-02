@@ -161,10 +161,13 @@ describe("installed client authenticity", () => {
     );
   });
 
-  async function fixture() {
+  async function fixture(platform = "darwin") {
     const app = await mkdtemp(join(tmpdir(), "ya-mc-install-"));
     directories.push(app);
-    const root = join(app, "Contents", "Resources", "mc-cli");
+    const root =
+      platform === "darwin"
+        ? join(app, "Contents", "Resources", "mc-cli")
+        : join(app, "mc-cli");
     await mkdir(root, { recursive: true });
     const identity = {
       schema: "machine-control-client-identity/v1",
@@ -173,9 +176,12 @@ describe("installed client authenticity", () => {
       distribution: "desktop",
       version: "1.2.3",
       sourceRevision: "a".repeat(40),
-      platform: "macos",
-      target: `${process.arch === "arm64" ? "aarch64" : "x86_64"}-apple-darwin`,
-      command: "commands/machine-control",
+      platform: platform === "darwin" ? "macos" : "windows",
+      target: `${process.arch === "arm64" ? "aarch64" : "x86_64"}-${platform === "darwin" ? "apple-darwin" : "pc-windows-msvc"}`,
+      command:
+        platform === "darwin"
+          ? "commands/machine-control"
+          : "commands/machine-control.cmd",
       pythonVersion: "3.12.15",
       pythonArchiveSha256: "b".repeat(64),
       features: [
@@ -201,9 +207,13 @@ describe("installed client authenticity", () => {
       "client/scoped_run.py",
       "client/scoped_process.py",
       "providers/claims/claims.py",
-      "commands/machine-control",
-      "python/bin/python3",
-      "platforms/macos/bin/machost",
+      platform === "darwin"
+        ? "commands/machine-control"
+        : "commands/machine-control.cmd",
+      platform === "darwin" ? "python/bin/python3" : "python/python.exe",
+      platform === "darwin"
+        ? "platforms/macos/bin/machost"
+        : "platforms/windows/host/winhost.py",
     ]) {
       const destination = join(root, path);
       await mkdir(join(destination, ".."), { recursive: true });
@@ -235,6 +245,34 @@ describe("installed client authenticity", () => {
     expect(result.version).toBe("1.2.3");
     expect(run.mock.calls[0]?.[0]).toBe("/usr/bin/codesign");
     expect(run.mock.calls[1]?.[0]).toContain("python/bin/python3");
+  });
+
+  it("requires authenticated Windows native dependency and CLI identities to agree before a probe", async () => {
+    const { app, identity } = await fixture("win32");
+    const runtime = {
+      sourceRevision: identity.sourceRevision,
+      runtime: process.arch === "arm64" ? "win-arm64" : "win-x64",
+      version: identity.version,
+    };
+    const run = vi.fn(async (_command: string, args: string[]) =>
+      args.includes("-EncodedCommand")
+        ? JSON.stringify(runtime)
+        : JSON.stringify(identity),
+    );
+    await verifyInstalledMachineControl(app, "Example Publisher", "win32", run);
+    const powershell = Buffer.from(
+      run.mock.calls[0]?.[1][3] ?? "",
+      "base64",
+    ).toString("utf16le");
+    expect(powershell).toContain("runtime/package.cat");
+    expect(powershell).toContain("runtime/machine-control-windows.exe");
+    expect(powershell).toContain("MC runtime catalog mismatch");
+    run.mockClear();
+    runtime.sourceRevision = "b".repeat(40);
+    await expect(
+      verifyInstalledMachineControl(app, "Example Publisher", "win32", run),
+    ).rejects.toThrow("incompatible");
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it("does not run installed code after publisher or payload failure", async () => {

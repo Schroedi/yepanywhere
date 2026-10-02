@@ -31,7 +31,9 @@ publisher is inferred from untrusted package contents. Standard locations are
 Restart YA and its shared provider host after changing launch configuration.
 
 YA authenticates the package and hashes the complete CLI dependency inventory
-before executing its offline identity probe. Eligible launches are local
+before executing its offline identity probe. Windows also checks native
+runtime/provider signatures, the runtime catalog and agreement of product,
+runtime and client identities. Eligible launches are local
 unrestricted Codex (`bypassPermissions`) and local Claude providers; remote
 executors, plan sessions and sandboxes receive no advertisement. A selected
 missing, tampered or incompatible installation refuses launch. Existing

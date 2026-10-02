@@ -267,7 +267,8 @@ that also selects a legacy Computer Control grant.
 Touched-area launch tests, full lint, format, typecheck and the complete unit
 suite pass locally. The broader suite still emits unrelated failure-path
 warnings recorded in [this gap](../../gaps/unit-failure-path-log-warnings.md).
-The installed probe verifies a real signed bundle and launch-context composition;
+The installed probe verifies a real signed bundle, relocated copy, launch-context
+composition and wrong-publisher/modified-script/missing-interpreter refusal;
 it does not start a model or establish screenshot consumption by one.
 
 Remaining gates are actual desktop/browser effects and artifacts in a claimed
