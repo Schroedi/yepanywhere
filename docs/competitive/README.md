@@ -18,6 +18,7 @@ Official apps from AI providers:
 
 | Tool | Type | Agents | Key Differentiator |
 |------|------|--------|-------------------|
+| [Warp](warp.md) | Native desktop terminal + browser/mobile Remote Control | Warp Agent; 15 advertised local CLIs; Claude/Codex cloud harnesses | Direct local-agent remote supervision, attention mailbox, forks, review, hosted/self-hosted execution and adjacent Factories |
 | [T3 Code](t3code.md) | Web + desktop + native mobile | Codex, Claude, Cursor, Grok, OpenCode, Antigravity | Integrated workbench, offline mobile, multi-environment remote access, full source-control workflow |
 | [bb](bb.md) | Web + desktop + early-access mobile shell | Claude, Codex, Pi, five named ACP agents + custom ACP | Extensible plugin workbench, durable workflows, scheduling, managed environments and multi-host execution |
 | [AionUi](aionui.md) | Desktop + WebUI + Telegram | 17 (ACP) | Messaging platform bots, cron scheduling, Zed ACP bridges |
@@ -90,6 +91,14 @@ and remote access there too. Against bb, emphasize provider-native history,
 the tiered inbox, application-layer E2E relay encryption, and native Windows
 support; bb currently requires WSL2 on Windows.
 
+The [Warp source review](warp.md) also confirms local-agent Remote Control,
+attention notifications, earlier-turn native conversation forks and native
+Claude/Codex transcript capture for managed runs. Against Warp, emphasize
+external provider-history discovery, the server-wide session inbox and the
+encrypted authenticated relay boundary. Warp's published session content is
+uploaded to its service; its open execution worker does not replace the hosted
+control plane.
+
 ## Common Gaps
 
 Features competitors have that we should consider:
@@ -110,5 +119,5 @@ See **[Ecosystem](../ecosystem/)** for adjacent projects — agent-to-agent coor
 
 ## Last Updated
 
-2026-09-30 (multiplayer analysis added and Delta public-beta status updated;
+2026-10-02 (Warp source review added;
 other competitor snapshots retain their own dates)
