@@ -131,6 +131,11 @@ Consequences:
   expand/collapse and streaming growth do **not** route through it.
 - **`useScrollPreservingToggle`** (`lib/scrollAnchor.ts`) anchors the
   *acted-on element* (the Σ fixed-font toggle) — correct for that one control.
+- **Height-change restoration lifetime** — mode/window changes restore their
+  anchor after two projection-settling animation frames. Both frames belong to
+  the mounted transcript and are cancelled on unmount; restoration also
+  requires the current transcript and its parent. A detached view must never
+  restart follow timers after its scroll cleanup has run.
 - **`ResizeObserver`** (MessageList.tsx) re-pins to bottom on every height
   increase while `shouldAutoScrollRef` is true. During streaming this fires at
   the flush cadence (~200ms). During initial parked restoration, it instead

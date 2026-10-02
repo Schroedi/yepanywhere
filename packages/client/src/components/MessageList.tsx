@@ -3148,6 +3148,17 @@ export const MessageList = memo(function MessageList({
   const noopToggleThinkingExpanded = useCallback(() => {}, []);
 
   const pendingHeightChangeRestoreRef = useRef<(() => void) | null>(null);
+  const heightChangeRestoreFramesRef = useRef(new Set<{ id: number }>());
+  useLayoutEffect(
+    () => () => {
+      pendingHeightChangeRestoreRef.current = null;
+      for (const frame of heightChangeRestoreFramesRef.current) {
+        cancelAnimationFrame(frame.id);
+      }
+      heightChangeRestoreFramesRef.current.clear();
+    },
+    [],
+  );
   useLayoutEffect(() => {
     const restore = pendingHeightChangeRestoreRef.current;
     pendingHeightChangeRestoreRef.current = null;
@@ -3188,8 +3199,8 @@ export const MessageList = memo(function MessageList({
 
       const restore = () => {
         const nextMessageList = containerRef.current;
-        const nextScrollContainer =
-          nextMessageList?.parentElement ?? scrollContainer;
+        const nextScrollContainer = nextMessageList?.parentElement;
+        if (!nextMessageList || !nextScrollContainer) return;
         isProgrammaticScrollRef.current = true;
 
         if (wasAtBottom) {
@@ -3233,7 +3244,18 @@ export const MessageList = memo(function MessageList({
       } else {
         // Mode/window changes also rebuild the retained transcript window;
         // let that projection settle before restoring its visible anchor.
-        requestAnimationFrame(() => requestAnimationFrame(restore));
+        // Both projection-settling frames belong to this mounted view. A late
+        // restore used to write detached DOM and start a fresh follow timer
+        // after the observer's unmount cleanup had already cancelled it.
+        const scheduleRestoreFrame = (callback: () => void) => {
+          const frame = { id: 0 };
+          heightChangeRestoreFramesRef.current.add(frame);
+          frame.id = requestAnimationFrame(() => {
+            heightChangeRestoreFramesRef.current.delete(frame);
+            callback();
+          });
+        };
+        scheduleRestoreFrame(() => scheduleRestoreFrame(restore));
       }
       mutate();
     },
