@@ -137,3 +137,9 @@ state dir, not by double-redirecting.
 - Exact direct-network versus provider-host bridge profiles for sandboxed
   launches; individual command settings do not silently widen access.
 - MCP adapter timing after the command runtime proves each service surface.
+
+## Native administrator authentication
+
+Explicitly configured local unrestricted Mac launches can advertise the
+verified Machine Control `mc-sudo` helper. Defaults stay unchanged.
+[Native sudo](native-sudo.md) owns configuration, authority and validation.

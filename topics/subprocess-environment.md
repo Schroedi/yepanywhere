@@ -165,3 +165,10 @@ individual YA variables remain in [ya-env-vars.md](ya-env-vars.md).
   metered-billing footgun.
 - [claude.md](claude.md) and [session-liveness.md](session-liveness.md) — the
   local agentctl session-id bridge and its coordination-only semantics.
+
+## Native sudo opt-in
+
+`YEP_MC_SUDO_APP` and `YEP_MC_SUDO_TEAM_ID` are operator launch configuration,
+not client-supplied session fields. Eligible local launches verify signatures
+before adding the native resources directory to agent PATH. Restart the
+provider host after changing its environment. See [native sudo](native-sudo.md).

@@ -428,3 +428,5 @@
 - ci-browser-mobile-acceptance-2026-10-02 - Browser regressions and immutable signed native source, with hosted acceptance evidence.
 - warp-competitive-analysis - Warp source review and verification of
   company-reported adoption figures.
+
+- native-sudo - Explicit local Mac administrator authentication through a verified bundled helper.
