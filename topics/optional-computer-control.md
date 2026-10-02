@@ -67,8 +67,13 @@ YA live/reloaded desktop and phone views serve identical native capture bytes.
 Public Windows x64 0.5.3 now also passes production YA authentication and
 installed-CLI access-off refusal, visible native approval, one independently
 observed Cua semantic increment, capture/artifact hash, stale-reference refusal
-and native Stop. Windows model control/media, browser and lifecycle parity,
-and Linux GUI acceptance remain gates. The component lifecycle and deferred
+and native Stop. A real Windows YA Codex turn now also performs one native semantic increment,
+retrieves its new capture, consumes it with the built-in image viewer and reports
+the independently matching counter. MC remains reachable after provider close.
+Public Linux Debian x64 passes receipt/CLI verification and 46 bounded native
+approval/portal/GTK effect/capture/restart checks; the broader Stop-shortcut
+setting remains unaccepted under isolated state. Windows browser/full-app media
+and further lifecycle cells remain gates. The component lifecycle and deferred
 tool below remain current until accepted cutover. The default-off session picker
 uses the separate `installed-machine-control` capability and optional
 `machineControl` launch field. Session advertisement is not a same-user shell

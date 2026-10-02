@@ -641,3 +641,33 @@ image-path assertion needed Windows separator/JSON normalization; complete
 model acceptance remains pending rather than inferred from those calls.
 Focused authenticity tests and full lint, format, typecheck and unit suites
 pass. Existing broad-suite failure-path warnings remain the documented gap.
+
+## Real Windows native model and Linux core acceptance
+
+**Current (2026-10-03):** An ordinary interactive Windows 11 x64 YA Codex
+0.159.0 provider turn passes against exact public desktop 0.5.3. Its staged
+vendor runtime, isolated authenticated profile and bundled YA provider require
+no MC/YA checkout in the guest payload. The model reads installed identity and
+instructions, uses the caller-owned host claim and installed command for native
+window discovery/snapshot, one semantic invocation, window capture and artifact
+retrieval, then consumes the new PNG with the built-in image viewer. Independent
+fixture process/count and reported visible count agree exactly. Windows currently
+uses the owned native JSON CLI route for its handle-bound snapshot; this does not
+claim that `desktop snapshot --target APP` resolves Windows handles.
+
+YA reauthenticates the live product before provider launch. Provider close leaves
+MC usable; native Stop then revokes access. Original custom-install registry is
+restored, owned product/runtime/fixture/profile/staging removed, power-off confirmed,
+and both model/controller claims released. Full YA media views, Windows browser
+and additional close/crash/lifecycle gates remain separate.
+
+Public Linux 0.5.3 Debian x64 also passes actual YA signed receipt/full dependency
+verification, identity/instructions/context, relocation and changed-script/missing-
+interpreter negatives. Forty-six bounded checks use the installed CLI for native
+approval/refusal/expiry, explicit portal consent, capture/artifact hash, independent
+GTK semantic/pointer/Unicode effects, restart revocation/sharing closure, tray and
+operator loss. The first broad run stopped at the Stop-shortcut checkbox; the
+accepted slice excludes startup/shortcut settings and does not count that broader
+run as passing. Initial package absence and original power-off are restored, owned
+units/staging removed, and local/controller claims released. Linux browser/model
+and further lifecycle cells remain explicit.
