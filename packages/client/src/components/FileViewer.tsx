@@ -552,6 +552,20 @@ const DEFAULT_FILE_VIEWER_SOURCE: FileViewerSource = {
       : undefined,
 };
 
+/**
+ * A raw file URL that differs per file version, so a media element given it
+ * after an edit requests the new bytes instead of keeping what it loaded.
+ * The raw routes ignore the extra query parameter.
+ */
+function versionedRawFileUrl(
+  url: string,
+  metadata: FileContentResponse["metadata"],
+): string {
+  if (metadata.modifiedAt === undefined) return url;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}v=${metadata.modifiedAt}-${metadata.size}`;
+}
+
 function getTargetTopWithinContainer(
   container: HTMLElement,
   target: HTMLElement,
@@ -1278,10 +1292,9 @@ export const FileViewer = memo(function FileViewer({
       setRawObjectUrl(null);
       return;
     }
-    if (
-      !source.fetchRawFileBlob ||
-      (getEmbeddedMediaKind(mimeType) === "pdf" && sameOriginUrls)
-    ) {
+    // An addressable server lets the browser read the raw response itself,
+    // streaming and range-seeking it, instead of holding the file in a Blob.
+    if (!source.fetchRawFileBlob || sameOriginUrls) {
       setRawObjectUrl(null);
       return;
     }
@@ -1452,6 +1465,12 @@ export const FileViewer = memo(function FileViewer({
   const rawFileUrl = fileData
     ? (source.getRawFileUrl?.(projectId, filePath, false) ?? fileData.rawUrl)
     : null;
+  // What a direct tab renders for images and embedded media: the raw
+  // response, keyed by file version so a reload after an edit refetches it.
+  const directMediaUrl =
+    sameOriginUrls && rawFileUrl && fileData
+      ? versionedRawFileUrl(rawFileUrl, fileData.metadata)
+      : null;
   const imageOpenUrl = loadedIsImage
     ? sameOriginUrls && rawFileUrl
       ? rawFileUrl
@@ -1654,7 +1673,8 @@ export const FileViewer = memo(function FileViewer({
 
     // Image files
     if (isImage) {
-      const imageUrl = source.fetchRawFileBlob ? rawObjectUrl : rawFileUrl;
+      const imageUrl =
+        directMediaUrl ?? (source.fetchRawFileBlob ? rawObjectUrl : rawFileUrl);
       const imageLinkUrl = imageOpenUrl ?? imageUrl;
       return (
         <div className="file-viewer-image">
@@ -1681,13 +1701,9 @@ export const FileViewer = memo(function FileViewer({
 
     const embeddedMediaKind = getEmbeddedMediaKind(metadata.mimeType);
     if (embeddedMediaKind) {
-      // A directly addressable PDF is read from its own response as it
-      // arrives, rather than first copied whole into a blob.
       const mediaUrl =
-        !source.fetchRawFileBlob ||
-        (embeddedMediaKind === "pdf" && sameOriginUrls)
-          ? rawFileUrl
-          : rawObjectUrl;
+        directMediaUrl ??
+        (!source.fetchRawFileBlob ? rawFileUrl : rawObjectUrl);
       return mediaUrl ? (
         <FileViewerEmbeddedMedia
           kind={embeddedMediaKind}

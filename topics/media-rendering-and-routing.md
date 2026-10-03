@@ -49,10 +49,14 @@ through the connection, wrap in `URL.createObjectURL`, render that object
 URL.** A `Blob` holds the whole file in the browser's Blob storage for as long
 as anything references it, so a direct transport, whose
 `capabilities.sameOriginUrls` says the browser can address `/api` URLs, should
-hand the browser the URL instead and let it stream: `useRemoteImage`, framed
-PDFs and downloads do. The file viewer's images, audio and video,
-`LocalMediaModal`, and inline transcript previews still fetch a `Blob` on every
-transport ([open gap](../gaps/chrome-client-blob-buffering.md)). Helpers:
+hand the browser the URL instead and let it stream (the raw routes answer
+`Range`, so players seek): `useRemoteImage`, downloads, the file viewer's
+images, PDFs, audio, video and fonts, and `LocalMediaModal` and inline
+transcript videos do. The viewer's URL carries the file's modification time
+and size, so a reload after an edit refetches it. Local images in
+`LocalMediaModal` and inline previews still fetch a `Blob` on every transport,
+because SVG sizing and image actions read their bytes, as does any surface
+whose media source supplies its own bytes. Helpers:
 
 - `fetchMediaBlob` / `fetchLocalResourceBlob` (`components/LocalMediaModal.tsx`) —
   `transport.fetchBlob`, which returns the whole body as a `Blob` on every

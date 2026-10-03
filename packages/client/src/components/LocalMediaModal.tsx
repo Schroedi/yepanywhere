@@ -116,7 +116,8 @@ interface LocalMediaModalProps {
 }
 
 interface DisplayedLocalMedia {
-  blob: Blob;
+  /** The fetched bytes behind an object URL; null when `url` is the server's. */
+  blob: Blob | null;
   fileName: string;
   filePath: string | null;
   imageNavigation?: Pick<ImageViewerNavigation, "count" | "current">;
@@ -308,6 +309,29 @@ function buildMediaApiPath(
   return mediaSource?.buildApiPath?.(path) ?? localMediaApiPath(path, scope);
 }
 
+/**
+ * The server URL a direct transport can hand a video element, which streams
+ * and range-seeks it instead of holding the whole file in a Blob. Null over
+ * relay, for images (SVG sizing and image actions read their bytes), and when
+ * a media source supplies the bytes itself.
+ */
+function directLocalVideoUrl(
+  path: string,
+  mediaType: LocalResourceMediaType,
+  mediaSource: LocalMediaSource | undefined,
+  transport: SourceTransport,
+  scope?: LocalFileScope,
+): string | null {
+  if (
+    mediaType !== "video" ||
+    !transport.capabilities.sameOriginUrls ||
+    mediaSource?.fetchBlob
+  ) {
+    return null;
+  }
+  return buildMediaApiPath(path, mediaSource, scope);
+}
+
 export async function fetchLocalMediaBlob(
   path: string,
   mediaSource: LocalMediaSource | undefined,
@@ -411,7 +435,7 @@ function renderInlinePreview(
   target: HTMLElement,
   path: string,
   mediaType: LocalResourceMediaType,
-  objectUrl: string,
+  url: string,
   sizing: ImageSizing,
 ) {
   const frame = document.createElement("span");
@@ -425,7 +449,10 @@ function renderInlinePreview(
     video.controls = true;
     video.muted = true;
     video.className = inlinePreviewClass.player;
-    video.src = objectUrl;
+    // A server URL is read on demand; fetch only what the poster frame needs
+    // until the reader plays it.
+    video.preload = "metadata";
+    video.src = url;
     frame.append(video);
   } else {
     const button = document.createElement("button");
@@ -437,7 +464,7 @@ function renderInlinePreview(
 
     const image = document.createElement("img");
     image.className = inlinePreviewClass.image;
-    image.src = objectUrl;
+    image.src = url;
     image.alt = getFileName(path);
     button.append(image);
 
@@ -610,8 +637,29 @@ function LocalMediaModalView({
     let cancelled = false;
     let pendingObjectUrl: string | null = null;
     let transferredObjectUrl = false;
-    setLoading(true);
     setError(null);
+
+    const directUrl = directLocalVideoUrl(
+      path,
+      mediaType,
+      mediaSource,
+      transport,
+      fileScope,
+    );
+    if (directUrl) {
+      setDisplayedMedia({
+        blob: null,
+        fileName: requestedFileName,
+        filePath: semanticFilePath,
+        mediaType,
+        path,
+        url: directUrl,
+        vector: false,
+      });
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
 
     void fetchLocalMediaBlob(path, mediaSource, "modal", transport, fileScope)
       .then(async (blob) => {
@@ -665,14 +713,15 @@ function LocalMediaModalView({
     transport,
   ]);
 
-  const displayedUrl = displayedMedia?.url ?? null;
+  // Only a fetched Blob's URL is this modal's to revoke.
+  const displayedObjectUrl = displayedMedia?.blob ? displayedMedia.url : null;
   useEffect(
     () => () => {
-      if (displayedUrl) {
-        URL.revokeObjectURL(displayedUrl);
+      if (displayedObjectUrl) {
+        URL.revokeObjectURL(displayedObjectUrl);
       }
     },
-    [displayedUrl],
+    [displayedObjectUrl],
   );
 
   useEffect(() => {
@@ -1659,13 +1708,10 @@ export function useLocalMediaInlinePreviews(
     const root = rootRef.current;
     if (!root) return;
     const objectUrls = new Set<string>();
-    const loadedMedia = new Map<
-      string,
-      { objectUrl: string; sizing: ImageSizing }
-    >();
+    const loadedMedia = new Map<string, { url: string; sizing: ImageSizing }>();
     const pendingMedia = new Map<
       string,
-      Promise<{ objectUrl: string; sizing: ImageSizing }>
+      Promise<{ url: string; sizing: ImageSizing }>
     >();
     let disposed = false;
 
@@ -1731,13 +1777,26 @@ export function useLocalMediaInlinePreviews(
     const loadMedia = (
       path: string,
       mediaType: LocalResourceMediaType,
-    ): Promise<{ objectUrl: string; sizing: ImageSizing }> => {
+    ): Promise<{ url: string; sizing: ImageSizing }> => {
       const cacheKey = `${mediaType}\0${path}`;
       const loaded = loadedMedia.get(cacheKey);
       if (loaded) return Promise.resolve(loaded);
 
       const pending = pendingMedia.get(cacheKey);
       if (pending) return pending;
+
+      const directUrl = directLocalVideoUrl(
+        path,
+        mediaType,
+        mediaSource,
+        transport,
+        fileScope,
+      );
+      if (directUrl) {
+        const media = { url: directUrl, sizing: "raster" as const };
+        loadedMedia.set(cacheKey, media);
+        return Promise.resolve(media);
+      }
 
       const request = fetchLocalMediaBlob(
         path,
@@ -1750,7 +1809,7 @@ export function useLocalMediaInlinePreviews(
           const objectUrl = URL.createObjectURL(blob);
           objectUrls.add(objectUrl);
           const sizing = await describeImageSizing(blob, path);
-          const media = { objectUrl, sizing };
+          const media = { url: objectUrl, sizing };
           if (disposed) {
             objectUrls.delete(objectUrl);
             URL.revokeObjectURL(objectUrl);
@@ -1785,7 +1844,7 @@ export function useLocalMediaInlinePreviews(
             element,
             path,
             mediaType,
-            loaded.objectUrl,
+            loaded.url,
             loaded.sizing,
           );
           continue;
@@ -1797,9 +1856,9 @@ export function useLocalMediaInlinePreviews(
         element.append(loading);
 
         loadMedia(path, mediaType)
-          .then(({ objectUrl, sizing }) => {
+          .then(({ url, sizing }) => {
             if (disposed || !element.isConnected) return;
-            renderInlinePreview(element, path, mediaType, objectUrl, sizing);
+            renderInlinePreview(element, path, mediaType, url, sizing);
           })
           .catch((err) => {
             if (disposed || !element.isConnected) return;

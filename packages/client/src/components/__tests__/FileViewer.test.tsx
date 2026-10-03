@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { toUrlProjectId, type FileContentResponse } from "@yep-anywhere/shared";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../api/client";
 import { QuoteReplyProvider } from "../../contexts/QuoteReplyContext";
@@ -19,7 +20,10 @@ import { LOCAL_CLIENT_SUMMARY_SOURCE_KEY } from "../../lib/clientSummaryStore";
 import { invalidateLocalStorageValues } from "../../lib/localStorageValue";
 import { extractMarkdownSnippetsFromSelection } from "../../lib/markdownSelectionCopy";
 import { getNewSessionPrefill } from "../../lib/newSessionPrefill";
+import type { YaSourceRuntime } from "../../lib/sourceRuntime";
+import { SourceRuntimeProvider } from "../../lib/sourceRuntimeReact";
 import { UI_KEYS } from "../../lib/storageKeys";
+import { FakeSourceTransport } from "../../lib/transport";
 import { FileViewer, type FileViewerSource } from "../FileViewer";
 import { FileViewerModal } from "../FilePathLink";
 
@@ -1445,6 +1449,54 @@ describe("FileViewer", () => {
     return createObjectURL;
   }
 
+  /** Render where `/api` URLs are not addressable, as over relay. */
+  function renderRelayed(ui: ReactElement) {
+    const runtime: YaSourceRuntime = {
+      sourceKey: LOCAL_CLIENT_SUMMARY_SOURCE_KEY,
+      transport: new FakeSourceTransport({
+        kind: "secure",
+        capabilities: { sameOriginUrls: false },
+      }),
+      api: {} as YaSourceRuntime["api"],
+      summary: {} as YaSourceRuntime["summary"],
+      sessionDetails: {} as YaSourceRuntime["sessionDetails"],
+    };
+    return render(
+      <SourceRuntimeProvider runtime={runtime}>{ui}</SourceRuntimeProvider>,
+    );
+  }
+
+  it("plays a direct-transport video from its versioned raw URL, not a blob", async () => {
+    const source: FileViewerSource = {
+      loadFile: vi.fn(async () => ({
+        metadata: {
+          path: "clips/demo.mp4",
+          size: 2048,
+          mimeType: "video/mp4",
+          isText: false,
+          modifiedAt: 1_759_500_000_000,
+        },
+        rawUrl: "/api/projects/project-id/files/raw?path=clips%2Fdemo.mp4",
+      })),
+      fetchRawFileBlob: vi.fn(async () => new Blob(["media"])),
+    };
+    const { container } = render(
+      <I18nProvider>
+        <FileViewer
+          projectId="project-id"
+          filePath="clips/demo.mp4"
+          source={source}
+        />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelector("video")).toBeTruthy());
+    expect(container.querySelector("video")!.getAttribute("src")).toBe(
+      "/api/projects/project-id/files/raw?path=clips%2Fdemo.mp4&v=1759500000000-2048",
+    );
+    expect(source.fetchRawFileBlob).not.toHaveBeenCalled();
+  });
+
   function binarySource(path: string, mimeType: string): FileViewerSource {
     return {
       loadFile: vi.fn(async () => ({
@@ -1457,7 +1509,7 @@ describe("FileViewer", () => {
 
   it("plays audio inline and falls back when the browser cannot decode it", async () => {
     const createObjectURL = stubObjectUrls("blob:file-viewer-audio");
-    const { container } = render(
+    const { container } = renderRelayed(
       <I18nProvider>
         <FileViewer
           projectId="project-id"
@@ -1482,7 +1534,7 @@ describe("FileViewer", () => {
 
   it("plays video inline", async () => {
     stubObjectUrls("blob:file-viewer-video");
-    const { container } = render(
+    const { container } = renderRelayed(
       <I18nProvider>
         <FileViewer
           projectId="project-id"
@@ -1516,7 +1568,7 @@ describe("FileViewer", () => {
       value: { add: (face: unknown) => added.push(face), delete: vi.fn() },
     });
     try {
-      const { container } = render(
+      const { container } = renderRelayed(
         <I18nProvider>
           <FileViewer
             projectId="project-id"
@@ -1675,7 +1727,11 @@ describe("FileViewer", () => {
     expect(imageLink.getAttribute("target")).toBe("_blank");
     expect(imageLink.getAttribute("rel")).toBe("noopener noreferrer");
     const image = await screen.findByRole("img", { name: "result.png" });
-    expect(image.getAttribute("src")).toBe("blob:file-viewer-image");
+    // A direct transport shows the raw response rather than a blob copy.
+    expect(image.getAttribute("src")).toBe(
+      "/api/projects/project-id/files/raw?path=screenshots%2Fresult.png",
+    );
+    expect(source.fetchRawFileBlob).not.toHaveBeenCalled();
     fireEvent.contextMenu(image);
     expect(
       screen.getAllByRole("menuitem").map((item) => item.textContent),
