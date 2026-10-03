@@ -34,6 +34,8 @@ import type {
 import {
   BinaryFormat,
   TRANSPORT_CHUNK_PAYLOAD_MAX_BYTES,
+  TRANSPORT_REASSEMBLY_MAX_BYTES,
+  TransportChunkError,
   UploadChunkError,
   decodeUploadChunkPayload,
   encodeJsonBytesFrame,
@@ -545,6 +547,32 @@ function concatenateJsonBytes(
   return result;
 }
 
+/**
+ * Largest file body relayed as one response. A relayed file arrives whole in
+ * one transport message, so a body past the reassembly limit cannot be
+ * delivered; refusing it before reading also bounds what the server buffers.
+ */
+export const RELAY_BINARY_RESPONSE_MAX_BYTES = TRANSPORT_REASSEMBLY_MAX_BYTES;
+
+const RELAY_RESPONSE_TOO_LARGE_ERROR =
+  "This file is too large to transfer over a relay connection; open Yep Anywhere directly to download it";
+
+function isTransportMessageTooLarge(error: unknown): boolean {
+  return (
+    error instanceof TransportChunkError && error.code === "MESSAGE_TOO_LARGE"
+  );
+}
+
+function responseTooLarge(id: string): YepMessage {
+  return {
+    type: "response",
+    id,
+    status: 413,
+    headers: { "content-type": "application/json; charset=UTF-8" },
+    body: { error: RELAY_RESPONSE_TOO_LARGE_ERROR, retryable: false },
+  };
+}
+
 function reportSendFailure(ws: WSAdapter, error: unknown): void {
   console.warn("[WS Relay] Failed to send message, closing socket:", error);
   try {
@@ -606,6 +634,12 @@ export function createSendFn(
         ws.send(JSON.stringify(msg));
       }
     } catch (err) {
+      // An undeliverable response fails its own request; closing the socket
+      // would also drop every other request and subscription on it.
+      if (msg.type === "response" && isTransportMessageTooLarge(err)) {
+        send(responseTooLarge(msg.id), frameMode);
+        return;
+      }
       reportSendFailure(ws, err);
     }
   };
@@ -659,6 +693,10 @@ export function createSendFn(
       }
     } catch (error) {
       relayResponseSerializationStats.rawSendFailures += 1;
+      if (isTransportMessageTooLarge(error)) {
+        send(responseTooLarge(response.id), frameMode);
+        return;
+      }
       reportSendFailure(ws, error);
     }
   };
@@ -741,7 +779,7 @@ async function readResponseBody(
         retainedBytes + bytes.byteLength > options.maxBytes
       ) {
         overflow = true;
-        await cancelReader("Public share relay response exceeded limit");
+        await cancelReader("Relay response exceeded limit");
         break;
       }
 
@@ -768,6 +806,18 @@ async function readResponseBody(
   return { bytes, overflow, observedBytes };
 }
 
+/** Media types relayed as base64 bytes rather than decoded as text. */
+function isRelayBinaryMediaType(contentType: string): boolean {
+  return (
+    contentType.startsWith("image/") ||
+    contentType.startsWith("audio/") ||
+    contentType.startsWith("video/") ||
+    contentType.startsWith("font/") ||
+    contentType === "application/pdf" ||
+    contentType === "application/octet-stream"
+  );
+}
+
 function declaredResponseExceedsLimit(
   response: Response,
   maxBytes: number,
@@ -779,7 +829,7 @@ function declaredResponseExceedsLimit(
 
 async function cancelOversizedResponseBody(response: Response): Promise<void> {
   await response.body
-    ?.cancel("Public share relay response exceeded declared limit")
+    ?.cancel("Relay response exceeded declared limit")
     .catch(() => undefined);
 }
 
@@ -907,12 +957,26 @@ export async function handleRequest(
     let validatedJsonBody: { bytes: Uint8Array; text: string } | undefined;
     const contentType = response.headers.get("Content-Type") ?? "";
     const jsonResponse = isJsonMediaType(contentType);
+    const downloadResponse =
+      response.ok &&
+      (url.searchParams.get("download") === "true" ||
+        response.headers
+          .get("Content-Disposition")
+          ?.split(";", 1)[0]
+          ?.trim()
+          .toLowerCase() === "attachment");
+    const binaryResponse =
+      !(legacyPublicShareRequest && !jsonResponse) &&
+      (downloadResponse ||
+        (!jsonResponse && isRelayBinaryMediaType(contentType)));
+    const maxBytes = isPreauthPublicShareRequest
+      ? LEGACY_PUBLIC_SHARE_RELAY_MAX_BYTES
+      : binaryResponse
+        ? RELAY_BINARY_RESPONSE_MAX_BYTES
+        : undefined;
     const declaredOverflow =
-      isPreauthPublicShareRequest &&
-      declaredResponseExceedsLimit(
-        response,
-        LEGACY_PUBLIC_SHARE_RELAY_MAX_BYTES,
-      );
+      maxBytes !== undefined &&
+      declaredResponseExceedsLimit(response, maxBytes);
     if (declaredOverflow) {
       await cancelOversizedResponseBody(response);
     }
@@ -923,9 +987,7 @@ export async function handleRequest(
           observedBytes: Number(response.headers.get("Content-Length")),
         }
       : await readResponseBody(response, {
-          ...(isPreauthPublicShareRequest
-            ? { maxBytes: LEGACY_PUBLIC_SHARE_RELAY_MAX_BYTES }
-            : {}),
+          ...(maxBytes !== undefined ? { maxBytes } : {}),
           ...(isPreauthPublicShareRequest && legacyPublicShareRequest
             ? {
                 maxProducerChunkBytes:
@@ -937,33 +999,33 @@ export async function handleRequest(
 
     if (responseBody.overflow) {
       responseStatus = 413;
-      body = legacyPublicShareRequest
-        ? {
-            error:
-              "This public share is too large for the legacy relay response; update the public viewer and YA server",
-            retryable: false,
-            updateRequired: true,
-          }
-        : {
-            error:
-              "This public share resource is too large for relay access; use a direct connection or request a smaller file",
-            retryable: false,
-          };
+      const kind = !isPreauthPublicShareRequest
+        ? "file"
+        : legacyPublicShareRequest
+          ? "legacy-session"
+          : "public-resource";
+      body =
+        kind === "file"
+          ? { error: RELAY_RESPONSE_TOO_LARGE_ERROR, retryable: false }
+          : kind === "legacy-session"
+            ? {
+                error:
+                  "This public share is too large for the legacy relay response; update the public viewer and YA server",
+                retryable: false,
+                updateRequired: true,
+              }
+            : {
+                error:
+                  "This public share resource is too large for relay access; use a direct connection or request a smaller file",
+                retryable: false,
+              };
       getLogger().warn(
-        `[WS Relay] Public share response capped: method=${request.method}, kind=${legacyPublicShareRequest ? "legacy-session" : "public-resource"}, status=${response.status}, bytes=${responseBody.observedBytes}`,
+        `[WS Relay] ${kind === "file" ? "File" : "Public share"} response capped: method=${request.method}, kind=${kind}, status=${response.status}, bytes=${responseBody.observedBytes}`,
       );
     } else if (legacyPublicShareRequest && !jsonResponse) {
       const text = new TextDecoder().decode(responseBody.bytes);
       body = text || null;
-    } else if (
-      response.ok &&
-      (url.searchParams.get("download") === "true" ||
-        response.headers
-          .get("Content-Disposition")
-          ?.split(";", 1)[0]
-          ?.trim()
-          .toLowerCase() === "attachment")
-    ) {
+    } else if (downloadResponse) {
       // Downloads preserve original bytes, including JSON formatting and
       // integers that parsing would round. Keep errors on their normal path.
       body = {
@@ -987,14 +1049,7 @@ export async function handleRequest(
         relayResponseSerializationStats.unsupportedSenderFallbacks += 1;
         body = parsed.value;
       }
-    } else if (
-      contentType.startsWith("image/") ||
-      contentType.startsWith("audio/") ||
-      contentType.startsWith("video/") ||
-      contentType.startsWith("font/") ||
-      contentType === "application/pdf" ||
-      contentType === "application/octet-stream"
-    ) {
+    } else if (isRelayBinaryMediaType(contentType)) {
       body = {
         _binary: true,
         data: Buffer.from(responseBody.bytes).toString("base64"),
