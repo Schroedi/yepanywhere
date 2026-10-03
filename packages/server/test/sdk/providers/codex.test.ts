@@ -3026,6 +3026,42 @@ describe("CodexProvider app-server lifecycle", () => {
     }
   });
 
+  it("reaps model discovery before releasing its result and profile", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "codex-provider-model-owner-"));
+    const logPath = join(tempDir, "fake-codex-requests.jsonl");
+    const pidPath = join(tempDir, "model-owner.pid");
+    const source = buildFakeCodexAppServer(
+      logPath,
+      "chatgpt",
+      undefined,
+      false,
+      {
+        data: [{ id: "owned-model", model: "owned-model" }],
+      },
+    ).replace(
+      'import { appendFileSync } from "node:fs";',
+      `import { writeFileSync as writeModelPid } from "node:fs";
+writeModelPid(${JSON.stringify(pidPath)}, String(process.pid));
+process.on("SIGTERM", () => setTimeout(() => process.exit(0), 150));
+import { appendFileSync } from "node:fs";`,
+    );
+    const codexPath = createFakeCodexCommand(
+      tempDir,
+      "fake-codex-model-owner",
+      source,
+    );
+    try {
+      expect(
+        (await new CodexProvider({ codexPath }).getAvailableModels())[0]?.id,
+      ).toBe("owned-model");
+      const pid = Number(readFileSync(pidPath, "utf8"));
+      expect(Number.isSafeInteger(pid)).toBe(true);
+      expect(() => process.kill(pid, 0)).toThrow();
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("maps thinking off to the model's lowest effort on a cold catalog", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "codex-provider-thinking-off-"));
     const logPath = join(tempDir, "fake-codex-requests.jsonl");

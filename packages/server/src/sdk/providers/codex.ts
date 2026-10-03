@@ -1024,7 +1024,10 @@ class CodexAppServerClient {
             detached: process.platform !== "win32",
             stdio: sandboxed?.stdio ?? ["pipe", "pipe", "pipe"],
             env: sandboxed?.env ?? this.env,
-            shell: sandboxed ? false : process.platform === "win32",
+            shell: sandboxed
+              ? false
+              : process.platform === "win32" &&
+                !this.command.toLowerCase().endsWith(".exe"),
           },
         );
       } finally {
@@ -1568,7 +1571,9 @@ export class CodexProvider implements AgentProvider {
           detached: process.platform !== "win32",
           stdio: ["pipe", "pipe", "pipe"],
           env: this.getCodexEnv(),
-          shell: process.platform === "win32",
+          shell:
+            process.platform === "win32" &&
+            !codexCommand.toLowerCase().endsWith(".exe"),
         },
       );
 
@@ -1580,13 +1585,9 @@ export class CodexProvider implements AgentProvider {
         if (settled) return;
         settled = true;
         clearTimeout(timeoutHandle);
-        void terminateChildProcess(child).catch((error) => {
-          log.warn(
-            { error, pid: child.pid },
-            "Failed to terminate Codex model-list app-server",
-          );
-        });
-        handler();
+        // Keep the discovery lease until the process releases its profile.
+        // In particular, Windows cannot remove a still-open SQLite database.
+        void terminateChildProcess(child).then(handler, reject);
       };
 
       const parseAndHandleLine = (line: string) => {
