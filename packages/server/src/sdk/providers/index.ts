@@ -213,10 +213,12 @@ function hostedProvider(rawProvider: AgentProvider): AgentProvider {
         return async (
           options: Parameters<AgentProvider["startSession"]>[0],
         ) => {
+          const native = nativeMachineControl();
           if (
             options.machineControl &&
             isDesktopControlOrigin(options.desktopControlOrigin) &&
-            nativeMachineControl()
+            native &&
+            (await native.enabled())
           ) {
             throw new Error(
               "Native Machine Control delegation requires a local provider owner; detached provider hosting is unsupported",

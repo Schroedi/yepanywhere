@@ -64,7 +64,7 @@ credential origin, fake/restored/permissive/limited-user refusal, PID registrati
 and closure-before-abort. Installation fixtures retain old MC behavior.
 
 The full workspace checks pass: lint, non-writing format, typecheck and tests
-(6,327 server, 6,663 client, 941 shared, 130 relay and 45 push-broker checks).
+(6,330 server, 6,663 client, 941 shared, 130 relay and 45 push-broker checks).
 Tests use supported Node 25 to avoid Node 26's third-party loader deprecation;
 existing intentional fault-injection diagnostics are not new runtime warnings.
 A pre-existing media-auth stub now supplies the newly inspected policy method.
@@ -97,3 +97,11 @@ forwarding its first result. Eager providers register immediately. Before
 registration the native proxy refuses all connections. A bounded monotonic
 startup deadline, cancellation and iterator failure remove authority before
 provider abort; cancellation before iteration cannot start or register it.
+
+Detached provider selection now queries current operator trust before refusing
+automatic ownership: trust off retains the existing independent advertisement;
+trust on refuses the unqualified detached path without changing placement. A
+lost native handoff refuses rather than becoming ambient access. Focused tests,
+lint, format, typecheck and the full workspace suite pass. One unrelated glossary
+timing assertion failed in an initial loaded run, then passed both independently
+and in the full rerun.
