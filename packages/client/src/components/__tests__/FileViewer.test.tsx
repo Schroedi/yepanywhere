@@ -12,6 +12,7 @@ import { api } from "../../api/client";
 import { QuoteReplyProvider } from "../../contexts/QuoteReplyContext";
 import { SessionMetadataProvider } from "../../contexts/SessionMetadataContext";
 import { SessionViewerCommentProvider } from "../../contexts/SessionViewerCommentContext";
+import { ToastProvider } from "../../contexts/ToastContext";
 import { setQuoteReplyButtonModePreference } from "../../hooks/useQuoteReplyButtonMode";
 import { I18nProvider } from "../../i18n";
 import { LOCAL_CLIENT_SUMMARY_SOURCE_KEY } from "../../lib/clientSummaryStore";
@@ -225,6 +226,91 @@ describe("FileViewer", () => {
     await waitFor(() =>
       expect(reload.getAttribute("title")).toMatch(/^Unchanged on disk/),
     );
+  });
+
+  it("keeps the file in view and toasts when its download fails", async () => {
+    const source: FileViewerSource = {
+      loadFile: vi.fn().mockResolvedValue({
+        metadata: {
+          path: "software.tgz",
+          size: 17_772_579,
+          mimeType: "application/octet-stream",
+          isText: false,
+        },
+        rawUrl: "",
+      }),
+      fetchRawFileBlob: vi
+        .fn()
+        .mockRejectedValue(new TypeError("Failed to fetch")),
+    };
+    render(
+      <I18nProvider>
+        <ToastProvider>
+          <FileViewer
+            projectId="project-id"
+            filePath="software.tgz"
+            source={source}
+            onClose={vi.fn()}
+          />
+        </ToastProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Download File" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Could not download software.tgz: Failed to fetch",
+      ),
+    ).toBeTruthy();
+    expect(source.fetchRawFileBlob).toHaveBeenCalledWith(
+      expect.objectContaining({ rawUrl: "" }),
+      "software.tgz",
+      true,
+    );
+    expect(screen.getByRole("button", { name: "Download File" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
+  });
+
+  it("keeps the header and reload when the file cannot be loaded", async () => {
+    const onClose = vi.fn();
+    const source: FileViewerSource = {
+      loadFile: vi
+        .fn()
+        .mockRejectedValueOnce(new Error("File not found"))
+        .mockResolvedValueOnce({
+          metadata: {
+            path: "notes.md",
+            size: 9,
+            mimeType: "text/markdown",
+            isText: true,
+          },
+          rawUrl: "",
+          content: "# Back\n",
+          renderedMarkdownHtml: "<h1>Back again</h1>",
+        }),
+    };
+    render(
+      <I18nProvider>
+        <FileViewer
+          projectId="project-id"
+          filePath="notes.md"
+          source={source}
+          onClose={onClose}
+        />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByText("File not found")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Reload from disk" }));
+    expect(
+      await screen.findByRole("heading", { name: "Back again" }),
+    ).toBeTruthy();
+    expect(source.loadFile).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("drops a reload that answers after the viewer moved to another file", async () => {

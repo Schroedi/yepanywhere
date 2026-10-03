@@ -50,7 +50,6 @@ import {
   writeClipboardTextLater,
 } from "../lib/clipboard";
 import { getEmbeddedFileMediaBlob } from "../lib/embeddedFileMedia";
-import { downloadBlob } from "../lib/imageActions";
 import { isMarkdownLikeFile } from "../lib/markdownFiles";
 import { extractMarkdownSnippetsFromSelection } from "../lib/markdownSelectionCopy";
 import { getRenderedFileClipboardPayload } from "../lib/renderedFileClipboard";
@@ -108,6 +107,7 @@ import {
   type FileViewPresentation,
   supportsSourceAndPreview,
   localSourceTarget,
+  useSaveResourceDownload,
   useStartNewSessionFromFile,
   useStartNewSessionWithPrefillAction,
 } from "./FileResourceActions";
@@ -1466,31 +1466,30 @@ export const FileViewer = memo(function FileViewer({
     publicShareContext !== null,
   );
 
+  const saveDownload = useSaveResourceDownload();
   const handleDownload = useCallback(() => {
     if (!fileData) return;
-    if (source.fetchRawFileBlob) {
-      void source
-        .fetchRawFileBlob(fileData, filePath, true)
-        .then((blob) => downloadBlob(blob, fileName))
-        .catch((err) => {
-          setError(err instanceof Error ? err.message : String(err));
-        });
-      return;
-    }
-
-    void transport
-      .fetchBlob(
-        toSourceTransportApiPath(
-          projectRawFileApiPath(projectId, filePath, true),
-        ),
-      )
-      .then((blob) => downloadBlob(blob, fileName))
-      .catch((err) => {
-        setError(
-          err instanceof Error ? err.message : "Failed to download file",
-        );
-      });
-  }, [fileData, fileName, filePath, projectId, source, transport]);
+    const fetchRawFileBlob = source.fetchRawFileBlob;
+    saveDownload({
+      fileName,
+      loadBlob: fetchRawFileBlob
+        ? () => fetchRawFileBlob(fileData, filePath, true)
+        : () =>
+            transport.fetchBlob(
+              toSourceTransportApiPath(
+                projectRawFileApiPath(projectId, filePath, true),
+              ),
+            ),
+    });
+  }, [
+    fileData,
+    fileName,
+    filePath,
+    projectId,
+    saveDownload,
+    source,
+    transport,
+  ]);
 
   const absoluteViewerLink = useMemo(
     () => new URL(standaloneViewerUrl, window.location.href).href,
@@ -1574,17 +1573,8 @@ export const FileViewer = memo(function FileViewer({
     );
   }
 
-  // Render error state
-  if (!diffActive && (error || !fileData)) {
-    return (
-      <div className="file-viewer">
-        <div className="file-viewer-error">
-          {error || t("fileViewerNotFound" as never)}
-        </div>
-      </div>
-    );
-  }
-
+  // A load error renders in the body below the header, so back, close, and
+  // reload stay reachable.
   const metadata = fileData?.metadata;
   const content = fileData?.content;
   const isImage = loadedIsImage;
@@ -1653,7 +1643,7 @@ export const FileViewer = memo(function FileViewer({
         </div>
       );
     }
-    if (!fileData || !metadata) {
+    if (error || !fileData || !metadata) {
       return (
         <div className="file-viewer-error">
           {error || t("fileViewerNotFound" as never)}
@@ -2046,7 +2036,7 @@ export const FileViewer = memo(function FileViewer({
             />
           )}
         <span ref={setModeControlsHost} />
-        {!diffActive && fileData && (
+        {!diffActive && (fileData || error) && (
           <button
             type="button"
             className={`file-viewer-action${freshness?.state === "stale" ? ` ${viewerStyles.reloadStale}` : ""}`}

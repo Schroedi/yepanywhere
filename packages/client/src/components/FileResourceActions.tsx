@@ -251,34 +251,38 @@ function OpenLocalSourceMenuItem({
 }
 
 /**
- * Saves a resource menu download. Fetched bytes go under `fileName`, and a
- * failed fetch is reported: the menu has closed by the time the fetch settles,
- * so the reason goes to an error toast. A URL is handed to the browser, whose
- * own download UI reports its failures.
+ * Saves a resource download. Fetched bytes go under `fileName`, and a failed
+ * fetch is reported in an error toast: the menu has closed by the time the
+ * fetch settles, and a viewer's download failure must not replace the file it
+ * is showing. A URL is handed to the browser, whose own download UI reports
+ * its failures.
  */
-function useSaveResourceDownload() {
+export function useSaveResourceDownload() {
   const { t } = useI18n();
   const showToast = useOptionalToastContext()?.showToast;
-  return (download: ResourceDownload) => {
-    if ("url" in download) {
-      const anchor = document.createElement("a");
-      anchor.href = download.url;
-      anchor.click();
-      return;
-    }
-    const { fileName, loadBlob } = download;
-    void loadBlob()
-      .then((blob) => downloadBlob(blob, fileName))
-      .catch((error: unknown) => {
-        showToast?.(
-          t("resourceDownloadFailed" as never, {
-            fileName,
-            reason: error instanceof Error ? error.message : String(error),
-          }),
-          "error",
-        );
-      });
-  };
+  return useCallback(
+    (download: ResourceDownload) => {
+      if ("url" in download) {
+        const anchor = document.createElement("a");
+        anchor.href = download.url;
+        anchor.click();
+        return;
+      }
+      const { fileName, loadBlob } = download;
+      void loadBlob()
+        .then((blob) => downloadBlob(blob, fileName))
+        .catch((error: unknown) => {
+          showToast?.(
+            t("resourceDownloadFailed" as never, {
+              fileName,
+              reason: error instanceof Error ? error.message : String(error),
+            }),
+            "error",
+          );
+        });
+    },
+    [showToast, t],
+  );
 }
 
 function FilePathContextMenuItem({

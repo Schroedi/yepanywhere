@@ -281,6 +281,9 @@ vocabulary even though their authorization routes remain distinct:
   is unchanged or was changed on disk at a given time; the icon takes the
   warning color when stale. Servers without `modifiedAt` in file metadata
   keep the plain tooltip.
+- A file that cannot be loaded shows its error in the project `FileViewer`
+  body beneath the normal header, so Back, close, minimize and **Reload from
+  disk** stay reachable; an error never strands the right pane.
 - **Find in this view.** The project `FileViewer`, the local-file modal, the
   session artifact viewer and artifact frames in the session right pane carry
   an isearch-style find field in their header. It searches only what that
@@ -336,8 +339,9 @@ vocabulary even though their authorization routes remain distinct:
   transport and saves them under the path basename; opening a viewer is not a
   prerequisite. When the bytes cannot be fetched — the file is gone, outside
   the allow-set, or the transport fails — nothing is saved and an error toast
-  names the file and the reason. Image menus' **Download** follows the same
-  rule.
+  names the file and the reason. Image menus' **Download** and the project
+  `FileViewer`'s download controls follow the same rule; a viewer whose
+  download fails keeps showing the file.
 - Public shares may expose their share-scoped viewer link and project-relative
   path, but the file action menu does not derive or copy the host's absolute
   project path.
