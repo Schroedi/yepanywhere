@@ -1,3 +1,4 @@
+import { createStaticRoutes } from "../src/frontend/static.js";
 import { createApp } from "../src/app.js";
 import { EventBus } from "../src/watcher/index.js";
 import { createWsRelayRoutes } from "../src/routes/ws-relay.js";
@@ -38,6 +39,10 @@ const { values } = parseArgs({
     model: { type: "string" },
     "expected-button": { type: "string", default: "Change site icon" },
     browser: { type: "boolean", default: false },
+    "client-dist": { type: "string" },
+    "browser-executable": { type: "string" },
+    "capture-output": { type: "string" },
+    "codex-executable": { type: "string" },
   },
 });
 assert(
@@ -61,7 +66,10 @@ const capturePath = join(cwd, "browser.png");
 await copyFile(values.capture, capturePath);
 const captureBytes = await readFile(capturePath);
 const codexHome = join(temporary, "codex");
-const provider = new CodexProvider({ codexHome });
+const provider = new CodexProvider({
+  codexHome,
+  codexPath: values["codex-executable"],
+});
 const eventBus = new EventBus();
 let full: AppResult | undefined;
 let server: ServerType | undefined;
@@ -127,6 +135,11 @@ async function bindBrowserBackend(port = 0) {
       activityEventForIdentity: full.activityEventForIdentity,
     }),
   );
+  if (values["client-dist"])
+    full.app.route(
+      "/",
+      createStaticRoutes({ distPath: values["client-dist"] }),
+    );
   server = serve({ fetch: full.app.fetch, port, hostname: "127.0.0.1" });
   await new Promise<void>((resolve, reject) => {
     server?.once("listening", () => resolve());
@@ -161,6 +174,11 @@ try {
     browser = await createMachineControlMediaBrowser(
       `http://127.0.0.1:${browserPort}`,
       captureBytes,
+      {
+        direct: !!values["client-dist"],
+        executablePath: values["browser-executable"],
+        outputRoot: values["capture-output"],
+      },
     );
   }
   // Use the real provider entry point, which composes installed MC itself.
@@ -199,7 +217,7 @@ try {
   void completed.catch(() => {});
   await browser?.open(encodeProjectId(cwd), session.sessionId);
   session.queueMessage({
-    text: "This is a bounded installation/capture acceptance test. Use only the advertised installed Machine Control command to run `agent instructions` and `agent identity` (offline queries). Make no target operations or access requests, run no other commands, edit no files and spawn no agents. Inspect the attached fixture PNG using your image viewer; that read-only tool is allowed. Reply with MC_PROTOCOL=<observed client protocol>, CLI_WORKFLOW=read and CAPTURE_BUTTON=<the text on the topmost fixture button>.",
+    text: "This is a bounded installation/capture acceptance test. Use only the advertised installed Machine Control command to run `agent instructions` and `agent identity` (offline queries). Make no target operations or access requests, run no other commands, edit no files and spawn no agents. Inspect the attached fixture PNG using your image viewer; that read-only tool is allowed. Reply with MC_PROTOCOL=<numeric clientProtocol field from agent identity>, CLI_WORKFLOW=read and CAPTURE_BUTTON=<the text on the topmost fixture button>.",
     attachments: [
       {
         id: "mc-cli-fixture",
@@ -236,7 +254,14 @@ try {
     tools.some(
       (block) =>
         block.name === "ViewImage" &&
-        JSON.stringify(block.input).includes(capturePath),
+        Object.values(block.input ?? {}).some(
+          (value) =>
+            typeof value === "string" &&
+            (process.platform === "win32"
+              ? value.replaceAll("\\", "/").toLowerCase() ===
+                capturePath.replaceAll("\\", "/").toLowerCase()
+              : value === capturePath),
+        ),
     ),
     "Provider must invoke its native image viewer",
   );
@@ -261,7 +286,7 @@ try {
   assert.equal(liveResponse.headers.get("cache-control"), "private, no-store");
   assert.deepEqual(Buffer.from(await liveResponse.arrayBuffer()), captureBytes);
   await browser?.prove("live");
-  await session.abort();
+  assert((await session.abort()).verifiedStopped);
   await browser?.disconnect();
   full.stopNotifications();
   await closeBackend();
@@ -309,7 +334,15 @@ try {
   await finish([() => session?.abort(), () => browser?.close()]);
   unsubscribe?.();
   await finish([() => full?.disposeSessionReaders(), closeBackend]);
-  await finish([() => rm(temporary, { recursive: true, force: true })]);
+  await finish([
+    () =>
+      rm(temporary, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100,
+      }),
+  ]);
 }
 if (failures.length) throw new AggregateError(failures, "MC acceptance failed");
 console.log(

@@ -1,8 +1,10 @@
 # Consume the installed Machine Control desktop app
 
-Status: in progress, 2026-10-02. Bundled Python CLI, authenticated installation
-discovery and opt-in local launch advertisement are implemented. Platform and
-real-model acceptance, followed by Windows legacy retirement, remain open.
+Status: complete, 2026-10-03. Installed Python packaging, authenticated shared
+discovery, default-off session selection, accepted Mac/Windows model/media/
+lifecycle use and Linux core control are implemented. YA's obsolete Windows
+component lifecycle and UI are retired; remaining platform/provider cells are
+explicitly outside the accepted slices below.
 
 Owning topics: [Optional Computer Control](../../topics/optional-computer-control.md),
 [Native sudo](../../topics/native-sudo.md), and
@@ -698,3 +700,115 @@ evidence does not imply warning-free Windows provider transport.
 Validation: the focused launch checks and full lint, format, typecheck and unit
 suites pass (server 6,326 plus 67 skipped, client 6,638, shared 940, relay 130,
 push 45). Existing broad-suite failure-path warnings retain their separate gap.
+
+## Windows full-app media and cleanup result
+
+**Current (2026-10-03):** exact public Windows x64 desktop 0.5.3 passes an
+actual full YA app/Supervisor/Codex 0.159.0 turn with the installed CLI selected.
+The model reads offline identity/instructions and observes a previously accepted
+native Windows browser fixture capture with its native image viewer. Live
+Process media serves the exact PNG bytes with `private, no-store`. After verified
+provider abort and full app/media-store replacement, production session detail
+reconstructs the same bytes from the actual transcript with preservation off.
+
+Built production client assets served by that app pass live and reloaded image
+views at 1000×600 and 375×812. Chrome for Testing has a distinct executable and
+owned profile. Its first-run setup is completed through the ordinary Skip all
+control; no overlay or click assertion is bypassed. All four captures were
+inspected separately: the fixture button/counter is retained, the desktop
+controls fit, and the phone toolbar wraps without horizontal overflow.
+Ignored captures are under `.artifacts/ui-testing/2026-10-03-windows-mc-media`.
+The installed selector's corresponding desktop/phone captures are under
+`.artifacts/ui-testing/2026-10-03-installed-mc-retirement`; its selected state,
+revocation caption and mobile grouping are visible. Sequential typing passes
+the unchanged 100 ms gate while readiness changes.
+
+The initial media run passed rendering but failed owned profile removal on an
+open Codex discovery database. Model discovery now joins app-server termination
+before returning and releasing its installation lease. Native `.exe` spawns
+avoid the command shell; expired streaming delays are clamped without changing
+publication ordering. Focused ownership/deadline checks and the full unit suite
+pass. The corrected Windows media run cleans its owned authentication/profile,
+app/browser/runtime/staging and claims without DEP0190 or negative-timeout
+warnings. Original installation registry and initial power-off are restored.
+The failed broader run is not counted as full lifecycle acceptance; that gate
+uses its separate installed probe below.
+
+## Windows lifecycle and consumer cutover result
+
+**Current (2026-10-03):** the existing full-app lifecycle probe now passes
+against exact public Windows x64 desktop 0.5.3. Actual local YA Codex turns
+read the verified installed instructions and identity. Supervisor abort verifies
+provider exit and removes the session process. Full app shutdown/disposal and a
+fresh app leave MC's independently observed PID/generation and host claim
+unchanged. A separately owned actual YA process is then killed abruptly after
+its model turn; MC remains reachable with the same identity and claim. Owned
+Codex processes are reclaimed by exact staged executable/process identity; no
+MC process enters that cleanup. The caller releases the local claim, removes
+its product/profile/staging, restores the original uninstall registry and initial
+power-off, and verifies controller claim release.
+
+Failed attempts exposed test assumptions rather than accepted lifecycle cells:
+Windows startup can briefly produce no health object; the caller now waits for
+a real accepted status. Command verification handles Windows case, redundant
+separators and nested/quoted argument representations while requiring the exact
+verified installed executable. Offline query assertions accept quoted arguments.
+The ordinary-user actor never widens machine PowerShell policy. The first failed
+ACL setup's exact empty directory was identified by creation time, no-link state
+and emptiness, then removed through a fresh claimed operation. No anonymous
+fixture directory or test auth/profile remains in the accepted run.
+
+**Decision:** resolve the old lease difference by making this a CLI advertisement
+feature. Native MC Stop, grant expiry and MC restart own revocation. YA session
+close does not revoke a native grant or contain same-user shell use. The launch
+fragment and final desktop/phone picker explicitly say so; no old deferred tool
+lease parity is claimed. This closes the plan's authority decision rather than
+retaining a second installer/grant UI to imply containment.
+
+**Current:** old installer/updater, IPC service, Job Object supervisor, settings
+pane, session selector and deferred namespace are removed, together with their
+obsolete manual acceptance scripts. IDs 70/71 remain reserved and are no longer
+advertised. Authenticated old endpoints give 410 guidance; true old selections
+refuse before launch. Generic native tool/image history handling is retained.
+
+A bounded startup shim durably disables old enablement/auto-update before cleanup.
+It authenticates the stored manager and exact YA-instance locator, refuses other
+instances/desktop roots/links/changed active identity, and uses scoped signed
+Stop/Uninstall without guessed PID cleanup. Failure retains disabled metadata
+for later retry; unsupported hosts do likewise. Absence does nothing and success
+clears the old metadata. Cleanup never starts a resident, downloads a component,
+selects the new feature or touches the independent desktop. The selected test
+appliance has no accepted legacy workstation package to exercise a signed
+positive uninstall; unit checks cover exact-instance success/retry/refusal and
+the production signed-manager boundary is retained. No positive native uninstall
+is inferred from mocks. A fresh claimed Windows run additionally exercises
+the real production cleanup against an unsigned owned manager: its marker is
+never written, cleanup reports pending, and a fresh real settings service
+reloads disabled enablement/auto-update with the exact retry locator retained.
+That bounded native negative passes without touching any installed MC instance;
+its owned data/staging is removed, initial power-off restored and claim release
+verified.
+
+## Final validation and result
+
+Full lint, format and typecheck pass; the manual probes typecheck. The complete
+unit suite passes: server 6,302 plus 63 skipped, client 6,636, shared 940, relay
+130 and push 45. Focused retirement/launch/route/provider/Supervisor checks pass
+194 cases. The selector browser test passes with sequential typing and reviewed
+1000×600 / 375×812 captures. CSS architecture/modules checks pass. Console scan
+has no drift (110 warnings, 60 warn calls, 92 error calls). The broad-suite
+intentional failure-path warnings remain in their existing
+[gap](../../gaps/unit-failure-path-log-warnings.md); capability audit has zero
+errors and two pre-existing overdue review warnings covered by
+[their gap](../../gaps/overdue-transitional-capability-reviews.md). The accepted
+Windows media/lifecycle runs emit no DEP0190 or negative-timeout warning.
+
+MC's public 0.5.3 release supplies authenticated bundled Python clients for all
+six desktop targets; YA consumes the installed interface without a checkout or
+CLI fork. Mac/Windows native/browser model, media and lifecycle gates and Linux
+core control are accepted with their declared scope. Actual Claude model use,
+Linux browser/model and further lifecycle cells, other GUI architectures, remote
+executors and sandbox delivery remain separate. Windows high-level application
+snapshot resolution and Linux startup/Stop-shortcut settings are not claimed.
+The continuing contract lives in the owning topics; earlier paragraphs above
+remain the execution record of now-closed migration gates.

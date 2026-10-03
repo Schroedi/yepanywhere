@@ -4,7 +4,6 @@ import { mkdir, mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, expect } from "@playwright/test";
-import { createTestViteServer } from "../e2e/support/vite-server.js";
 import {
   captureViewports,
   emitCapturePreview,
@@ -18,23 +17,38 @@ export type MachineControlMediaBrowser = Awaited<
 export async function createMachineControlMediaBrowser(
   backendUrl: string,
   captureBytes: Buffer,
+  options: {
+    direct?: boolean;
+    executablePath?: string;
+    outputRoot?: string;
+  } = {},
 ) {
   const clientRoot = fileURLToPath(new URL("../", import.meta.url));
-  const vite = await createTestViteServer({
-    root: clientRoot,
-    server: {
-      host: "127.0.0.1",
-      hmr: false,
-      proxy: { "/api": { target: backendUrl, ws: true } },
-    },
-  });
+  const vite = options.direct
+    ? undefined
+    : await (
+        await import("../e2e/support/vite-server.js")
+      ).createTestViteServer({
+        root: clientRoot,
+        server: {
+          host: "127.0.0.1",
+          hmr: false,
+          proxy: { "/api": { target: backendUrl, ws: true } },
+        },
+      });
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   try {
-    await vite.listen();
-    const address = vite.httpServer?.address();
-    assert(address && typeof address !== "string");
-    const url = `http://127.0.0.1:${address.port}`;
-    browser = await chromium.launch({ headless: true });
+    let url = backendUrl;
+    if (vite) {
+      await vite.listen();
+      const address = vite.httpServer?.address();
+      assert(address && typeof address !== "string");
+      url = `http://127.0.0.1:${address.port}`;
+    }
+    browser = await chromium.launch({
+      headless: true,
+      executablePath: options.executablePath,
+    });
     const page = await browser.newPage({ viewport: captureViewports[0] });
     const pendingMedia: Promise<Buffer>[] = [];
     const socketClosures: Promise<void>[] = [];
@@ -55,7 +69,8 @@ export async function createMachineControlMediaBrowser(
         pendingMedia.push(bytes);
       }
     });
-    const outputRoot = join(clientRoot, "../../.artifacts/ui-testing");
+    const outputRoot =
+      options.outputRoot ?? join(clientRoot, "../../.artifacts/ui-testing");
     await mkdir(outputRoot, { recursive: true });
     const output = await mkdtemp(join(outputRoot, "mc-real-media-"));
     const screenshots: {
@@ -67,7 +82,25 @@ export async function createMachineControlMediaBrowser(
     return {
       async open(projectId: string, sessionId: string) {
         sessionUrl = `${url}/projects/${projectId}/sessions/${sessionId}`;
+        const onboarding = options.direct
+          ? page.waitForResponse(
+              (response) =>
+                new URL(response.url()).pathname === "/api/onboarding" &&
+                response.request().method() === "GET",
+            )
+          : undefined;
         await page.goto(sessionUrl);
+        if (onboarding) {
+          const response = await onboarding;
+          assert.equal(response.status(), 200);
+          const status = (await response.json()) as { complete: boolean };
+          if (!status.complete) {
+            await page
+              .getByRole("button", { name: "Skip all", exact: true })
+              .click();
+            await expect(page.locator(".onboarding-skip-all")).toBeHidden();
+          }
+        }
         await expect(page.locator(".message-input")).toBeVisible({
           timeout: 15_000,
         });
@@ -128,7 +161,7 @@ export async function createMachineControlMediaBrowser(
         try {
           await browser?.close();
         } finally {
-          await vite.close();
+          await vite?.close();
         }
       },
     };
@@ -136,7 +169,7 @@ export async function createMachineControlMediaBrowser(
     try {
       await browser?.close();
     } finally {
-      await vite.close();
+      await vite?.close();
     }
     throw error;
   }

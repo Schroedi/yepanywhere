@@ -1,8 +1,8 @@
-/** Explicit Mac-appliance acceptance; the caller owns MC and all claims. */
+/** Explicit Mac/Windows appliance acceptance; the caller owns MC and all claims. */
 import { strict as assert } from "node:assert";
 import { spawn, execFileSync } from "node:child_process";
 import { mkdir, open, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
 import { createApp, type AppResult } from "../src/app.js";
@@ -15,20 +15,75 @@ import {
 import type { Process } from "../src/supervisor/Process.js";
 import type { ContentBlock, SDKMessage } from "../src/sdk/types.js";
 
-assert(process.platform === "darwin", "Dedicated Mac appliance only");
+assert(
+  ["darwin", "win32"].includes(process.platform),
+  "Dedicated Mac/Windows appliance only",
+);
+const windows = process.platform === "win32";
+async function windowsProbe(code: string, input: object) {
+  return execute(
+    win32.join(
+      process.env.SystemRoot ?? "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe",
+    ),
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-EncodedCommand",
+      Buffer.from(
+        "$ErrorActionPreference='Stop';$p=[Console]::In.ReadToEnd()|ConvertFrom-Json;" +
+          code,
+        "utf16le",
+      ).toString("base64"),
+    ],
+    JSON.stringify(input),
+  );
+}
 const root = process.env.MC_PROBE_ROOT!;
 const claim = process.env.MACHINE_CONTROL_CLAIM_ID!;
-assert(root && claim && process.env.YEP_MC_APP && process.env.YEP_MC_TEAM_ID);
-const info = await stat(root);
 assert(
-  info.isDirectory() &&
-    (info.mode & 0o077) === 0 &&
-    info.uid === process.getuid?.(),
+  root &&
+    claim &&
+    process.env.YEP_MC_APP &&
+    (windows ? process.env.YEP_MC_PUBLISHER : process.env.YEP_MC_TEAM_ID),
 );
+const info = await stat(root);
+assert(info.isDirectory());
+if (windows) {
+  await windowsProbe(
+    `
+$acl=Get-Acl -LiteralPath $p.root;
+$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value;
+if(-not $acl.AreAccessRulesProtected -or $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid){throw 'Owned private staging ACL required'};
+$allowed=@($sid,'S-1-5-18','S-1-5-32-544');
+foreach($rule in $acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])){if($rule.AccessControlType -eq 'Allow' -and $rule.IdentityReference.Value -notin $allowed){throw 'Unexpected staging reader'}};
+`,
+    { root },
+  );
+} else {
+  assert((info.mode & 0o077) === 0 && info.uid === process.getuid?.());
+}
 const installed = await verifyInstalledMachineControl(
   process.env.YEP_MC_APP!,
-  process.env.YEP_MC_TEAM_ID,
+  windows ? process.env.YEP_MC_PUBLISHER : process.env.YEP_MC_TEAM_ID,
 );
+if (windows)
+  process.env.MACHINE_CONTROL_DESKTOP_INSTALL_DIR = win32.dirname(
+    installed.root,
+  );
+const codexExecutable = windows
+  ? join(
+      root,
+      "codex-runtime",
+      "vendor",
+      "x86_64-pc-windows-msvc",
+      "bin",
+      "codex.exe",
+    )
+  : join(root, "codex-runtime", "bin", "codex");
 const cli = ["-I", "-B", join(installed.root, "launch.py"), "--target", "host"];
 async function residentStatus() {
   const value = JSON.parse(
@@ -37,7 +92,7 @@ async function residentStatus() {
       "--claim",
       claim,
       "desktop",
-      "raw",
+      windows ? "raw-local" : "raw",
       '{"operation":"status"}',
     ]),
   );
@@ -74,7 +129,7 @@ let session: Process | undefined;
 function createProbeApp(suffix: string) {
   return createApp({
     provider: new CodexProvider({
-      codexPath: join(root, "codex-runtime", "bin", "codex"),
+      codexPath: codexExecutable,
       codexHome: join(root, "codex-profile"),
     }),
     eventBus: new EventBus(),
@@ -140,7 +195,7 @@ async function readInstalledWorkflow(suffix: string) {
         120_000,
       );
       launched.queueMessage({
-        text: "This is a bounded installed-app lifecycle acceptance test. Use only the advertised installed Machine Control command to run agent instructions and agent identity, both offline. Make no target operations or access requests, invoke no other commands, edit no files, and spawn no agents. Reply MC_PROTOCOL=<the clientProtocol number observed in agent identity> and CLI_WORKFLOW=read.",
+        text: "This is a bounded installed-app lifecycle acceptance test. Execute two shell commands through the advertised exact installed Machine Control path: `agent instructions` and `agent identity`, both offline. Quote the executable path as required by your shell. Make no target operations or access requests, invoke no other commands, edit no files, and spawn no agents. Reply MC_PROTOCOL=<the numeric clientProtocol field observed in agent identity> and CLI_WORKFLOW=read.",
       });
     });
     const blocks = messages.flatMap<ContentBlock>((message) =>
@@ -156,18 +211,25 @@ async function readInstalledWorkflow(suffix: string) {
       ).values(),
     ];
     const commands = JSON.stringify(calls);
+    const instructionsRead = /agent[\s\\'",[\]]+instructions/.test(commands);
+    const identityRead = /agent[\s\\'",[\]]+identity/.test(commands);
     assert(
-      commands.includes("agent instructions") &&
-        commands.includes("agent identity"),
+      instructionsRead && identityRead,
+      `Installed queries required: instructions=${instructionsRead}, identity=${identityRead}, tools=${calls.map((call) => call.name).join(",")}`,
     );
+    const normalizePath = (value: string) => {
+      const path = value.replaceAll("\\", "/");
+      return windows ? path.replace(/\/+/g, "/").toLowerCase() : path;
+    };
+    const shellCalls = calls.filter((block) => block.name === "Bash");
     assert(
-      calls
-        .filter((block) => block.name === "Bash")
-        .every((block) =>
-          JSON.stringify(block.input).includes(
-            "/mc-cli/commands/machine-control",
+      shellCalls.length > 0 &&
+        shellCalls.every((block) =>
+          normalizePath(JSON.stringify(block.input ?? {})).includes(
+            normalizePath(installed.command),
           ),
         ),
+      `Verified command path required in shell calls: ${shellCalls.length}; observed executable paths: ${JSON.stringify(commands.match(/[A-Za-z]:[\\/][^"'{}\r\n]{0,1024}?machine-control\.cmd/g) ?? [])}`,
     );
     const text = blocks
       .filter((block) => block.type === "text")
@@ -210,6 +272,22 @@ if (crashChild) {
       await exit;
     }
     if (ownedProviderPid === undefined) return;
+    if (windows) {
+      await windowsProbe(
+        `
+$processes=@(Get-CimInstance Win32_Process|Where-Object {($_.ProcessId -eq $p.pid -and $_.CommandLine -and $_.CommandLine.Contains($p.root)) -or ($_.ExecutablePath -and $_.ExecutablePath -eq $p.executable)});
+foreach($owned in $processes){
+  $current=Get-CimInstance Win32_Process -Filter ('ProcessId='+$owned.ProcessId);
+  if($current -and $current.CreationDate -eq $owned.CreationDate){Stop-Process -Id $owned.ProcessId -ErrorAction Stop};
+};
+$deadline=[DateTime]::UtcNow.AddSeconds(5);
+do{$remaining=@(Get-CimInstance Win32_Process|Where-Object {$_.ExecutablePath -and $_.ExecutablePath -eq $p.executable});if(-not $remaining.Count){break};Start-Sleep -Milliseconds 50}while([DateTime]::UtcNow -lt $deadline);
+if($remaining.Count){throw 'Owned crashed Codex executable remains'};
+`,
+        { root, pid: ownedProviderPid, executable: codexExecutable },
+      );
+      return;
+    }
     // Codex owns a group outside YA's group. Check its exact staging root
     // before cleanup so a reused group ID cannot kill unrelated processes.
     const members = execFileSync("/bin/ps", ["-axo", "pid=,pgid=,command="], {
@@ -303,29 +381,44 @@ if (crashChild) {
     } finally {
       if (timer) clearTimeout(timer);
     }
-    const group = execFileSync(
-      "/bin/ps",
-      ["-p", String(providerPid), "-o", "pgid="],
-      { encoding: "utf8" },
-    ).trim();
-    assert.equal(
-      Number(group),
-      providerPid,
-      "Codex owns a separate process group",
-    );
-    const command = execFileSync(
-      "/bin/ps",
-      ["-p", String(providerPid), "-o", "command="],
-      { encoding: "utf8" },
-    ).trim();
-    assert(
-      command.startsWith(join(root, "codex-runtime", "bin", "codex") + " "),
-      "Exact owned provider executable required",
-    );
-    ownedProviderPid = providerPid;
     assert.notEqual(before.pid, providerPid);
+    ownedProviderPid = providerPid;
+    if (windows) {
+      await windowsProbe(
+        `
+$owned=Get-CimInstance Win32_Process -Filter ('ProcessId='+$p.pid);
+if(-not $owned -or -not $owned.CommandLine -or -not $owned.CommandLine.Contains($p.root)){throw 'Exact owned Windows provider required'};
+`,
+        { root, pid: providerPid },
+      );
+    } else {
+      const group = execFileSync(
+        "/bin/ps",
+        ["-p", String(providerPid), "-o", "pgid="],
+        { encoding: "utf8" },
+      ).trim();
+      assert.equal(
+        Number(group),
+        providerPid,
+        "Codex owns a separate process group",
+      );
+      const command = execFileSync(
+        "/bin/ps",
+        ["-p", String(providerPid), "-o", "command="],
+        { encoding: "utf8" },
+      ).trim();
+      assert(
+        command.startsWith(codexExecutable + " "),
+        "Exact owned provider executable required",
+      );
+    }
     spawned.kill("SIGKILL");
-    assert.equal((await exit).signal, "SIGKILL");
+    const crashed = await exit;
+    assert(
+      windows
+        ? crashed.code !== 0 || crashed.signal === "SIGKILL"
+        : crashed.signal === "SIGKILL",
+    );
     await assertResidentUnchanged();
     console.log(
       "PASS abrupt real YA process crash leaves independent MC resident and claim healthy",
