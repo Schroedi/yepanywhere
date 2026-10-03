@@ -62,8 +62,9 @@ Embedded viewers/downloads need the
 Native per-host push enrollment and presentation are implemented. The updated
 broker is deployed; physical Android acceptance proves foreground/background
 FCM, two-host isolation, authenticated session taps and headless presentation.
-The iOS code and deterministic push tests pass; private Firebase/APNs setup and
-real Apple delivery remain pending in the
+The iOS sandbox Firebase/APNs setup and signed push provisioning are configured.
+Two-host enrollment and real background Apple delivery pass; live notification
+tap routing remains under validation in the
 [native push plan](../tactical/141-native-push-delivery.md). The maintainer
 prioritized [Android/shared transport migration](../tactical/139-shared-mobile-transport-migration.md)
 on 2026-10-02. That implementation now uses Rust/UniFFI in Android and common
@@ -73,7 +74,7 @@ Android's R8-minified physical Pixel proof includes two hosts on one relay socke
 and a 100 MiB upload with 16.6 ms peak typing latency. iOS simulator acceptance
 and the physical iPhone native/UI suites pass; the updated physical typing proof
 records 37 inputs, zero drops, 19 ms peak and 294 concurrent mutations.
-Release builds and required root checks pass. Store publication, native push and
+Release builds and required root checks pass. Store publication, remaining native push acceptance and
 the viewer/download gap remain the next mobile release work.
 
 ### Current baseline

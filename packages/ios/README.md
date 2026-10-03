@@ -112,9 +112,22 @@ failed cleanup remains disabled. QA host catalogs use separate push storage so
 acceptance cleanup cannot retire ordinary bindings. Visible lifecycle cleanup attempts at most four
 retired bindings without a retry timer. The coarse notificationsEnabled status
 requires permission and at least one confirmed, known-host enrollment.
-Live APNs/FCM delivery still needs private Firebase app registration, an uploaded
-APNs key, and a signed push-enabled device build. App Store/TestFlight provisioning
-and publication remain release gates. Limited-user login remains deferred.
+Private development Firebase registration, a sandbox/topic-specific APNs key
+in its development slot, and explicit push-enabled provisioning are configured.
+The signed iPhone build has the development APNs entitlement. Two disposable
+SRP hosts enroll with the public broker, and a real background session event
+reaches Notification Center with generic copy. Revocation isolates the second
+host without stopping the first; native disable preserves the first host's
+saved SRP resume credential. Temporary profiles/subscriptions are retired and
+fixture processes stopped after acceptance. First enrollment waits once for
+registration, with a 15-second deadline and cancellation/background teardown;
+Send test preserves enrollment. Eight focused native push tests pass on simulator
+and signed iPhone, including the first-registration and suspension regressions.
+Live tap routing remains under validation because system notifications are
+non-hittable in the current test controller. Production APNs credentials,
+App Store/TestFlight provisioning and publication remain release gates.
+Limited-user login remains deferred. Keep the APNs private key and its identifying
+metadata backed up securely outside Git; Apple permits one key download.
 
 CI pins macOS 15 Apple Silicon / Xcode 26.3 with its installed iOS 18.6 runtime. The
 standard 3-core / 7 GiB macOS 26 host remained saturated throughout the

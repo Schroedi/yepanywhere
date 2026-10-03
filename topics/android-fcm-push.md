@@ -9,8 +9,9 @@ Topic: android-fcm-push
 Status: Per-host enrollment, generic native presentation and authenticated
 session taps are implemented for Android and iOS. The updated broker is deployed;
 physical Android tests prove two-host isolation, foreground/background events,
-session taps and headless presentation. Apple live delivery awaits private
-Firebase/APNs setup in [the delivery plan](../docs/tactical/141-native-push-delivery.md).
+session taps and headless presentation. iOS sandbox provisioning, two-host
+enrollment and real background APNs presentation pass; live tap routing remains
+under validation in [the delivery plan](../docs/tactical/141-native-push-delivery.md).
 
 Related:
 
@@ -413,9 +414,12 @@ Private development setup now registers the explicit YA bundle with Push
 Notifications and the corresponding Firebase Apple app. A sandbox, topic-specific
 APNs key is uploaded to Firebase's development slot. Private configuration and
 key backups remain outside Git. Debug provisioning must contain the development
-APNs entitlement. Production APNs credentials and App Store/TestFlight signing
-remain separate release gates. Live Apple presentation/taps still require the
-push-enabled signed device acceptance in the delivery plan.
+APNs entitlement. The signed phone proves two-host enrollment and generic
+background session-event presentation. Eight focused native push tests pass on
+simulator and phone. Live system-notification taps remain under validation;
+the current controller reports them non-hittable and its tap attempts do not
+open YA. Production APNs credentials and App Store/TestFlight signing remain
+separate release gates in the delivery plan.
 
 ## Self-Hosted And Configured Variants
 

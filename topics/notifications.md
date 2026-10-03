@@ -230,8 +230,10 @@ sleep/delivery delay is a separate longer-running measurement.
 Per-host native enrollment and presentation now use protected security-client
 children and the deployed broker. Physical Android acceptance proves real FCM
 events, authenticated session taps, two-host isolation and presentation after
-the app process was absent. iOS implementation and simulator/phone regression
-suites pass; private Firebase/APNs configuration and live Apple delivery remain
-the next gate in the [native push plan](../docs/tactical/141-native-push-delivery.md).
+the app process was absent. iOS sandbox Firebase/APNs configuration and signed
+push provisioning are complete. Two-host enrollment, generic background APNs
+presentation and server-side revocation isolation pass on the phone. Live
+notification taps and production/distribution provisioning remain gates in the
+[native push plan](../docs/tactical/141-native-push-delivery.md).
 Permission, installation registration and per-host enablement are native-owned
 and independent of the WebView.
