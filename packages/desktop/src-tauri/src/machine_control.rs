@@ -1,5 +1,5 @@
 //! Local desktop delegation. Public labels and the proxy pathname are not
-//! authority: registration arrives only through the sealed server's inherited
+//! authority: registration arrives only through the sealed server's private
 //! socket, and every use checks the registered kernel process incarnation.
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -148,7 +148,9 @@ impl Registry {
 struct Registration {
     operation: String,
     request_id: String,
+    #[serde(default)]
     session_id: String,
+    #[serde(default)]
     generation: String,
     pid: Option<i32>,
 }
@@ -294,6 +296,32 @@ impl Handoff {
         Ok(())
     }
 }
+/// Fixed local, read-only profile discovery. Unsupported or unavailable
+/// residents preserve legacy advertisement; no grant or intent is requested.
+async fn profile(mc_socket: &std::path::Path) -> bool {
+    let query = async {
+        let mut stream = BufReader::new(UnixStream::connect(mc_socket).await?);
+        send(
+            stream.get_mut(),
+            json!({"operation":"desktop.delegation.status", "requestId":"native-profile"}),
+        )
+        .await?;
+        let bytes = line(&mut stream, 8192).await?;
+        let value: Value = serde_json::from_slice(&bytes)?;
+        Ok::<_, io::Error>(
+            value.get("accepted").and_then(Value::as_bool) == Some(true)
+                && value.pointer("/data/enabled").and_then(Value::as_bool) == Some(true)
+                && value.pointer("/data/profile").and_then(Value::as_str)
+                    == Some("ordinary_local_desktop"),
+        )
+    };
+    tokio::time::timeout(Duration::from_secs(2), query)
+        .await
+        .ok()
+        .and_then(Result::ok)
+        .unwrap_or(false)
+}
+
 async fn serve(
     parent: UnixStream,
     server: ProcessIdentity,
@@ -312,6 +340,7 @@ async fn serve(
     let mc_socket = dirs::home_dir()
         .ok_or(io::ErrorKind::NotFound)?
         .join("Library/Application Support/MachineControl/control.sock");
+    let profile_socket = mc_socket.clone();
     let state = registry.clone();
     let accept = tokio::spawn(async move {
         loop {
@@ -339,6 +368,22 @@ async fn serve(
                 return Err(io::ErrorKind::PermissionDenied.into());
             }
             let value: Registration = serde_json::from_slice(&bytes)?;
+            if value.operation == "profile" {
+                if !label(&value.request_id)
+                    || !value.session_id.is_empty()
+                    || !value.generation.is_empty()
+                    || value.pid.is_some()
+                {
+                    return Err(io::ErrorKind::InvalidData.into());
+                }
+                let enabled = profile(&profile_socket).await;
+                send(
+                    reader.get_mut(),
+                    json!({"request_id":value.request_id,"accepted":true,"enabled":enabled}),
+                )
+                .await?;
+                continue;
+            }
             if !label(&value.request_id)
                 || !label(&value.session_id)
                 || !generation(&value.generation)
@@ -439,6 +484,34 @@ pub fn eligible() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn profile_queries_current_choice_and_refuses_unsupported_or_malformed_replies() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("resident.sock");
+        assert!(!profile(&path).await);
+        let listener = UnixListener::bind(&path).unwrap();
+        let server = tokio::spawn(async move {
+            for response in [
+                json!({"accepted":true,"data":{"enabled":true,"profile":"ordinary_local_desktop"}}),
+                json!({"accepted":true,"data":{"enabled":false,"profile":"ordinary_local_desktop"}}),
+                json!({"accepted":false,"errorCode":"unsupported_operation"}),
+                json!({"accepted":true,"data":{"enabled":"true","profile":"ordinary_local_desktop"}}),
+            ] {
+                let (stream, _) = listener.accept().await.unwrap();
+                let mut stream = BufReader::new(stream);
+                let request: Value =
+                    serde_json::from_slice(&line(&mut stream, 8192).await.unwrap()).unwrap();
+                assert_eq!(request["operation"], "desktop.delegation.status");
+                send(stream.get_mut(), response).await.unwrap();
+            }
+        });
+        assert!(profile(&path).await);
+        for _ in 0..3 {
+            assert!(!profile(&path).await);
+        }
+        server.await.unwrap();
+    }
+
     #[tokio::test]
     async fn registered_kernel_launch_forwards_once_and_lost_registration_closes_pending_io() {
         use std::process::Stdio;

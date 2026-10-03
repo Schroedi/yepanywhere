@@ -71,12 +71,14 @@ export async function startMachineControlSession(
       "Configured Machine Control desktop installation is missing, incompatible, or failed publisher/integrity verification",
     );
   }
-  const delegation =
+  const candidate =
     platform === "darwin" &&
     installation.desktopDelegation === true &&
     isDesktopControlOrigin(options.desktopControlOrigin)
       ? (dependencies.delegation ?? nativeMachineControl())
       : undefined;
+  const delegation =
+    candidate && (await candidate.enabled()) ? candidate : undefined;
   const quoted =
     platform === "win32"
       ? `& '${installation.command.replaceAll("'", "''")}'`

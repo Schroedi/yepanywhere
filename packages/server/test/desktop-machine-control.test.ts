@@ -80,6 +80,7 @@ describe("native desktop launch provenance", () => {
     const directory = await mkdtemp(join(tmpdir(), "ya-mc-ts-"));
     const path = join(directory, "server.sock");
     const requests: Record<string, unknown>[] = [];
+    let enabled = true;
     let socket: import("node:net").Socket | undefined;
     const server = createServer((client) => {
       socket = client;
@@ -98,7 +99,7 @@ describe("native desktop launch provenance", () => {
           bytes = bytes.slice(index + 1);
           requests.push(request);
           client.write(
-            `${JSON.stringify({ request_id: request.request_id, accepted: true })}\n`,
+            `${JSON.stringify({ request_id: request.request_id, accepted: true, enabled })}\n`,
           );
         }
       });
@@ -170,6 +171,22 @@ describe("native desktop launch provenance", () => {
       ).toBe("/tmp/ya-mc-fixture/control.sock");
       expect(requests.at(-1)?.pid).toBe(124);
       await delegated.abort();
+      enabled = false;
+      await startMachineControlSession(
+        "codex",
+        {
+          cwd: "/project",
+          permissionMode: "bypassPermissions",
+          desktopControlOrigin: origin,
+        },
+        begin,
+        dependencies,
+      );
+      expect(
+        launches.at(-1)?.agentEnvironment?.MACHINE_CONTROL_DESKTOP_PROXY,
+      ).toBeUndefined();
+      expect(requests.at(-1)?.operation).toBe("profile");
+      enabled = true;
       const count = requests.length;
       await startMachineControlSession(
         "codex",

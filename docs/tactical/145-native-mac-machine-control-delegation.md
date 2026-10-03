@@ -72,3 +72,9 @@ No provider refresh/version assumptions changed.
 **Open:** step 4, real signed installed origin/effects and failure qualification.
 Do not infer distribution acceptance, protected consent composition or genuine
 hardware takeover from these source/fixture results.
+
+MC operator trust is queried through a fixed local read-only profile operation
+for every eligible launch. Disabled trust or an unsupported/unavailable resident
+keeps independent CLI advertisement. The profile probe creates no grant or
+intent; a selected delegated request cannot fall back after authentication
+failure. Native profile and provider-selection regression fixtures pass.

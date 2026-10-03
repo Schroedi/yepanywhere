@@ -118,9 +118,9 @@ export class NativeMachineControl {
     return this.proxy;
   }
   private async command(
-    operation: "register" | "remove",
-    sessionId: string,
-    generation: string,
+    operation: "register" | "remove" | "profile",
+    sessionId?: string,
+    generation?: string,
     pid?: number,
   ) {
     await this.pathname();
@@ -139,6 +139,10 @@ export class NativeMachineControl {
     const value = await reply;
     if (value.accepted !== true)
       throw new Error("Native desktop launch registration denied");
+    return value;
+  }
+  async enabled(): Promise<boolean> {
+    return (await this.command("profile")).enabled === true;
   }
   async bind(session: AgentSession, sessionId: string, generation: string) {
     const pid = typeof session.pid === "function" ? session.pid() : session.pid;
