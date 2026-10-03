@@ -858,6 +858,23 @@ describe("Files API", () => {
   });
 
   describe("GET /api/projects/:projectId/files/raw", () => {
+    it("serves a requested byte range so media can seek", async () => {
+      const { app } = createApp({
+        sdk: mockSdk,
+        projectsDir: join(testDir, "sessions"),
+      });
+
+      const res = await app.request(
+        `/api/projects/${projectId}/files/raw?path=README.md`,
+        { headers: { Range: "bytes=2-5" } },
+      );
+
+      expect(res.status).toBe(206);
+      expect(res.headers.get("Content-Range")).toBe("bytes 2-5/31");
+      expect(res.headers.get("Accept-Ranges")).toBe("bytes");
+      await expect(res.text()).resolves.toBe("Test");
+    });
+
     it("returns raw text file with correct content-type", async () => {
       const { app } = createApp({
         sdk: mockSdk,

@@ -1,6 +1,5 @@
-import { readFile, type FileHandle } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { basename, dirname, extname } from "node:path";
-import { Readable } from "node:stream";
 import { parseLineColumn } from "@yep-anywhere/shared";
 import { type Context, Hono } from "hono";
 import { renderMarkdownFilePreview } from "../augments/markdown-file-preview.js";
@@ -12,8 +11,7 @@ import {
 } from "./local-resource-policy.js";
 import {
   createMutableFileCacheMetadata,
-  createNotModifiedResponse,
-  isMutableFileNotModified,
+  createMutableFileResponse,
   mutableFileCacheHeaders,
   type MutableFileOpener,
   openMutableFileSnapshot,
@@ -521,7 +519,6 @@ export function createLocalFileHandler(deps: LocalFileDeps) {
       if (!snapshot) {
         return c.json({ error: "Path is not a file" }, 400);
       }
-      let fileHandle: FileHandle | undefined = snapshot.handle;
       const cacheMetadata = createMutableFileCacheMetadata(snapshot.stats);
       const headers = createUntrustedFileResponseHeaders({
         baseHeaders: {
@@ -532,21 +529,12 @@ export function createLocalFileHandler(deps: LocalFileDeps) {
         disposition: "inline",
         filePath: resolvedPath,
       });
-      try {
-        if (isMutableFileNotModified(c.req.raw.headers, cacheMetadata)) {
-          return createNotModifiedResponse(headers);
-        }
-        const stream = fileHandle.createReadStream({
-          autoClose: true,
-          start: 0,
-        });
-        const body = Readable.toWeb(stream) as ReadableStream<Uint8Array>;
-        const response = new Response(body, { headers });
-        fileHandle = undefined;
-        return response;
-      } finally {
-        await fileHandle?.close();
-      }
+      return await createMutableFileResponse(
+        c.req.raw.headers,
+        snapshot,
+        cacheMetadata,
+        headers,
+      );
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
         return c.json({ error: "File not found" }, 404);

@@ -108,6 +108,14 @@ replacement cannot pair metadata for one file with bytes from another. The
 localhost transport also requests `cache: "no-cache"` for these routes so an
 older positive-TTL browser entry cannot hide the new policy after an upgrade.
 
+The same three routes advertise `Accept-Ranges: bytes` and answer one
+`bytes=` range with `206` (or `416` when it starts past the end), so a
+URL-backed `<video>` or `<audio>` seeks without downloading the whole file.
+Multiple ranges, malformed ranges, and an `If-Range` other than the current
+`Last-Modified` date receive the whole file; the weak stat `ETag` never
+satisfies `If-Range`. `createMutableFileResponse`
+(`routes/mutable-file-cache.ts`) owns this for all three.
+
 Rendered `/api/local-file` Markdown documents are `private, no-store` rather
 than stat-validated because their HTML also depends on the running renderer,
 not only on source-file metadata. Relay fetches continue to request the source
