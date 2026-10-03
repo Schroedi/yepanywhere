@@ -145,11 +145,34 @@ export class NativeMachineControl {
     return (await this.command("profile")).enabled === true;
   }
   async bind(session: AgentSession, sessionId: string, generation: string) {
-    const pid = typeof session.pid === "function" ? session.pid() : session.pid;
-    if (!Number.isInteger(pid) || (pid ?? 0) <= 1)
-      throw new Error("Provider does not expose a live native process");
-    await this.command("register", sessionId, generation, pid);
+    if (!("pid" in session))
+      throw new Error("Provider does not expose a native process identity");
     let removed = false;
+    let registration: Promise<void> | undefined;
+    const register = () => {
+      registration ??= (async () => {
+        const deadline = performance.now() + 10000;
+        while (!removed) {
+          const pid =
+            typeof session.pid === "function" ? session.pid() : session.pid;
+          if (Number.isInteger(pid) && (pid ?? 0) > 1) {
+            await this.command("register", sessionId, generation, pid);
+            if (removed)
+              throw new Error("Native desktop session ended during launch");
+            return;
+          }
+          if (performance.now() >= deadline)
+            throw new Error("Provider did not expose a live native process");
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        throw new Error("Native desktop session ended before launch");
+      })();
+      return registration;
+    };
+    // Eager providers can register now. Lazy providers expose their actual PID
+    // only after iteration starts; no proxy connection is admitted before it.
+    const pid = typeof session.pid === "function" ? session.pid() : session.pid;
+    if (Number.isInteger(pid) && (pid ?? 0) > 1) await register();
     const remove = async () => {
       if (removed) return;
       removed = true;
@@ -162,8 +185,22 @@ export class NativeMachineControl {
     const iterator = session.iterator;
     const abort = session.abort.bind(session);
     session.iterator = (async function* () {
+      if (removed)
+        throw new Error("Native desktop session ended before launch");
+      // Start the existing provider once, preserving lazy placement and order.
+      const first = iterator.next();
+      void first.catch(() => {}); // Still awaited below; registration may fail first.
       try {
-        yield* iterator;
+        await register();
+        const value = await first;
+        if (!value.done) {
+          yield value.value;
+          yield* iterator;
+        }
+      } catch (error) {
+        await remove();
+        await abort();
+        throw error;
       } finally {
         await remove();
       }

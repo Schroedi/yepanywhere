@@ -132,6 +132,56 @@ describe("native desktop launch provenance", () => {
         requests.filter((request) => request.operation === "remove"),
       ).toHaveLength(1);
       expect(abort).toHaveBeenCalledTimes(2);
+      let lazyPid: number | undefined;
+      const lazy = {
+        get pid() {
+          return lazyPid;
+        },
+        abort: vi.fn(async () => {}),
+        iterator: (async function* () {
+          await new Promise((resolve) => setTimeout(resolve, 15));
+          lazyPid = 125;
+          yield { type: "system", subtype: "init" };
+        })(),
+      } as unknown as AgentSession;
+      const beforeLazy = requests.length;
+      await native.bind(
+        lazy,
+        "lazy-owner",
+        "00000000-0000-0000-0000-000000000002",
+      );
+      expect(requests).toHaveLength(beforeLazy);
+      await lazy.iterator.next();
+      expect(requests.at(-1)).toMatchObject({
+        operation: "register",
+        pid: 125,
+        session_id: "lazy-owner",
+      });
+      await lazy.abort();
+      expect(requests.at(-1)).toMatchObject({
+        operation: "remove",
+        session_id: "lazy-owner",
+      });
+      const canceled = {
+        pid: undefined,
+        abort: vi.fn(async () => {}),
+        iterator: {
+          next: vi.fn(async () => {
+            throw new Error("must not start");
+          }),
+        },
+      } as unknown as AgentSession;
+      await native.bind(
+        canceled,
+        "canceled",
+        "00000000-0000-0000-0000-000000000003",
+      );
+      await canceled.abort();
+      const beforeCanceled = requests.length;
+      await expect(canceled.iterator.next()).rejects.toThrow(
+        "ended before launch",
+      );
+      expect(requests).toHaveLength(beforeCanceled);
       const origin = await proof();
       const launches: StartSessionOptions[] = [];
       const begin = async (options: StartSessionOptions) => {

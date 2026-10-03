@@ -78,3 +78,11 @@ for every eligible launch. Disabled trust or an unsupported/unavailable resident
 keeps independent CLI advertisement. The profile probe creates no grant or
 intent; a selected delegated request cannot fall back after authentication
 failure. Native profile and provider-selection regression fixtures pass.
+
+Signed-launch testing exposed lazy provider startup: Codex reports its actual
+PID only when iteration begins. The broker now preserves that lifecycle, starts
+the existing iterator once and registers the live kernel process before
+forwarding its first result. Eager providers register immediately. Before
+registration the native proxy refuses all connections. A bounded monotonic
+startup deadline, cancellation and iterator failure remove authority before
+provider abort; cancellation before iteration cannot start or register it.
