@@ -1,6 +1,7 @@
 # Native Mac Machine Control delegation
 
-Status: active; source receiver/provenance/proxy complete, installed proof open.
+Status: active; signed native origin and ordinary effects proved through a
+bounded MC conformance receiver; installed failure qualification remains open.
 Owning topic: [optional computer control](../../topics/optional-computer-control.md).
 MC owns the coordinating [admission plan](../../../machine-control/docs/tactical/074-access-admission-and-pause.md)
 and [native delegation qualification](../../../machine-control/docs/tactical/086-native-desktop-delegation.md).
@@ -56,7 +57,7 @@ The kernel-authenticated runtime socket preserves the same native-owned launch
 boundary and the actual bundled Bun child-descriptor probe passes. No FFI shim
 or inherited writable registration channel is shipped.
 
-**Current, fixtures:** 38 native Rust checks pass, including actual subprocess
+**Current, fixtures:** 39 native Rust checks pass, including actual subprocess
 peer admission and pending-upstream cancellation, unregistered kernel-peer
 refusal and PID-incarnation fencing. Hono/provider fixtures prove actual owner
 credential origin, fake/restored/permissive/limited-user refusal, PID registration
@@ -69,9 +70,19 @@ existing intentional fault-injection diagnostics are not new runtime warnings.
 A pre-existing media-auth stub now supplies the newly inspected policy method.
 No provider refresh/version assumptions changed.
 
-**Open:** step 4, real signed installed origin/effects and failure qualification.
-Do not infer distribution acceptance, protected consent composition or genuine
-hardware takeover from these source/fixture results.
+**Current, bounded live conformance:** signed YA `158e7a1c9` exercised the actual
+native shell, credentialed session and local provider adapter with an owned
+protocol fixture. The signed MC CLI authenticated the registered process;
+a conformance receiver forwarded two separately admitted native AX effects to
+an independently observed AppKit counter. An unrelated same-user CLI refused.
+Pause retained trust, Resume required fresh ownership, and Stop refused current
+work and reconnect. Exact MC revisions and receiver limitations are recorded
+in Tactical 086. The runner restored the prior application/socket and reaped
+its processes. No LLM or sub-agent was started.
+
+**Open:** remaining step 4 failures and full signed MC operator enrollment.
+This conformance receiver is not the shipping MC app, and these results do not
+qualify distribution, prepared-console composition or genuine hardware takeover.
 
 MC operator trust is queried through a fixed local read-only profile operation
 for every eligible launch. Disabled trust or an unsupported/unavailable resident
