@@ -1472,6 +1472,7 @@ export const FileViewer = memo(function FileViewer({
     const fetchRawFileBlob = source.fetchRawFileBlob;
     saveDownload({
       fileName,
+      directUrl: source.getRawFileUrl?.(projectId, filePath, true) ?? undefined,
       loadBlob: fetchRawFileBlob
         ? () => fetchRawFileBlob(fileData, filePath, true)
         : () =>

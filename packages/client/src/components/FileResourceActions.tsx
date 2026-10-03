@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api/client";
+import { useCurrentSourceRuntime } from "../contexts/SourceRuntimeContext";
 import { useOptionalToastContext } from "../contexts/ToastContext";
 import { useRemoteBasePath } from "../hooks/useRemoteBasePath";
 import { beginTooltipSuppression } from "../hooks/useTooltipAppearance";
@@ -14,7 +15,7 @@ import { useRetainedVersionInfo, useVersion } from "../hooks/useVersion";
 import { useI18n } from "../i18n";
 import { toBrowserAppHref } from "../lib/appHref";
 import { useClientSummarySourceKey } from "../lib/clientSummaryStore";
-import { downloadBlob } from "../lib/imageActions";
+import { downloadBlob, downloadUrl } from "../lib/imageActions";
 import { writeClipboardText } from "../lib/clipboard";
 import { isMarkdownLikeFile } from "../lib/markdownFiles";
 import {
@@ -43,7 +44,16 @@ export function supportsSourceAndPreview(
  * a URL the browser downloads itself.
  */
 export type ResourceDownload =
-  | { fileName: string; loadBlob: () => Promise<Blob> }
+  | {
+      fileName: string;
+      loadBlob: () => Promise<Blob>;
+      /**
+       * The same bytes as a same-origin `/api` attachment URL. A transport
+       * whose `/api` URLs the browser can address saves through it, so the
+       * file streams to disk instead of being buffered whole in the page.
+       */
+      directUrl?: string;
+    }
   | { url: string };
 
 export interface ResourceContextMenuProps {
@@ -251,7 +261,9 @@ function OpenLocalSourceMenuItem({
 }
 
 /**
- * Saves a resource download. Fetched bytes go under `fileName`, and a failed
+ * Saves a resource download. On a transport whose `/api` URLs the browser can
+ * address, a `directUrl` goes to the browser's own download, which reports
+ * its failures. Otherwise fetched bytes go under `fileName`, and a failed
  * fetch is reported in an error toast: the menu has closed by the time the
  * fetch settles, and a viewer's download failure must not replace the file it
  * is showing. A URL is handed to the browser, whose own download UI reports
@@ -260,6 +272,8 @@ function OpenLocalSourceMenuItem({
 export function useSaveResourceDownload() {
   const { t } = useI18n();
   const showToast = useOptionalToastContext()?.showToast;
+  const sameOriginUrls =
+    useCurrentSourceRuntime().transport.capabilities.sameOriginUrls;
   return useCallback(
     (download: ResourceDownload) => {
       if ("url" in download) {
@@ -268,7 +282,11 @@ export function useSaveResourceDownload() {
         anchor.click();
         return;
       }
-      const { fileName, loadBlob } = download;
+      const { directUrl, fileName, loadBlob } = download;
+      if (directUrl && sameOriginUrls) {
+        downloadUrl(directUrl, fileName);
+        return;
+      }
       void loadBlob()
         .then((blob) => downloadBlob(blob, fileName))
         .catch((error: unknown) => {
@@ -281,7 +299,7 @@ export function useSaveResourceDownload() {
           );
         });
     },
-    [showToast, t],
+    [sameOriginUrls, showToast, t],
   );
 }
 

@@ -274,6 +274,49 @@ describe("FileViewer", () => {
     expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
   });
 
+  it("hands a direct download to the browser without fetching the bytes", async () => {
+    const clicked: HTMLAnchorElement[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      clicked.push(this);
+    });
+    const source: FileViewerSource = {
+      loadFile: vi.fn().mockResolvedValue({
+        metadata: {
+          path: "software.tgz",
+          size: 17_772_579,
+          mimeType: "application/octet-stream",
+          isText: false,
+        },
+        rawUrl: "",
+      }),
+      getRawFileUrl: (projectId, filePath, download) =>
+        `/api/projects/${projectId}/files/raw?path=${filePath}&download=${download}`,
+      fetchRawFileBlob: vi.fn(),
+    };
+    render(
+      <I18nProvider>
+        <FileViewer
+          projectId="project-id"
+          filePath="software.tgz"
+          source={source}
+        />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Download File" }),
+    );
+
+    expect(clicked).toHaveLength(1);
+    expect(clicked[0]?.getAttribute("href")).toBe(
+      "/api/projects/project-id/files/raw?path=software.tgz&download=true",
+    );
+    expect(clicked[0]?.download).toBe("software.tgz");
+    expect(source.fetchRawFileBlob).not.toHaveBeenCalled();
+  });
+
   it("keeps the header and reload when the file cannot be loaded", async () => {
     const onClose = vi.fn();
     const source: FileViewerSource = {

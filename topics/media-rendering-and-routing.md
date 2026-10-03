@@ -335,13 +335,19 @@ vocabulary even though their authorization routes remain distinct:
   viewer link. Relay and direct clients therefore use the same meaning rather
   than changing the label according to transport.
 - **Download** is a direct root-menu action for every local-file and
-  project-file link. It fetches the original bytes through the active source
-  transport and saves them under the path basename; opening a viewer is not a
-  prerequisite. When the bytes cannot be fetched — the file is gone, outside
-  the allow-set, or the transport fails — nothing is saved and an error toast
-  names the file and the reason. Image menus' **Download** and the project
-  `FileViewer`'s download controls follow the same rule; a viewer whose
-  download fails keeps showing the file.
+  project-file link, saving the original bytes under the path basename;
+  opening a viewer is not a prerequisite. On a direct transport, whose `/api`
+  URLs the browser can address, the browser's own download receives the
+  attachment URL and streams it to disk, so file size is bounded by the
+  browser's download path rather than by an in-page buffer; a failure (file
+  gone, outside the allow-set, connection lost) appears in the browser's
+  download list and the page is not navigated. Over relay, and for public
+  shares, the client fetches the bytes through the active source transport,
+  and when they cannot be fetched nothing is saved and an error toast names
+  the file and the reason. The project `FileViewer`'s download controls
+  follow the same rule, and a viewer whose download fails keeps showing the
+  file. Image menus' **Download** always saves fetched bytes with the same
+  error toast.
 - Public shares may expose their share-scoped viewer link and project-relative
   path, but the file action menu does not derive or copy the host's absolute
   project path.

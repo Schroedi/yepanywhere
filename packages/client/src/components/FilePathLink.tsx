@@ -411,6 +411,9 @@ export const FilePathLink = memo(function FilePathLink({
     const fetchShareBlob = publicShareFileViewerSource?.fetchRawFileBlob;
     return {
       fileName: getPathBasename(viewerFilePath),
+      directUrl: publicShareFileViewerSource
+        ? undefined
+        : projectRawFileApiPath(projectId, viewerFilePath, true),
       loadBlob:
         publicShareFileViewerSource && fetchShareBlob
           ? () =>

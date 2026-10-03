@@ -1187,6 +1187,24 @@ function LocalResourceContextMenu({
       }
       download={{
         fileName: getFileName(contextMenu.resource.path),
+        // The URL `loadBlob` fetches, for a direct transport's own download.
+        directUrl:
+          publicShare !== null
+            ? undefined
+            : isMedia
+              ? localMediaApiPath(contextMenu.resource.path, fileScope)
+              : contextMenu.projectFileTarget
+                ? projectRawFileApiPath(
+                    contextMenu.projectFileTarget.projectId,
+                    contextMenu.projectFileTarget.filePath,
+                    true,
+                  )
+                : localResourceApiPath(
+                    contextMenu.resource,
+                    false,
+                    true,
+                    fileScope,
+                  ),
         loadBlob: () => {
           const { projectFileTarget, resource } = contextMenu;
           return isMedia
