@@ -434,3 +434,5 @@
 - machine-control-desktop-consumer - Authenticated installed Python CLI discovery and local agent advertisement; gated legacy retirement.
 
 - [agent-auth-router-integration](topics/agent-auth-router.md) - Local pairing and pinned native sessions.
+
+- machine-control-desktop-delegation - Native Mac caller and live session provenance for resumable MC admission.

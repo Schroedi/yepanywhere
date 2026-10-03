@@ -1,3 +1,9 @@
+import { randomUUID } from "node:crypto";
+import {
+  isDesktopControlOrigin,
+  nativeMachineControl,
+  type NativeMachineControl,
+} from "../../desktop/machine-control.js";
 import { RETIRED_COMPUTER_CONTROL_ERROR } from "../../machine-control/legacy-retirement.js";
 import { delimiter, win32 } from "node:path";
 import {
@@ -13,6 +19,7 @@ import type {
 } from "./types.js";
 
 export interface MachineControlDependencies {
+  delegation?: NativeMachineControl;
   platform?: string;
   environment?: NodeJS.ProcessEnv;
   verify?: (
@@ -64,6 +71,12 @@ export async function startMachineControlSession(
       "Configured Machine Control desktop installation is missing, incompatible, or failed publisher/integrity verification",
     );
   }
+  const delegation =
+    platform === "darwin" &&
+    installation.desktopDelegation === true &&
+    isDesktopControlOrigin(options.desktopControlOrigin)
+      ? (dependencies.delegation ?? nativeMachineControl())
+      : undefined;
   const quoted =
     platform === "win32"
       ? `& '${installation.command.replaceAll("'", "''")}'`
@@ -74,16 +87,22 @@ export async function startMachineControlSession(
     `For desktop/browser control, first read its workflow with: ${quoted} agent instructions`,
     `Invoke that exact command path if your shell replaces PATH. The host target is this execution machine.`,
     "Discovery and these instructions grant no access. Follow MC doctor/claims and native access approval; do not start a second resident, switch to the operator's machine, or automatically retry an uncertain mutation.",
-    "Closing this YA session does not revoke MC access. Use MC Stop, native grant expiry or app restart to revoke it.",
+    delegation
+      ? "Native YA delegation is bound to this live local provider. Use MC control call/ControlSession for owner-bound ordinary desktop work. Closing this session ends its delegated tasks; separately approved target-wide MC access remains independent."
+      : "Closing this YA session does not revoke independently granted MC access. Use MC Stop or native grant expiry to revoke it.",
     "MC owns its access, arming, lifecycle and updates. YA session selection only advertises the command; it does not contain unrelated same-user shell access. Administrator authentication is a separately selected helper.",
   ].join("\n");
-  return start({
+  const generation = randomUUID();
+  const sessionId = options.desktopControlOrigin?.launch ?? randomUUID();
+  const proxy = delegation ? await delegation.pathname() : undefined;
+  const session = await start({
     ...options,
     globalInstructions: [options.globalInstructions, fragment]
       .filter(Boolean)
       .join("\n\n"),
     agentEnvironment: {
       ...options.agentEnvironment,
+      ...(proxy ? { MACHINE_CONTROL_DESKTOP_PROXY: proxy } : {}),
       ...(platform === "win32"
         ? {
             MACHINE_CONTROL_DESKTOP_INSTALL_DIR: win32.dirname(
@@ -99,6 +118,15 @@ export async function startMachineControlSession(
         .join(delimiter),
     },
   });
+  if (delegation) {
+    try {
+      await delegation.bind(session, sessionId, generation);
+    } catch (error) {
+      await session.abort();
+      throw error;
+    }
+  }
+  return session;
 }
 
 export function startMachineControlToolsSession(

@@ -1,3 +1,4 @@
+import type { DesktopControlOrigin } from "../desktop/machine-control.js";
 import {
   DEFAULT_RECAP_AFTER_SECONDS,
   HELPER_SIDE_MODEL_CHEAPEST,
@@ -29,6 +30,8 @@ export interface ModelSettings {
   routerPolicy?: "manual" | "round-robin";
   /** Explicit installed CLI advertisement for this provider launch. */
   machineControl?: boolean;
+  /** Private credential proof; never accepted from JSON or restored settings. */
+  desktopControlOrigin?: DesktopControlOrigin;
   /** Explicit launch opt-in, never inherited by forks or automatic resumes. */
   computerControl?: boolean;
   /** Model to use (e.g., "sonnet", "opus", "haiku"). undefined = use CLI default */

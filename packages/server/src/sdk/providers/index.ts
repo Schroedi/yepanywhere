@@ -1,3 +1,7 @@
+import {
+  isDesktopControlOrigin,
+  nativeMachineControl,
+} from "../../desktop/machine-control.js";
 /**
  * Provider exports.
  *
@@ -206,8 +210,19 @@ function hostedProvider(rawProvider: AgentProvider): AgentProvider {
         };
       }
       if (property === "startSession") {
-        return async (options: Parameters<AgentProvider["startSession"]>[0]) =>
-          startHostedProviderSession(
+        return async (
+          options: Parameters<AgentProvider["startSession"]>[0],
+        ) => {
+          if (
+            options.machineControl &&
+            isDesktopControlOrigin(options.desktopControlOrigin) &&
+            nativeMachineControl()
+          ) {
+            throw new Error(
+              "Native Machine Control delegation requires a local provider owner; detached provider hosting is unsupported",
+            );
+          }
+          return startHostedProviderSession(
             target.name,
             {
               ...options,
@@ -225,6 +240,7 @@ function hostedProvider(rawProvider: AgentProvider): AgentProvider {
             },
             getProviderRuntimeSnapshot(),
           );
+        };
       }
       const value = Reflect.get(target, property, target) as unknown;
       return typeof value === "function" ? value.bind(target) : value;

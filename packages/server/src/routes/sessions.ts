@@ -1,3 +1,4 @@
+import { desktopControlOrigin } from "../desktop/machine-control.js";
 import { RETIRED_COMPUTER_CONTROL_ERROR } from "../machine-control/legacy-retirement.js";
 import {
   ALL_PERMISSION_MODES,
@@ -4172,6 +4173,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         routerPolicy: body.routerPolicy,
         computerControl: body.computerControl,
         machineControl: body.machineControl,
+        desktopControlOrigin:
+          body.machineControl === true ? desktopControlOrigin(c) : undefined,
         executor,
         sandboxLevel: sandboxSelection.sandboxLevel,
         sandboxNetworkFirewall: sandboxSelection.sandboxNetworkFirewall,
@@ -4339,6 +4342,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         routerPolicy: body.routerPolicy,
         computerControl: body.computerControl,
         machineControl: body.machineControl,
+        desktopControlOrigin:
+          body.machineControl === true ? desktopControlOrigin(c) : undefined,
         executor,
         sandboxLevel: sandboxSelection.sandboxLevel,
         sandboxNetworkFirewall: sandboxSelection.sandboxNetworkFirewall,
@@ -4503,6 +4508,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         routerPolicy: body.routerPolicy,
         computerControl: body.computerControl,
         machineControl: body.machineControl,
+        desktopControlOrigin:
+          body.machineControl === true ? desktopControlOrigin(c) : undefined,
         executor,
         sandboxLevel: sandboxSelection.sandboxLevel,
         sandboxNetworkFirewall: sandboxSelection.sandboxNetworkFirewall,
@@ -4635,6 +4642,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         routerPolicy: body.routerPolicy,
         computerControl: body.computerControl,
         machineControl: body.machineControl,
+        desktopControlOrigin:
+          body.machineControl === true ? desktopControlOrigin(c) : undefined,
         executor,
         sandboxLevel: sandboxSelection.sandboxLevel,
         sandboxNetworkFirewall: sandboxSelection.sandboxNetworkFirewall,

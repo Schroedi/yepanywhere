@@ -86,6 +86,41 @@ IDs 70/71. The reviewed optional corpus is v0.9.0, v0.9.1 and v0.9.2; the new
 contract is introduced in 0.9.4. Selected queue submission is disabled with an
 explanation; turning it off restores ordinary queue submission.
 
+## Native Mac delegation under qualification
+
+**Decision:** native MC trust is a separate, default-off operator choice. A
+compatible MC identity advertises `desktop.delegation.v1`; older installations
+retain CLI advertisement. The existing session-selection boolean is not a
+grant. Native MC authenticates the particular signed YA broker and MC owns
+Pause, Stop, scopes, finite ownership and resource generations.
+
+**Current, source and fixture evidence:** native YA validates its sealed app
+before creating a UID-private registration socket. Only the exact kernel
+process incarnation of the bundled server that native YA launched can connect.
+The locator in the existing private bootstrap frame is public metadata, not
+bearer authority. A fresh runtime socket avoids inheriting a writable authority
+channel into agents; the actual bundled Bun child-descriptor probe passed.
+
+The server derives a nonserializable launch proof only from actual owner
+credentials, excluding permissive authentication, limited users and agent API
+tokens. Eligibility still excludes plan, sandbox and remote execution. Each
+actual local provider PID/start time is registered privately. The agent proxy
+checks that registered lifetime and kernel ancestry together; public labels,
+paths or ancestry alone do not authorize anything. Native MC rejects forged
+attribution, protected/outer requests, lost trust and stale generations.
+
+Closure removes delegation before abort/detach; root death, private-channel
+loss and MC transport uncertainty close connections without replay. Stop
+suspends standing trust across restart; Pause retains it. Independent legacy
+MC consent remains independent. Detached provider hosting is explicitly
+unsupported for automatic delegation and never silently changes placement.
+
+**Open:** signed installed YA origin/effects and restart/failure qualification
+in [Tactical 145](../docs/tactical/145-native-mac-machine-control-delegation.md).
+The first trusted profile is the ordinary unlocked local desktop. It does not
+implicitly unlock or arm protected use. This source result does not establish
+same-user shell containment or distribution acceptance.
+
 ## Legacy retirement
 
 **Decision:** withdraw advertisements for permanent IDs 70/71; their numbers

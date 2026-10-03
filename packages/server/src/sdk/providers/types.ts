@@ -1,3 +1,4 @@
+import type { DesktopControlOrigin } from "../../desktop/machine-control.js";
 // Provider abstraction types for multi-provider support
 import type {
   ClaudeSteerBackgroundBashSettings,
@@ -208,6 +209,8 @@ export interface StartSessionOptions {
   agentSelf?: boolean;
   /** Explicit installed MC advertisement; no resident grant or supervisor. */
   machineControl?: boolean;
+  /** Private credential proof; never accepted from JSON or restored settings. */
+  desktopControlOrigin?: DesktopControlOrigin;
   /** Trusted owner-supplied child environment; never a client request field. */
   agentEnvironment?: Record<string, string>;
   /**

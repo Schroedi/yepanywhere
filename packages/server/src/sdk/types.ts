@@ -1,3 +1,4 @@
+import type { DesktopControlOrigin } from "../desktop/machine-control.js";
 // Core types for Claude SDK abstraction
 
 // Re-export PermissionMode from shared
@@ -202,6 +203,7 @@ export interface ProviderRetentionSnapshot {
 export interface StartSessionOptions {
   /** Installed MC command advertisement; independent of native access. */
   machineControl?: boolean;
+  desktopControlOrigin?: DesktopControlOrigin;
   cwd: string;
   initialMessage?: UserMessage;
   resumeSessionId?: string;

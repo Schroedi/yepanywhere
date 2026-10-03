@@ -1432,6 +1432,7 @@ export class Supervisor {
     // Start session WITHOUT an initial message - agent will wait
     const result = await this.realSdk.startSession({
       machineControl: modelSettings?.machineControl,
+      desktopControlOrigin: modelSettings?.desktopControlOrigin,
       cwd: projectPath,
       // No initialMessage - queue will block until one is pushed
       resumeSessionId,
@@ -2236,6 +2237,7 @@ export class Supervisor {
     );
     const result = await this.realSdk.startSession({
       machineControl: modelSettings?.machineControl,
+      desktopControlOrigin: modelSettings?.desktopControlOrigin,
       cwd: projectPath,
       resumeSessionId,
       resumeSessionAt: truncation.resumeSessionAt,
@@ -2491,6 +2493,7 @@ export class Supervisor {
       const start = activeProvider.startSession({
         routerLaunch,
         machineControl: modelSettings?.machineControl,
+        desktopControlOrigin: modelSettings?.desktopControlOrigin,
         cwd: projectPath,
         // No initialMessage - queue will block until one is pushed
         ...(await this.instructionLaunchOptions(
@@ -2812,6 +2815,7 @@ export class Supervisor {
       const start = activeProvider.startSession({
         routerLaunch,
         machineControl: modelSettings?.machineControl,
+        desktopControlOrigin: modelSettings?.desktopControlOrigin,
         cwd: projectPath,
         resumeSessionId,
         ...(await this.instructionLaunchOptions(
