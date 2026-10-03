@@ -421,3 +421,14 @@ suite and Windows computer-control cleanup also passed. [Runtime/SQLite
 passed all 12 platform/runtime legs. This supplies the missing native CI
 evidence for the reservation repair. Keep the broader gap open for repeated
 first-attempt stability and the reader-selection behavior recorded above.
+
+2026-10-02 — two local recurrences. A full four-worker browser run failed
+the large-catalog typing check at 117ms (limit 100ms) with no dropped
+characters; alone it measured 26ms. Profiling under CPU throttle found
+applying a catalog snapshot copied the client's entity map once per row, a
+~90ms unthrottled stall for 1000 rows whenever a snapshot landed during
+typing. Snapshots now share one copy. Separately, "follows appended turns
+and newly discovered sessions" failed once in three local full-file runs
+(the live beta request never appeared within 30s) and passed 3/3 alone; it
+is unexplained.
+Contributing-model: opus-5-5
