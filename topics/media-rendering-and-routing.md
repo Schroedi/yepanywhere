@@ -900,7 +900,13 @@ project/file-access allow-set without fallback lookup or filesystem guessing.
   retention, `ERR_OUT_OF_MEMORY` the memory budget, and
   `ERR_FILE_NOT_FOUND`/`ERR_FAILED` on a large body the disk-backed store.
   Flushing socket pools is not the remedy; fast errors beside successful
-  reads to the same host are not connection-pool exhaustion.
+  reads to the same host are not connection-pool exhaustion. Closing a
+  surface must release its Blobs: `e2e/blob-retention.spec.ts` (client
+  package) opens the media modal, inline previews, and the file viewer
+  repeatedly as a relayed client sees them, forces garbage collection, and
+  requires the `chrome://blob-internals` total to return to its baseline.
+  That page shows only the default browser context, so the check drives its
+  own persistent profile.
 - **Repeated client fetches** — an expanded preview, later modal, download, or
   copy action can independently fetch the same media. The full viewer reuses
   its already-loaded blob for its own actions, but cross-surface blob sharing
