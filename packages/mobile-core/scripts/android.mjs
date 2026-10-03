@@ -63,8 +63,6 @@ export async function android({ core, env, run }) {
     library,
     "--language",
     "kotlin",
-    "--config",
-    join(core, "uniffi.toml"),
     "--out-dir",
     join(generated, "rustBindings"),
     "--no-format",
