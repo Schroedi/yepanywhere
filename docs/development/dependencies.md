@@ -49,6 +49,12 @@ A fresh audit also reported [Hono JSX boundary escaping](https://github.com/advi
 all Hono workspace consumers now resolve 4.13.12, above its 4.13.7 patch floor.
 No new advisory exclusions or install-script permissions are added.
 
+The 2026-10-03 CI repair resolves Firebase Admin's `@fastify/busboy` edge
+to 3.2.2 within its declared range, above the 3.2.1 patch floor for
+[multipart resource exhaustion](https://github.com/advisories/GHSA-xjh9-v7x6-24jw)
+and [prototype-named headers](https://github.com/advisories/GHSA-x8mw-p69m-v3mx).
+Unrelated resolutions and advisory exclusions remain unchanged.
+
 ### Install-script allowlist
 
 Dependency install scripts (preinstall/install/postinstall) are blocked by

@@ -1,3 +1,4 @@
+import { delimiter, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { startNativeSudoSession } from "../../src/sdk/providers/native-sudo.js";
 import type {
@@ -117,11 +118,11 @@ describe("native sudo launch capability", () => {
     );
     expect(launch.agentEnvironment).toEqual({
       AGENT_YA_API_TOKEN: "synthetic-own-session-grant",
-      PATH: "/Applications/Example App.app/Contents/Resources:/usr/bin:/bin",
+      PATH: `/Applications/Example App.app/Contents/Resources${delimiter}${environment.PATH}`,
     });
     expect(launch.globalInstructions).toContain("Existing instructions");
     expect(launch.globalInstructions).toContain(
-      "'/Applications/Example App.app/Contents/Resources/mc-sudo'",
+      `'${join("/Applications/Example App.app/Contents/Resources", "mc-sudo")}'`,
     );
     expect(launch.globalInstructions).toContain(
       "without automatically retrying",

@@ -1,9 +1,51 @@
-import type { Route } from "@playwright/test";
-import { expect, test } from "./fixtures.js";
+import { join } from "node:path";
+import { expect, test as base, type Route } from "@playwright/test";
+import { createTestViteServer } from "./support/vite-server.js";
+import {
+  startYaServerProcess,
+  disposeYaServerProcess,
+} from "./support/ya-server-process.js";
 import { recordUiCapture } from "./support/ui-capture.js";
 
+// Own the same portable source server used by the former computer-control
+// browser gate. Full-suite global setup is not needed for this one case.
+const test = base.extend({
+  baseURL: [
+    // biome-ignore lint/correctness/noEmptyPattern: Playwright requires fixture destructuring.
+    async ({}, use) => {
+      const backend = await startYaServerProcess({ label: "installed MC" });
+      let source: Awaited<ReturnType<typeof createTestViteServer>> | undefined;
+      try {
+        source = await createTestViteServer({
+          configFile: join(import.meta.dirname, "..", "vite.config.ts"),
+          define: { __VITE_DEV_PORT__: "-1" },
+          server: {
+            port: 0,
+            strictPort: false,
+            host: "127.0.0.1",
+            proxy: { "/api": { target: backend.baseUrl, ws: true } },
+          },
+        });
+        await source.listen();
+        const address = source.httpServer?.address();
+        if (!address || typeof address === "string")
+          throw new Error("Missing Vite port");
+        await use(`http://127.0.0.1:${address.port}`);
+      } finally {
+        try {
+          await source?.close();
+        } finally {
+          await disposeYaServerProcess(backend);
+        }
+      }
+    },
+    // Preserve the former cross-platform gate's startup/cleanup allowance.
+    { scope: "test", timeout: 180_000 },
+  ],
+});
+
 // Browser-only offer/typing boundary: no native MC operation or model turn.
-test.use({ draftSessionIds: [], serviceWorkers: "block" });
+test.use({ serviceWorkers: "block" });
 
 test("installed MC readiness preserves typing and its selected affordance at desktop and phone widths", async ({
   page,

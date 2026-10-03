@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -119,7 +119,7 @@ describe("installed Machine Control launch", () => {
     expect(launch?.globalInstructions).toContain("agent instructions");
     expect(launch?.agentEnvironment).toEqual({
       AGENT_YA_API_TOKEN: "synthetic",
-      PATH: `${installed.directory}:/usr/bin:/bin`,
+      PATH: `${installed.directory}${delimiter}${environment.PATH}`,
     });
     expect(verify).toHaveBeenCalledWith(
       environment.YEP_MC_APP,
@@ -274,7 +274,7 @@ describe("installed client authenticity", () => {
     );
     expect(result.version).toBe("1.2.3");
     expect(run.mock.calls[0]?.[0]).toBe("/usr/bin/codesign");
-    expect(run.mock.calls[1]?.[0]).toContain("python/bin/python3");
+    expect(run.mock.calls[1]?.[0]).toContain(join("python", "bin", "python3"));
   });
 
   it("requires authenticated Windows native dependency and CLI identities to agree before a probe", async () => {
