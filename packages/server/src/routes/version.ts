@@ -263,11 +263,36 @@ export function getCurrentVersionInfoComputations(): number {
 /**
  * Read the current package version and best-effort install source.
  */
+export function readDesktopBuildVersion(
+  serverDirectory: string,
+): CurrentVersionInfo {
+  try {
+    const manifest = JSON.parse(
+      fs.readFileSync(
+        path.join(serverDirectory, "desktop-runtime-manifest.json"),
+        "utf8",
+      ),
+    );
+    const version =
+      typeof manifest.yepVersion === "string"
+        ? normalizeGitDescribeVersion(manifest.yepVersion)
+        : null;
+    if (version && /^\d+\.\d+\.\d+(?:$|[-+])/.test(version)) {
+      return { version, installSource: "release-package" };
+    }
+  } catch {
+    /* Missing/corrupt packaged metadata must not probe an ambient checkout. */
+  }
+  return { version: "unknown", installSource: "release-package" };
+}
+
 async function computeCurrentVersionInfo(): Promise<CurrentVersionInfo> {
   try {
     // In production (npm package), package.json is in the parent of dist/
     // In development, it's in packages/server/
     const packageJsonPath = path.resolve(__dirname, "../../package.json");
+    if (process.env.YEP_DESKTOP === "1")
+      return readDesktopBuildVersion(path.dirname(packageJsonPath));
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
     const version = packageJson.version || "unknown";
 
@@ -813,13 +838,15 @@ export function createVersionRoutes(options?: VersionRouteOptions): Hono {
     // For dev versions like "v0.1.7-3-g050bfd2", extract base version "v0.1.7"
     // to compare against the update server.
     const baseVersion = current.split("-")[0] || current;
-    const latest = await (options?.getLatestVersion ?? getLatestVersion)(
-      baseVersion,
-      options?.installId,
-      {
-        forceRefresh: fresh,
-      },
-    );
+    const latest = options?.desktopRuntime
+      ? null
+      : await (options?.getLatestVersion ?? getLatestVersion)(
+          baseVersion,
+          options?.installId,
+          {
+            forceRefresh: fresh,
+          },
+        );
     const updateAvailable = latest ? isNewerSemver(baseVersion, latest) : false;
 
     const info: VersionInfo = {

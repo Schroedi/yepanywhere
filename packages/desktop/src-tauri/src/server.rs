@@ -337,6 +337,10 @@ fn spawn_stdout_reader<R>(
                             let _ = sender.send(result);
                         }
                     }
+                    if line == r#"YEP_DESKTOP_ACTION {"action":"check-updates"}"# {
+                        crate::updater::check(&app, "manual");
+                        continue;
+                    }
                     record_server_output(&app, "stdout", format!("{line}\n"));
                 }
                 Ok(None) => {
@@ -579,6 +583,7 @@ async fn send_startup_frame(child: &mut Child, secret: &str) -> Result<(), Strin
     let frame = serde_json::json!({
         "protocol": DESKTOP_BOOTSTRAP_PROTOCOL_VERSION,
         "masterSecret": secret,
+        "nativeUpdates": cfg!(any(target_os = "macos", windows)),
     });
     stdin
         .write_all(format!("{frame}\n").as_bytes())

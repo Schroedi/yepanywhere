@@ -9,6 +9,7 @@ const STARTUP_MODE = "stdin-v1";
 
 interface DesktopStartupFrame {
   protocol: number;
+  nativeUpdates?: boolean;
   masterSecret: string;
 }
 
@@ -24,6 +25,7 @@ function parseStartupFrame(line: string): DesktopStartupFrame {
   return {
     protocol: value.protocol,
     masterSecret: value.masterSecret,
+    nativeUpdates: value.nativeUpdates === true,
   };
 }
 
@@ -67,5 +69,14 @@ export async function readDesktopBootstrapServiceFromStdin(): Promise<
   const frame = parseStartupFrame(await readStartupLine());
   return new DesktopBootstrapService({
     masterSecret: frame.masterSecret,
+    ...(frame.nativeUpdates
+      ? {
+          onCheckUpdates: () => {
+            process.stdout.write(
+              'YEP_DESKTOP_ACTION {"action":"check-updates"}\n',
+            );
+          },
+        }
+      : {}),
   });
 }

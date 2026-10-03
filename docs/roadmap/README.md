@@ -84,6 +84,11 @@ the viewer/download gap remain the next mobile release work.
   installer and updater validation; the
   [public distribution catalog](../../site/src/data/distributions.ts) still
   identifies desktop as beta.
+  October 3 fixes move update feedback into AppKit/Windows native controls,
+  route local Settings to that controller, and use the immutable bundled server
+  version. Host macOS native checks and browser regressions pass; Windows native
+  interaction, install/relaunch and the reported hours-idle history remain
+  acceptance work before desktop graduation. See the QA log for boundaries.
 - The web client and npm server are available. The
   [Latest remote-client workflow](../../.github/workflows/latest-remote-client.yml)
   already deploys the exact successful CI commit after pushes to `main`.

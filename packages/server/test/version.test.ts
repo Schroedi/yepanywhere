@@ -17,6 +17,9 @@ import {
   serverHasCapability,
 } from "@yep-anywhere/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // Dynamic import so vi.resetModules() gives us fresh module state (clears cache)
 async function importVersion() {
@@ -156,6 +159,63 @@ describe("GET /version", () => {
       expect(getSqliteStatus).toHaveBeenCalledTimes(6);
     },
   );
+
+  it("reads the immutable desktop build without consulting an ambient checkout", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "ya-desktop-version-"));
+    const { readDesktopBuildVersion } = await importVersion();
+    try {
+      expect(readDesktopBuildVersion(directory)).toEqual({
+        version: "unknown",
+        installSource: "release-package",
+      });
+      const manifest = join(directory, "desktop-runtime-manifest.json");
+      writeFileSync(
+        manifest,
+        JSON.stringify({ yepVersion: "v0.9.1-56-g1002ac1c9" }),
+      );
+      expect(readDesktopBuildVersion(directory)).toEqual({
+        version: "0.9.1-56-g1002ac1c9",
+        installSource: "release-package",
+      });
+      for (const contents of [
+        "{",
+        "null",
+        JSON.stringify({ yepVersion: "dev" }),
+      ]) {
+        writeFileSync(manifest, contents);
+        expect(readDesktopBuildVersion(directory)).toEqual({
+          version: "unknown",
+          installSource: "release-package",
+        });
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("desktop fresh checks do not contact the standalone update feed", async () => {
+    mockFetch(() => {
+      throw new Error("Standalone update feed must not be used");
+    });
+    const { createVersionRoutes } = await importVersion();
+    const routes = createVersionRoutes({
+      desktopRuntime: true,
+      getCurrentVersionInfo: async () => ({
+        version: "0.9.1-56-g1002ac1c9",
+        installSource: "release-package",
+      }),
+    });
+    const response = await routes.request("/?fresh=1");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      current: "0.9.1-56-g1002ac1c9",
+      installSource: "release-package",
+      desktopRuntime: true,
+      latest: null,
+      updateAvailable: false,
+    });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
 
   it("parses version from update server 200 response", async () => {
     mockFetch(
