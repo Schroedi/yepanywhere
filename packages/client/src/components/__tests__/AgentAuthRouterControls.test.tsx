@@ -27,6 +27,10 @@ const fixture = vi.hoisted(() => ({
     routerAccounts: vi.fn(),
     routerCatalog: vi.fn(),
     routerQuotas: vi.fn(),
+    routerOverview: vi.fn(),
+    routerRefreshOverview: vi.fn(),
+    routerSavePool: vi.fn(),
+    routerRemovePool: vi.fn(),
   },
 }));
 const translate = (key: string, params?: Record<string, unknown>) => {
@@ -249,4 +253,84 @@ it("clears the previous catalog error when the user deliberately chooses another
   );
   await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   expect(change).not.toHaveBeenCalled();
+});
+
+it("does not request pool APIs from a server without the exact pool capability", async () => {
+  render(<AgentAuthRouterSettings />);
+  await screen.findByText("Paired with local router");
+  expect(fixture.api.routerOverview).not.toHaveBeenCalled();
+  expect(screen.queryByText("Pools and usage")).toBeNull();
+});
+
+it("reads cached pool usage and refreshes only after an explicit action", async () => {
+  fixture.capabilities.push("agent-auth-router-pools");
+  fixture.api.routerOverview.mockResolvedValue({
+    pools: [],
+    accounts: [
+      {
+        ...recovery.accounts[0],
+        freshness: "stale",
+        models: [],
+        catalogAt: null,
+        quota: { observedAt: recovery.checkedAt },
+        windows: [
+          {
+            bucket: "codex:primary",
+            remainingPercent: 75,
+            usedPercent: 25,
+            resetsAt: null,
+            scope: "all",
+          },
+        ],
+        attemptedAt: null,
+        error: null,
+      },
+    ],
+  });
+  render(<AgentAuthRouterSettings />);
+  await screen.findByText("75% remaining");
+  expect(fixture.api.routerRefreshOverview).not.toHaveBeenCalled();
+  expect(screen.getByText(/Stale observation/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Refresh usage" }));
+  await waitFor(() =>
+    expect(fixture.api.routerRefreshOverview).toHaveBeenCalledWith({
+      accountId: "work",
+    }),
+  );
+});
+
+it("does not follow an old source's pool refresh with a request to the new source", async () => {
+  fixture.capabilities.push("agent-auth-router-pools");
+  fixture.api.routerOverview.mockResolvedValue({
+    pools: [],
+    accounts: [
+      {
+        ...recovery.accounts[0],
+        freshness: "unknown",
+        models: [],
+        catalogAt: null,
+        quota: null,
+        windows: [],
+        attemptedAt: null,
+        error: null,
+      },
+    ],
+  });
+  let resolve!: () => void;
+  fixture.api.routerRefreshOverview.mockImplementation(
+    () =>
+      new Promise<void>((done) => {
+        resolve = done;
+      }),
+  );
+  const view = render(<AgentAuthRouterSettings />);
+  await screen.findByText("Pools and usage");
+  fireEvent.click(await screen.findByRole("button", { name: "Refresh usage" }));
+  fixture.source = "host:second";
+  view.rerender(<AgentAuthRouterSettings />);
+  await waitFor(() =>
+    expect(fixture.api.routerOverview).toHaveBeenCalledTimes(2),
+  );
+  await act(async () => resolve());
+  expect(fixture.api.routerOverview).toHaveBeenCalledTimes(2);
 });

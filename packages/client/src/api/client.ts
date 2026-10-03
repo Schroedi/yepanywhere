@@ -1,4 +1,8 @@
 import type {
+  AgentAuthRouterOverview,
+  AgentAuthRouterPoolInput,
+} from "@yep-anywhere/shared";
+import type {
   SessionClearloopBadge,
   AgentAuthRouterStatus,
   AgentAuthRouterRecovery,
@@ -288,6 +292,8 @@ export function isUnchangedGlobalSessionsResponse(
 
 export interface SessionOptions {
   routerAccountId?: string;
+  routerPoolId?: string;
+  routerPolicy?: "manual" | "round-robin";
   creationProvenance?: SessionCreationProvenance;
   /** @deprecated Old selection is rejected; use machineControl. */
   computerControl?: boolean;
@@ -455,6 +461,30 @@ export const api = {
     fetchJSON<{
       models: { id: string; name: string; contextWindow?: number }[];
     }>(`/agent-auth-router/accounts/${encodeURIComponent(id)}/catalog`),
+  routerOverview: (body: { poolId?: string; model?: string } = {}) =>
+    fetchJSON<AgentAuthRouterOverview>("/agent-auth-router/overview", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  routerRefreshOverview: (body: {
+    accountId: string;
+    poolId?: string;
+    model?: string;
+  }) =>
+    fetchJSON<AgentAuthRouterOverview>("/agent-auth-router/overview/refresh", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  routerSavePool: (body: AgentAuthRouterPoolInput) =>
+    fetchJSON("/agent-auth-router/pools/save", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  routerRemovePool: (body: { id: string; revision: number }) =>
+    fetchJSON("/agent-auth-router/pools/remove", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   routerQuotas: (id: string) =>
     fetchJSON<{
       status: string;
@@ -779,6 +809,8 @@ export const api = {
         computerControl: options?.computerControl,
         machineControl: options?.machineControl,
         routerAccountId: options?.routerAccountId,
+        routerPoolId: options?.routerPoolId,
+        routerPolicy: options?.routerPolicy,
         executor: options?.executor,
         sandboxLevel: options?.sandboxLevel,
         sandboxNetworkFirewall: options?.sandboxNetworkFirewall,
@@ -821,6 +853,8 @@ export const api = {
         computerControl: options?.computerControl,
         machineControl: options?.machineControl,
         routerAccountId: options?.routerAccountId,
+        routerPoolId: options?.routerPoolId,
+        routerPolicy: options?.routerPolicy,
         executor: options?.executor,
         sandboxLevel: options?.sandboxLevel,
         sandboxNetworkFirewall: options?.sandboxNetworkFirewall,
@@ -863,6 +897,8 @@ export const api = {
         computerControl: options?.computerControl,
         machineControl: options?.machineControl,
         routerAccountId: options?.routerAccountId,
+        routerPoolId: options?.routerPoolId,
+        routerPolicy: options?.routerPolicy,
         executor: options?.executor,
         sandboxLevel: options?.sandboxLevel,
         sandboxNetworkFirewall: options?.sandboxNetworkFirewall,
@@ -900,6 +936,8 @@ export const api = {
         computerControl: options?.computerControl,
         machineControl: options?.machineControl,
         routerAccountId: options?.routerAccountId,
+        routerPoolId: options?.routerPoolId,
+        routerPolicy: options?.routerPolicy,
         executor: options?.executor,
         sandboxLevel: options?.sandboxLevel,
         sandboxNetworkFirewall: options?.sandboxNetworkFirewall,

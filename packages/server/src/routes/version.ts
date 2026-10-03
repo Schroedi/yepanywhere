@@ -685,6 +685,7 @@ export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   if (options?.agentAuthRouterAvailable) {
     capabilities.push(SERVER_CAPABILITIES.agentAuthRouter.name);
     capabilities.push(SERVER_CAPABILITIES.agentAuthRouterRecovery.name);
+    capabilities.push(SERVER_CAPABILITIES.agentAuthRouterPools.name);
   }
   if (options?.installedMachineControlAvailable)
     capabilities.push(SERVER_CAPABILITIES.installedMachineControl.name);

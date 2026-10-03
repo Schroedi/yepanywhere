@@ -21,7 +21,7 @@ const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
-async function fixture() {
+async function fixture(pools = false) {
   const root = await mkdtemp(join(tmpdir(), "yar-"));
   cleanups.push(() => rm(root, { recursive: true, force: true }));
   const socketPath = join(root, "control.sock");
@@ -51,13 +51,32 @@ async function fixture() {
           protocol: 1,
           routerId,
           inferenceOrigin: "http://127.0.0.1:8417",
-          capabilities: ["manual-bindings"],
+          capabilities: ["manual-bindings", ...(pools ? ["pools-v1"] : [])],
         }),
       );
     if (revoked) {
       res.statusCode = 401;
       return res.end("{}");
     }
+    if (req.url === "/v1/pools/prepare")
+      return res.end(
+        JSON.stringify({
+          accountId: "account",
+          poolId: body.poolId,
+          policy: "round-robin",
+          reason: "Round robin among eligible accounts",
+          observedAt: "2026-10-03T08:00:00Z",
+        }),
+      );
+    if (req.url === "/v1/overview" || req.url === "/v1/overview/refresh")
+      return res.end(
+        JSON.stringify({
+          accounts: [],
+          pools: [],
+          observedAt: "2026-10-03T08:00:00Z",
+          quotaFreshSeconds: 120,
+        }),
+      );
     if (req.url === "/v1/disconnect") revoked = true;
     if (req.url === "/v1/bindings/commit" && failCommit) {
       failCommit = false;
@@ -411,6 +430,10 @@ it("router administration and metadata are denied to limited users", () => {
     ["POST", "/api/agent-auth-router/disconnect"],
     ["GET", "/api/agent-auth-router/recovery"],
     ["POST", "/api/agent-auth-router/retry-cancellations"],
+    ["POST", "/api/agent-auth-router/overview"],
+    ["POST", "/api/agent-auth-router/overview/refresh"],
+    ["POST", "/api/agent-auth-router/pools/save"],
+    ["POST", "/api/agent-auth-router/pools/remove"],
     ["GET", "/api/agent-auth-router/accounts/a/catalog"],
     ["GET", "/api/agent-auth-router/accounts/a/quotas"],
   ]) {
@@ -442,4 +465,65 @@ it("refuses account-selection fields on continuation instead of ignoring them", 
       error: expect.stringContaining("retain their pin"),
     });
   }
+});
+
+describe.skipIf(process.platform === "win32")("pool launch recovery", () => {
+  it("persists the selection request and chosen pin before commit, then resumes the same allocation", async () => {
+    const f = await fixture(true);
+    await f.connector.connect(f.socketPath);
+    f.loseCommit();
+    await expect(
+      f.connector.launch(
+        "pooled",
+        "codex",
+        "fixture-model",
+        undefined,
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "round-robin",
+      ),
+    ).rejects.toThrow();
+    const ref = f.metadata.getMetadata("pooled")?.routerBinding;
+    expect(ref).toMatchObject({
+      accountId: "account",
+      policy: "round-robin",
+      reason: "Round robin among eligible accounts",
+    });
+    const restarted = new AgentAuthRouter(f.root, f.metadata);
+    const resumed = await restarted.launch("pooled", "codex", "fixture-model");
+    expect(resumed?.accountId).toBe("account");
+    const requests = f.requests.filter((r) => r.path === "/v1/pools/prepare");
+    expect(requests).toHaveLength(2);
+    expect(requests[0]?.body).toEqual(requests[1]?.body);
+    expect(requests[0]?.body).not.toHaveProperty("accountId");
+    expect(JSON.stringify(ref)).not.toContain(resumed?.token);
+    await restarted.cancel("pooled");
+    await expect(
+      restarted.launch("pooled", "codex", "fixture-model"),
+    ).rejects.toThrow("cancelled");
+  });
+  it("gates old AAR before new operations and serves the owner-only pool API", async () => {
+    const old = await fixture();
+    await old.connector.connect(old.socketPath);
+    await expect(old.connector.overview()).rejects.toThrow("Update AAR");
+    expect(old.requests.some((r) => r.path === "/v1/overview")).toBe(false);
+    const f = await fixture(true);
+    await f.connector.connect(f.socketPath);
+    const app = new Hono().route(
+      "/api",
+      createAgentAuthRouterRoutes(f.connector),
+    );
+    for (const path of [
+      "overview",
+      "overview/refresh",
+      "pools/save",
+      "pools/remove",
+    ]) {
+      const response = await app.request(`/api/agent-auth-router/${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      expect(response.status).toBe(200);
+    }
+  });
 });

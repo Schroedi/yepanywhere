@@ -1,3 +1,4 @@
+import { registerAgentAuthRouterPoolRoutes } from "./agent-auth-router-pools.js";
 import { Hono } from "hono";
 import {
   type AgentAuthRouter,
@@ -20,6 +21,7 @@ export function createAgentAuthRouterRoutes(router: AgentAuthRouter) {
   );
   routes.get("/agent-auth-router", (c) => c.json(router.summary()));
   registerAgentAuthRouterRecoveryRoutes(routes, router);
+  registerAgentAuthRouterPoolRoutes(routes, router);
   routes.post("/agent-auth-router/connect", async (c) => {
     const body = await c.req.json<{ socketPath?: unknown }>();
     if (

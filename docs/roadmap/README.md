@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-10-01.
+Last updated: 2026-10-03.
 
 This is Yep Anywhere's canonical product-priority overview. Keep initiative
 status, the next action, and major blockers here; keep implementation steps in

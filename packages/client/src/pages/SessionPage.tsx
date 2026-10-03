@@ -6127,6 +6127,8 @@ function SessionPageContent({
                           {t("routerPinnedAccount", {
                             account: session.routerBinding.accountId,
                           })}
+                          {session.routerBinding.policy &&
+                            ` · ${t(session.routerBinding.policy === "round-robin" ? "routerPoolRoundRobin" : "routerPoolManual")}`}
                         </span>
                       )}
                     {currentGoal && (

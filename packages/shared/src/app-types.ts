@@ -679,6 +679,10 @@ export interface AppSessionSummary {
   creationProvenance?: SessionCreationProvenance;
   /** Public, immutable account pin. Never contains transport credentials. */
   routerBinding?: {
+    poolId?: string;
+    policy?: "manual" | "round-robin";
+    reason?: string;
+    observedAt?: string;
     id: string;
     routerId: string;
     accountId: string;

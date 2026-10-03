@@ -443,6 +443,8 @@ async function resolveSessionReader({
 
 interface StartSessionBody {
   routerAccountId?: string;
+  routerPoolId?: string;
+  routerPolicy?: "manual" | "round-robin";
   creationProvenance?: SessionCreationProvenance;
   computerControl?: boolean;
   machineControl?: boolean;
@@ -495,6 +497,8 @@ function hasSessionMessageContent(body: StartSessionBody): boolean {
 
 interface CreateSessionBody {
   routerAccountId?: string;
+  routerPoolId?: string;
+  routerPolicy?: "manual" | "round-robin";
   creationProvenance?: SessionCreationProvenance;
   computerControl?: boolean;
   machineControl?: boolean;
@@ -4164,6 +4168,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         effort,
         providerName: body.provider,
         routerAccountId: body.routerAccountId,
+        routerPoolId: body.routerPoolId,
+        routerPolicy: body.routerPolicy,
         computerControl: body.computerControl,
         machineControl: body.machineControl,
         executor,
@@ -4329,6 +4335,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         effort,
         providerName: body.provider,
         routerAccountId: body.routerAccountId,
+        routerPoolId: body.routerPoolId,
+        routerPolicy: body.routerPolicy,
         computerControl: body.computerControl,
         machineControl: body.machineControl,
         executor,
@@ -4491,6 +4499,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         effort,
         providerName: body.provider,
         routerAccountId: body.routerAccountId,
+        routerPoolId: body.routerPoolId,
+        routerPolicy: body.routerPolicy,
         computerControl: body.computerControl,
         machineControl: body.machineControl,
         executor,
@@ -4621,6 +4631,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         effort,
         providerName: body.provider,
         routerAccountId: body.routerAccountId,
+        routerPoolId: body.routerPoolId,
+        routerPolicy: body.routerPolicy,
         computerControl: body.computerControl,
         machineControl: body.machineControl,
         executor,
@@ -4700,7 +4712,11 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
 
-    if (body.routerAccountId !== undefined) {
+    if (
+      body.routerAccountId !== undefined ||
+      body.routerPoolId !== undefined ||
+      body.routerPolicy !== undefined
+    ) {
       return c.json(
         {
           error:
@@ -8170,7 +8186,11 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
 
-    if (body.routerAccountId !== undefined) {
+    if (
+      body.routerAccountId !== undefined ||
+      body.routerPoolId !== undefined ||
+      body.routerPolicy !== undefined
+    ) {
       return c.json(
         {
           error:

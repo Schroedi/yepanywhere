@@ -702,6 +702,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "agent-auth-router",
     introducedIn: "0.9.4",
   },
+  agentAuthRouterPools: {
+    id: 115,
+    name: "agent-auth-router-pools",
+    direction: "server",
+    introducedIn: "0.9.4",
+  },
   agentAuthRouterRecovery: {
     id: 114,
     direction: "server",

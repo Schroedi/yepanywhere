@@ -1205,7 +1205,12 @@ export function NewSessionForm({
       !selectedProviderQuery.refreshing &&
       selectedProviderQuery.error === null);
   const hasSelectedProviderModel = routerSelection
-    ? Boolean(routerSelection.model)
+    ? Boolean(
+        routerSelection.model &&
+          (!routerSelection.poolId ||
+            routerSelection.policy === "round-robin" ||
+            routerSelection.accountId),
+      )
     : selectedProviderCatalogCurrent &&
       hasRequiredProviderModel(
         selectedProvider,
@@ -2486,7 +2491,12 @@ export function NewSessionForm({
           launchLock.limited ||
           effectiveExecutor ||
           effectiveSandboxLevel !== "none" ||
-          launch)
+          launch ||
+          (routerSelection.poolId &&
+            !serverHasCapability(
+              versionInfo,
+              SERVER_CAPABILITIES.agentAuthRouterPools.name,
+            )))
       ) {
         showToast(t("routerLaunchUnsupported"), "error");
         return;
@@ -2618,7 +2628,15 @@ export function NewSessionForm({
             versionInfo,
             SERVER_CAPABILITIES.agentAuthRouter.name,
           )
-            ? { routerAccountId: routerSelection.accountId }
+            ? {
+                routerAccountId: routerSelection.accountId || undefined,
+                ...(routerSelection.poolId
+                  ? {
+                      routerPoolId: routerSelection.poolId,
+                      routerPolicy: routerSelection.policy,
+                    }
+                  : {}),
+              }
             : {}),
           thinking: routerSelection ? ("auto" as const) : thinking,
           showThinking,

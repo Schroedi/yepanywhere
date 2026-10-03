@@ -1393,6 +1393,7 @@ export class Supervisor {
   ): Promise<Process> {
     if (
       modelSettings?.routerAccountId ||
+      modelSettings?.routerPoolId ||
       this.sessionMetadataService?.getMetadata(resumeSessionId ?? "")
         ?.routerBinding
     ) {
@@ -2191,6 +2192,7 @@ export class Supervisor {
   ): Promise<Process> {
     if (
       modelSettings?.routerAccountId ||
+      modelSettings?.routerPoolId ||
       this.sessionMetadataService?.getMetadata(resumeSessionId ?? "")
         ?.routerBinding
     ) {
@@ -2446,6 +2448,7 @@ export class Supervisor {
     );
     const routed =
       modelSettings?.routerAccountId ||
+      modelSettings?.routerPoolId ||
       this.sessionMetadataService?.getMetadata(tempSessionId)?.routerBinding;
     if (
       routed &&
@@ -2462,6 +2465,18 @@ export class Supervisor {
         !/^[A-Za-z0-9_-]{1,128}$/.test(modelSettings.routerAccountId))
     )
       throw new Error("Invalid router account");
+    if (
+      modelSettings?.routerPoolId !== undefined &&
+      (typeof modelSettings.routerPoolId !== "string" ||
+        !/^[a-f0-9-]{36}$/.test(modelSettings.routerPoolId))
+    )
+      throw new Error("Invalid router pool");
+    if (
+      modelSettings?.routerPolicy !== undefined &&
+      (!modelSettings.routerPoolId ||
+        !["manual", "round-robin"].includes(modelSettings.routerPolicy))
+    )
+      throw new Error("Invalid router policy");
     if (routed && !this.agentAuthRouter)
       throw new Error("Router integration unavailable");
     const routerLaunch = await this.agentAuthRouter?.launch(
@@ -2469,6 +2484,8 @@ export class Supervisor {
       activeProvider.name,
       modelSettings?.model,
       modelSettings?.routerAccountId,
+      modelSettings?.routerPoolId,
+      modelSettings?.routerPolicy,
     );
     try {
       const start = activeProvider.startSession({
@@ -2752,6 +2769,7 @@ export class Supervisor {
     );
     const routed =
       modelSettings?.routerAccountId ||
+      modelSettings?.routerPoolId ||
       this.sessionMetadataService?.getMetadata(tempSessionId)?.routerBinding;
     if (
       routed &&
@@ -2768,6 +2786,18 @@ export class Supervisor {
         !/^[A-Za-z0-9_-]{1,128}$/.test(modelSettings.routerAccountId))
     )
       throw new Error("Invalid router account");
+    if (
+      modelSettings?.routerPoolId !== undefined &&
+      (typeof modelSettings.routerPoolId !== "string" ||
+        !/^[a-f0-9-]{36}$/.test(modelSettings.routerPoolId))
+    )
+      throw new Error("Invalid router pool");
+    if (
+      modelSettings?.routerPolicy !== undefined &&
+      (!modelSettings.routerPoolId ||
+        !["manual", "round-robin"].includes(modelSettings.routerPolicy))
+    )
+      throw new Error("Invalid router policy");
     if (routed && !this.agentAuthRouter)
       throw new Error("Router integration unavailable");
     const routerLaunch = await this.agentAuthRouter?.launch(
@@ -2775,6 +2805,8 @@ export class Supervisor {
       activeProvider.name,
       modelSettings?.model,
       modelSettings?.routerAccountId,
+      modelSettings?.routerPoolId,
+      modelSettings?.routerPolicy,
     );
     try {
       const start = activeProvider.startSession({
@@ -3006,6 +3038,7 @@ export class Supervisor {
   ): Promise<Process> {
     if (
       modelSettings?.routerAccountId ||
+      modelSettings?.routerPoolId ||
       this.sessionMetadataService?.getMetadata(resumeSessionId ?? "")
         ?.routerBinding
     ) {

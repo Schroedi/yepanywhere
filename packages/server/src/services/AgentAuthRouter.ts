@@ -6,6 +6,9 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type {
   AgentAuthRouterIssueCode,
+  AgentAuthRouterOverview,
+  AgentAuthRouterPoolInput,
+  AgentAuthRouterPoolPolicy,
   AgentAuthRouterRecovery,
 } from "@yep-anywhere/shared";
 import type { SessionMetadataService } from "../metadata/SessionMetadataService.js";
@@ -25,6 +28,9 @@ interface Connection {
   state: "pairing" | "connected" | "revocation-pending" | "disconnected";
 }
 interface Allocation {
+  poolId?: string;
+  policy?: AgentAuthRouterPoolPolicy;
+  requestedAccountId?: string;
   cancelled?: boolean;
   cancellationAcknowledged?: boolean;
   id: string;
@@ -426,6 +432,37 @@ export class AgentAuthRouter {
       });
     }
   }
+  poolOperation<T>(path: string, body: object): Promise<T> {
+    return this.serialize(async () => {
+      const c = this.connection();
+      const info = await this.info(c);
+      if (!info.capabilities.includes("pools-v1"))
+        throw new RouterUnavailable(
+          409,
+          "Update AAR to use pools and the quota overview.",
+          "unsupported",
+        );
+      return routerRequest<T>(c.socketPath, path, c.token, body);
+    });
+  }
+  overview(
+    body: { poolId?: string; model?: string } = {},
+  ): Promise<AgentAuthRouterOverview> {
+    return this.poolOperation("/v1/overview", body);
+  }
+  refreshOverview(body: {
+    accountId: string;
+    poolId?: string;
+    model?: string;
+  }): Promise<AgentAuthRouterOverview> {
+    return this.poolOperation("/v1/overview/refresh", body);
+  }
+  savePool(body: AgentAuthRouterPoolInput): Promise<unknown> {
+    return this.poolOperation("/v1/pools/save", body);
+  }
+  removePool(body: { id: string; revision: number }): Promise<unknown> {
+    return this.poolOperation("/v1/pools/remove", body);
+  }
   /** Failed fresh launches never leave a usable credential intentionally retained. */
   cancel(sessionId: string): Promise<void> {
     return this.serialize(async () => {
@@ -449,10 +486,12 @@ export class AgentAuthRouter {
     provider: string,
     model: string | undefined,
     accountId?: string,
+    poolId?: string,
+    policy?: AgentAuthRouterPoolPolicy,
   ): Promise<RouterLaunch | undefined> {
     return this.serialize(async () => {
       const existing = this.metadata?.getMetadata(sessionId)?.routerBinding;
-      if (!existing && !accountId) return undefined;
+      if (!existing && !accountId && !poolId) return undefined;
       if (!this.metadata || (provider !== "claude" && provider !== "codex"))
         throw new RouterUnavailable(
           409,
@@ -460,6 +499,12 @@ export class AgentAuthRouter {
         );
       const c = this.connection(),
         info = await this.info(c);
+      if (poolId && !info.capabilities.includes("pools-v1"))
+        throw new RouterUnavailable(
+          409,
+          "Update AAR to use pools.",
+          "unsupported",
+        );
       await this.flushCancellations(c);
       let allocation = existing
         ? this.state.allocations[existing.id]
@@ -482,7 +527,8 @@ export class AgentAuthRouter {
       if (
         allocation &&
         (allocation.provider !== provider ||
-          (accountId && allocation.accountId !== accountId))
+          (accountId && allocation.accountId !== accountId) ||
+          (poolId && allocation.poolId !== poolId))
       )
         throw new RouterUnavailable(409, "Session account pin cannot change");
       const selectedId = allocation?.accountId ?? accountId;
@@ -503,7 +549,7 @@ export class AgentAuthRouter {
           "account-unavailable",
         );
       if (!allocation) {
-        if (!model || !accountId)
+        if (!model || (!accountId && !poolId))
           throw new RouterUnavailable(
             400,
             "Choose a router account and catalog model",
@@ -511,7 +557,8 @@ export class AgentAuthRouter {
         allocation = {
           id: randomUUID(),
           connectionId: c.id,
-          accountId,
+          accountId: accountId ?? "",
+          ...(poolId ? { poolId, policy, requestedAccountId: accountId } : {}),
           provider,
           model,
           token: token("aar_"),
@@ -527,12 +574,13 @@ export class AgentAuthRouter {
           routerBinding: {
             id: allocation.id,
             routerId: c.routerId,
-            accountId,
+            accountId: accountId ?? "",
+            ...(poolId ? { poolId, policy } : {}),
             provider,
           },
         });
       }
-      if (model && model !== allocation.model) {
+      if (allocation.accountId && model && model !== allocation.model) {
         const catalog = await this.catalog(allocation.accountId);
         if (!catalog.models.some((m) => m.id === model))
           throw new RouterUnavailable(
@@ -540,13 +588,60 @@ export class AgentAuthRouter {
             "Model is unavailable for the pinned account",
           );
       }
-      await routerRequest(c.socketPath, "/v1/bindings/prepare", c.token, {
-        id: allocation.id,
-        provider,
-        accountId: allocation.accountId,
-        model: allocation.model,
-        tokenHash: hash(allocation.token),
-      });
+      const selected = await routerRequest<{
+        accountId: string;
+        poolId?: string;
+        policy?: AgentAuthRouterPoolPolicy;
+        reason?: string;
+        observedAt?: string;
+      }>(
+        c.socketPath,
+        allocation.poolId ? "/v1/pools/prepare" : "/v1/bindings/prepare",
+        c.token,
+        {
+          id: allocation.id,
+          provider,
+          ...(allocation.poolId
+            ? {
+                poolId: allocation.poolId,
+                policy: allocation.policy,
+                accountId: allocation.requestedAccountId,
+              }
+            : { accountId: allocation.accountId }),
+          model: allocation.model,
+          tokenHash: hash(allocation.token),
+        },
+      );
+      if (allocation.poolId) {
+        if (
+          !selected.accountId ||
+          (allocation.accountId && allocation.accountId !== selected.accountId)
+        )
+          throw new RouterUnavailable(
+            409,
+            "Router returned a conflicting account pin",
+          );
+        allocation = { ...allocation, accountId: selected.accountId };
+        await this.save({
+          ...this.state,
+          allocations: {
+            ...this.state.allocations,
+            [allocation.id]: allocation,
+          },
+        });
+        await this.metadata.updateMetadata(sessionId, {
+          routerBinding: {
+            id: allocation.id,
+            routerId: c.routerId,
+            accountId: selected.accountId,
+            provider,
+            poolId: allocation.poolId,
+            policy: selected.policy,
+            reason: selected.reason,
+            observedAt: selected.observedAt,
+          },
+        });
+      }
       await routerRequest(c.socketPath, "/v1/bindings/commit", c.token, {
         id: allocation.id,
       });

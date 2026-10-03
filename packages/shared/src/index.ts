@@ -1630,3 +1630,10 @@ export type {
   AgentAuthRouterAccount,
   AgentAuthRouterRecovery,
 } from "./agent-auth-router.js";
+
+export type {
+  AgentAuthRouterPoolPolicy,
+  AgentAuthRouterPool,
+  AgentAuthRouterPoolInput,
+  AgentAuthRouterOverview,
+} from "./agent-auth-router.js";

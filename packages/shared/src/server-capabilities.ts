@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  agentAuthRouterPools: {
+    name: "agent-auth-router-pools",
+    index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterPools.id,
+    introducedIn: "0.9.4",
+  },
   agentAuthRouterRecovery: {
     name: "agent-auth-router-recovery",
     index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterRecovery.id,
@@ -239,6 +244,36 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  agentAuthRouterPools: {
+    id: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterPools.id,
+    name: "agent-auth-router-pools",
+    introducedIn: "0.9.4",
+    kind: "permanent",
+    area: "sessions",
+    lifecycle: {
+      kind: "permanent",
+      reason: "Optional local router pool controls.",
+    },
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterPools.id,
+    },
+    description:
+      "Owner-only router pools, cached quota overview and Manual/Round robin session allocation.",
+    clientFallback:
+      "Keep manual account controls; hide pool controls and omit pool launch fields.",
+    serverContract: {
+      routes: [
+        "POST /api/agent-auth-router/overview",
+        "POST /api/agent-auth-router/overview/refresh",
+        "POST /api/agent-auth-router/pools/save",
+        "POST /api/agent-auth-router/pools/remove",
+      ],
+      routeModules: ["packages/server/src/routes/agent-auth-router-pools.ts"],
+      requestFields: ["routerPoolId", "routerPolicy"],
+      responseFields: ["pools", "accounts", "selection"],
+    },
+  },
   agentAuthRouterRecovery: {
     id: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterRecovery.id,
     name: "agent-auth-router-recovery",
