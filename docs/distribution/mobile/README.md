@@ -39,8 +39,9 @@ listing text, app icon and feature graphic as a draft, plus a dedicated internal
 tester list. The first local upload artifacts are built from committed source:
 Android 0.1.0 / version code 1000 is uploaded and passes internal-release
 validation; iOS 0.1.0 / build 1 uploaded through Xcode's TestFlight Internal Only
-flow and has processed, with its encryption declaration still required. Neither
-track has an installable internal release yet.
+flow and has processed. Its encryption declaration is blocked on uploading a
+French encryption declaration approval form with France included. Neither track
+has an installable internal release yet.
 Google Play category and contact settings remain open; Developer Tools is saved
 on Apple. Console links and account-specific inventory live in private dotfiles.
 
@@ -122,6 +123,25 @@ ratings, review access to an owned sample server, pricing and availability.
 Do not mark encryption absent merely because transport uses standard crypto:
 the shared Rust core uses SRP and libsodium outside OS-only TLS. Resolve the
 applicable declaration/documentation before distributing a build.
+
+### Apple encryption declaration
+
+The October 3 questionnaire uses the standard-encryption-outside-Apple-OS option:
+the shared core implements SRP with SHA-512 and libsodium secretbox
+(XSalsa20-Poly1305), in addition to TLS. These are published cryptographic
+algorithms; the app must not be declared OS-only or encryption-free.
+[Apple's overview](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance)
+distinguishes proprietary/unpublished cryptography from published algorithms.
+
+With France included, App Store Connect requires a **French encryption
+declaration approval form** before saving the declaration. No form has been
+uploaded or approved; the first build remains **Missing Compliance**. Apple's
+[documentation matrix](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption)
+explains the France requirement. Obtain the applicable ANSSI documentation and
+Apple approval before clearing this gate. A draft technical description is not
+an approval form. Revisit the questionnaire if initial distribution is explicitly
+changed to exclude France; do not set an Info.plist exemption merely to bypass it.
+Private filing details and console inventory belong in the dotfiles runbook.
 
 Keep initial releases internal. App Store review submission and public Play
 rollout are separate actions from preparing draft records and internal tracks.
