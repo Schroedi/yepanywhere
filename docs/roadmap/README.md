@@ -108,6 +108,11 @@ the viewer/download gap remain the next mobile release work.
 - [Android CI](../../.github/workflows/android-app-ci.yml) tests and builds
   application artifacts but does not publish them to Google Play. Android
   implementation exists; neither native mobile app is publicly published.
+- Initial mobile store preparation has begun: an iOS draft app and internal
+  TestFlight group exist, with initial listing metadata saved. Android app
+  creation awaits the maintainer's required policy/export declarations.
+  [Shared listing copy and basic artwork](../distribution/mobile/README.md)
+  are prepared; signed uploads and installable internal releases remain open.
 - Native app CI now runs on relevant platform, shared mobile-core and packaging
   changes rather than ordinary web/server edits. Daily Android/iOS acceptance
   and the existing desktop nightly retain full shared-source coverage; manual
