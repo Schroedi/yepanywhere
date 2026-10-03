@@ -1960,10 +1960,7 @@ export function createApp(options: AppOptions): AppResult {
     effectiveDataDir,
     options.sessionMetadataService,
   );
-  app.route(
-    "/api/agent-auth-router",
-    createAgentAuthRouterRoutes(agentAuthRouter),
-  );
+  app.route("/api", createAgentAuthRouterRoutes(agentAuthRouter));
 
   supervisor = new Supervisor({
     agentAuthRouter,

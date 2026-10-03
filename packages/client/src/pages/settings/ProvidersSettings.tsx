@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import {
+  SERVER_CAPABILITIES,
   CLAUDE_ADDITIONAL_MODELS_CAPABILITY,
   CLAUDE_GATEWAY_AUTOSTART_CAPABILITY,
   CLAUDE_GATEWAY_CAPABILITY,
@@ -1799,9 +1800,10 @@ export function ProvidersSettings() {
 
   return (
     <SettingsSection description={t("providersSectionDescription")}>
-      {serverHasCapability(version, "agent-auth-router") && (
-        <AgentAuthRouterSettings />
-      )}
+      {serverHasCapability(
+        version,
+        SERVER_CAPABILITIES.agentAuthRouter.name,
+      ) && <AgentAuthRouterSettings />}
       {SHOW_HELPER_TARGETS_SETTINGS && (
         <div className="settings-group">
           <HelperTargetsSettings

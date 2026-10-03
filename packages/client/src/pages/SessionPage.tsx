@@ -6114,7 +6114,10 @@ function SessionPageContent({
                       )}
                     </button>
                     {session?.routerBinding &&
-                      serverHasCapability(versionInfo, "agent-auth-router") && (
+                      serverHasCapability(
+                        versionInfo,
+                        SERVER_CAPABILITIES.agentAuthRouter.name,
+                      ) && (
                         <span
                           className={sessionHeaderStyles.routerAccount}
                           title={t("routerPinnedAccount", {

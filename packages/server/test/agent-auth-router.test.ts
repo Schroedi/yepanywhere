@@ -3,9 +3,11 @@ import { chmod, mkdtemp, readFile, rm } from "node:fs/promises";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Hono } from "hono";
 import { afterEach, describe, expect, it } from "vitest";
 import { decideLimitedRoute } from "../src/auth/limitedUserPolicy.js";
 import { createSessionsRoutes } from "../src/routes/sessions.js";
+import { createAgentAuthRouterRoutes } from "../src/routes/agent-auth-router.js";
 import { SessionMetadataService } from "../src/metadata/SessionMetadataService.js";
 import { AgentAuthRouter } from "../src/services/AgentAuthRouter.js";
 import {
@@ -95,6 +97,42 @@ async function fixture() {
 describe.skipIf(process.platform === "win32")(
   "router connection and allocation",
   () => {
+    it("serves every advertised control route through its API mount", async () => {
+      const f = await fixture();
+      const app = new Hono().route(
+        "/api",
+        createAgentAuthRouterRoutes(f.connector),
+      );
+      const summary = await app.request("/api/agent-auth-router");
+      expect(summary.status).toBe(200);
+      expect(await summary.json()).toMatchObject({ state: "disconnected" });
+      const connected = await app.request("/api/agent-auth-router/connect", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ socketPath: f.socketPath }),
+      });
+      expect(connected.status).toBe(200);
+      for (const path of [
+        "/accounts",
+        "/accounts/account/catalog",
+        "/accounts/account/quotas",
+      ]) {
+        expect(
+          (await app.request(`/api/agent-auth-router${path}`)).status,
+        ).toBe(200);
+      }
+      expect((await app.request("/api/accounts")).status).toBe(404);
+      const disconnected = await app.request(
+        "/api/agent-auth-router/disconnect",
+        {
+          method: "POST",
+        },
+      );
+      expect(disconnected.status).toBe(200);
+      expect(await disconnected.json()).toMatchObject({
+        state: "disconnected",
+      });
+    });
     it("persists before prepare, recovers response loss, remaps identity and resumes the exact token", async () => {
       const f = await fixture();
       await f.connector.connect(f.socketPath);

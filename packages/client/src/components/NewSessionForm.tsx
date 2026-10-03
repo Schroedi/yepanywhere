@@ -2479,7 +2479,10 @@ export function NewSessionForm({
       if (
         routerSelection &&
         (routerSelection.sourceKey !== clientSummarySourceKey ||
-          !serverHasCapability(versionInfo, "agent-auth-router") ||
+          !serverHasCapability(
+            versionInfo,
+            SERVER_CAPABILITIES.agentAuthRouter.name,
+          ) ||
           launchLock.limited ||
           effectiveExecutor ||
           effectiveSandboxLevel !== "none" ||
@@ -2611,7 +2614,10 @@ export function NewSessionForm({
           mode: sessionMode,
           model: routerSelection?.model || selectedModel || undefined,
           ...(routerSelection &&
-          serverHasCapability(versionInfo, "agent-auth-router")
+          serverHasCapability(
+            versionInfo,
+            SERVER_CAPABILITIES.agentAuthRouter.name,
+          )
             ? { routerAccountId: routerSelection.accountId }
             : {}),
           thinking: routerSelection ? ("auto" as const) : thinking,
@@ -4898,7 +4904,10 @@ export function NewSessionForm({
           data-new-session-secondary-options="true"
           hidden={!showAdvancedOptions}
         >
-          {serverHasCapability(versionInfo, "agent-auth-router") &&
+          {serverHasCapability(
+            versionInfo,
+            SERVER_CAPABILITIES.agentAuthRouter.name,
+          ) &&
             !launchLock.limited &&
             !effectiveExecutor &&
             effectiveSandboxLevel === "none" &&

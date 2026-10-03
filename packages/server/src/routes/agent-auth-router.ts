@@ -17,8 +17,8 @@ export function createAgentAuthRouterRoutes(router: AgentAuthRouter) {
       409,
     ),
   );
-  routes.get("/", (c) => c.json(router.summary()));
-  routes.post("/connect", async (c) => {
+  routes.get("/agent-auth-router", (c) => c.json(router.summary()));
+  routes.post("/agent-auth-router/connect", async (c) => {
     const body = await c.req.json<{ socketPath?: unknown }>();
     if (
       body.socketPath !== undefined &&
@@ -27,12 +27,16 @@ export function createAgentAuthRouterRoutes(router: AgentAuthRouter) {
       return c.json({ error: "Invalid socket path" }, 400);
     return c.json(await router.connect(body.socketPath as string | undefined));
   });
-  routes.post("/disconnect", async (c) => c.json(await router.disconnect()));
-  routes.get("/accounts", async (c) => c.json(await router.accounts()));
-  routes.get("/accounts/:id/catalog", async (c) =>
+  routes.post("/agent-auth-router/disconnect", async (c) =>
+    c.json(await router.disconnect()),
+  );
+  routes.get("/agent-auth-router/accounts", async (c) =>
+    c.json(await router.accounts()),
+  );
+  routes.get("/agent-auth-router/accounts/:id/catalog", async (c) =>
     c.json(await router.catalog(c.req.param("id"))),
   );
-  routes.get("/accounts/:id/quotas", async (c) =>
+  routes.get("/agent-auth-router/accounts/:id/quotas", async (c) =>
     c.json(await router.quotas(c.req.param("id"))),
   );
   return routes;
