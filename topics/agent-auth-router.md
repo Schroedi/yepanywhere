@@ -26,8 +26,59 @@ The design and deferred work are in [plan 143](../docs/tactical/143-agent-auth-r
    observations from the native login. No background polling is added.
 5. Disconnect revokes the integration and its derived inference credentials.
    If AAR is offline, YA persists `revocation-pending`, blocks new routed
-   launches locally, and offers **Disconnect / finish revocation** again.
+   launches locally, and offers **Finish disconnecting**.
    Already-issued capabilities are not claimed revoked until AAR acknowledges.
+
+## Status and recovery
+
+Settings distinguishes a **saved pairing** from an on-demand reachability check.
+Opening the panel or choosing **Check status** checks the same router identity
+and granted accounts, and reports unavailable, revoked, incompatible or insecure
+connections without copying raw router responses or filesystem paths to the UI.
+There is no background polling, automatic reconnect or account substitution.
+Status reads never retry cleanup or change pairing/revocation state.
+
+- **Pairing incomplete:** Retry connection reuses the saved pairing and socket
+  unless the operator explicitly supplies another socket. Identity checks still
+  forbid substituting another router.
+- **Router unavailable:** Start AAR on the YA server and check again. A saved
+  pairing does not establish that existing workers can currently infer.
+- **Account disabled:** Settings labels it and disables usage refresh. The new
+  session selector retains the selected account on failure; disabled choices
+  cannot be selected. Enable the same account in AAR to resume its sessions,
+  or deliberately select an available account for a new session.
+- **Failed-launch cleanup pending:** The count survives restart. **Retry
+  failed-launch cleanup** sends only recorded cancellations, starts no provider
+  process, and does not allocate or change an account. Failed acknowledgements
+  remain pending. Cancellation remains allowed after an account is disabled.
+- **Disconnect pending:** **Finish disconnecting** retries revocation with the
+  retained grant. New routed launches stay blocked and the UI does not claim
+  existing workers lost access. Connecting a different router or pairing is
+  refused until the original revocation is acknowledged.
+- **Revoked grant:** Finish disconnecting and pair again for new sessions.
+  Retained sessions cannot adopt that new pairing. Missing or cancelled pins,
+  unavailable accounts, and mismatched router identities remain explicit launch
+  or resume errors with recovery guidance; they never use direct credentials.
+
+Health/account observations are point-in-time evidence, not an inference or
+renewal probe. Usage snapshots retain their observation time. Requests and
+results belong to the selected YA source; switching hosts cannot apply an old
+response or start an old action's follow-up request against the new host.
+
+Owner-only `GET /api/agent-auth-router/recovery` reports connection state,
+reachability, a check timestamp, granted accounts, pending cancellation count
+and an optional safe issue. `POST /api/agent-auth-router/retry-cancellations`
+explicitly retries recorded failed-launch cancellations under the saved grant.
+Limited-user default-deny applies to both routes. No provider credentials,
+inference/control tokens or socket/profile paths appear in these responses.
+
+The separate optional `agent-auth-router-recovery` capability (ID 114) gates
+these routes and controls. The 2026-10-03 optional release review checked
+v0.9.0 (September 22), v0.9.1 (September 24), and v0.9.2 (September 26); all
+lack AAR routes. Without the recovery bit, a client with the original
+`agent-auth-router` bit uses only the original status/account/connect/disconnect
+routes and omits cleanup retry. Without either bit the original router UI stays
+hidden. The original capability retains its meaning; no protocol floor rises.
 
 The browser communicates only with YA. Socket paths refer to the YA server's
 machine, even when its UI is viewed remotely. This does not route an agent
@@ -92,6 +143,19 @@ an isolation boundary against that user's own local files.
   a YA data directory containing routed sessions is unsupported.
 
 ## Verification
+
+AAR owns a SHA-pinned cross-repository suite exercising real YA HTTP routes,
+supervisor and native adapters with synthetic CLI peers and loopback upstreams.
+It covers both providers' continuation, restart, streaming interruption, durable
+failed-launch cancellation, disconnect recovery and refusal of direct fallback.
+See [AAR integration tests](https://github.com/kzahel/agent-auth-router/tree/main/integration/yepanywhere).
+
+Recovery-specific service/component tests cover read-only observations, explicit
+retry, safe errors, disabled-account refusal, older-server fallback and stale
+source responses. A narrow browser component fixture checks sequential socket
+typing during status refresh with 48 synthetic accounts and concurrent rendering,
+plus desktop/phone recovery controls. It uses synthetic API responses; actual
+control/credential boundaries are covered by the server and cross-repo suites.
 
 Synthetic coverage exercises private socket permissions, cross-integration
 isolation, pre-commit refusal, lost response/retry, disabled accounts, durable

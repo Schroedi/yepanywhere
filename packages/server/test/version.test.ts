@@ -35,6 +35,20 @@ const SQLITE_GATED_CAPABILITY_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 describe("GET /version", () => {
+  it("advertises router recovery only when local router support is available", async () => {
+    const { getServerCapabilities } = await importVersion();
+    for (const available of [true, false]) {
+      const capabilities = getServerCapabilities({
+        agentAuthRouterAvailable: available,
+      });
+      expect(
+        capabilities.includes(SERVER_CAPABILITIES.agentAuthRouter.name),
+      ).toBe(available);
+      expect(
+        capabilities.includes(SERVER_CAPABILITIES.agentAuthRouterRecovery.name),
+      ).toBe(available);
+    }
+  });
   const originalFetch = global.fetch;
 
   beforeEach(() => {

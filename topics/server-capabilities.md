@@ -19,6 +19,16 @@ meaning. Standing maintainer compatibility authorization applies.
 
 ## Source Of Truth
 
+`agent-auth-router-recovery` (permanent ID 114, explicit optional bit) gates
+owner-only `GET /api/agent-auth-router/recovery` and
+`POST /api/agent-auth-router/retry-cancellations`. The 2026-10-03 optional
+release corpus v0.9.0, v0.9.1 and v0.9.2 lacks AAR routes. The maintainer
+authorized this follow-up to the opt-in manual router integration. Without the
+new bit, clients use only the original router controls and requests; the
+existing `agent-auth-router` capability is not broadened. Recovery controls
+remain hidden when the original integration is unavailable. See
+[router recovery](agent-auth-router.md#status-and-recovery).
+
 `project-app-deletion` (permanent ID 110, explicit optional bit) owns
 administrator DELETE `/api/projects/:projectId/app`. The 2026-10-01 release
 review checked the approved v0.9.0–v0.9.2 corpus, which lacks project-app

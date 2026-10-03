@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  agentAuthRouterRecovery: {
+    name: "agent-auth-router-recovery",
+    index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterRecovery.id,
+    introducedIn: "0.9.4",
+  },
   agentAuthRouter: {
     name: "agent-auth-router",
     index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouter.id,
@@ -234,6 +239,38 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  agentAuthRouterRecovery: {
+    id: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterRecovery.id,
+    name: "agent-auth-router-recovery",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterRecovery.id,
+    },
+    description:
+      "On-demand router health and explicit failed-launch cleanup retry.",
+    clientFallback:
+      "Keep existing router controls; omit recovery requests and cleanup retry.",
+    serverContract: {
+      routes: [
+        "GET /api/agent-auth-router/recovery",
+        "POST /api/agent-auth-router/retry-cancellations",
+      ],
+      routeModules: ["packages/server/src/routes/agent-auth-router.ts"],
+      responseFields: [
+        "checkedAt",
+        "reachable",
+        "pendingCancellations",
+        "issue",
+      ],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Optional local router recovery controls.",
+    },
+  },
   agentAuthRouter: {
     id: CAPABILITY_ID_ALLOCATIONS.agentAuthRouter.id,
     name: "agent-auth-router",

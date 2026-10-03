@@ -1,4 +1,8 @@
-import type { SessionClearloopBadge } from "@yep-anywhere/shared";
+import type {
+  SessionClearloopBadge,
+  AgentAuthRouterStatus,
+  AgentAuthRouterRecovery,
+} from "@yep-anywhere/shared";
 import type {
   AppSessionSummary,
   RetainedSessionCollectionState,
@@ -420,18 +424,24 @@ function getGlobalSessionsRequest(
 
 export const api = {
   ...createSessionApi(fetchJSON),
-  routerStatus: () =>
-    fetchJSON<{ state: string; routerId: string | null }>("/agent-auth-router"),
+  routerStatus: () => fetchJSON<AgentAuthRouterStatus>("/agent-auth-router"),
+  routerRecovery: () =>
+    fetchJSON<AgentAuthRouterRecovery>("/agent-auth-router/recovery"),
+  routerRetryCancellations: () =>
+    fetchJSON<AgentAuthRouterStatus>("/agent-auth-router/retry-cancellations", {
+      method: "POST",
+      body: "{}",
+    }),
   routerConnect: (socketPath?: string) =>
-    fetchJSON<{ state: string; routerId: string | null }>(
-      "/agent-auth-router/connect",
-      { method: "POST", body: JSON.stringify({ socketPath }) },
-    ),
+    fetchJSON<AgentAuthRouterStatus>("/agent-auth-router/connect", {
+      method: "POST",
+      body: JSON.stringify({ socketPath }),
+    }),
   routerDisconnect: () =>
-    fetchJSON<{ state: string; routerId: string | null }>(
-      "/agent-auth-router/disconnect",
-      { method: "POST", body: "{}" },
-    ),
+    fetchJSON<AgentAuthRouterStatus>("/agent-auth-router/disconnect", {
+      method: "POST",
+      body: "{}",
+    }),
   routerAccounts: () =>
     fetchJSON<{
       accounts: {

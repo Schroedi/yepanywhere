@@ -1624,3 +1624,9 @@ export {
 } from "./project-service.js";
 
 export * from "./drafts.js";
+export type {
+  AgentAuthRouterStatus,
+  AgentAuthRouterIssueCode,
+  AgentAuthRouterAccount,
+  AgentAuthRouterRecovery,
+} from "./agent-auth-router.js";

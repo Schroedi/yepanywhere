@@ -682,8 +682,10 @@ export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   capabilities.push(SERVER_CAPABILITIES.vhostBearerAccess.name);
   if (options?.vhostAppControlAvailable)
     capabilities.push(SERVER_CAPABILITIES.vhostAppControl.name);
-  if (options?.agentAuthRouterAvailable)
+  if (options?.agentAuthRouterAvailable) {
     capabilities.push(SERVER_CAPABILITIES.agentAuthRouter.name);
+    capabilities.push(SERVER_CAPABILITIES.agentAuthRouterRecovery.name);
+  }
   if (options?.installedMachineControlAvailable)
     capabilities.push(SERVER_CAPABILITIES.installedMachineControl.name);
   capabilities.push(SERVER_CAPABILITIES.claudeGatewayServices.name);

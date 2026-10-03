@@ -18,6 +18,14 @@ transport overrides, revocation and owner-only controls. Native adapter live
 turns, continuation and resume passed using temporary YA profiles; the full
 YA HTTP path also passed restart/resume and tool approval.
 
+The recovery follow-up adds on-demand status and explicit recovery before
+pools: saved pairing versus reachability, disabled-account guidance, durable
+failed-launch cleanup retry, and pending-disconnect recovery. The
+[owning recovery contract](../../topics/agent-auth-router.md#status-and-recovery)
+records the additive capability and older-server fallback. AAR now owns the
+SHA-pinned synthetic cross-repository regression suite. OAuth renewal and
+automatic routing policies remain deferred.
+
 Pools and every automatic balancing policy below remain a later phase. The
 first slice explicitly refuses clone/fork and YA auxiliary helper launches,
 project-queue selection, remote executors and YA project-write sandboxes for

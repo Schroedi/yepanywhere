@@ -4,6 +4,10 @@ import { mkdir } from "node:fs/promises";
 import http from "node:http";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import type {
+  AgentAuthRouterIssueCode,
+  AgentAuthRouterRecovery,
+} from "@yep-anywhere/shared";
 import type { SessionMetadataService } from "../metadata/SessionMetadataService.js";
 import { writeFileAtomically } from "../utils/writeFileAtomically.js";
 
@@ -56,6 +60,7 @@ export class RouterUnavailable extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly code: AgentAuthRouterIssueCode = "operation-rejected",
   ) {
     super(message);
   }
@@ -66,12 +71,21 @@ const token = (prefix: string) =>
   prefix + randomBytes(32).toString("base64url");
 export function validateRouterSocket(socketPath: string): void {
   if (process.platform === "win32")
-    throw new RouterUnavailable(409, "Local router requires macOS or Linux");
+    throw new RouterUnavailable(
+      409,
+      "Local router requires macOS or Linux",
+      "unsupported",
+    );
   for (const [path, socket] of [
     [dirname(socketPath), false],
     [socketPath, true],
   ] as const) {
-    const st = lstatSync(path);
+    let st: ReturnType<typeof lstatSync>;
+    try {
+      st = lstatSync(path);
+    } catch {
+      throw routerOffline();
+    }
     if (
       st.isSymbolicLink() ||
       (socket ? !st.isSocket() : !st.isDirectory()) ||
@@ -80,9 +94,17 @@ export function validateRouterSocket(socketPath: string): void {
     )
       throw new RouterUnavailable(
         409,
-        "Router socket must be private and owned by the server user",
+        "Router socket must be private and owned by the YA server user. Fix its ownership and permissions, then retry.",
+        "unsafe-socket",
       );
   }
+}
+function routerOffline() {
+  return new RouterUnavailable(
+    503,
+    "Router unavailable. Start AAR on the YA server and check its socket in Settings → Providers, then retry. This session will keep its pinned account.",
+    "unavailable",
+  );
 }
 /** No fetch fallback: control traffic can only use the verified Unix socket. */
 export async function routerRequest<T>(
@@ -113,23 +135,28 @@ export async function routerRequest<T>(
             response.destroy(new Error("oversized response"));
           else chunks.push(chunk);
         });
-        response.on("error", () =>
-          reject(new RouterUnavailable(503, "Router response unavailable")),
-        );
+        response.on("error", () => reject(routerOffline()));
         response.on("end", () => {
           if (response.statusCode !== 200)
             return reject(
               new RouterUnavailable(
                 response.statusCode ?? 503,
                 response.statusCode === 401
-                  ? "Router connection revoked"
-                  : "Router rejected the operation",
+                  ? "Router connection revoked. Finish disconnecting in Settings → Providers, then reconnect for new sessions. Existing sessions cannot adopt a new pairing."
+                  : "Router rejected the operation. Check the pinned account and model in Settings → Providers, then retry. No account was substituted.",
+                response.statusCode === 401 ? "revoked" : "operation-rejected",
               ),
             );
           try {
             resolveResult(JSON.parse(Buffer.concat(chunks).toString()) as T);
           } catch {
-            reject(new RouterUnavailable(502, "Invalid router response"));
+            reject(
+              new RouterUnavailable(
+                502,
+                "Invalid router response. Check the AAR version and retry.",
+                "protocol-mismatch",
+              ),
+            );
           }
         });
       },
@@ -139,14 +166,7 @@ export async function routerRequest<T>(
       20_000,
     );
     request.on("close", () => clearTimeout(timer));
-    request.on("error", () =>
-      reject(
-        new RouterUnavailable(
-          503,
-          "Router unavailable; check its local service",
-        ),
-      ),
-    );
+    request.on("error", () => reject(routerOffline()));
     request.end(body ? JSON.stringify(body) : undefined);
   });
 }
@@ -211,12 +231,61 @@ export class AgentAuthRouter {
     const c = this.state.connection;
     return { state: c?.state ?? "disconnected", routerId: c?.routerId ?? null };
   }
+  /** An explicit observation; never pairs, revokes, or retries cleanup on read. */
+  recovery(): Promise<AgentAuthRouterRecovery> {
+    return this.serialize(async () => {
+      const c = this.state.connection;
+      const snapshot: AgentAuthRouterRecovery = {
+        ...this.summary(),
+        checkedAt: new Date().toISOString(),
+        reachable: null,
+        pendingCancellations:
+          c?.state !== "disconnected"
+            ? Object.values(this.state.allocations).filter(
+                (a) =>
+                  a.connectionId === c?.id &&
+                  a.cancelled &&
+                  !a.cancellationAcknowledged,
+              ).length
+            : 0,
+        accounts: [],
+      };
+      if (!c || c.state === "disconnected") return snapshot;
+      try {
+        await this.info(c);
+        snapshot.reachable = true;
+        const result = await routerRequest<{ accounts: RouterAccount[] }>(
+          c.socketPath,
+          "/v1/accounts",
+          c.token,
+        );
+        snapshot.accounts = result.accounts;
+      } catch (error) {
+        const issue =
+          error instanceof RouterUnavailable ? error : routerOffline();
+        snapshot.reachable =
+          issue.code === "unavailable" ? false : snapshot.reachable;
+        snapshot.issue = { code: issue.code, message: issue.message };
+      }
+      return snapshot;
+    });
+  }
+  retryCancellations() {
+    return this.serialize(async () => {
+      const c = this.connection();
+      await this.info(c);
+      await this.flushCancellations(c);
+      return this.summary();
+    });
+  }
   private connection(): Connection {
     const c = this.state.connection;
     if (c?.state !== "connected")
       throw new RouterUnavailable(
         409,
-        "Connect the local router before launching this session",
+        c?.state === "revocation-pending"
+          ? "Router disconnect is pending. Finish revocation in Settings → Providers. Routed sessions are blocked until it is acknowledged; existing workers may still have access."
+          : "Connect the local router in Settings → Providers before launching this session. A session from a disconnected pairing requires a new session; its account pin cannot move.",
       );
     return c;
   }
@@ -224,13 +293,28 @@ export class AgentAuthRouter {
     c: Pick<Connection, "socketPath" | "routerId">,
   ): Promise<Info> {
     const info = await routerRequest<Info>(c.socketPath, "/v1/info");
-    if (
-      info.protocol !== 1 ||
-      !info.capabilities?.includes("manual-bindings") ||
-      (c.routerId && info.routerId !== c.routerId)
-    )
-      throw new RouterUnavailable(409, "Router identity or protocol mismatch");
-    const origin = new URL(info.inferenceOrigin);
+    if (c.routerId && info.routerId !== c.routerId)
+      throw new RouterUnavailable(
+        409,
+        "Router identity changed. Restore the original AAR state and socket; this pairing and its sessions cannot move to another router.",
+        "identity-mismatch",
+      );
+    if (info.protocol !== 1 || !info.capabilities?.includes("manual-bindings"))
+      throw new RouterUnavailable(
+        409,
+        "Router protocol mismatch. Run an AAR version supporting local manual bindings (protocol 1), then retry.",
+        "protocol-mismatch",
+      );
+    let origin: URL;
+    try {
+      origin = new URL(info.inferenceOrigin);
+    } catch {
+      throw new RouterUnavailable(
+        409,
+        "Router returned an invalid inference endpoint.",
+        "protocol-mismatch",
+      );
+    }
     if (
       origin.protocol !== "http:" ||
       !["127.0.0.1", "[::1]"].includes(origin.hostname) ||
@@ -242,19 +326,23 @@ export class AgentAuthRouter {
     )
       throw new RouterUnavailable(
         409,
-        "Router inference endpoint must be loopback",
+        "Router inference endpoint must be loopback. Fix the AAR listener and retry.",
+        "protocol-mismatch",
       );
     return info;
   }
   connect(socketPath?: string) {
     return this.serialize(async () => {
-      const path = resolve(
-        socketPath ?? join(homedir(), ".agent-auth-router", "control.sock"),
-      );
       const previous = this.state.connection;
       if (previous?.state === "revocation-pending")
         throw new RouterUnavailable(409, "Finish pending disconnect first");
       const keep = previous && previous.state !== "disconnected";
+      const path = resolve(
+        socketPath ??
+          (keep
+            ? previous.socketPath
+            : join(homedir(), ".agent-auth-router", "control.sock")),
+      );
       const info = await this.info({
         socketPath: path,
         routerId: keep ? previous.routerId : "",
@@ -389,7 +477,7 @@ export class AgentAuthRouter {
       if (allocation?.cancelled)
         throw new RouterUnavailable(
           409,
-          "This failed launch was cancelled; create a new session",
+          "This failed launch was cancelled; create a new session. If cleanup is pending, retry failed-launch cleanup in Settings → Providers first.",
         );
       if (
         allocation &&
@@ -397,6 +485,23 @@ export class AgentAuthRouter {
           (accountId && allocation.accountId !== accountId))
       )
         throw new RouterUnavailable(409, "Session account pin cannot change");
+      const selectedId = allocation?.accountId ?? accountId;
+      const { accounts } = await routerRequest<{ accounts: RouterAccount[] }>(
+        c.socketPath,
+        "/v1/accounts",
+        c.token,
+      );
+      if (
+        selectedId &&
+        !accounts.some(
+          (a) => a.id === selectedId && a.provider === provider && a.enabled,
+        )
+      )
+        throw new RouterUnavailable(
+          409,
+          "The pinned router account is disabled, removed, or no longer granted. Re-enable the same account in AAR and retry, or start a new session with an available account. This session's pin will not change.",
+          "account-unavailable",
+        );
       if (!allocation) {
         if (!model || !accountId)
           throw new RouterUnavailable(

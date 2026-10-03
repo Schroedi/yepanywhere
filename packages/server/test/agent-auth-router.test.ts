@@ -10,6 +10,7 @@ import { createSessionsRoutes } from "../src/routes/sessions.js";
 import { createAgentAuthRouterRoutes } from "../src/routes/agent-auth-router.js";
 import { SessionMetadataService } from "../src/metadata/SessionMetadataService.js";
 import { AgentAuthRouter } from "../src/services/AgentAuthRouter.js";
+import { structuredErrorHandler } from "../src/middleware/error-handler.js";
 import {
   codexRouterArguments,
   codexRouterEnvironment,
@@ -31,7 +32,9 @@ async function fixture() {
   }[] = [];
   let routerId = "fixture-router",
     revoked = false,
-    failCommit = false;
+    failCommit = false,
+    failCancel = false,
+    enabled = true;
   const server = http.createServer(async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
@@ -61,10 +64,18 @@ async function fixture() {
       req.socket.destroy();
       return;
     }
+    if (req.url === "/v1/bindings/cancel" && failCancel) {
+      res.statusCode = 503;
+      return res.end(
+        JSON.stringify({ error: "upstream-secret-must-not-escape" }),
+      );
+    }
     return res.end(
       JSON.stringify({
         models: [{ id: "fixture-model", name: "Fixture" }],
-        accounts: [],
+        accounts: [
+          { id: "account", provider: "codex", enabled, renewal: "manual" },
+        ],
       }),
     );
   });
@@ -91,6 +102,15 @@ async function fixture() {
     },
     loseCommit: () => {
       failCommit = true;
+    },
+    cancellationAvailable: (available: boolean) => {
+      failCancel = !available;
+    },
+    disableAccount: () => {
+      enabled = false;
+    },
+    revoke: () => {
+      revoked = true;
     },
   };
 }
@@ -197,7 +217,7 @@ describe.skipIf(process.platform === "win32")(
       expect(fresh.summary().state).toBe("revocation-pending");
       await expect(
         fresh.launch("session", "codex", "fixture-model"),
-      ).rejects.toThrow("Connect");
+      ).rejects.toThrow("disconnect is pending");
       await expect(fresh.connect(f.socketPath)).rejects.toThrow("pending");
       await chmod(f.socketPath, 0o600);
       await fresh.disconnect();
@@ -215,6 +235,144 @@ describe.skipIf(process.platform === "win32")(
       const count = f.requests.length;
       await expect(f.connector.accounts()).rejects.toThrow("identity");
       expect(f.requests.slice(count).every((r) => !r.authorization)).toBe(true);
+    });
+    it("observes health without mutating state, exposing credentials, or retrying cancellation", async () => {
+      const f = await fixture();
+      expect(await f.connector.recovery()).toMatchObject({
+        state: "disconnected",
+        reachable: null,
+        accounts: [],
+        pendingCancellations: 0,
+      });
+      expect(f.requests).toHaveLength(0);
+      await f.connector.connect(f.socketPath);
+      const launch = await f.connector.launch(
+        "failed",
+        "codex",
+        "fixture-model",
+        "account",
+      );
+      f.cancellationAvailable(false);
+      await expect(f.connector.cancel("failed")).rejects.toThrow("rejected");
+      const before = f.requests.length;
+      const recovery = await f.connector.recovery();
+      expect(recovery).toMatchObject({
+        state: "connected",
+        reachable: true,
+        pendingCancellations: 1,
+        accounts: [{ id: "account", enabled: true }],
+      });
+      expect(f.requests.slice(before).map((r) => r.path)).toEqual([
+        "/v1/info",
+        "/v1/accounts",
+      ]);
+      expect(JSON.stringify(recovery)).not.toContain(launch!.token);
+      expect(JSON.stringify(recovery)).not.toContain(f.socketPath);
+      const fresh = new AgentAuthRouter(f.root, f.metadata);
+      f.cancellationAvailable(true);
+      f.disableAccount();
+      await fresh.retryCancellations();
+      expect(await fresh.recovery()).toMatchObject({
+        pendingCancellations: 0,
+        accounts: [{ enabled: false }],
+      });
+      expect(
+        f.requests.filter((r) => r.path === "/v1/bindings/prepare"),
+      ).toHaveLength(1);
+      await fresh.retryCancellations();
+      expect(
+        f.requests.filter((r) => r.path === "/v1/bindings/cancel"),
+      ).toHaveLength(2);
+    });
+    it("reports revoked, unsafe and replaced routers without losing saved pairing", async () => {
+      const f = await fixture();
+      await f.connector.connect(f.socketPath);
+      // Retry with a blank UI path must preserve this custom socket and grant.
+      await f.connector.connect();
+      const pairs = f.requests.filter((r) => r.path === "/v1/pair");
+      expect(pairs[1]?.body).toEqual(pairs[0]?.body);
+      await chmod(f.socketPath, 0o666);
+      expect(await f.connector.recovery()).toMatchObject({
+        state: "connected",
+        issue: { code: "unsafe-socket" },
+      });
+      await chmod(f.socketPath, 0o600);
+      f.revoke();
+      expect(await f.connector.recovery()).toMatchObject({
+        state: "connected",
+        reachable: true,
+        issue: { code: "revoked" },
+      });
+      f.identity();
+      const count = f.requests.length;
+      expect(await f.connector.recovery()).toMatchObject({
+        issue: { code: "identity-mismatch" },
+      });
+      expect(f.requests.slice(count).every((r) => !r.authorization)).toBe(true);
+    });
+    it("keeps pending cleanup on retry failure and reports a safe actionable error", async () => {
+      const f = await fixture();
+      await f.connector.connect(f.socketPath);
+      await f.connector.launch("failed", "codex", "fixture-model", "account");
+      f.cancellationAvailable(false);
+      await expect(f.connector.cancel("failed")).rejects.toThrow();
+      const app = new Hono().route(
+        "/api",
+        createAgentAuthRouterRoutes(f.connector),
+      );
+      const failed = await app.request(
+        "/api/agent-auth-router/retry-cancellations",
+        { method: "POST" },
+      );
+      expect(failed.status).toBe(409);
+      expect(await failed.text()).not.toContain("upstream-secret");
+      const observed = await app.request("/api/agent-auth-router/recovery");
+      expect(await observed.json()).toMatchObject({ pendingCancellations: 1 });
+      f.cancellationAvailable(true);
+      expect(
+        (
+          await app.request("/api/agent-auth-router/retry-cancellations", {
+            method: "POST",
+          })
+        ).status,
+      ).toBe(200);
+      await f.connector.disconnect();
+      expect(await f.connector.recovery()).toMatchObject({
+        state: "disconnected",
+        pendingCancellations: 0,
+      });
+    });
+    it("returns recoverable session errors and refuses disabled account launches before allocation", async () => {
+      const f = await fixture();
+      await f.connector.connect(f.socketPath);
+      f.disableAccount();
+      const app = new Hono();
+      app.onError(structuredErrorHandler);
+      app.post("/launch", async (c) =>
+        c.json(
+          await f.connector.launch(
+            "session",
+            "codex",
+            "fixture-model",
+            "account",
+          ),
+        ),
+      );
+      const response = await app.request("/launch", { method: "POST" });
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({
+        error: expect.stringContaining("Re-enable the same account"),
+      });
+      expect(f.requests.some((r) => r.path.includes("bindings"))).toBe(false);
+      const missing = new AgentAuthRouter(f.root);
+      await rm(f.socketPath);
+      const result = await missing.recovery();
+      expect(result).toMatchObject({
+        state: "connected",
+        reachable: false,
+        issue: { code: "unavailable" },
+      });
+      expect(result.issue?.message).not.toContain(f.root);
     });
   },
 );
@@ -251,6 +409,8 @@ it("router administration and metadata are denied to limited users", () => {
     ["GET", "/api/agent-auth-router"],
     ["POST", "/api/agent-auth-router/connect"],
     ["POST", "/api/agent-auth-router/disconnect"],
+    ["GET", "/api/agent-auth-router/recovery"],
+    ["POST", "/api/agent-auth-router/retry-cancellations"],
     ["GET", "/api/agent-auth-router/accounts/a/catalog"],
     ["GET", "/api/agent-auth-router/accounts/a/quotas"],
   ]) {
