@@ -683,8 +683,6 @@ export function getServerCapabilities(options?: VersionRouteOptions): string[] {
     capabilities.push(SERVER_CAPABILITIES.vhostAppControl.name);
   if (options?.installedMachineControlAvailable)
     capabilities.push(SERVER_CAPABILITIES.installedMachineControl.name);
-  capabilities.push(SERVER_CAPABILITIES.computerControl.name);
-  capabilities.push(SERVER_CAPABILITIES.computerControlReleases.name);
   capabilities.push(SERVER_CAPABILITIES.claudeGatewayServices.name);
   if (options?.getExperimentalConversationAvailable?.())
     capabilities.push(SERVER_CAPABILITIES.experimentalConversation.name);

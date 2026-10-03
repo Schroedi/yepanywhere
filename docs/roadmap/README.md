@@ -217,21 +217,17 @@ vhost association in project Settings and audit-preserving personal removal;
 its mockup does not implement those runtime contracts.
 This work does not displace release delivery above.
 
-The separately authorized [optional Windows Computer Control preview](../tactical/131-optional-windows-computer-control.md)
-is implemented and accepted for source-run Windows Node/Codex: signed local
-package management, deferred tools, explicit session selection, native images
-and crash-isolated lifecycle. Public download/update code is implemented; first
-release publication and packaged YA acceptance remain pending. This opt-in work does not displace
-release delivery above.
-
-The maintainer requested the
-[Machine Control desktop-consumer plan](../tactical/142-machine-control-desktop-consumer.md)
-on 2026-10-02. It replaces YA-owned component lifecycle with verified discovery
-of MC's installed Python CLI, sharing discovery with native sudo. Bundled CLI
-and opt-in verified local advertisement are implemented; a signed Mac assembly
-passes discovery. Real model/platform acceptance remains open, and Windows
-retirement follows accepted desktop-app use. This does not
-displace release delivery above.
+The separately authorized
+[Machine Control desktop consumer](../tactical/142-machine-control-desktop-consumer.md)
+is complete as of 2026-10-03. Verified discovery and default-off session selection
+consume MC's installed Python CLI, sharing discovery with independent native
+sudo. Mac/Windows actual Codex native/browser use, live/reloaded media and
+close/restart/crash isolation pass; Linux x64 installed CLI/core desktop use
+passes its bounded slice. YA's former Windows component installer, updater,
+resident supervisor and product controls are retired with bounded compatibility
+refusal and exact-instance cleanup. Remaining provider/platform cells are listed
+in the owning [topic](../../topics/optional-computer-control.md). This separately
+authorized work does not displace release delivery above.
 
 These remain candidates behind publishing and continuous delivery, not a
 ranked or approved implementation queue. Recheck current code and owning

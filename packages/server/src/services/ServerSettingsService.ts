@@ -115,7 +115,7 @@ export type ToolResultMediaPreservation =
 
 /** Server-wide settings */
 export interface ServerSettings {
-  computerControl?: import("../computer-control/service.js").ComputerSettings;
+  computerControl?: import("../machine-control/legacy-retirement.js").LegacyComputerSettings;
   /** Experimental issue discovery; absent means disabled, viewed scope. */
   issueAssociations?: import("@yep-anywhere/shared").IssueSettings;
   artifactViewer?: ArtifactViewerConfig;

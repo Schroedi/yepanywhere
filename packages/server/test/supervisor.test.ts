@@ -8,8 +8,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentServerTokens } from "../src/auth/AgentServerTokens.js";
-import type { ComputerSession } from "../src/computer-control/contract.js";
-import type { ComputerControlService } from "../src/computer-control/service.js";
 import { MessageQueue } from "../src/sdk/messageQueue.js";
 import type {
   EffectiveSessionLaunchSettings,
@@ -666,45 +664,32 @@ describe("Supervisor", () => {
       },
     );
 
-    function failingLaunch() {
-      const close = vi.fn(async () => {});
-      const session = { close } as unknown as ComputerSession;
-      const select = vi.fn(() => session);
-      const provider = testProvider(async () => {
-        throw new Error("provider refused to start");
-      });
-      const supervisor = new Supervisor({ provider });
-      supervisor.computerControl = {
-        select,
-      } as unknown as ComputerControlService;
-      return { supervisor, select, close };
-    }
-
-    it("releases the grant when a launch carrying a message fails to start", async () => {
-      const { supervisor: launchSupervisor, select, close } = failingLaunch();
-
-      await expect(
-        launchSupervisor.startSession("/tmp/test", { text: "hi" }, undefined, {
-          computerControl: true,
-        }),
-      ).rejects.toThrow("provider refused to start");
-
-      expect(select).toHaveBeenCalledOnce();
-      expect(close).toHaveBeenCalledOnce();
-    });
-
-    it("releases the grant when a message-less launch fails to start", async () => {
-      const { supervisor: launchSupervisor, select, close } = failingLaunch();
-
-      await expect(
-        launchSupervisor.createSession("/tmp/test", undefined, {
-          computerControl: true,
-        }),
-      ).rejects.toThrow("provider refused to start");
-
-      expect(select).toHaveBeenCalledOnce();
-      expect(close).toHaveBeenCalledOnce();
-    });
+    it.each(["with-message", "without-message"])(
+      "refuses a retired selection before provider start (%s)",
+      async (shape) => {
+        const start = vi.fn();
+        const launchSupervisor = new Supervisor({
+          provider: testProvider(start),
+        });
+        try {
+          const launched =
+            shape === "with-message"
+              ? launchSupervisor.startSession(
+                  "/tmp/test",
+                  { text: "hi" },
+                  undefined,
+                  { computerControl: true },
+                )
+              : launchSupervisor.createSession("/tmp/test", undefined, {
+                  computerControl: true,
+                });
+          await expect(launched).rejects.toThrow("legacy component is retired");
+          expect(start).not.toHaveBeenCalled();
+        } finally {
+          await launchSupervisor.stopBackgroundTasks();
+        }
+      },
+    );
   });
 
   describe("resumeSession", () => {

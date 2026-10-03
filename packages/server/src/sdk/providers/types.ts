@@ -200,8 +200,8 @@ export interface StartSessionOptions {
   instructionReadHistory?: SDKMessage[];
   /** Hosted launches stream history over the worker socket before live observation. */
   deferInstructionHistory?: boolean;
-  /** Local session-owned grant; never serialized into a remote provider host. */
-  computerControl?: import("../../computer-control/contract.js").ComputerSession;
+  /** @deprecated Retired selection; accepted only for an explicit refusal. */
+  computerControl?: boolean;
   /** Operator opt-in, preserved across provider-host process boundaries. */
   agentSelf?: boolean;
   /** Explicit installed MC advertisement; no resident grant or supervisor. */

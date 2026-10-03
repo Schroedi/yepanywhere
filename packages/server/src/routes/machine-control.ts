@@ -1,3 +1,4 @@
+import { RETIRED_COMPUTER_CONTROL_ERROR } from "../machine-control/legacy-retirement.js";
 import { Hono } from "hono";
 import {
   defaultInstallation,
@@ -14,6 +15,13 @@ export function createMachineControlRoutes(
   dependencies: MachineControlDependencies = {},
 ) {
   const routes = new Hono();
+  // Old clients get an explicit refusal, never a replacement opt-in.
+  routes.all("/computer-control", (c) =>
+    c.json({ error: RETIRED_COMPUTER_CONTROL_ERROR }, 410),
+  );
+  routes.all("/computer-control/*", (c) =>
+    c.json({ error: RETIRED_COMPUTER_CONTROL_ERROR }, 410),
+  );
   routes.get("/machine-control", async (c) => {
     const platform = dependencies.platform ?? process.platform;
     if (!supportsInstalledMachineControl(platform as NodeJS.Platform))

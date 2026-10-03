@@ -1050,19 +1050,9 @@ export const SERVER_CAPABILITIES = {
       index: CAPABILITY_ID_ALLOCATIONS.computerControlReleases.id,
     },
     description:
-      "Verified Machine Control release downloads and managed updates.",
+      "Retired in 0.9.4: YA-managed Windows release downloads and updates. ID reserved.",
     clientFallback:
       "Show server-update guidance; send no release-management requests.",
-    serverContract: {
-      routes: [
-        "POST /api/computer-control/releases/check",
-        "POST /api/computer-control/releases/update",
-        "PUT /api/computer-control/releases/enabled",
-        "PUT /api/computer-control/releases/automatic",
-      ],
-      routeModules: ["packages/server/src/routes/computer-control-releases.ts"],
-      responseFields: ["release"],
-    },
     lifecycle: {
       kind: "permanent",
       reason: "Optional managed Windows component.",
@@ -1104,21 +1094,9 @@ export const SERVER_CAPABILITIES = {
       index: CAPABILITY_ID_ALLOCATIONS.computerControl.id,
     },
     description:
-      "Operator-managed signed Windows preview and explicit local Codex session grants.",
+      "Retired in 0.9.4: YA-managed Windows component and local Codex grants. ID reserved.",
     clientFallback:
       "Hide computer controls and send no computer-control requests or launch fields.",
-    serverContract: {
-      routes: [
-        "GET /api/computer-control",
-        "PUT /api/computer-control/settings",
-        "POST /api/computer-control/install",
-        "POST /api/computer-control/stop",
-        "DELETE /api/computer-control/installation",
-        "DELETE /api/computer-control/sessions/:sessionId",
-      ],
-      routeModules: ["packages/server/src/routes/computer-control.ts"],
-      requestFields: ["computerControl"],
-    },
     lifecycle: {
       kind: "permanent",
       reason: "Experimental Windows-only optional component.",

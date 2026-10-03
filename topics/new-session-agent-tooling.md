@@ -148,27 +148,19 @@ verified Machine Control `mc-sudo` helper. Defaults stay unchanged.
 
 ## Installed Machine Control instructions
 
-**Current:** Opted-in, unrestricted local Claude/Codex-family launches can
-receive the verified installed MC command directory on PATH and a small
-fragment containing the exact quoted command path and `agent instructions`.
-Existing context and child environment survive composition. Remote executors,
-plan mode, session sandboxes and unsupported providers remain ineligible.
-`YEP_MC_CONTROL=1` enables the operator opt-in; the internal launch option is
-carried through both supervisor launch shapes and the compatibility Claude SDK
-wrapper. It can select or suppress advertisement for a specific launch. Explicit
-`false` survives those boundaries instead of falling back to the environment. There is no New Session UI control
-for this route yet. Defaults remain unchanged.
+**Current:** eligible local Claude-family and unrestricted Codex launches can
+select default-off Machine Control in advanced New Session options. Capability
+112 gates both read-only installation readiness and the optional `machineControl`
+launch field. Explicit false suppresses `YEP_MC_CONTROL`; older hosts receive
+neither new requests nor the field. Selected queue submission is unavailable.
+Remote executors, plan mode, session sandboxes and fixed launches remain
+ineligible. Existing context and environment survive composition.
 
-MC owns its Python implementation, bundled runtime, instructions, resident
-lifecycle, claims and native approvals. YA verifies the installation before
-probing or advertising it; this fragment issues no authority and does not
-contain same-user shell access. Native sudo remains independently selected.
-[Optional Computer Control](optional-computer-control.md) owns configuration
-and the coexistence boundary with YA's existing Windows session-grant tool;
-[Tactical 142](../docs/tactical/142-machine-control-desktop-consumer.md) records
-platform/provider acceptance and the gates for retiring that older integration.
-
-A real local Codex provider launch has read the installed instructions and
-identity and consumed a fixture capture with its native image viewer. A complete
-provider-driven desktop/browser task and live/reloaded YA media views remain
-acceptance work; this bounded smoke does not establish those outcomes.
+YA verifies the installed app and complete Python client before adding its
+command directory to PATH and an exact command path plus `agent instructions`
+to context. MC owns native access, claims, resident lifecycle and updates.
+Advertisement grants no access; closing YA does not revoke MC's grant. Native
+Stop, expiry or MC restart owns revocation. Native sudo remains independent.
+[Optional Computer Control](optional-computer-control.md) owns configuration,
+legacy retirement and acceptance limits; [Tactical 142](../docs/tactical/142-machine-control-desktop-consumer.md)
+records actual native/browser Codex turns, image/media use and platform checks.

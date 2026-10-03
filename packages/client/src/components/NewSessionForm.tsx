@@ -1,7 +1,6 @@
 import { DraftSyncNotice } from "./DraftSyncNotice";
 import { DRAFT_STORAGE_EVENT } from "../lib/draftSyncStorage";
 import { MachineControlSessionSelection } from "./MachineControlSessionSelection";
-import { ComputerSessionSelection } from "./ComputerSessionSelection";
 import { useComposerVoiceRef } from "../hooks/useComposerVoiceRef";
 import type { ProjectAppTarget } from "../api/projectApp";
 import { TemplateProjectForm } from "./TemplateProjectForm";
@@ -455,15 +454,9 @@ export function NewSessionForm({
     useState<EffortLevel>("high");
   const [selectedRecapMode, setSelectedRecapMode] = useState<RecapMode>("off");
   const [sandboxLevel, setSandboxLevel] = useState<SessionSandboxLevel>("none");
-  const [computerSelected, setComputerSelected] = useState(false);
   const [machineControlSelected, setMachineControlSelected] = useState(false);
   const selectMachineControl = useCallback((selected: boolean) => {
     setMachineControlSelected(selected);
-    if (selected) setComputerSelected(false);
-  }, []);
-  const selectComputerControl = useCallback((selected: boolean) => {
-    setComputerSelected(selected);
-    if (selected) setMachineControlSelected(false);
   }, []);
   const [sandboxNetworkFirewall, setSandboxNetworkFirewall] = useState(true);
   const [recapAfterSeconds, setRecapAfterSeconds] = useState(
@@ -631,15 +624,6 @@ export function NewSessionForm({
   const sandboxLocalAuthOpen =
     effectiveSandboxLevel === "project-write" &&
     versionInfo?.sessionSandboxing?.localAuthEnforced === false;
-  // Whether this form may offer computer control and send the launch field.
-  // The server's select() still decides; this only keeps the offer and the
-  // request from disagreeing.
-  const computerControlEligible =
-    selectedProvider === "codex" &&
-    !effectiveExecutor &&
-    effectiveSandboxLevel === "none" &&
-    !launch &&
-    serverHasCapability(versionInfo, SERVER_CAPABILITIES.computerControl.name);
   const supportsProjectQueue = serverSupportsProjectQueue(versionInfo);
   const projectQueueCtrlEnterEnabled =
     versionInfo?.clientDefaults?.projectQueueCtrlEnterEnabled ??
@@ -2594,9 +2578,7 @@ export function NewSessionForm({
                   machineControlSelected && machineControlEligible,
               }
             : {}),
-          ...(computerSelected && computerControlEligible
-            ? { computerControl: true }
-            : {}),
+
           mode: sessionMode,
           model: selectedModel ?? undefined,
           thinking,
@@ -2869,8 +2851,6 @@ export function NewSessionForm({
     [
       basePath,
       draftControls,
-      computerControlEligible,
-      computerSelected,
       supportsInstalledMachineControl,
       machineControlSelected,
       machineControlEligible,
@@ -4654,7 +4634,6 @@ export function NewSessionForm({
     effectiveSandboxLevel === "project-write"
       ? sessionDefaultCopy.sandbox.title
       : null,
-    computerSelected ? t("computerSessionOptIn") : null,
     machineControlSelected && machineControlEligible
       ? t("newSessionMachineControlTitle")
       : null,
@@ -4888,13 +4867,6 @@ export function NewSessionForm({
             eligible={machineControlEligible}
             selected={machineControlSelected}
             onChange={selectMachineControl}
-            disabled={isStarting}
-            showCaption={showOptionCaptions}
-          />
-          <ComputerSessionSelection
-            eligible={computerControlEligible}
-            selected={computerSelected}
-            onChange={selectComputerControl}
             disabled={isStarting}
             showCaption={showOptionCaptions}
           />

@@ -425,9 +425,8 @@ describe("GET /version", () => {
     expect(version.capabilities).toBeUndefined();
     expect(version.optionalCapabilityBits).toEqual([
       [0, 1],
-      // Bit 77 (claude-gateway-services) rides in the same word as the
-      // computer-control bits, hence 4288 + 8192.
-      [2, 12480],
+      // Current optional bits remain; retired IDs 70 and 71 are absent.
+      [2, 12288],
       // Bits 109 and 110 enable file-address replacement and app deletion.
       [3, 24576],
     ]);
@@ -439,13 +438,13 @@ describe("GET /version", () => {
     ).toBe(true);
     expect(
       serverHasCapability(version, SERVER_CAPABILITIES.computerControl.name),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       serverHasCapability(
         version,
         SERVER_CAPABILITIES.computerControlReleases.name,
       ),
-    ).toBe(true);
+    ).toBe(false);
     expect(serverHasCapability(version, PROJECT_QUEUE_CAPABILITY)).toBe(true);
     expect(
       serverHasCapability(

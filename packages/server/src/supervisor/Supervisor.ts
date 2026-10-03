@@ -23,7 +23,7 @@ import {
   readGoalDetails,
   truncateSessionTitle,
 } from "@yep-anywhere/shared";
-import type { ComputerSession } from "../computer-control/contract.js";
+import { RETIRED_COMPUTER_CONTROL_ERROR } from "../machine-control/legacy-retirement.js";
 import type { ClaudeGoalSnapshot } from "../sdk/providers/claude-goal.js";
 import { registerForkedSessionFile } from "../sessions/fork-discovery.js";
 import {
@@ -689,7 +689,6 @@ export class Supervisor {
     Process,
     import("../sdk/providers/types.js").AgentSession
   >();
-  computerControl?: import("../computer-control/service.js").ComputerControlService;
   private processes: Map<string, Process> = new Map();
   private sessionToProcess: Map<string, string> = new Map(); // sessionId -> processId
   private terminalProviderStatuses = createLruMap<
@@ -1577,30 +1576,13 @@ export class Supervisor {
     return { objective: goal.goalObjective, status: "paused" };
   }
 
-  /** Claims a computer-control grant for a launch that asked for one. */
-  private selectComputerControl(
-    tempSessionId: string,
-    modelSettings: ModelSettings | undefined,
-    activeProvider: AgentProvider,
-  ): ComputerSession | undefined {
-    return this.computerControl?.select(
-      tempSessionId,
-      modelSettings?.computerControl,
-      activeProvider.name,
-      modelSettings?.executor,
-      modelSettings?.sandboxLevel,
-    );
-  }
-
   private async settleProviderStart<T>(
     start: Promise<T>,
     required: boolean,
-    computerControl?: ComputerSession,
   ): Promise<T> {
     try {
       return await start;
     } catch (error) {
-      await computerControl?.close();
       if (required) {
         throw new RetryableSessionLaunchError(error);
       }
@@ -2430,11 +2412,7 @@ export class Supervisor {
     const sessionSandbox = await prepareSessionSandbox(sessionSandboxOptions);
 
     // Start session WITHOUT an initial message - agent will wait
-    const computerControl = this.selectComputerControl(
-      tempSessionId,
-      modelSettings,
-      activeProvider,
-    );
+
     const agentServerAccess = this.agentServerAccessForLaunch(
       Boolean(sessionSandbox) ||
         modelSettings?.sandboxLevel === "project-write",
@@ -2446,7 +2424,6 @@ export class Supervisor {
       modelSettings,
     );
     const start = activeProvider.startSession({
-      computerControl,
       machineControl: modelSettings?.machineControl,
       cwd: projectPath,
       // No initialMessage - queue will block until one is pushed
@@ -2499,7 +2476,6 @@ export class Supervisor {
     const result = await this.settleProviderStart(
       start,
       retryProviderStartupFailure || requireProviderSessionId,
-      computerControl,
     );
 
     const {
@@ -2688,11 +2664,6 @@ export class Supervisor {
     );
     const sessionSandbox = await prepareSessionSandbox(sessionSandboxOptions);
 
-    const computerControl = this.selectComputerControl(
-      tempSessionId,
-      modelSettings,
-      activeProvider,
-    );
     const agentServerAccess = this.agentServerAccessForLaunch(
       Boolean(sessionSandbox) ||
         modelSettings?.sandboxLevel === "project-write",
@@ -2704,7 +2675,6 @@ export class Supervisor {
       modelSettings,
     );
     const start = activeProvider.startSession({
-      computerControl,
       machineControl: modelSettings?.machineControl,
       cwd: projectPath,
       resumeSessionId,
@@ -2755,7 +2725,6 @@ export class Supervisor {
     const result = await this.settleProviderStart(
       start,
       retryProviderStartupFailure || requireProviderSessionId,
-      computerControl,
     );
 
     const {
@@ -5899,6 +5868,8 @@ export class Supervisor {
   private assertSessionSandboxSettings(
     modelSettings: ModelSettings | undefined,
   ): void {
+    if (modelSettings?.computerControl)
+      throw new Error(RETIRED_COMPUTER_CONTROL_ERROR);
     const error = getSessionSandboxSettingsError(
       modelSettings?.sandboxLevel,
       modelSettings?.recapMode,

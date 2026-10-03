@@ -1,13 +1,11 @@
 import { DraftStore } from "./drafts/DraftStore.js";
 import { createDraftRoutes } from "./routes/drafts.js";
 import { ConversationSubscriptions } from "./experimental/conversation-subscriptions.js";
-import { ComputerControlService } from "./computer-control/service.js";
+import { retireLegacyComputerControl } from "./machine-control/legacy-retirement.js";
 import {
   createMachineControlRoutes,
   supportsInstalledMachineControl,
 } from "./routes/machine-control.js";
-import { createComputerControlRoutes } from "./routes/computer-control.js";
-import { createComputerControlReleaseRoutes } from "./routes/computer-control-releases.js";
 import { createConversationSource } from "./experimental/conversation-source.js";
 import { createExperimentalConversationRoutes } from "./routes/experimental-conversation.js";
 import { IssueStore } from "./services/issues/IssueStore.js";
@@ -777,12 +775,23 @@ export function createApp(options: AppOptions): AppResult {
     options.dataDir ??
     join(process.env.HOME ?? process.env.USERPROFILE ?? ".", ".yep-anywhere");
   const projectAppStore = new ProjectAppStore(effectiveDataDir);
-  const computerControl = options.serverSettingsService
-    ? new ComputerControlService(
+  const legacyRetirement = options.serverSettingsService
+    ? retireLegacyComputerControl(
         options.serverSettingsService,
         effectiveDataDir,
       )
-    : undefined;
+        .then((result) => {
+          if (result.state === "pending")
+            console.warn(
+              "[Machine Control] Old YA component cleanup needs attention; it remains disabled. Restart YA to retry. Independent MC desktop access is unchanged.",
+            );
+        })
+        .catch(() => {
+          console.warn(
+            "[Machine Control] Could not persist old component retirement; legacy launches remain unavailable. Restart YA to retry.",
+          );
+        })
+    : Promise.resolve();
   const discoverySqlite = new DiscoverySqliteService({
     dataDir: effectiveDataDir,
     mode: options.sqliteMode ?? "auto",
@@ -986,10 +995,6 @@ export function createApp(options: AppOptions): AppResult {
   // mount answers without them (test/auth/api-auth-boundary.test.ts).
   if (supportsInstalledMachineControl())
     app.route("/api", createMachineControlRoutes());
-  if (computerControl) {
-    app.route("/api", createComputerControlRoutes(computerControl));
-    app.route("/api", createComputerControlReleaseRoutes(computerControl));
-  }
   const templateSources = new TemplateSourceService(effectiveDataDir);
   const templateCreations = new TemplateCreationService(
     effectiveDataDir,
@@ -1431,7 +1436,7 @@ export function createApp(options: AppOptions): AppResult {
       await projectServices.close();
       await projectAppStore.close();
       await templateCreations.close();
-      await computerControl?.close();
+      await legacyRetirement;
       conversationSubscriptions?.close();
       focusedSessionWatchManager.dispose();
       for (const dispose of issueDisposers) dispose();
@@ -2125,7 +2130,6 @@ export function createApp(options: AppOptions): AppResult {
     getClaudeSteerBackgroundBashSettings: () =>
       options.serverSettingsService?.getSetting("claudeSteerBackgroundBash"),
   });
-  supervisor.computerControl = computerControl;
   options.serverSettingsService?.onSettingsChanged((settings, previous) => {
     if (settings.instructionRestoration !== previous.instructionRestoration)
       void supervisor.refreshInstructionRestoration();

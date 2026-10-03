@@ -142,13 +142,13 @@ describe("installed Machine Control launch", () => {
     expect(launchProvider).not.toHaveBeenCalled();
   });
 
-  it("does not compose a legacy resident grant into desktop advertisement", async () => {
+  it("refuses a retired component selection before discovery", async () => {
     await expect(
       startMachineControlSession(
         "codex",
         {
           ...options,
-          computerControl: {} as StartSessionOptions["computerControl"],
+          computerControl: true,
         },
         start(),
         { environment, platform: "darwin", verify: async () => installed },

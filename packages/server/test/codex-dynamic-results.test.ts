@@ -1,10 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { CodexProvider } from "../src/sdk/providers/codex.js";
-import type { ComputerSession } from "../src/computer-control/contract.js";
-import {
-  COMPUTER_TOOLS,
-  COMPUTER_TOOL_NAMESPACE,
-} from "../src/computer-control/contract.js";
 import { TOOL_RESULT_MEDIA_CANDIDATES } from "../src/media/inlineImageData.js";
 import { normalizeCodexToolOutputWithContext } from "../src/codex/normalization.js";
 import {
@@ -18,15 +13,6 @@ import {
 // Exercises the actual pinned adapter seams without provider credentials.
 function adapter() {
   return new CodexProvider() as unknown as {
-    createThreadStartParams(
-      options: { cwd: string; computerControl?: ComputerSession },
-      policy: object,
-    ): Record<string, unknown>;
-    handleServerRequestApproval(
-      request: object,
-      options: { computerControl?: ComputerSession },
-      signal: AbortSignal,
-    ): Promise<unknown>;
     convertItemToSDKMessages(
       item: unknown,
       sessionId: string,
@@ -35,7 +21,7 @@ function adapter() {
     ): Array<Record<string | symbol, unknown>>;
   };
 }
-describe("Codex computer-control adapter", () => {
+describe("Codex dynamic results and terminal startup", () => {
   it("marks a rejected thread/start terminal even while app-server is still alive", async () => {
     const provider = new CodexProvider() as unknown as {
       resolveCodexCommand(): Promise<string>;
@@ -102,99 +88,6 @@ describe("Codex computer-control adapter", () => {
       errorLog.mockRestore();
       vi.restoreAllMocks();
     }
-  });
-  it("omits tools for vanilla and registers only deferred selected tools", () => {
-    const provider = adapter();
-    const policy = { approvalPolicy: "never", sandbox: "danger-full-access" };
-    expect(
-      provider.createThreadStartParams({ cwd: "." }, policy),
-    ).not.toHaveProperty("dynamicTools");
-    const session: ComputerSession = {
-      tools: COMPUTER_TOOLS,
-      call: vi.fn(),
-      acceptsThread: () => true,
-      close: vi.fn(),
-      rename: vi.fn(),
-    };
-    expect(
-      provider.createThreadStartParams(
-        { cwd: ".", computerControl: session },
-        policy,
-      ).dynamicTools,
-    ).toEqual([
-      {
-        type: "namespace",
-        name: COMPUTER_TOOL_NAMESPACE,
-        description: expect.any(String),
-        tools: COMPUTER_TOOLS,
-      },
-    ]);
-    expect(COMPUTER_TOOLS.every((tool) => tool.deferLoading === true)).toBe(
-      true,
-    );
-  });
-  it("refuses unselected, child-thread and aborted calls before reaching the grant", async () => {
-    const provider = adapter();
-    const session: ComputerSession = {
-      tools: COMPUTER_TOOLS,
-      call: vi.fn(async () => ({ success: true, contentItems: [] })),
-      acceptsThread: (id) => id === "selected",
-      close: vi.fn(),
-      rename: vi.fn(),
-    };
-    const request = {
-      id: 1,
-      method: "item/tool/call",
-      params: {
-        threadId: "child",
-        callId: "call",
-        tool: "computer_control",
-        namespace: COMPUTER_TOOL_NAMESPACE,
-        arguments: { operation: "windows" },
-      },
-    };
-    const signal = new AbortController().signal;
-    expect(
-      await provider.handleServerRequestApproval(request, {}, signal),
-    ).toMatchObject({ success: false });
-    expect(
-      await provider.handleServerRequestApproval(
-        request,
-        { computerControl: session },
-        signal,
-      ),
-    ).toMatchObject({ success: false });
-    request.params.threadId = "selected";
-    expect(
-      await provider.handleServerRequestApproval(
-        request,
-        { computerControl: session },
-        AbortSignal.abort(),
-      ),
-    ).toMatchObject({ success: false });
-    expect(session.call).not.toHaveBeenCalled();
-    request.params.namespace = "other_namespace";
-    expect(
-      await provider.handleServerRequestApproval(
-        request,
-        { computerControl: session },
-        signal,
-      ),
-    ).toMatchObject({ success: false });
-    expect(session.call).not.toHaveBeenCalled();
-    request.params.namespace = COMPUTER_TOOL_NAMESPACE;
-    expect(
-      await provider.handleServerRequestApproval(
-        request,
-        { computerControl: session },
-        signal,
-      ),
-    ).toMatchObject({ success: true });
-    expect(session.call).toHaveBeenCalledWith(
-      "computer_control",
-      { operation: "windows" },
-      "call",
-    );
   });
   it("preserves image candidates in live dynamic results and persisted output", () => {
     const imageUrl =

@@ -1,3 +1,4 @@
+import { RETIRED_COMPUTER_CONTROL_ERROR } from "../../machine-control/legacy-retirement.js";
 import { delimiter, win32 } from "node:path";
 import {
   defaultInstallation,
@@ -28,6 +29,7 @@ export async function startMachineControlSession(
   start: (options: StartSessionOptions) => Promise<AgentSession>,
   dependencies: MachineControlDependencies = {},
 ): Promise<AgentSession> {
+  if (options.computerControl) throw new Error(RETIRED_COMPUTER_CONTROL_ERROR);
   const environment = dependencies.environment ?? process.env;
   const platform = dependencies.platform ?? process.platform;
   const selected = options.machineControl ?? environment.YEP_MC_CONTROL === "1";
@@ -44,10 +46,6 @@ export async function startMachineControlSession(
     (provider === "codex" && options.permissionMode !== "bypassPermissions")
   )
     return start(options);
-  if (options.computerControl)
-    throw new Error(
-      "Choose installed Machine Control or the legacy component for this launch, not both",
-    );
   const app =
     environment.YEP_MC_APP ?? defaultInstallation(platform, environment);
   const publisher =
@@ -76,6 +74,7 @@ export async function startMachineControlSession(
     `For desktop/browser control, first read its workflow with: ${quoted} agent instructions`,
     `Invoke that exact command path if your shell replaces PATH. The host target is this execution machine.`,
     "Discovery and these instructions grant no access. Follow MC doctor/claims and native access approval; do not start a second resident, switch to the operator's machine, or automatically retry an uncertain mutation.",
+    "Closing this YA session does not revoke MC access. Use MC Stop, native grant expiry or app restart to revoke it.",
     "MC owns its access, arming, lifecycle and updates. YA session selection only advertises the command; it does not contain unrelated same-user shell access. Administrator authentication is a separately selected helper.",
   ].join("\n");
   return start({

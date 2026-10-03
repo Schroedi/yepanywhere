@@ -2,601 +2,136 @@
 
 Topic: optional-computer-control
 
-Status: Windows Node/Codex local preview accepted, 2026-09-12. Signed-package
-lifecycle, real deferred discovery, independent fixture effects, live/reloaded
-browser images and candidate crash isolation pass. Managed release download and
-update code is implemented; first published-release and packaged-distribution
-acceptance remain pending.
-Implementation and release gates are tracked in
-[Tactical 131](../docs/tactical/131-optional-windows-computer-control.md).
+Status: installed desktop consumer and legacy retirement complete, 2026-10-03.
+Mac and Windows native/browser model use, full-app live/reloaded media and
+YA close/restart/crash isolation are accepted. Linux x64 installed CLI/core
+desktop use is accepted. [Tactical 142](../docs/tactical/142-machine-control-desktop-consumer.md)
+owns implementation and exact acceptance records.
 
-## Installed desktop-app consumer migration
+## Ownership and authority
 
-**Decision, 2026-10-02:** move toward consuming the installed Machine Control
-desktop app and its bundled Python CLI. MC owns installation, updates, resident
-lifecycle, native approvals and arming; YA retains session eligibility,
-verified discovery, agent advertisement, optional tool/transport adaptation and
-result presentation. Python remains the intended CLI implementation, preserving
-direct command development without a Rust toolchain. Shared Mac verification
-also serves native sudo without merging its authority with desktop access.
+**Decision:** YA consumes Machine Control's installed Python CLI. MC owns
+installation, updates, resident lifecycle, native approvals/arming, grants,
+claims, capabilities and agent instructions. YA owns verified discovery on the
+execution host, session eligibility/selection, launch context and result
+presentation. MC works without YA or a source checkout. Python remains the
+intended CLI implementation so command development needs no Rust toolchain.
 
-**Current:** the installed consumer is default-off. Set `YEP_MC_CONTROL=1`,
-`YEP_MC_APP` to the installed app/product resource root, and an independently
-trusted `YEP_MC_TEAM_ID` (Mac) or `YEP_MC_PUBLISHER` (Windows). Linux uses the
-MC desktop updater key shipped with YA to authenticate `files.json.sig`; no
-publisher is inferred from untrusted package contents. Standard locations are
-`/Applications/Machine Control.app`, the `Machine Control` directory under
-`LOCALAPPDATA`, and `/usr/share/machine-control` respectively. An explicit
-`YEP_MC_APP` supports other installed locations; for an extracted AppImage,
-select its `usr/share/machine-control` resource root.
-Restart YA and its shared provider host after changing launch configuration.
+**Decision:** session selection advertises the installed command; it issues no
+MC grant. Closing a YA session, stopping its provider or removing advertisement
+does not revoke independently granted MC access. Native Stop, actual grant
+expiry or MC restart revokes access. This intentionally replaces the older
+YA-owned per-session tool lease; it is not lease parity or same-user shell
+containment. A YA session ID is attribution, not bearer authority. Native sudo
+remains independently selected and authenticated by the OS.
 
-YA authenticates the package and hashes the complete CLI dependency inventory
-before executing its offline identity probe. Windows also checks native
-runtime/provider signatures, the runtime catalog and agreement of product,
-runtime and client identities. Eligible launches are local
-unrestricted Codex (`bypassPermissions`) and local Claude providers; remote
-executors, plan sessions and sandboxes receive no advertisement. A selected
-missing, tampered or incompatible installation refuses launch. Existing
-instructions/environment are preserved. No resident is started or supervised
-by YA, and no MC access grant is issued. Native sudo remains independently
-selected. A launch selecting both this route and a legacy grant is refused.
+YA neither starts nor supervises the installed MC resident. If it is absent,
+the CLI returns the native typed refusal and the operator opens MC. YA shutdown
+and crash leave the independent app alone. No sandbox is widened to deliver MC.
 
-Windows verifies the complete runtime catalog against a bounded temporary copy.
-PowerShell's `Test-FileCatalog` cannot hash the running resident image directly.
-YA authenticates both original and copied catalogs and keeps the original native
-publisher checks, then deletes the copy on success or failure. Discovery and
-launch verification can therefore work while the independent MC app is running.
-No copied executable is run or resident stopped for verification.
+## Discovery and configuration
 
-Windows desktop 0.5.3 and later authenticate `files.json` through the signed
-CLI catalog, then YA checks every full-byte dependency hash and refuses extra
-files. Earlier packages retain their full-directory catalog check. The signed
-GUI product version selects the format; a failed newer catalog cannot fall
-back to the older verifier. Linux's CLI location avoids upstream packaging
-rewrites of interpreters under `usr/lib`. These changes align discovery with
-the public release; the acceptance boundaries below remain explicit.
+**Current:** default-off local launches discover standard installed locations:
+`/Applications/Machine Control.app`, `Machine Control` under Windows
+`LOCALAPPDATA`, and `/usr/share/machine-control` on Linux. `YEP_MC_APP` explicitly
+selects another app/product resource root; extracted AppImages use their
+`usr/share/machine-control` root. Publisher authority is independently configured
+with `YEP_MC_TEAM_ID` on Mac or `YEP_MC_PUBLISHER` on Windows. Linux uses the
+pinned MC updater key shipped with YA to authenticate `files.json.sig`.
+`YEP_MC_CONTROL=1` can seed programmatic launch advertisement; an explicit
+session `false` overrides it. Restart YA and its shared provider host after
+changing launch configuration.
 
-[Tactical 142](../docs/tactical/142-machine-control-desktop-consumer.md) owns
-acceptance and Windows retirement. A signed Mac assembly passes discovery and
-claimed-appliance CLI desktop/browser effects. A source-independent YA Codex
-provider inside the Mac appliance also performs one native semantic increment
-and one browser fixture click, and consumes each new capture with its built-in
-image tool. Full
-YA live/reloaded desktop and phone views serve identical native capture bytes.
-Public Windows x64 0.5.3 now also passes production YA authentication and
-installed-CLI access-off refusal, visible native approval, one independently
-observed Cua semantic increment, capture/artifact hash, stale-reference refusal
-and native Stop. A real Windows YA Codex turn now also performs one native semantic increment,
-retrieves its new capture, consumes it with the built-in image viewer and reports
-the independently matching counter. MC remains reachable after provider close.
-Public Linux Debian x64 passes receipt/CLI verification and 46 bounded native
-approval/portal/GTK effect/capture/restart checks; the broader Stop-shortcut
-setting remains unaccepted under isolated state. Windows browser control through
-a verified custom installation also passes a real YA Codex turn, independent
-HTTP effect and image consumption, native Stop, stale-reference refusal and
-operator restart/reconnection. YA supplies that verified installation directory
-to the selected Windows agent environment. Full-app Windows media and further
-lifecycle cells remain gates. The component lifecycle and deferred
-tool below remain current until accepted cutover. The default-off session picker
-uses the separate `installed-machine-control` capability and optional
-`machineControl` launch field. Session advertisement is not a same-user shell
-containment boundary, and does not revoke independently granted MC access.
+YA authenticates the package and full CLI dependency inventory before executing
+its offline identity probe. Mac checks the signed app and team. Windows checks
+native runtime/provider signatures, catalog and matching product/runtime/client
+identities; desktop 0.5.3 uses the publisher-signed CLI catalog to authenticate
+the inventory, with every byte checked and unexpected files refused. Signed GUI
+version selects the format; newer failures cannot fall back to the old verifier.
+Linux verifies the signed receipt and every client dependency. Revalidation at
+launch prevents a discovery result from authorizing a replaced installation.
+Missing, tampered or incompatible selected installations refuse launch.
+
+Windows runtime catalog verification uses a bounded temporary copy because
+PowerShell cannot hash the running resident executable. Both catalogs retain
+publisher checks; links and excessive depth/entries/bytes are refused. Nothing
+from the copy executes, and cleanup runs on success and failure. A selected
+Windows agent receives the verified product directory for native browser-host
+setup, rather than inheriting an arbitrary helper override.
 
 Run `pnpm exec tsx --conditions source scripts/probe-machine-control.ts --app
-APP --publisher TRUSTED_PUBLISHER` to verify installation authenticity, identity,
-owned instructions and launch-context composition. Omit `--publisher` on Linux.
-The probe launches no model and performs no desktop mutation.
+APP --publisher TRUSTED_PUBLISHER` for offline installation, identity,
+instructions, context, relocation and negative checks. Omit publisher on Linux.
+Reading identity/instructions neither requests access nor mutates the desktop.
 
-The exact notarized Mac ARM64 0.5.3 candidate from source `698550b` also passes
-this probe: real publisher/closure/identity verification, instructions, launch
-context, relocated-copy verification and wrong-publisher, changed-script and
-missing-interpreter refusal. MC separately verifies updater signature/version,
-source, Gatekeeper, stapling, relocation and absent-resident behavior. The Mac
-jobs passed within a failed six-platform workflow; this is candidate evidence,
-not a published release or Windows/Linux acceptance. Integrity fixtures are
-constructed before the copied Mac bundle receives its Info.plist, because
-App Management can refuse modification of an already recognized notarized app.
-The probe does not change that OS permission or bypass production verification.
+## Session selection and compatibility
 
-## Managed release installation and updates
+**Current:** permanent optional capability 112, `installed-machine-control`,
+exposes authenticated read-only `GET /api/machine-control`. It reports bounded
+`{ available, version? }` readiness without private paths, settings mutation,
+resident startup or grants. Installation readiness is separate from eligibility.
 
-Enable Computer Control downloads the latest compatible stable Windows release
-from `kzahel/machine-control` on the YA server, verifies it, installs into the
-owned per-user instance, health-checks the runtime and stops it before reporting
-ready. It then enables explicit session selection. Installation does not grant
-access to existing sessions. OS/architecture selection is server-side; Windows
-Node x64/ARM64 and an ordinary interactive desktop are required.
+The advanced New Session options offer default-off Machine Control to eligible
+local Claude-family sessions outside plan mode and unrestricted local Codex
+sessions. Remote executors, YA sandboxes and fixed launches are ineligible.
+Selection resets on source/eligibility changes. Immediate explicit launches
+carry optional boolean `machineControl` through all four session routes and
+supervisor/provider composition. Existing context and child environment survive.
+The exact safely quoted command path accompanies PATH because login shells
+may replace PATH. Native sudo remains independent.
 
-YA pins Machine Control's minisign public key and authenticates `release.json`
-before trusting its publisher, names, sizes or SHA-256 hashes. Bounded downloads
-go into unique YA-data staging directories; archive names, entries, expanded
-size and complete bytes are checked before native installation. Size and hash
-are measured on the received stream, so the staged archive must receive every
-byte of every chunk; a write that stores less than it was handed fails the
-download rather than leaving a short archive to verify against the stream. The signed
-manager/catalog verification remains mandatory. Download failure, invalid
-signatures or incompatibility leave the existing installation unchanged.
-Cancellation kills the native extractor and waits for its process and output
-streams to close before deleting staging files. Native management responses
-are read after stdout has closed, including bytes delivered after process exit.
-The installed version is persisted and older release-feed versions are refused.
-A persisted installed version that is not a released `x.y.z` version — settings
-are hand-editable JSON — is ignored with a logged warning and reported as no
-installed version, so status and update checks keep working instead of failing
-on every comparison; the next successful install records a usable version again.
+When capability 112 is absent, the client hides the picker and sends neither
+readiness requests nor the field, including to older servers advertising legacy
+IDs 70/71. The reviewed optional corpus is v0.9.0, v0.9.1 and v0.9.2; the new
+contract is introduced in 0.9.4. Selected queue submission is disabled with an
+explanation; turning it off restores ordinary queue submission.
 
-Check for updates is explicit and available while disabled. Managed installs
-also check on enabled startup and every 24 hours while automatic updates are
-enabled. The automatic-update preference defaults on within this explicitly
-enabled component and can be turned off. No recurring work runs while disabled.
-Advanced local installs default to manual updates; opting into automatic
-updates explicitly migrates them to the signed public release stream.
-Checks coalesce. Updates wait until all computer-control grants are gone;
-checking/downloading blocks new selection briefly, and never revokes existing
-grants to make room. Installation checks readiness before committing the new
-version. Failure restores the previous signed package; failed recovery disables
-the feature and retains an installation locator for retry/removal. Interrupted
-updates preserve the persisted previous locator for recovery on next use.
+## Legacy retirement
 
-The settings view shows enable, installed version, update availability,
-automatic-update preference and uninstall. Local package/publisher input is
-collapsed under Advanced. Download progress is polled only while an operation
-is running and the view is mounted. Cancel/disable aborts acquisition, waits
-for owned management cleanup, removes grants and stops the helper. Uninstall
-also removes the managed native instance. Retry starts a fresh verified download.
+**Decision:** withdraw advertisements for permanent IDs 70/71; their numbers
+remain reserved. Old authenticated `/api/computer-control` routes return bounded
+410 guidance. A true legacy session selection is rejected before any provider
+launch or discovery; false/absent remains ordinary. Old settings, installer,
+updater, resident supervisor, Windows Job Object and deferred tool are removed.
+Generic live/persisted native image normalization remains useful independently.
+[Tactical 131](../docs/tactical/131-optional-windows-computer-control.md) is the
+historical execution record, not the current installation workflow.
 
-Optional capability ID 71, `computer-control-releases`, covers the new
-`POST /api/computer-control/releases/check`, `POST .../update`,
-`PUT .../enabled` (`enabled`) and `PUT .../automatic` (`autoUpdate`) routes and
-the additive `release` status. The 2026-09-12 reviewed stable corpus is v0.8.0
-and v0.8.1; neither contains these routes. Absent ID 71, the client shows server
-update guidance and retains ID 70 local-install controls without calling any
-release route. Absent ID 70, it makes no computer-control requests at all.
-Old clients retain the original local-install API; ID 70 keeps its meaning.
+Startup first persists legacy enablement and auto-update off. A bounded cleanup
+can authenticate the old manager and remove only the exact package/state for
+this YA data-directory instance. It refuses other instances, desktop installs,
+links, changed active-package identity and invalid publisher signatures before
+execution. A held resident lock requires the signed manager's scoped Stop;
+cleanup never guesses PIDs or kills the installed desktop. Failure retains the
+disabled locator for a later startup retry and never opts into the replacement.
+Unsupported hosts also retain disabled metadata. No legacy setting means no
+cleanup activity. No downloads, resident startup or recurring supervisor remain.
 
-After publication, run
-`pnpm --filter server exec tsx --conditions source scripts/computer-control-release-acceptance.ts`
-in an interactive Windows Node session. This creates an isolated native instance,
-downloads from the real public feed, exercises read-only native enumeration and
-restart from the managed copy, then disables/uninstalls. It retains no desktop
-content. Until that succeeds, mocked browser/download tests and native ZIP tests
-are implementation evidence, not public-release acceptance.
+## Accepted evidence and remaining cells
 
-## Implemented Windows native/session contract
-
-Computer Control settings are stored in YA server settings. Installation and
-global enablement are separate from an explicit session selection, which is
-never saved as a session default or restored as authority after a restart.
-Unselected sessions receive no computer tool definitions or grants and create
-no resident, guardian, JavaScript evaluator or computer-specific worker.
-Selected sessions register one deferred typed `computer_control` tool with
-Codex 0.154.0 through `thread/start.dynamicTools`. Existing Code Mode discovery
-exposes it; actual calls return through `item/tool/call` on the same provider
-connection. This feature does not register an MCP server or use SSH.
-The deferred function is registered inside the `yep_computer` namespace, as
-required by the pinned App Server validator. Calls from any other namespace
-are refused. A rejected thread start is terminal for that provider session;
-YA must not leave a dead provider in-turn or treat queued input as dispatched.
-`packages/server/scripts/computer-control-codex-probe.ts` checks the actual
-pinned CLI with an ephemeral thread and no model turn: the original flat
-registration must be rejected and the adapter's namespaced registration must
-start successfully. The probe uses a fresh unauthenticated Codex home.
-The implementation reference is `references/codex` at `rust-v0.154.0`
-(`6b9826e3aa83b1a5947db50f4332cb9c65f1b340`), particularly the App Server
-dynamic-tool contract and `core/src/tools/handlers/dynamic.rs`. Provider
-versions and generated protocol schemas are unchanged.
-
-Eligibility requires Windows, the Node YA runtime, local Codex execution, no
-YA session sandbox, an installed authenticated preview, global enablement and
-explicit selection when starting/creating the session. Other operating systems,
-Bun, providers and executors are unavailable. Grants expire after 30 minutes
-by default (operator API range 10 seconds to one hour). They are scoped to the
-selected provider thread: child threads, revoked grants and aborted sessions
-cannot dispatch. A launch whose provider start fails releases its grant before
-the failure reaches the caller, so a session that never began holds none of the
-32 concurrent grants until expiry. An agent with unrelated unsandboxed same-user shell access is
-not contained by these grants; this is a computer-tool authority boundary.
-
-For Advanced local import, the operator selects an extracted workstation package
-and supplies its publisher from an independently trusted source. YA verifies
-the manager's timestamped Authenticode signature and exact publisher before
-executing any imported script. The signed manager then verifies the existing
-Machine Control inventory, hashes, catalog and native signatures. No unsigned
-override exists. The managed per-user package path and publisher are persisted;
-each cold start revalidates the complete package. Archive self-asserted hashes
-or publishers alone do not establish trust. Managed releases use the separately
-authenticated release manifest described above.
-Removing the original extracted import folder must not break cold startup or
-uninstall. Failed uninstall leaves the feature disabled and retains the installed
-manager locator and publisher so the operator can retry removal.
-
-The first actual operation lazily launches a dedicated Medium user resident.
-Its identity includes the current user SID, interactive Windows session and
-YA data-directory-derived instance. Startup attests the exact launched PID,
-instance, session, workstation profile, Medium integrity, readiness and native
-generation. Direct newline JSON IPC uses only that user's named pipe; no
-appliance fallback, arbitrary provider dispatch or SYSTEM authority is exposed.
-The appliance's installation, ProgramData and services remain independent.
-Privileged unlock and its separate signed component are outside this slice.
-
-The desktop surface includes window enumeration, bounded semantic snapshots,
-screenshots, semantic invoke/value setting, click/key/text input, activation
-and non-closing window state changes. Unknown fields are refused. Snapshots
-are limited to depth 12 and 500 elements; text to 4096 characters; responses
-to 2 MiB with a 15-second operation deadline. Mutations require a generation
-observed by that session, and semantic references must come from its latest
-snapshot. Unknown, stale and cross-session references fail before dispatch.
-The native runtime additionally validates its own generations and references.
-
-Only one desktop operation runs at a time across at most 32 grants. Busy calls
-are refused without dispatch; they are not queued. Each grant accepts at most
-2048 distinct provider call IDs; duplicate IDs are refused, never replayed.
-Connection acquisition may wait before a write. A disconnect, malformed reply
-or timeout after writing is unknown delivery and is never automatically retried.
-Native provider, fidelity, delivery, effect and uncertainty remain in results;
-confirmed delivery is not independent proof of a desktop effect. Revocation
-during an in-flight operation withholds desktop data while preserving known
-delivery/effect metadata and the need to inspect effects independently. An
-operation runs against the resident it was dispatched to: a stop that releases
-the resident mid-call neither fails that operation nor skips its activity
-refresh, and the observation it returns still authorizes the grant's later
-references.
-
-Native screenshot reads accept only exact artifact IDs under the owned
-instance/session directory, reject links/path substitution and validate PNG
-identity, extent, SHA-256 and dimensions. Reads are bounded to 8 MiB,
-16384 pixels per dimension and 64 megapixels. Model results contain normalized
-image content; the existing YA tool-result media pipeline handles live and
-persisted images with its own storage/retention settings.
-
-Inactivity stops the resident after 60 seconds by default (operator range
-5–240 seconds); an operation near expiry refreshes the deadline. A later call
-can cold-start again, but previous observations/references lose authority.
-Session close, expiry and revocation remove grants; the last grant releases
-the resident. Disable revokes all grants and stops the resident. Re-enabling
-does not revive old grants. Operator status supports explicit refresh without
-an idle polling loop.
-
-A YA-owned launcher creates the native process suspended, assigns it to a
-private Windows Job Object with kill-on-close, then resumes it. Descendant
-provider processes inherit the job. The guardian refreshes its five-minute
-inactivity deadline on operation activity; parent disconnect starts bounded
-native shutdown, with launcher termination as fallback. Resident crash,
-launcher crash and owner EOF reclaim the owned descendants. Stop confirmation
-has a 12-second deadline; failure is reported rather than called a successful
-cleanup. Unrelated processes and the appliance tree are outside this job.
-
-Authenticated operator routes are `GET /api/computer-control`,
-`PUT /api/computer-control/settings`, `POST /api/computer-control/install`,
-`POST /api/computer-control/stop`, `DELETE /api/computer-control/installation`
-and `DELETE /api/computer-control/sessions/:sessionId`. Settings PUT requires
-`enabled`, `idleMs` and `grantMs`; install requires `packageDirectory` and
-`trustedPublisher`. Session start/create accepts optional `computerControl`.
-These frontend operations do not expose an agent HTTP execution endpoint.
-Permanent optional capability ID 70, `optional-computer-control`, gates all
-new client requests and launch fields. Missing support hides selection and
-shows an unavailable settings deep link without requesting the new routes.
-
-The repeatable candidate runner is `scripts/start-computer-control-candidate.ps1`;
-it requires a built client and serves those assets in production mode, without
-a Vite process. The native acceptance script is
-`packages/server/scripts/computer-control-native-acceptance.ts`. Credentials,
-machine-specific run contracts and captured desktop data stay outside commits.
-Native source changes are not required by the current Job Object ownership
-implementation. Signed-payload acceptance is separate from native source tests.
-
-## Accepted Windows scope
-
-Acceptance covers source-run Node YA with Codex 0.154.0 on an interactive
-Windows ARM64 desktop, reaching the authenticated local preview over the user's
-named pipe. It is not acceptance of a packaged YA executable, Bun, x64 YA
-integration, other providers, macOS/Linux control, public download/update feeds
-or privileged unlock settings; the broad Windows aggregate gates remain open in
-[the Windows validation gap](../gaps/windows-validation-baseline.md).
-The run record is in
-[Tactical 131](../docs/tactical/131-optional-windows-computer-control.md).
-
-## Intended experience and ownership
-
-**Decision:** Computer control is an optional installed capability, default-off
-and available only to eligible, authorized sessions. Installing or globally
-enabling the component must not load its full instructions, start a worker, or
-register a computer-control MCP server in every provider session. The requested
-experience resembles Computer Use: discover a small capability description,
-load its instructions when needed, and start the actual control machinery on
-first use.
-
-The primary deployment places YA, the agent execution environment, and the
-Machine Control resident on the same machine. Use direct local IPC for that
-path. A remote testbed transport is useful for validation but must not become
-the mandatory product route.
-
-Machine Control owns signed native packages, providers, the typed desktop
-contract, generation checks, and optional privileged unlock enforcement. YA
-owns installation controls, supervision, session eligibility and authority,
-agent-facing advertisement, and result presentation. Existing Machine Control
-CLI/appliance use must remain independent of YA. Unlock retains its separate
-native installation, UAC approval, grant, and credential-custody flow.
-
-**Decision:** Reach the resident through the provider's deferred dynamic tool
-(vs. a bundled SDK or CLI driving a supervised persistent JavaScript worker):
-Codex's namespaced registration already dispatches over the existing provider
-connection to direct local IPC, so the worker candidate would have added a
-general JavaScript evaluator — which is not same-user containment — for no
-reachable capability. A provider without that hook still needs its own proven
-adapter, and an MCP adapter remains optional.
-
-This is an optional out-of-process native component, not a proposal to reopen
-the banked general-purpose [server plugin architecture](server-plugin-arch.md).
-Launch-time delivery and defaults belong to
-[new-session agent tooling](new-session-agent-tooling.md); the existing
-[agent command runtime](agent-command-runtime.sketches.md) remains a possible
-CLI entry point.
-
-## What the MCP experiment established
-
-**Current evidence:** A separate YA server with temporary provider profiles
-exposed four small MCP tools over authenticated, stateless Streamable HTTP.
-Real Codex and Claude sessions discovered tool definitions, performed one
-semantic Windows fixture action each, and consumed screenshot image results.
-Independent fixture state confirmed the effects. No YA provider or resident
-source changes were needed. Stale generations, unknown references and revoked
-credentials were refused. The temporary processes, profiles and VM workspace
-were cleaned up.
-
-The controller and YA ran on macOS; Windows control went through the common
-testbed CLI and SSH to the signed user resident. Tool calls took approximately
-8–60 seconds. Cua became unhealthy and native UIA/PrintWindow fallbacks supplied
-the accepted actions and captures. These are remote testbed measurements,
-not local IPC performance or successful Cua-health acceptance.
-
-**Limit:** Providers were explicitly configured with the MCP URL in their
-temporary profiles. Lazy tool-schema discovery did not prove lazy process
-startup, session-selective availability, or dynamic attachment to an already
-running session. Model/transcript image acceptance also did not establish YA
-browser rendering acceptance. The experiment is evidence for a possible adapter,
-not a decision to make MCP the required product integration.
-
-Exact versions and execution findings live in the
-[Machine Control spike](../../machine-control-spike/docs/ya-computer-mcp-findings.md).
-Native package ownership and acceptance live in Machine Control's
-[distribution topic](../../machine-control/topics/native-distribution.md).
-
-## Codex and Sky reference mechanics
-
-**Observed installed implementation:** The application bundle serving the
-investigated session contained Node 24.19.0, a persistent `node_repl` executable,
-and `@oai/sky` version `0.6.17-202608171537-pr-1300023-7efba775c041`. The runtime
-was under the ChatGPT app bundle; do not generalize that physical packaging to
-every Codex desktop release.
-
-The installed Computer Use skill supplies `import("@oai/sky")` explicitly. The
-package is already in the host's module environment; the agent does not invent
-its path or install it from npm on each use. The observed sequence is:
-
-1. The agent sees the small skill description and reads the full API instructions
-   when the task needs computer control.
-2. The agent submits JavaScript to the host-provided persistent Node REPL.
-3. Importing Sky sets up a proxy through `nodeRepl.rpc("sky", ...)`; the trusted
-   service dispatches the SDK operations.
-4. The Mac SDK lazily imports its native client on the first computer operation.
-   A request creates/reuses the native transport.
-5. The transport tries a local socket. If unavailable, it requests
-   `ensureService` for `computer-use` through host services, or falls back to
-   macOS Launch Services to start the installed service.
-6. The native connection uses length-prefixed JSON-RPC with typed requests and
-   a version handshake. Text and explicitly emitted screenshots return through
-   tool results to the model.
-
-Reinspection paths, relative to the installed `@oai/sky` package:
-`package.json`, `dist/project/cua/sky_js/src/sky.js`, `service.js`, and
-`targets/mac/{lazy-client,client,native-pipe}.js` under that same source directory.
-These are distributed implementation observations, not a claim that Sky is an
-open-source library available for redistribution.
-
-**Current public-source evidence:** The audited Codex checkout was
-[`ee6814bfa4889fe9b2b3dcc9cc8bdd91effa8ab8`](https://github.com/openai/codex/tree/ee6814bfa4889fe9b2b3dcc9cc8bdd91effa8ab8).
-Keep these execution layers distinct:
-
-| Layer | Mechanism and evidence |
+| Platform | Accepted scope |
 | --- | --- |
-| Rust agent and App Server | The agent owns conversation/tool dispatch. A UI or supervisor connects through bidirectional JSON-RPC. The public repository includes this engine and protocol, not the complete desktop/Sky implementation. |
-| Code Mode | JavaScript for orchestrating tool calls; current `codex-rs/code-mode-runtime/src/runtime/mod.rs` creates V8 runtimes. This is not the persistent Node package environment. |
-| External Node REPL | Current `codex-rs/protocol/src/mcp.rs` recognizes `node_repl` and `cua_repl` tools. The installed skill/SDK use this persistent environment for Sky. Those hooks do not establish the desktop's exact process-launch implementation. |
-| Historical built-in JS REPL | The older Rust implementation spawned a Node child with a kernel script and piped stdin/stdout, with configured module directories and lazy initialization. It was removed by commit `8a559e7938` on 2026-04-24. Do not describe that historical code as current desktop wiring. |
+| macOS ARM64 appliance | Signed installed CLI, native approvals/refusal/expiry/Stop, semantic and browser independent effects; actual YA Codex native/browser capture consumption; full-app live/reloaded HTTP and desktop/phone media; YA close/restart/crash isolation and signed replacement to public 0.5.3 |
+| Windows x64 appliance | Public signed 0.5.3, live/relocated production discovery and negatives, ordinary interactive native and browser approval/effects/capture/Stop; actual source-independent YA Codex native/browser turns and image consumption; custom product location and browser restart/reconnection; full-app live/reloaded HTTP and desktop/phone media, YA close/restart/crash isolation |
+| Linux x64 GNOME Wayland appliance | Public Debian 0.5.3 production receipt/discovery/negatives and 46 bounded installed CLI checks: approval/refusal/expiry, portal consent, capture hash, independent GTK semantic/pointer/Unicode effects, restart/sharing closure and operator loss |
 
-The installed Computer Use plugin also registered a launcher invoking
-`SkyComputerUseClient mcp`. Therefore the observed distribution contains MCP
-plumbing even though the SDK-to-native control connection uses separate local
-IPC. The exact current desktop ownership and startup timing of the Node worker
-were not established by inspecting the public repository.
+These are separate cells, not physical-workstation or every-provider acceptance.
+Windows handle-bound semantics currently use the native JSON command route;
+`desktop snapshot --target APP` handle resolution is not established. Linux's
+broader Stop-shortcut checkbox was unaccepted under isolated state; the accepted
+core slice excludes startup/shortcut settings. Linux model/browser and further
+lifecycle cells, actual Claude model use, other desktop architectures and remote
+or sandbox delivery remain separate. All six packaged targets have authenticated
+payload/relocation smoke; that does not establish GUI/model parity.
 
-The [App Server documentation](https://learn.chatgpt.com/docs/app-server)
-also describes experimental `dynamicTools` and the `item/tool/call` exchange:
-a client can implement tools and return content, including images, over its
-existing Codex connection. YA now uses this hook for the preview described
-above; that does not establish that Sky uses the same hook.
-
-## Agreed development and validation placement
-
-**Decision:** Develop the next Windows slice in a native Windows development
-session, with YA and Machine Control checkouts inside a claimed isolated VM
-workspace. Local editing, builds and tests avoid a repeated Mac-to-Windows copy
-cycle and exercise the intended same-machine deployment.
-
-The controller first runs Machine Control's doctor and acquires the workspace
-and exclusive claim. A Windows YA server owns the development session. The
-controller may reach its authenticated loopback API through an SSH port forward
-to create the session, observe events and send guidance. SSH carries supervision,
-deployment and independent diagnostics; agent computer-control calls under test
-must use local IPC inside Windows. The controller retains independent Machine
-Control access for verification and recovery.
-
-The requested development model is **GPT-6 Astra with high reasoning**. Resolve
-and verify the Windows provider's actual model ID and reasoning support before
-launch; do not silently substitute another model or effort level.
-
-Commit the instructions, findings and relevant source before handoff. Push
-repositories with configured remotes and check out recorded commits in Windows.
-A local-only experiment repository may travel as a committed Git bundle or
-tracked-source archive instead; verify its commit or digest after transfer.
-Do not copy local authentication, inventory, grants, captures, ignored caches or
-the controller's dependency directories into the source handoff.
-
-Use a separate temporary YA profile for acceptance sessions. Check ordinary
-sessions create no computer-control worker, authorized first use starts it,
-reuse does not multiply workers, and disable/revocation/idle cleanup work.
-Exercise real discovery, semantic action and screenshot consumption with an
-independent fixture effect check. After local development, repeat acceptance
-against exact signed CI artifacts without a source checkout. Release all test
-sessions, profiles and the VM workspace when finished.
-
-## Installed launch and media boundary acceptance
-
-**Current:** Explicit internal `machineControl` selection survives the
-supervisor's message-bearing and message-less launches, including the
-compatibility Claude SDK wrapper. `false` suppresses the operator environment
-opt-in rather than being dropped at that boundary. No public session field or
-picker is implied by this internal option.
-
-The real-provider probe launches through the full YA app and its supervisor
-with MC's verified installed command selected. It restricts the model to
-offline instructions/identity queries and a supplied nonpersonal fixture
-capture. `--expected-button` supplies the independently known topmost fixture
-button label; the model prompt does not reveal that answer. Live Process output
-exposes a media handle whose HTTP route serves
-byte-for-byte identical PNG data with `private, no-store`. After stopping the
-provider, it disposes the app and constructs a fresh app/media store. The
-production session-detail route reads the native transcript and reconstructs
-another handle that serves the exact PNG bytes. Durable preservation stays
-off; the original fixture remains available until cleanup.
-
-With `--browser`, the real client connects before the model turn and renders
-the live media result. It then disconnects before the owned backend restarts
-and reopens the session in a fresh document from the persisted transcript.
-Desktop and phone image viewers load the capture through the actual media
-route, and downloaded bytes must match the native fixture. Captures are
-presented through the repository artifact facility; browser exceptions fail
-acceptance. Both the browser fixture and the provider-generated AppKit capture
-pass this media/view route. The browser model cell below also passes; Windows
-cutover remains a separate acceptance gate.
-
-Run `pnpm exec tsx --conditions source scripts/probe-machine-control-model.ts
---app APP --publisher TRUSTED_PUBLISHER --capture FIXTURE_PNG --browser` for
-that bounded real-model/browser probe, or omit `--browser` for HTTP-only media
-acceptance. `--model` can pin a compatible provider model; omission retains the
-operator's configuration. Type-check this manual probe with `pnpm exec tsc -p
-scripts/tsconfig.machine-control-probe.json`.
-
-Use a nonpersonal fixture image. The probe copies only the operator's existing
-authentication and configuration into an owner-only temporary Codex profile,
-preserving endpoint/model choices while isolating provider state and transcript
-lookup. Credential files remain owner-only and are never reported. It performs
-no target operation/access request, stops the owned provider, closes app/browser,
-sockets, listeners and readers, and removes its temporary fixture, data and
-provider profile. Captures remain in ignored artifact storage for review.
-
-The separate `scripts/probe-machine-control-native.ts` exercises the production
-Codex provider inside a dedicated Mac appliance. It requires a private owned
-`MC_PROBE_ROOT`, a live `MC_PROBE_FIXTURE_STATE` AppKit oracle and an already
-acquired `MACHINE_CONTROL_CLAIM_ID`. The root contains `codex-runtime/bin/codex`
-with its complete vendor distribution and an isolated `codex-profile`; staging
-only the main executable omits its command host. Normal `YEP_MC_APP` and trusted
-publisher verification apply. Select the candidate socket and matching claim
-store explicitly when using a separately staged resident.
-
-The model may query instructions/identity, enumerate/snapshot the fixture,
-press Increment once, capture that window, fetch its unchanged artifact path
-and invoke the native image viewer. Independent state must change by exactly
-one and the model must report the new visible count and CLI protocol number.
-The probe deduplicates streamed tool events before counting mutations and has
-a five-minute deadline. It aborts its session and writes private diagnostic
-messages in the owned root. The caller owns resident/fixture cleanup, exact
-artifact removal, claim release, temporary auth/profile removal and restoration
-of initial VM power. This probe does not authorize workstation access or serve
-as signed Windows/Linux or browser-control evidence.
-
-**Current:** This native probe passes with a locally assembled Developer ID app,
-bundled Python CLI and a complete Codex 0.159 runtime, staged without MC or YA
-checkouts. The dedicated appliance's standing policy is verified explicitly;
-it is separate from the earlier workstation approval/revocation evidence. The
-caller removes the matching resident artifact and temporary app/runtime,
-profile and diagnostics, releases host/controller claims, and confirms that
-the originally stopped VM is stopped again. No release or notarization is
-implied by this local signed assembly.
-
-**Current:** `scripts/probe-machine-control-browser.ts` passes with the same
-source-independent signed Mac assembly and complete Codex runtime. MC's existing
-headed extension harness accepts optional `--agent-probe PROBE --node NODE`
-arguments and supplies `MC_PROBE_BROWSER_URL` for a dedicated counter page.
-The remaining environment/staging inputs match the native probe. An independent
-HTTP oracle verifies one semantic click, and the model must consume its new
-tab PNG through the built-in image tool and report the visible count.
-
-Chrome for Testing 145 passes 23 checks: the 21 existing installed-client
-indicator/worker checks plus model/effect checks. Its separate identity and
-temporary profile protect the primary installed browser. The caller restores
-the native-host socket after redirecting it to the staged resident, reaps the
-owned browser/profile, removes matching artifacts and temporary authentication,
-releases claims and restores initial power. The newly generated tab PNG also
-passes separate full-app live/reloaded HTTP and desktop/phone media views.
-Standing appliance authority, local signed assembly and no publication remain
-the evidence boundary; no Windows/Linux or workstation browser approval is
-inferred from this cell.
-
-**Current:** `scripts/probe-machine-control-lifecycle.ts` passes inside the
-dedicated Mac appliance with the same source-independent signed assembly.
-It uses the production app and Supervisor with two real Codex turns restricted
-to offline installed instructions/identity. Verified session abort unregisters
-the provider, then full app disposal and a fresh app instance leave MC's exact
-PID, native generation and already-held host claim unchanged. A separate owned
-YA process completes the same workflow before abrupt `SIGKILL`; the independent
-MC resident and claim remain healthy. The orphaned Codex process group is
-validated against its owned staging root, killed and observed gone.
-
-The staged probe needs the production app's normal dependency resources,
-including bcrypt's native loader and the Claude SDK resource locator even
-though only Codex is enabled. Use a complete Codex vendor runtime and an
-owner-only isolated profile, retaining the operator's authentication/config.
-The root and MC/claim environment match the native/browser probes. The caller
-owns MC startup, claims, temporary resource/profile removal and appliance
-power restoration; YA never starts or kills MC. Cleanup restores the original
-resident's readiness, initial power-off and released claims. This closes the
-Mac YA close/restart/crash isolation cell. Signed replacement and Windows/Linux
-lifecycle parity remain independent gates.
-
-MC's separate [installed native grant-expiry probe](../../machine-control/tests/macos/cli-grant-expiry.py)
-also passes against the signed Mac assembly. Independent native visible approval
-issues an observe-only 60-second grant through the installed CLI; fixture
-observation succeeds. Actual elapsed-time expiry reports `expired` and refuses
-another observation with `approval_required` while the same resident process
-stays alive. The probe disarms access and the controller restores policy,
-processes, staging, claims and initial power-off. This is native access expiry,
-separate from the already accepted target-use claim expiry and YA lifecycle
-cells. It does not establish app replacement or Windows/Linux parity.
-
-## Installed desktop session selector
-
-**Current:** The optional `installed-machine-control` capability (permanent ID
-112) is distinct from legacy Computer Control IDs 70/71. Supported hosts expose
-read-only `GET /api/machine-control`; it authenticates the installed product and
-complete CLI before reporting `{ available: true, version }`. Missing,
-incompatible or unverified installations return bounded unavailability without
-private paths. Readiness never starts MC, obtains a grant, or modifies settings.
-
-Eligible local Claude-family sessions outside plan mode and unrestricted local
-Codex sessions can select Machine Control in advanced launch options. Remote
-executors, YA-sandboxed and fixed launches do not offer it. Selection defaults
-off and resets on source or eligibility changes. A supported launch sends an
-explicit optional boolean `machineControl`; false overrides `YEP_MC_CONTROL`.
-The server revalidates a selected installation at launch and refuses malformed
-or simultaneous installed/legacy selections. Native sudo remains independent.
-
-When capability 112 is absent, the client neither requests readiness nor sends
-the launch field, including on older servers advertising legacy IDs 70/71.
-Legacy controls keep their existing meaning until accepted Windows cutover.
-The selector applies to immediate explicit launches. While selected, project
-queue submission is disabled with an explanation; turning it off permits queue
-submission. YA shutdown leaves independently installed MC running, and removing
-advertisement does not claim to revoke MC access or contain same-user shells.
+Existing probes own the executable evidence: `probe-machine-control-native.ts`,
+`probe-machine-control-browser.ts`, `probe-machine-control-model.ts` and
+`probe-machine-control-lifecycle.ts`. The full-app model probe verifies exact
+native PNG bytes with `private, no-store`, stops its provider, rebuilds the app
+and media store from the persisted transcript, and checks live/reloaded desktop
+and phone image viewers. Durable media preservation stays off and the owned
+source capture remains until cleanup. A Windows run can select built client
+assets, a separately identified test browser and the complete Codex executable.
+Type-check manual probes with `pnpm exec tsc -p
+scripts/tsconfig.machine-control-probe.json`. Keep credentials, private inventory,
+claims, captures and transport logs out of public Git.

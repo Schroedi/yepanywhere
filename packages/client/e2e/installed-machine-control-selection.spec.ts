@@ -86,7 +86,9 @@ test("installed MC readiness preserves typing and its selected affordance at des
     .click();
   await page.getByRole("button", { name: "On", exact: true }).click();
   await expect(control).toContainText("On");
-  await expect(control).toContainText("Approve access in Machine Control.");
+  await expect(control).toContainText(
+    "closing this session does not revoke it.",
+  );
   await expect(page.getByText("Server changed", { exact: false })).toHaveCount(
     0,
   );

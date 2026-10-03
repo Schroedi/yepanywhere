@@ -991,24 +991,17 @@ The audit complements, rather than replaces, released-server behavior
 fixtures. A capability may be registered perfectly while the client still
 mounts its consumers before checking it.
 
-## Optional Windows Computer Control
+## Retired Windows Computer Control
 
-Managed downloads add permanent optional ID 71, `computer-control-releases`,
-under the end-to-end install/update request approved on 2026-09-12. Stable
-v0.8.0/v0.8.1 lack its four `/api/computer-control/releases/*` routes and
-`release` status. Without ID 71 the client sends no release-management request
-and shows server-update guidance while retaining ID 70 local-install controls.
-The isolated browser regression exercises both old-server fallbacks. ID 70
-and all existing capabilities retain their meanings.
-
-The 2026-09-12 optional compatibility review covers stable v0.8.0 and v0.8.1;
-neither has the new contract. Permanent optional ID 70,
-`optional-computer-control`, covers the authenticated operator routes and
-explicit session-start selection. Advertisement means the server can report
-availability; Windows/Node/local-Codex eligibility and default-off enablement
-remain separate checks. Absent support sends no computer-control requests or
-launch fields. See [Computer Control](optional-computer-control.md) for the
-exact routes and authority contract. No older capability changes meaning.
+**Current (0.9.4):** permanent IDs 70 `optional-computer-control` and 71
+`computer-control-releases` are withdrawn from advertisement and remain
+reserved with their original meanings. The client no longer offers their
+settings or session tool. Authenticated legacy routes return 410 migration
+guidance; true old session selections are rejected before provider launch.
+Installed Machine Control uses distinct ID 112 and an optional launch field.
+An older host advertising 70/71 does not receive new readiness requests or
+installed selections without 112. [Computer Control](optional-computer-control.md)
+owns the bounded cleanup and intentional authority change.
 
 ## Experimental issue/session associations
 

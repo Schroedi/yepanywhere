@@ -12,6 +12,22 @@ const installation: InstalledMachineControl = {
 };
 
 describe("installed MC readiness", () => {
+  it.each(["GET", "POST", "PUT", "DELETE"])(
+    "refuses retired operations without installation work (%s)",
+    async (method) => {
+      const verify = vi.fn();
+      const routes = createMachineControlRoutes({ verify });
+      const response = await routes.request(
+        "/computer-control/releases/update",
+        { method },
+      );
+      expect(response.status).toBe(410);
+      expect(await response.json()).toEqual({
+        error: expect.stringContaining("legacy component is retired"),
+      });
+      expect(verify).not.toHaveBeenCalled();
+    },
+  );
   it.each(["darwin", "win32", "linux"])(
     "verifies configured %s installations without enabling launch advertisement",
     async (platform) => {

@@ -1,5 +1,4 @@
 import { startAgentSelfSession } from "./agent-self.js";
-import { COMPUTER_TOOL_NAMESPACE } from "../../computer-control/contract.js";
 /**
  * Codex Provider implementation using codex app-server JSON-RPC.
  *
@@ -1958,7 +1957,6 @@ export class CodexProvider implements AgentProvider {
         yield* sessionIterator;
       } finally {
         settleInitialActiveClient(null);
-        await options.computerControl?.close();
         await installationLease.release();
       }
     })();
@@ -1994,7 +1992,6 @@ export class CodexProvider implements AgentProvider {
       iterator,
       queue,
       abort: async () => {
-        await options.computerControl?.close();
         settleInitialActiveClient(null);
         if (
           activeClient &&
@@ -2874,7 +2871,7 @@ export class CodexProvider implements AgentProvider {
       const experimentalApiEnabled = await this.initializeAppServer(
         appServer,
         options.clientName,
-        Boolean(this.config.externalChatgptAuth || options.computerControl),
+        Boolean(this.config.externalChatgptAuth),
       );
       appServer.notify("initialized");
       await this.loginWithExternalChatgptAuth(appServer);
@@ -2910,7 +2907,6 @@ export class CodexProvider implements AgentProvider {
       sessionId = threadResult.thread.id;
       agentctlSessionEnvBridge.publishSessionId(sessionId);
       runtimeState.threadId = sessionId;
-      options.computerControl?.rename(sessionId);
       runtimeState.resolvedModel = threadResult.model;
       if (threadResult.sandbox?.type === "workspaceWrite") {
         runtimeState.workspaceWriteSandboxPolicy = threadResult.sandbox;
@@ -4017,19 +4013,6 @@ export class CodexProvider implements AgentProvider {
       experimentalRawEvents: false,
       ...(options.sessionSandbox?.instructions?.startFromDefault === false
         ? { baseInstructions: "" }
-        : {}),
-      ...(options.computerControl
-        ? {
-            dynamicTools: [
-              {
-                type: "namespace" as const,
-                name: COMPUTER_TOOL_NAMESPACE,
-                description:
-                  "Optional Windows desktop control for this selected session.",
-                tools: options.computerControl.tools,
-              },
-            ],
-          }
         : {}),
     };
   }
@@ -5307,31 +5290,16 @@ export class CodexProvider implements AgentProvider {
         : {};
 
     switch (request.method) {
-      case "item/tool/call": {
-        if (
-          !options.computerControl?.acceptsThread(params.threadId) ||
-          signal.aborted ||
-          typeof params.tool !== "string" ||
-          params.namespace !== COMPUTER_TOOL_NAMESPACE
-        ) {
-          return {
-            success: false,
-            contentItems: [
-              {
-                type: "inputText",
-                text: "Computer control is unavailable or revoked for this session",
-              },
-            ],
-          };
-        }
-        return options.computerControl.call(
-          params.tool,
-          params.arguments,
-          typeof params.callId === "string"
-            ? params.callId
-            : String(request.id),
-        );
-      }
+      case "item/tool/call":
+        return {
+          success: false,
+          contentItems: [
+            {
+              type: "inputText",
+              text: "No dynamic tool is registered for this session",
+            },
+          ],
+        };
       case "item/commandExecution/requestApproval": {
         const commandParams = this.asCommandExecutionRequestApprovalParams(
           request.params,

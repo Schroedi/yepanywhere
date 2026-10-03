@@ -2323,64 +2323,13 @@ describe("NewSessionForm", () => {
     },
   );
 
-  it("offers computer control to an eligible Codex session and submits it", async () => {
+  it("ignores the retired component even when an older server advertises it", async () => {
     versionState.version = {
       capabilities: [
         PROJECT_QUEUE_CAPABILITY,
         SERVER_CAPABILITIES.computerControl.name,
       ],
     };
-    serverSettingsState.settings = {
-      newSessionDefaults: {
-        provider: "codex",
-        model: "gpt-5.4",
-        permissionMode: "default",
-      },
-    };
-    serverSettingsState.isLoading = false;
-    mockConnectionFetch.mockImplementation((path: string) =>
-      path === "/computer-control"
-        ? Promise.resolve({ enabled: true, available: true })
-        : Promise.resolve({}),
-    );
-
-    render(
-      <NewSessionForm
-        projectId="project-1"
-        selectedProject={chooserProjects[0]}
-        projects={[...chooserProjects]}
-      />,
-    );
-
-    openAdvancedOptions();
-    await screen.findByTestId("filter-newSessionComputerControlTitle");
-    expect(mockConnectionFetch).not.toHaveBeenCalledWith("/machine-control");
-    expect(
-      screen.queryByTestId("filter-newSessionMachineControlTitle"),
-    ).toBeNull();
-    fireEvent.click(
-      dropdownOption("newSessionComputerControlTitle", "showThinkingOn"),
-    );
-    fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
-      target: { value: "drive the computer" },
-    });
-    fireEvent.click(
-      screen.getByRole("button", { name: "newSessionStartAction" }),
-    );
-
-    await waitFor(() => {
-      expect(mockStartSession).toHaveBeenCalledTimes(1);
-    });
-    expect(mockStartSession.mock.calls[0]?.[2]).toEqual(
-      expect.objectContaining({ computerControl: true }),
-    );
-    expect(mockStartSession.mock.calls[0]?.[2]).not.toHaveProperty(
-      "machineControl",
-    );
-  });
-
-  it("neither offers nor requests computer control without the capability", async () => {
-    versionState.version = { capabilities: [PROJECT_QUEUE_CAPABILITY] };
     serverSettingsState.settings = {
       newSessionDefaults: {
         provider: "codex",

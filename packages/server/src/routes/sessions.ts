@@ -1,3 +1,4 @@
+import { RETIRED_COMPUTER_CONTROL_ERROR } from "../machine-control/legacy-retirement.js";
 import {
   ALL_PERMISSION_MODES,
   type ContextUsage,
@@ -4066,14 +4067,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       typeof body.machineControl !== "boolean"
     )
       return c.json({ error: "machineControl must be a boolean" }, 400);
-    if (body.machineControl && body.computerControl)
-      return c.json(
-        {
-          error:
-            "Choose installed Machine Control or the legacy component, not both",
-        },
-        400,
-      );
+    if (body.computerControl)
+      return c.json({ error: RETIRED_COMPUTER_CONTROL_ERROR }, 400);
 
     const modeError = permissionModeError(body.mode);
     if (modeError) {
@@ -4264,14 +4259,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       typeof body.machineControl !== "boolean"
     )
       return c.json({ error: "machineControl must be a boolean" }, 400);
-    if (body.machineControl && body.computerControl)
-      return c.json(
-        {
-          error:
-            "Choose installed Machine Control or the legacy component, not both",
-        },
-        400,
-      );
+    if (body.computerControl)
+      return c.json({ error: RETIRED_COMPUTER_CONTROL_ERROR }, 400);
 
     const modeError = permissionModeError(body.mode);
     if (modeError) {
@@ -4418,14 +4407,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       typeof body.machineControl !== "boolean"
     )
       return c.json({ error: "machineControl must be a boolean" }, 400);
-    if (body.machineControl && body.computerControl)
-      return c.json(
-        {
-          error:
-            "Choose installed Machine Control or the legacy component, not both",
-        },
-        400,
-      );
+    if (body.computerControl)
+      return c.json({ error: RETIRED_COMPUTER_CONTROL_ERROR }, 400);
 
     const limitedLaunch = applyLimitedLaunchPolicy(c, body);
     if (limitedLaunch.kind === "error")
@@ -4573,14 +4556,8 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       typeof body.machineControl !== "boolean"
     )
       return c.json({ error: "machineControl must be a boolean" }, 400);
-    if (body.machineControl && body.computerControl)
-      return c.json(
-        {
-          error:
-            "Choose installed Machine Control or the legacy component, not both",
-        },
-        400,
-      );
+    if (body.computerControl)
+      return c.json({ error: RETIRED_COMPUTER_CONTROL_ERROR }, 400);
 
     const limitedLaunch = applyLimitedLaunchPolicy(c, body);
     if (limitedLaunch.kind === "error")

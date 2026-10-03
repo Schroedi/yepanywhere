@@ -284,6 +284,7 @@ export function isUnchangedGlobalSessionsResponse(
 
 export interface SessionOptions {
   creationProvenance?: SessionCreationProvenance;
+  /** @deprecated Old selection is rejected; use machineControl. */
   computerControl?: boolean;
   machineControl?: boolean;
   mode?: PermissionMode;
