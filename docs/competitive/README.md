@@ -5,6 +5,11 @@ Analysis of similar tools in the AI coding agent supervisor space.
 **[Feature Matrix](feature-matrix.md)** — Historical checklist plus links to
 dated source reviews; use the newer reviews for current comparisons.
 
+**[T3 Code remote environments](t3code-remote-sessions.md)** — 2026-10-03
+source review of enrollment, SSH server ownership, target-local credentials and
+worktrees, Git/PR workflows, disconnect/restart recovery, and implications for
+YA's remote-execution choices.
+
 ## First-Party Tools
 
 Official apps from AI providers:
@@ -119,5 +124,5 @@ See **[Ecosystem](../ecosystem/)** for adjacent projects — agent-to-agent coor
 
 ## Last Updated
 
-2026-10-02 (Warp source review added;
+2026-10-03 (focused T3 remote-environment source review added;
 other competitor snapshots retain their own dates)
