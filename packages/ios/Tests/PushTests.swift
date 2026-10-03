@@ -5,6 +5,7 @@ import XCTest
 private final class BrokerProtocol: URLProtocol {
   static var responseCode = 201
   static var responseBody = Data()
+  static var installationBody: Data?
   static var requests: [URLRequest] = []
   override class func canInit(with request: URLRequest) -> Bool {
     request.url?.host == "fixture.invalid"
@@ -16,7 +17,8 @@ private final class BrokerProtocol: URLProtocol {
       url: request.url!, statusCode: Self.responseCode, httpVersion: nil,
       headerFields: ["Content-Type": "application/json"])!
     client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-    client?.urlProtocol(self, didLoad: Self.responseBody)
+    let body = request.url?.path == "/v1/installations" ? Self.installationBody : nil
+    client?.urlProtocol(self, didLoad: body ?? Self.responseBody)
     client?.urlProtocolDidFinishLoading(self)
   }
   override func stopLoading() {}
@@ -54,6 +56,7 @@ private final class PushFixtureSession: NativeAuthenticatedSession {
 final class PushTests: XCTestCase {
   private func broker() -> PushBroker {
     BrokerProtocol.requests = []
+    BrokerProtocol.installationBody = nil
     let configuration = URLSessionConfiguration.ephemeral;
     configuration.protocolClasses = [BrokerProtocol.self]
     return PushBroker(
@@ -249,6 +252,73 @@ final class PushTests: XCTestCase {
         security: SecurityClientCoordinator(store: store));
       XCTFail("Unsupported server enrolled")
     } catch NativePushFailure.updateRequired {} catch { XCTFail("Wrong failure: \(error)") }
+    XCTAssertEqual(BrokerProtocol.requests.count, 0)
+  }
+
+  func testFirstEnrollmentWaitsForTokenAndProtectedInstallation() async throws {
+    let broker = broker(); let store = HostStore(backend: MemoryProtectedStore())
+    let profile = HostProfile(
+      id: UUID().uuidString, label: "First enrollment", endpoint: "wss://fixture.invalid/api/ws",
+      username: "fixture", lastConnected: Date())
+    let client = UUID().uuidString
+    try store.write(
+      "security." + profile.id,
+      JSONEncoder().encode(SecurityClientBinding(requestID: UUID().uuidString, clientID: client)))
+    BrokerProtocol.responseCode = 201
+    BrokerProtocol.installationBody = try JSONSerialization.data(withJSONObject: [
+      "installationId": String(repeating: "a", count: 22),
+      "installationSecret": String(repeating: "b", count: 43),
+    ])
+    BrokerProtocol.responseBody = try JSONSerialization.data(withJSONObject: [
+      "subscriptionId": String(repeating: "c", count: 22),
+      "sendSecret": String(repeating: "s", count: 43),
+    ])
+    weak var owner: NativeNotifications?
+    let notifications = NativeNotifications(
+      store: store, broker: broker,
+      permissionRequest: {
+        Task { @MainActor in
+          await Task.yield(); owner?.receiveToken("public-first-registration-token")
+        }
+        return true
+      })
+    owner = notifications
+    notifications.knownHost = { $0 == profile.id }
+    notifications.currentClientID = { $0 == profile.id ? client : nil }
+    try await notifications.enable(
+      profile, clientID: client, session: PushFixtureSession(),
+      security: SecurityClientCoordinator(store: store))
+    XCTAssertTrue(notifications.enabled(profile.id))
+    XCTAssertEqual(
+      BrokerProtocol.requests.map { $0.url!.path },
+      [
+        "/v1/installations",
+        "/v1/installations/" + String(repeating: "a", count: 22) + "/subscriptions",
+      ])
+  }
+
+  func testBackgroundStopsFirstRegistrationWaitWithoutEnrolling() async throws {
+    let broker = broker(); let store = HostStore(backend: MemoryProtectedStore())
+    let permission = expectation(description: "Permission returns before registration")
+    let notifications = NativeNotifications(
+      store: store, broker: broker,
+      permissionRequest: {
+        permission.fulfill(); return true
+      })
+    let profile = HostProfile(
+      id: UUID().uuidString, label: "Pending", endpoint: "wss://fixture.invalid/api/ws",
+      username: "fixture", lastConnected: Date())
+    let enrollment = Task {
+      try await notifications.enable(
+        profile, clientID: UUID().uuidString, session: PushFixtureSession(),
+        security: SecurityClientCoordinator(store: store))
+    }
+    await fulfillment(of: [permission], timeout: 2)
+    notifications.background()
+    do {
+      try await enrollment.value; XCTFail("Suspended enrollment accepted")
+    } catch NativePushFailure.unavailable {} catch { XCTFail("Wrong failure: \(error)") }
+    XCTAssertFalse(notifications.enabled(profile.id))
     XCTAssertEqual(BrokerProtocol.requests.count, 0)
   }
 

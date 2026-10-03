@@ -403,9 +403,19 @@ the user opens them. The implemented iOS shell uses fixed APNs alert copy, prote
 Keychain bindings and an authenticated destination lookup after native resume.
 Six push tests, the full simulator suite and signed phone native/UI regressions
 pass. Acceptance catalogs use separate push storage, preserving ordinary saved
-bindings during QA cleanup. The existing Firebase project still needs the iOS
-app registration and APNs credentials; live Apple presentation/taps remain
-unproven until that private setup and a push-enabled signed device run pass.
+bindings during QA cleanup. First enrollment waits for APNs/FCM and protected
+broker registration after permission returns. This is one event-driven wait
+with a 15-second deadline; backgrounding or cancellation ends it, and registration
+failure remains retryable. The native list's Enable/Disable and Send test controls
+act independently; testing must not disable the host's enrollment.
+
+Private development setup now registers the explicit YA bundle with Push
+Notifications and the corresponding Firebase Apple app. A sandbox, topic-specific
+APNs key is uploaded to Firebase's development slot. Private configuration and
+key backups remain outside Git. Debug provisioning must contain the development
+APNs entitlement. Production APNs credentials and App Store/TestFlight signing
+remain separate release gates. Live Apple presentation/taps still require the
+push-enabled signed device acceptance in the delivery plan.
 
 ## Self-Hosted And Configured Variants
 

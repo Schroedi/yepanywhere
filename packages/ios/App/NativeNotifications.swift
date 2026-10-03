@@ -28,6 +28,8 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
   private var active = true
   private var registerAgain = false
   private var work: Task<Void, Never>?
+  private var installationWait: (id: UUID, continuation: CheckedContinuation<Void, Never>)?
+  private var installationDeadline: Task<Void, Never>?
   init(
     store: HostStore = HostStore(service: "com.yepanywhere.ios.push.v1"),
     broker: PushBroker = PushBroker(),
@@ -45,7 +47,7 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
   }
   deinit {
     if let observer { NotificationCenter.default.removeObserver(observer) }; work?.cancel();
-    cleanupWork?.cancel()
+    cleanupWork?.cancel(); installationDeadline?.cancel()
   }
   private func installation() -> BrokerInstallation? {
     guard let data = try? store.read("installation"), data.count <= 8192 else { return nil }
@@ -58,6 +60,32 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
   private func pendingToken() -> String? {
     guard let data = try? store.read("token"), data.count <= 4096 else { return nil }
     return String(data: data, encoding: .utf8)
+  }
+  private func finishInstallationWait(id: UUID? = nil) {
+    guard let wait = installationWait, id == nil || wait.id == id else { return }
+    installationWait = nil; installationDeadline?.cancel(); installationDeadline = nil
+    wait.continuation.resume()
+  }
+  private func registeredInstallation() async -> BrokerInstallation? {
+    guard active, !Task.isCancelled else { return nil }
+    if let record = installation() { return record }
+    let id = UUID()
+    await withTaskCancellationHandler {
+      await withCheckedContinuation { continuation in
+        installationWait = (id, continuation)
+        // First permission can return before APNs/FCM and broker registration.
+        // One event-driven wait per serialized enrollment; no polling/retries.
+        installationDeadline = Task { [weak self] in
+          do { try await Task.sleep(for: .seconds(15)) } catch { return }
+          self?.finishInstallationWait(id: id)
+        }
+        register()
+      }
+    } onCancel: {
+      Task { @MainActor [weak self] in self?.finishInstallationWait(id: id) }
+    }
+    guard active, !Task.isCancelled else { return nil }
+    return installation()
   }
   func receiveToken(_ token: String) {
     guard !token.isEmpty, token.utf8.count <= 4096 else { return }
@@ -79,7 +107,7 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
         do {
           var record: BrokerInstallation
           if let prior = installation() {
-            if prior.token == token { return }
+            if prior.token == token { finishInstallationWait(); return }
             if try await broker.replace(prior, token: token) {
               record = prior; record.token = token
             } else {
@@ -89,10 +117,11 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
             record = try await broker.create(token: token)
           }
           do { try store.write("installation", JSONEncoder().encode(record)) } catch {
-            await broker.delete(record); return
+            finishInstallationWait(); await broker.delete(record); return
           }
+          finishInstallationWait()
           if pendingToken() == token { return }
-        } catch { return }
+        } catch { finishInstallationWait(); return }
       }
     }
   }
@@ -175,7 +204,9 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
     } else {
       granted = await requestPermission()["permission"] as? String == "granted"
     }
-    guard granted, let installation = installation() else { throw NativePushFailure.unavailable }
+    guard granted, let installation = await registeredInstallation() else {
+      throw NativePushFailure.unavailable
+    }
     if enabled(profile.id) { return }
     if let prior = try routes().first(where: { $0.profileID == profile.id }) {
       try await cleanup(prior)
@@ -275,7 +306,9 @@ final class NativeNotifications: NSObject, UNUserNotificationCenterDelegate {
     }
     return await status()
   }
-  func background() { active = false; work?.cancel(); cleanupWork?.cancel() }
+  func background() {
+    active = false; finishInstallationWait(); work?.cancel(); cleanupWork?.cancel()
+  }
   func foreground() {
     active = true;
     if cleanupWork == nil, !enrollmentBusy {

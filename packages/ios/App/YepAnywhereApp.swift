@@ -77,7 +77,7 @@ private struct HostScreen: View {
                   if hosts.pushEnabled(profile) {
                     Button("Send test") { hosts.push(profile, action: .test) }
                   }
-                }.disabled(hosts.busy || profile.forgetting == true)
+                }.buttonStyle(.borderless).disabled(hosts.busy || profile.forgetting == true)
               }
             }
             Button("Add host") { hosts.adding = true }.accessibilityIdentifier("host-add")
