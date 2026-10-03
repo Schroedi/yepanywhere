@@ -626,6 +626,7 @@ export interface VersionRouteOptions {
   providerHostControlAvailable?: boolean;
   /** Installed MC readiness route is mounted on this supported host. */
   installedMachineControlAvailable?: boolean;
+  agentAuthRouterAvailable?: boolean;
   /** Whether the operator enabled experimental live worktree monitoring. */
   isLiveWorktreeMonitoringEnabled?: () => boolean;
   /** Version-implied contracts deliberately unavailable in this generation. */
@@ -681,6 +682,8 @@ export function getServerCapabilities(options?: VersionRouteOptions): string[] {
   capabilities.push(SERVER_CAPABILITIES.vhostBearerAccess.name);
   if (options?.vhostAppControlAvailable)
     capabilities.push(SERVER_CAPABILITIES.vhostAppControl.name);
+  if (options?.agentAuthRouterAvailable)
+    capabilities.push(SERVER_CAPABILITIES.agentAuthRouter.name);
   if (options?.installedMachineControlAvailable)
     capabilities.push(SERVER_CAPABILITIES.installedMachineControl.name);
   capabilities.push(SERVER_CAPABILITIES.claudeGatewayServices.name);

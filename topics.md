@@ -432,3 +432,5 @@
 - native-sudo - Explicit local Mac administrator authentication through a verified bundled helper.
 
 - machine-control-desktop-consumer - Authenticated installed Python CLI discovery and local agent advertisement; gated legacy retirement.
+
+- [agent-auth-router-integration](topics/agent-auth-router.md) - Local pairing and pinned native sessions.

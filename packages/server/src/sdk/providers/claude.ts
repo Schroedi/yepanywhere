@@ -1,3 +1,4 @@
+import { claudeRouterEnvironment } from "./router-transport.js";
 import { startAgentSelfSession } from "./agent-self.js";
 import {
   type ChildProcess,
@@ -1983,6 +1984,11 @@ export class ClaudeProvider implements AgentProvider {
       ...agentServerEnvironmentFor(options),
       ...autoCompactOverrideEnv,
     };
+    if (options.routerLaunch)
+      Object.assign(
+        baseClaudeEnv,
+        claudeRouterEnvironment(options.routerLaunch),
+      );
     const claudeEnv = agentctlSessionEnvBridge
       ? agentctlSessionEnvBridge.extendEnv(baseClaudeEnv)
       : baseClaudeEnv;
@@ -2139,7 +2145,8 @@ export class ClaudeProvider implements AgentProvider {
           {
             event: "claude_child_spawn_start",
             command: spawnOpts.command,
-            args: sandboxed ? undefined : spawnOpts.args,
+            args:
+              sandboxed || options.routerLaunch ? undefined : spawnOpts.args,
             cwd: spawnOpts.cwd,
             shell: process.platform === "win32",
             resolvedExecutable: pathToClaudeCodeExecutable,
@@ -2201,7 +2208,9 @@ export class ClaudeProvider implements AgentProvider {
               {
                 event: "claude_child_stderr",
                 pid: proc.pid,
-                stderr: trimmed.slice(0, 2000),
+                stderr: options.routerLaunch
+                  ? "[routed provider stderr omitted]"
+                  : trimmed.slice(0, 2000),
               },
               "Claude child stderr",
             );
@@ -2219,7 +2228,11 @@ export class ClaudeProvider implements AgentProvider {
               command: spawnOpts.command,
               cwd: spawnOpts.cwd,
               resolvedExecutable: pathToClaudeCodeExecutable,
-              stderrTail: stderr ? stderr.slice(-4000) : undefined,
+              stderrTail: options.routerLaunch
+                ? undefined
+                : stderr
+                  ? stderr.slice(-4000)
+                  : undefined,
             },
             "Claude child process exited",
           );
@@ -2249,10 +2262,17 @@ export class ClaudeProvider implements AgentProvider {
     const turnEffort = new ClaudeTurnEffort(
       () => sdkQuery,
       async () => {
-        const models = await this.getAvailableModels();
+        const models = options.routerLaunch
+          ? CLAUDE_MODELS_FALLBACK
+          : await this.getAvailableModels();
         const model = models.find(
           (candidate) => candidate.id === (selectedModel ?? "default"),
         );
+        if (options.routerLaunch && !model)
+          return {
+            ...CLAUDE_MODELS_FALLBACK[0]!,
+            id: selectedModel ?? "default",
+          };
         if (!model)
           throw new Error(
             `No effort catalog for model ${selectedModel ?? "default"}`,
@@ -2300,6 +2320,16 @@ export class ClaudeProvider implements AgentProvider {
           // Filter env to exclude npm_*, yep-anywhere specific, and other irrelevant vars
           env: claudeEnv,
           ...this.getSessionToolOptions(options.model, sessionSandbox),
+          ...(options.routerLaunch
+            ? {
+                settings: {
+                  ...this.getSettings(options.model),
+                  apiKeyHelper: "",
+                  disableClaudeAiConnectors: true,
+                  env: claudeRouterEnvironment(options.routerLaunch),
+                },
+              }
+            : {}),
           hooks: {
             Stop: [
               {

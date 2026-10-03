@@ -79,6 +79,8 @@ interface WorkerMetadata {
 }
 
 export interface HostedProviderReattachSpec {
+  /** Public binding identity only; credentials remain on the private launch channel. */
+  routerBindingId?: string;
   permissionMode?: PermissionMode;
   model?: string;
   serviceTier?: string;
@@ -681,6 +683,7 @@ function reattachSpec(
 ): HostedProviderReattachSpec {
   const sandboxLevel = options.sessionSandboxOptions?.level;
   return {
+    routerBindingId: options.routerLaunch?.bindingId,
     permissionMode: options.permissionMode,
     model: options.model,
     serviceTier: options.serviceTier,
@@ -719,6 +722,14 @@ export async function startHostedProviderSession(
     );
   }
   const requestedReattach = reattachSpec(options);
+  if (
+    runtime &&
+    runtime.reattach.routerBindingId !== requestedReattach.routerBindingId
+  ) {
+    throw new Error(
+      "Retained runtime router binding does not match this session",
+    );
+  }
   if (
     runtime &&
     ((runtime.reattach.sandboxLevel ?? "none") !==

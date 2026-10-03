@@ -1,3 +1,4 @@
+import { RoutedSessionContext } from "../contexts/RoutedSessionContext";
 import { DRAFT_STORAGE_EVENT } from "../lib/draftSyncStorage";
 import { SessionIssuesLink } from "../components/SessionIssuesLink";
 import { useNonHumanUserTurnNavigation } from "../hooks/useNonHumanUserTurnNavigation";
@@ -6112,6 +6113,19 @@ function SessionPageContent({
                         />
                       )}
                     </button>
+                    {session?.routerBinding &&
+                      serverHasCapability(versionInfo, "agent-auth-router") && (
+                        <span
+                          className={sessionHeaderStyles.routerAccount}
+                          title={t("routerPinnedAccount", {
+                            account: session.routerBinding.accountId,
+                          })}
+                        >
+                          {t("routerPinnedAccount", {
+                            account: session.routerBinding.accountId,
+                          })}
+                        </span>
+                      )}
                     {currentGoal && (
                       <GoalFlag
                         objective={currentGoal}
@@ -7203,7 +7217,9 @@ function SessionPageContent({
         draftControlsRef.current?.focus?.({ preventScroll: true })
       }
     >
-      {content}
+      <RoutedSessionContext value={Boolean(session?.routerBinding)}>
+        {content}
+      </RoutedSessionContext>
     </AsyncQuestionsProvider>
   );
 }

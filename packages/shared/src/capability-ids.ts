@@ -696,6 +696,12 @@ export const CAPABILITY_ID_ALLOCATIONS = {
     name: "installed-machine-control",
     introducedIn: "0.9.4",
   },
+  agentAuthRouter: {
+    id: 113,
+    direction: "server",
+    name: "agent-auth-router",
+    introducedIn: "0.9.4",
+  },
 } as const satisfies Record<string, CapabilityIdAllocation>;
 
 export type CapabilityBitset = readonly (readonly [

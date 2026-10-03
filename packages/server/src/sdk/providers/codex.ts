@@ -1,3 +1,7 @@
+import {
+  codexRouterArguments,
+  codexRouterEnvironment,
+} from "./router-transport.js";
 import { startAgentSelfSession } from "./agent-self.js";
 /**
  * Codex Provider implementation using codex app-server JSON-RPC.
@@ -975,6 +979,7 @@ class CodexAppServerClient {
       notification: JsonRpcNotification,
     ) => boolean,
     private readonly sessionSandbox?: SessionSandboxRuntime,
+    private readonly launchArguments: string[] = [],
   ) {}
 
   get isClosed(): boolean {
@@ -1007,7 +1012,12 @@ class CodexAppServerClient {
       throw new Error("Codex app-server already connected");
     }
 
-    const commandArgs = ["app-server", "--listen", "stdio://"];
+    const commandArgs = [
+      "app-server",
+      "--listen",
+      "stdio://",
+      ...this.launchArguments,
+    ];
     const sandboxed = this.sessionSandbox?.wrapSpawn(
       this.command,
       commandArgs,
@@ -1886,9 +1896,10 @@ export class CodexProvider implements AgentProvider {
     // These effort mappings read the model's supported efforts, which a fresh
     // session worker has not loaded yet.
     if (
-      options.effort === "max" ||
-      options.thinking?.type === "disabled" ||
-      options.initialMessage?.metadata?.turnEffort
+      !options.routerLaunch &&
+      (options.effort === "max" ||
+        options.thinking?.type === "disabled" ||
+        options.initialMessage?.metadata?.turnEffort)
     )
       await this.getAvailableModels();
     const installationLease =
@@ -1898,6 +1909,9 @@ export class CodexProvider implements AgentProvider {
     const queue = new MessageQueue();
     const abortController = new AbortController();
     const runtimeState: CodexTurnRuntimeState = {
+      ...(options.routerLaunch
+        ? { cyberAccessAccountKey: `aar:${options.routerLaunch.accountId}` }
+        : {}),
       threadId: options.resumeSessionId ?? "",
       resolvedModel: options.model ?? "default",
       turnModelOverride: options.model ?? null,
@@ -2034,8 +2048,13 @@ export class CodexProvider implements AgentProvider {
         );
       },
       setEffort: async (effort) => {
-        if (effort === "max") await this.getAvailableModels();
+        if (effort === "max" && !options.routerLaunch)
+          await this.getAvailableModels();
         if (runtimeState.activeTurnHasEffortOverride) {
+          if (options.routerLaunch)
+            throw new Error(
+              "One-turn effort is not available for routed Codex sessions",
+            );
           runtimeState.turnEffortOverride = effort ?? null;
           const model = (await this.getAvailableModels()).find(
             (candidate) => candidate.id === runtimeState.resolvedModel,
@@ -2418,6 +2437,14 @@ export class CodexProvider implements AgentProvider {
         }
 
         if (name === "status" || name === "usage") {
+          if (options.routerLaunch)
+            return {
+              handled: true,
+              output: {
+                summary:
+                  "Account usage is available in the router account controls.",
+              },
+            };
           const client = activeClient ?? (await initialActiveClient);
           if (!client) {
             return {
@@ -2835,10 +2862,13 @@ export class CodexProvider implements AgentProvider {
     const appServer = new CodexAppServerClient(
       codexCommand,
       options.cwd,
-      codexEnv,
+      options.routerLaunch
+        ? codexRouterEnvironment(codexEnv, options.routerLaunch)
+        : codexEnv,
       (notification) =>
         this.shouldSuppressLiveDeltaNotification(notification, options),
       sessionSandbox,
+      options.routerLaunch ? codexRouterArguments(options.routerLaunch) : [],
     );
     setActiveClient(appServer);
 
@@ -2923,6 +2953,7 @@ export class CodexProvider implements AgentProvider {
             sandbox: CODEX_POLICY_OVERRIDES.sandbox,
           },
           model: options.model ?? null,
+          ...(options.routerLaunch ? { modelProvider: "aar" } : {}),
         },
         "Started Codex app-server session thread",
       );
@@ -3528,6 +3559,10 @@ export class CodexProvider implements AgentProvider {
           );
           let restoreThreadEffort: (() => Promise<unknown>) | undefined;
           if (message.turnEffort) {
+            if (options.routerLaunch)
+              throw new Error(
+                "One-turn effort is not available for routed Codex sessions",
+              );
             const modelId =
               runtimeState.turnModelOverride ?? runtimeState.resolvedModel;
             const model = (await this.getAvailableModels()).find(
@@ -4005,6 +4040,7 @@ export class CodexProvider implements AgentProvider {
   ): ThreadStartParams {
     return {
       model: options.model ?? null,
+      ...(options.routerLaunch ? { modelProvider: "aar" } : {}),
       ...(options.serviceTier ? { serviceTier: options.serviceTier } : {}),
       cwd: options.cwd,
       ...this.buildThreadPermissionParams(policy),
@@ -4027,6 +4063,7 @@ export class CodexProvider implements AgentProvider {
     const params: CodexThreadResumeParamsForRequest = {
       threadId: options.resumeSessionId ?? sessionId,
       model: options.model ?? null,
+      ...(options.routerLaunch ? { modelProvider: "aar" } : {}),
       ...(options.serviceTier ? { serviceTier: options.serviceTier } : {}),
       cwd: options.cwd,
       ...this.buildThreadPermissionParams(policy),

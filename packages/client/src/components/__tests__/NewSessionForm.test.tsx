@@ -314,6 +314,13 @@ vi.mock("react-router-dom", async () => {
 vi.mock("../../api/client", () => ({
   api: {
     addProject: mockAddProject,
+    routerStatus: vi.fn(async () => ({ state: "connected" })),
+    routerAccounts: vi.fn(async () => ({
+      accounts: [{ id: "routed-account", provider: "claude", enabled: true }],
+    })),
+    routerCatalog: vi.fn(async () => ({
+      models: [{ id: "routed-model", name: "Routed model" }],
+    })),
     startSession: mockStartSession,
     startDetachedSession: mockStartDetachedSession,
     createDetachedSession: mockCreateDetachedSession,
@@ -566,48 +573,47 @@ vi.mock("../../contexts/ToastContext", () => ({
   }),
 }));
 
-vi.mock("../../i18n", () => ({
-  useI18n: () => ({
-    t: (key: string, vars?: Record<string, string | number>) => {
-      const text: Record<string, string> = {
-        effortLevelLowLabel: "Low",
-        effortLevelMediumLabel: "Medium",
-        effortLevelHighLabel: "High",
-        effortLevelExtraLabel: "Extra",
-        effortLevelExtraHighLabel: "Extra High",
-        effortLevelMaxLabel: "Max",
-        effortLevelLowDescription: "Fastest responses",
-        effortLevelMediumDescription: "Moderate reasoning",
-        effortLevelHighDescription: "Deep reasoning",
-        effortLevelExtraDescription: "For your hardest tasks",
-        effortLevelExtraHighDescription: "Extra-high reasoning",
-        effortLevelMaxDescription: "Maximum effort",
-        recapModeSideSessionTimedDescription:
-          "Summarize tailed assistant output after backgrounding (not closing) for {seconds} s.",
-        recapModeForkTimedDescription:
-          "Summarize from a temporary fork after backgrounding (not closing) for {seconds} s.",
-        toolbarProjectQueueTooltipWithShortcut:
-          "Send after all sessions in this project are idle\nCtrl+Enter",
-        composerFullPaneExpand: "Expand composer",
-        composerFullPaneExpandTitle: "Expand composer ({shortcut})",
-        composerFullPaneRestore: "Restore composer",
-        composerFullPaneRestoreTitle: "Restore composer ({shortcut})",
-        speechPrefixDeliveryLabel: "{action}. Prepends {prefix}.",
-        speechPrefixDeliveryTooltip: "{tooltip} Prepends {prefix}.",
-        newSessionFixedTitle: "Set by your account",
-        newSessionFixedSandboxValue: "Always on",
-        newSessionSandboxUnavailableMissingPackages:
-          "Unavailable: install {packages} on the server to enable sandboxed sessions.",
-      };
-      let translated = text[key] ?? key;
-      if (!vars) return translated;
-      for (const [name, value] of Object.entries(vars)) {
-        translated = translated.replaceAll(`{${name}}`, String(value));
-      }
-      return translated;
-    },
-  }),
-}));
+vi.mock("../../i18n", () => {
+  const t = (key: string, vars?: Record<string, string | number>) => {
+    const text: Record<string, string> = {
+      effortLevelLowLabel: "Low",
+      effortLevelMediumLabel: "Medium",
+      effortLevelHighLabel: "High",
+      effortLevelExtraLabel: "Extra",
+      effortLevelExtraHighLabel: "Extra High",
+      effortLevelMaxLabel: "Max",
+      effortLevelLowDescription: "Fastest responses",
+      effortLevelMediumDescription: "Moderate reasoning",
+      effortLevelHighDescription: "Deep reasoning",
+      effortLevelExtraDescription: "For your hardest tasks",
+      effortLevelExtraHighDescription: "Extra-high reasoning",
+      effortLevelMaxDescription: "Maximum effort",
+      recapModeSideSessionTimedDescription:
+        "Summarize tailed assistant output after backgrounding (not closing) for {seconds} s.",
+      recapModeForkTimedDescription:
+        "Summarize from a temporary fork after backgrounding (not closing) for {seconds} s.",
+      toolbarProjectQueueTooltipWithShortcut:
+        "Send after all sessions in this project are idle\nCtrl+Enter",
+      composerFullPaneExpand: "Expand composer",
+      composerFullPaneExpandTitle: "Expand composer ({shortcut})",
+      composerFullPaneRestore: "Restore composer",
+      composerFullPaneRestoreTitle: "Restore composer ({shortcut})",
+      speechPrefixDeliveryLabel: "{action}. Prepends {prefix}.",
+      speechPrefixDeliveryTooltip: "{tooltip} Prepends {prefix}.",
+      newSessionFixedTitle: "Set by your account",
+      newSessionFixedSandboxValue: "Always on",
+      newSessionSandboxUnavailableMissingPackages:
+        "Unavailable: install {packages} on the server to enable sandboxed sessions.",
+    };
+    let translated = text[key] ?? key;
+    if (!vars) return translated;
+    for (const [name, value] of Object.entries(vars)) {
+      translated = translated.replaceAll(`{${name}}`, String(value));
+    }
+    return translated;
+  };
+  return { useI18n: () => ({ t }) };
+});
 
 vi.mock("../FilterDropdown", () => ({
   FilterDropdown: ({
@@ -1485,6 +1491,39 @@ describe("NewSessionForm", () => {
       "project-1",
       "hello",
     ]);
+  });
+
+  it("launches a selected router account with its catalog model and provider-default reasoning", async () => {
+    versionState.version = { capabilities: ["agent-auth-router"] };
+    render(
+      <NewSessionForm
+        projectId="project-1"
+        selectedProject={chooserProjects[0]}
+        projects={[...chooserProjects]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Claude" }));
+    openAdvancedOptions();
+    fireEvent.change(await screen.findByLabelText("routerAccount"), {
+      target: { value: "routed-account" },
+    });
+    await screen.findByRole("option", { name: "Routed model" });
+    fireEvent.change(screen.getByLabelText("routerModel"), {
+      target: { value: "routed-model" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("newSessionPlaceholder"), {
+      target: { value: "hello" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "newSessionStartAction" }),
+    );
+    await waitFor(() => expect(mockStartSession).toHaveBeenCalledTimes(1));
+    expect(mockStartSession.mock.calls[0]?.[2]).toMatchObject({
+      provider: "claude",
+      routerAccountId: "routed-account",
+      model: "routed-model",
+      thinking: "auto",
+    });
   });
 
   it("submits the selected Claude provider and model to startSession", async () => {

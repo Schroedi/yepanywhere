@@ -1,3 +1,4 @@
+import { AgentAuthRouterSettings } from "../../components/AgentAuthRouterControls";
 import {
   Fragment,
   useCallback,
@@ -1798,6 +1799,9 @@ export function ProvidersSettings() {
 
   return (
     <SettingsSection description={t("providersSectionDescription")}>
+      {serverHasCapability(version, "agent-auth-router") && (
+        <AgentAuthRouterSettings />
+      )}
       {SHOW_HELPER_TARGETS_SETTINGS && (
         <div className="settings-group">
           <HelperTargetsSettings

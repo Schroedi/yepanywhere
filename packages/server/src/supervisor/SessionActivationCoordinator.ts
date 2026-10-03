@@ -24,6 +24,7 @@ import { persistedSandboxFromProcess } from "./sessionSandboxMetadata.js";
 
 /** Launch and live configuration settings for a session. */
 export interface ModelSettings {
+  routerAccountId?: string;
   /** Explicit installed CLI advertisement for this provider launch. */
   machineControl?: boolean;
   /** Explicit launch opt-in, never inherited by forks or automatic resumes. */

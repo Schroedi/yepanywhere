@@ -1,3 +1,7 @@
+import {
+  RouterAccountSelection,
+  type RouterSelection,
+} from "./AgentAuthRouterControls";
 import { DraftSyncNotice } from "./DraftSyncNotice";
 import { DRAFT_STORAGE_EVENT } from "../lib/draftSyncStorage";
 import { MachineControlSessionSelection } from "./MachineControlSessionSelection";
@@ -447,6 +451,13 @@ export function NewSessionForm({
   const [selectedProvider, setSelectedProvider] = useState<ProviderName | null>(
     null,
   );
+  const [routerSelection, setRouterSelection] =
+    useState<RouterSelection | null>(null);
+  useEffect(() => {
+    setRouterSelection((selection) =>
+      selection?.sourceKey === clientSummarySourceKey ? selection : null,
+    );
+  }, [clientSummarySourceKey]);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [selectedThinkingMode, setSelectedThinkingMode] =
     useState<ThinkingMode>("off");
@@ -1101,7 +1112,7 @@ export function NewSessionForm({
     stale: providersStale,
   } = useProviders();
   const { usage: subscriptionUsage } = useProviderSubscriptionUsage(
-    selectedProvider,
+    routerSelection ? null : selectedProvider,
     { bootstrapTier: "supplementary" },
   );
   const {
@@ -1193,9 +1204,14 @@ export function NewSessionForm({
     (selectedProviderQuery.fresh &&
       !selectedProviderQuery.refreshing &&
       selectedProviderQuery.error === null);
-  const hasSelectedProviderModel =
-    selectedProviderCatalogCurrent &&
-    hasRequiredProviderModel(selectedProvider, availableModels, selectedModel);
+  const hasSelectedProviderModel = routerSelection
+    ? Boolean(routerSelection.model)
+    : selectedProviderCatalogCurrent &&
+      hasRequiredProviderModel(
+        selectedProvider,
+        availableModels,
+        selectedModel,
+      );
   const helperSelectableModels = useMemo(
     () => [...visibleModels],
     [visibleModels],
@@ -1846,6 +1862,7 @@ export function NewSessionForm({
   const handleProviderSelect = (providerName: ProviderName) => {
     hasUserCustomizedDefaultsRef.current = true;
     setSelectedProvider(providerName);
+    setRouterSelection(null);
     const provider = providers.find((p) => p.name === providerName);
     const providerModels = provider?.models ?? [];
     const providerDefaults = getProviderSessionDefaults(
@@ -2459,6 +2476,18 @@ export function NewSessionForm({
         return;
       }
 
+      if (
+        routerSelection &&
+        (routerSelection.sourceKey !== clientSummarySourceKey ||
+          !serverHasCapability(versionInfo, "agent-auth-router") ||
+          launchLock.limited ||
+          effectiveExecutor ||
+          effectiveSandboxLevel !== "none" ||
+          launch)
+      ) {
+        showToast(t("routerLaunchUnsupported"), "error");
+        return;
+      }
       const finalMessage = (override ?? draftControls.getDraft()).trimEnd();
 
       const submissionFiles = pendingFilesRef.current;
@@ -2580,8 +2609,12 @@ export function NewSessionForm({
             : {}),
 
           mode: sessionMode,
-          model: selectedModel ?? undefined,
-          thinking,
+          model: routerSelection?.model || selectedModel || undefined,
+          ...(routerSelection &&
+          serverHasCapability(versionInfo, "agent-auth-router")
+            ? { routerAccountId: routerSelection.accountId }
+            : {}),
+          thinking: routerSelection ? ("auto" as const) : thinking,
           showThinking,
           provider: selectedProvider ?? undefined,
           executor: effectiveExecutor ?? undefined,
@@ -2797,7 +2830,8 @@ export function NewSessionForm({
                 recapAfterSeconds,
               },
               initialTitle: trimmedMessage,
-              initialModel: selectedModel ?? undefined,
+              initialModel:
+                routerSelection?.model || selectedModel || undefined,
               initialProvider: selectedProvider ?? undefined,
             }),
           },
@@ -2851,6 +2885,8 @@ export function NewSessionForm({
     [
       basePath,
       draftControls,
+      routerSelection,
+      clientSummarySourceKey,
       supportsInstalledMachineControl,
       machineControlSelected,
       machineControlEligible,
@@ -2897,6 +2933,10 @@ export function NewSessionForm({
   );
 
   const handleQueueProjectSession = async (messageOverride?: unknown) => {
+    if (routerSelection) {
+      showToast(t("routerQueueUnsupported"), "error");
+      return;
+    }
     if (machineControlSelected && machineControlEligible) return;
     if (creatingTemplateProject || templateProjectBusy) return;
     const override =
@@ -4148,6 +4188,7 @@ export function NewSessionForm({
                       {selectedProviderInfo?.displayName ?? selectedProvider}
                     </span>
                     {selectedProviderInfo &&
+                      !routerSelection &&
                       !selectedProviderInfo.authenticated &&
                       !selectedProviderInfo.enabled && (
                         <span className={styles.choiceStatus}>
@@ -4797,8 +4838,8 @@ export function NewSessionForm({
           <div className="new-session-provider-slot">
             {fixedLaunchSection}
             {showProviderPicker && providerSection}
-            {showModelPicker && modelSection}
-            {effortSection}
+            {showModelPicker && !routerSelection && modelSection}
+            {!routerSelection && effortSection}
           </div>
         )}
         <div className={styles.advancedSection}>
@@ -4857,6 +4898,23 @@ export function NewSessionForm({
           data-new-session-secondary-options="true"
           hidden={!showAdvancedOptions}
         >
+          {serverHasCapability(versionInfo, "agent-auth-router") &&
+            !launchLock.limited &&
+            !effectiveExecutor &&
+            effectiveSandboxLevel === "none" &&
+            (selectedProvider === "claude" || selectedProvider === "codex") && (
+              <RouterAccountSelection
+                key={`${clientSummarySourceKey}:${selectedProvider}`}
+                provider={selectedProvider}
+                value={
+                  routerSelection?.sourceKey === clientSummarySourceKey
+                    ? routerSelection
+                    : null
+                }
+                onChange={setRouterSelection}
+                disabled={isStarting}
+              />
+            )}
           {permissionSection}
           {showThinkingSection}
           {recapSection}

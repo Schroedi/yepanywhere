@@ -1,6 +1,6 @@
 # Agent Auth Router integration and account balancing
 
-Status: implementation authorized, 2026-10-03. This plan
+Status: manual first slice implemented and verified, 2026-10-03. This plan
 covers changes to both Yep Anywhere (YA) and the separate
 [Agent Auth Router repository](https://github.com/kzahel/agent-auth-router)
 (AAR). The maintainer requested this plan after discussing local pairing,
@@ -9,6 +9,22 @@ approved implementation in both repositories, commits on main,
 and live provider tests using temporary YA profile directories. This does not
 establish a shipped contract or prove credential renewal.
 
+## Implemented first slice
+
+The [owning topic](../../topics/agent-auth-router.md) records setup, behavior,
+limits and evidence. Implemented: private local pairing, account catalog and
+quota reads, manual native Claude/Codex selection, durable per-session pins,
+transport overrides, revocation and owner-only controls. Native adapter live
+turns, continuation and resume passed using temporary YA profiles; the full
+YA HTTP path also passed restart/resume and tool approval.
+
+Pools and every automatic balancing policy below remain a later phase. The
+first slice explicitly refuses clone/fork and YA auxiliary helper launches,
+project-queue selection, remote executors and YA project-write sandboxes for
+routed sessions. Inheritance and constrained sandbox grants below describe
+future work. No downgrade support is required. Do not interpret the later
+verification matrix as coverage already established by this manual slice.
+
 ## Objective and existing evidence
 
 Connect a YA server to AAR once, select explicitly enrolled accounts for a
@@ -16,7 +32,7 @@ provider pool, choose its balancing policy, and start sessions without handling
 provider credentials in YA. AAR chooses the upstream account; YA records and
 displays the binding. Resuming a session preserves its account.
 
-Existing evidence, kept distinct from the proposed integration:
+Pre-implementation evidence (historical baseline, not current feature status):
 
 - AAR has a headless Node/TypeScript prototype with no runtime dependencies,
   loopback HTTP inference, revocable gateway credentials, dedicated provider

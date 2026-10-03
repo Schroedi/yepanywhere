@@ -196,6 +196,8 @@ export function inactiveProviderSessionOptionsResult(
  * Options for starting a new agent session.
  */
 export interface StartSessionOptions {
+  /** Private runtime transport only; never retained or returned to browsers. */
+  routerLaunch?: import("../../services/AgentAuthRouter.js").RouterLaunch;
   instructionRestoration?: import("@yep-anywhere/shared").InstructionRestorationSettings;
   instructionReadHistory?: SDKMessage[];
   /** Hosted launches stream history over the worker socket before live observation. */

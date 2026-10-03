@@ -677,6 +677,13 @@ export interface AppSessionSummary {
   forkedFromSessionId?: string;
   /** Client-declared creation provenance; absent for older or external sessions. */
   creationProvenance?: SessionCreationProvenance;
+  /** Public, immutable account pin. Never contains transport credentials. */
+  routerBinding?: {
+    id: string;
+    routerId: string;
+    accountId: string;
+    provider: "claude" | "codex";
+  };
   /** Iterations a running `/clearloop` still has to do; absent when none runs. */
   clearloop?: SessionClearloopBadge;
   /**

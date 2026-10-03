@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  agentAuthRouter: {
+    name: "agent-auth-router",
+    index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouter.id,
+    introducedIn: "0.9.4",
+  },
   installedMachineControl: {
     name: "installed-machine-control",
     index: CAPABILITY_ID_ALLOCATIONS.installedMachineControl.id,
@@ -229,6 +234,38 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  agentAuthRouter: {
+    id: CAPABILITY_ID_ALLOCATIONS.agentAuthRouter.id,
+    name: "agent-auth-router",
+    kind: "permanent",
+    area: "sessions",
+    introducedIn: "0.9.4",
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouter.id,
+    },
+    description:
+      "Local owner pairing and manually pinned native provider sessions.",
+    clientFallback:
+      "Hide router controls and omit routerAccountId when absent.",
+    serverContract: {
+      routes: [
+        "GET /api/agent-auth-router",
+        "POST /api/agent-auth-router/connect",
+        "POST /api/agent-auth-router/disconnect",
+        "GET /api/agent-auth-router/accounts",
+        "GET /api/agent-auth-router/accounts/:id/catalog",
+        "GET /api/agent-auth-router/accounts/:id/quotas",
+      ],
+      routeModules: ["packages/server/src/routes/agent-auth-router.ts"],
+      requestFields: ["routerAccountId"],
+      responseFields: ["routerId", "state", "accounts"],
+    },
+    lifecycle: {
+      kind: "permanent",
+      reason: "Optional local router integration.",
+    },
+  },
   nativePushSubscriptions: {
     id: CAPABILITY_ID_ALLOCATIONS.nativePushSubscriptions.id,
     name: "native-push-subscriptions-v1",

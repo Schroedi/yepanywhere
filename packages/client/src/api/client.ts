@@ -283,6 +283,7 @@ export function isUnchangedGlobalSessionsResponse(
 }
 
 export interface SessionOptions {
+  routerAccountId?: string;
   creationProvenance?: SessionCreationProvenance;
   /** @deprecated Old selection is rejected; use machineControl. */
   computerControl?: boolean;
@@ -419,6 +420,41 @@ function getGlobalSessionsRequest(
 
 export const api = {
   ...createSessionApi(fetchJSON),
+  routerStatus: () =>
+    fetchJSON<{ state: string; routerId: string | null }>("/agent-auth-router"),
+  routerConnect: (socketPath?: string) =>
+    fetchJSON<{ state: string; routerId: string | null }>(
+      "/agent-auth-router/connect",
+      { method: "POST", body: JSON.stringify({ socketPath }) },
+    ),
+  routerDisconnect: () =>
+    fetchJSON<{ state: string; routerId: string | null }>(
+      "/agent-auth-router/disconnect",
+      { method: "POST", body: "{}" },
+    ),
+  routerAccounts: () =>
+    fetchJSON<{
+      accounts: {
+        id: string;
+        provider: "claude" | "codex";
+        enabled: boolean;
+        renewal: string;
+      }[];
+    }>("/agent-auth-router/accounts"),
+  routerCatalog: (id: string) =>
+    fetchJSON<{
+      models: { id: string; name: string; contextWindow?: number }[];
+    }>(`/agent-auth-router/accounts/${encodeURIComponent(id)}/catalog`),
+  routerQuotas: (id: string) =>
+    fetchJSON<{
+      status: string;
+      observedAt: string;
+      windows: {
+        bucket: string;
+        remainingPercent: number | null;
+        resetsAt: string | null;
+      }[];
+    }>(`/agent-auth-router/accounts/${encodeURIComponent(id)}/quotas`),
   // Server metadata/admin API
   ...serverMetadataApi,
 
@@ -732,6 +768,7 @@ export const api = {
         provider: options?.provider,
         computerControl: options?.computerControl,
         machineControl: options?.machineControl,
+        routerAccountId: options?.routerAccountId,
         executor: options?.executor,
         sandboxLevel: options?.sandboxLevel,
         sandboxNetworkFirewall: options?.sandboxNetworkFirewall,
@@ -773,6 +810,7 @@ export const api = {
         provider: options?.provider,
         computerControl: options?.computerControl,
         machineControl: options?.machineControl,
+        routerAccountId: options?.routerAccountId,
         executor: options?.executor,
         sandboxLevel: options?.sandboxLevel,
         sandboxNetworkFirewall: options?.sandboxNetworkFirewall,
@@ -814,6 +852,7 @@ export const api = {
         provider: options?.provider,
         computerControl: options?.computerControl,
         machineControl: options?.machineControl,
+        routerAccountId: options?.routerAccountId,
         executor: options?.executor,
         sandboxLevel: options?.sandboxLevel,
         sandboxNetworkFirewall: options?.sandboxNetworkFirewall,
@@ -850,6 +889,7 @@ export const api = {
         provider: options?.provider,
         computerControl: options?.computerControl,
         machineControl: options?.machineControl,
+        routerAccountId: options?.routerAccountId,
         executor: options?.executor,
         sandboxLevel: options?.sandboxLevel,
         sandboxNetworkFirewall: options?.sandboxNetworkFirewall,

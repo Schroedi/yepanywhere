@@ -233,6 +233,18 @@ These remain candidates behind publishing and continuous delivery, not a
 ranked or approved implementation queue. Recheck current code and owning
 documents before defining work.
 
+The maintainer authorized the
+[Agent Auth Router integration](../tactical/143-agent-auth-router-integration.md)
+on 2026-10-03. Its manual first slice is implemented in both repositories:
+private local pairing, granted account catalogs/quotas, native Claude/Codex
+transport overrides and durable same-account pins. Live adapter creation,
+continuation and resume passed with temporary YA profiles; full YA HTTP
+restart/resume and tool approval also passed. The
+[owning topic](../../topics/agent-auth-router.md) records setup and boundaries.
+Pools/balancing, clone/helper inheritance, Windows and constrained sandbox
+support remain later work. Durable OAuth renewal and cross-account continuation
+remain unverified. This work does not displace release delivery.
+
 | Direction | Existing context / decision still needed |
 | --- | --- |
 | Multi-machine experience across the full web and desktop clients | The simple-client demo above now owns the first grouping experiment; broader adoption follows evidence from that work and [source runtimes](../../topics/client-source-runtime-topology.md). |

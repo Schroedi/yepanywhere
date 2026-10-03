@@ -1,3 +1,5 @@
+import { AgentAuthRouter } from "./services/AgentAuthRouter.js";
+import { createAgentAuthRouterRoutes } from "./routes/agent-auth-router.js";
 import { DraftStore } from "./drafts/DraftStore.js";
 import { createDraftRoutes } from "./routes/drafts.js";
 import { ConversationSubscriptions } from "./experimental/conversation-subscriptions.js";
@@ -1954,7 +1956,17 @@ export function createApp(options: AppOptions): AppResult {
         projectMetadataForNames.getProjectDisplayName(projectPath)
     : getProjectName;
 
+  const agentAuthRouter = new AgentAuthRouter(
+    effectiveDataDir,
+    options.sessionMetadataService,
+  );
+  app.route(
+    "/api/agent-auth-router",
+    createAgentAuthRouterRoutes(agentAuthRouter),
+  );
+
   supervisor = new Supervisor({
+    agentAuthRouter,
     projectDisplayName,
     getLimitedUserInstructions: (username) =>
       limitedUserInstructionsForLaunch(
@@ -2341,6 +2353,8 @@ export function createApp(options: AppOptions): AppResult {
     createVersionRoutes({
       getLatestVersion: options.getLatestVersion,
       installedMachineControlAvailable: supportsInstalledMachineControl(),
+      agentAuthRouterAvailable:
+        process.platform !== "win32" && Boolean(options.sessionMetadataService),
       getExperimentalConversationAvailable: () =>
         Boolean(conversationSubscriptions),
       getSqliteStatus: () => discoverySqlite.getStatus(),

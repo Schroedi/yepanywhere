@@ -442,6 +442,7 @@ async function resolveSessionReader({
 }
 
 interface StartSessionBody {
+  routerAccountId?: string;
   creationProvenance?: SessionCreationProvenance;
   computerControl?: boolean;
   machineControl?: boolean;
@@ -493,6 +494,7 @@ function hasSessionMessageContent(body: StartSessionBody): boolean {
 }
 
 interface CreateSessionBody {
+  routerAccountId?: string;
   creationProvenance?: SessionCreationProvenance;
   computerControl?: boolean;
   machineControl?: boolean;
@@ -3059,6 +3061,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         forkedFromSessionId:
           metadata?.forkedFromSessionId ?? sessionSummary?.forkedFromSessionId,
         creationProvenance: metadata?.creationProvenance,
+        routerBinding: metadata?.routerBinding,
         initialPrompt:
           metadata?.initialPrompt ?? sessionSummary?.fullTitle ?? undefined,
         heartbeatTurnsEnabled: metadata?.heartbeatTurnsEnabled,
@@ -3571,6 +3574,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
             parentSessionKind: metadata?.parentSessionKind,
             forkedFromSessionId: metadata?.forkedFromSessionId,
             creationProvenance: metadata?.creationProvenance,
+            routerBinding: metadata?.routerBinding,
             initialPrompt: metadata?.initialPrompt,
             heartbeatTurnsEnabled: metadata?.heartbeatTurnsEnabled,
             wakeTurnsEnabled: metadata?.wakeTurnsEnabled,
@@ -4002,6 +4006,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         forkedFromSessionId:
           metadata?.forkedFromSessionId ?? session.forkedFromSessionId,
         creationProvenance: metadata?.creationProvenance,
+        routerBinding: metadata?.routerBinding,
         initialPrompt: metadata?.initialPrompt ?? session.fullTitle,
         heartbeatTurnsEnabled: metadata?.heartbeatTurnsEnabled,
         wakeTurnsEnabled: metadata?.wakeTurnsEnabled,
@@ -4158,6 +4163,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         thinking,
         effort,
         providerName: body.provider,
+        routerAccountId: body.routerAccountId,
         computerControl: body.computerControl,
         machineControl: body.machineControl,
         executor,
@@ -4322,6 +4328,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         thinking,
         effort,
         providerName: body.provider,
+        routerAccountId: body.routerAccountId,
         computerControl: body.computerControl,
         machineControl: body.machineControl,
         executor,
@@ -4483,6 +4490,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         thinking,
         effort,
         providerName: body.provider,
+        routerAccountId: body.routerAccountId,
         computerControl: body.computerControl,
         machineControl: body.machineControl,
         executor,
@@ -4612,6 +4620,7 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
         thinking,
         effort,
         providerName: body.provider,
+        routerAccountId: body.routerAccountId,
         computerControl: body.computerControl,
         machineControl: body.machineControl,
         executor,
@@ -4689,6 +4698,16 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       body = await c.req.json<StartSessionBody>();
     } catch {
       return c.json({ error: "Invalid JSON body" }, 400);
+    }
+
+    if (body.routerAccountId !== undefined) {
+      return c.json(
+        {
+          error:
+            "Router account selection is only supported when creating a session; resumed sessions retain their pin",
+        },
+        400,
+      );
     }
 
     const modeError = permissionModeError(body.mode);
@@ -8151,6 +8170,16 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
 
+    if (body.routerAccountId !== undefined) {
+      return c.json(
+        {
+          error:
+            "Router account selection is only supported when creating a session; resumed sessions retain their pin",
+        },
+        400,
+      );
+    }
+
     const modeError = permissionModeError(body.mode);
     if (modeError) {
       return c.json({ error: modeError }, 400);
@@ -8967,6 +8996,14 @@ export function createSessionsRoutes(deps: SessionsDeps): Hono {
 
   // POST /api/projects/:projectId/sessions/:sessionId/clone - Clone a session
   routes.post("/projects/:projectId/sessions/:sessionId/clone", async (c) => {
+    if (
+      deps.sessionMetadataService?.getMetadata(c.req.param("sessionId"))
+        ?.routerBinding
+    )
+      return c.json(
+        { error: "Clone of routed sessions is not supported yet" },
+        409,
+      );
     const projectId = c.req.param("projectId");
     const sessionId = c.req.param("sessionId");
 

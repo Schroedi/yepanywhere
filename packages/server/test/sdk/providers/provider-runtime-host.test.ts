@@ -2048,6 +2048,64 @@ describe.skipIf(!nativeHostSupported)("ProviderRuntimeHost", () => {
     await host.shutdown("proxy test complete");
   });
 
+  it("reattaches only the same router binding", async () => {
+    const runtimeRoot = await mkdtemp(
+      join(runtimeTmpDir, "provider-router-test-"),
+    );
+    temporaryPaths.push(runtimeRoot);
+    const controlSocketPath = join(runtimeRoot, "host.sock");
+    const host = new ProviderRuntimeHost({
+      runtimeDir: runtimeRoot,
+      controlSocketPath,
+      token: "proxy-token",
+      workerPath: fixtureWorker,
+    });
+    await host.start();
+    process.env.YEP_PROVIDER_RUNTIME_SOCKET = controlSocketPath;
+    process.env.YEP_PROVIDER_RUNTIME_TOKEN = "proxy-token";
+    process.env.YEP_SERVER_GENERATION = "one";
+    expect(await initializeProviderRuntimeHost()).toBe(true);
+    const routerLaunch = {
+      bindingId: "original",
+      accountId: "account",
+      baseUrl: "http://127.0.0.1:8417/codex",
+      token: "synthetic-inference-secret",
+    };
+    const first = await startHostedProviderSession(
+      "codex",
+      { cwd: runtimeRoot, routerLaunch },
+      {},
+    );
+    await first.iterator.next();
+    await first.publishAgentctlSessionId?.("routed-session");
+    const pending = first.iterator.next();
+    await first.detachForServerReload?.();
+    await pending;
+    closeProviderRuntimeHostRegistration();
+    process.env.YEP_SERVER_GENERATION = "two";
+    expect(await initializeProviderRuntimeHost()).toBe(true);
+    await expect(
+      startHostedProviderSession(
+        "codex",
+        {
+          cwd: runtimeRoot,
+          resumeSessionId: "routed-session",
+          routerLaunch: { ...routerLaunch, bindingId: "different" },
+        },
+        {},
+      ),
+    ).rejects.toThrow("router binding");
+    const second = await startHostedProviderSession(
+      "codex",
+      { cwd: runtimeRoot, resumeSessionId: "routed-session", routerLaunch },
+      {},
+    );
+    expect(second.initializedSessionId).toBe("routed-session");
+    expect(host.runtimes.size).toBe(1);
+    await second.abort();
+    await host.shutdown("router reattachment proof complete");
+  });
+
   it("replaces a retained runtime when its network boundary changes", async () => {
     const runtimeRoot = await mkdtemp(
       join(runtimeTmpDir, "provider-proxy-test-"),
