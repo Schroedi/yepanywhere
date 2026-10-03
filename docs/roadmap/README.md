@@ -244,8 +244,10 @@ restart/resume and tool approval also passed. The
 The authorized recovery follow-up adds on-demand reachability, disabled-account
 guidance and explicit cancellation/disconnect retry before automatic policies.
 AAR owns the SHA-pinned cross-repository regression suite for both providers.
-Pools/balancing, clone/helper inheritance, Windows and constrained sandbox
-support remain later work. Durable OAuth renewal and cross-account continuation
+Scoped pools, Manual/Round robin allocation and a cached quota/eligibility
+overview are implemented, with explicit refresh and pool editing in YA. Advanced
+balancing, clone/helper inheritance, Windows and constrained sandbox support
+remain later work. Durable OAuth renewal and cross-account continuation
 remain unverified. This work does not displace release delivery.
 
 | Direction | Existing context / decision still needed |

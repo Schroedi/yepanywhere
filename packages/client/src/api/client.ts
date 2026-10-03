@@ -461,7 +461,13 @@ export const api = {
     fetchJSON<{
       models: { id: string; name: string; contextWindow?: number }[];
     }>(`/agent-auth-router/accounts/${encodeURIComponent(id)}/catalog`),
-  routerOverview: (body: { poolId?: string; model?: string } = {}) =>
+  routerOverview: (
+    body: {
+      poolId?: string;
+      model?: string;
+      policy?: "manual" | "round-robin";
+    } = {},
+  ) =>
     fetchJSON<AgentAuthRouterOverview>("/agent-auth-router/overview", {
       method: "POST",
       body: JSON.stringify(body),

@@ -47,6 +47,9 @@ describe("GET /version", () => {
       expect(
         capabilities.includes(SERVER_CAPABILITIES.agentAuthRouterRecovery.name),
       ).toBe(available);
+      expect(
+        capabilities.includes(SERVER_CAPABILITIES.agentAuthRouterPools.name),
+      ).toBe(available);
     }
   });
   const originalFetch = global.fetch;

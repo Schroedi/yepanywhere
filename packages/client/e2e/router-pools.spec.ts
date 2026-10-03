@@ -56,6 +56,11 @@ test("pool overview, editor and policy selection retain typing under 48-account 
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
+    expect(
+      await overview
+        .getByRole("button", { name: "Create pool", exact: true })
+        .evaluate((el) => el.getBoundingClientRect().height),
+    ).toBeGreaterThanOrEqual(38);
     await recordUiCapture(page, `router-pools-${size.width}`, size);
   }
   await page.setViewportSize({ width: 1000, height: 600 });
@@ -123,10 +128,10 @@ test("pool overview, editor and policy selection retain typing under 48-account 
     '"policy":"round-robin"',
   );
   await expect(
-    selector.getByRole("combobox", { name: "Default policy", exact: true }),
+    selector.getByRole("combobox", { name: "Selection policy", exact: true }),
   ).toBeEnabled();
   await selector
-    .getByRole("combobox", { name: "Default policy", exact: true })
+    .getByRole("combobox", { name: "Selection policy", exact: true })
     .selectOption("manual");
   await expect(
     selector.getByRole("combobox", { name: "Router account", exact: true }),

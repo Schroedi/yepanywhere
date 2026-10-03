@@ -1,6 +1,7 @@
 # Agent Auth Router integration and account balancing
 
-Status: manual first slice implemented and verified, 2026-10-03. This plan
+Status: manual and recovery slices verified; Manual/Round robin pools and quota
+overview implemented, 2026-10-03. This plan
 covers changes to both Yep Anywhere (YA) and the separate
 [Agent Auth Router repository](https://github.com/kzahel/agent-auth-router)
 (AAR). The maintainer requested this plan after discussing local pairing,
@@ -24,9 +25,14 @@ failed-launch cleanup retry, and pending-disconnect recovery. The
 [owning recovery contract](../../topics/agent-auth-router.md#status-and-recovery)
 records the additive capability and older-server fallback. AAR now owns the
 SHA-pinned synthetic cross-repository regression suite. OAuth renewal and
-automatic routing policies remain deferred.
+advanced routing policies remain deferred.
 
-Pools and every automatic balancing policy below remain a later phase. The
+The scoped follow-up adds integration-owned pools, Manual and Round robin,
+cached model-aware quota/eligibility metadata, explicit refresh, pool editing and
+new-session selection in YA. Atomic reservations, durable pins and revisioned
+edits are implemented in AAR. The [owning topic](../../topics/agent-auth-router.md#pools-and-quota-overview)
+records exact freshness, exclusion and compatibility behavior. Most remaining,
+Earliest reset, Auto, standalone HTML, and renewal remain later phases. The
 first slice explicitly refuses clone/fork and YA auxiliary helper launches,
 project-queue selection, remote executors and YA project-write sandboxes for
 routed sessions. Inheritance and constrained sandbox grants below describe

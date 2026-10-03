@@ -1,8 +1,9 @@
 # Agent Auth Router
 
-YA supports an optional local Agent Auth Router (AAR) connection for manually
-pinned native Claude and Codex sessions on macOS and Linux. Automatic account
-selection, pools, balancing and cross-account continuation remain future work.
+YA supports an optional local Agent Auth Router (AAR) connection for pinned native Claude and Codex sessions on macOS and Linux.
+Integration-scoped pools support Manual and Round robin selection for new
+sessions. Existing sessions keep their chosen account. Most remaining, Earliest
+reset, Auto and cross-account continuation remain future work.
 The design and deferred work are in [plan 143](../docs/tactical/143-agent-auth-router-integration.md).
 
 ## Set up and use
@@ -86,6 +87,49 @@ The browser communicates only with YA. Socket paths refer to the YA server's
 machine, even when its UI is viewed remotely. This does not route an agent
 running on a remote executor back through the owner's loopback listener.
 
+## Pools and quota overview
+
+Settings → Providers offers **Pools and usage** when the YA server advertises
+`agent-auth-router-pools` (permanent optional capability 115) and AAR supports
+`pools-v1`. Create a named single-provider pool with up to 16 granted accounts
+and a Manual or Round robin default. In New Session, choose a pool, catalog model
+and policy; Manual also requires an explicit account. The session header displays
+the chosen account and policy. Pool selection is only for new owner sessions;
+continuation, remote executors, limited users and sandboxes cannot change a pin.
+
+The overview shows each account's windows, usage bars, remaining percentages,
+reset times, observation freshness and model/policy-specific eligibility reasons.
+Opening or reloading it reads cached AAR evidence without provider I/O. **Refresh
+usage** explicitly refreshes that account's catalog and quotas. There is no
+background polling. Failed refreshes retain the last successful windows with a
+stale label. A reset passing does not establish restored quota.
+
+Round robin requires fresh catalog membership and fresh applicable quota with
+headroom; unknown, stale, exhausted, disabled or blocked accounts are excluded.
+Manual permits unknown quota with validated catalog membership, but cannot ignore
+known applicable exhaustion or observed authentication/rate-limit blocks. Neither
+mode enables paid overage. Catalog evidence expires after 60 seconds and quota
+evidence after 120 seconds. Restart requires fresh evidence for new automatic
+allocations; existing committed pins can resume without rerunning selection.
+
+Pool saves use optimistic revisions. Name/default-policy edits affect future
+selection. Removing an account or deleting the pool blocks affected retained
+bindings; they never migrate to another account. The editor displays affected
+binding counts and this consequence. Lost prepare/commit responses reuse the
+persisted allocation and token; definitive rejection records durable cancellation.
+
+Owner-only POST `/api/agent-auth-router/overview`, `/overview/refresh`,
+`/pools/save` and `/pools/remove` (all under the same prefix) proxy the scoped AAR
+control API. Overview is reusable metadata, not HTML scraped from a CLI. The
+browser never receives credentials or contacts AAR directly. A standalone AAR
+HTML dashboard is deferred.
+
+The optional release review for this follow-up uses v0.9.0, v0.9.1 and v0.9.2;
+none has AAR routes. Without capability 115, the client keeps the original manual
+controls and makes no pool/overview requests or pool launch fields. Existing
+capability meanings and the protocol floor are unchanged. An older AAR reports
+an explicit upgrade requirement for pool operations.
+
 ## Ownership and lifecycle
 
 AAR owns provider credential reads, official-CLI renewal coordination,
@@ -99,7 +143,7 @@ YA persists a random allocation identity and token before sending its hash to
 AAR. Only the hash crosses the control socket. AAR prepares and commits the
 binding durably before YA launches the provider. Retries use the same identity,
 token hash and account. Ordinary session metadata contains only the public
-binding/router/account/provider IDs. It survives provisional-to-canonical ID
+binding/router/account/provider IDs and optional pool/policy/reason/observation metadata. It survives provisional-to-canonical ID
 remapping, restart and resume; a retained worker must have the same binding.
 A missing/revoked pin, unavailable account/router, protocol mismatch or changed
 router identity causes an error, never direct-provider or different-account
@@ -134,7 +178,7 @@ an isolation boundary against that user's own local files.
   until their effort catalog is account-scoped; they must not probe the direct
   account. The new-session form uses provider-default reasoning; explicit
   API effort values remain subject to provider support.
-- Account switching and pools/balancing are not implemented. Re-pairing creates
+- Cross-account continuation and advanced balancing are not implemented. Re-pairing creates
   a new integration; old sessions do not migrate to it.
 - Successful inference does not verify durable OAuth renewal. Accounts without
   a configured helper report manual renewal; configured helpers remain
@@ -145,6 +189,14 @@ an isolation boundary against that user's own local files.
   a YA data directory containing routed sessions is unsupported.
 
 ## Verification
+
+Pool service and component tests cover lost-response recovery, durable rejected
+allocation cleanup, capability fallback, source switching and cached reads versus
+explicit refresh. The 48-account browser fixture covers the actual pool editor,
+policy selector and 32 sequential keystrokes during concurrent updates (all under
+100 ms), with separately inspected desktop 1000×600 and phone 375×812 captures.
+It substitutes API responses; the AAR suite owns real cross-repository proof.
+
 
 AAR owns a SHA-pinned cross-repository suite exercising real YA HTTP routes,
 supervisor and native adapters with synthetic CLI peers and loopback upstreams.

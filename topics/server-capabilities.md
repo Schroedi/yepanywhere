@@ -19,6 +19,13 @@ meaning. Standing maintainer compatibility authorization applies.
 
 ## Source Of Truth
 
+`agent-auth-router-pools` (permanent ID 115, explicit optional bit) gates owner
+POST overview/refresh and pool save/remove routes, plus new-session
+`routerPoolId`/`routerPolicy` fields. The 2026-10-03 optional corpus v0.9.0–v0.9.2
+lacks AAR. Without the bit the client retains manual account controls and sends
+no pool requests. Existing capabilities keep their meaning. AAR additionally
+must advertise `pools-v1`. See [pools and overview](agent-auth-router.md#pools-and-quota-overview).
+
 `agent-auth-router-recovery` (permanent ID 114, explicit optional bit) gates
 owner-only `GET /api/agent-auth-router/recovery` and
 `POST /api/agent-auth-router/retry-cancellations`. The 2026-10-03 optional

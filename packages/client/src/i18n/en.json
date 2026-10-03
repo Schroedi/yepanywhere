@@ -4457,6 +4457,8 @@
   "routerPoolEdit": "Edit pool",
   "routerPoolName": "Pool name",
   "routerPoolProvider": "Provider",
+  "routerPoolSessionPolicy": "Selection policy",
+  "routerPoolUnavailable": "Pool unavailable — choose another pool",
   "routerPoolPolicy": "Default policy",
   "routerPoolMembers": "Accounts (choose 1–16)",
   "routerPoolEditWarning": "Removing an account blocks its existing pool sessions. Deleting the pool blocks all its sessions. Changing the policy affects new sessions only.",

@@ -25,7 +25,11 @@ const reasonKeys = {
   "auth-unavailable": "routerPoolAuthUnavailable",
 } as const;
 
-function useOverview(poolId?: string, model?: string) {
+function useOverview(
+  poolId?: string,
+  model?: string,
+  policy?: "manual" | "round-robin",
+) {
   const { t } = useI18n();
   const [data, setData] = useState<AgentAuthRouterOverview | null>(null);
   const [error, setError] = useState("");
@@ -42,7 +46,11 @@ function useOverview(poolId?: string, model?: string) {
         const result = await api.routerOverview(
           clearSelection
             ? {}
-            : { poolId: poolId || undefined, model: model || undefined },
+            : {
+                poolId: poolId || undefined,
+                model: model || undefined,
+                policy,
+              },
         );
         if (request.current === id) {
           setData(result);
@@ -55,7 +63,7 @@ function useOverview(poolId?: string, model?: string) {
         if (request.current === id) setBusy(false);
       }
     },
-    [poolId, model, t],
+    [poolId, model, policy, t],
   );
   useEffect(() => {
     void run();
@@ -336,6 +344,7 @@ export function AgentAuthRouterPools() {
                 )}
               </p>
             )}
+            {!account.enabled && <p>{t("routerAccountDisabledLabel")}</p>}
             {account.error && (
               <p role="status">{t("routerPoolRefreshFailed")}</p>
             )}
@@ -421,7 +430,11 @@ export function RouterPoolSelection({
 }) {
   const { t } = useI18n();
   const sourceKey = useClientSummarySourceKey();
-  const { data, busy, error, run } = useOverview(value?.poolId, value?.model);
+  const { data, busy, error, run } = useOverview(
+    value?.poolId,
+    value?.model,
+    value?.policy,
+  );
   const pools = data?.pools.filter((p) => p.provider === provider) ?? [];
   const pool = pools.find((p) => p.id === value?.poolId);
   const accounts =
@@ -454,6 +467,11 @@ export function RouterPoolSelection({
           }}
         >
           <option value="">{t("routerPoolNone")}</option>
+          {value?.poolId && !pool && (
+            <option value={value.poolId} disabled>
+              {t("routerPoolUnavailable")}
+            </option>
+          )}
           {pools.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -464,7 +482,7 @@ export function RouterPoolSelection({
       {value?.poolId && (
         <>
           <label>
-            {t("routerPoolPolicy")}
+            {t("routerPoolSessionPolicy")}
             <select
               disabled={disabled || busy}
               value={value.policy}

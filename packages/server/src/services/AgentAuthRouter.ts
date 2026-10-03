@@ -446,7 +446,11 @@ export class AgentAuthRouter {
     });
   }
   overview(
-    body: { poolId?: string; model?: string } = {},
+    body: {
+      poolId?: string;
+      model?: string;
+      policy?: AgentAuthRouterPoolPolicy;
+    } = {},
   ): Promise<AgentAuthRouterOverview> {
     return this.poolOperation("/v1/overview", body);
   }
@@ -588,63 +592,88 @@ export class AgentAuthRouter {
             "Model is unavailable for the pinned account",
           );
       }
-      const selected = await routerRequest<{
-        accountId: string;
-        poolId?: string;
-        policy?: AgentAuthRouterPoolPolicy;
-        reason?: string;
-        observedAt?: string;
-      }>(
-        c.socketPath,
-        allocation.poolId ? "/v1/pools/prepare" : "/v1/bindings/prepare",
-        c.token,
-        {
-          id: allocation.id,
-          provider,
-          ...(allocation.poolId
-            ? {
-                poolId: allocation.poolId,
-                policy: allocation.policy,
-                accountId: allocation.requestedAccountId,
-              }
-            : { accountId: allocation.accountId }),
-          model: allocation.model,
-          tokenHash: hash(allocation.token),
-        },
-      );
-      if (allocation.poolId) {
-        if (
-          !selected.accountId ||
-          (allocation.accountId && allocation.accountId !== selected.accountId)
-        )
-          throw new RouterUnavailable(
-            409,
-            "Router returned a conflicting account pin",
-          );
-        allocation = { ...allocation, accountId: selected.accountId };
-        await this.save({
-          ...this.state,
-          allocations: {
-            ...this.state.allocations,
-            [allocation.id]: allocation,
-          },
-        });
-        await this.metadata.updateMetadata(sessionId, {
-          routerBinding: {
+      try {
+        const selected = await routerRequest<{
+          accountId: string;
+          poolId?: string;
+          policy?: AgentAuthRouterPoolPolicy;
+          reason?: string;
+          observedAt?: string;
+        }>(
+          c.socketPath,
+          allocation.poolId ? "/v1/pools/prepare" : "/v1/bindings/prepare",
+          c.token,
+          {
             id: allocation.id,
-            routerId: c.routerId,
-            accountId: selected.accountId,
             provider,
-            poolId: allocation.poolId,
-            policy: selected.policy,
-            reason: selected.reason,
-            observedAt: selected.observedAt,
+            ...(allocation.poolId
+              ? {
+                  poolId: allocation.poolId,
+                  policy: allocation.policy,
+                  accountId: allocation.requestedAccountId,
+                }
+              : { accountId: allocation.accountId }),
+            model: allocation.model,
+            tokenHash: hash(allocation.token),
           },
+        );
+        if (allocation.poolId) {
+          if (
+            !selected.accountId ||
+            (allocation.accountId &&
+              allocation.accountId !== selected.accountId)
+          )
+            throw new RouterUnavailable(
+              409,
+              "Router returned a conflicting account pin",
+            );
+          allocation = { ...allocation, accountId: selected.accountId };
+          await this.save({
+            ...this.state,
+            allocations: {
+              ...this.state.allocations,
+              [allocation.id]: allocation,
+            },
+          });
+          await this.metadata.updateMetadata(sessionId, {
+            routerBinding: {
+              id: allocation.id,
+              routerId: c.routerId,
+              accountId: selected.accountId,
+              provider,
+              poolId: allocation.poolId,
+              policy: selected.policy,
+              reason: selected.reason,
+              observedAt: selected.observedAt,
+            },
+          });
+        }
+        await routerRequest(c.socketPath, "/v1/bindings/commit", c.token, {
+          id: allocation.id,
         });
+      } catch (error) {
+        // Definitive rejection of a fresh launch must not leave a usable reservation.
+        // Lost replies remain recoverable through the persisted allocation identity.
+        if (
+          !existing &&
+          error instanceof RouterUnavailable &&
+          [400, 404, 409].includes(error.status)
+        ) {
+          await this.save({
+            ...this.state,
+            allocations: {
+              ...this.state.allocations,
+              [allocation.id]: { ...allocation, cancelled: true },
+            },
+          });
+          try {
+            await this.flushCancellations(c);
+          } catch {
+            /* Durable cleanup remains available in Settings. */
+          }
+        }
+        throw error;
       }
-      await routerRequest(c.socketPath, "/v1/bindings/commit", c.token, {
-        id: allocation.id,
-      });
       return {
         bindingId: allocation.id,
         accountId: allocation.accountId,

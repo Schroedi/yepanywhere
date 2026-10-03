@@ -34,6 +34,7 @@ async function fixture(pools = false) {
     revoked = false,
     failCommit = false,
     failCancel = false,
+    rejectPrepare = false,
     enabled = true;
   const server = http.createServer(async (req, res) => {
     const chunks = [];
@@ -56,6 +57,10 @@ async function fixture(pools = false) {
       );
     if (revoked) {
       res.statusCode = 401;
+      return res.end("{}");
+    }
+    if (req.url === "/v1/pools/prepare" && rejectPrepare) {
+      res.statusCode = 409;
       return res.end("{}");
     }
     if (req.url === "/v1/pools/prepare")
@@ -118,6 +123,9 @@ async function fixture(pools = false) {
     connector,
     identity: () => {
       routerId = "replacement";
+    },
+    rejectPoolPrepare: () => {
+      rejectPrepare = true;
     },
     loseCommit: () => {
       failCommit = true;
@@ -500,6 +508,34 @@ describe.skipIf(process.platform === "win32")("pool launch recovery", () => {
     await expect(
       restarted.launch("pooled", "codex", "fixture-model"),
     ).rejects.toThrow("cancelled");
+  });
+  it("cancels a rejected fresh pool allocation and retries cleanup durably", async () => {
+    const f = await fixture(true);
+    await f.connector.connect(f.socketPath);
+    f.rejectPoolPrepare();
+    f.cancellationAvailable(false);
+    await expect(
+      f.connector.launch(
+        "rejected",
+        "codex",
+        "fixture-model",
+        undefined,
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "round-robin",
+      ),
+    ).rejects.toThrow();
+    const restarted = new AgentAuthRouter(f.root, f.metadata);
+    await expect(
+      restarted.launch("rejected", "codex", "fixture-model"),
+    ).rejects.toThrow();
+    f.cancellationAvailable(true);
+    await restarted.cancel("rejected");
+    await expect(
+      restarted.launch("rejected", "codex", "fixture-model"),
+    ).rejects.toThrow("cancelled");
+    expect(
+      f.requests.filter((r) => r.path === "/v1/pools/prepare"),
+    ).toHaveLength(1);
   });
   it("gates old AAR before new operations and serves the owner-only pool API", async () => {
     const old = await fixture();

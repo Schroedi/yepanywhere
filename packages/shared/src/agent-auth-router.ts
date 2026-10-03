@@ -64,6 +64,7 @@ export interface AgentAuthRouterOverview {
   })[];
   selection?: {
     poolId: string;
+    policy?: AgentAuthRouterPoolPolicy;
     model: string | null;
     decisions: { accountId: string; reason: string }[];
   };
