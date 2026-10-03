@@ -188,6 +188,40 @@ an isolation boundary against that user's own local files.
   fields. Older servers show no router UI. Protocol v1 is required. Downgrading
   a YA data directory containing routed sessions is unsupported.
 
+## Agreed ownership and desktop direction
+
+On 2026-10-03, the maintainer selected
+[router-owned pools, live account management and a Tauri desktop app](https://github.com/kzahel/agent-auth-router/blob/main/docs/router-owned-pools-and-desktop.md)
+as the next architectural direction. Implementation is pending. This corrects
+the current integration-owned pools and fixed pairing account snapshot described
+above; those remain the implemented behavior until migration lands.
+
+AAR will own accounts, pools, membership and policy independently of YA. Clients
+receive explicit permission to use pools; using a pool does not confer pool
+administration. A grant follows current pool membership, so deliberate owner
+membership edits become available without re-pairing. Newly enrolled accounts
+remain unassigned until explicitly added. Disconnecting YA revokes its access
+and bindings while preserving router-owned accounts and pools.
+
+Enrollment, login observation, enable/disable, membership and grants will update
+the running router without restart. Existing sessions retain their pins and
+current revocation checks. Migration must preserve pool and binding identities,
+prevent unintended access expansion and avoid changing old capability meanings.
+YA's owner UI must distinguish its own authorization from AAR administration;
+exact protocol/capability changes require the normal compatibility review.
+
+The chosen desktop stack is Tauri with the independent TypeScript core and a
+bundled Node runtime. Ship Mac first while designing Windows platform adapters
+from the start. Machine Control supplies the operator/lifecycle reference,
+Desktop Release Kit supplies update/release contracts and acceptance patterns,
+and Lid Awake supplies the compact menu-bar UX reference. AAR owns its app
+identity, update route and updater key. Signed GitHub candidates and real
+installed upgrade acceptance precede release claims.
+
+The linked AAR plan owns sequence, migration and acceptance details. This
+revisits the desktop administration shell; the separate browser-served HTML
+dashboard and the advanced routing/inheritance follow-ups below remain deferred.
+
 ## Deferred follow-ups
 
 On 2026-10-03, the maintainer deferred the following useful extensions to this
@@ -220,8 +254,9 @@ If resumed, the suggested sequence is refresh/admission first, Most remaining
 second, then inheritance. This is a dependency recommendation within the
 workstream, not a change to the product roadmap's priorities. Combined Auto
 scoring should wait for evidence about headroom, reset timing and concurrent
-activity. Renewal, cross-account continuation and a standalone dashboard remain
-separate deferred work.
+activity. Renewal, cross-account continuation and a separate browser-served HTML
+dashboard remain deferred. The Tauri administration app is covered by the agreed
+ownership and desktop direction above.
 
 ## Verification
 

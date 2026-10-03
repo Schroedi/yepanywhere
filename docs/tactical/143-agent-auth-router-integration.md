@@ -10,6 +10,19 @@ approved implementation in both repositories, commits on main,
 and live provider tests using temporary YA profile directories. This does not
 establish a shipped contract or prove credential renewal.
 
+## Subsequent ownership correction and desktop direction
+
+The maintainer agreed on 2026-10-03 that pools must belong to AAR itself, with
+clients granted access, and that account enrollment and grant changes must be
+live without restart or re-pairing. The
+[AAR ownership and desktop plan](https://github.com/kzahel/agent-auth-router/blob/main/docs/router-owned-pools-and-desktop.md)
+supersedes integration-owned pools and fixed pairing snapshots as the target
+design in this plan. It preserves existing pool/binding identities during
+migration and selects Tauri, Mac-first delivery and Windows platform boundaries,
+using Desktop Release Kit for signing/update acceptance. Implementation is
+pending; descriptions of the implemented first slice below remain historical
+and current-state evidence. Advanced policies and inheritance stay deferred.
+
 ## Implemented first slice
 
 The [owning topic](../../topics/agent-auth-router.md) records setup, behavior,
