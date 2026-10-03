@@ -13,7 +13,20 @@ const test = base.extend({
   baseURL: [
     // biome-ignore lint/correctness/noEmptyPattern: Playwright requires fixture destructuring.
     async ({}, use) => {
-      const backend = await startYaServerProcess({ label: "installed MC" });
+      const backend = await startYaServerProcess({
+        label: "installed MC",
+        // GitHub's pwsh module path can shadow Windows PowerShell's Security
+        // module, which the server needs for owner-only ACL checks.
+        env:
+          process.platform === "win32"
+            ? {
+                PSModulePath: join(
+                  process.env.SystemRoot ?? "C:\\Windows",
+                  "System32/WindowsPowerShell/v1.0/Modules",
+                ),
+              }
+            : {},
+      });
       let source: Awaited<ReturnType<typeof createTestViteServer>> | undefined;
       try {
         source = await createTestViteServer({
