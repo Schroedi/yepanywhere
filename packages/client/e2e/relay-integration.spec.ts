@@ -157,16 +157,84 @@ test.describe("Full Relay Integration", () => {
     await page.goto(remotePreviewURL);
     await goToRelayLogin(page);
 
-    // Fill in relay login form (username is both relay ID and SRP identity)
-    await page.fill(
-      '[data-testid="relay-username-input"]',
-      TEST_RELAY_USERNAME,
-    );
-    await page.fill('[data-testid="srp-password-input"]', TEST_SRP_PASSWORD);
+    const computer = page.getByTestId("relay-username-input");
+    const password = page.getByTestId("srp-password-input");
+    const limitedUser = page.getByTestId("relay-limited-username-input");
+    await expect(limitedUser).toHaveCount(0);
+    for (const viewport of [
+      { width: 1000, height: 600 },
+      { width: 375, height: 812 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await recordUiCapture(page, `relay-login-default-${viewport.width}`);
+    }
 
-    // Show advanced options to set custom relay URL (local test relay)
+    // Real key events must survive React updates, including the relay preview
+    // derived from the computer name. This form has no live session stream.
+    const typeAndCheck = async (
+      input: import("@playwright/test").Locator,
+      value: string,
+    ) => {
+      await input.evaluate((element) => {
+        const field = element as HTMLInputElement;
+        const samples: Array<{ ms: number; present: boolean }> = [];
+        let started = 0;
+        field.addEventListener("keydown", () => {
+          started = performance.now();
+        });
+        field.addEventListener("input", () => {
+          const expected = field.value;
+          const keyStarted = started;
+          requestAnimationFrame(() => {
+            samples.push({
+              ms: performance.now() - keyStarted,
+              present: field.value.startsWith(expected),
+            });
+            field.dataset.typingSamples = JSON.stringify(samples);
+          });
+        });
+      });
+      await input.pressSequentially(value, { delay: 20 });
+      await expect(input).toHaveValue(value);
+      await expect
+        .poll(
+          async () =>
+            JSON.parse(
+              (await input.getAttribute("data-typing-samples")) ?? "[]",
+            ).length,
+        )
+        .toBe(value.length);
+      const samples = JSON.parse(
+        (await input.getAttribute("data-typing-samples")) ?? "[]",
+      ) as Array<{ ms: number; present: boolean }>;
+      expect(
+        samples.every(({ ms, present }) => present && ms <= 100),
+        JSON.stringify(samples),
+      ).toBe(true);
+    };
+    await typeAndCheck(computer, TEST_RELAY_USERNAME);
+    await typeAndCheck(password, TEST_SRP_PASSWORD);
+
+    // Advanced adds only an optional identity; the computer's autofill slot
+    // remains stable, and clearing the override still signs in as the owner.
     await page.click("text=Show Advanced Options");
+    await expect(computer).toHaveAttribute("name", "username");
+    await expect(computer).toHaveAttribute("autocomplete", "username");
+    await expect(limitedUser).toHaveAttribute("autocomplete", "off");
+    await typeAndCheck(limitedUser, "limited-guest");
+    await limitedUser.clear();
     await page.fill('[data-testid="custom-relay-url-input"]', relayWsURL);
+    for (const viewport of [
+      { width: 1000, height: 600 },
+      { width: 375, height: 812 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await recordUiCapture(page, `relay-login-advanced-${viewport.width}`);
+    }
+
+    // Restore the suite viewport, above the app's sidebar breakpoint.
+    await page.setViewportSize({ width: 1280, height: 720 });
 
     // Submit form
     await page.click('[data-testid="login-button"]');

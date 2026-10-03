@@ -864,13 +864,22 @@ model or effort changes made by the superuser.
   noisy guest can throttle the host; the server's own per-identity SRP
   limiter already exists to contain that.
 
-  **Password managers (2026-09-28).** The form labels the routing field
-  **Server name** and keeps it out of autofill; **Log in as** is the visible
-  `autocomplete="username"` field, so a browser saves and restores the
-  identity with its password. A blank identity signs in as the owner and is
-  filled with the server name before the browser records the login. This
-  browser's saved relay hosts remember every identity used per server, so a
-  restored identity also restores the server name, on edit or at submit.
+  **Password managers (2026-10-03).** One relay login form always offers the
+  required computer/server name as `name="username"`, with its stable
+  `id="relayUsername"` and `autocomplete="username"`. Password uses
+  `name="password"` and `autocomplete="current-password"`. Opening Advanced
+  never changes these attributes. The optional **Log in as** field lives under
+  Advanced, marked experimental, with `name="limited-user"` and
+  `autocomplete="off"`; it is absent from the DOM while Advanced is collapsed.
+  An `?as=` link expands Advanced to show its prefilled limited-user name.
+  Blank means owner; an explicitly supplied name selects that limited user's
+  identity without changing or inferring the required computer name. Collapsing
+  Advanced preserves an explicitly entered override. Owner submission never
+  copies the computer name into the limited-user field. Submission reads live
+  form values so autofill works even before React receives an input event.
+  These hints prioritize existing owner credentials; browsers and password
+  managers may still apply their own heuristics, and automatic saving/restoring
+  of all three limited-user login values is not promised.
 
   **Identity lookup and timing.** The server resolves the `srp_hello`
   identity by a constant-time map lookup of username to salt and verifier

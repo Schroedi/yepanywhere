@@ -4385,7 +4385,7 @@
   "projectsCreateConfirm": "{path} does not exist yet.\n\nCreate it as a Git repository with an empty first commit?",
   "relayLoginLimitedUsername": "Log in as",
   "relayLoginLimitedUsernamePlaceholder": "Leave blank for the server's owner",
-  "relayLoginLimitedUsernameHint": "Your name on that server, if its owner created an account for you. The server name says which machine to reach, not who you are.",
+  "relayLoginLimitedUsernameHint": "Experimental. Enter your limited-user name if the server owner created an account for you; otherwise leave blank.",
   "advancedLimitedUsersTitle": "Limited users (preview)",
   "advancedLimitedUsersDescription": "Create password-protected accounts for trusted family or collaborators and grant them selected projects. This preview helps prevent accidental access; it is not hardened isolation for hostile or untrusted users. Their agent sessions always run sandboxed.",
   "usersTrustWarning": "Use limited users only with people you trust. Do not rely on this preview as a security boundary between mutually untrusted users.",
