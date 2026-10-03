@@ -33,6 +33,13 @@ and [Apple's screenshot specifications](https://developer.apple.com/help/app-sto
 
 ## Initial internal distribution
 
+As of October 3, 2026, both store draft records exist. Apple has saved initial
+metadata and an internal TestFlight group. Google Play has saved the English
+listing text, app icon and feature graphic as a draft, plus a dedicated internal
+tester list. No signed build has been uploaded or internal release activated.
+Google Play category and contact settings remain open; Developer Tools is saved
+on Apple. Console links and account-specific inventory live in private dotfiles.
+
 A full public listing is not the first internal-testing prerequisite.
 [Google permits internal testing before completing app setup](https://support.google.com/googleplay/android-developer/answer/9845334).
 [TestFlight](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/)
