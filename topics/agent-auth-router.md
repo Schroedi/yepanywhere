@@ -188,6 +188,41 @@ an isolation boundary against that user's own local files.
   fields. Older servers show no router UI. Protocol v1 is required. Downgrading
   a YA data directory containing routed sessions is unsupported.
 
+## Deferred follow-ups
+
+On 2026-10-03, the maintainer deferred the following useful extensions to this
+workstream. They are recorded candidates, not an approved implementation queue;
+the supported behavior above remains unchanged.
+
+1. **Pool refresh and admission flow.** Add an explicit **Refresh pool** action
+   and consider bounded, coalesced catalog/quota refresh when a new session needs
+   fresh evidence. Show checking progress and actionable exclusions. Keep
+   overview reads passive, preserve allocation identity across retries, and
+   retain conservative handling of failed or unknown observations. Today the
+   60-second catalog and 120-second quota budgets can require manual per-account
+   refresh before a Round robin start. Prove the eventual flow with synthetic
+   failure/concurrency coverage and live pool sessions for both providers using
+   isolated temporary profiles.
+2. **Most remaining policy.** Rank eligible accounts by remaining percentage in
+   their most constrained applicable window, with deterministic tie breaks and
+   a visible selection explanation. Preserve model scopes, freshness checks,
+   atomic startup reservations and existing session pins. Percentages describe
+   relative headroom, not absolute token capacity or equal account entitlements.
+3. **Clone and helper inheritance.** Extend supported fork/clone, title and
+   recap paths to inherit the parent's account through distinct, separately
+   revocable child bindings. Recheck current grants and compose with
+   [successor settings inheritance](../docs/tactical/140-clone-session-settings-inheritance.md).
+   Prove cancellation, restart and revocation without account reselection or
+   direct-provider fallback. Unsupported paths remain explicitly refused until
+   their native lifecycle can preserve the binding.
+
+If resumed, the suggested sequence is refresh/admission first, Most remaining
+second, then inheritance. This is a dependency recommendation within the
+workstream, not a change to the product roadmap's priorities. Combined Auto
+scoring should wait for evidence about headroom, reset timing and concurrent
+activity. Renewal, cross-account continuation and a standalone dashboard remain
+separate deferred work.
+
 ## Verification
 
 Pool service and component tests cover lost-response recovery, durable rejected

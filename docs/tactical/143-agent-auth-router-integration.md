@@ -39,6 +39,12 @@ routed sessions. Inheritance and constrained sandbox grants below describe
 future work. No downgrade support is required. Do not interpret the later
 verification matrix as coverage already established by this manual slice.
 
+The maintainer deferred further pool refresh/admission UX, Most remaining, and
+clone/helper inheritance on 2026-10-03. The owning topic's
+[deferred follow-ups](../../topics/agent-auth-router.md#deferred-follow-ups)
+records their motivation, boundaries and suggested sequence for later review.
+They are not currently scheduled for implementation.
+
 ## Objective and existing evidence
 
 Connect a YA server to AAR once, select explicitly enrolled accounts for a

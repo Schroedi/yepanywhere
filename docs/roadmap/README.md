@@ -247,8 +247,10 @@ AAR owns the SHA-pinned cross-repository regression suite for both providers.
 Scoped pools, Manual/Round robin allocation and a cached quota/eligibility
 overview are implemented, with explicit refresh and pool editing in YA. Advanced
 balancing, clone/helper inheritance, Windows and constrained sandbox support
-remain later work. Durable OAuth renewal and cross-account continuation
-remain unverified. This work does not displace release delivery.
+remain later work. On 2026-10-03 the maintainer deferred the next
+[refresh/admission, Most remaining and inheritance follow-ups](../../topics/agent-auth-router.md#deferred-follow-ups);
+they remain recorded candidates. Durable OAuth renewal and cross-account
+continuation remain unverified. This work does not displace release delivery.
 
 | Direction | Existing context / decision still needed |
 | --- | --- |
