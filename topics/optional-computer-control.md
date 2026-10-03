@@ -72,8 +72,12 @@ retrieves its new capture, consumes it with the built-in image viewer and report
 the independently matching counter. MC remains reachable after provider close.
 Public Linux Debian x64 passes receipt/CLI verification and 46 bounded native
 approval/portal/GTK effect/capture/restart checks; the broader Stop-shortcut
-setting remains unaccepted under isolated state. Windows browser/full-app media
-and further lifecycle cells remain gates. The component lifecycle and deferred
+setting remains unaccepted under isolated state. Windows browser control through
+a verified custom installation also passes a real YA Codex turn, independent
+HTTP effect and image consumption, native Stop, stale-reference refusal and
+operator restart/reconnection. YA supplies that verified installation directory
+to the selected Windows agent environment. Full-app Windows media and further
+lifecycle cells remain gates. The component lifecycle and deferred
 tool below remain current until accepted cutover. The default-off session picker
 uses the separate `installed-machine-control` capability and optional
 `machineControl` launch field. Session advertisement is not a same-user shell

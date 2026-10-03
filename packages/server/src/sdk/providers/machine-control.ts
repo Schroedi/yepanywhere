@@ -1,4 +1,4 @@
-import { delimiter } from "node:path";
+import { delimiter, win32 } from "node:path";
 import {
   defaultInstallation,
   verifyInstalledMachineControl,
@@ -85,6 +85,13 @@ export async function startMachineControlSession(
       .join("\n\n"),
     agentEnvironment: {
       ...options.agentEnvironment,
+      ...(platform === "win32"
+        ? {
+            MACHINE_CONTROL_DESKTOP_INSTALL_DIR: win32.dirname(
+              installation.root,
+            ),
+          }
+        : {}),
       PATH: [
         installation.directory,
         options.agentEnvironment?.PATH ?? environment.PATH,

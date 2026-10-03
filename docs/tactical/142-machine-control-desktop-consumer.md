@@ -671,3 +671,30 @@ accepted slice excludes startup/shortcut settings and does not count that broade
 run as passing. Initial package absence and original power-off are restored, owned
 units/staging removed, and local/controller claims released. Linux browser/model
 and further lifecycle cells remain explicit.
+
+## Windows browser and custom-location result
+
+**Current (2026-10-03):** Exact public Windows x64 desktop 0.5.3 passes
+installed browser setup, native messaging, visible grant/deny, independent
+semantic click/text effects, browser capture/hash, browser-only evaluation
+refusal, native Stop, stale references, DevTools/CDP, operator restart and
+extension reconnection. Chrome for Testing 145.0.7632.117 has its own profile
+and identity; the primary browser is not used.
+
+An actual source-independent YA Codex 0.159.0 provider authenticates the live
+product and uses the installed CLI for one browser fixture click, capture,
+artifact retrieval and built-in image consumption. The independent HTTP counter
+increments exactly once and matches the reported image. YA supplies the
+authenticated custom product directory to the selected agent environment;
+there is no inherited native-helper installation override in the actor.
+
+Cleanup restores the original native-host registry/manifest and uninstall
+registry, removes owned browser/app/runtime/profile/staging, restores initial
+power-off and verifies local/controller claim release. Full Windows YA media
+views and additional lifecycle cells remain separate gates. The model child
+emits Node's existing shell-spawn deprecation (DEP0190); its successful control
+evidence does not imply warning-free Windows provider transport.
+
+Validation: the focused launch checks and full lint, format, typecheck and unit
+suites pass (server 6,326 plus 67 skipped, client 6,638, shared 940, relay 130,
+push 45). Existing broad-suite failure-path warnings retain their separate gap.

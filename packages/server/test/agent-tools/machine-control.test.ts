@@ -163,12 +163,17 @@ describe("installed Machine Control launch", () => {
       platform: "win32",
       verify: async () => ({
         ...installed,
+        root: "C:\\Example App's CLI\\mc-cli",
         command: "C:\\Example App's CLI\\machine-control.cmd",
       }),
     });
     expect(launchProvider.mock.calls[0]?.[0].globalInstructions).toContain(
       "& 'C:\\Example App''s CLI\\machine-control.cmd' agent instructions",
     );
+    expect(
+      launchProvider.mock.calls[0]?.[0].agentEnvironment
+        ?.MACHINE_CONTROL_DESKTOP_INSTALL_DIR,
+    ).toBe("C:\\Example App's CLI");
   });
 });
 

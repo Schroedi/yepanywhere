@@ -114,7 +114,9 @@ try {
     verifyInstalledMachineControl(candidate, values.publisher),
   );
   console.log(
-    "PASS wrong-publisher, modified-script and missing-interpreter refusal before client execution",
+    process.platform === "linux"
+      ? "PASS modified-script and missing-interpreter refusal before client execution"
+      : "PASS wrong-publisher, modified-script and missing-interpreter refusal before client execution",
   );
 } finally {
   await rm(temporary, { recursive: true, force: true });
