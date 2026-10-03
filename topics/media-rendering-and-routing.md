@@ -2,8 +2,9 @@
 
 > YA shows images, video, and file previews from many places in the UI. Every
 > ordinary file/media surface must pull bytes *over the active connection* and
-> display them from an object URL — never point an `<img>`/`<a>` straight at an
-> `/api/...` URL — or it silently 404s in relay mode. Separately, each file is served by the route
+> display them from an object URL unless the transport declares its `/api` URLs
+> addressable — never point an `<img>`/`<a>` straight at an `/api/...` URL
+> without that check — or it silently 404s in relay mode. Separately, each file is served by the route
 > that matches where it lives (in-project, allow-listed local path, uploaded
 > attachment, or public share).
 
@@ -43,12 +44,19 @@ The client reaches the server two ways:
   `fetch`) hits the static origin and 404s.
 
 So in relay mode bytes can only arrive through `connection.fetchBlob(path)` over
-the tunnel. The shared pattern across every surface is therefore: **fetch the
-bytes as a `Blob` through the connection, wrap in `URL.createObjectURL`, render
-that object URL.** Helpers that encapsulate this:
+the tunnel. The relay-safe pattern is therefore: **fetch the bytes as a `Blob`
+through the connection, wrap in `URL.createObjectURL`, render that object
+URL.** A `Blob` holds the whole file in the browser's Blob storage for as long
+as anything references it, so a direct transport, whose
+`capabilities.sameOriginUrls` says the browser can address `/api` URLs, should
+hand the browser the URL instead and let it stream: `useRemoteImage`, framed
+PDFs and downloads do. The file viewer's images, audio and video,
+`LocalMediaModal`, and inline transcript previews still fetch a `Blob` on every
+transport ([open gap](../gaps/chrome-client-blob-buffering.md)). Helpers:
 
 - `fetchMediaBlob` / `fetchLocalResourceBlob` (`components/LocalMediaModal.tsx`) —
-  `connection.fetchBlob` when remote, credentialed `fetch` when direct.
+  `transport.fetchBlob`, which returns the whole body as a `Blob` on every
+  transport; a direct fetch reads it with `response.blob()`.
 - `useFetchedImage` / `useRemoteImage` (`hooks/useRemoteImage.ts`) — the hook
   form, returns an object URL.
 - `RelayProtocol.fetchBlob` normalizes the `/api` prefix, so callers can pass
@@ -57,6 +65,28 @@ that object URL.** Helpers that encapsulate this:
 The recurring bug is any surface that skips this and emits a bare API URL: it
 works on the developer's own machine (direct mode) and 404s for everyone on a
 phone through the relay. The base64 `data:` surfaces are immune (no network).
+
+### Relay transfer size
+
+A relayed file travels as one response message: the server reads the whole
+body, encodes it as base64 inside the JSON response, and the client rebuilds
+the `Blob` only after the last transport chunk arrives. That message must fit
+the 64 MiB transport reassembly limit, and the transfer must finish inside the
+single request deadline (`API_REQUEST_DEADLINE_MS`).
+
+- A file or binary-media body larger than 64 MiB is refused with `413` before
+  the server reads it (`RELAY_BINARY_RESPONSE_MAX_BYTES` in
+  `routes/ws-relay-handlers.ts`), which also bounds what the server buffers.
+- A smaller body whose encoded message still exceeds the limit fails with the
+  same `413`. Base64 makes that roughly 48 MiB for incompressible bytes;
+  encrypted connections that negotiate compression can carry larger
+  compressible files.
+- Either refusal fails only its own request. The relay connection, its other
+  requests, and its live subscriptions continue; the error message tells the
+  reader to open YA directly, and a download reports it in its error toast.
+
+Streaming larger relay transfers to disk is a sketch:
+[relay streamed downloads](../gaps/sketches/relay-streamed-downloads.md).
 
 Interactive HTML artifacts have an explicit separate-origin delivery contract:
 grant creation/revocation uses the active authenticated transport, while the
@@ -844,6 +874,21 @@ project/file-access allow-set without fallback lookup or filesystem guessing.
   a transient object URL as **Viewer link** would misstate its lifetime and
   relay behavior. A durable session-media viewer coordinate remains
   server-backed work.
+- **Browser Blob budget** — Chrome keeps every live `Blob` in one
+  browser-wide store shared by all tabs and extensions, in memory up to a
+  budget and then in a disk-backed `blob_storage/` directory. On 2026-10-03 a
+  direct tab's `fetch(...).blob()` of any body of about 17 MB or more rejected
+  with `TypeError: Failed to fetch` within a second, while smaller reads and a
+  streamed `getReader()` read of the same file succeeded and the same requests
+  worked from another browser; restarting Chrome cleared it. YA's server and
+  network were not involved. Revoking an object URL does not free a `Blob`
+  that state, a cache, or a closure still references. If it recurs, record
+  the `chrome://blob-internals` total and the failed request's `net::ERR_*`
+  code (DevTools → Network) before restarting: a high total suggests
+  retention, `ERR_OUT_OF_MEMORY` the memory budget, and
+  `ERR_FILE_NOT_FOUND`/`ERR_FAILED` on a large body the disk-backed store.
+  Flushing socket pools is not the remedy; fast errors beside successful
+  reads to the same host are not connection-pool exhaustion.
 - **Repeated client fetches** — an expanded preview, later modal, download, or
   copy action can independently fetch the same media. The full viewer reuses
   its already-loaded blob for its own actions, but cross-surface blob sharing
