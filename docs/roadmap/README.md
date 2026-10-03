@@ -111,7 +111,7 @@ the viewer/download gap remain the next mobile release work.
 - Both mobile store records have saved initial metadata. Local uploads now
   use platform-managed final signing: Android's upload-signed AAB passes Play
   internal-release validation, and Xcode uploaded the first iOS archive to
-  internal-only TestFlight. Apple processing/compliance, internal activation,
+  internal-only TestFlight. Apple encryption compliance, internal activation,
   testers and production iOS push remain open. Release CI automation follows
   the proven local path. See [mobile store preparation](../distribution/mobile/README.md).
 - Native app CI now runs on relevant platform, shared mobile-core and packaging

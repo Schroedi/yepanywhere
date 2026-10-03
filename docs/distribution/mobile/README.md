@@ -39,7 +39,8 @@ listing text, app icon and feature graphic as a draft, plus a dedicated internal
 tester list. The first local upload artifacts are built from committed source:
 Android 0.1.0 / version code 1000 is uploaded and passes internal-release
 validation; iOS 0.1.0 / build 1 uploaded through Xcode's TestFlight Internal Only
-flow and is processing. Neither track has an installable internal release yet.
+flow and has processed, with its encryption declaration still required. Neither
+track has an installable internal release yet.
 Google Play category and contact settings remain open; Developer Tools is saved
 on Apple. Console links and account-specific inventory live in private dotfiles.
 
