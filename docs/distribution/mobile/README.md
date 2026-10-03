@@ -47,6 +47,64 @@ requires an uploaded, processed build and testers; external testing introduces
 additional review requirements. Initial draft records and artwork do not mean
 either app is installable through a store.
 
+### Local upload path
+
+The maintainer selected platform-managed distribution signing on October 3.
+Initial uploads are local; release CI automation is a later step, while existing
+CI continues to verify the apps. Keep upload preparation separate from public
+rollout and use a clean, committed source snapshot.
+
+For Android, build the bundled Release AAB with the existing native/core and
+frontend preparation. Sign the bundle with a dedicated upload key, then let
+Google generate and retain the app signing key when configuring Play App
+Signing. The upload key authenticates submissions; its certificate is not the
+certificate Google uses for installed apps. Do not register the upload-key
+fingerprint as the production password-manager association.
+
+```sh
+node packages/mobile-core/scripts/run.mjs android
+pnpm --filter @yep-anywhere/android prepare-frontend
+cd packages/android
+./gradlew :app:bundleBundledRelease
+jarsigner -keystore "$YA_UPLOAD_KEYSTORE" \
+  -storepass:env YA_UPLOAD_STORE_PASSWORD \
+  -keypass:env YA_UPLOAD_KEY_PASSWORD \
+  -signedjar app/build/outputs/bundle/bundledRelease/yepanywhere-upload.aab \
+  app/build/outputs/bundle/bundledRelease/app-bundled-release.aab upload
+jarsigner -verify app/build/outputs/bundle/bundledRelease/yepanywhere-upload.aab
+```
+
+Provide the SDK/JDK environment and upload passwords privately; never place
+passwords in command-line arguments, tracked Gradle properties or build logs.
+Verify the AAB's signer against the upload certificate and retain its source
+commit, version code and SHA-256 alongside the artifact. Upload the signed AAB
+to the internal track; subsequent uploads need increasing version codes.
+See [Google's signing guide](https://developer.android.com/studio/publish/app-signing).
+
+For iOS, prepare the generated project and device Rust library, then archive
+locally using the existing Apple Development identity and automatic
+provisioning. Set the team through ignored `Config/Signing.xcconfig` or the
+command environment. The archive is an input to distribution; the existing
+unsigned CI device build is not an uploadable IPA.
+
+```sh
+node packages/ios/scripts/run.mjs prepare
+node packages/mobile-core/scripts/run.mjs build
+cd packages/ios
+xcodebuild -project YepAnywhere.xcodeproj -scheme YepAnywhere \
+  -configuration Release -destination generic/platform=iOS \
+  -archivePath build/YepAnywhere.xcarchive \
+  -onlyUsePackageVersionsFromResolvedFile -allowProvisioningUpdates \
+  "DEVELOPMENT_TEAM=$YA_APPLE_TEAM" archive
+open build/YepAnywhere.xcarchive
+```
+
+Use Xcode Organizer's **Distribute App → App Store Connect** flow, with
+automatic distribution signing and Apple's cloud-managed certificate. An
+App Store Connect API key authenticates uploads; it is not an app signing key.
+Do not copy JSTorrent's manual certificate/profile or its AltStore notarization
+pipeline for this path. See [Apple's cloud signing guidance](https://developer.apple.com/help/account/certificates/cloud-managed-certificates).
+
 Prepare signed production-channel artifacts with matching application IDs,
 increasing build numbers, bundled Firebase configuration and reviewed export
 compliance. The existing CI verifies apps but does not upload signed mobile
