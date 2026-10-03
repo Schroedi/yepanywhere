@@ -244,8 +244,9 @@ restart/resume and tool approval also passed. The
 The authorized recovery follow-up adds on-demand reachability, disabled-account
 guidance and explicit cancellation/disconnect retry before automatic policies.
 AAR owns the SHA-pinned cross-repository regression suite for both providers.
-Scoped pools, Manual/Round robin allocation and a cached quota/eligibility
-overview are implemented, with explicit refresh and pool editing in YA. Advanced
+Manual/Round robin allocation and a cached quota/eligibility overview are
+implemented. YA respects router-owned pool grants and exposes read-only
+management guidance; legacy routers retain their scoped editor. Advanced
 balancing, clone/helper inheritance, Windows and constrained sandbox support
 remain later work. On 2026-10-03 the maintainer deferred the next
 [refresh/admission, Most remaining and inheritance follow-ups](../../topics/agent-auth-router.md#deferred-follow-ups);
@@ -253,8 +254,9 @@ they remain recorded candidates. Durable OAuth renewal and cross-account
 continuation remain unverified. The maintainer subsequently selected
 [router-owned pools, live accounts/grants and a Tauri desktop app](https://github.com/kzahel/agent-auth-router/blob/main/docs/router-owned-pools-and-desktop.md):
 correct ownership first, remove restart/re-pair enrollment, then deliver signed
-Mac builds with Windows boundaries designed in. That direction is recorded;
-implementation remains pending. This work does not displace release delivery.
+Mac builds with Windows boundaries designed in. YA now implements the
+authority/capability boundary; AAR owns desktop acceptance. This work does not
+displace release delivery.
 
 | Direction | Existing context / decision still needed |
 | --- | --- |

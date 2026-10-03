@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  agentAuthRouterOwnedPools: {
+    name: "agent-auth-router-owned-pools",
+    index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterOwnedPools.id,
+    introducedIn: "0.9.4",
+  },
   agentAuthRouterPools: {
     name: "agent-auth-router-pools",
     index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterPools.id,
@@ -244,6 +249,28 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  agentAuthRouterOwnedPools: {
+    id: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterOwnedPools.id,
+    name: "agent-auth-router-owned-pools",
+    introducedIn: "0.9.4",
+    kind: "permanent",
+    area: "sessions",
+    lifecycle: {
+      kind: "permanent",
+      reason: "Explicit router owner/use authority boundary.",
+    },
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterOwnedPools.id,
+    },
+    description:
+      "Reports whether the connected router permits integration pool editing; router-owned pools remain read-only in YA.",
+    clientFallback:
+      "Use the existing pool UI on older servers; honor explicit read-only metadata when present. Router rejects unauthorized writes.",
+    serverContract: {
+      responseFields: ["canManagePools", "directAccountAccess"],
+    },
+  },
   agentAuthRouterPools: {
     id: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterPools.id,
     name: "agent-auth-router-pools",

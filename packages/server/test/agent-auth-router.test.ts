@@ -21,7 +21,7 @@ const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
-async function fixture(pools = false) {
+async function fixture(pools = false, ownerManaged = false) {
   const root = await mkdtemp(join(tmpdir(), "yar-"));
   cleanups.push(() => rm(root, { recursive: true, force: true }));
   const socketPath = join(root, "control.sock");
@@ -52,7 +52,11 @@ async function fixture(pools = false) {
           protocol: 1,
           routerId,
           inferenceOrigin: "http://127.0.0.1:8417",
-          capabilities: ["manual-bindings", ...(pools ? ["pools-v1"] : [])],
+          capabilities: [
+            "manual-bindings",
+            ...(pools ? ["pools-v1"] : []),
+            ...(ownerManaged ? ["router-owned-pools-v1"] : []),
+          ],
         }),
       );
     if (revoked) {
@@ -561,5 +565,20 @@ describe.skipIf(process.platform === "win32")("pool launch recovery", () => {
       });
       expect(response.status).toBe(200);
     }
+  });
+});
+
+describe.skipIf(process.platform === "win32")("router pool ownership", () => {
+  it("projects explicit management authority and rejects writes before forwarding", async () => {
+    const f = await fixture(true, true);
+    await f.connector.connect(f.socketPath);
+    expect((await f.connector.overview()).canManagePools).toBe(false);
+    await expect(
+      f.connector.removePool({ id: "pool", revision: 1 }),
+    ).rejects.toThrow("Manage accounts");
+    expect(f.requests.some((r) => r.path === "/v1/pools/remove")).toBe(false);
+    const old = await fixture(true);
+    await old.connector.connect(old.socketPath);
+    expect((await old.connector.overview()).canManagePools).toBe(true);
   });
 });

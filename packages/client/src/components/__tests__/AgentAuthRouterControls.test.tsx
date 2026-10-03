@@ -334,3 +334,34 @@ it("does not follow an old source's pool refresh with a request to the new sourc
   await act(async () => resolve());
   expect(fixture.api.routerOverview).toHaveBeenCalledTimes(2);
 });
+
+it("keeps pool-only accounts out of standalone direct-account selection", async () => {
+  fixture.api.routerAccounts.mockResolvedValue({
+    accounts: [
+      {
+        id: "pool-only",
+        provider: "codex",
+        enabled: true,
+        renewal: "manual",
+        directAccountAccess: false,
+      },
+      {
+        id: "direct",
+        provider: "codex",
+        enabled: true,
+        renewal: "manual",
+        directAccountAccess: true,
+      },
+    ],
+  });
+  render(
+    <RouterAccountSelection
+      provider="codex"
+      value={null}
+      onChange={vi.fn()}
+      disabled={false}
+    />,
+  );
+  await screen.findByRole("option", { name: "direct" });
+  expect(screen.queryByRole("option", { name: "pool-only" })).toBeNull();
+});

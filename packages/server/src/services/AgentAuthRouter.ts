@@ -52,6 +52,7 @@ interface Info {
   capabilities: string[];
 }
 export interface RouterAccount {
+  directAccountAccess?: boolean;
   id: string;
   provider: "claude" | "codex";
   enabled: boolean;
@@ -442,7 +443,20 @@ export class AgentAuthRouter {
           "Update AAR to use pools and the quota overview.",
           "unsupported",
         );
-      return routerRequest<T>(c.socketPath, path, c.token, body);
+      const ownerManaged = info.capabilities.includes("router-owned-pools-v1");
+      if (
+        ownerManaged &&
+        (path === "/v1/pools/save" || path === "/v1/pools/remove")
+      )
+        throw new RouterUnavailable(
+          403,
+          "Manage accounts, pools and grants in Agent Auth Router.",
+          "operation-rejected",
+        );
+      const result = await routerRequest<T>(c.socketPath, path, c.token, body);
+      if (path === "/v1/overview" || path === "/v1/overview/refresh")
+        return { ...result, canManagePools: !ownerManaged };
+      return result;
     });
   }
   overview(

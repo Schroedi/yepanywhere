@@ -454,6 +454,7 @@ export const api = {
         id: string;
         provider: "claude" | "codex";
         enabled: boolean;
+        directAccountAccess?: boolean;
         renewal: string;
       }[];
     }>("/agent-auth-router/accounts"),

@@ -19,6 +19,11 @@ meaning. Standing maintainer compatibility authorization applies.
 
 ## Source Of Truth
 
+`agent-auth-router-owned-pools` (permanent ID 116, explicit optional bit)
+adds `canManagePools` metadata and owner/use authority handling. False hides
+integration editing; old-router editing remains the fallback. See the
+[ownership contract](agent-auth-router.md#router-owned-pool-compatibility).
+
 `agent-auth-router-pools` (permanent ID 115, explicit optional bit) gates owner
 POST overview/refresh and pool save/remove routes, plus new-session
 `routerPoolId`/`routerPolicy` fields. The 2026-10-03 optional corpus v0.9.0–v0.9.2

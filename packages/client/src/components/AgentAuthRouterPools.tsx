@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type {
-  AgentAuthRouterOverview,
-  AgentAuthRouterPoolInput,
+import {
+  SERVER_CAPABILITIES,
+  serverHasCapability,
+  type AgentAuthRouterOverview,
+  type AgentAuthRouterPoolInput,
 } from "@yep-anywhere/shared";
 import { api } from "../api/client";
+import { useVersion } from "../hooks/useVersion";
 import { useI18n } from "../i18n";
 import { useClientSummarySourceKey } from "../lib/clientSummaryStore";
 import type { RouterSelection } from "./AgentAuthRouterControls";
@@ -81,6 +84,16 @@ export function AgentAuthRouterPools() {
   const [model, setModel] = useState("");
   const [draft, setDraft] = useState<AgentAuthRouterPoolInput | null>(null);
   const { data, error, busy, run } = useOverview(poolId, model);
+  const { version } = useVersion();
+  const ownerAware = serverHasCapability(
+    version,
+    SERVER_CAPABILITIES.agentAuthRouterOwnedPools.name,
+  );
+  // An explicit denial is authoritative even through an older proxy server.
+  const canManage =
+    data !== null &&
+    data.canManagePools !== false &&
+    (!ownerAware || data.canManagePools === true);
   const pool = data?.pools.find((p) => p.id === poolId);
   const accounts =
     data?.accounts.filter((a) => !pool || pool.accountIds.includes(a.id)) ?? [];
@@ -105,6 +118,7 @@ export function AgentAuthRouterPools() {
       </div>
       <p className={styles.muted}>{t("routerPoolOverviewHelp")}</p>
       {error && <p role="alert">{error}</p>}
+      {data && !canManage && <p>{t("routerPoolManagedByRouter")}</p>}
       <div className={styles.toolbar}>
         <label>
           {t("routerPool")}
@@ -154,43 +168,45 @@ export function AgentAuthRouterPools() {
             : ""}
         </p>
       )}
-      <div className={styles.toolbar}>
-        <button
-          type="button"
-          disabled={busy || !!draft}
-          onClick={() =>
-            setDraft({
-              id: crypto.randomUUID(),
-              name: "",
-              provider: "codex",
-              accountIds: [],
-              policy: "round-robin",
-              revision: 0,
-            })
-          }
-        >
-          {t("routerPoolCreate")}
-        </button>
-        {pool && (
+      {canManage && (
+        <div className={styles.toolbar}>
           <button
             type="button"
             disabled={busy || !!draft}
             onClick={() =>
               setDraft({
-                id: pool.id,
-                name: pool.name,
-                provider: pool.provider,
-                accountIds: [...pool.accountIds],
-                policy: pool.policy,
-                revision: pool.revision,
+                id: crypto.randomUUID(),
+                name: "",
+                provider: "codex",
+                accountIds: [],
+                policy: "round-robin",
+                revision: 0,
               })
             }
           >
-            {t("routerPoolEdit")}
+            {t("routerPoolCreate")}
           </button>
-        )}
-      </div>
-      {draft && (
+          {pool && (
+            <button
+              type="button"
+              disabled={busy || !!draft}
+              onClick={() =>
+                setDraft({
+                  id: pool.id,
+                  name: pool.name,
+                  provider: pool.provider,
+                  accountIds: [...pool.accountIds],
+                  policy: pool.policy,
+                  revision: pool.revision,
+                })
+              }
+            >
+              {t("routerPoolEdit")}
+            </button>
+          )}
+        </div>
+      )}
+      {canManage && draft && (
         <div className={styles.editor}>
           <label>
             {t("routerPoolName")}

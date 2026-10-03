@@ -496,3 +496,14 @@ through AAR, show its account and quota metadata, and recover the same pin after
 fixtures and the separately authorized live proofs recorded. Allocation does
 not prove OAuth renewal or cross-account continuation; surface unavailable
 renewal as a supported limitation instead of hiding it with credential copying.
+
+
+### Router ownership follow-up (2026-10-03)
+
+The new owner/use boundary supersedes integration-owned pool editing for routers
+advertising `router-owned-pools-v1`. YA capability 116 projects explicit
+`canManagePools`; consumers see pool selection and usage, while AAR manages
+accounts, memberships and grants. Older router editing remains scoped to its
+legacy contract. See the [durable compatibility contract](../../topics/agent-auth-router.md#router-owned-pool-compatibility).
+The desktop implementation and signed-candidate acceptance belong to AAR's
+[owning plan](https://github.com/kzahel/agent-auth-router/blob/main/docs/router-owned-pools-and-desktop.md).

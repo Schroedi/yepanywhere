@@ -1,20 +1,21 @@
 # Agent Auth Router
 
 YA supports an optional local Agent Auth Router (AAR) connection for pinned native Claude and Codex sessions on macOS and Linux.
-Integration-scoped pools support Manual and Round robin selection for new
+Router-owned pools support Manual and Round robin selection for new
 sessions. Existing sessions keep their chosen account. Most remaining, Earliest
 reset, Auto and cross-account continuation remain future work.
 The design and deferred work are in [plan 143](../docs/tactical/143-agent-auth-router-integration.md).
 
 ## Set up and use
 
-1. Enroll accounts with the separate AAR CLI and run `aar serve`. Its default
+1. Enroll accounts with the AAR app or CLI and start the router. Its default
    private control socket is `~/.agent-auth-router/control.sock`.
 2. As the YA owner, open **Settings → Providers → Agent Auth Router**. Use
    **Connect local router**, optionally specifying a different socket path.
-   Pairing grants access to the enabled accounts present at that time. New
-   accounts require an explicit disconnect and new pairing (and a router
-   restart for its credential coordinator).
+   With router-owned pools, pairing initially grants no accounts. In AAR,
+   grant this integration permission to use a pool. Its current members become
+   available without restarting or pairing again. Reload the overview after edits.
+   Older AAR versions retain their original enrollment and pairing behavior.
 3. On **New Session**, choose native Claude or Codex, expand advanced options,
    choose a router account, then choose a model from that account's catalog.
    Use a local, unsandboxed launch. Normal direct-provider sessions stay opt-in
@@ -91,8 +92,10 @@ running on a remote executor back through the owner's loopback listener.
 
 Settings → Providers offers **Pools and usage** when the YA server advertises
 `agent-auth-router-pools` (permanent optional capability 115) and AAR supports
-`pools-v1`. Create a named single-provider pool with up to 16 granted accounts
-and a Manual or Round robin default. In New Session, choose a pool, catalog model
+`pools-v1`. AAR owns named single-provider pools with up to 16 accounts
+and a Manual or Round robin default. Manage pools and grants in AAR. YA lists
+only pools granted to its integration. Older AAR versions retain their scoped
+editor; this fallback grants no global administration authority. In New Session, choose a pool, catalog model
 and policy; Manual also requires an explicit account. The session header displays
 the chosen account and policy. Pool selection is only for new owner sessions;
 continuation, remote executors, limited users and sandboxes cannot change a pin.
@@ -112,9 +115,9 @@ mode enables paid overage. Catalog evidence expires after 60 seconds and quota
 evidence after 120 seconds. Restart requires fresh evidence for new automatic
 allocations; existing committed pins can resume without rerunning selection.
 
-Pool saves use optimistic revisions. Name/default-policy edits affect future
+Owner pool saves in AAR use optimistic revisions. Name/default-policy edits affect future
 selection. Removing an account or deleting the pool blocks affected retained
-bindings; they never migrate to another account. The editor displays affected
+bindings; they never migrate to another account. The AAR editor displays affected
 binding counts and this consequence. Lost prepare/commit responses reuse the
 persisted allocation and token; definitive rejection records durable cancellation.
 
@@ -192,11 +195,11 @@ an isolation boundary against that user's own local files.
 
 On 2026-10-03, the maintainer selected
 [router-owned pools, live account management and a Tauri desktop app](https://github.com/kzahel/agent-auth-router/blob/main/docs/router-owned-pools-and-desktop.md)
-as the next architectural direction. Implementation is pending. This corrects
-the current integration-owned pools and fixed pairing account snapshot described
-above; those remain the implemented behavior until migration lands.
+as the next architectural direction. YA now implements the owner/use capability
+boundary described below. AAR owns migration, live management and desktop
+packaging; its document records their implementation and acceptance status.
 
-AAR will own accounts, pools, membership and policy independently of YA. Clients
+AAR owns accounts, pools, membership and policy independently of YA. Clients
 receive explicit permission to use pools; using a pool does not confer pool
 administration. A grant follows current pool membership, so deliberate owner
 membership edits become available without re-pairing. Newly enrolled accounts
@@ -302,3 +305,29 @@ and phone 375×812 captures were inspected. The test browser blocks service work
 registration; Node 26 reports the existing tsx loader deprecation. Neither is
 an assertion failure. A regression covers routed creation using automatic
 reasoning instead of the direct-account model's thinking default.
+
+
+## Router-owned pool compatibility
+
+Optional capability 116 (`agent-auth-router-owned-pools`) promises explicit
+`canManagePools` overview metadata and optional `directAccountAccess` account
+metadata. Pool-only accounts are omitted from standalone manual allocation
+choices; they remain visible in their pool and usage overview. YA checks AAR's `router-owned-pools-v1`
+capability, reports false, and refuses integration pool mutations before sending
+them. Pool use continues through `pools-v1`. AAR independently enforces owner
+credentials for administration; YA never reads that owner credential.
+
+The 2026-10-03 review rechecked stable v0.9.0, v0.9.1 and v0.9.2; none has AAR
+routes. Without capability 116, clients retain the older pool editor, except
+that explicit `canManagePools: false` always hides it. With capability 116,
+missing permission metadata fails closed. Older clients may display an editor
+against a new router, but writes fail with guidance to manage pools in AAR.
+Original capabilities and the protocol floor keep their previous meaning.
+
+Pool membership, account enrollment/enablement and integration grants are live.
+New accounts remain unassigned until the owner grants them directly or adds them
+to a granted pool. Direct-account allocation requires a direct grant; pool use
+does not authorize bypassing pool membership. Shared pool allocation state
+arbitrates across integrations. Disconnect/revocation leaves router pools and
+other integrations intact. Existing pins cannot switch accounts; revoking a
+grant blocks subsequent requests while accepted streams may finish.

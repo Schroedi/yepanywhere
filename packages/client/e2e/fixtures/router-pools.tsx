@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import type { AgentAuthRouterOverview } from "@yep-anywhere/shared";
-import { api } from "../../src/api/client";
+import { api, type VersionInfo } from "../../src/api/client";
 import {
   AgentAuthRouterPools,
   RouterPoolSelection,
@@ -13,7 +13,14 @@ import "../../src/styles/index.css";
 
 // Browser-only service substitutes; AAR's pinned integration suite proves the
 // real control/native boundaries. This fixture never contacts a provider.
+const ownerManaged = new URLSearchParams(location.search).has("owner");
+api.getVersion = async () =>
+  ({
+    current: "0.9.4",
+    capabilities: ownerManaged ? ["agent-auth-router-owned-pools"] : [],
+  }) as VersionInfo;
 const state: AgentAuthRouterOverview = {
+  ...(ownerManaged ? { canManagePools: false } : {}),
   observedAt: "2026-10-03T08:00:00Z",
   quotaFreshSeconds: 120,
   pools: [

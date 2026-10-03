@@ -321,7 +321,11 @@ export function RouterAccountSelection({
         setConnected(true);
         const result = await api.routerAccounts();
         if (current)
-          setAccounts(result.accounts.filter((a) => a.provider === provider));
+          setAccounts(
+            result.accounts.filter(
+              (a) => a.provider === provider && a.directAccountAccess !== false,
+            ),
+          );
       })
       .catch((failure) => {
         if (current) setError(errorMessage(failure, t("routerUnavailable")));

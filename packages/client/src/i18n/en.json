@@ -4448,6 +4448,7 @@
   "routerPoolsTitle": "Pools and usage",
   "routerPool": "Pool",
   "routerPoolReload": "Reload overview",
+  "routerPoolManagedByRouter": "Manage accounts, pools and access grants in Agent Auth Router. After access is granted, reload this overview to see your pools.",
   "routerPoolOverviewHelp": "Usage bars show provider-reported usage for each account. Refresh reads current quota and model information; opening this overview does not contact providers.",
   "routerPoolAllAccounts": "All granted accounts",
   "routerPoolManual": "Manual",

@@ -14,6 +14,7 @@ export type AgentAuthRouterIssueCode =
   | "operation-rejected";
 
 export interface AgentAuthRouterAccount {
+  directAccountAccess?: boolean;
   id: string;
   provider: "claude" | "codex";
   enabled: boolean;
@@ -41,6 +42,8 @@ export interface AgentAuthRouterPool {
 }
 export type AgentAuthRouterPoolInput = Omit<AgentAuthRouterPool, "bindings">;
 export interface AgentAuthRouterOverview {
+  /** False for router-owned pools. Absent on legacy servers/routers. */
+  canManagePools?: boolean;
   observedAt: string;
   quotaFreshSeconds: number;
   pools: AgentAuthRouterPool[];

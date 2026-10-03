@@ -144,3 +144,47 @@ test("pool overview, editor and policy selection retain typing under 48-account 
   );
   expect(warnings).toEqual([]);
 });
+
+test("router-owned pools expose selection and usage without integration administration", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto(`${origin}/e2e/fixtures/router-pools.html?owner=1`);
+  const overview = page.getByRole("region", {
+    name: "Pools and usage",
+    exact: true,
+  });
+  await expect(
+    overview.getByText(
+      "Manage accounts, pools and access grants in Agent Auth Router.",
+      { exact: false },
+    ),
+  ).toBeVisible();
+  await expect(
+    overview.getByRole("button", { name: "Create pool" }),
+  ).toHaveCount(0);
+  await overview
+    .getByRole("combobox", { name: "Pool", exact: true })
+    .selectOption({ label: "Personal Codex · codex" });
+  await expect(overview).toHaveAttribute("aria-busy", "false");
+  await expect(overview.getByRole("button", { name: "Edit pool" })).toHaveCount(
+    0,
+  );
+  await expect(
+    overview.getByRole("button", { name: "Refresh usage" }).first(),
+  ).toBeVisible();
+  for (const size of [
+    { width: 1000, height: 600 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(size);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await recordUiCapture(page, `router-owned-pools-${size.width}`, size);
+  }
+  expect(errors).toEqual([]);
+});
