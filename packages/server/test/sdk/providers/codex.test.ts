@@ -1096,9 +1096,11 @@ describe("CodexProvider app-server lifecycle", () => {
     }
   });
 
-  it("recognizes a refused cyber access program only by its 403 and message", () => {
+  it("treats any 403 as a refused cyber access program", () => {
     const message =
       'unexpected status 403 Forbidden: {"detail":"The requested Cyber access program is not authorized for this model."}';
+    const daybreakMessage =
+      'unexpected status 403 Forbidden: {"detail":"Daybreak isn\'t available for this model. Turn off Daybreak or choose another model."}, url: https://chatgpt.com/backend-api/codex/responses';
     expect(
       isCodexCyberAccessDenial({
         message,
@@ -1108,24 +1110,30 @@ describe("CodexProvider app-server lifecycle", () => {
     expect(
       isCodexCyberAccessDenial({
         message: "Reconnecting... 1/5",
-        additionalDetails: message,
+        additionalDetails: daybreakMessage,
         codexErrorInfo: { responseStreamDisconnected: { httpStatusCode: 403 } },
       }),
     ).toBe(true);
     expect(
       isCodexCyberAccessDenial({
-        message: "Reconnecting... 1/5",
-        additionalDetails:
-          "unexpected status 403 Forbidden: workspace disabled",
-        codexErrorInfo: { responseStreamDisconnected: { httpStatusCode: 403 } },
-      }),
-    ).toBe(false);
-    expect(
-      isCodexCyberAccessDenial({
         message: "unexpected status 403 Forbidden: workspace disabled",
         codexErrorInfo: { httpConnectionFailed: { httpStatusCode: 403 } },
       }),
-    ).toBe(false);
+    ).toBe(true);
+    // The status is read from the text when the structured info lacks it.
+    expect(
+      isCodexCyberAccessDenial({
+        message: daybreakMessage,
+        codexErrorInfo: "other",
+      }),
+    ).toBe(true);
+    expect(
+      isCodexCyberAccessDenial({
+        message: "Reconnecting... 1/5",
+        additionalDetails: daybreakMessage,
+        codexErrorInfo: null,
+      }),
+    ).toBe(true);
     expect(
       isCodexCyberAccessDenial({
         message,
@@ -1133,7 +1141,10 @@ describe("CodexProvider app-server lifecycle", () => {
       }),
     ).toBe(false);
     expect(
-      isCodexCyberAccessDenial({ message, codexErrorInfo: "unauthorized" }),
+      isCodexCyberAccessDenial({
+        message: "unexpected status 401 Unauthorized",
+        codexErrorInfo: "unauthorized",
+      }),
     ).toBe(false);
   });
 
@@ -3995,7 +4006,7 @@ function handleMessage(message) {
               error: {
                 message: "Reconnecting... 1/5",
                 codexErrorInfo: { responseStreamDisconnected: { httpStatusCode: 403 } },
-                additionalDetails: 'unexpected status 403 Forbidden: {"detail":"The requested Cyber access program is not enabled on this account."}',
+                additionalDetails: 'unexpected status 403 Forbidden: {"detail":"Daybreak isn\\'t available for this model. Turn off Daybreak or choose another model."}',
               },
               willRetry: true,
             });

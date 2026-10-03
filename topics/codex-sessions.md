@@ -120,8 +120,13 @@ described as enabling anything.
 Enrollment belongs to the signed-in ChatGPT account and is checked per model.
 The one server-wide selection can therefore reach an account or model that is
 not enrolled, for example after switching the Codex home to another
-subscription. The backend refuses such a turn with HTTP 403 and a message
-naming the Cyber access program. A native retry notification reports that 403
+subscription. The backend refuses such a turn with HTTP 403; observed bodies
+include `The requested Cyber access program is not authorized for this model.`
+and `Daybreak isn't available for this model.` Enrollment can also depend on
+how the account signed in, such as device auth without a hardware key, so YA
+treats any 403 on a turn that requested a program as that refusal without
+matching the body. The status comes from `codexErrorInfo`, else from Codex's
+`unexpected status 403` error text. A native retry notification reports that 403
 as `responseStreamDisconnected` and puts the denial text in
 `additionalDetails`, while its main message is `Reconnecting... n/max`.
 YA recognizes that refusal on the first notification, interrupts the native

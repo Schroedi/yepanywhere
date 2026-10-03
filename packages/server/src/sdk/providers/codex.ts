@@ -471,34 +471,43 @@ interface CodexRetryableTurnError {
   message: SDKMessage;
 }
 
-/**
- * The backend refuses a requested cyber access program with an HTTP 403 whose
- * body names the program, for example `The requested Cyber access program is
- * not authorized for this model.` Codex reports it as a failed HTTP
- * connection, so the status alone is not specific enough.
- */
-export function isCodexCyberAccessDenial(
-  error: Pick<TurnError, "message" | "codexErrorInfo"> &
-    Partial<Pick<TurnError, "additionalDetails">>,
-): boolean {
+type CodexTurnErrorText = Pick<TurnError, "message" | "codexErrorInfo"> &
+  Partial<Pick<TurnError, "additionalDetails">>;
+
+function codexTurnErrorHttpStatus(error: CodexTurnErrorText): number | null {
   const info = error.codexErrorInfo;
-  const status =
-    info && typeof info === "object" && "httpConnectionFailed" in info
-      ? info.httpConnectionFailed.httpStatusCode
-      : info && typeof info === "object" && "responseStreamDisconnected" in info
-        ? info.responseStreamDisconnected.httpStatusCode
-        : null;
-  return (
-    status === 403 &&
-    /cyber access program/i.test(
-      `${error.message}\n${error.additionalDetails ?? ""}`,
-    )
+  if (info && typeof info === "object" && "httpConnectionFailed" in info) {
+    return info.httpConnectionFailed.httpStatusCode;
+  }
+  if (
+    info &&
+    typeof info === "object" &&
+    "responseStreamDisconnected" in info
+  ) {
+    return info.responseStreamDisconnected.httpStatusCode;
+  }
+  // Codex's error text carries the status even when the structured info
+  // does not, for example `unexpected status 403 Forbidden: {...}`.
+  const match = /\bunexpected status (\d{3})\b/.exec(
+    `${error.message}\n${error.additionalDetails ?? ""}`,
   );
+  return match ? Number(match[1]) : null;
+}
+
+/**
+ * On a turn that requested a cyber access program, any HTTP 403 is treated as
+ * the backend refusing that program. The refusal wording varies (`The
+ * requested Cyber access program is not authorized for this model.`,
+ * `Daybreak isn't available for this model.`) and enrollment can also hinge
+ * on how the account signed in, so the body is not matched: a turn without
+ * the program always beats a failed one.
+ */
+export function isCodexCyberAccessDenial(error: CodexTurnErrorText): boolean {
+  return codexTurnErrorHttpStatus(error) === 403;
 }
 
 function classifyCodexTurnError(
-  error: Pick<TurnError, "message" | "codexErrorInfo"> &
-    Partial<Pick<TurnError, "additionalDetails">>,
+  error: CodexTurnErrorText,
   cyberAccessRequested: boolean,
 ): CodexRetryableTurnErrorKind | null {
   if (error.codexErrorInfo === "serverOverloaded") return "serverOverloaded";
