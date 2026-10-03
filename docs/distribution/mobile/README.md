@@ -36,7 +36,10 @@ and [Apple's screenshot specifications](https://developer.apple.com/help/app-sto
 As of October 3, 2026, both store draft records exist. Apple has saved initial
 metadata and an internal TestFlight group. Google Play has saved the English
 listing text, app icon and feature graphic as a draft, plus a dedicated internal
-tester list. No signed build has been uploaded or internal release activated.
+tester list. The first local upload artifacts are built from committed source:
+Android 0.1.0 / version code 1000 is uploaded and passes internal-release
+validation; iOS 0.1.0 / build 1 uploaded through Xcode's TestFlight Internal Only
+flow and is processing. Neither track has an installable internal release yet.
 Google Play category and contact settings remain open; Developer Tools is saved
 on Apple. Console links and account-specific inventory live in private dotfiles.
 
@@ -99,8 +102,9 @@ xcodebuild -project YepAnywhere.xcodeproj -scheme YepAnywhere \
 open build/YepAnywhere.xcarchive
 ```
 
-Use Xcode Organizer's **Distribute App → App Store Connect** flow, with
-automatic distribution signing and Apple's cloud-managed certificate. An
+Use Xcode Organizer's **Distribute App → TestFlight Internal Only** for the first
+internal upload, or **App Store Connect** for a build intended for later review.
+Use automatic distribution signing and Apple's cloud-managed certificate. An
 App Store Connect API key authenticates uploads; it is not an app signing key.
 Do not copy JSTorrent's manual certificate/profile or its AltStore notarization
 pipeline for this path. See [Apple's cloud signing guidance](https://developer.apple.com/help/account/certificates/cloud-managed-certificates).
