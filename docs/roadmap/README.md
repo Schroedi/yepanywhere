@@ -116,10 +116,12 @@ the viewer/download gap remain the next mobile release work.
 - Both mobile store records have saved initial metadata. Local uploads now
   use platform-managed final signing: Android's upload-signed AAB passes Play
   internal-release validation, and Xcode uploaded the first iOS archive to
-  internal-only TestFlight. Apple encryption compliance is blocked on French
-  declaration approval with France included; internal activation, testers and
-  production iOS push remain open. Release CI automation follows
-  the proven local path. See [mobile store preparation](../distribution/mobile/README.md).
+  internal-only TestFlight. Android 0.1.0 is now active for the selected internal
+  testers, with its opt-in page verified. iOS build 1 shows Ready to Test after
+  completing encryption compliance with France excluded from availability.
+  French classification/filing is deferred before enabling that market; iOS
+  tester enrollment and production iOS push remain open. Release CI automation
+  follows the proven local path. See [mobile store preparation](../distribution/mobile/README.md).
 - Native app CI now runs on relevant platform, shared mobile-core and packaging
   changes rather than ordinary web/server edits. Daily Android/iOS acceptance
   and the existing desktop nightly retain full shared-source coverage; manual

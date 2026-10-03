@@ -37,11 +37,11 @@ As of October 3, 2026, both store draft records exist. Apple has saved initial
 metadata and an internal TestFlight group. Google Play has saved the English
 listing text, app icon and feature graphic as a draft, plus a dedicated internal
 tester list. The first local upload artifacts are built from committed source:
-Android 0.1.0 / version code 1000 is uploaded and passes internal-release
-validation; iOS 0.1.0 / build 1 uploaded through Xcode's TestFlight Internal Only
-flow and has processed. Its encryption declaration is blocked on uploading a
-French encryption declaration approval form with France included. Neither track
-has an installable internal release yet.
+Android 0.1.0 / version code 1000 is active and available to the selected
+internal testers; its opt-in page was verified with the maintainer account.
+iOS 0.1.0 / build 1 uploaded through Xcode's TestFlight Internal Only flow and
+now shows **Ready to Test** after saving the encryption questionnaire with
+France excluded. iOS tester enrollment remains open.
 Google Play category and contact settings remain open; Developer Tools is saved
 on Apple. Console links and account-specific inventory live in private dotfiles.
 
@@ -49,8 +49,9 @@ A full public listing is not the first internal-testing prerequisite.
 [Google permits internal testing before completing app setup](https://support.google.com/googleplay/android-developer/answer/9845334).
 [TestFlight](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/)
 requires an uploaded, processed build and testers; external testing introduces
-additional review requirements. Initial draft records and artwork do not mean
-either app is installable through a store.
+additional review requirements. A saved draft or processed upload alone does
+not make a build installable; the testing track and tester enrollment must also
+be active.
 
 ### Local upload path
 
@@ -133,15 +134,22 @@ algorithms; the app must not be declared OS-only or encryption-free.
 [Apple's overview](https://developer.apple.com/help/app-store-connect/manage-app-information/overview-of-export-compliance)
 distinguishes proprietary/unpublished cryptography from published algorithms.
 
-With France included, App Store Connect requires a **French encryption
-declaration approval form** before saving the declaration. No form has been
-uploaded or approved; the first build remains **Missing Compliance**. Apple's
+The maintainer deferred France on October 3. App Store availability is saved
+for 174 countries or regions, with France **Not Available** and automatic
+availability in future countries disabled. The build questionnaire retains the
+standard-encryption option and answers **No** to France distribution; Apple
+required no attachment and the build now shows **Ready to Test**. No Info.plist
+encryption setting was changed.
+
+**Deferred to-do — enable France:** clarify with ANSSI whether this app requires
+a declaration or qualifies for an exemption, complete any required filing, and
+obtain the documentation Apple accepts before enabling France and revisiting
+the questionnaire. Apple's
 [documentation matrix](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption)
-explains the France requirement. Obtain the applicable ANSSI documentation and
-Apple approval before clearing this gate. A draft technical description is not
-an approval form. Revisit the questionnaire if initial distribution is explicitly
-changed to exclude France; do not set an Info.plist exemption merely to bypass it.
-Private filing details and console inventory belong in the dotfiles runbook.
+explains the French documentation gate. The unsigned technical draft is retained
+in private dotfiles; it is not an approval form and has not been filed or
+uploaded. Private filing details and console inventory belong in that runbook.
+Keep France excluded when configuring broader Android distribution as well.
 
 Keep initial releases internal. App Store review submission and public Play
 rollout are separate actions from preparing draft records and internal tracks.
