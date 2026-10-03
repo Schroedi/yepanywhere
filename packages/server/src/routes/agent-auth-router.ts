@@ -3,6 +3,7 @@ import {
   type AgentAuthRouter,
   RouterUnavailable,
 } from "../services/AgentAuthRouter.js";
+import { registerAgentAuthRouterRecoveryRoutes } from "./agent-auth-router-recovery.js";
 /** Existing /api authorization denies this administration namespace to limited users. */
 export function createAgentAuthRouterRoutes(router: AgentAuthRouter) {
   const routes = new Hono();
@@ -18,12 +19,7 @@ export function createAgentAuthRouterRoutes(router: AgentAuthRouter) {
     ),
   );
   routes.get("/agent-auth-router", (c) => c.json(router.summary()));
-  routes.get("/agent-auth-router/recovery", async (c) =>
-    c.json(await router.recovery()),
-  );
-  routes.post("/agent-auth-router/retry-cancellations", async (c) =>
-    c.json(await router.retryCancellations()),
-  );
+  registerAgentAuthRouterRecoveryRoutes(routes, router);
   routes.post("/agent-auth-router/connect", async (c) => {
     const body = await c.req.json<{ socketPath?: unknown }>();
     if (

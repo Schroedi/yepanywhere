@@ -79,6 +79,8 @@ lack AAR routes. Without the recovery bit, a client with the original
 `agent-auth-router` bit uses only the original status/account/connect/disconnect
 routes and omits cleanup retry. Without either bit the original router UI stays
 hidden. The original capability retains its meaning; no protocol floor rises.
+Recovery routes live in their own route module so the capability audit checks
+their contract independently of the original pairing and discovery routes.
 
 The browser communicates only with YA. Socket paths refer to the YA server's
 machine, even when its UI is viewed remotely. This does not route an agent

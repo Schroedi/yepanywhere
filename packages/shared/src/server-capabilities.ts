@@ -258,7 +258,9 @@ export const SERVER_CAPABILITIES = {
         "GET /api/agent-auth-router/recovery",
         "POST /api/agent-auth-router/retry-cancellations",
       ],
-      routeModules: ["packages/server/src/routes/agent-auth-router.ts"],
+      routeModules: [
+        "packages/server/src/routes/agent-auth-router-recovery.ts",
+      ],
       responseFields: [
         "checkedAt",
         "reachable",
