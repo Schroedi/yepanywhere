@@ -104,6 +104,9 @@ android {
             isDebuggable = true
             // Exercise the shipping native reflection boundary with R8 on a
             // disposable cleartext fixture, without weakening Release policy.
+            // AGP intentionally warns that debuggable R8 probes cannot enable
+            // all Release optimizations. Debugging is required for WebView
+            // instrumentation; the probe still checks the shrunk shared ABI.
             isMinifyEnabled = providers.gradleProperty("yaNativeProbeMinify").orNull == "true"
             testProguardFiles("test-proguard-rules.pro")
             if (isMinifyEnabled) proguardFiles("probe-proguard-rules.pro")

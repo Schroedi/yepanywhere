@@ -16,6 +16,7 @@ import com.yepanywhere.mobile.R
 import com.yepanywhere.mobile.YepAnywhereApplication
 import com.yepanywhere.mobile.connection.YaConnectionPhase
 import com.yepanywhere.mobile.profiles.YaServerRoute
+import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -72,6 +73,12 @@ class YaNativeWebAppInstrumentedTest {
             val projectId = projects.getJSONArray("projects").getJSONObject(0).getString("id")
             evaluate(scenario, "location.href = '/projects/$projectId/sessions/android-preview-session'; true")
             await(scenario, "document.body.textContent.includes('Preview message 50') && !!document.querySelector('textarea[data-composer-input]')")
+            await(scenario, "!document.querySelector('.session-title-skeleton, .session-page .loading') && document.fonts.status === 'loaded'")
+            evaluate(scenario, "window.nativeCaptureReady = false; requestAnimationFrame(() => requestAnimationFrame(() => { window.nativeCaptureReady = true; })); true")
+            await(scenario, "window.nativeCaptureReady === true")
+            instrumentation.waitForIdleSync()
+            assertTrue(UiDevice.getInstance(instrumentation).takeScreenshot(File(application.getExternalFilesDir(null), "native-insets.png")))
+            assertSafeAreasAppliedOnce(scenario)
             val base = checkNotNull(ws).replace("ws://", "http://").replace("wss://", "https://").substringBefore("/api/ws")
             http.newCall(Request.Builder().url("$base/__probe/append").post(ByteArray(0).toRequestBody()).build()).execute().use { assertTrue(it.isSuccessful) }
             await(scenario, "document.body.textContent.includes('Live preview response')")
@@ -92,6 +99,7 @@ class YaNativeWebAppInstrumentedTest {
                   composer.blur(); composer.setAttribute('autocapitalize', 'off'); composer.focus(); return true; })();
             """.trimIndent())
             awaitInputReady(scenario)
+            assertSafeAreasAppliedOnce(scenario)
 
             // Exercise the normal attachment editor, including credited binary upload.
             evaluate(scenario, """
@@ -162,6 +170,7 @@ class YaNativeWebAppInstrumentedTest {
             await(scenario, "document.body.textContent.includes('Preview message 50')")
             scenario.recreate()
             await(scenario, "location.pathname.endsWith('/sessions/android-preview-session') && document.body.textContent.includes('Preview message 50')")
+            assertSafeAreasAppliedOnce(scenario)
             assertEquals(200, runBlocking { sibling.request("GET", "/version").status })
             evaluate(scenario, "if (!document.querySelector('.sidebar-switch-host')) document.querySelector('.sidebar-toggle')?.click(); true")
             await(scenario, "!!document.querySelector('.sidebar-switch-host')")
@@ -182,6 +191,20 @@ class YaNativeWebAppInstrumentedTest {
                 if (previous != null && runtime.pairedServers.snapshot(previous) != null) runtime.pairedServers.select(previous)
             }
         }
+    }
+
+    private fun assertSafeAreasAppliedOnce(scenario: ActivityScenario<WebClientActivity>) {
+        val insets = evaluate(scenario, """
+            (() => {
+              const probe = document.createElement('div');
+              probe.style.cssText = 'position:fixed;visibility:hidden;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)';
+              document.body.appendChild(probe);
+              const style = getComputedStyle(probe);
+              const values = [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(parseFloat);
+              probe.remove(); return values;
+            })()
+        """.trimIndent())
+        assertEquals("Native system-bar padding must not reach CSS again", "[0,0,0,0]", insets)
     }
 
     private fun awaitInputReady(scenario: ActivityScenario<WebClientActivity>) {

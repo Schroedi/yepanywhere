@@ -9,6 +9,10 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.webkit.WebView
+import android.view.ViewGroup
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import android.webkit.WebViewClient
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
@@ -31,6 +35,27 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class WebClientActivityTest {
+    @Test
+    fun systemBarsAndCutoutAreAppliedOnceWithoutConsumingKeyboardInsets() {
+        launchClient().use { scenario ->
+            scenario.onActivity { activity ->
+                val root = activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0)
+                val handled = WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+                for (bars in listOf(Insets.of(0, 45, 0, 24), Insets.of(36, 0, 0, 48))) {
+                    val original = WindowInsetsCompat.Builder()
+                        .setInsets(handled, bars)
+                        .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, 320))
+                        .build()
+                    val forwarded = ViewCompat.dispatchApplyWindowInsets(root, original)
+                    assertEquals(bars, Insets.of(root.paddingLeft, root.paddingTop, root.paddingRight, root.paddingBottom))
+                    assertEquals(Insets.NONE, forwarded.getInsets(handled))
+                    assertEquals(320, forwarded.getInsets(WindowInsetsCompat.Type.ime()).bottom)
+                }
+                ViewCompat.requestApplyInsets(root)
+            }
+        }
+    }
+
     @Test
     fun nativeHostDescribesAndroidOverWebMessage() {
         launchClient().use { scenario ->

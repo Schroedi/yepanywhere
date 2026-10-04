@@ -54,6 +54,13 @@ an idle saved host and reopens without a password. Missing or expired credential
 require reauthentication; revocation always wins. Management observes these
 changes without acquiring a connection or background subscription.
 
+Android's WebView container owns system-bar and display-cutout spacing once,
+including side cutouts in landscape. It forwards zero for those handled insets
+to web CSS while continuing to deliver keyboard inset changes. Opening, closing,
+or recreating the view must not retain duplicate or stale safe-area padding.
+The shared web client's safe-area rules remain available to browsers and PWAs;
+Android does not override those rules globally.
+
 Native background work cannot depend on the WebView. The native connection core
 must support Compose and an explicitly enabled foreground activity
 service without allocating a WebView or JavaScript runtime. Native FCM receipt

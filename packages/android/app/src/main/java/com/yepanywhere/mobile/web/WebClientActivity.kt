@@ -23,10 +23,12 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.net.toUri
+import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebViewAssetLoader
@@ -70,6 +72,7 @@ class WebClientActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         notificationOperations = NotificationNativeHostOperations(
             activity = this,
             statusReader = NotificationStatusReader(
@@ -84,9 +87,13 @@ class WebClientActivity : ComponentActivity() {
             setBackgroundColor(Color.rgb(24, 24, 24))
         }
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val handled = WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            val bars = insets.getInsets(handled)
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            insets
+            // Native layout owns these edges. Forward zeroes, rather than
+            // consuming the event, so WebView clears old safe areas and still
+            // receives keyboard/visual-viewport updates.
+            WindowInsetsCompat.Builder(insets).setInsets(handled, Insets.NONE).build()
         }
 
         val clientView = createWebView()
