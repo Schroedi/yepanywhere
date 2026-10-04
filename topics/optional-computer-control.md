@@ -115,8 +115,14 @@ suspends standing trust across restart; Pause retains it. Independent legacy
 MC consent remains independent. Detached provider hosting is explicitly
 unsupported for automatic delegation and never silently changes placement.
 
-**Open:** signed installed YA origin/effects and restart/failure qualification
-in [Tactical 145](../docs/tactical/145-native-mac-machine-control-delegation.md).
+**Current, bounded signed ordinary acceptance:** actual native YA, its
+credentialed local launch and installed CLI drive the full signed MC operator
+app and independent AX effects. Native enrollment, Pause/fresh Resume,
+Stop/reconnect/resident restart, signed Bun/forged-attribution refusal and
+provider/native-integration loss pass through owned protocol fixtures. No LLM
+runs. [Tactical 145](../docs/tactical/145-native-mac-machine-control-delegation.md)
+links the MC execution record and precise revisions. Further replacement/load
+qualification and positive covered composition remain open.
 The first trusted profile is the ordinary unlocked local desktop. It does not
 implicitly unlock or arm protected use. This source result does not establish
 same-user shell containment or distribution acceptance.

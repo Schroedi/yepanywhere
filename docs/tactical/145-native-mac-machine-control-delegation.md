@@ -80,9 +80,18 @@ work and reconnect. Exact MC revisions and receiver limitations are recorded
 in Tactical 086. The runner restored the prior application/socket and reaped
 its processes. No LLM or sub-agent was started.
 
-**Open:** remaining step 4 failures and full signed MC operator enrollment.
-This conformance receiver is not the shipping MC app, and these results do not
-qualify distribution, prepared-console composition or genuine hardware takeover.
+**Current, full signed ordinary acceptance:** MC Tactical 086 now records the
+actual signed MC operator app at `4cf7881`, native checkbox enrollment,
+Pause/fresh notice and session, durable Stop across reconnect/resident restart,
+and independent effects. Signed Bun/forged attribution refuse. Provider exit
+and abrupt native YA loss release ownership while retaining trust; a new
+credentialed native launch produces one fresh effect. The actual YA revision
+remains `158e7a1c9`; owned protocol fixtures start no LLM or sub-agent. Root
+policy, prior app/socket and operator state restore after each case.
+
+**Open:** further step 4 replacement/load failures and positive covered
+composition. The ordinary native path is qualified within this bounded profile;
+these results do not qualify distribution or genuine hardware takeover.
 
 MC operator trust is queried through a fixed local read-only profile operation
 for every eligible launch. Disabled trust or an unsupported/unavailable resident
