@@ -11,6 +11,8 @@ import com.yepanywhere.mobile.security.YaSecurityClientLifecycle
 import com.yepanywhere.mobile.security.YaSecurityClientRevokedException
 import com.yepanywhere.mobile.web.YaWebTransportSession
 import java.util.concurrent.CopyOnWriteArrayList
+import java.nio.ByteBuffer
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -32,6 +34,68 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class YaServerConnectionManagerTest {
+    @Test
+    fun uploadInterruptedByRecoveryDoesNotCloseWebDocument() = runBlocking {
+        val fixture = Fixture()
+        val first = FakeTransport(fixture.credential)
+        val next = FakeTransport(fixture.credential)
+        fixture.connector.results.send(Result.success(first))
+        val manager = fixture.manager()
+        val lease = manager.acquire()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val emitted = CopyOnWriteArrayList<JSONObject>()
+        val web = YaWebTransportSession("document", lease, scope, { emitted += it }) {}
+        val uploadId = UUID.randomUUID()
+        try {
+            web.dispatch(JSONObject().put("handle", "document").put("id", "start").put("method", "uploadStart")
+                .put("params", JSONObject().put("type", "staged_upload_start").put("uploadId", uploadId.toString())
+                    .put("size", 2).put("filename", "small.bin").put("mimeType", "application/octet-stream")))
+            first.awaitSent("staged_upload_start")
+            withTimeout(2_000) { while (emitted.none { it.optString("id") == "start" }) delay(1) }
+            val recovery = async(start = CoroutineStart.UNDISPATCHED) { lease.reconnect() }
+            val chunk = ByteBuffer.allocate(25).putLong(uploadId.mostSignificantBits)
+                .putLong(uploadId.leastSignificantBits).putLong(0).put(1.toByte()).array()
+            web.uploadChunk(chunk)
+            assertTrue(emitted.any { it.optString("type") == "upload_error" && it.optString("uploadId") == uploadId.toString() })
+            fixture.connector.results.send(Result.success(next))
+            withTimeout(2_000) { recovery.await() }
+            web.dispatch(JSONObject().put("handle", "document").put("id", "after").put("method", "request")
+                .put("params", JSONObject().put("method", "GET").put("path", "/version")))
+            val request = next.awaitSent("request")
+            next.incoming.send(JSONObject().put("type", "response").put("id", request.getString("id"))
+                .put("status", 200).put("body", JSONObject()))
+            withTimeout(2_000) { while (emitted.none { it.optString("id") == "after" }) delay(1) }
+            assertTrue(emitted.first { it.optString("id") == "after" }.has("result"))
+        } finally { web.close(); scope.cancel(); manager.shutdownAndAwait() }
+    }
+
+    @Test
+    fun foregroundRecoveryReplacesStaleTransportAndJoinsConcurrentDemand() = runBlocking {
+        val fixture = Fixture()
+        val first = FakeTransport(fixture.credential)
+        val next = FakeTransport(fixture.credential)
+        fixture.connector.results.send(Result.success(first))
+        val manager = fixture.manager()
+        val owner = manager.acquire()
+        val sibling = manager.acquire()
+        try {
+            val subscription = sibling.subscribe("activity")
+            val original = first.awaitSent("subscribe")
+            val recovery = async(start = CoroutineStart.UNDISPATCHED) { owner.reconnect() }
+            val joined = async(start = CoroutineStart.UNDISPATCHED) { sibling.reconnect() }
+            assertTrue(first.cancelled)
+            assertFalse(recovery.isCompleted)
+            fixture.connector.results.send(Result.success(next))
+            withTimeout(2_000) { recovery.await(); joined.await() }
+            assertEquals(2, fixture.connector.resumeCalls)
+            assertEquals(original.getString("subscriptionId"), next.awaitSent("subscribe").getString("subscriptionId"))
+            owner.releaseAndAwait()
+            assertFalse(next.cancelled)
+            subscription.close()
+        } finally { owner.releaseAndAwait(); sibling.releaseAndAwait(); manager.shutdownAndAwait() }
+        assertTrue(next.cancelled)
+    }
+
     @Test
     fun departingWebDocumentCannotResurrectSubscriptionsOrCloseSiblingLeases() = runBlocking {
         val fixture = Fixture()

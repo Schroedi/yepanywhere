@@ -16,9 +16,68 @@ async function setup(binary = true) {
 }
 afterEach(() => {
   for (const transport of transports.splice(0)) transport.dispose();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("native source transport", () => {
+  it("recovers an exhausted cold connection on online and coalesces input signals", async () => {
+    const { host, transport } = await setup();
+    let finish!: () => void;
+    host.handler = () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+    await host.emit({ type: "state", phase: "FAILED" });
+    window.dispatchEvent(new Event("online"));
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("pointerdown"));
+    await vi.waitFor(() => expect(host.commands).toHaveLength(1));
+    expect(host.commands[0]?.method).toBe("reconnect");
+    finish();
+    await vi.waitFor(() =>
+      expect(transport.status.getSnapshot().state).toBe("ready"),
+    );
+  });
+
+  it("shows loss immediately and waits for network restoration before recovery", async () => {
+    const { host, transport } = await setup();
+    const online = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    window.dispatchEvent(new Event("offline"));
+    expect(transport.status.getSnapshot().state).toBe("disconnected");
+    await host.emit({ type: "state", phase: "CONNECTED" });
+    expect(transport.status.getSnapshot().state).toBe("disconnected");
+    window.dispatchEvent(new Event("focus"));
+    expect(host.commands).toHaveLength(0);
+    online.mockReturnValue(true);
+    window.dispatchEvent(new Event("online"));
+    await vi.waitFor(() =>
+      expect(transport.status.getSnapshot().state).toBe("ready"),
+    );
+    expect(host.commands).toHaveLength(1);
+  });
+
+  it("pauses exhausted recovery while hidden and stops it on disposal or rejection", async () => {
+    const { host, transport } = await setup();
+    vi.useFakeTimers();
+    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+    await host.emit({ type: "state", phase: "FAILED" });
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(host.commands).toHaveLength(0);
+    hidden.mockReturnValue(false);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(1);
+    expect(host.commands).toHaveLength(1);
+    await host.emit({ type: "state", phase: "REAUTHENTICATION_REQUIRED" });
+    window.dispatchEvent(new Event("offline"));
+    expect(transport.authenticationRequired).toBe(true);
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(host.commands).toHaveLength(1);
+    transport.dispose();
+    window.dispatchEvent(new Event("online"));
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it("retains unchanged phase snapshots while preserving authentication transitions", async () => {
     const { host, transport } = await setup();
     const changed = vi.fn();

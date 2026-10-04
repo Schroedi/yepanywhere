@@ -24,7 +24,10 @@ export class NativeTransportFixture {
     return {};
   };
 
-  constructor(readonly binary = true) {
+  constructor(
+    readonly binary = true,
+    readonly initialPhase = "CONNECTED",
+  ) {
     this.channel = {
       onmessage: null,
       postMessage: (data) => this.receive(data),
@@ -50,7 +53,7 @@ export class NativeTransportFixture {
             binary: this.binary,
           }),
         });
-        void this.emit({ type: "state", phase: "CONNECTED" });
+        void this.emit({ type: "state", phase: this.initialPhase });
       });
       return;
     }
@@ -75,9 +78,13 @@ export class NativeTransportFixture {
     ) as Record<string, unknown>;
     this.commands.push(command);
     if (command.method === "cancel") return;
-    void Promise.resolve(this.handler(command)).then((value) =>
-      this.emit({ type: "reply", id: command.id, result: value }),
-    );
+    void Promise.resolve()
+      .then(() => this.handler(command))
+      .then(
+        (value) => this.emit({ type: "reply", id: command.id, result: value }),
+        (error: Error) =>
+          this.emit({ type: "reply", id: command.id, error: error.message }),
+      );
   }
 
   emit(message: Record<string, unknown>): Promise<void> {

@@ -539,7 +539,9 @@ upload; the existing server has no cancel frame, so native sends its existing
 end frame to close server state. An incomplete upload fails size validation;
 a fully transferred upload may complete server-side after the client aborts,
 with the normal staged-upload expiry. Network loss fails in-flight
-uploads; they never resume midway on a replacement connection.
+uploads; they never resume midway on a replacement connection. A late queued
+chunk fails only its upload; ordinary upload/network failure must not close the
+local document bridge or replace the page with a native failure screen.
 
 Document replacement, Activity destruction, renderer loss and non-file-chooser
 backgrounding release the WebView lease. Returning from background reloads the
@@ -547,6 +549,30 @@ current web route and resumes natively; local draft storage remains the normal
 web draft owner. Activity recreation preserves the native app route path
 without saving credential-bearing queries or fragments. A platform file chooser
 retains its active consumer.
+
+## Bundled client offline entry and refresh
+
+A saved native source mounts the bundled page before its network connection is
+ready. Cold acquisition and network failure keep Projects/session navigation,
+available content and local drafts usable. Failed reads appear within the page;
+they must not replace its shell. The top connection bar is exceptional-state
+feedback, independent of developer diagnostics, and disappears when healthy.
+The first successful activity subscription revalidates reads from cold entry.
+
+Android native reconnect retains lease owners and subscription intents, joins
+an existing acquisition/retry, and can replace a stale transport after network
+restoration. The WebView requests a new bounded native cycle on visible demand,
+network restoration or a visible 60-second backstop after exhaustion. There is
+no hidden retry timer. Authentication rejection/revocation and a broken local
+bridge are distinct from network failure and do not enter that recovery loop.
+Recovery updates the mounted page without a document reload.
+
+Bundled native pages support pull-down refresh beginning at the top of the page
+or transcript, including pages that fit without overflow. Release after an
+84 CSS-pixel pull reloads the current route; local draft storage retains drafts.
+Inputs, nested scrolling, horizontal drags, multitouch and cancelled gestures do
+not trigger refresh. The existing upward bottom-edge reload and its session
+route restriction are unchanged; mobile browsers supply their own top gesture.
 
 ## Direct, Relay, And LAN Discovery
 

@@ -8,6 +8,7 @@ import {
 } from "@yep-anywhere/shared";
 import { generateUUID } from "../uuid";
 import { RelayProtocol } from "../connection/RelayProtocol";
+import { observeRecoverySignals } from "../connection/recoverySignals";
 import {
   ConnectionReconnectingError,
   type Connection,
@@ -51,6 +52,19 @@ export class NativeSourceTransport implements SourceTransport, Connection {
   };
   private disposed = false;
   private phase = "CONNECTING";
+  private bridgeClosed = false;
+  private recovery: Promise<void> | null = null;
+  private recoveryTimer: ReturnType<typeof setTimeout> | undefined;
+  private lastRecovery = -Infinity;
+  private removeRecoverySignals: () => void = () => {};
+  private readonly offline = () => {
+    if (this.canRecover()) this.setPhase("OFFLINE");
+  };
+  private readonly online = () => this.recoverIfNeeded(true);
+  private readonly visibility = () => {
+    this.scheduleRecovery();
+    this.recoverIfNeeded();
+  };
   onAuthenticationRequired: () => void = () => {};
   readonly status = {
     getSnapshot: () => this.snapshot,
@@ -79,7 +93,13 @@ export class NativeSourceTransport implements SourceTransport, Connection {
     );
     this.bridge.onEvent = (message) => {
       if (message.type === "state") {
-        this.setPhase(String(message.phase));
+        const phase = String(message.phase);
+        this.setPhase(
+          navigator.onLine === false &&
+            !["REAUTHENTICATION_REQUIRED", "REVOKED"].includes(phase)
+            ? "OFFLINE"
+            : phase,
+        );
         return;
       }
       if (message.type === "subscriptionError") {
@@ -107,16 +127,55 @@ export class NativeSourceTransport implements SourceTransport, Connection {
       this.protocol.routeMessage(message as unknown as YepMessage);
     };
     this.bridge.onClose = (error) => {
+      this.bridgeClosed = true;
       this.setPhase("FAILED");
       this.protocol.rejectAllPending(error);
       this.protocol.notifySubscriptionsClosed(error);
     };
+    this.removeRecoverySignals = observeRecoverySignals(() =>
+      this.recoverIfNeeded(),
+    );
+    window.addEventListener("offline", this.offline);
+    window.addEventListener("online", this.online);
+    document.addEventListener("visibilitychange", this.visibility);
+  }
+
+  private canRecover(): boolean {
+    return !this.disposed && !this.bridgeClosed && !this.authenticationRequired;
+  }
+
+  private recoverIfNeeded(networkRestored = false): void {
+    if (
+      !this.canRecover() ||
+      document.hidden ||
+      navigator.onLine === false ||
+      !["FAILED", "OFFLINE"].includes(this.phase) ||
+      (!networkRestored && Date.now() - this.lastRecovery < 1000)
+    )
+      return;
+    void this.reconnect().catch(() => {});
+  }
+
+  private scheduleRecovery(): void {
+    clearTimeout(this.recoveryTimer);
+    this.recoveryTimer = undefined;
+    if (
+      !this.canRecover() ||
+      document.hidden ||
+      navigator.onLine === false ||
+      this.phase !== "FAILED"
+    )
+      return;
+    // Native owns its short retry cycle. After exhaustion, only visible demand
+    // can request another cycle; no duplicate sockets or hidden polling.
+    this.recoveryTimer = setTimeout(() => this.recoverIfNeeded(), 60_000);
   }
 
   private setPhase(phase: string): void {
     // Repeated status events must not invalidate every source subscriber.
     if (phase === this.phase) return;
     this.phase = phase;
+    this.scheduleRecovery();
     const state =
       phase === "CONNECTED"
         ? "ready"
@@ -150,6 +209,7 @@ export class NativeSourceTransport implements SourceTransport, Connection {
     await this.ready;
     if (this.disposed) throw new SourceTransportDisposedError("secure");
     if (this.snapshot.state === "ready") return;
+    this.recoverIfNeeded();
     if (this.snapshot.state === "disconnected")
       throw new SourceTransportDisconnectedError({ kind: "secure" });
     await new Promise<void>((resolve, reject) => {
@@ -405,7 +465,30 @@ export class NativeSourceTransport implements SourceTransport, Connection {
     }
   }
   reconnect(): Promise<void> {
-    return this.bridge.request("reconnect");
+    if (this.recovery) return this.recovery;
+    if (!this.canRecover())
+      return Promise.reject(
+        new SourceTransportDisconnectedError({ kind: "secure" }),
+      );
+    this.lastRecovery = Date.now();
+    this.setPhase("RETRYING");
+    const recovery = this.bridge.request<void>("reconnect");
+    this.recovery = recovery;
+    void recovery
+      .then(
+        () => {
+          if (this.canRecover() && this.phase === "RETRYING")
+            this.setPhase("CONNECTED");
+        },
+        () => {
+          if (this.canRecover() && this.phase !== "OFFLINE")
+            this.setPhase("FAILED");
+        },
+      )
+      .finally(() => {
+        if (this.recovery === recovery) this.recovery = null;
+      });
+    return recovery;
   }
   forceReconnect(): Promise<void> {
     return this.reconnect();
@@ -421,6 +504,11 @@ export class NativeSourceTransport implements SourceTransport, Connection {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    clearTimeout(this.recoveryTimer);
+    this.removeRecoverySignals();
+    window.removeEventListener("offline", this.offline);
+    window.removeEventListener("online", this.online);
+    document.removeEventListener("visibilitychange", this.visibility);
     this.protocol.close();
     this.bridge.close();
     this.listeners.clear();

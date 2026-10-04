@@ -64,7 +64,7 @@ class YaWebTransportSession(
                         uploadIds.remove(params.getString("uploadId"))?.let { lease.cancelUpload(it) }
                         JSONObject()
                     }
-                    "reconnect" -> { lease.request("GET", "/version"); JSONObject() }
+                    "reconnect" -> { lease.reconnect(); JSONObject() }
                     "switchHost" -> { switchHost(); JSONObject() }
                     else -> error("Unsupported native source operation")
                 }
@@ -100,7 +100,15 @@ class YaWebTransportSession(
         val localId = UUID(bytes.long, bytes.long).toString()
         val offset = bytes.long
         val chunk = ByteArray(bytes.remaining()).also(bytes::get)
-        lease.sendUploadChunk(checkNotNull(uploadIds[localId]) { "Unknown native upload handle" }, offset, chunk)
+        try {
+            lease.sendUploadChunk(checkNotNull(uploadIds[localId]) { "Upload is no longer active" }, offset, chunk)
+        } catch (error: CancellationException) { throw error
+        } catch (error: Throwable) {
+            // A queued chunk can arrive after network loss has retired its upload.
+            // Fail that operation, not the document's local transport bridge.
+            emit(JSONObject().put("type", "upload_error").put("uploadId", localId)
+                .put("error", error.message ?: "Native upload failed"))
+        }
     }
 
     private suspend fun request(params: JSONObject): JSONObject {

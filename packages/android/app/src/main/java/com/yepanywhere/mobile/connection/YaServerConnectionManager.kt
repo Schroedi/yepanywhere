@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -87,6 +88,11 @@ class YaConnectionLease internal constructor(
     internal val id: String,
 ) : Closeable {
     private val released = AtomicBoolean(false)
+
+    suspend fun reconnect() {
+        check(!released.get()) { "Connection lease is released" }
+        manager.reconnect(id)
+    }
 
     suspend fun request(
         method: String,
@@ -425,6 +431,39 @@ class YaServerConnectionManager(
             }
             waitForConnection.await()
         }
+    }
+
+    /** A foreground recovery signal replaces a stale socket, never its owners. */
+    internal suspend fun reconnect(leaseId: String) {
+        val ready = mutex.withLock {
+            check(leases.containsKey(leaseId)) { "Connection lease is released" }
+            check(mutableState.value.phase !in setOf(YaConnectionPhase.REAUTHENTICATION_REQUIRED, YaConnectionPhase.REVOKED)) {
+                "This server requires authentication"
+            }
+            // Join an existing acquisition/retry instead of multiplying cycles.
+            if (connectionJob != null && mutableState.value.phase in setOf(YaConnectionPhase.CONNECTING, YaConnectionPhase.RETRYING)) {
+                return@withLock connectionReady
+            }
+            connectionGeneration += 1
+            connectionJob?.cancel()
+            connection?.transport?.cancel()
+            connection = null
+            connectionJob = null
+            val error = YaConnectionUnavailableException("Connection reconnecting")
+            failPendingLocked(error)
+            uploads.values.forEach { it.events.close(error) }
+            uploads.clear()
+            failConversationsLocked(error)
+            connectionReady.completeExceptionally(error)
+            mutableState.value = YaConnectionState(YaConnectionPhase.CONNECTING)
+            startConnectionIfNeededLocked()
+            connectionReady
+        }
+        ready.await()
+        val settled = withTimeout(REQUEST_TIMEOUT_MS) {
+            state.first { it.phase !in setOf(YaConnectionPhase.CONNECTING, YaConnectionPhase.RETRYING) }
+        }
+        check(settled.phase == YaConnectionPhase.CONNECTED) { "Native connection is unavailable" }
     }
 
     private fun startConnectionIfNeededLocked() {

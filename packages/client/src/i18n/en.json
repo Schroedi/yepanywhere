@@ -2838,6 +2838,8 @@
   "hostOfflineHintDirect": "Make sure your server is running and accessible.",
   "hostOfflineGoToLogin": "Go to Login",
   "hostOfflineRetry": "Retry",
+  "nativeRefreshPull": "Pull down to refresh",
+  "nativeRefreshRelease": "Release to refresh",
   "directLoginTitle": "Direct Connection",
   "directLoginServerUrl": "Server URL",
   "directLoginServerUrlHint": "Your server's address (e.g., ws://192.168.1.50:3400/api/ws)",

@@ -26,6 +26,7 @@ import {
 } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { BottomOverscrollReload } from "./components/BottomOverscrollReload";
+import { NativePullToRefresh } from "./components/NativePullToRefresh";
 import { ClientLogRecordingBadge } from "./components/ClientLogRecordingBadge";
 import { ConnectionBar } from "./components/ConnectionBar";
 import { HostOfflineModal } from "./components/HostOfflineModal";
@@ -86,7 +87,7 @@ function ConnectedAppContentInner({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const location = useLocation();
   useRemoteActivityBusConnection();
-  const { currentRelayUsername } = useRemoteConnection();
+  const { currentRelayUsername, nativeSource } = useRemoteConnection();
   const { version: versionInfo } = useVersion();
   const { icon: hostIdentityIcon } = useHostIdentity();
   const sourceKey = useClientSummarySourceKey();
@@ -160,6 +161,7 @@ function ConnectedAppContentInner({ children }: { children: ReactNode }) {
         disabled={isSessionDetailRoute}
         onReload={reloadFrontend}
       />
+      {nativeSource && <NativePullToRefresh onReload={reloadFrontend} />}
       {children}
       <Suspense fallback={null}>
         <FloatingActionButton />

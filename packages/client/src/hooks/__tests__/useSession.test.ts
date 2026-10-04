@@ -5,6 +5,7 @@ import type {
   UrlProjectId,
 } from "@yep-anywhere/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useEffect } from "react";
 import { UI_KEYS } from "../../lib/storageKeys";
 import type {
   FileChangeEvent,
@@ -98,6 +99,7 @@ let streamingContentOptions:
 let sessionMessagesOptions:
   | {
       onLoadComplete?: (result: SessionLoadResult) => void;
+      onLoadError?: (error: Error) => void;
       onTranscriptReconciled?: (updatedAt: string) => void;
     }
   | undefined;
@@ -182,9 +184,11 @@ function installVisibilityStateMock(initial: DocumentVisibilityState) {
 vi.mock("../useSessionMessages", () => ({
   useSessionMessages: vi.fn((options) => {
     sessionMessagesOptions = options;
-    options.onTranscriptReconciled?.(
-      sessionMessagesMock.reconciledSessionUpdatedAt,
-    );
+    const reconciledAt = sessionMessagesMock.reconciledSessionUpdatedAt;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: Tests mutate this fixture watermark between rerenders to simulate async transcript completion.
+    useEffect(() => {
+      options.onTranscriptReconciled?.(reconciledAt);
+    }, [options.onTranscriptReconciled, reconciledAt]);
     return {
       messages: sessionMessagesMock.messages,
       agentContent: {},
@@ -1109,6 +1113,16 @@ describe("useSession completion reconciliation", () => {
       processId: "proc-1",
     });
     expect(result.current.processState).toBe("in-turn");
+  });
+
+  it("clears a failed read after transcript recovery", () => {
+    const { result } = renderHook(() => useSession(PROJECT_ID, "sess-1"));
+    act(() => sessionMessagesOptions?.onLoadError?.(new Error("offline")));
+    expect(result.current.error?.message).toBe("offline");
+    act(() =>
+      sessionMessagesOptions?.onTranscriptReconciled?.("2026-10-04T14:00:00Z"),
+    );
+    expect(result.current.error).toBeNull();
   });
 
   it("reconciles a replayed busy navigation hint with retained idle state", async () => {

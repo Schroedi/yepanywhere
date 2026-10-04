@@ -5792,11 +5792,8 @@ function SessionPageContent({
       );
     }
 
-    return (
-      <div className="error">
-        {t("sessionErrorPrefix")} {error.message}
-      </div>
-    );
+    // A failed read must not remove navigation, the transcript or the draft.
+    // Render the failure inside the transcript below, including cold entry.
   }
 
   // Sidebar icon component
@@ -6607,6 +6604,11 @@ function SessionPageContent({
           }`}
         >
           <main className={`${styles.messages} session-messages`} tabIndex={-1}>
+            {error && (
+              <div role="status">
+                {t("sessionErrorPrefix")} {error.message}
+              </div>
+            )}
             {loading ? (
               <div className="loading">
                 <div>{t("sessionLoading")}</div>

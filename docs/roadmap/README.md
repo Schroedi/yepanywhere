@@ -225,7 +225,10 @@ not mobile release prerequisites. The previous native preview remains
 historical evidence in Git.
 
 **Next action:** finish store signing/distribution, notification enrollment and
-tap acceptance, and release-device/network checks for both mobile apps. Complete
+tap acceptance, and release-device/network checks for both mobile apps. The
+[Android offline recovery repair](../testing/android-offline-recovery-investigation.md)
+keeps cold pages navigable and recovers in place; physical Pixel/public-relay
+radio-loss and launcher-reopening checks pass locally. Complete
 the iOS embedded-viewer/download adapters before claiming full UI parity; a new
 SwiftUI transcript/composer design is not required. Desktop release and
 continuous-delivery work continue independently.

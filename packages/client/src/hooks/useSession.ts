@@ -644,6 +644,7 @@ export function useSession(
   }
   const handleTranscriptReconciled = useCallback(
     (updatedAt: string) => {
+      setError(null);
       if (reconciledTranscriptRef.current.sessionId === sessionId) {
         reconciledTranscriptRef.current.updatedAt = updatedAt;
       }
@@ -1085,6 +1086,7 @@ export function useSession(
   // Handle initial load completion from useSessionMessages
   const handleLoadComplete = useCallback(
     (result: SessionLoadResult) => {
+      setError(null);
       // Only update status from REST if we don't already have an owned status from navigation.
       // This prevents a race condition where:
       // 1. Session created with initialStatus = {owner: "self"}

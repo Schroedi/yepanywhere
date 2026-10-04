@@ -16,8 +16,10 @@ for (const viewport of [
     baseURL,
     remoteClientURL,
   }, testInfo) => {
-    // Observations: 6.4 s cold desktop, 4.1 s phone. Inherit the 15 s
-    // test budget (~2.3x observed maximum), including capture work.
+    // Cold Projects + session recovery, draft typing and captures measured
+    // 9 s; asynchronous fixture compilation separately exceeded 5 s under load.
+    // Allow 30 s (~3.3x the completed run) for this combined boundary proof.
+    test.setTimeout(30_000);
     await page.setViewportSize(viewport);
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -62,11 +64,26 @@ for (const viewport of [
         };
         Object.assign(window, { yaNativeTransport: channel });
         void import(moduleUrl).then(({ NativeTransportFixture }) => {
-          const host = new NativeTransportFixture();
+          let available = !location.search.includes("nativeOffline");
+          const host = new NativeTransportFixture(
+            true,
+            available ? "CONNECTED" : "FAILED",
+          );
+          Object.assign(window, {
+            restoreNativeSource: () => {
+              available = true;
+              window.dispatchEvent(new Event("online"));
+            },
+          });
           host.channel.onmessage = (event: { data: string | ArrayBuffer }) =>
             channel.onmessage?.(event);
           channel.postMessage = (message) => host.channel.postMessage(message);
           host.handler = (command: Record<string, unknown>) => {
+            if (!available) throw new Error("Native connection unavailable");
+            if (command.method === "reconnect") {
+              void host.emit({ type: "state", phase: "CONNECTED" });
+              return {};
+            }
             if (command.method === "request")
               return (
                 window as unknown as {
@@ -93,18 +110,70 @@ for (const viewport of [
       },
     );
 
+    // The document and navigation are available before its first native
+    // connection. Recovery must revalidate failed initial reads without reload.
+    await page.goto(`${remoteClientURL}/projects?nativeOffline`);
+    // The dev fixture is imported asynchronously; wait for its local bridge
+    // before asserting application behavior (cold compilation exceeded 5 s).
+    await page.waitForFunction(() => "nativeFixture" in window);
+    await expect(
+      page.locator("header").getByText("Projects", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.locator('[data-connection-status="disconnected"]'),
+    ).toBeVisible();
+    const coldOut = mkdtempSync(join(tmpdir(), "ya-native-offline-captures-"));
+    const coldPath = join(coldOut, `${viewport.name}.png`);
+    await page.screenshot({ path: coldPath, animations: "disabled" });
+    emitCapturePreview(
+      await writeCapturePreview({
+        input: page.url(),
+        out: join(coldOut, viewport.name),
+        screenshots: [{ ...viewport, path: coldPath }],
+      }),
+    );
+    const coldDocument = await page.evaluate(() => performance.timeOrigin);
+    await page.evaluate(() =>
+      (
+        window as unknown as { restoreNativeSource: () => void }
+      ).restoreNativeSource(),
+    );
+    await expect(page.locator("[data-connection-status]")).toHaveCount(0);
+    await expect(page.locator(".project-list-cards")).toBeVisible();
+    expect(await page.evaluate(() => performance.timeOrigin)).toBe(
+      coldDocument,
+    );
+
     const projectId = Buffer.from(
       join(e2ePaths.tempDir, "mockproject"),
     ).toString("base64url");
     await page.goto(
-      `${remoteClientURL}/projects/${projectId}/sessions/transcript-specimen-001`,
+      `${remoteClientURL}/projects/${projectId}/sessions/transcript-specimen-001?nativeOffline`,
     );
     const skip = page.locator(".onboarding-skip-all");
     if (await skip.isVisible().catch(() => false)) await skip.click();
     const composer = page.locator("textarea[data-composer-input]");
     await expect(composer).toBeVisible();
     await expect(page).not.toHaveURL(/\/login/);
+    await expect(
+      page.locator('[data-connection-status="disconnected"]'),
+    ).toBeVisible();
+    const sessionDocument = await page.evaluate(() => performance.timeOrigin);
+    await composer.pressSequentially("Offline draft", { delay: 35 });
+    await page.evaluate(() =>
+      (
+        window as unknown as { restoreNativeSource: () => void }
+      ).restoreNativeSource(),
+    );
     await expect(page.locator(".message-list")).toBeVisible();
+    await expect(
+      page.locator(".session-messages").getByRole("status"),
+    ).toHaveCount(0);
+    expect(await page.evaluate(() => performance.timeOrigin)).toBe(
+      sessionDocument,
+    );
+    await expect(composer).toHaveValue("Offline draft");
+    await composer.clear();
 
     await page.evaluate(() => {
       const host = (
