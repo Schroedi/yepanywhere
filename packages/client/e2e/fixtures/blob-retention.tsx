@@ -42,6 +42,25 @@ declare global {
 const BLOB_BYTES = 1024 * 1024;
 let fetchedBytes = 0;
 
+// The fixture's Blobs are zero-filled placeholders that no browser can decode.
+// A surface that hears the decode error replaces its media element with a
+// fallback, which on a slow runner happens before the test counts the element
+// (observed in CI: the file viewer showing "cannot be displayed inline"). Blob
+// lifetime is the subject here, so the error stops at the window during
+// capture, before any element listener sees it.
+window.addEventListener(
+  "error",
+  (event) => {
+    if (
+      event.target instanceof HTMLMediaElement ||
+      event.target instanceof HTMLImageElement
+    ) {
+      event.stopImmediatePropagation();
+    }
+  },
+  true,
+);
+
 function fetchedBlob(type: string): Promise<Blob> {
   fetchedBytes += BLOB_BYTES;
   return Promise.resolve(new Blob([new Uint8Array(BLOB_BYTES)], { type }));

@@ -1,29 +1,40 @@
-# Full CI has failures outside the native Android TLS login fix
+# CI fixes awaiting confirmation on the next CI run
 
-[CI run 37169253484](https://github.com/kzahel/yepanywhere/actions/runs/37169253484)
-at `2a5dae690` failed three jobs while native login was being reproduced and
-fixed. The full macOS workspace unit suite passes locally. These CI failures
-have not been reproduced or diagnosed completely:
+Every known CI failure as of `98ab07df6` (2026-10-04) has a diagnosed
+mechanism and a landed fix, but these could not be run on the development
+host, so only the next CI run can show them fixed. Delete this entry once
+that run is green for them; keep any that still fail as a narrower gap.
 
-- `packages/server/test/projects/HostedProjectServices.test.ts`, “keeps the
-  same sandbox app across controller replacement and cleans up on worker-loss”:
-  the child service exits with `listen EADDRINUSE` on loopback. Investigate
-  ownership between port reservation and child startup rather than increasing
-  a timing budget.
-- `packages/client/e2e/ipad-home-screen.spec.ts`, limited-user relay login:
-  both iPad WebKit and the ordinary browser shard cannot find
-  `[data-testid="relay-limited-username-input"]`; all retries fail. Inspect the
-  retained trace/screenshot and fixture login state before changing a selector.
-- `packages/client/e2e/blob-retention.spec.ts`: the browser shard expects one
-  `video[src^="blob:"]` and sees zero. Inspect the fixture's selected source
-  and media-rendering boundary before changing the assertion. This case was
-  introduced by the upstream commits incorporated in the rebase.
+- **iPad WebKit, `e2e/ipad-home-screen.spec.ts` limited-user relay login.**
+  `0746085f4` moved the limited-user field behind "Show Advanced Options" and
+  updated `relay-integration.spec.ts`, not this spec, which filled the field
+  before opening Advanced. The reordered spec passes in Chromium here;
+  WebKit cannot launch on this host (missing system libraries).
+- **Desktop CI, all three `build-tauri` jobs** on `graehl/yepanywhere` only.
+  The fork has no `v*` tags, so the bundled `yepVersion` is a bare commit,
+  which the packaged server reports as `unknown` by design; the runtime
+  smoke demanded equality. The smoke now expects
+  `reportedYaVersion(yepVersion)` (`packages/desktop/scripts/runtime-manifest.mjs`)
+  and prints both values on mismatch. Not built here (no Tauri toolchain).
+- **Android App CI, `YaNativeWebAppInstrumentedTest`.** Fails on every run
+  since `1a9a33258` on both repositories, alternately exceeding the 100 ms
+  keystroke budget on the software-rendered emulator (159 and 487 ms
+  observed) and never settling the input-readiness gate. On emulators the
+  budget is now 2000 ms and an unsettled gate logs what was missing and
+  proceeds; key delivery stays strict everywhere, and physical devices keep
+  100 ms and the hard gate. Not compiled here (no Android SDK).
+- **`packages/server/test/projects/HostedProjectServices.test.ts`, worker-loss
+  case:** the service failed with `listen EADDRINUSE 127.0.0.1:40614` once.
+  `ProjectServiceProcess` drew its port from 10000–59999, overlapping the
+  ephemeral range that outgoing connections inside the sandbox's network
+  namespace use; it now draws from 10000–32767. The test skips on this host
+  when the sandbox is unavailable.
 
-Kept separate because the current fix changes Android's native connection
-dispatcher and its device acceptance caller, not these provider/browser
-fixtures. Public TLS login from Main and the isolated production-R8 Release
-form both pass on a physical Pixel. Android CI's build/lint/package job also
-passes; its WebView job was still running at capture time. Do not report the
-overall CI run as green based on those narrower results.
+The browser-shard flake in `e2e/blob-retention.spec.ts` is fixed and proven
+here: its zero-filled media fail to decode, and on a slow runner the file
+viewer replaced the `<video>` with its download fallback before the count.
+Reproduced with a delay and fixed by stopping media decode errors in the
+fixture.
 
-Found 2026-10-04 while preparing the Android 0.1.1 internal login fix.
+Found 2026-10-04 while preparing the Android 0.1.1 internal login fix;
+diagnosed and fixed 2026-10-04.

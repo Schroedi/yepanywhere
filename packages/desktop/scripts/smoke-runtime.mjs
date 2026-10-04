@@ -8,6 +8,7 @@ import { createInterface } from "node:readline";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { reportedYaVersion } from "./runtime-manifest.mjs";
 const desktopDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const appBundle = process.env.YEP_DESKTOP_APP_BUNDLE?.trim();
 const triple =
@@ -200,10 +201,12 @@ try {
   });
   const version = await versionResponse.json();
   const manifest = JSON.parse(readFileSync(join(serverDir, "desktop-runtime-manifest.json"), "utf8"));
-  if (!versionResponse.ok || version.current !== manifest.yepVersion.replace(/^v(?=\d)/, "") ||
+  if (!versionResponse.ok || version.current !== reportedYaVersion(manifest.yepVersion) ||
       version.installSource !== "release-package" || version.desktopRuntime !== true ||
       version.latest !== null || version.updateAvailable !== false) {
-    throw new Error("Packaged desktop version did not match its immutable manifest");
+    throw new Error(
+      `Packaged desktop version did not match its immutable manifest: yepVersion ${JSON.stringify(manifest.yepVersion)}, reported ${JSON.stringify(version)}`,
+    );
   }
   const refused = await fetch(`${baseUrl}/desktop-bootstrap/check-updates`, {
     method: "POST", headers: { Origin: baseUrl, "X-Yep-Anywhere": "true" },
