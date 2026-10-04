@@ -16,17 +16,6 @@ that run is green for them; keep any that still fail as a narrower gap.
   smoke demanded equality. The smoke now expects
   `reportedYaVersion(yepVersion)` (`packages/desktop/scripts/runtime-manifest.mjs`)
   and prints both values on mismatch. Not built here (no Tauri toolchain).
-- **Android App CI, `YaNativeWebAppInstrumentedTest`.** Fails on every run
-  since `1a9a33258` on both repositories, alternately exceeding the 100 ms
-  keystroke budget on the software-rendered emulator (159 and 487 ms
-  observed) and never settling the input-readiness gate. Hosted run
-  37198873999 passed, but 37200938972 delivered only the last 21 of 29
-  characters after the readiness check was allowed to proceed unsettled.
-  The probe now taps the editor through Android accessibility and requires
-  window focus and input readiness on every device before injecting keys.
-  Key delivery stays strict everywhere; physical devices keep 100 ms and
-  software-rendered emulators keep the measured 2000 ms frame budget.
-  Hosted acceptance of this setup correction is pending.
 - **`packages/server/test/projects/HostedProjectServices.test.ts`, worker-loss
   case:** the service failed with `listen EADDRINUSE 127.0.0.1:40614` once.
   `ProjectServiceProcess` drew its port from 10000–59999, overlapping the

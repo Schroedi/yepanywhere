@@ -119,10 +119,10 @@ are serialized without cancelling an in-progress publication. Failed builds
 leave the preceding available internal release in place.
 
 Setup and activation state are in [mobile store preparation](../docs/distribution/mobile/README.md#android-ci-internal-delivery).
-Federation, Play permissions, API activation and the explicit publishing
-variable are configured. A successful hosted publication is still required
-to complete acceptance; the first enabled run correctly withheld publication
-after its typing probe failed.
+Automatic delivery is enabled and verified: the first successful hosted
+publication produced code 56401, with its signed bundle and receipt retained
+and Play availability confirmed. Both Android verification gates and the
+main browser CI suite passed for that source.
 
 ## Selected iOS Packaging Direction
 

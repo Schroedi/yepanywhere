@@ -112,14 +112,14 @@ the viewer/download gap remain the next mobile release work.
   Node versions and the pinned Bun runtime, including clean npm installations.
 - [Android CI](../../.github/workflows/android-app-ci.yml) tests and builds
   application artifacts, including a bundled Release AAB. A dependent internal
-  publishing job is prepared with automatic versioning, exact-artifact signing
+  publishing job is enabled with automatic versioning, exact-artifact signing
   and stale-run protection. Dedicated Google OIDC federation and app-scoped
-  Play testing permissions are configured, and hosted Android CI passed.
-  Publisher API activation and the publishing opt-in are now enabled. The
-  first enabled run correctly withheld publication after a typing-probe
-  failure; its input setup is corrected and hosted acceptance remains open.
-  No automated upload is claimed yet. Neither native mobile app is publicly
-  published.
+  Play testing permissions are verified end to end.
+  [Hosted run 37202914083](https://github.com/kzahel/yepanywhere/actions/runs/37202914083)
+  passed both Android gates and published `0.1.2-ci.464.1` (56401), confirmed
+  **Available to internal testers**. The signed bundle matches the tested
+  candidate and retained receipt; main browser CI also passed. Neither native
+  mobile app is publicly published.
 - Both mobile store records have saved initial metadata. Local uploads now
   use platform-managed final signing: Android's upload-signed AAB passes Play
   internal-release validation, and Xcode uploaded the first iOS archive to
@@ -133,8 +133,8 @@ the viewer/download gap remain the next mobile release work.
   resume and WebView inset fixes; the Play password association is verified.
   Retesting the updated Google Play-signed install remains open.
   French classification/filing is deferred before enabling that market; iOS
-  tester enrollment and production iOS push remain open. Android release CI activation
-  follows the proven local path; iOS release automation remains open. See [mobile store preparation](../distribution/mobile/README.md).
+  tester enrollment and production iOS push remain open. Android internal
+  release automation is live; iOS release automation remains open. See [mobile store preparation](../distribution/mobile/README.md).
 - Native app CI now runs on relevant platform, shared mobile-core and packaging
   changes rather than ordinary web/server edits. Daily Android/iOS acceptance
   and the existing desktop nightly retain full shared-source coverage; manual

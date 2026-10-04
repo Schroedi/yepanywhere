@@ -71,9 +71,9 @@ be active.
 ### Local upload path
 
 The maintainer selected platform-managed distribution signing on October 3.
-Initial uploads were local; the CI delivery path below is now enabled, with
-first-publication acceptance still pending. Keep upload preparation separate
-from public rollout and use a clean, committed source snapshot.
+Initial uploads were local; the CI delivery path below is now enabled and
+verified. Keep upload preparation separate from public rollout and use a
+clean, committed source snapshot.
 
 For Android, build the bundled Release AAB with the existing native/core and
 frontend preparation. Sign the bundle with a dedicated upload key, then let
@@ -147,17 +147,17 @@ now produces a bundled Release AAB and has a publication job depending on both
 build/lint/unit checks and WebView instrumentation. Publication is opt-in through
 `ANDROID_PLAY_PUBLISH_ENABLED=true`. The dedicated, keyless Google identity,
 main/workflow/environment-restricted federation, app-only testing grant and
-GitHub configuration are provisioned. The Android Publisher API is enabled
-and the publishing variable is active. First-publication acceptance remains
-pending: [run 37200938972](https://github.com/kzahel/yepanywhere/actions/runs/37200938972)
-caught incomplete typing in the emulator probe and correctly skipped publishing.
-The probe now requires actual Android editor activation and input readiness;
-a complete passing hosted run must verify the external delivery boundary.
-The October 4 release above was a local upload, not proof of this path.
+GitHub configuration are provisioned, the Android Publisher API is enabled,
+and automatic publishing is active.
 
-[Hosted CI run 37198873999](https://github.com/kzahel/yepanywhere/actions/runs/37198873999)
-passed both build verification and WebView instrumentation at the pipeline
-commit; publication was correctly skipped while disabled.
+[Hosted CI run 37202914083](https://github.com/kzahel/yepanywhere/actions/runs/37202914083)
+passed build verification and WebView instrumentation, authenticated through
+GitHub OIDC, and published `0.1.2-ci.464.1` / code `56401` from `fca9705a3`.
+Google Play confirms **Available to internal testers**. The retained receipt
+reports `published` on `internal`; its SHA-256 matches the signed upload, and
+all 895 original bundle entries match the tested candidate. Only the signing
+metadata was added. The [main CI suite](https://github.com/kzahel/yepanywhere/actions/runs/37202914085)
+also passed, including both browser shards and iPad WebKit.
 
 The main-only GitHub `android-internal` environment holds the existing upload
 key as `ANDROID_UPLOAD_KEYSTORE_BASE64`, `ANDROID_UPLOAD_STORE_PASSWORD` and
