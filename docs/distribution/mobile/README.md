@@ -145,9 +145,16 @@ applicable declaration/documentation before distributing a build.
 The existing [Android workflow](../../../.github/workflows/android-app-ci.yml)
 now produces a bundled Release AAB and has a publication job depending on both
 build/lint/unit checks and WebView instrumentation. Publication is opt-in through
-`ANDROID_PLAY_PUBLISH_ENABLED=true`; it is currently disabled pending Google
-Cloud federation and Play permissions. The October 4 release above was a local
-upload, not proof of the automated path.
+`ANDROID_PLAY_PUBLISH_ENABLED=true`. The dedicated, keyless Google identity,
+main/workflow/environment-restricted federation, app-only testing grant and
+GitHub configuration are provisioned. Publishing remains disabled pending
+Android Publisher API activation and its terms acceptance, followed by the
+first hosted publication. The October 4 release above was a local upload,
+not proof of the automated path.
+
+[Hosted CI run 37198873999](https://github.com/kzahel/yepanywhere/actions/runs/37198873999)
+passed both build verification and WebView instrumentation at the pipeline
+commit; publication was correctly skipped while disabled.
 
 The main-only GitHub `android-internal` environment holds the existing upload
 key as `ANDROID_UPLOAD_KEYSTORE_BASE64`, `ANDROID_UPLOAD_STORE_PASSWORD` and
@@ -156,7 +163,7 @@ fingerprint before signing. The repository secret `ANDROID_GOOGLE_SERVICES_JSON`
 restores the same Firebase build configuration before the verified main build;
 PR builds remain credential-free. No app-signing key is exported from Google.
 
-To finish the one-time setup:
+One-time setup and remaining activation:
 
 1. Create a dedicated Google service account with no general project roles.
    Enable the Android Publisher and IAM Credentials APIs in its project.

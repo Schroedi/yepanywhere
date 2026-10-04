@@ -113,9 +113,10 @@ the viewer/download gap remain the next mobile release work.
 - [Android CI](../../.github/workflows/android-app-ci.yml) tests and builds
   application artifacts, including a bundled Release AAB. A dependent internal
   publishing job is prepared with automatic versioning, exact-artifact signing
-  and stale-run protection. It remains disabled pending dedicated Google OIDC
-  federation and app-scoped Play testing permissions; no automated upload is
-  claimed yet. Android implementation exists; neither native mobile app is publicly published.
+  and stale-run protection. Dedicated Google OIDC federation and app-scoped
+  Play testing permissions are configured, and hosted Android CI passed.
+  Publishing remains disabled pending Publisher API terms/activation and the
+  first end-to-end release; no automated upload is claimed yet. Android implementation exists; neither native mobile app is publicly published.
 - Both mobile store records have saved initial metadata. Local uploads now
   use platform-managed final signing: Android's upload-signed AAB passes Play
   internal-release validation, and Xcode uploaded the first iOS archive to
