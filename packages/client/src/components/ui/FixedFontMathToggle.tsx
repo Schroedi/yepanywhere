@@ -1,9 +1,11 @@
 import {
+  containsLinkifiableUrl,
   findProjectPathTokens,
   normalizeTexForKatex,
   paperKatexMacros,
   parseToonDocument,
   type ProjectPathLinkTarget,
+  splitUrlSegments,
 } from "@yep-anywhere/shared";
 import katex from "katex";
 import {
@@ -76,6 +78,8 @@ interface RenderOptions {
   projectPath?: string;
   publicShare?: PublicShareContextValue | null;
   projectPathLinks?: readonly ProjectPathLinkTarget[];
+  /** Render bare URLs in plain text as external links. */
+  linkifyUrls?: boolean;
 }
 
 interface MathRenderOptions {
@@ -222,12 +226,25 @@ function renderMarkdownFileLink(
   };
 }
 
+function renderUrlText(text: string, options: RenderOptions): string {
+  if (!options.linkifyUrls || !containsLinkifiableUrl(text))
+    return escapeHtml(text);
+  return splitUrlSegments(text)
+    .map((segment) =>
+      segment.type === "url" && segment.href
+        ? `<a href="${escapeHtmlAttribute(segment.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(segment.text)}</a>`
+        : escapeHtml(segment.text),
+    )
+    .join("");
+}
+
 function renderConfirmedProjectPathText(
   text: string,
   options: RenderOptions,
 ): RenderedMathResult {
   if (!options.projectId || !options.projectPathLinks?.length) {
-    return { html: escapeHtml(text), changed: false };
+    const html = renderUrlText(text, options);
+    return { html, changed: html !== escapeHtml(text) };
   }
 
   const targets = new Map(
@@ -237,7 +254,8 @@ function renderConfirmedProjectPathText(
     targets.has(token.text),
   );
   if (matches.length === 0) {
-    return { html: escapeHtml(text), changed: false };
+    const html = renderUrlText(text, options);
+    return { html, changed: html !== escapeHtml(text) };
   }
 
   let html = "";
@@ -249,11 +267,11 @@ function renderConfirmedProjectPathText(
       : null;
     if (options.publicShare && !shareUrl) {
       // Outside the share's project, so the share cannot serve it: plain text.
-      html += escapeHtml(text.slice(cursor, match.end));
+      html += renderUrlText(text.slice(cursor, match.end), options);
       cursor = match.end;
       continue;
     }
-    html += escapeHtml(text.slice(cursor, match.start));
+    html += renderUrlText(text.slice(cursor, match.start), options);
     const fileUrl =
       shareUrl ??
       toBrowserAppHref(
@@ -263,7 +281,7 @@ function renderConfirmedProjectPathText(
     html += `<a class="fixed-font-file-link" href="${escapeHtmlAttribute(fileUrl)}" data-fixed-font-file-path="${escapeHtmlAttribute(filePath)}" data-tooltip="${escapeHtmlAttribute(titlePath)}">${escapeHtml(match.text)}</a>`;
     cursor = match.end;
   }
-  html += escapeHtml(text.slice(cursor));
+  html += renderUrlText(text.slice(cursor), options);
   return { html, changed: true };
 }
 

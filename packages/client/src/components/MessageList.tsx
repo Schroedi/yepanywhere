@@ -3596,6 +3596,9 @@ export const MessageList = memo(function MessageList({
         return true;
       };
 
+      // An anchor captured before this jump would restore the old position on
+      // the window's next commit, undoing the jump.
+      transcriptRenderWindow.discardPendingAnchor();
       if (scrollMountedRow(showMotionCue)) {
         onResolved?.(true);
         return;
@@ -3636,6 +3639,7 @@ export const MessageList = memo(function MessageList({
     },
     [
       showNavMotionCue,
+      transcriptRenderWindow.discardPendingAnchor,
       transcriptRenderWindow.getRenderIdTop,
       transcriptRenderWindow.revealRenderId,
     ],
