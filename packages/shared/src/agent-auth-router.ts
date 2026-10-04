@@ -30,7 +30,10 @@ export interface AgentAuthRouterRecovery extends AgentAuthRouterStatus {
   issue?: { code: AgentAuthRouterIssueCode; message: string };
 }
 
-export type AgentAuthRouterPoolPolicy = "manual" | "round-robin";
+export type AgentAuthRouterPoolPolicy =
+  | "manual"
+  | "round-robin"
+  | "most-remaining";
 export interface AgentAuthRouterPool {
   id: string;
   name: string;
@@ -44,6 +47,8 @@ export type AgentAuthRouterPoolInput = Omit<AgentAuthRouterPool, "bindings">;
 export interface AgentAuthRouterOverview {
   /** False for router-owned pools. Absent on legacy servers/routers. */
   canManagePools?: boolean;
+  supportedPolicies?: AgentAuthRouterPoolPolicy[];
+  admissionRefresh?: boolean;
   observedAt: string;
   quotaFreshSeconds: number;
   pools: AgentAuthRouterPool[];
@@ -69,6 +74,16 @@ export interface AgentAuthRouterOverview {
     poolId: string;
     policy?: AgentAuthRouterPoolPolicy;
     model: string | null;
-    decisions: { accountId: string; reason: string }[];
+    decisions: {
+      accountId: string;
+      reason: string;
+      evidence?: {
+        headroomPercent: number | null;
+        limitingBuckets: string[];
+        reservations: number;
+        catalogAt: string | null;
+        quotaAt: string | null;
+      };
+    }[];
   };
 }

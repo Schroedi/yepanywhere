@@ -13,13 +13,21 @@ import "../../src/styles/index.css";
 
 // Browser-only service substitutes; AAR's pinned integration suite proves the
 // real control/native boundaries. This fixture never contacts a provider.
+const modern = !new URLSearchParams(location.search).has("legacy");
 const ownerManaged = new URLSearchParams(location.search).has("owner");
 api.getVersion = async () =>
   ({
     current: "0.9.4",
-    capabilities: ownerManaged ? ["agent-auth-router-owned-pools"] : [],
+    capabilities: [
+      ...(ownerManaged ? ["agent-auth-router-owned-pools"] : []),
+      ...(modern ? ["agent-auth-router-most-remaining"] : []),
+    ],
   }) as VersionInfo;
 const state: AgentAuthRouterOverview = {
+  supportedPolicies: modern
+    ? ["manual", "round-robin", "most-remaining"]
+    : ["manual", "round-robin"],
+  admissionRefresh: modern,
   ...(ownerManaged ? { canManagePools: false } : {}),
   observedAt: "2026-10-03T08:00:00Z",
   quotaFreshSeconds: 120,
@@ -78,6 +86,13 @@ api.routerOverview = async (body = {}) => {
       model: body.model ?? null,
       decisions: pool.accountIds.map((accountId, i) => ({
         accountId,
+        evidence: {
+          headroomPercent: 45,
+          limitingBuckets: ["codex:secondary"],
+          reservations: 0,
+          catalogAt: state.observedAt,
+          quotaAt: state.observedAt,
+        },
         reason: !body.model
           ? "model-required"
           : i === 0

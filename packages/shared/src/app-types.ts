@@ -680,7 +680,7 @@ export interface AppSessionSummary {
   /** Public, immutable account pin. Never contains transport credentials. */
   routerBinding?: {
     poolId?: string;
-    policy?: "manual" | "round-robin";
+    policy?: "manual" | "round-robin" | "most-remaining";
     reason?: string;
     observedAt?: string;
     id: string;

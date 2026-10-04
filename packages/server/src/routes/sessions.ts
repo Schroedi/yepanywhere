@@ -445,7 +445,7 @@ async function resolveSessionReader({
 interface StartSessionBody {
   routerAccountId?: string;
   routerPoolId?: string;
-  routerPolicy?: "manual" | "round-robin";
+  routerPolicy?: "manual" | "round-robin" | "most-remaining";
   creationProvenance?: SessionCreationProvenance;
   computerControl?: boolean;
   machineControl?: boolean;
@@ -499,7 +499,7 @@ function hasSessionMessageContent(body: StartSessionBody): boolean {
 interface CreateSessionBody {
   routerAccountId?: string;
   routerPoolId?: string;
-  routerPolicy?: "manual" | "round-robin";
+  routerPolicy?: "manual" | "round-robin" | "most-remaining";
   creationProvenance?: SessionCreationProvenance;
   computerControl?: boolean;
   machineControl?: boolean;

@@ -12,6 +12,11 @@ import { SECURITY_CLIENT_AUDIT_CAPABILITY } from "./security-clients.js";
 export type ServerCapabilityKind = "permanent" | "transitional";
 
 export const OPTIONAL_SERVER_CAPABILITY_BIT_ALLOCATIONS = {
+  agentAuthRouterMostRemaining: {
+    name: "agent-auth-router-most-remaining",
+    index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterMostRemaining.id,
+    introducedIn: "0.9.4",
+  },
   agentAuthRouterOwnedPools: {
     name: "agent-auth-router-owned-pools",
     index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterOwnedPools.id,
@@ -249,6 +254,33 @@ export interface ServerCapabilityDefinition {
 }
 
 export const SERVER_CAPABILITIES = {
+  agentAuthRouterMostRemaining: {
+    id: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterMostRemaining.id,
+    name: "agent-auth-router-most-remaining",
+    introducedIn: "0.9.4",
+    kind: "permanent",
+    area: "sessions",
+    lifecycle: {
+      kind: "permanent",
+      reason: "Opt-in quota-aware router selection.",
+    },
+    advertisement: {
+      kind: "optional-bit",
+      index: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterMostRemaining.id,
+    },
+    description:
+      "Negotiates Most remaining with AAR and reports admission refresh and policy evidence.",
+    clientFallback:
+      "Keep Manual and Round robin; hide Most remaining and refuse unsupported pool defaults with upgrade guidance.",
+    serverContract: {
+      requestFields: ["routerPolicy: most-remaining"],
+      responseFields: [
+        "supportedPolicies",
+        "admissionRefresh",
+        "selection.decisions.evidence",
+      ],
+    },
+  },
   agentAuthRouterOwnedPools: {
     id: CAPABILITY_ID_ALLOCATIONS.agentAuthRouterOwnedPools.id,
     name: "agent-auth-router-owned-pools",

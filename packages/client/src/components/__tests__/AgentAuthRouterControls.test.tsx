@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import type { AgentAuthRouterRecovery } from "@yep-anywhere/shared";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { RouterPoolSelection } from "../AgentAuthRouterPools";
 import english from "../../i18n/en.json";
 import {
   AgentAuthRouterSettings,
@@ -365,3 +366,72 @@ it("keeps pool-only accounts out of standalone direct-account selection", async 
   await screen.findByRole("option", { name: "direct" });
   expect(screen.queryByRole("option", { name: "pool-only" })).toBeNull();
 });
+
+it.each([false, true])(
+  "gates Most remaining on YA and AAR support (YA support: %s)",
+  async (supported) => {
+    if (supported)
+      fixture.capabilities.push("agent-auth-router-most-remaining");
+    const data = {
+      supportedPolicies: ["manual", "round-robin", "most-remaining"],
+      pools: [
+        {
+          id: "pool",
+          provider: "codex",
+          name: "Work",
+          accountIds: [],
+          policy: "most-remaining",
+        },
+      ],
+      accounts: [],
+    };
+    fixture.api.routerOverview.mockResolvedValue(data);
+    const view = render(
+      <RouterPoolSelection
+        provider="codex"
+        value={null}
+        onChange={vi.fn()}
+        disabled={false}
+      />,
+    );
+    const option = await screen.findByRole("option", {
+      name: supported ? "Work" : /Update YA and AAR/,
+    });
+    expect((option as HTMLOptionElement).disabled).toBe(!supported);
+    expect(fixture.api.routerRefreshOverview).not.toHaveBeenCalled();
+    if (supported) {
+      view.rerender(
+        <RouterPoolSelection
+          provider="codex"
+          value={{
+            sourceKey: "host:first",
+            poolId: "pool",
+            policy: "most-remaining",
+            accountId: "",
+            model: "model",
+          }}
+          onChange={vi.fn()}
+          disabled={false}
+        />,
+      );
+      await screen.findByRole("option", { name: "Most remaining" });
+      data.supportedPolicies = ["manual", "round-robin"];
+      view.unmount();
+      render(
+        <RouterPoolSelection
+          provider="codex"
+          value={null}
+          onChange={vi.fn()}
+          disabled={false}
+        />,
+      );
+      expect(
+        (
+          (await screen.findByRole("option", {
+            name: /Update YA and AAR/,
+          })) as HTMLOptionElement
+        ).disabled,
+      ).toBe(true);
+    }
+  },
+);

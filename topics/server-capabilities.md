@@ -17,6 +17,16 @@ none has the file-vhost routes. Without the new bit, replacement stays hidden
 and file addresses remain administrator-only. ID 105 retains its original
 meaning. Standing maintainer compatibility authorization applies.
 
+## Most remaining router policy
+
+`agent-auth-router-most-remaining` (permanent optional ID 117) adds negotiated
+`routerPolicy: "most-remaining"`, supported-policy/admission-refresh metadata and
+cached ranking evidence. Both YA support and AAR `most-remaining-v1` are required
+before displaying the option. The optional 2026-10-04 corpus v0.9.0–v0.9.2 lacks
+AAR routes; without the bit, preserve Manual/Round robin and disable unsupported
+pool defaults with upgrade guidance. No existing capability changes meaning.
+See [the router contract](agent-auth-router.md#most-remaining-and-admission-refresh).
+
 ## Source Of Truth
 
 `agent-auth-router-owned-pools` (permanent ID 116, explicit optional bit)

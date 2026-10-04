@@ -31,7 +31,7 @@ const reasonKeys = {
 function useOverview(
   poolId?: string,
   model?: string,
-  policy?: "manual" | "round-robin",
+  policy?: "manual" | "round-robin" | "most-remaining",
 ) {
   const { t } = useI18n();
   const [data, setData] = useState<AgentAuthRouterOverview | null>(null);
@@ -85,6 +85,11 @@ export function AgentAuthRouterPools() {
   const [draft, setDraft] = useState<AgentAuthRouterPoolInput | null>(null);
   const { data, error, busy, run } = useOverview(poolId, model);
   const { version } = useVersion();
+  const mostRemaining =
+    serverHasCapability(
+      version,
+      SERVER_CAPABILITIES.agentAuthRouterMostRemaining.name,
+    ) && data?.supportedPolicies?.includes("most-remaining");
   const ownerAware = serverHasCapability(
     version,
     SERVER_CAPABILITIES.agentAuthRouterOwnedPools.name,
@@ -241,12 +246,20 @@ export function AgentAuthRouterPools() {
               onChange={(e) =>
                 setDraft({
                   ...draft,
-                  policy: e.target.value as "manual" | "round-robin",
+                  policy: e.target.value as
+                    | "manual"
+                    | "round-robin"
+                    | "most-remaining",
                 })
               }
             >
               <option value="manual">{t("routerPoolManual")}</option>
               <option value="round-robin">{t("routerPoolRoundRobin")}</option>
+              {mostRemaining && (
+                <option value="most-remaining">
+                  {t("routerPoolMostRemaining")}
+                </option>
+              )}
             </select>
           </label>
           <fieldset disabled={busy}>
@@ -399,11 +412,11 @@ export function AgentAuthRouterPools() {
                         })}
                   </strong>
                 </div>
-                {window.usedPercent !== null && (
+                {window.remainingPercent !== null && (
                   <progress
                     aria-label={`${account.id} ${window.bucket}`}
                     max={100}
-                    value={Math.min(100, window.usedPercent)}
+                    value={Math.min(100, window.remainingPercent!)}
                   />
                 )}
                 <span className={styles.muted}>
@@ -451,6 +464,17 @@ export function RouterPoolSelection({
     value?.model,
     value?.policy,
   );
+  const { version } = useVersion();
+  const mostRemaining =
+    serverHasCapability(
+      version,
+      SERVER_CAPABILITIES.agentAuthRouterMostRemaining.name,
+    ) && data?.supportedPolicies?.includes("most-remaining");
+  const admissionRefresh =
+    serverHasCapability(
+      version,
+      SERVER_CAPABILITIES.agentAuthRouterMostRemaining.name,
+    ) && data?.admissionRefresh;
   const pools = data?.pools.filter((p) => p.provider === provider) ?? [];
   const pool = pools.find((p) => p.id === value?.poolId);
   const accounts =
@@ -489,8 +513,15 @@ export function RouterPoolSelection({
             </option>
           )}
           {pools.map((p) => (
-            <option key={p.id} value={p.id}>
+            <option
+              key={p.id}
+              value={p.id}
+              disabled={p.policy === "most-remaining" && !mostRemaining}
+            >
               {p.name}
+              {p.policy === "most-remaining" && !mostRemaining
+                ? ` · ${t("routerPoolPolicyUpgrade")}`
+                : ""}
             </option>
           ))}
         </select>
@@ -506,12 +537,20 @@ export function RouterPoolSelection({
                 onChange({
                   ...value,
                   accountId: "",
-                  policy: e.target.value as "manual" | "round-robin",
+                  policy: e.target.value as
+                    | "manual"
+                    | "round-robin"
+                    | "most-remaining",
                 })
               }
             >
               <option value="manual">{t("routerPoolManual")}</option>
               <option value="round-robin">{t("routerPoolRoundRobin")}</option>
+              {mostRemaining && (
+                <option value="most-remaining">
+                  {t("routerPoolMostRemaining")}
+                </option>
+              )}
             </select>
           </label>
           {value.policy === "manual" && (
@@ -548,7 +587,16 @@ export function RouterPoolSelection({
               ))}
             </select>
           </label>
-          <p>{t("routerPoolLaunchHelp")}</p>
+          <p>
+            {t(
+              admissionRefresh
+                ? "routerPoolAdmissionHelp"
+                : "routerPoolLaunchHelp",
+            )}
+          </p>
+          {value.policy === "most-remaining" && (
+            <p>{t("routerPoolMostRemainingHelp")}</p>
+          )}
           {data?.selection?.decisions.map((d) => (
             <p key={d.accountId}>
               {d.accountId} ·{" "}
@@ -556,6 +604,9 @@ export function RouterPoolSelection({
                 reasonKeys[d.reason as keyof typeof reasonKeys] ??
                   "routerPoolQuotaUnknown",
               )}
+              {d.reason === "eligible" &&
+                d.evidence?.headroomPercent != null &&
+                ` · ${t("routerPoolHeadroom", { percent: d.evidence.headroomPercent })}`}
             </p>
           ))}
           {accounts.map((a) => (

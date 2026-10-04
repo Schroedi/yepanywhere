@@ -1,9 +1,10 @@
 # Agent Auth Router
 
 YA supports an optional local Agent Auth Router (AAR) connection for pinned native Claude and Codex sessions on macOS and Linux.
-Router-owned pools support Manual and Round robin selection for new
-sessions. Existing sessions keep their chosen account. Most remaining, Earliest
-reset, Auto and cross-account continuation remain future work.
+Router-owned pools support Manual, Round robin and Most remaining selection for
+new sessions. Automatic admission refreshes stale evidence when AAR advertises
+that support. Existing sessions keep their chosen account. Earliest reset, Auto
+and cross-account continuation remain future work.
 The design and deferred work are in [plan 143](../docs/tactical/143-agent-auth-router-integration.md).
 
 ## Set up and use
@@ -93,7 +94,7 @@ running on a remote executor back through the owner's loopback listener.
 Settings → Providers offers **Pools and usage** when the YA server advertises
 `agent-auth-router-pools` (permanent optional capability 115) and AAR supports
 `pools-v1`. AAR owns named single-provider pools with up to 16 accounts
-and a Manual or Round robin default. Manage pools and grants in AAR. YA lists
+and a Manual, Round robin or Most remaining default. Manage pools and grants in AAR. YA lists
 only pools granted to its integration. Older AAR versions retain their scoped
 editor; this fallback grants no global administration authority. In New Session, choose a pool, catalog model
 and policy; Manual also requires an explicit account. The session header displays
@@ -102,12 +103,13 @@ continuation, remote executors, limited users and sandboxes cannot change a pin.
 
 The overview shows each account's windows, usage bars, remaining percentages,
 reset times, observation freshness and model/policy-specific eligibility reasons.
-Opening or reloading it reads cached AAR evidence without provider I/O. **Refresh
+Opening or reloading it reads cached AAR evidence without provider I/O. Quota
+bars show percentage remaining (100% is full). **Refresh
 usage** explicitly refreshes that account's catalog and quotas. There is no
 background polling. Failed refreshes retain the last successful windows with a
 stale label. A reset passing does not establish restored quota.
 
-Round robin requires fresh catalog membership and fresh applicable quota with
+Round robin and Most remaining require fresh catalog membership and fresh applicable quota with
 headroom; unknown, stale, exhausted, disabled or blocked accounts are excluded.
 Manual permits unknown quota with validated catalog membership, but cannot ignore
 known applicable exhaustion or observed authentication/rate-limit blocks. Neither
@@ -132,6 +134,47 @@ none has AAR routes. Without capability 115, the client keeps the original manua
 controls and makes no pool/overview requests or pool launch fields. Existing
 capability meanings and the protocol floor are unchanged. An older AAR reports
 an explicit upgrade requirement for pool operations.
+
+## Most remaining and admission refresh
+
+Optional capability 117 (`agent-auth-router-most-remaining`) gates the new policy
+in YA. AAR must also advertise `most-remaining-v1`. YA projects `supportedPolicies`
+and `admissionRefresh` from the connected router's capabilities, and sends its
+supported policy list during allocation. Legacy AAR keeps Manual/Round robin;
+a client connected to legacy YA hides Most remaining and disables unsupported pool defaults with update
+guidance. AAR refuses an unnegotiated Most remaining default before provider I/O.
+Existing capability meanings and the protocol floor do not change. The
+2026-10-04 optional release review checked stable v0.9.0, v0.9.1 and v0.9.2;
+all lack AAR routes. This follows the maintainer-approved additive policy plan.
+
+Most remaining maximizes the lowest remaining percentage among all applicable
+reported windows. It first spreads unexpired startup reservations within the
+pool; final ties use the durable commit cursor and membership order. It does not
+estimate tokens or count idle retained sessions as active load. The cached
+preview shows the tightest-window percentage, while the pinned session header
+names the policy and exposes the saved reason in its tooltip. AAR persists the
+ranking evidence and policy version. YA retains the pin and reason before commit.
+
+With `admission-refresh-v1`, a new automatic allocation refreshes missing, stale,
+failed or elapsed-reset evidence on enabled pool members. Reads coalesce per
+account with a four-account concurrency ceiling and a 12-second admission
+deadline. Failed members stay excluded; healthy members can still be selected.
+Retry-After and observed cooldowns prevent immediate repeated reads. Permission,
+pool revision and eligibility are rechecked after reads and before commit. A
+cancelled/deadline-expired admission cannot publish a late allocation. Already
+running shared metadata reads retain their bounded provider deadlines; cancelling
+one caller does not cancel another caller's read. There is no idle polling.
+
+Fresh evidence is reused. Continuation/restart/resume of a committed pin does not
+rerun ranking or quota refresh. A changed default affects only new sessions.
+The initial model picker still needs catalog observations; explicit account
+refresh remains available for initial discovery and troubleshooting.
+
+Verification on 2026-10-04: focused server/component tests cover older-router
+refusal and both capability gates. Browser fixtures exercise 48-account updates,
+sequential typing under 100 ms, Most remaining selection, remaining bars and
+1000×600 / 375×812 layouts. AAR owns the SHA-pinned native integration cases for
+both providers; fixtures use synthetic credentials and upstreams, not live OAuth.
 
 ## Ownership and lifecycle
 
@@ -229,13 +272,16 @@ dashboard and the advanced routing/inheritance follow-ups below remain deferred.
 
 On 2026-10-03, the maintainer deferred the following useful extensions to this
 workstream. They are recorded candidates, not an approved implementation queue;
-the supported behavior above remains unchanged.
+the supported behavior above is authoritative. On 2026-10-04, Most remaining
+and bounded admission refresh were implemented as described above; an explicit
+whole-pool refresh button, Auto, earliest-reset selection and inheritance remain
+follow-ups. The original candidate descriptions below are historical.
 
 1. **Pool refresh and admission flow.** Add an explicit **Refresh pool** action
    and consider bounded, coalesced catalog/quota refresh when a new session needs
    fresh evidence. Show checking progress and actionable exclusions. Keep
    overview reads passive, preserve allocation identity across retries, and
-   retain conservative handling of failed or unknown observations. Today the
+   retain conservative handling of failed or unknown observations. Before admission refresh, the
    60-second catalog and 120-second quota budgets can require manual per-account
    refresh before a Round robin start. Prove the eventual flow with synthetic
    failure/concurrency coverage and live pool sessions for both providers using

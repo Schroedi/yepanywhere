@@ -10,6 +10,15 @@ approved implementation in both repositories, commits on main,
 and live provider tests using temporary YA profile directories. This does not
 establish a shipped contract or prove credential renewal.
 
+## Most remaining follow-up (2026-10-04)
+
+The approved next slice adds Most remaining, bounded quota/catalog refresh at
+new automatic admission, and additive capability 117. See the
+[owning contract](../../topics/agent-auth-router.md#most-remaining-and-admission-refresh)
+for exact ranking, compatibility and freshness behavior. Earliest reset and
+Auto/task-size hints remain proposals in AAR's
+[routing research](https://github.com/kzahel/agent-auth-router/blob/main/docs/routing-policies.md).
+
 ## Subsequent ownership correction and desktop direction
 
 The maintainer agreed on 2026-10-03 that pools must belong to AAR itself, with

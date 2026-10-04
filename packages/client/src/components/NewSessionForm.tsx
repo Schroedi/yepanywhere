@@ -1209,6 +1209,11 @@ export function NewSessionForm({
         routerSelection.model &&
           (!routerSelection.poolId ||
             routerSelection.policy === "round-robin" ||
+            (routerSelection.policy === "most-remaining" &&
+              serverHasCapability(
+                versionInfo,
+                SERVER_CAPABILITIES.agentAuthRouterMostRemaining.name,
+              )) ||
             routerSelection.accountId),
       )
     : selectedProviderCatalogCurrent &&

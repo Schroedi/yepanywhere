@@ -2476,7 +2476,9 @@ export class Supervisor {
     if (
       modelSettings?.routerPolicy !== undefined &&
       (!modelSettings.routerPoolId ||
-        !["manual", "round-robin"].includes(modelSettings.routerPolicy))
+        !["manual", "round-robin", "most-remaining"].includes(
+          modelSettings.routerPolicy,
+        ))
     )
       throw new Error("Invalid router policy");
     if (routed && !this.agentAuthRouter)
@@ -2798,7 +2800,9 @@ export class Supervisor {
     if (
       modelSettings?.routerPolicy !== undefined &&
       (!modelSettings.routerPoolId ||
-        !["manual", "round-robin"].includes(modelSettings.routerPolicy))
+        !["manual", "round-robin", "most-remaining"].includes(
+          modelSettings.routerPolicy,
+        ))
     )
       throw new Error("Invalid router policy");
     if (routed && !this.agentAuthRouter)

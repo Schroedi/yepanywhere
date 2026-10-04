@@ -21,7 +21,11 @@ const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
 });
-async function fixture(pools = false, ownerManaged = false) {
+async function fixture(
+  pools = false,
+  ownerManaged = false,
+  mostRemaining = false,
+) {
   const root = await mkdtemp(join(tmpdir(), "yar-"));
   cleanups.push(() => rm(root, { recursive: true, force: true }));
   const socketPath = join(root, "control.sock");
@@ -55,6 +59,9 @@ async function fixture(pools = false, ownerManaged = false) {
           capabilities: [
             "manual-bindings",
             ...(pools ? ["pools-v1"] : []),
+            ...(mostRemaining
+              ? ["most-remaining-v1", "admission-refresh-v1"]
+              : []),
             ...(ownerManaged ? ["router-owned-pools-v1"] : []),
           ],
         }),
@@ -582,3 +589,55 @@ describe.skipIf(process.platform === "win32")("router pool ownership", () => {
     expect((await old.connector.overview()).canManagePools).toBe(true);
   });
 });
+
+describe.skipIf(process.platform === "win32")(
+  "Most remaining negotiation",
+  () => {
+    it("refuses older AAR before allocating and keeps legacy policy discovery", async () => {
+      const f = await fixture(true);
+      await f.connector.connect(f.socketPath);
+      expect((await f.connector.overview()).supportedPolicies).toEqual([
+        "manual",
+        "round-robin",
+      ]);
+      await expect(
+        f.connector.launch(
+          "new",
+          "codex",
+          "fixture-model",
+          undefined,
+          "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "most-remaining",
+        ),
+      ).rejects.toThrow("Update AAR");
+      expect(f.requests.some((r) => r.path === "/v1/pools/prepare")).toBe(
+        false,
+      );
+      await expect(
+        f.connector.overview({ policy: "most-remaining" }),
+      ).rejects.toThrow("Update AAR");
+    });
+    it("advertises admission refresh and explicitly negotiates new pool selection", async () => {
+      const f = await fixture(true, true, true);
+      await f.connector.connect(f.socketPath);
+      expect(await f.connector.overview()).toMatchObject({
+        supportedPolicies: ["manual", "round-robin", "most-remaining"],
+        admissionRefresh: true,
+      });
+      await f.connector.launch(
+        "new",
+        "codex",
+        "fixture-model",
+        undefined,
+        "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "most-remaining",
+      );
+      expect(
+        f.requests.find((r) => r.path === "/v1/pools/prepare")?.body,
+      ).toMatchObject({
+        policy: "most-remaining",
+        supportedPolicies: ["manual", "round-robin", "most-remaining"],
+      });
+    });
+  },
+);

@@ -132,6 +132,33 @@ test("pool overview, editor and policy selection retain typing under 48-account 
   ).toBeEnabled();
   await selector
     .getByRole("combobox", { name: "Selection policy", exact: true })
+    .selectOption("most-remaining");
+  await expect(selector.getByLabel("Selected route")).toContainText(
+    '"policy":"most-remaining"',
+  );
+  await expect(
+    selector
+      .getByText("Tightest window: 45% remaining", { exact: false })
+      .first(),
+  ).toBeVisible();
+  await expect(
+    selector.getByText("Starting a session refreshes stale quota", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  for (const size of [
+    { width: 1000, height: 600 },
+    { width: 375, height: 812 },
+  ]) {
+    await page.setViewportSize(size);
+    await expect(
+      selector.getByRole("combobox", { name: "Selection policy", exact: true }),
+    ).toBeEnabled();
+    await selector.evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await recordUiCapture(page, `router-most-remaining-${size.width}`, size);
+  }
+  await selector
+    .getByRole("combobox", { name: "Selection policy", exact: true })
     .selectOption("manual");
   await expect(
     selector.getByRole("combobox", { name: "Router account", exact: true }),

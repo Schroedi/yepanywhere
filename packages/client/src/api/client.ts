@@ -293,7 +293,7 @@ export function isUnchangedGlobalSessionsResponse(
 export interface SessionOptions {
   routerAccountId?: string;
   routerPoolId?: string;
-  routerPolicy?: "manual" | "round-robin";
+  routerPolicy?: "manual" | "round-robin" | "most-remaining";
   creationProvenance?: SessionCreationProvenance;
   /** @deprecated Old selection is rejected; use machineControl. */
   computerControl?: boolean;
@@ -466,7 +466,7 @@ export const api = {
     body: {
       poolId?: string;
       model?: string;
-      policy?: "manual" | "round-robin";
+      policy?: "manual" | "round-robin" | "most-remaining";
     } = {},
   ) =>
     fetchJSON<AgentAuthRouterOverview>("/agent-auth-router/overview", {

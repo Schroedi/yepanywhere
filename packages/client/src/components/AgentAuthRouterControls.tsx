@@ -272,7 +272,7 @@ function RouterSettingsForSource() {
 
 export interface RouterSelection {
   poolId?: string;
-  policy?: "manual" | "round-robin";
+  policy?: "manual" | "round-robin" | "most-remaining";
   sourceKey: string;
   accountId: string;
   model: string;

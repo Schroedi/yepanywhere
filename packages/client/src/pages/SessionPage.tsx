@@ -6138,15 +6138,18 @@ function SessionPageContent({
                       ) && (
                         <span
                           className={sessionHeaderStyles.routerAccount}
-                          title={t("routerPinnedAccount", {
-                            account: session.routerBinding.accountId,
-                          })}
+                          title={
+                            session.routerBinding.reason ??
+                            t("routerPinnedAccount", {
+                              account: session.routerBinding.accountId,
+                            })
+                          }
                         >
                           {t("routerPinnedAccount", {
                             account: session.routerBinding.accountId,
                           })}
                           {session.routerBinding.policy &&
-                            ` · ${t(session.routerBinding.policy === "round-robin" ? "routerPoolRoundRobin" : "routerPoolManual")}`}
+                            ` · ${t(session.routerBinding.policy === "most-remaining" ? "routerPoolMostRemaining" : session.routerBinding.policy === "round-robin" ? "routerPoolRoundRobin" : "routerPoolManual")}`}
                         </span>
                       )}
                     {currentGoal && (

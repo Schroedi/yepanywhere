@@ -453,9 +453,25 @@ export class AgentAuthRouter {
           "Manage accounts, pools and grants in Agent Auth Router.",
           "operation-rejected",
         );
+      if (
+        (body as { policy?: string }).policy === "most-remaining" &&
+        !info.capabilities.includes("most-remaining-v1")
+      )
+        throw new RouterUnavailable(
+          409,
+          "Update AAR to use Most remaining.",
+          "unsupported",
+        );
       const result = await routerRequest<T>(c.socketPath, path, c.token, body);
       if (path === "/v1/overview" || path === "/v1/overview/refresh")
-        return { ...result, canManagePools: !ownerManaged };
+        return {
+          ...result,
+          canManagePools: !ownerManaged,
+          supportedPolicies: info.capabilities.includes("most-remaining-v1")
+            ? ["manual", "round-robin", "most-remaining"]
+            : ["manual", "round-robin"],
+          admissionRefresh: info.capabilities.includes("admission-refresh-v1"),
+        };
       return result;
     });
   }
@@ -521,6 +537,16 @@ export class AgentAuthRouter {
         throw new RouterUnavailable(
           409,
           "Update AAR to use pools.",
+          "unsupported",
+        );
+      if (
+        !existing &&
+        policy === "most-remaining" &&
+        !info.capabilities.includes("most-remaining-v1")
+      )
+        throw new RouterUnavailable(
+          409,
+          "Update AAR to use Most remaining.",
           "unsupported",
         );
       await this.flushCancellations(c);
@@ -623,6 +649,11 @@ export class AgentAuthRouter {
             ...(allocation.poolId
               ? {
                   poolId: allocation.poolId,
+                  supportedPolicies: [
+                    "manual",
+                    "round-robin",
+                    "most-remaining",
+                  ],
                   policy: allocation.policy,
                   accountId: allocation.requestedAccountId,
                 }
