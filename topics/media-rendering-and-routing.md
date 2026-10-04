@@ -459,7 +459,10 @@ with Markdown image references without flattening those two roles.
   Only an upload still in flight is held in memory; once stored, an image lives
   under the cache's eviction budget alone, and its persisted path holds a
   blob-free pointer to the entry so a sent chip that knows only that path still
-  resolves locally, including after a reload. Remote fallback is
+  resolves locally, including after a reload. Showing a cached chip records
+  its access time without rewriting the stored image: the cache keeps blobs
+  apart from the blob-free records it touches and evicts by, because
+  Chromium writes a new file for every Blob in a put. Remote fallback is
   `useRemoteImage` →
   `/api/projects/:id/sessions/:sid/upload/:filename`. The project coordinate
   comes from logical session metadata because app-data project keys are
