@@ -566,16 +566,24 @@ export const ToolCallRow = memo(function ToolCallRow(rowProps: Props) {
 });
 
 /**
- * A pending shell call shows the server's live output preview through the
- * same `_previewResult` input field providers that stream partial results
- * set themselves.
+ * A pending shell call shows its live output through the same
+ * `_previewResult` input field providers that stream partial results set
+ * themselves: a Claude call's from the preview store, a Codex call's from the
+ * streaming result it holds while it runs.
  */
 function useLiveOutputPreview(props: Props): Props {
   const pendingShell =
     props.status === "pending" &&
     isBashLikeToolName(props.toolName) &&
     isRecord(props.toolInput);
-  const preview = useToolOutputPreview(pendingShell ? props.id : undefined);
+  const storedPreview = useToolOutputPreview(
+    pendingShell ? props.id : undefined,
+  );
+  const preview =
+    storedPreview ??
+    (pendingShell && typeof props.toolResult?.content === "string"
+      ? props.toolResult.content
+      : undefined);
   return useMemo(
     () =>
       preview === undefined || !isRecord(props.toolInput)

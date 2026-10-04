@@ -810,6 +810,8 @@
   "appearanceHoverCardReset": "Reset",
   "appearanceStreamingTitle": "Response Streaming",
   "appearanceStreamingDescription": "Show responses as they are generated, token by token. Disable for better performance on slower devices.",
+  "appearanceLiveToolOutputTitle": "Live Command Output",
+  "appearanceLiveToolOutputDescription": "Show what a running command has printed so far. Disable to skip sending and drawing it, which saves bandwidth on slow connections; finished commands still show their full output.",
   "appearanceSessionLoadingProgressTitle": "Session Loading Progress",
   "appearanceSessionLoadingProgressDescription": "Show detailed loading phases for large sessions and reveal long transcripts after a progress bar reaches 100%.",
   "appearanceStableToolPreviewTitle": "Stable Tool Preview Scrolling",

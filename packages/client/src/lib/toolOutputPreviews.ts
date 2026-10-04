@@ -8,8 +8,6 @@ import { useCallback, useSyncExternalStore } from "react";
  * update re-renders that row alone.
  */
 
-export const TOOL_OUTPUT_PREVIEW_MESSAGE_TYPE = "tool_output_preview";
-
 /** Calls a session can plausibly have running at once, with slack. */
 const MAX_PREVIEWS = 64;
 

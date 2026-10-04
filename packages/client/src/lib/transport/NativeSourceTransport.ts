@@ -213,6 +213,11 @@ export class NativeSourceTransport implements SourceTransport, Connection {
             ...("wantsLiveDeltas" in message
               ? { wantsLiveDeltas: message.wantsLiveDeltas }
               : {}),
+            // Native bridges do not forward this yet; the web client still
+            // drops live tool output itself.
+            ...("wantsLiveToolOutput" in message
+              ? { wantsLiveToolOutput: message.wantsLiveToolOutput }
+              : {}),
             ...("coverage" in message ? { coverage: message.coverage } : {}),
           })
           .catch((error: Error) => {

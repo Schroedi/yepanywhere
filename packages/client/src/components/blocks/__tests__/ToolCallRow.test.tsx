@@ -619,6 +619,23 @@ describe("ToolCallRow", () => {
     clearToolOutputPreview("tool-claude-bash");
   });
 
+  it("shows a pending Codex command's streaming result as its live preview", () => {
+    const { container } = render(
+      <ToolCallRow
+        id="tool-codex-exec"
+        toolName="Bash"
+        toolInput={{ command: "make" }}
+        status="pending"
+        toolResult={{ content: "compiling 3/9\n", isError: false }}
+        sessionProvider="codex"
+      />,
+    );
+    expect(screen.getByText("Run")).toBeDefined();
+    expect(
+      container.querySelector(".tool-row-collapsed-preview")?.textContent,
+    ).toContain("compiling 3/9");
+  });
+
   it("shows pending Edit targets as title-backed clickable summaries", () => {
     render(
       <SessionMetadataProvider

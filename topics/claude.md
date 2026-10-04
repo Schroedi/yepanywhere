@@ -272,6 +272,8 @@ shell-startup and test-hermeticity rules for the local `BASH_ENV` bridge.
   the transcript and older clients ignore; they never reach the model. The
   file layout is CLI-internal: when the file cannot be found within five
   polls, the call simply has no preview. Remote-executor sessions get none.
+  Viewers can decline previews with the Live Command Output setting
+  ([stream parity](stream-persisted-render-parity.md)).
 
 ## Transcript Structure: Forest, Connector Rows, Dead Segments
 

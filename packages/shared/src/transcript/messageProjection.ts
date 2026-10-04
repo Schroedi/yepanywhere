@@ -916,9 +916,15 @@ function attachToolResult(
     item.toolName,
   );
 
+  // A streaming result is the running call's output so far; the call stays
+  // pending and its final result can still attach.
+  const isLiveOutput = resultMessage._isStreaming === true;
+
   // Create a new ToolCallItem to ensure React sees the change
   let status: ToolCallItem["status"] = "complete";
-  if (isInterruptedProcessResult || item.status === "aborted") {
+  if (isLiveOutput) {
+    status = "pending";
+  } else if (isInterruptedProcessResult || item.status === "aborted") {
     status = "aborted";
   } else if (isBackgroundProcessResult) {
     status = item.status === "incomplete" ? "incomplete" : "pending";
@@ -938,7 +944,11 @@ function attachToolResult(
   };
 
   items[index] = updatedItem;
-  if (!isBackgroundProcessResult && !isInterruptedProcessResult) {
+  if (
+    !isLiveOutput &&
+    !isBackgroundProcessResult &&
+    !isInterruptedProcessResult
+  ) {
     pendingToolCalls.delete(toolUseId);
   }
 }

@@ -233,6 +233,21 @@ equality is graded by whether the live item has a durable counterpart:
   tailed from the CLI's output file, keep the first 2 KiB and last 8 KiB the
   same way and stay outside the transcript
   ([claude](claude.md#contracts)).
+- **Live tool output keeps its call running.** A streaming tool result
+  (`_isStreaming`) is the running call's output so far: the call stays
+  pending, its row shows that output as the pending preview, and the final
+  result still attaches and completes it. A Claude `tool_output_preview`
+  feeds the same pending-row preview.
+- **Live tool output is a per-viewer choice.** The Performance setting
+  **Live Command Output** (default on, matching the Claude Code TUI) sets the
+  session subscription's `wantsLiveToolOutput`. When it is `false` the
+  server withholds Claude `tool_output_preview` messages and streaming tool
+  results from that subscriber, saving relay bandwidth, and the client drops
+  any it still receives, since older servers ignore the field. Completed
+  results are delivered regardless. **Response Streaming** off
+  (`wantsLiveDeltas: false`) withholds every streaming message, live tool
+  output included. Native mobile bridges do not yet forward
+  `wantsLiveToolOutput`, so there only the client-side drop applies.
 - **Streaming snapshots are rate-limited at the provider boundary.** Every
   `_isStreaming` message with an id (assistant text and reasoning, tool
   output, from any provider) passes through one coalescer before YA buffers,

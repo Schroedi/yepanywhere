@@ -59,10 +59,14 @@ import {
 import { useSessionStream } from "./useSessionStream";
 import { stripQueuedTurnMarkers } from "../lib/queuedTurnMarkers";
 import {
+  isLiveToolOutputMessage,
+  TOOL_OUTPUT_PREVIEW_MESSAGE_TYPE,
+} from "@yep-anywhere/shared";
+import {
   clearCompletedToolOutputPreviews,
   setToolOutputPreview,
-  TOOL_OUTPUT_PREVIEW_MESSAGE_TYPE,
 } from "../lib/toolOutputPreviews";
+import { getLiveToolOutputEnabled } from "./useLiveToolOutputEnabled";
 import {
   type SessionWatchChangeEvent,
   useSessionWatchStream,
@@ -1997,7 +2001,15 @@ export function useSession(
           }
         }
 
-        // Live output of a running tool call: shown on its pending row only.
+        // Live output of a running tool call: shown on its pending row only,
+        // and dropped here when declined, since older servers ignore the
+        // subscription's request not to send it.
+        if (
+          !getLiveToolOutputEnabled() &&
+          isLiveToolOutputMessage(sdkMessage)
+        ) {
+          return;
+        }
         if (msgType === TOOL_OUTPUT_PREVIEW_MESSAGE_TYPE) {
           if (
             typeof sdkMessage.tool_use_id === "string" &&

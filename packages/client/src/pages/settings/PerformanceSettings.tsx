@@ -17,6 +17,7 @@ import {
   useSessionPerformanceSettings,
 } from "../../hooks/useSessionPerformanceSettings";
 import { useStableToolPreviewRendering } from "../../hooks/useStableToolPreviewRendering";
+import { useLiveToolOutputEnabled } from "../../hooks/useLiveToolOutputEnabled";
 import { useStreamingEnabled } from "../../hooks/useStreamingEnabled";
 import {
   MAX_SEARCH_CONCURRENCY,
@@ -51,6 +52,8 @@ export function PerformanceSettings() {
   const { t } = useI18n();
   useSettingsPaneTitle(t("performanceSectionTitle"));
   const { streamingEnabled, setStreamingEnabled } = useStreamingEnabled();
+  const { liveToolOutputEnabled, setLiveToolOutputEnabled } =
+    useLiveToolOutputEnabled();
   const { searchConcurrency, setSearchConcurrency } = useSearchConcurrency();
   const { sessionLoadingProgressEnabled, setSessionLoadingProgressEnabled } =
     useSessionLoadingProgress();
@@ -232,6 +235,7 @@ export function PerformanceSettings() {
   const undoState = useMemo(
     () => ({
       streamingEnabled,
+      liveToolOutputEnabled,
       searchConcurrency,
       sessionLoadingProgressEnabled,
       sessionDomLingerEnabled,
@@ -245,6 +249,7 @@ export function PerformanceSettings() {
     }),
     [
       streamingEnabled,
+      liveToolOutputEnabled,
       searchConcurrency,
       sessionLoadingProgressEnabled,
       sessionDomLingerEnabled,
@@ -260,6 +265,7 @@ export function PerformanceSettings() {
   const restoreUndoState = useCallback(
     (snapshot: typeof undoState) => {
       setStreamingEnabled(snapshot.streamingEnabled);
+      setLiveToolOutputEnabled(snapshot.liveToolOutputEnabled);
       setSearchConcurrency(snapshot.searchConcurrency);
       setSessionLoadingProgressEnabled(snapshot.sessionLoadingProgressEnabled);
       setSessionDomLingerEnabled(snapshot.sessionDomLingerEnabled);
@@ -291,6 +297,7 @@ export function PerformanceSettings() {
     },
     [
       setStreamingEnabled,
+      setLiveToolOutputEnabled,
       setSearchConcurrency,
       setSessionLoadingProgressEnabled,
       setSessionDomLingerEnabled,
@@ -340,6 +347,22 @@ export function PerformanceSettings() {
               checked={streamingEnabled}
               onChange={(event) => setStreamingEnabled(event.target.checked)}
               aria-label={t("appearanceStreamingTitle")}
+            />
+            <span className="toggle-slider" />
+          </label>
+        </SettingsItem>
+        <SettingsItem
+          label={t("appearanceLiveToolOutputTitle")}
+          description={t("appearanceLiveToolOutputDescription")}
+        >
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={liveToolOutputEnabled}
+              onChange={(event) =>
+                setLiveToolOutputEnabled(event.target.checked)
+              }
+              aria-label={t("appearanceLiveToolOutputTitle")}
             />
             <span className="toggle-slider" />
           </label>

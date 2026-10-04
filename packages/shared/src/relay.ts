@@ -95,6 +95,11 @@ export interface RelaySubscribe {
   lastEventId?: string;
   /** Whether this subscriber wants live provider deltas (default: true) */
   wantsLiveDeltas?: boolean;
+  /**
+   * Whether this subscriber wants running tool calls' live output (default:
+   * true). Older servers ignore it; clients drop that output themselves too.
+   */
+  wantsLiveToolOutput?: boolean;
   /** Browser profile identifier for connection tracking (stored in localStorage, shared across tabs) */
   browserProfileId?: string;
   /** Origin metadata for connection tracking */

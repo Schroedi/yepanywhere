@@ -197,6 +197,8 @@ export interface StreamHandlers {
 export interface SessionSubscriptionOptions {
   /** Whether this subscriber wants live provider deltas (default: true). */
   wantsLiveDeltas?: boolean;
+  /** Whether this subscriber wants running tool calls' live output (default: true). */
+  wantsLiveToolOutput?: boolean;
 }
 
 export interface ConnectionSpeechSocket {

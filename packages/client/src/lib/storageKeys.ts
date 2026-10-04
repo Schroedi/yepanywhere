@@ -57,6 +57,7 @@ export const UI_KEYS = {
     "yep-anywhere-sidebar-duplicate-hiding-enabled",
   funPhrases: "yep-anywhere-fun-phrases-enabled",
   streamingEnabled: "yep-anywhere-streaming-enabled",
+  liveToolOutputEnabled: "yep-anywhere-live-tool-output-enabled",
   speechKeepMicWarm: "yep-anywhere-speech-keep-mic-warm",
   speechReducePlayback: "yep-anywhere-speech-reduce-playback",
   speechUnspokenPunctuation: "yep-anywhere-speech-unspoken-punctuation",

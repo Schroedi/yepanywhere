@@ -1159,6 +1159,7 @@ export function handleSessionSubscribe(
 ): void {
   const { subscriptionId, sessionId } = msg;
   const wantsLiveDeltas = msg.wantsLiveDeltas !== false;
+  const wantsLiveToolOutput = msg.wantsLiveToolOutput !== false;
 
   if (!sessionId) {
     send({
@@ -1194,6 +1195,7 @@ export function handleSessionSubscribe(
 
   const { cleanup } = createSessionSubscription(process, sendEvent, {
     wantsLiveDeltas,
+    wantsLiveToolOutput,
     sessionQueuePersistenceService,
     sessionMetadataService: supervisor.getSessionMetadataService(),
     resolveAbsoluteFilePaths,

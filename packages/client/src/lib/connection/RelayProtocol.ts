@@ -947,6 +947,7 @@ export class RelayProtocol {
       sessionId,
       lastEventId,
       wantsLiveDeltas: options?.wantsLiveDeltas,
+      wantsLiveToolOutput: options?.wantsLiveToolOutput,
     }));
   }
 

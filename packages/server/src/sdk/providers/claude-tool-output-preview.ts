@@ -1,6 +1,7 @@
 import { open, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { TOOL_OUTPUT_PREVIEW_MESSAGE_TYPE } from "@yep-anywhere/shared";
 import type { SDKMessage } from "../types.js";
 import { renderLiveToolOutput } from "./live-tool-output.js";
 
@@ -17,7 +18,6 @@ import { renderLiveToolOutput } from "./live-tool-output.js";
  * cannot be found only means no preview.
  */
 
-export const CLAUDE_TOOL_OUTPUT_PREVIEW_TYPE = "tool_output_preview";
 export const CLAUDE_TOOL_OUTPUT_POLL_MS = 1_000;
 export const CLAUDE_TOOL_OUTPUT_HEAD_BYTES = 2 * 1024;
 export const CLAUDE_TOOL_OUTPUT_TAIL_BYTES = 8 * 1024;
@@ -45,7 +45,7 @@ export interface ClaudeToolOutputPreviewsOptions {
 }
 
 export function claudeToolOutputPreviewUuid(toolUseId: string): string {
-  return `${CLAUDE_TOOL_OUTPUT_PREVIEW_TYPE}:${toolUseId}`;
+  return `${TOOL_OUTPUT_PREVIEW_MESSAGE_TYPE}:${toolUseId}`;
 }
 
 /** Where the Claude CLI launched with `env` may keep its task output files. */
@@ -191,7 +191,7 @@ export class ClaudeToolOutputPreviews {
         if (content === null || this.tails.get(tail.toolUseId) !== tail)
           continue;
         this.ready.push({
-          type: CLAUDE_TOOL_OUTPUT_PREVIEW_TYPE,
+          type: TOOL_OUTPUT_PREVIEW_MESSAGE_TYPE,
           uuid: claudeToolOutputPreviewUuid(tail.toolUseId),
           session_id: tail.sessionId,
           tool_use_id: tail.toolUseId,
