@@ -594,6 +594,86 @@ describe("useSession completion reconciliation", () => {
     expect(result.current.isCompacting).toBe(false);
   });
 
+  it("keeps known goal state when a live inventory does not report it", () => {
+    const knownGoal = {
+      name: "goal",
+      description: "Set a goal",
+      providerDetails: {
+        codex: { goalObjective: "ship the fix", goalStatus: "active" },
+      },
+    };
+    const { result } = renderHook(() =>
+      useSession(PROJECT_ID, "sess-1", {
+        owner: "self",
+        processId: "proc-1",
+      }),
+    );
+
+    act(() => {
+      sessionMessagesOptions?.onLoadComplete?.({
+        session: {
+          id: "sess-1",
+          projectId: PROJECT_ID,
+          title: null,
+          fullTitle: null,
+          createdAt: "2026-04-23T23:00:00.000Z",
+          updatedAt: "2026-04-24T00:00:00.000Z",
+          messageCount: 1,
+          ownership: { owner: "self", processId: "proc-1" },
+          provider: "codex",
+        },
+        status: { owner: "self", processId: "proc-1" },
+        slashCommands: [knownGoal],
+      });
+    });
+
+    // A process start or skills refresh reports the inventory before the
+    // provider has said anything about the goal.
+    act(() => {
+      sessionStreamHandler?.({
+        eventType: "message",
+        type: "system",
+        subtype: "init",
+        slash_command_inventory: [
+          { name: "goal", description: "Set a goal" },
+          { name: "review", description: "Review changes" },
+        ],
+      });
+      settleStreamDispatch();
+    });
+
+    expect(result.current.slashCommands).toEqual([
+      knownGoal,
+      { name: "review", description: "Review changes" },
+    ]);
+
+    act(() => {
+      sessionStreamHandler?.({
+        eventType: "message",
+        type: "system",
+        subtype: "commands_changed",
+        slash_command_inventory: [
+          {
+            name: "goal",
+            description: "Set a goal",
+            providerDetails: {
+              codex: { goalObjective: null, goalStatus: null },
+            },
+          },
+        ],
+      });
+      settleStreamDispatch();
+    });
+
+    expect(result.current.slashCommands).toEqual([
+      {
+        name: "goal",
+        description: "Set a goal",
+        providerDetails: { codex: { goalObjective: null, goalStatus: null } },
+      },
+    ]);
+  });
+
   it("does not refresh for unrelated session status events", () => {
     renderHook(() =>
       useSession(PROJECT_ID, "sess-1", {

@@ -1419,6 +1419,7 @@ export const RenderItemComponent = memo(function RenderItemComponent({
         return (
           <AsyncQuestionMessage
             renderId={item.id}
+            projectPathLinks={item.projectPathLinks}
             fallback={
               <TextBlock
                 text={item.text}
