@@ -9,8 +9,10 @@ import {
   type SlashCommand,
   type UploadedFile,
   DEFAULT_RECAP_AFTER_SECONDS,
+  findGoalCommand,
   getModelContextWindow,
   normalizeRecapAfterSeconds,
+  withKnownGoal,
 } from "@yep-anywhere/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
@@ -2069,8 +2071,13 @@ export function useSession(
         (incoming as { eventType?: string }).eventType = undefined;
 
         if (Array.isArray(sdkMessage.slash_command_inventory)) {
+          const inventory =
+            sdkMessage.slash_command_inventory as SlashCommand[];
+          // A live inventory reported before the provider states its goal
+          // (process start, skills refresh) must not erase the known goal.
           setSlashCommands(
-            sdkMessage.slash_command_inventory as SlashCommand[],
+            (current) =>
+              withKnownGoal(inventory, findGoalCommand(current)) ?? inventory,
           );
         }
 

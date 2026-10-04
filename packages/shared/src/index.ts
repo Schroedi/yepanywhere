@@ -492,6 +492,7 @@ export {
   findGoalCommand,
   readGoalDetails,
   readInventoryGoalDetails,
+  withKnownGoal,
 } from "./slash-command-goal.js";
 export {
   detectNestedHarnessLaunch,

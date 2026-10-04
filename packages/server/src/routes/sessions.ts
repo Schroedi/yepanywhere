@@ -23,18 +23,17 @@ import {
   type UserMessageMetadata,
   type UrlProjectId,
   type WorkstreamId,
-  GOAL_COMMAND_NAME,
   SESSION_UNREAD_TIMESTAMP,
   agentHarness,
   buildEffectiveAgentContext,
   getModelContextWindow,
-  readGoalDetails,
   isThinkingOption,
   isUrlProjectId,
   isWorkstreamId,
   mainWorkstreamId,
   truncateSessionTitle,
   readQueuedYaCommand,
+  withKnownGoal,
   type SessionRewindReason,
   type SessionRewindRecord,
   type UpdateClearloopRequest,
@@ -263,26 +262,8 @@ async function getSessionSlashCommands(
     }
   }
   // A stopped session has no provider to ask, so the last observed goal stands
-  // in for live state. A live inventory that already reports goal state wins;
-  // unknown goal state is not evidence that the goal was cleared. An emulated
-  // entry — YA's `/loop wish` alias for a Claude build with no native `/goal` —
-  // carries no goal state by design, and replacing it would drop the provider
-  // text YA has to send (topics/emulated-slash-commands.md § Claude goal
-  // commands).
-  const savedGoal = goalCommandOf(metadata);
-  if (!savedGoal) return commands ?? null;
-  const merged =
-    commands?.map((command) =>
-      command.name === GOAL_COMMAND_NAME &&
-      command.invocation?.kind !== "emulated" &&
-      readGoalDetails(command)?.goalObjective === undefined
-        ? savedGoal
-        : command,
-    ) ?? null;
-  if (merged?.some((command) => command.name === GOAL_COMMAND_NAME)) {
-    return merged;
-  }
-  return [...(merged ?? []), savedGoal];
+  // in for live state.
+  return withKnownGoal(commands, goalCommandOf(metadata));
 }
 
 function roundedMs(value: number): number {
