@@ -265,6 +265,15 @@ export interface Connection {
   fetchBlob(path: string): Promise<Blob>;
 
   /**
+   * GET a file body as a Response whose body streams in as it arrives, for a
+   * connection that can deliver it in pieces. Rejects for an error status.
+   */
+  fetchStream?(
+    path: string,
+    init?: { signal?: AbortSignal },
+  ): Promise<Response>;
+
+  /**
    * Subscribe to session events via WebSocket.
    *
    * Events include: message, status, connected, error, complete, heartbeat,

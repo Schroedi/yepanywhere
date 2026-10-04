@@ -1357,6 +1357,10 @@ export type {
   RelayHttpMethod,
   RelayRequest,
   RelayResponse,
+  RelayResponseStreamStart,
+  RelayResponseStreamEnd,
+  RelayResponseStreamAck,
+  RelayResponseStreamCancel,
   RelaySubscriptionChannel,
   RelaySubscribe,
   RelayUnsubscribe,
@@ -1422,6 +1426,10 @@ export {
   isSequencedEncryptedPayload,
   // Client capabilities type guard
   isClientCapabilities,
+  // Streamed responses
+  RELAY_RESPONSE_STREAM_CHUNK_BYTES,
+  RELAY_RESPONSE_STREAM_WINDOW_BYTES,
+  RELAY_RESPONSE_STREAM_IDLE_TIMEOUT_MS,
 } from "./relay.js";
 
 // Binary framing utilities (Phase 0/1/2/3 of binary WebSocket protocol)
@@ -1461,6 +1469,11 @@ export {
   decodeUploadChunkFrame,
   encodeUploadChunkPayload,
   decodeUploadChunkPayload,
+  // Streamed response chunks
+  RESPONSE_CHUNK_HEADER_SIZE,
+  type ResponseChunkData,
+  encodeResponseChunkPayload,
+  decodeResponseChunkPayload,
   // Phase 3: Compressed JSON
   encodeCompressedJsonFrame,
   decodeCompressedJsonFrame,

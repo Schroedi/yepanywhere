@@ -436,3 +436,5 @@
 - [agent-auth-router-integration](topics/agent-auth-router.md) - Local pairing and pinned native sessions.
 
 - machine-control-desktop-delegation - Native Mac caller and live session provenance for resumable MC admission.
+
+- [relay-streamed-responses](topics/media-rendering-and-routing.md#relay-transfer-size) - Raw, flow-controlled relay file bodies; downloads to disk via the service worker; viewer media next.

@@ -25,6 +25,8 @@ See also:
   instead of retained as inline base64.
 - [`relay-origin-and-share-gating.md`](relay-origin-and-share-gating.md) — why
   the relay origin has no API, and the public-share serving path.
+- `docs/project/server-message-routing.md` — how relayed responses are
+  framed, encrypted, and chunked on the wire.
 - `docs/tactical/009-local-resource-link-routing.md` — the working log of the
   local-resource link/parser/modal build-out.
 
@@ -72,11 +74,59 @@ phone through the relay. The base64 `data:` surfaces are immune (no network).
 
 ### Relay transfer size
 
-A relayed file travels as one response message: the server reads the whole
-body, encodes it as base64 inside the JSON response, and the client rebuilds
-the `Blob` only after the last transport chunk arrives. That message must fit
-the 64 MiB transport reassembly limit, and the transfer must finish inside the
-single request deadline (`API_REQUEST_DEADLINE_MS`).
+On an encrypted (SRP) relay connection, a file or binary-media body streams:
+`RelayProtocol.fetchStream` asks for it with `stream: true`, and the server
+answers a successful body with `response_stream_start` (status, headers,
+length when known), raw body chunks of at most 128 KiB, and
+`response_stream_end`. The chunks are not base64 and the body has no size
+limit.
+
+- **Integrity.** Each chunk is its own encrypted envelope (format `0x06`)
+  carrying the connection's outbound sequence number, so the client's replay
+  check covers chunks and JSON messages alike. The client handles inbound
+  messages strictly in arrival order.
+- **Flow control.** The client reports body bytes its reader has consumed
+  (`response_stream_ack`), and the server stays within 1 MiB of that report.
+  Neither end buffers more than that window plus one read per stream. A slow
+  reader slows the transfer. One stream stays under the relay's 2 MiB
+  per-circuit queue, which closes an overflowing circuit; concurrent streams
+  each have their own window, so many at once on a slow link can still
+  approach it, though far less than whole single-message files did.
+- **Deadline.** `RELAY_RESPONSE_STREAM_IDLE_TIMEOUT_MS` (120 s) replaces the
+  single request deadline. It bounds a gap without progress, not the whole
+  transfer. A server whose client stops consuming ends the stream with an
+  error; a client that hears nothing fails the body and cancels.
+- **Cancellation.** A reader that cancels, or a request abandoned before its
+  stream starts, sends `response_stream_cancel`, and the server stops reading
+  the file. Closing the connection releases every stream.
+- **Failure after the start.** The status has already been delivered, so a
+  read failure arrives as `response_stream_end` with `error`, and the
+  client's body read rejects with it.
+- **What is not streamed.** Error statuses, JSON and text responses, plaintext
+  direct WebSocket connections, and unauthenticated public-share reads keep
+  the single `response` message.
+
+Consumers:
+
+- **Downloads** (`useSaveResourceDownload`) on a transport with `fetchStream`
+  hand the streamed body to the service worker (`lib/streamedDownload.ts`,
+  `public/sw.js`). The worker serves it at a one-time
+  `__ya-download/<id>/<name>` URL that the page opens in a hidden frame,
+  pulling each piece from the page only as the browser writes the last, so the
+  file goes to disk without a page `Blob`. A page that no service worker
+  controls, or a browser that does not request the worker's URL within 60 s,
+  falls back to collecting a `Blob`.
+- **`fetchBlob`** (images, viewers, `LocalMediaModal`) reads the same stream
+  into its `Blob`, which removes the base64 copy and the size limit. The
+  viewer still holds the whole file while it is open; streaming viewer media
+  is a sketch:
+  [relay streamed viewer media](../gaps/sketches/relay-streamed-viewer-media.md).
+
+Single-message responses keep their limits. A server that predates streaming
+ignores `stream: true` and answers with one `response`, which the client
+accepts in its place. A plaintext connection also gets one `response`. Such a
+message must fit the 64 MiB transport reassembly limit and arrive within the
+request deadline (`API_REQUEST_DEADLINE_MS`):
 
 - A file or binary-media body larger than 64 MiB is refused with `413` before
   the server reads it (`RELAY_BINARY_RESPONSE_MAX_BYTES` in
@@ -88,9 +138,6 @@ single request deadline (`API_REQUEST_DEADLINE_MS`).
 - Either refusal fails only its own request. The relay connection, its other
   requests, and its live subscriptions continue; the error message tells the
   reader to open YA directly, and a download reports it in its error toast.
-
-Streaming larger relay transfers to disk is a sketch:
-[relay streamed downloads](../gaps/sketches/relay-streamed-downloads.md).
 
 Interactive HTML artifacts have an explicit separate-origin delivery contract:
 grant creation/revocation uses the active authenticated transport, while the

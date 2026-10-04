@@ -16,6 +16,11 @@ import { useI18n } from "../i18n";
 import { toBrowserAppHref } from "../lib/appHref";
 import { useClientSummarySourceKey } from "../lib/clientSummaryStore";
 import { downloadBlob, downloadUrl } from "../lib/imageActions";
+import { toSourceTransportApiPath } from "../lib/sourceTransportPaths";
+import {
+  canStreamDownloadToDisk,
+  saveStreamedDownload,
+} from "../lib/streamedDownload";
 import { writeClipboardText } from "../lib/clipboard";
 import { isMarkdownLikeFile } from "../lib/markdownFiles";
 import {
@@ -272,8 +277,8 @@ function OpenLocalSourceMenuItem({
 export function useSaveResourceDownload() {
   const { t } = useI18n();
   const showToast = useOptionalToastContext()?.showToast;
-  const sameOriginUrls =
-    useCurrentSourceRuntime().transport.capabilities.sameOriginUrls;
+  const transport = useCurrentSourceRuntime().transport;
+  const sameOriginUrls = transport.capabilities.sameOriginUrls;
   return useCallback(
     (download: ResourceDownload) => {
       if ("url" in download) {
@@ -287,19 +292,25 @@ export function useSaveResourceDownload() {
         downloadUrl(directUrl, fileName);
         return;
       }
-      void loadBlob()
-        .then((blob) => downloadBlob(blob, fileName))
-        .catch((error: unknown) => {
-          showToast?.(
-            t("resourceDownloadFailed" as never, {
-              fileName,
-              reason: error instanceof Error ? error.message : String(error),
-            }),
-            "error",
-          );
-        });
+      // A transport that streams bodies hands this one to the service worker,
+      // which writes it to disk as it arrives; otherwise it is collected.
+      const save =
+        directUrl && transport.fetchStream && canStreamDownloadToDisk()
+          ? transport
+              .fetchStream(toSourceTransportApiPath(directUrl))
+              .then((response) => saveStreamedDownload(response, fileName))
+          : loadBlob().then((blob) => downloadBlob(blob, fileName));
+      void save.catch((error: unknown) => {
+        showToast?.(
+          t("resourceDownloadFailed" as never, {
+            fileName,
+            reason: error instanceof Error ? error.message : String(error),
+          }),
+          "error",
+        );
+      });
     },
-    [sameOriginUrls, showToast, t],
+    [sameOriginUrls, showToast, t, transport],
   );
 }
 

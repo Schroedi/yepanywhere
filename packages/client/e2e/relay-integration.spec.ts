@@ -10,7 +10,7 @@
  * 3. Verify projects load via relay connection
  */
 
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import {
@@ -509,6 +509,96 @@ test.describe("Full Relay Integration", () => {
       ).toBeGreaterThan(20);
     } finally {
       await rm(sessionFile);
+    }
+  });
+
+  test("a download past the single-message limit streams to disk over the relay", async ({
+    page,
+    baseURL,
+    remotePreviewURL,
+    relayWsURL,
+  }) => {
+    test.setTimeout(120_000);
+    const projectPath = join(e2ePaths.tempDir, "streamed-download-project");
+    const projectId = Buffer.from(projectPath).toString("base64url");
+    const sessionId = "streamed-download-session";
+    const sessionDirectory = join(
+      e2ePaths.claudeSessionsDir,
+      hostname(),
+      projectPath.replace(/\//g, "-"),
+    );
+    const sessionFile = join(sessionDirectory, `${sessionId}.jsonl`);
+    const fileName = "streamed-download.bin";
+    // Over the 64 MiB a single relayed response may carry.
+    const fileBytes = deterministicNoise(66 * 1024 * 1024);
+    const receivedFrameSizes: number[] = [];
+    page.on("websocket", (socket) => {
+      socket.on("framereceived", ({ payload }) => {
+        if (typeof payload === "string") return;
+        receivedFrameSizes.push(Buffer.from(payload).byteLength);
+      });
+    });
+
+    await mkdir(projectPath, { recursive: true });
+    await mkdir(sessionDirectory, { recursive: true });
+    await writeFile(join(projectPath, fileName), fileBytes);
+    await writeFile(
+      sessionFile,
+      JSON.stringify({
+        type: "user",
+        cwd: projectPath,
+        message: { role: "user", content: "download generated content" },
+        timestamp: new Date().toISOString(),
+        uuid: "streamed-download-user",
+      }),
+    );
+
+    try {
+      await expect
+        .poll(
+          async () =>
+            (
+              await fetch(
+                `${baseURL}/api/projects/${projectId}/sessions/${sessionId}?fullHistory=1`,
+                { headers: { "X-Yep-Anywhere": "true" } },
+              )
+            ).status,
+          { timeout: 10_000 },
+        )
+        .toBe(200);
+      await loginViaRelay(page, remotePreviewURL, relayWsURL);
+      await page.goto(
+        remoteRelayUrl(
+          remotePreviewURL,
+          `projects/${projectId}/file?path=${encodeURIComponent(fileName)}`,
+        ),
+      );
+      // The streamed path needs the page to be under its service worker.
+      await expect
+        .poll(() =>
+          page.evaluate(() => navigator.serviceWorker?.controller != null),
+        )
+        .toBe(true);
+
+      const downloadPromise = page.waitForEvent("download", {
+        timeout: 60_000,
+      });
+      await page.locator(".file-viewer-download-btn").click();
+      const download = await downloadPromise;
+      expect(download.suggestedFilename()).toBe(fileName);
+      expect(download.url()).toContain("/__ya-download/");
+      const savedPath = await download.path();
+      expect((await readFile(savedPath)).equals(fileBytes)).toBe(true);
+      expect(
+        receivedFrameSizes.every(
+          (size) =>
+            size <=
+            1 + TRANSPORT_CHUNK_HEADER_SIZE + TRANSPORT_CHUNK_PAYLOAD_MAX_BYTES,
+        ),
+      ).toBe(true);
+    } finally {
+      await rm(sessionFile);
+      await rm(projectPath, { recursive: true });
     }
   });
 

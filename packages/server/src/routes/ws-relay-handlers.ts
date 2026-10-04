@@ -33,6 +33,9 @@ import type {
 } from "@yep-anywhere/shared";
 import {
   BinaryFormat,
+  RELAY_RESPONSE_STREAM_CHUNK_BYTES,
+  RELAY_RESPONSE_STREAM_IDLE_TIMEOUT_MS,
+  RELAY_RESPONSE_STREAM_WINDOW_BYTES,
   TRANSPORT_CHUNK_PAYLOAD_MAX_BYTES,
   TRANSPORT_REASSEMBLY_MAX_BYTES,
   TransportChunkError,
@@ -40,6 +43,7 @@ import {
   decodeUploadChunkPayload,
   encodeJsonBytesFrame,
   encodeJsonFrame,
+  encodeResponseChunkPayload,
   encodeTransportChunkFrames,
   isUrlProjectId,
   isSrpClientHello,
@@ -49,6 +53,7 @@ import {
 } from "@yep-anywhere/shared";
 import type { Hono } from "hono";
 import {
+  encryptBytesToBinaryEnvelope,
   encryptBytesToBinaryEnvelopeWithCompression,
   encryptToBinaryEnvelopeWithCompression,
 } from "../crypto/index.js";
@@ -236,6 +241,18 @@ export interface ConnectionState extends WsTransportAuthState {
   } | null;
   /** Whether connection teardown has already released owned resources. */
   cleanupStarted: boolean;
+  /** Streamed response bodies in flight, by request id. */
+  responseStreams: Map<string, RelayResponseStreamState>;
+}
+
+/** A streamed response body's position in the client's send window. */
+export interface RelayResponseStreamState {
+  /** Total body bytes the client reports having consumed. */
+  ackedBytes: number;
+  /** Set when the client cancels or the connection closes. */
+  cancelled: boolean;
+  /** Resumes a sender waiting for the window to open. */
+  wake: (() => void) | null;
 }
 
 /** Tracks an active upload over WebSocket relay */
@@ -291,6 +308,12 @@ export interface SendFn {
     response: ValidatedJsonRelayResponse,
     frameMode?: RequestResponseFrameMode,
   ) => void;
+  /**
+   * Sends raw bytes of a streamed response body, encrypted and sequenced like
+   * any other message. Returns false when the bytes could not be sent; the
+   * socket is then closing. Available only on an encrypted connection.
+   */
+  sendResponseChunk?: (requestId: string, bytes: Uint8Array) => boolean;
 }
 
 export interface RelayResponseSerializationStats {
@@ -487,6 +510,7 @@ export function createConnectionState(options?: {
     browserTabConnection: null,
     preauthPublicShareRequest: null,
     cleanupStarted: false,
+    responseStreams: new Map(),
   };
 }
 
@@ -496,7 +520,38 @@ export function cleanupConnectionState(connState: ConnectionState): void {
   const activeRequest = connState.preauthPublicShareRequest;
   connState.preauthPublicShareRequest = null;
   activeRequest?.controller.abort();
+  for (const stream of connState.responseStreams.values()) {
+    cancelResponseStream(stream);
+  }
+  connState.responseStreams.clear();
   cleanupSrpConnectionState(connState);
+}
+
+function cancelResponseStream(stream: RelayResponseStreamState): void {
+  stream.cancelled = true;
+  stream.wake?.();
+}
+
+/** Records a client's acknowledgement of streamed body bytes. */
+export function handleResponseStreamAck(
+  connState: ConnectionState,
+  id: string,
+  bytes: unknown,
+): void {
+  const stream = connState.responseStreams.get(id);
+  if (!stream || typeof bytes !== "number" || !Number.isFinite(bytes)) return;
+  if (bytes <= stream.ackedBytes) return;
+  stream.ackedBytes = bytes;
+  stream.wake?.();
+}
+
+/** Stops a streamed body the client no longer wants. */
+export function handleResponseStreamCancel(
+  connState: ConnectionState,
+  id: string,
+): void {
+  const stream = connState.responseStreams.get(id);
+  if (stream) cancelResponseStream(stream);
 }
 
 function sendBinaryMessage(
@@ -701,6 +756,24 @@ export function createSendFn(
     }
   };
 
+  send.sendResponseChunk = (requestId: string, bytes: Uint8Array): boolean => {
+    if (!hasEstablishedSrpTransport(connState)) return false;
+    try {
+      const seq = connState.nextOutboundSeq;
+      connState.nextOutboundSeq += 1;
+      const envelope = encryptBytesToBinaryEnvelope(
+        encodeResponseChunkPayload(seq, requestId, bytes),
+        BinaryFormat.RESPONSE_CHUNK,
+        connState.sessionKey,
+      );
+      sendBinaryMessage(ws, connState, envelope);
+      return true;
+    } catch (error) {
+      reportSendFailure(ws, error);
+      return false;
+    }
+  };
+
   return send;
 }
 
@@ -827,6 +900,153 @@ function declaredResponseExceedsLimit(
   return Number(contentLength) > maxBytes;
 }
 
+/** The response headers a relayed response carries to the client. */
+function relayedResponseHeaders(response: Response): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const [key, value] of response.headers.entries()) {
+    const normalizedKey = key.toLowerCase();
+    if (
+      normalizedKey.startsWith("x-") ||
+      normalizedKey === "content-type" ||
+      normalizedKey === "etag" ||
+      normalizedKey === "location" ||
+      normalizedKey === "server-timing"
+    ) {
+      headers[key] = value;
+    }
+  }
+  return headers;
+}
+
+class ResponseStreamStalledError extends Error {
+  constructor() {
+    super("The client stopped reading the streamed response");
+    this.name = "ResponseStreamStalledError";
+  }
+}
+
+/**
+ * Waits until `sentBytes` fits the client's window. Returns false when the
+ * stream was cancelled; throws when the client makes no progress in time.
+ */
+async function waitForResponseStreamWindow(
+  stream: RelayResponseStreamState,
+  sentBytes: number,
+): Promise<boolean> {
+  while (
+    !stream.cancelled &&
+    sentBytes - stream.ackedBytes > RELAY_RESPONSE_STREAM_WINDOW_BYTES
+  ) {
+    const acked = stream.ackedBytes;
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, RELAY_RESPONSE_STREAM_IDLE_TIMEOUT_MS);
+      stream.wake = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+    });
+    stream.wake = null;
+    if (!stream.cancelled && stream.ackedBytes === acked) {
+      throw new ResponseStreamStalledError();
+    }
+  }
+  return !stream.cancelled;
+}
+
+/**
+ * Sends a successful body as a stream: a start message, raw chunks no further
+ * ahead of the client's acknowledgements than the send window, and an end
+ * message. Nothing beyond one read is buffered, and the body has no size
+ * limit. Never throws: a failure after the start is reported in the end
+ * message, since the client has already accepted the status.
+ */
+async function streamRelayResponse(
+  id: string,
+  response: Response,
+  body: ReadableStream<Uint8Array>,
+  headers: Record<string, string> | undefined,
+  send: SendFn,
+  sendChunk: (requestId: string, bytes: Uint8Array) => boolean,
+  connState: ConnectionState,
+  frameMode: RequestResponseFrameMode,
+): Promise<void> {
+  const declaredLength = response.headers.get("Content-Length");
+  const stream: RelayResponseStreamState = {
+    ackedBytes: 0,
+    cancelled: false,
+    wake: null,
+  };
+  connState.responseStreams.set(id, stream);
+  send(
+    {
+      type: "response_stream_start",
+      id,
+      status: response.status,
+      headers,
+      ...(declaredLength && /^\d+$/.test(declaredLength)
+        ? { length: Number(declaredLength) }
+        : {}),
+    },
+    frameMode,
+  );
+
+  const reader = body.getReader();
+  let sentBytes = 0;
+  let completed = false;
+  let error: string | undefined;
+  try {
+    reading: while (!stream.cancelled) {
+      const { done, value } = await reader.read();
+      if (done) {
+        completed = true;
+        break;
+      }
+      for (
+        let offset = 0;
+        offset < value.byteLength;
+        offset += RELAY_RESPONSE_STREAM_CHUNK_BYTES
+      ) {
+        const piece = value.subarray(
+          offset,
+          offset + RELAY_RESPONSE_STREAM_CHUNK_BYTES,
+        );
+        if (
+          !(await waitForResponseStreamWindow(
+            stream,
+            sentBytes + piece.byteLength,
+          ))
+        ) {
+          break reading;
+        }
+        if (!sendChunk(id, piece)) {
+          stream.cancelled = true;
+          break reading;
+        }
+        sentBytes += piece.byteLength;
+      }
+    }
+  } catch (err) {
+    error =
+      err instanceof ResponseStreamStalledError
+        ? err.message
+        : "The file could not be read completely";
+    getLogger().warn(
+      `[WS Relay] Streamed response stopped: bytes=${sentBytes}, reason=${err instanceof Error ? err.message : String(err)}`,
+    );
+  } finally {
+    connState.responseStreams.delete(id);
+    if (!completed) await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+
+  if (!stream.cancelled) {
+    send(
+      { type: "response_stream_end", id, ...(error ? { error } : {}) },
+      frameMode,
+    );
+  }
+}
+
 async function cancelOversizedResponseBody(response: Response): Promise<void> {
   await response.body
     ?.cancel("Relay response exceeded declared limit")
@@ -951,6 +1171,18 @@ export async function handleRequest(
         }
       : {};
     const response = await app.fetch(fetchRequest, internalEnv);
+    const runAfterResponseTasks = async (): Promise<void> => {
+      for (const task of afterResponseTasks) {
+        try {
+          await task();
+        } catch (error) {
+          console.error("[WS Relay] After-response task failed:", error);
+        }
+      }
+      if (closeAfterResponse) {
+        ws.close(4004, "Security client revoked");
+      }
+    };
 
     let responseStatus = response.status;
     let body: unknown;
@@ -969,6 +1201,29 @@ export async function handleRequest(
       !(legacyPublicShareRequest && !jsonResponse) &&
       (downloadResponse ||
         (!jsonResponse && isRelayBinaryMediaType(contentType)));
+    const streamedBody =
+      request.stream === true &&
+      responseFrameMode.kind === "srp_encrypted" &&
+      !isPreauthPublicShareRequest &&
+      response.ok &&
+      binaryResponse
+        ? response.body
+        : null;
+    if (streamedBody && send.sendResponseChunk) {
+      const headers = relayedResponseHeaders(response);
+      await streamRelayResponse(
+        request.id,
+        response,
+        streamedBody,
+        Object.keys(headers).length > 0 ? headers : undefined,
+        send,
+        send.sendResponseChunk,
+        connState,
+        responseFrameMode,
+      );
+      await runAfterResponseTasks();
+      return;
+    }
     const maxBytes = isPreauthPublicShareRequest
       ? LEGACY_PUBLIC_SHARE_RELAY_MAX_BYTES
       : binaryResponse
@@ -1059,19 +1314,7 @@ export async function handleRequest(
       body = text || null;
     }
 
-    const responseHeaders: Record<string, string> = {};
-    for (const [key, value] of response.headers.entries()) {
-      const normalizedKey = key.toLowerCase();
-      if (
-        normalizedKey.startsWith("x-") ||
-        normalizedKey === "content-type" ||
-        normalizedKey === "etag" ||
-        normalizedKey === "location" ||
-        normalizedKey === "server-timing"
-      ) {
-        responseHeaders[key] = value;
-      }
-    }
+    const responseHeaders = relayedResponseHeaders(response);
     if (responseBody.overflow) {
       responseHeaders["content-type"] = "application/json; charset=UTF-8";
     }
@@ -1105,16 +1348,7 @@ export async function handleRequest(
         responseFrameMode,
       );
     }
-    for (const task of afterResponseTasks) {
-      try {
-        await task();
-      } catch (error) {
-        console.error("[WS Relay] After-response task failed:", error);
-      }
-    }
-    if (closeAfterResponse) {
-      ws.close(4004, "Security client revoked");
-    }
+    await runAfterResponseTasks();
   } catch (err) {
     if (preauthController?.signal.aborted) return;
     if (publicShareRequest) {
@@ -2438,6 +2672,10 @@ export async function handleMessage(
         // the way it never would over plain HTTP.
         void handleRequest(requestMsg, send, ws, app, baseUrl, connState);
       },
+      onResponseStreamAck: (ackMsg) =>
+        handleResponseStreamAck(connState, ackMsg.id, ackMsg.bytes),
+      onResponseStreamCancel: (cancelMsg) =>
+        handleResponseStreamCancel(connState, cancelMsg.id),
       onSubscribe: async (subscribeMsg) => {
         if (deps.authorizeSubscription) {
           const permitted = await deps.authorizeSubscription({
