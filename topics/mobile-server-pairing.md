@@ -738,6 +738,14 @@ authenticates the saved identity on every attempt and persists the highest proof
 version before consumers. Authenticated reconnect stays limited to three attempts;
 Kotlin does not add another retry cycle after Rust exhausts them.
 
+Android connection setup accepts callers on the UI dispatcher: full login,
+profile pairing and resume perform their native future polling and protected
+credential persistence off the main thread. OS certificate and revocation
+verification stays enabled; it must never require relaxing Android's main-thread
+network policy. Live acceptance starts pairing from Main, including an opt-in
+public `wss://` relay run against a disposable server. Plaintext local relay
+acceptance alone does not establish that the shipping TLS login path works.
+
 The iOS shell displays one selected foreground profile while other native owners
 can retain independent source demand. Switch Host and replacement documents
 release only the foreground lease. Background suspension retires the foreground

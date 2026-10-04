@@ -19,7 +19,9 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -48,8 +50,13 @@ class YaNativeWebAppInstrumentedTest {
         val runtime = application.nativeRuntime
         val previous = runBlocking { runtime.pairedServers.selectedProfileId.first() }
         val profile = runBlocking { withTimeout(15_000) {
-            runtime.pairing.pair("WebView probe", checkNotNull(username), checkNotNull(password),
-                if (relayWs == null) YaServerRoute.direct(checkNotNull(ws)) else YaServerRoute.relay(relayWs, checkNotNull(username)))
+            // Match the native login ViewModel's Main dispatcher. Starting this
+            // on the instrumentation thread hid TLS revocation network checks
+            // running on Main in the shipping login form.
+            withContext(Dispatchers.Main) {
+                runtime.pairing.pair("WebView probe", checkNotNull(username), checkNotNull(password),
+                    if (relayWs == null) YaServerRoute.direct(checkNotNull(ws)) else YaServerRoute.relay(relayWs, checkNotNull(username)))
+            }
         } }
         val manager = runtime.connectionManager(profile.id)
         val sibling = runBlocking { manager.acquire() }

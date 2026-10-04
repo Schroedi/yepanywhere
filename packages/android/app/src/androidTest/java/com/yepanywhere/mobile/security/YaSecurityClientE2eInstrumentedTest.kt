@@ -16,6 +16,8 @@ import com.yepanywhere.mobile.profiles.YaStoredResumeCredential
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import org.json.JSONObject
@@ -80,6 +82,12 @@ class YaSecurityClientE2eInstrumentedTest {
                     keys.publicKeySpki(checkNotNull(keyAlias)),
                 )
 
+                val saved = checkNotNull(repository.snapshot(paired.id))
+                val resumedFromMain = withContext(Dispatchers.Main) {
+                    connector.resume(paired, checkNotNull(saved.resumeCredential).credential)
+                }
+                resumedFromMain.transport.closeAndAwait()
+
                 val manager = YaServerConnectionManager(
                     profileId = paired.id,
                     repository = repository,
@@ -102,11 +110,9 @@ class YaSecurityClientE2eInstrumentedTest {
                     paired.id,
                     YaSecurityClientBinding.registered(checkNotNull(keyAlias), unknownClientId),
                 )
-                val fullForUnknown = connector.login(
-                    route,
-                    checkNotNull(username),
-                    checkNotNull(password),
-                )
+                val fullForUnknown = withContext(Dispatchers.Main) {
+                    connector.login(route, checkNotNull(username), checkNotNull(password))
+                }
                 val recovered = try {
                     withTimeout(STEP_TIMEOUT_MS) {
                         securityClients.ensure(

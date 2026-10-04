@@ -35,6 +35,17 @@ Gradle work does not contend with the JavaScript workspace test processes.
 Android JVM unit-test tasks have a five-minute task timeout and emit per-test
 lifecycle output so a stalled worker fails with attributable evidence.
 
+On a dedicated, authorized Android device, `pnpm --filter @yep-anywhere/android
+test:live` installs the minified Debug probe and exercises owned direct and local
+relay fixtures. Set `YA_NATIVE_PUBLIC_RELAY_LIVE=1` for the separate public TLS
+relay check: it registers a uniquely named disposable server, starts native
+pairing from Android's Main dispatcher, then verifies the bundled WebView,
+streaming, upload and sequential typing. The runner removes its port forwards
+and server afterward. Set `ANDROID_SERIAL` when more than one device is attached.
+These instrumentation probes preserve extra shared test APIs; separately verify
+the actual Release login form before uploading a store bundle. A background
+instrumentation caller or plaintext fixture cannot prove UI-initiated TLS login.
+
 Captured provider regressions run offline in the normal server suite:
 `pnpm --dir packages/server exec vitest run test/captured-provider.test.ts`.
 The [corpus README](../../packages/server/test/fixtures/captured/README.md)

@@ -1,6 +1,7 @@
-/** Owned unchanged servers + real production Android Rust/WebView acceptance. */
+/** Owned unchanged servers + production Rust/WebView in a minified Debug probe. */
 import { mkdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { createRelayServer } from "../../relay/src/server.js";
@@ -10,6 +11,11 @@ const android = fileURLToPath(new URL("..", import.meta.url));
 const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT;
 const adb = sdk ? resolve(sdk, "platform-tools/adb") : "adb";
 const push = process.env.YA_NATIVE_PUSH_LIVE === "1";
+const publicRelay = process.env.YA_NATIVE_PUBLIC_RELAY_LIVE === "1";
+if (publicRelay && push)
+  throw new Error(
+    "Run public relay login and native push acceptance separately",
+  );
 let serial: string | undefined;
 const children = new Set<ReturnType<typeof spawn>>();
 async function run(command: string, args: string[], capture = false) {
@@ -93,21 +99,30 @@ try {
       "com.yepanywhere.mobile",
       permission,
     ]);
-  for (const mux of push ? [false] : [false, true]) {
-    const relay = mux
-      ? await createRelayServer({
-          port: 0,
-          inMemoryDb: true,
-          logLevel: "warn",
-          disablePrettyPrint: true,
-        })
-      : undefined;
+  for (const mux of publicRelay ? [true] : push ? [false] : [false, true]) {
+    const relay =
+      mux && !publicRelay
+        ? await createRelayServer({
+            port: 0,
+            inMemoryDb: true,
+            logLevel: "warn",
+            disablePrettyPrint: true,
+          })
+        : undefined;
     let fixture: Awaited<ReturnType<typeof startFixture>> | undefined;
     let beta: Awaited<ReturnType<typeof startFixture>> | undefined;
     const reversed: number[] = [];
     try {
-      const relayURL = relay ? `ws://127.0.0.1:${relay.port}/ws` : undefined;
-      fixture = await startFixture({ relayURL });
+      const relayURL = publicRelay
+        ? "wss://relay.yepanywhere.com/ws"
+        : relay
+          ? `ws://127.0.0.1:${relay.port}/ws`
+          : undefined;
+      // Public registration must never collide with another probe or host.
+      const username = publicRelay
+        ? `android-${randomUUID().replaceAll("-", "").slice(0, 24)}`
+        : "ios-fixture";
+      fixture = await startFixture({ relayURL, username });
       if (relay || push) {
         beta = await startFixture({ relayURL, username: "rust-beta" });
         const deadline = Date.now() + 30000;
@@ -125,29 +140,31 @@ try {
         await device(["reverse", `tcp:${port}`, `tcp:${port}`]);
         reversed.push(port);
       }
-      const classes = push
-        ? [
-            "com.yepanywhere.mobile.notifications.NativePushBindingsInstrumentedTest",
-            "com.yepanywhere.mobile.notifications.NativePushLiveInstrumentedTest",
-          ]
-        : [
-            "com.yepanywhere.mobile.web.YaNativeWebAppInstrumentedTest",
-            mux
-              ? "com.yepanywhere.mobile.connection.YaRustRuntimeInstrumentedTest"
-              : "com.yepanywhere.mobile.security.YaSecurityClientE2eInstrumentedTest",
-          ];
+      const classes = publicRelay
+        ? ["com.yepanywhere.mobile.web.YaNativeWebAppInstrumentedTest"]
+        : push
+          ? [
+              "com.yepanywhere.mobile.notifications.NativePushBindingsInstrumentedTest",
+              "com.yepanywhere.mobile.notifications.NativePushLiveInstrumentedTest",
+            ]
+          : [
+              "com.yepanywhere.mobile.web.YaNativeWebAppInstrumentedTest",
+              relay
+                ? "com.yepanywhere.mobile.connection.YaRustRuntimeInstrumentedTest"
+                : "com.yepanywhere.mobile.security.YaSecurityClientE2eInstrumentedTest",
+            ];
       const options = {
         class: classes.join(","),
         yaProbeWsUrl: fixture.endpoint,
-        yaProbeUsername: "ios-fixture",
+        yaProbeUsername: username,
         yaProbePassword: "native-fixture-password",
         ...(push && beta
           ? { yaNativePushLive: "true", yaProbeSecondWsUrl: beta.endpoint }
           : {}),
-        yaProbeUploadBytes: String(mux ? 100 * 1024 * 1024 : 1024 * 1024),
+        yaProbeUploadBytes: String(relay ? 100 * 1024 * 1024 : 1024 * 1024),
+        ...(relayURL ? { yaProbeRelayWsUrl: relayURL } : {}),
         ...(relay
           ? {
-              yaProbeRelayWsUrl: relayURL!,
               yaProbeSecondUsername: "rust-beta",
               yaProbeRelayStatusUrl: `http://127.0.0.1:${relay.port}/status`,
             }
@@ -159,7 +176,7 @@ try {
         value,
       ]);
       console.log(
-        `Android production acceptance: ${push ? "native push + two hosts" : mux ? "mux + 100 MiB" : "direct + security"}`,
+        `Android native acceptance: ${publicRelay ? "public TLS relay + login from Main + WebView" : push ? "native push + two hosts" : mux ? "mux + 100 MiB" : "direct + security"}`,
       );
       const output = await device(
         [
@@ -175,10 +192,14 @@ try {
       );
       console.log(output);
       if (
-        !/OK \(2 tests\)/.test(output) ||
+        !output.includes(
+          `OK (${classes.length} test${classes.length === 1 ? "" : "s"})`,
+        ) ||
         /FAILURES!!!|INSTRUMENTATION_FAILED/.test(output)
       )
-        throw new Error("Owned Android acceptance did not pass both tests");
+        throw new Error(
+          "Owned Android acceptance did not pass every expected test",
+        );
       if (push) {
         const captures = resolve(
           android,

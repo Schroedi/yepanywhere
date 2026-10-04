@@ -59,22 +59,25 @@ class YaRustTerminalException(val phase: YaConnectionPhase) : IllegalStateExcept
 class YaRustProfileConnector(private val repository: YaPairedServerRepository) : YaProfileConnector, Closeable {
     private val active = ConcurrentHashMap.newKeySet<YaRustMessageTransport>()
     private val runtime = NativeRuntime()
-    override suspend fun login(route: YaServerRoute, username: String, password: String): YaMessageTransport {
+    // UniFFI polls suspended Rust futures on the calling coroutine's thread.
+    // Android's TLS verifier can fetch CRLs synchronously during a poll, so
+    // every connection entry point must leave Main even when called by the UI.
+    override suspend fun login(route: YaServerRoute, username: String, password: String): YaMessageTransport = connectOnIo({ it }) {
         val memory = object : CredentialPersistence {
             override fun beginResume() = true
             override fun persist(credential: ByteArray): Boolean { credential.fill(0); return true }
         }
-        return transport(runtime.login(UUID.randomUUID().toString(), nativeRoute(route), username, password, memory), false)
+        transport(runtime.login(UUID.randomUUID().toString(), nativeRoute(route), username, password, memory), false)
     }
-    override suspend fun loginProfile(profile: YaPairedServerProfile, route: YaServerRoute, password: String): YaMessageTransport {
+    override suspend fun loginProfile(profile: YaPairedServerProfile, route: YaServerRoute, password: String): YaMessageTransport = connectOnIo({ it }) {
         val snapshot = repository.snapshot(profile.id)
         val previous = snapshot?.resumeCredential
         val stored = previous ?: YaStoredResumeCredential(YaResumeCredential(profile.username, "pending", ByteArray(32), 3), System.currentTimeMillis(), null)
         val session = runtime.login(profile.id, nativeRoute(route), profile.username, password,
             persistence(profile, stored, pairing = snapshot == null))
-        return transport(session, false)
+        transport(session, false)
     }
-    override suspend fun resume(profile: YaPairedServerProfile, credential: YaResumeCredential): YaRoutedTransport {
+    override suspend fun resume(profile: YaPairedServerProfile, credential: YaResumeCredential): YaRoutedTransport = connectOnIo({ it.transport }) {
         val stored = checkNotNull(repository.snapshot(profile.id)?.resumeCredential)
         val routes = profile.routes.sortedWith(compareByDescending<YaServerRoute> { it.id == profile.preferredRouteId }.thenBy { it.kind != YaServerRouteKind.DIRECT })
         val allowed = routes.filter(::routePermitted).map(::nativeRoute)
@@ -85,7 +88,18 @@ class YaRustProfileConnector(private val repository: YaPairedServerRepository) :
         } catch (_: CoreException.ReauthenticationRequired) { throw YaAllRoutesRejectedException() }
         finally { bytes.fill(0) }
         val transport = transport(session, true)
-        return YaRoutedTransport(profile.routes.first { it.id == session.routeId() }, transport)
+        YaRoutedTransport(profile.routes.first { it.id == session.routeId() }, transport)
+    }
+    private suspend fun <T : Any> connectOnIo(transport: (T) -> YaMessageTransport, operation: suspend () -> T): T {
+        var opened: T? = null
+        try {
+            return withContext(Dispatchers.IO) { operation().also { opened = it } }
+        } catch (error: Throwable) {
+            // withContext can cancel after IO has opened the source but before
+            // delivering its result to Main. Do not strand that native lease.
+            opened?.let { transport(it).cancel() }
+            throw error
+        }
     }
     private fun routePermitted(route: YaServerRoute): Boolean {
         val uri = URI(route.websocketUrl)
