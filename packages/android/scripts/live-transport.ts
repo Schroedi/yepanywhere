@@ -149,6 +149,9 @@ try {
             ]
           : [
               "com.yepanywhere.mobile.web.YaNativeWebAppInstrumentedTest",
+              ...(relay
+                ? []
+                : ["com.yepanywhere.mobile.ui.YaHostSwitchInstrumentedTest"]),
               relay
                 ? "com.yepanywhere.mobile.connection.YaRustRuntimeInstrumentedTest"
                 : "com.yepanywhere.mobile.security.YaSecurityClientE2eInstrumentedTest",

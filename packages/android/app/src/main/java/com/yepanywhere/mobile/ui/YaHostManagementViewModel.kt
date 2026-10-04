@@ -4,8 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.yepanywhere.mobile.YepAnywhereApplication
-import com.yepanywhere.mobile.connection.YaConnectionPhase
-import com.yepanywhere.mobile.connection.YaConnectionState
 import com.yepanywhere.mobile.profiles.YaServerRemovalCoordinator
 import com.yepanywhere.mobile.profiles.YaServerRemovalOutcome
 import kotlinx.coroutines.CancellationException
@@ -34,24 +32,24 @@ class YaHostManagementViewModel(application: Application) : AndroidViewModel(app
                 val snapshots = store.snapshots().associateBy { it.profile.id }
                 mutableState.value = mutableState.value.copy(
                     profiles = list.profiles,
-                    servers = list.profiles.associate { profile ->
-                        val previous = mutableState.value.servers[profile.id]
-                        val phase = when {
-                            profile.securityClient?.revoked == true -> YaConnectionPhase.REVOKED
-                            snapshots[profile.id]?.resumeCredential?.isEligibleAt(System.currentTimeMillis()) != true -> YaConnectionPhase.REAUTHENTICATION_REQUIRED
-                            else -> previous?.connection?.phase ?: YaConnectionPhase.IDLE
-                        }
-                        profile.id to YaHostState(profile,
-                            YaConnectionState(phase), runtime.nativePush.enabled(profile.id))
-                    },
+                    servers = list.profiles.mapNotNull { profile ->
+                        val snapshot = snapshots[profile.id] ?: return@mapNotNull null
+                        profile.id to YaHostState(snapshot.profile,
+                            savedHostConnection(snapshot, runtime.connectionManager(profile.id).state.value, System.currentTimeMillis()),
+                            runtime.nativePush.enabled(profile.id))
+                    }.toMap(),
                 )
                 observers.keys.filter { id -> list.profiles.none { it.id == id } }.forEach { observers.remove(it)?.cancel() }
                 list.profiles.forEach { profile ->
                     if (profile.id !in observers) observers[profile.id] = launch {
-                        runtime.connectionManager(profile.id).state.collect connectionState@ { connection ->
+                        runtime.connectionManager(profile.id).state.collect connectionState@ {
+                            val snapshot = store.snapshot(profile.id) ?: return@connectionState
                             val source = mutableState.value.servers[profile.id] ?: return@connectionState
-                            if (connection.phase != YaConnectionPhase.IDLE || source.connection.phase !in setOf(YaConnectionPhase.REVOKED, YaConnectionPhase.REAUTHENTICATION_REQUIRED)) mutableState.value = mutableState.value.copy(
-                                servers = mutableState.value.servers + (profile.id to source.copy(connection = connection)),
+                            mutableState.value = mutableState.value.copy(
+                                servers = mutableState.value.servers + (profile.id to source.copy(
+                                    profile = snapshot.profile,
+                                    connection = savedHostConnection(snapshot, runtime.connectionManager(profile.id).state.value, System.currentTimeMillis()),
+                                )),
                             )
                         }
                     }

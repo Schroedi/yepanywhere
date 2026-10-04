@@ -211,8 +211,43 @@ app.get("/api/version", async (c) => {
 app.route("/", yaApp);
 const { upgradeWebSocket, wss } = createNodeWebSocket({ app });
 const uploadManager = new UploadManager({ uploadsDir: join(root, "uploads") });
+// A bounded test-controlled pause makes switching during a real resume
+// deterministic. Only the disposable probe exposes this handshake gate.
+let holdResume = false;
+let heldResumes = 0;
+const resumeWaiters = new Set<() => void>();
+function releaseResumes() {
+  holdResume = false;
+  for (const release of resumeWaiters) release();
+  resumeWaiters.clear();
+}
 const wsHandler = createWsRelayRoutes({
-  upgradeWebSocket,
+  upgradeWebSocket: (createEvents) =>
+    upgradeWebSocket((context) => {
+      const events = createEvents(context);
+      return {
+        ...events,
+        onMessage: async (event, ws) => {
+          if (
+            holdResume &&
+            typeof event.data === "string" &&
+            JSON.parse(event.data).type === "srp_resume_init"
+          ) {
+            heldResumes += 1;
+            await new Promise<void>((resolveResume) => {
+              const timer = setTimeout(release, 15_000);
+              function release() {
+                clearTimeout(timer);
+                resumeWaiters.delete(release);
+                resolveResume();
+              }
+              resumeWaiters.add(release);
+            });
+          }
+          return events.onMessage?.(event, ws);
+        },
+      };
+    }),
   app,
   baseUrl: `http://127.0.0.1:${requestedPort}`,
   supervisor,
@@ -251,6 +286,14 @@ if (conversationProbe) {
     await appendFile(nativePath, row("Live preview request") + row(message));
     return c.json({ ok: true, message });
   });
+  app.post("/__probe/resume-hold", (c) => {
+    if (c.req.query("enabled") === "true") {
+      holdResume = true;
+      heldResumes = 0;
+    } else releaseResumes();
+    return c.json({ heldResumes });
+  });
+  app.get("/__probe/resume-hold", (c) => c.json({ heldResumes }));
   app.post("/__probe/disconnect", (c) => {
     for (const socket of wss.clients) socket.close(1012, "Probe reconnect");
     return c.json({ ok: true });
@@ -310,6 +353,7 @@ await new Promise<void>((resolveStop) => {
   process.once("SIGTERM", resolveStop);
 });
 
+releaseResumes();
 stopNotifications();
 watcher?.stop();
 projectGlossarySubscriptionManager.dispose();

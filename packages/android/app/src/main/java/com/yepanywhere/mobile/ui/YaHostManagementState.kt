@@ -2,6 +2,7 @@ package com.yepanywhere.mobile.ui
 
 import com.yepanywhere.mobile.connection.YaConnectionPhase
 import com.yepanywhere.mobile.connection.YaConnectionState
+import com.yepanywhere.mobile.profiles.YaPairedServerSnapshot
 import com.yepanywhere.mobile.profiles.YaPairedServerProfile
 import com.yepanywhere.mobile.profiles.YaServerRoute
 import java.util.Locale
@@ -66,3 +67,20 @@ data class YaHostManagementState(
     val error: YaNativeUiError? = null,
     val removalPrompt: YaRemovalPrompt? = null,
 )
+
+/** Authentication availability is derived afresh, never retained from rendered UI.
+ * Resume temporarily removes the on-disk credential while proving its protocol
+ * pin. An active source owns that transition; cancellation restores the saved
+ * credential and releases the source back to idle.
+ */
+internal fun savedHostConnection(
+    snapshot: YaPairedServerSnapshot,
+    connection: YaConnectionState,
+    nowEpochMs: Long,
+): YaConnectionState = when {
+    snapshot.profile.securityClient?.revoked == true || connection.phase == YaConnectionPhase.REVOKED -> YaConnectionState(YaConnectionPhase.REVOKED)
+    connection.phase in setOf(YaConnectionPhase.CONNECTING, YaConnectionPhase.CONNECTED, YaConnectionPhase.RETRYING) -> connection
+    snapshot.resumeCredential?.isEligibleAt(nowEpochMs) != true -> YaConnectionState(YaConnectionPhase.REAUTHENTICATION_REQUIRED)
+    connection.phase == YaConnectionPhase.REAUTHENTICATION_REQUIRED -> YaConnectionState(YaConnectionPhase.IDLE)
+    else -> connection
+}

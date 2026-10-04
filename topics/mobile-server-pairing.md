@@ -45,6 +45,15 @@ selecting or successfully authenticating a host opens a fresh WebView document
 for that profile. Host selection never modifies another host's credentials, and
 web code does not maintain a second paired-host catalog.
 
+Switch Host disconnects the foreground consumer without signing out the saved
+server. Returning to management during resume must not turn a temporarily absent
+on-disk credential into a persistent sign-in warning. While the source is
+connecting or retrying, management reports that connection state; after it stops,
+management recomputes credential availability. A restored valid credential shows
+an idle saved host and reopens without a password. Missing or expired credentials
+require reauthentication; revocation always wins. Management observes these
+changes without acquiring a connection or background subscription.
+
 Native background work cannot depend on the WebView. The native connection core
 must support Compose and an explicitly enabled foreground activity
 service without allocating a WebView or JavaScript runtime. Native FCM receipt
