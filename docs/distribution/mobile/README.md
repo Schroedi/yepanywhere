@@ -161,6 +161,16 @@ all 895 original bundle entries match the tested candidate. Only the signing
 metadata was added. The [main CI suite](https://github.com/kzahel/yepanywhere/actions/runs/37202914085)
 also passed, including both browser shards and iPad WebKit.
 
+The Android tabs and warm-resume update was published by
+[run 37226132033](https://github.com/kzahel/yepanywhere/actions/runs/37226132033)
+as `0.1.2-ci.473.1` / code `57301`, from `72fbb38fc`. Both Android verification
+gates and publication passed. Play confirms **Available to internal testers**;
+the `published` internal-track receipt names that source commit and its SHA-256
+matches the signed upload. CI repairs covered an emulator Pixel Launcher ANR
+and WebView link names exposed as content descriptions. The separate general
+browser suite retains the
+[mockup caption-icon assertion defect](../../../gaps/mockup-export-caption-icon-count.md).
+
 The main-only GitHub `android-internal` environment holds the existing upload
 key as `ANDROID_UPLOAD_KEYSTORE_BASE64`, `ANDROID_UPLOAD_STORE_PASSWORD` and
 `ANDROID_UPLOAD_KEY_PASSWORD`. The signing step checks its public certificate
