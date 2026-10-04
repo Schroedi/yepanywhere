@@ -40,6 +40,8 @@ import org.junit.runner.RunWith
 /** Real native SRP/resume and the shipped bundled web app against an isolated server. */
 @RunWith(AndroidJUnit4::class)
 class YaNativeWebAppInstrumentedTest {
+    @get:org.junit.Rule
+    val launcherAnrRecovery = com.yepanywhere.mobile.LauncherAnrRecoveryRule()
     @Test
     fun fullWebAppUsesNativeSessionAndReleasesOnlyItsLease() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()

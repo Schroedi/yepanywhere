@@ -184,6 +184,9 @@ try {
       console.log(
         `Android native acceptance: ${publicRelay ? "public TLS relay + login from Main + WebView" : push ? "native push + two hosts" : mux ? "mux + 100 MiB" : "direct + security"}`,
       );
+      const evidence =
+        "/sdcard/Android/data/com.yepanywhere.mobile/files/live-failures";
+      await device(["shell", "rm", "-rf", evidence]);
       const output = await device(
         [
           "shell",
@@ -197,23 +200,25 @@ try {
         true,
       );
       console.log(output);
-      if (
-        !output.includes(
-          `OK (${classes.length} test${classes.length === 1 ? "" : "s"})`,
-        ) ||
-        /FAILURES!!!|INSTRUMENTATION_FAILED/.test(output)
-      ) {
+      // Keep launcher-recovery evidence even when the YA checks then pass.
+      const hasEvidence = await device(["shell", "test", "-d", evidence], true)
+        .then(() => true)
+        .catch(() => false);
+      if (hasEvidence) {
         const reports = resolve(
           android,
           "app/build/reports/native-live",
           mux ? "mux" : "direct",
         );
         await mkdir(reports, { recursive: true });
-        await device([
-          "pull",
-          "/sdcard/Android/data/com.yepanywhere.mobile/files/live-failures",
-          reports,
-        ]).catch(() => {});
+        await device(["pull", evidence, reports]);
+      }
+      if (
+        !output.includes(
+          `OK (${classes.length} test${classes.length === 1 ? "" : "s"})`,
+        ) ||
+        /FAILURES!!!|INSTRUMENTATION_FAILED/.test(output)
+      ) {
         throw new Error(
           "Owned Android acceptance did not pass every expected test",
         );

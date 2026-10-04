@@ -38,6 +38,8 @@ import org.junit.runner.RunWith
 /** Owns one profile and no sibling lease: ordinary switching must fully stop it. */
 @RunWith(AndroidJUnit4::class)
 class YaHostSwitchInstrumentedTest {
+    @get:org.junit.Rule
+    val launcherAnrRecovery = com.yepanywhere.mobile.LauncherAnrRecoveryRule()
     private val hostLabel = "Host switch probe ${java.util.UUID.randomUUID().toString().take(8)}"
     @Test fun switchDuringResumeDoesNotSignOutAndReopensWithoutPassword() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()

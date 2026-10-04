@@ -60,7 +60,12 @@ the probe captures the screen, accessibility hierarchy and window/power state
 before teardown. The live runner retains these under
 `packages/android/app/build/reports/native-live/` for the existing CI artifact
 upload. These captures use the owned fixtures; inspect any local device
-captures before sharing them.
+captures before sharing them. Hosted run `37219989321` established that a
+Pixel Launcher ANR dialog was hiding an otherwise connected YA page from
+accessibility. CI compiles its initial APKs before starting the emulator to
+avoid competing with launcher startup. The UI probes can close that exact
+system-owned Pixel Launcher dialog once per test, on emulators only, and retain
+its evidence. They never dismiss YA ANRs or relax input-readiness/latency gates.
 
 Captured provider regressions run offline in the normal server suite:
 `pnpm --dir packages/server exec vitest run test/captured-provider.test.ts`.

@@ -217,6 +217,14 @@ jobs:
       - name: Prepare bundled client assets
         run: pnpm --filter @yep-anywhere/android prepare-frontend
 
+      # Do not starve the freshly booted launcher with Rust/NDK compilation.
+      # Run 37219989321 left a Pixel Launcher ANR covering the live test UI.
+      - name: Build instrumented APKs before emulator startup
+        working-directory: packages/android
+        run: >-
+          ./gradlew assembleBundledDebug assembleBundledDebugAndroidTest
+          --warning-mode all --no-daemon
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
