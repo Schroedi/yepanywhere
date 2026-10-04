@@ -91,12 +91,14 @@ push-management secrets remain app-private and are not web credentials.
 
 ## Android Internal CI Delivery
 
-Android CI builds a bundled Release AAB in its verification job. Once enabled,
-only successful main runs with both build and instrumentation gates passing
-may sign that exact artifact with the existing upload key and publish it to
-the existing Play internal testing track. Push, nightly and manual main runs
-share this gate; pull requests and forks cannot publish. The hosted-latest
-flavor is verified separately and is not the uploaded package.
+Android CI builds a bundled Release AAB in its verification job. Publication
+requires an explicit manual dispatch on main with `publish_internal=true`,
+the repository publishing switch enabled, and both build and instrumentation
+gates passing. It signs that run's exact artifact with the existing upload key
+and publishes to the existing Play internal testing track. Pushes, nightly
+runs, tags, pull requests, forks and manual runs without the publish option
+cannot publish. The hosted-latest flavor is verified separately and is not
+the uploaded package.
 
 CI codes are `10000 + run_number * 100 + run_attempt`; attempts must remain
 below 100. These monotonically advance for new workflow runs without a source
@@ -111,18 +113,22 @@ to this app's testing releases. Production and tester membership are not
 modified. The workflow retains a signed AAB and receipt with source SHA,
 version, bundle SHA-256, internal track and publication result.
 
-A scheduled repeat of the already published source is skipped. An older version
+A requested release of the already published source is skipped. An older version
 cannot replace a newer internal release. A mismatching uploaded bundle, unknown
 track, failed test, rejected API validation or failed commit stops publication;
-there is no fallback to a different track or an uninstallable draft. Main runs
-are serialized without cancelling an in-progress publication. Failed builds
-leave the preceding available internal release in place.
+there is no fallback to a different track or an uninstallable draft.
+Verification runs cancel superseded runs on the same ref. Explicit release
+runs use a separate concurrency group and finish without automatic cancellation;
+a new push cannot interrupt the selected release or its Play edit. Only the
+latest pending release is retained. Failed builds leave the preceding available
+internal release in place.
 
 Setup and activation state are in [mobile store preparation](../docs/distribution/mobile/README.md#android-ci-internal-delivery).
-Automatic delivery is enabled and verified: the first successful hosted
+The trusted delivery path is enabled and verified: its first successful hosted
 publication produced code 56401, with its signed bundle and receipt retained
 and Play availability confirmed. Both Android verification gates and the
-main browser CI suite passed for that source.
+main browser CI suite passed for that source. The maintainer subsequently
+selected explicit release requests instead of publication after every CI run.
 
 ## Selected iOS Packaging Direction
 

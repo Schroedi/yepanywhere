@@ -10,8 +10,9 @@ the repository and does not require epics, ticket numbers, or pull requests.
 ## 1. Publish the desktop and mobile apps with continuous delivery
 
 **Highest priority.** Make Yep Anywhere available as supported public releases
-on desktop, iOS, and Android, with CI covering every distribution and an
-automatically published **Latest** channel for bleeding-edge builds. Desktop
+on desktop, iOS, and Android, with CI covering every distribution and a
+**Latest** channel for bleeding-edge builds. Android internal releases are
+explicitly requested; desktop Latest publication remains automatic. Desktop
 should graduate from its current beta positioning; mobile should reach the
 App Store and Google Play, not stop at internal testing.
 
@@ -112,9 +113,11 @@ the viewer/download gap remain the next mobile release work.
   Node versions and the pinned Bun runtime, including clean npm installations.
 - [Android CI](../../.github/workflows/android-app-ci.yml) tests and builds
   application artifacts, including a bundled Release AAB. A dependent internal
-  publishing job is enabled with automatic versioning, exact-artifact signing
-  and stale-run protection. Dedicated Google OIDC federation and app-scoped
-  Play testing permissions are verified end to end.
+  publishing job requires a manual main dispatch with `publish_internal=true`,
+  then handles versioning, exact-artifact signing and stale-run protection.
+  Push/nightly verification does not publish and cancels superseded checks;
+  explicit releases finish independently of later pushes. Dedicated Google
+  OIDC federation and app-scoped Play testing permissions are verified end to end.
   [Hosted run 37202914083](https://github.com/kzahel/yepanywhere/actions/runs/37202914083)
   passed both Android gates and published `0.1.2-ci.464.1` (56401), confirmed
   **Available to internal testers**. The signed bundle matches the tested
@@ -134,7 +137,8 @@ the viewer/download gap remain the next mobile release work.
   Retesting the updated Google Play-signed install remains open.
   French classification/filing is deferred before enabling that market; iOS
   tester enrollment and production iOS push remain open. Android internal
-  release automation is live; iOS release automation remains open. See [mobile store preparation](../distribution/mobile/README.md).
+  release delivery is available on explicit request; iOS release automation
+  remains open. See [mobile store preparation](../distribution/mobile/README.md).
 - Native app CI now runs on relevant platform, shared mobile-core and packaging
   changes rather than ordinary web/server edits. Daily Android/iOS acceptance
   and the existing desktop nightly retain full shared-source coverage; manual
@@ -157,8 +161,10 @@ the viewer/download gap remain the next mobile release work.
   workflows rather than creating a parallel release system.
 - [ ] Publish passing, relevant `main` changes to Latest channels without a
   manual version bump, release tag, or upload for each preview build. Include
-  signed desktop updates, Android internal testing, and internal TestFlight;
-  broader mobile testing must respect platform review and distribution rules.
+  signed desktop updates and internal TestFlight. Android internal testing
+  instead uses explicit manual release requests, selected by the maintainer
+  on October 4. Broader mobile testing must respect platform review and
+  distribution rules.
 - [ ] Make each platform's latest available build easy to find, with its
   version, source commit, publication state, and installation path. A failed
   or still-processing build leaves the previous successful build available.

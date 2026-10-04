@@ -144,11 +144,13 @@ applicable declaration/documentation before distributing a build.
 
 The existing [Android workflow](../../../.github/workflows/android-app-ci.yml)
 now produces a bundled Release AAB and has a publication job depending on both
-build/lint/unit checks and WebView instrumentation. Publication is opt-in through
-`ANDROID_PLAY_PUBLISH_ENABLED=true`. The dedicated, keyless Google identity,
+build/lint/unit checks and WebView instrumentation. Publication requires both
+`ANDROID_PLAY_PUBLISH_ENABLED=true` and a manual main dispatch with
+`publish_internal=true` (default: false). The dedicated, keyless Google identity,
 main/workflow/environment-restricted federation, app-only testing grant and
 GitHub configuration are provisioned, the Android Publisher API is enabled,
-and automatic publishing is active.
+and manually requested publishing is available. Pushes and nightly runs verify
+without publishing.
 
 [Hosted CI run 37202914083](https://github.com/kzahel/yepanywhere/actions/runs/37202914083)
 passed build verification and WebView instrumentation, authenticated through
@@ -166,6 +168,20 @@ fingerprint before signing. The repository secret `ANDROID_GOOGLE_SERVICES_JSON`
 restores the same Firebase build configuration before the verified main build;
 PR builds remain credential-free. No app-signing key is exported from Google.
 
+To release a new internal test version, open **Actions → Android App CI → Run
+workflow**, select **main**, and enable **Publish to Play internal testing after
+verification**. The equivalent command is:
+
+```sh
+gh workflow run android-app-ci.yml --ref main -f publish_internal=true
+```
+
+This runs the build and tests, then publishes their exact AAB. A plain manual
+run only verifies. Ordinary verification still runs on its existing push and
+nightly cadence; newer runs on the same ref cancel obsolete verification work.
+Explicit releases run separately and are not cancelled by subsequent pushes.
+No release tag or trusted-publishing permission change is required.
+
 One-time setup and acceptance procedure:
 
 1. Create a dedicated Google service account with no general project roles.
@@ -182,7 +198,8 @@ One-time setup and acceptance procedure:
 4. Set GitHub environment variables `ANDROID_PLAY_WIF_PROVIDER` and
    `ANDROID_PLAY_SERVICE_ACCOUNT` to the provisioned identities. Set the repository
    variable `ANDROID_PLAY_PUBLISH_ENABLED=true` only after these are ready.
-5. Dispatch Android App CI on main and verify a `published` receipt plus
+5. Dispatch Android App CI on main with `publish_internal=true` and verify
+   a `published` receipt plus
    **Available to internal testers** in Play. An upload or draft alone is not
    successful delivery. A draft-app/API restriction must be resolved explicitly;
    the script never silently downgrades to a draft or chooses another track.

@@ -95,10 +95,13 @@ Ordinary web UI, server, shared-code and root lockfile changes do not trigger
 native application builds by themselves. Android runs the full build and
 WebView instrumentation workflow daily at 04:17 UTC; iOS runs its full Rust,
 simulator and unsigned-device workflow at 04:47 UTC. Both scheduled runs check
-the current default-branch source, including bundled web changes. Android can
-publish its verified bundled AAB to internal testing after the separate
-[delivery setup](../distribution/mobile/README.md#android-ci-internal-delivery)
-is enabled; iOS still does not publish store releases. GitHub may delay scheduled starts.
+the current default-branch source, including bundled web changes. Push and
+scheduled Android runs verify without publishing. An explicit manual main
+run with `publish_internal=true` can publish its verified bundled AAB after
+[delivery setup](../distribution/mobile/README.md#android-ci-internal-delivery).
+Superseded Android verification runs on the same ref are cancelled; explicit
+release runs use a separate group and finish even if new pushes arrive.
+iOS still does not publish store releases. GitHub may delay scheduled starts.
 
 Desktop retains its existing 02:37 UTC Nightly Desktop release, which selects
 verified main source and skips unchanged packaged inputs. Its per-change

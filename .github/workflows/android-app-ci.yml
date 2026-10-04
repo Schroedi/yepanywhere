@@ -37,6 +37,11 @@ on:
   schedule:
     - cron: '17 4 * * *'
   workflow_dispatch:
+    inputs:
+      publish_internal:
+        description: 'Publish to Play internal testing after verification (main only)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -45,10 +50,10 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 concurrency:
-  group: android-app-${{ github.workflow }}-${{ github.ref }}
-  # Do not cancel an in-flight Play edit on main. New pending runs supersede
-  # older pending runs, while the active run finishes transactionally.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Verification runs coalesce; explicit releases use a separate group so a
+  # later push cannot cancel the selected release or interrupt its Play edit.
+  group: android-app-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.publish_internal && 'publish' || 'verify' }}
+  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && inputs.publish_internal) }}
 
 jobs:
   verify-android-app:
@@ -261,7 +266,8 @@ jobs:
     if: >-
       github.repository == 'kzahel/yepanywhere' &&
       github.ref == 'refs/heads/main' &&
-      github.event_name != 'pull_request' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.publish_internal &&
       vars.ANDROID_PLAY_PUBLISH_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
