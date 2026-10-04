@@ -39,6 +39,14 @@ listing text, app icon and feature graphic as a draft, plus a dedicated internal
 tester list. The first local upload artifacts are built from committed source:
 Android 0.1.0 / version code 1000 is active and available to the selected
 internal testers; its opt-in page was verified with the maintainer account.
+On October 4, the first installed Android release exposed a UI-initiated TLS
+login failure: the OS verifier attempted certificate revocation network work
+on Main before SRP started. Android 0.1.1 / version code 1001 moves native
+connection setup to IO without relaxing certificate verification. Its signed
+bundle is prepared from committed source; upload to the internal track is still
+pending. Physical acceptance now covers Main-initiated public TLS relay login,
+the bundled WebView, and a separate isolated package built with production
+Release shrinking rules. The earlier background/plaintext probes missed this.
 iOS 0.1.0 / build 1 uploaded through Xcode's TestFlight Internal Only flow and
 now shows **Ready to Test** after saving the encryption questionnaire with
 France excluded. iOS tester enrollment remains open.
