@@ -58,18 +58,20 @@ class YaNativeWebAppInstrumentedTest {
         val application = instrumentation.targetContext.applicationContext as YepAnywhereApplication
         val runtime = application.nativeRuntime
         val previous = runBlocking { runtime.pairedServers.selectedProfileId.first() }
+        val hostLabel = "WebView probe ${java.util.UUID.randomUUID().toString().take(8)}"
         val profile = runBlocking { withTimeout(15_000) {
             // Match the native login ViewModel's Main dispatcher. Starting this
             // on the instrumentation thread hid TLS revocation network checks
             // running on Main in the shipping login form.
             withContext(Dispatchers.Main) {
-                runtime.pairing.pair("WebView probe", checkNotNull(username), checkNotNull(password),
+                runtime.pairing.pair(hostLabel, checkNotNull(username), checkNotNull(password),
                     if (relayWs == null) YaServerRoute.direct(checkNotNull(ws)) else YaServerRoute.relay(relayWs, checkNotNull(username)))
             }
         } }
+        val secondHostLabel = "Second host ${java.util.UUID.randomUUID().toString().take(8)}"
         val secondProfile = args.getString("yaProbeSecondUsername")?.let { secondUsername ->
             runBlocking { withTimeout(15_000) {
-                runtime.pairing.pair("Second host", secondUsername, checkNotNull(password), YaServerRoute.relay(checkNotNull(relayWs), secondUsername))
+                runtime.pairing.pair(secondHostLabel, secondUsername, checkNotNull(password), YaServerRoute.relay(checkNotNull(relayWs), secondUsername))
             } }
         }
         val manager = runtime.connectionManager(profile.id)
@@ -236,11 +238,11 @@ class YaNativeWebAppInstrumentedTest {
             assertEquals(identity, evaluate(scenario, "JSON.stringify([performance.timeOrigin, window.warmDocument.identity])"))
             // Plus creates a distinct same-host tab. Returning restores navigation.
             device.findObject(By.desc("New tab")).click()
-            device.wait(Until.findObject(By.res("android", "text1").text("WebView probe")), 5_000).click()
+            device.wait(Until.findObject(By.res("android", "text1").text(hostLabel)), 5_000).click()
             await(scenario, "location.pathname === '/projects' && document.body.textContent.includes('preview-project')")
             assertTrue(device.hasObject(By.desc("Tabs, 2 open")))
             device.findObject(By.desc("Tabs, 2 open")).click()
-            device.wait(Until.findObject(By.desc("Switch to tab: WebView probe, /projects/$projectId/sessions/android-preview-session")), 5_000).click()
+            device.wait(Until.findObject(By.desc("Switch to tab: $hostLabel, /projects/$projectId/sessions/android-preview-session")), 5_000).click()
             await(scenario, "location.pathname.endsWith('/sessions/android-preview-session') && document.body.textContent.includes('Preview message 50')")
             evaluate(scenario, """
                 (() => { const link = document.createElement('a'); link.id = 'native-tab-link';
@@ -258,7 +260,7 @@ class YaNativeWebAppInstrumentedTest {
             assertTrue(device.wait(Until.hasObject(By.desc("Tabs, 4 open")), 5_000))
             device.findObject(By.desc("Tabs, 4 open")).click()
             captureTabs(device, application, "native-tabs.png")
-            device.wait(Until.findObject(By.desc("Switch to tab: WebView probe, /projects/$projectId/sessions/android-preview-session")), 5_000).click()
+            device.wait(Until.findObject(By.desc("Switch to tab: $hostLabel, /projects/$projectId/sessions/android-preview-session")), 5_000).click()
             await(scenario, "location.pathname.endsWith('/sessions/android-preview-session') && document.body.textContent.includes('Preview message 50')")
             // External new-window URLs are handed to Android, never an app tab.
             evaluate(scenario, """
@@ -276,18 +278,18 @@ class YaNativeWebAppInstrumentedTest {
             assertTrue(device.hasObject(By.desc("Tabs, 4 open")))
             if (secondProfile != null) {
                 device.findObject(By.desc("New tab")).click()
-                device.wait(Until.findObject(By.res("android", "text1").text("Second host")), 5_000).click()
+                device.wait(Until.findObject(By.res("android", "text1").text(secondHostLabel)), 5_000).click()
                 await(scenario, "document.body.textContent.includes('preview-project')")
                 scenario.onActivity { assertEquals(secondProfile.id, it.nativeTransportDiagnostics()?.getString("profileId")) }
                 device.findObject(By.desc("Tabs, 5 open")).click()
                 captureTabs(device, application, "native-tabs-hosts.png")
-                device.wait(Until.findObject(By.desc("Switch to tab: WebView probe, /projects/$projectId/sessions/android-preview-session")), 5_000).click()
+                device.wait(Until.findObject(By.desc("Switch to tab: $hostLabel, /projects/$projectId/sessions/android-preview-session")), 5_000).click()
                 await(scenario, "document.body.textContent.includes('Preview message 50')")
                 scenario.onActivity { assertEquals(profile.id, it.nativeTransportDiagnostics()?.getString("profileId")) }
                 // Closing the second host removes metadata and releases only its consumer.
                 device.findObject(By.desc("Tabs, 5 open")).click()
-                device.wait(Until.findObject(By.desc("Close tab: Second host")), 5_000).click()
-                assertTrue(device.wait(Until.gone(By.desc("Close tab: Second host")), 5_000))
+                device.wait(Until.findObject(By.desc("Close tab: $secondHostLabel")), 5_000).click()
+                assertTrue(device.wait(Until.gone(By.desc("Close tab: $secondHostLabel")), 5_000))
                 assertTrue(device.wait(Until.hasObject(By.text("Tabs")), 5_000))
                 device.waitForIdle()
                 device.pressBack()
@@ -301,9 +303,14 @@ class YaNativeWebAppInstrumentedTest {
             await(scenario, "!!document.querySelector('.sidebar-switch-host')")
             evaluate(scenario, "document.querySelector('.sidebar-switch-host').click(); true")
             assertTrue("Switch Host did not open native management", device.wait(Until.hasObject(By.text("Servers")), 5_000))
-            assertTrue(device.wait(Until.hasObject(By.text("WebView probe")), 5_000))
+            assertTrue(device.wait(Until.hasObject(By.text(hostLabel)), 5_000))
             scenario.close()
             assertEquals(200, runBlocking { sibling.request("GET", "/version").status })
+        } catch (error: Throwable) {
+            var details = ""
+            scenario.onActivity { details = "native=${it.nativeTransportDiagnostics()}; manager=${manager.state.value}" }
+            com.yepanywhere.mobile.UiFailureCapture.save("native-web", details)
+            throw error
         } finally {
             if (testNetwork) {
                 device.executeShellCommand("svc wifi ${if (wifiEnabled) "enable" else "disable"}")

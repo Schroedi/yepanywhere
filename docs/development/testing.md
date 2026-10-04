@@ -54,6 +54,13 @@ The typing probe taps the WebView editor through Android accessibility and
 requires window focus, an active input connection and stable viewport before
 injecting sequential hardware keys. Input-readiness failure must fail setup,
 including on emulators; it must never continue into a partial typing sample.
+Live fixture hosts have unique display names so a previous interrupted run
+cannot redirect a later host-picker tap to a stopped server. On UI failure,
+the probe captures the screen, accessibility hierarchy and window/power state
+before teardown. The live runner retains these under
+`packages/android/app/build/reports/native-live/` for the existing CI artifact
+upload. These captures use the owned fixtures; inspect any local device
+captures before sharing them.
 
 Captured provider regressions run offline in the normal server suite:
 `pnpm --dir packages/server exec vitest run test/captured-provider.test.ts`.

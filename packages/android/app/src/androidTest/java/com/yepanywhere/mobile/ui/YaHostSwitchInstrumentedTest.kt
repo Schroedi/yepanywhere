@@ -38,6 +38,7 @@ import org.junit.runner.RunWith
 /** Owns one profile and no sibling lease: ordinary switching must fully stop it. */
 @RunWith(AndroidJUnit4::class)
 class YaHostSwitchInstrumentedTest {
+    private val hostLabel = "Host switch probe ${java.util.UUID.randomUUID().toString().take(8)}"
     @Test fun switchDuringResumeDoesNotSignOutAndReopensWithoutPassword() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val args = InstrumentationRegistry.getArguments()
@@ -48,7 +49,7 @@ class YaHostSwitchInstrumentedTest {
         val app = instrumentation.targetContext.applicationContext as YepAnywhereApplication
         val runtime = app.nativeRuntime
         val previous = runBlocking { runtime.pairedServers.selectedProfileId.first() }
-        val profile = runBlocking { runtime.pairing.pair("Host switch probe", checkNotNull(username), checkNotNull(password), YaServerRoute.direct(checkNotNull(ws))) }
+        val profile = runBlocking { runtime.pairing.pair(hostLabel, checkNotNull(username), checkNotNull(password), YaServerRoute.direct(checkNotNull(ws))) }
         val manager = runtime.connectionManager(profile.id)
         val http = OkHttpClient()
         val base = checkNotNull(ws).replace("ws://", "http://").substringBefore("/api/ws")
@@ -105,6 +106,9 @@ class YaHostSwitchInstrumentedTest {
             // The retained page is visible before transport finishes resuming.
             runBlocking { withTimeout(10_000) { manager.state.first { it.phase == YaConnectionPhase.CONNECTED } } }
             assertEquals(YaConnectionPhase.CONNECTED, manager.state.value.phase)
+        } catch (error: Throwable) {
+            com.yepanywhere.mobile.UiFailureCapture.save("host-switch")
+            throw error
         } finally {
             control("resume-hold?enabled=false")
             instrumentation.runOnMainSync {
@@ -125,7 +129,7 @@ class YaHostSwitchInstrumentedTest {
     private fun hostCard(device: UiDevice): UiObject2 {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
         while (System.nanoTime() < deadline) {
-            val label = device.findObject(By.text("Host switch probe"))
+            val label = device.findObject(By.text(hostLabel))
             var node = label?.parent
             while (node != null) {
                 val buttons = node.findObjects(By.text("Open full app"))

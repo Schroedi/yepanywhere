@@ -202,10 +202,22 @@ try {
           `OK (${classes.length} test${classes.length === 1 ? "" : "s"})`,
         ) ||
         /FAILURES!!!|INSTRUMENTATION_FAILED/.test(output)
-      )
+      ) {
+        const reports = resolve(
+          android,
+          "app/build/reports/native-live",
+          mux ? "mux" : "direct",
+        );
+        await mkdir(reports, { recursive: true });
+        await device([
+          "pull",
+          "/sdcard/Android/data/com.yepanywhere.mobile/files/live-failures",
+          reports,
+        ]).catch(() => {});
         throw new Error(
           "Owned Android acceptance did not pass every expected test",
         );
+      }
       if (push) {
         const captures = resolve(
           android,
