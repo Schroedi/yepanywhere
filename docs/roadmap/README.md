@@ -74,7 +74,7 @@ Android's R8-minified physical Pixel proof includes two hosts on one relay socke
 and a 100 MiB upload with 16.6 ms peak typing latency. iOS simulator acceptance
 and the physical iPhone native/UI suites pass; the updated physical typing proof
 records 37 inputs, zero drops, 19 ms peak and 294 concurrent mutations.
-Release builds and required root checks pass. Store publication, remaining native push acceptance and
+Release builds and required local checks pass. Store publication, remaining native push acceptance and
 the viewer/download gap remain the next mobile release work.
 
 ### Current baseline
