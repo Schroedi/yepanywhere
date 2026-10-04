@@ -300,6 +300,12 @@ if (conversationProbe) {
   });
 }
 
+let resolveRelayReady: () => void = () => {};
+const relayReady = relayUrl
+  ? new Promise<void>((resolve) => {
+      resolveRelayReady = resolve;
+    })
+  : Promise.resolve();
 const relayClientService = relayUrl ? new RelayClientService() : null;
 if (relayClientService) {
   const acceptRelayConnection = createAcceptRelayConnection({
@@ -322,6 +328,9 @@ if (relayClientService) {
     username,
     installId: "android-native-probe-install",
     onRelayConnection: acceptRelayConnection,
+    onStatusChange: (status) => {
+      if (status === "waiting") resolveRelayReady();
+    },
   });
 }
 
@@ -333,10 +342,7 @@ await new Promise<void>((resolveReady) => {
       hostname: "127.0.0.1",
       port: requestedPort,
     },
-    ({ port }) => {
-      console.log(
-        `YA_NATIVE_PROBE_READY ${JSON.stringify({ port, username, data: "temporary" })}`,
-      );
+    () => {
       resolveReady();
     },
   );
@@ -347,6 +353,13 @@ attachUnifiedUpgradeHandler(server!, {
   app,
   wss,
 });
+
+// The fixture runner already bounds startup. A listening HTTP port alone does
+// not mean a public-relay phone can pair with this freshly registered host.
+await relayReady;
+console.log(
+  `YA_NATIVE_PROBE_READY ${JSON.stringify({ port: requestedPort, username, data: "temporary" })}`,
+);
 
 await new Promise<void>((resolveStop) => {
   process.once("SIGINT", resolveStop);
