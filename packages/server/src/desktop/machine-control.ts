@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Socket, createConnection } from "node:net";
+import { type Socket, createConnection } from "node:net";
 import type { Context } from "hono";
 import { PRINCIPAL_VARIABLE } from "../auth/principal.js";
 import { hasCredentialProof } from "../middleware/auth.js";
