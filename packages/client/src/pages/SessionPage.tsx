@@ -4712,13 +4712,27 @@ function SessionPageContent({
         return startBtwAside(argument);
       }
       if (command === "done") {
-        if (!closeFocusedBtwAside(argument)) {
-          showToast(
-            "/done closes a focused /btw aside; no aside is focused.",
-            "error",
-          );
+        if (closeFocusedBtwAside(argument)) {
+          return true;
         }
-        return true;
+        // Menu and toolbar selection reach here without the composer's
+        // submit routing, so apply the same decision it would.
+        const sessionOperation = resolveComposerSessionOperation({
+          text: argument ? `/done ${argument}` : "/done",
+          routesToFocusedAside: false,
+          syntheticDoneEnabled,
+          syntheticDoneSupported: supportsSyntheticDone,
+          syntheticArchiveSupported: supportsSyntheticArchive,
+          syntheticTerminateSupported: supportsSyntheticTerminate,
+          hasAttachments:
+            attachmentsRef.current.length > 0 ||
+            pendingUploadsRef.current.size > 0,
+        });
+        if (sessionOperation.kind === "session-boundary") {
+          void handleSyntheticSessionBoundary(sessionOperation.command);
+          return true;
+        }
+        return false;
       }
       if (
         command === "clear" ||
@@ -4733,9 +4747,13 @@ function SessionPageContent({
       closeFocusedBtwAside,
       handleCompactSession,
       handleRewindCommand,
-      showToast,
+      handleSyntheticSessionBoundary,
       startBtwAside,
       supportsManualCompact,
+      supportsSyntheticArchive,
+      supportsSyntheticDone,
+      supportsSyntheticTerminate,
+      syntheticDoneEnabled,
     ],
   );
 
