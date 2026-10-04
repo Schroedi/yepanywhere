@@ -238,7 +238,7 @@ import {
   prependSpeechMessagePrefix,
   resolveDeliverySpeechPrefix,
 } from "../lib/speechMessagePrefix";
-import { isVoiceInputShortcut } from "../lib/voiceInputShortcut";
+import { handleVoiceInputShortcutKeyDown } from "../lib/voiceInputShortcut";
 import { generateUUID } from "../lib/uuid";
 import { useVersion } from "../hooks/useVersion";
 import { useSpeechCaptureSettings } from "../hooks/useSpeechCaptureSettings";
@@ -3533,12 +3533,10 @@ export function NewSessionForm({
 
   const handleComposerKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
-      if (!isVoiceInputShortcut(event)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const voice = voiceButtonRef.current;
-      if (!voice?.isAvailable) return;
-      voice.toggle();
+      handleVoiceInputShortcutKeyDown(event, () => {
+        const voice = voiceButtonRef.current;
+        if (voice?.isAvailable) voice.toggle();
+      });
     },
     [],
   );

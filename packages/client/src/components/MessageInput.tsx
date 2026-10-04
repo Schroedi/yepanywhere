@@ -120,7 +120,7 @@ import {
   createClientSpeechTurnId,
   createSpeechTargetId,
 } from "../lib/speechTargets";
-import { isVoiceInputShortcut } from "../lib/voiceInputShortcut";
+import { handleVoiceInputShortcutKeyDown } from "../lib/voiceInputShortcut";
 import { serverSupportsProjectQueue } from "../lib/projectQueueVisibility";
 import { hasComposerDraftContent } from "../lib/sessionComposerSubmission";
 import type {
@@ -3574,12 +3574,10 @@ export function MessageInput({
           return;
         }
       }
-      if (!isVoiceInputShortcut(event)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const voice = voiceButtonRef.current;
-      if (!voice?.isAvailable) return;
-      voice.toggle();
+      handleVoiceInputShortcutKeyDown(event, () => {
+        const voice = voiceButtonRef.current;
+        if (voice?.isAvailable) voice.toggle();
+      });
     },
     [newSessionOptionsMode, closeNewSessionOptions],
   );

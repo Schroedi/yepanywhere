@@ -3,6 +3,7 @@
 import {
   act,
   cleanup,
+  createEvent,
   fireEvent,
   render,
   screen,
@@ -32,6 +33,7 @@ import { invalidateLocalStorageValues } from "../../lib/localStorageValue";
 import type { SpeechCommitOutcome } from "../../lib/speechDraftTransaction";
 import { createClientSlashCommand } from "../../lib/slashCommands";
 import { UI_KEYS } from "../../lib/storageKeys";
+import { installModifierChordTracking } from "../../lib/modifierChords";
 import { createTranscriptPositionStore } from "../../lib/transcriptPositionStore";
 import {
   YA_GROK_BATCH_SPEECH_METHOD,
@@ -2472,6 +2474,33 @@ describe("MessageInput", () => {
     });
 
     expect(mockVoiceToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("types Space rolled over from Ctrl+V instead of toggling voice", () => {
+    const stopTracking = installModifierChordTracking();
+    try {
+      const textarea = renderMessageInput() as HTMLTextAreaElement;
+      act(() => textarea.focus());
+      const key = (
+        type: "keyDown" | "keyUp",
+        init: { key: string; code: string },
+        at: number,
+      ) => {
+        const event = createEvent[type](textarea, { ...init, ctrlKey: true });
+        Object.defineProperty(event, "timeStamp", { value: at });
+        fireEvent(textarea, event);
+      };
+
+      key("keyDown", { key: "Control", code: "ControlLeft" }, 0);
+      key("keyDown", { key: "v", code: "KeyV" }, 10);
+      key("keyUp", { key: "v", code: "KeyV" }, 40);
+      key("keyDown", { key: " ", code: "Space" }, 60);
+
+      expect(mockVoiceToggle).not.toHaveBeenCalled();
+      expect(textarea.value).toBe(" ");
+    } finally {
+      stopTracking();
+    }
   });
 
   it("does not focus the textarea when mobile voice starts or stops", () => {
